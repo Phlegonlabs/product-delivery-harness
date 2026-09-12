@@ -237,8 +237,10 @@ def build_view(plan: dict[str, Any], run: dict[str, Any]) -> str:
         (
             f"Human view of run `{run.get('run_id')}` ({run.get('status')}) "
             f"against PLAN `{plan.get('plan_id')}` revision {plan.get('revision')}. "
-            "`RUN.md` is authoritative: never edit this file by hand, regenerate "
-            "it with `scripts/render_tasks_view.py` after RUN.md changes."
+            "`RUN.md` is authoritative for mission and task state: never edit "
+            "the generated part of this file by hand — regenerate it with "
+            "`scripts/render_tasks_view.py` after RUN.md changes; the fenced "
+            "Update Log at the end is the one hand-maintained section."
         ),
         "",
         f"- Progress: {integrated}/{mission_total} missions integrated · "

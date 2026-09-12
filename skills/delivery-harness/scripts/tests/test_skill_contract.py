@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.35.1"', package)
+        self.assertIn('"version": "0.35.2"', package)
         self.assertEqual(
-            "0.35.1",
+            "0.35.2",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -469,6 +469,13 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("| code_security_verification |", project_agents)
         self.assertIn("a project edit, not a harness change", project_agents)
         self.assertIn("An unbound slot uses the bundled default", project_agents)
+        # Required Reading names the installed orchestration skill itself; the
+        # Skill Bindings table binds only the stage slots it dispatches.
+        self.assertIn(
+            "the installed `delivery-harness` SKILL.md (the orchestration skill itself",
+            project_agents,
+        )
+        self.assertNotIn("bound in the Skill Bindings table", project_agents)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
 
     @unittest.skipIf(REPO_ROOT is None, "security skill requires a source checkout")
@@ -604,6 +611,15 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Motion is a design decision, not an implementation preference", contract
         )
         self.assertIn("Static screenshots never close a motion change", gates)
+        self.assertIn("strongest task impact", contract)
+        self.assertIn(
+            "`doc_delta` is required when that strongest impact is `structure` or `both`",
+            contract,
+        )
+        self.assertIn("`integration_notes` line", worker_goal)
+        self.assertIn("UI impact: <none|style|structure|both>", worker_goal)
+        self.assertIn("is a recorded attestation, not a validator-proven fact", gates)
+        self.assertIn("strongest task impact the mission's workers reported", gates)
 
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")
@@ -909,7 +925,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.35.1"', runbook)
+        self.assertIn('"required_harness_version": "0.35.2"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

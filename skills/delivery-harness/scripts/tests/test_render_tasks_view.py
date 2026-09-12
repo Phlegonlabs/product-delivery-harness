@@ -222,6 +222,21 @@ class RenderTasksViewTests(unittest.TestCase):
             ),
         )
 
+    def test_fresh_render_scopes_the_never_edit_warning_to_the_generated_part(self) -> None:
+        run_path = self.generate_run()
+        out = self.dir / "tasks.md"
+
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            ),
+        )
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("never edit the generated part", text)
+        self.assertIn("the one hand-maintained section", text)
+        self.assertIn("## Update Log", text)
+
     def test_update_log_rows_survive_re_render_verbatim(self) -> None:
         run_path = self.generate_run()
         out = self.dir / "tasks.md"

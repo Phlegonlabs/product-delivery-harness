@@ -239,6 +239,8 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
                 "docs/goal/PLAN.md",
                 "docs/goal/RUN.md",
                 "docs/goal/DECISIONS.md",
+                "docs/goal/REFINEMENT_BACKLOG.md",
+                "docs/tasks.md",
             ],
         },
         "batch_gate_results": _gate_results(plan.get("batch_verifiers")),

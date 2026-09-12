@@ -271,3 +271,31 @@ REVIEWER_TOOL_SURFACES = {
     "pi": "pi_chrome_devtools",
     "generic": "none",
 }
+
+
+def run_required_harness_version(run: object) -> str | None:
+    """Read the RUN version gate's required harness version defensively."""
+
+    runtime = run.get("runtime_capabilities") if isinstance(run, dict) else None
+    adapter = runtime.get("runtime_adapter") if isinstance(runtime, dict) else None
+    gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
+    version = gate.get("required_harness_version") if isinstance(gate, dict) else None
+    return version if isinstance(version, str) else None
+
+
+def version_at_least(value: object, minimum: tuple[int, int, int]) -> bool:
+    """Compare a release string to `minimum` under one strict rule.
+
+    One pre-release (`-rc.1`) or build (`+build.5`) suffix is stripped, then
+    the core must be exactly three numeric dot-parts. Anything else -- short
+    forms like `0.35`, four-part numbers, junk, None -- fails the gate so a
+    malformed pin never widens what a RUN file must carry.
+    """
+
+    if not isinstance(value, str):
+        return False
+    core = value.split("+", 1)[0].split("-", 1)[0]
+    parts = core.split(".")
+    if len(parts) != 3 or any(not part.isdigit() for part in parts):
+        return False
+    return tuple(int(part) for part in parts) >= minimum

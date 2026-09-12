@@ -25,6 +25,8 @@ from harness_schema import (
     GATE_VALUES,
     SHA256_RE,
     UI_EVIDENCE_IMAGE_SUFFIXES,
+    run_required_harness_version,
+    version_at_least,
 )
 
 
@@ -145,27 +147,6 @@ UI_DEVIATION_LEDGER_REQUIRED_VERSION = (0, 35, 0)
 UI_IMPACT_VALUES = {"none", "style", "structure", "both"}
 
 
-def _run_required_harness_version(run: dict[str, Any]) -> str | None:
-    runtime = run.get("runtime_capabilities")
-    adapter = runtime.get("runtime_adapter") if isinstance(runtime, dict) else None
-    gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
-    version = gate.get("required_harness_version") if isinstance(gate, dict) else None
-    return version if isinstance(version, str) else None
-
-
-def _version_at_least(value: str | None, minimum: tuple[int, int, int]) -> bool:
-    if not value:
-        return False
-    parts: list[int] = []
-    for piece in value.split("."):
-        if not piece.isdigit():
-            return False
-        parts.append(int(piece))
-    while len(parts) < len(minimum):
-        parts.append(0)
-    return tuple(parts[: len(minimum)]) >= minimum
-
-
 def _layout_check_required(run: dict[str, Any]) -> bool:
     """RUN-v11 files pinned to harness 0.34.0+ carry layout_check on every row.
 
@@ -173,8 +154,8 @@ def _layout_check_required(run: dict[str, Any]) -> bool:
     frozen row shape so in-flight RUN files stay valid.
     """
 
-    return run.get("schema_version") == 11 and _version_at_least(
-        _run_required_harness_version(run), UI_LAYOUT_CHECK_REQUIRED_VERSION
+    return run.get("schema_version") == 11 and version_at_least(
+        run_required_harness_version(run), UI_LAYOUT_CHECK_REQUIRED_VERSION
     )
 
 
@@ -224,8 +205,8 @@ def _deviation_ledger_required(run: dict[str, Any]) -> bool:
     their frozen shape so in-flight RUN files stay valid.
     """
 
-    return run.get("schema_version") == 11 and _version_at_least(
-        _run_required_harness_version(run), UI_DEVIATION_LEDGER_REQUIRED_VERSION
+    return run.get("schema_version") == 11 and version_at_least(
+        run_required_harness_version(run), UI_DEVIATION_LEDGER_REQUIRED_VERSION
     )
 
 

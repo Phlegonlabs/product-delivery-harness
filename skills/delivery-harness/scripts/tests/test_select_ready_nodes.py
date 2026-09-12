@@ -219,6 +219,8 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
         "docs/goal/PLAN.md",
         "docs/goal/RUN.md",
         "docs/goal/DECISIONS.md",
+        "docs/goal/REFINEMENT_BACKLOG.md",
+        "docs/tasks.md",
     ]
     run["review_lineages"] = {
         node["review"]["lineage_id"]: {

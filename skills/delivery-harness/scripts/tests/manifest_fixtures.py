@@ -37,12 +37,16 @@ def wireframes_html(
     *,
     product: str = "Fixture Product",
     approval_status: str = "approved",
+    schema: str = "wireframes/2",
+    viewports: list[int] | tuple[int, ...] = (390, 1200),
 ) -> str:
     """A wireframes.html that passes product-definition-builder's full checker.
 
     Each screen dict carries the PLAN surface's ``id``, ``route``, and
     ``states``; the shell carries every reviewer marker and stays
-    self-contained.
+    self-contained. Pass ``schema="wireframes/3"`` with three viewports for
+    the current three-viewport web contract; the default stays at the
+    legacy wireframes/2 two-target shape.
     """
 
     data_screens: list[dict[str, object]] = []
@@ -69,22 +73,23 @@ def wireframes_html(
                 ],
                 "neverDrop": [region_id],
                 "responsiveLayouts": {
-                    "390": {
+                    str(viewport): {
                         "order": [region_id],
                         "hidden": [],
-                        "columns": 1,
-                        "spans": {region_id: 1},
-                        "reflow": "Stack the fixture region",
-                        "interaction": "Use touch-sized controls",
-                    },
-                    "1200": {
-                        "order": [region_id],
-                        "hidden": [],
-                        "columns": 12,
-                        "spans": {region_id: 12},
-                        "reflow": "Use the expanded fixture grid",
-                        "interaction": "Support pointer and keyboard input",
-                    },
+                        "columns": 1 if index == 0 else 12,
+                        "spans": {region_id: 1 if index == 0 else 12},
+                        "reflow": (
+                            "Stack the fixture region"
+                            if index == 0
+                            else "Use the expanded fixture grid"
+                        ),
+                        "interaction": (
+                            "Use touch-sized controls"
+                            if index == 0
+                            else "Support pointer and keyboard input"
+                        ),
+                    }
+                    for index, viewport in enumerate(viewports)
                 },
                 "states": [
                     {
@@ -97,12 +102,12 @@ def wireframes_html(
             }
         )
     data = {
-        "schema": "wireframes/2",
+        "schema": schema,
         "product": product,
         "approvalStatus": approval_status,
         "source": "PRD.md#UI-Surface-Contract",
-        "viewports": [390, 1200],
-        "canvasWidths": {"390": 390, "1200": 1200},
+        "viewports": list(viewports),
+        "canvasWidths": {str(viewport): viewport for viewport in viewports},
         "screens": data_screens,
     }
     return (
@@ -570,6 +575,8 @@ def _valid_run(plan: dict[str, object]) -> dict[str, object]:
                 "docs/goal/PLAN.md",
                 "docs/goal/RUN.md",
                 "docs/goal/DECISIONS.md",
+                "docs/goal/REFINEMENT_BACKLOG.md",
+                "docs/tasks.md",
             ],
         },
         "landing": {

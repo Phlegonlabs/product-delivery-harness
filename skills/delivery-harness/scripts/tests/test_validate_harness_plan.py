@@ -23,6 +23,7 @@ from harness_manifest import plan_digest  # noqa: E402
 from harness_design_contract import generated_contract_block  # noqa: E402
 from harness_contract_join import (  # noqa: E402
     full_wireframe_checker_errors,
+    validate_frozen_contract_joins,
     validate_plan_prd_text,
 )
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
@@ -1122,6 +1123,239 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertIn("primitives.Stack.dsId must match", joined)
         self.assertIn("productComponents.Card.dsId must match", joined)
         self.assertIn("signatureRules entry must match", joined)
+
+    @staticmethod
+    def web_floor_registry(viewports: list[int]) -> dict[str, object]:
+        return {
+            "schema": "design-system/1",
+            "product": "Fixture Product",
+            "platform": "web",
+            "stylingMechanism": "plain CSS",
+            "enforcement": "blocking",
+            "tokenSources": ["src/styles/tokens.css"],
+            "primitiveSources": [],
+            "viewports": list(viewports),
+            "tokens": {},
+            "primitives": {},
+            "productComponents": {},
+            "signatureRules": [],
+            "motionVariants": [],
+            "stateMatrix": ["ready"],
+        }
+
+    def run_gated_pair_cli(
+        self, viewports: list[int], *, gate: str | None
+    ) -> dict[str, object]:
+        """Validate a fully joined PLAN/RUN pair; return the CLI payload.
+
+        Every responsive surface agrees on `viewports`, so the only possible
+        failures are the version-gated three-viewport web floor and whatever
+        the test under construction breaks on purpose.
+        """
+
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "not_applicable",
+            "skill_slot": "code_security_verification",
+            "reason": "fixture has no implementation candidate",
+        }
+        breakpoints = [str(value) for value in viewports]
+        plan["ui_surfaces"] = [dict(HOME_SURFACE, breakpoints=breakpoints)]
+        prd_text = (
+            "<!-- ui-surface-contract:start -->\n"
+            "## UI Surface Contract\n\n"
+            "### UI-001 — Home\n\n"
+            "- `route`: /home\n"
+            "- `states`: ready\n"
+            f"- `responsive`: viewports: {', '.join(breakpoints)}\n"
+            "<!-- ui-surface-contract:end -->\n"
+        )
+        wireframes = wireframes_html(
+            [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
+            schema="wireframes/3" if len(viewports) >= 3 else "wireframes/2",
+            viewports=tuple(viewports),
+        )
+        registry = self.web_floor_registry(viewports)
+        run = valid_run(plan)
+        adapter = run["runtime_capabilities"]["runtime_adapter"]
+        if gate is None:
+            adapter.pop("version_gate")
+        else:
+            adapter["version_gate"]["required_harness_version"] = gate
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "harness@example.invalid"],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            subprocess.run(
+                ["git", "checkout", "-b", run["integration"]["branch"]],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "commit", "-m", "base"],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            run["integration"]["integration_head_sha"] = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root, check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            prd_path = self.bind_prd(plan, root, prd_text)
+            architecture = next(
+                source for source in plan["sources"] if source["kind"] == "architecture"
+            )
+            architecture_path = root / architecture["location"]
+            architecture_path.parent.mkdir(parents=True, exist_ok=True)
+            architecture_path.write_text("# Architecture\n", encoding="utf-8")
+            architecture["content_sha256"] = hashlib.sha256(
+                architecture_path.read_bytes()
+            ).hexdigest()
+            wireframes_path = root / "wireframes.html"
+            wireframes_path.write_text(wireframes, encoding="utf-8")
+            plan["sources"].append(
+                {
+                    "id": "SRC-WIREFRAMES",
+                    "kind": "wireframe",
+                    "location": "wireframes.html",
+                    "owner": "product",
+                    "status": "frozen",
+                    "content_sha256": hashlib.sha256(
+                        wireframes_path.read_bytes()
+                    ).hexdigest(),
+                    "source_revision": None,
+                    "staged_revision": None,
+                    "notes": "approved UI projection",
+                }
+            )
+            markdown_path = root / "design-system.md"
+            registry_path = root / "design-system.json"
+            markdown_path.write_text(
+                "# Design system\n\n" + generated_contract_block(registry) + "\n",
+                encoding="utf-8",
+            )
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            for source_id, kind, path in (
+                ("SRC-DESIGN-MD", "design system", markdown_path),
+                ("SRC-DESIGN-JSON", "design system machine", registry_path),
+            ):
+                plan["sources"].append(
+                    {
+                        "id": source_id,
+                        "kind": kind,
+                        "location": path.name,
+                        "owner": "design",
+                        "status": "frozen",
+                        "content_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                        "source_revision": None,
+                        "staged_revision": None,
+                        "notes": "frozen design contract",
+                    }
+                )
+            run["plan"]["digest_sha256"] = plan_digest(plan)
+            plan_path = root / "PLAN.md"
+            run_path = root / "RUN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            run_path.write_text(
+                manifest_markdown("## Harness Run State", "harness_run", run),
+                encoding="utf-8",
+            )
+            result = self.run_cli(
+                plan_path,
+                run_path,
+                design_system=registry_path,
+                design_system_markdown=markdown_path,
+                repo_root=root,
+                prd=prd_path,
+                wireframes=wireframes_path,
+            )
+        return json.loads(result.stdout)
+
+    def test_gated_run_requires_three_viewport_design_system(self) -> None:
+        payload = self.run_gated_pair_cli([390, 1200], gate="0.35.0")
+        self.assertEqual("FAIL", payload["status"])
+        self.assertIn(
+            "design_system: web responsive set needs at least three ascending "
+            "viewports (harness 0.34.0+)",
+            " ".join(payload["errors"]),
+        )
+
+        payload = self.run_gated_pair_cli([390, 768, 1200], gate="0.35.0")
+        self.assertEqual("PASS", payload["status"])
+
+    def test_gated_run_requires_three_viewport_prd_anchors(self) -> None:
+        payload = self.run_gated_pair_cli([390, 1200], gate="0.35.0")
+        self.assertEqual("FAIL", payload["status"])
+        self.assertIn(
+            "prd: UI surface UI-001 `responsive` web responsive set needs at "
+            "least three ascending viewports (harness 0.34.0+)",
+            " ".join(payload["errors"]),
+        )
+
+        payload = self.run_gated_pair_cli([390, 768, 1200], gate="0.35.0")
+        self.assertEqual("PASS", payload["status"])
+
+    def test_ungated_run_keeps_the_two_viewport_floor(self) -> None:
+        payload = self.run_gated_pair_cli([390, 1200], gate=None)
+
+        self.assertEqual("PASS", payload["status"], payload["errors"])
+
+    def test_frozen_joins_carry_the_viewport_floor_only_for_gated_runs(self) -> None:
+        plan = valid_plan()
+        registry = self.web_floor_registry([390, 1200])
+        ungated = valid_run(plan)
+        gated = valid_run(plan)
+        gated["runtime_capabilities"]["runtime_adapter"]["version_gate"][
+            "required_harness_version"
+        ] = "0.35.0"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.bind_prd(plan, root, "# Product contract\n")
+            markdown_path = root / "design-system.md"
+            registry_path = root / "design-system.json"
+            markdown_path.write_text(
+                "# Design system\n\n" + generated_contract_block(registry) + "\n",
+                encoding="utf-8",
+            )
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            for source_id, kind, path in (
+                ("SRC-DESIGN-MD", "design system", markdown_path),
+                ("SRC-DESIGN-JSON", "design system machine", registry_path),
+            ):
+                plan["sources"].append(
+                    {
+                        "id": source_id,
+                        "kind": kind,
+                        "location": path.name,
+                        "owner": "design",
+                        "status": "frozen",
+                        "content_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                        "source_revision": None,
+                        "staged_revision": None,
+                        "notes": "frozen design contract",
+                    }
+                )
+
+            self.assertEqual([], validate_frozen_contract_joins(plan, root))
+            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=ungated))
+            errors = validate_frozen_contract_joins(plan, root, run=gated)
+
+        self.assertEqual(
+            [
+                "design_system: web responsive set needs at least three "
+                "ascending viewports (harness 0.34.0+)"
+            ],
+            errors,
+        )
 
     def test_malformed_manifest_reports_error_with_exit_code_two(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

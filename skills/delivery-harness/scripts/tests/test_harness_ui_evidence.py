@@ -449,6 +449,15 @@ class LayoutCheckSchemaTests(unittest.TestCase):
     def test_run_without_a_version_gate_keeps_the_row_shape_frozen(self) -> None:
         self.assertEqual(self.validate(self.row(), harness_version=None), [])
 
+    def test_pre_release_version_gates_like_its_release(self) -> None:
+        errors = self.validate(self.row(), harness_version="0.35.1-rc.1")
+        self.assertTrue(
+            any("layout_check" in error for error in errors), errors
+        )
+
+    def test_short_version_stays_exempt_like_no_gate(self) -> None:
+        self.assertEqual(self.validate(self.row(), harness_version="0.35"), [])
+
 
 class DeviationLedgerTests(unittest.TestCase):
     @staticmethod
@@ -553,6 +562,22 @@ class DeviationLedgerTests(unittest.TestCase):
                 differences=["link underline differs"],
             )
             self.assertEqual(self.validate(run), [])
+
+    def test_pre_release_version_gates_and_short_version_stays_exempt(self) -> None:
+        run = self.run_payload(
+            harness_version="0.35.1-rc.1",
+            differences=["link underline differs"],
+        )
+        errors = self.validate(run)
+        self.assertTrue(
+            any("require a deviation ledger" in error for error in errors), errors
+        )
+
+        run = self.run_payload(
+            harness_version="0.35",
+            differences=["link underline differs"],
+        )
+        self.assertEqual(self.validate(run), [])
 
     def test_no_deviations_needs_no_ledger(self) -> None:
         run = self.run_payload(harness_version="0.35.0")

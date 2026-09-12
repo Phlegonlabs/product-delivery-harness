@@ -14,6 +14,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from harness_design_contract import compare_design_system_pair
+from harness_schema import run_required_harness_version, version_at_least
 from harness_ui_evidence import validate_ui_surface_design_registry
 
 
@@ -158,6 +159,54 @@ def normalized_responsive(
     ):
         return kind, normalized, "must list viewports in ascending order"
     return kind, normalized, None
+
+
+WEB_VIEWPORT_FLOOR_VERSION = (0, 34, 0)
+
+
+def web_viewport_floor_required(run: dict[str, Any] | None) -> bool:
+    """True when the paired RUN pins harness 0.34.0 or later.
+
+    The documented contract raises the web responsive floor to three
+    ascending viewports from harness 0.34.0. Unpinned and older RUNs keep
+    the historical two-target floor so in-flight and legacy pairs stay
+    valid: the low-level parsers keep enforcing two, and this gate is
+    applied only at the join layer that has the RUN's version context.
+    """
+
+    if not isinstance(run, dict):
+        return False
+    return version_at_least(
+        run_required_harness_version(run), WEB_VIEWPORT_FLOOR_VERSION
+    )
+
+
+def prd_web_viewport_floor_errors(prd_text: str) -> list[str]:
+    """Floor errors for web responsive sets in the PRD UI surface anchors."""
+
+    errors: list[str] = []
+    entries, _ = parse_prd_ui_contract(prd_text)
+    for surface_id in sorted(entries):
+        entry = entries[surface_id]
+        targets = entry["responsiveTargets"]
+        if entry["responsiveKind"] == "viewports" and len(targets) < 3:
+            errors.append(
+                f"prd: UI surface {surface_id} `responsive` web responsive set "
+                "needs at least three ascending viewports (harness 0.34.0+)"
+            )
+    return errors
+
+
+def registry_web_viewport_floor_errors(registry: dict[str, Any]) -> list[str]:
+    """Floor error for the design-system registry's web responsive set."""
+
+    viewports = registry.get("viewports")
+    if isinstance(viewports, list) and len(viewports) < 3:
+        return [
+            "design_system: web responsive set needs at least three ascending "
+            "viewports (harness 0.34.0+)"
+        ]
+    return []
 
 
 def breakpoint_matches_viewport(breakpoint: str, viewport: str) -> bool:
@@ -706,9 +755,18 @@ def full_wireframe_checker_errors(
 
 
 def validate_frozen_contract_joins(
-    plan: dict[str, Any], repo_root: str | Path
+    plan: dict[str, Any],
+    repo_root: str | Path,
+    *,
+    run: dict[str, Any] | None = None,
 ) -> list[str]:
-    """Resolve frozen bytes and enforce joins on every execution validation."""
+    """Resolve frozen bytes and enforce joins on every execution validation.
+
+    When ``run`` is the paired RUN manifest and its version gate pins harness
+    0.34.0+, web responsive sets in the PRD anchors and the design-system
+    registry must carry three ascending viewports; unpinned or older RUNs
+    keep the two-target floor.
+    """
 
     if plan.get("schema_version") != 6:
         return []
@@ -758,11 +816,16 @@ def validate_frozen_contract_joins(
         errors.extend(source_errors)
         if contents is not None:
             resolved[label] = contents
+    viewports_floor = web_viewport_floor_required(run)
     if "PRD" in resolved:
         try:
-            errors.extend(validate_plan_prd_text(plan, resolved["PRD"].decode("utf-8")))
+            prd_text = resolved["PRD"].decode("utf-8")
         except UnicodeDecodeError as exc:
             errors.append(f"prd: is not valid UTF-8 ({exc})")
+        else:
+            errors.extend(validate_plan_prd_text(plan, prd_text))
+            if viewports_floor:
+                errors.extend(prd_web_viewport_floor_errors(prd_text))
     if "wireframes" in resolved:
         try:
             wireframe_text = resolved["wireframes"].decode("utf-8")
@@ -786,6 +849,8 @@ def validate_frozen_contract_joins(
             errors.append(f"design_system: is not valid JSON ({exc})")
         else:
             errors.extend(validate_ui_surface_design_registry(plan, registry))
+            if viewports_floor and isinstance(registry, dict):
+                errors.extend(registry_web_viewport_floor_errors(registry))
     if isinstance(registry, dict) and "design-system.md" in resolved:
         try:
             markdown_text = resolved["design-system.md"].decode("utf-8")

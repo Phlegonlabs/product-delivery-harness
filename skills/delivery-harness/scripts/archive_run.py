@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Archive a completed run's coordination set under docs/goal/archived/.
 
-The script refuses anything but a completed run whose final gates all
-PASS, lists every exact move first (dry run by default), and moves —
-never deletes — the coordination set into one timestamped archive
-directory. It performs no Git operations; committing the archival stays
-with the parent under its ordinary create_local_commits authorization.
+The script refuses anything but a completed run whose PLAN/RUN pair
+passes full manifest validation with every final gate PASS, lists every
+exact move first (dry run by default), and moves — never deletes — the
+coordination set into one timestamped archive directory. It performs no
+Git operations; committing the archival stays with the parent under its
+ordinary create_local_commits authorization.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from harness_core import load_run  # noqa: E402
+from harness_core import load_plan, load_run  # noqa: E402
+from harness_manifest import validate_run  # noqa: E402
 
 GOAL_DIR = Path("docs/goal")
 REQUIRED_FILES = ("PLAN.md", "RUN.md")
@@ -110,6 +112,21 @@ def archive(
         return 1
     if not moves:
         print("error: nothing to archive", file=sys.stderr)
+        return 1
+
+    try:
+        plan = load_plan(root / GOAL_DIR / "PLAN.md")
+    except Exception as exc:  # noqa: BLE001 - report any parse failure verbatim
+        print(f"error: cannot read PLAN manifest: {exc}", file=sys.stderr)
+        return 1
+    validation_errors = validate_run(plan, run)
+    if validation_errors:
+        print(
+            "error: run validation failed; fix RUN/PLAN before archival:",
+            file=sys.stderr,
+        )
+        for error in validation_errors[:5]:
+            print(f"error: {error}", file=sys.stderr)
         return 1
 
     if stamp is None:

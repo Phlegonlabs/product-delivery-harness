@@ -36,6 +36,7 @@ from harness_manifest import (  # noqa: E402
     validate_scope_claim,
 )
 from harness_authorization import authorization_covers, execution_covers  # noqa: E402
+from harness_schema import version_at_least  # noqa: E402
 
 
 # The PLAN/RUN fixture builders live in manifest_fixtures.py; they are
@@ -2661,6 +2662,25 @@ class RunValidationTests(unittest.TestCase):
 
 
 
+class VersionAtLeastTests(unittest.TestCase):
+    def test_strict_parser_accepts_only_three_part_releases(self) -> None:
+        minimum = (0, 35, 0)
+        for value, expected in (
+            ("0.35.0", True),
+            ("0.36.0", True),
+            ("1.0.0", True),
+            ("0.35.1-rc.1", True),
+            ("0.35.0+build.5", True),
+            ("0.34.9", False),
+            ("0.35", False),
+            ("1.0", False),
+            ("0.35.0.1", False),
+            ("abc", False),
+            (None, False),
+        ):
+            self.assertEqual(version_at_least(value, minimum), expected, value)
+
+
 class UiImpactSummaryTests(unittest.TestCase):
     @staticmethod
     def payload(
@@ -2746,6 +2766,17 @@ class UiImpactSummaryTests(unittest.TestCase):
         plan, run = self.payload(harness_version=None, summary=None)
         self.assertEqual(self.validate(plan, run), [])
         plan, run = self.payload(ui_surfaces=None, summary=None)
+        self.assertEqual(self.validate(plan, run), [])
+
+    def test_pre_release_version_gates_like_its_release(self) -> None:
+        plan, run = self.payload(harness_version="0.35.1-rc.1", summary=None)
+        errors = self.validate(plan, run)
+        self.assertTrue(
+            any("classifies every mission" in error for error in errors), errors
+        )
+
+    def test_short_version_stays_exempt_like_no_gate(self) -> None:
+        plan, run = self.payload(harness_version="0.35", summary=None)
         self.assertEqual(self.validate(plan, run), [])
 
     def test_incomplete_run_validates_rows_but_not_coverage(self) -> None:
