@@ -7,17 +7,17 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/stack-decisions.md`
 - `docs/product/wireframes.html` for a UI-bearing product
 
-For a UI-bearing product, include the complete UI surface contract in `PRD.md`, project it into one interactive `wireframes.html` containing every page, obtain human approval, and stop. Run `ui-design-pass.md`, Taste, UI preview generation, `design-system-compiler`, or Harness only after a separate explicit request to continue into visual design or implementation. A product with no UI surface records the skip in `PRD.md` and publishes no placeholder wireframe or design artifacts.
+Every package passes a human Product Definition Approval before implementation. The owner approves the product scope, measurable requirements, architecture, applicable trust/AI/commercial gates, resolved stack choices, release targets, accepted assumptions, and non-blocking open questions as one named package revision. For a UI-bearing product, the approved PRD is then projected into one interactive `wireframes.html`, receives its separate structural approval, and stops. A headless product skips only the wireframe gate, not Product Definition Approval.
 
-This contract covers the product spec and approved structural screen structure and behavior. It does not require a visual direction, preview, token set, closed component variants, or design-system rules. Those belong to a later optional visual-design phase.
+This contract covers the owner-approved product and technology definition plus approved structural screen behavior where UI exists. It does not require a visual direction, preview, token set, closed component variants, or design-system rules. Those belong to a later optional visual-design phase.
 
-It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass is on by default for a non-trivial package; when the user declined it, no web tool was available, or the role returned blocked, the package publishes without the file and records the unvalidated market context in `PRD.md`'s `## Assumptions`. See `market-research-guide.md`.
+It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass runs before Stack Decision and Product Definition approval so its findings cannot silently stale an accepted package or wireframe. When the user declined it, no web tool was available, confidential context prevented a safe query, or the role returned blocked, the package records that state explicitly. See `market-research-guide.md`.
 
 For a product with a web, iOS, or browser-extension release target, it also creates a one-time operational seed at `docs/ACTIVATION.md` from the sibling `product-activation` template when that path is absent. The seed maps release targets, every PRD metric, and every required `TEST-*` signal, but it contains no external authorization, account guess, secret value, or claim that a source is verified. An existing Activation record is owned by `product-activation` and is preserved byte-for-byte during product enhancement.
 
 It specifies what each UI surface must show and do and shows its structure in a self-contained HTML reviewer. Do not turn `wireframes.html` into a design-reference mockup or add token schemas, component catalogs, or styling rules here.
 
-`PRD.md` is the canonical source for product scope, routes, screen purpose, visible-region responsibility, content, actions, states, responsive behavior, flows, trace IDs, and the Builder UX Direction Decision. `wireframes.html` is the only structural review projection and never overrides `PRD.md`. If a later visual-design phase is explicitly requested, its approved handoff and optional design-system pair add visual implementation authority without taking ownership of product structure or behavior.
+`PRD.md` is the canonical source for product scope, routes, screen purpose, visible-region responsibility, content, actions, states, responsive behavior, flows, trace IDs, trust/AI gates, Builder UX Direction, and Product Definition Approval. `stack-decisions.md` records a separate Stack Decision Checkpoint. `wireframes.html` is the only structural review projection and never overrides the approved PRD revision.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -29,10 +29,10 @@ Every artifact has one primary reader and one job. Write for that reader.
 
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
-| `PRD.md` | Anyone deciding whether to build this | What is it, for whom, and what counts as done |
+| `PRD.md` | The owner and anyone deciding whether to build this | What it is, for whom, what counts as done, and whether the product definition is approved |
 | `wireframes.html` | The human owner reviewing the full UI map | How all pages, labeled sections, viewport arrangements, and states fit together in one interactive file |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
-| `stack-decisions.md` | An engineer choosing or reviewing technology | Which stack, and why that one |
+| `stack-decisions.md` | The owner and engineer choosing or reviewing technology | Which coherent options were considered, what the owner approved, and why |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
 | `research-assessment.md` | Anyone deciding whether this product should have been drafted | What the pre-draft evidence supported, and what the gate decided |
 | `outcome-review.md` | The owner deciding what happens after a release | What actually happened post-deployment, measured against the targets, and the verdict |
@@ -41,7 +41,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 | `design-system.md` + `design-system.json` (only after an explicitly requested visual-design phase whose Design System Need Gate is `required`) | A designer or frontend engineer styling reusable surfaces | The binding token, primitive, component, and state contract; read alongside `PRD.md` and `wireframes.html` |
 
-Core reading order is `PRD.md` → `wireframes.html` → `architecture.md` → `stack-decisions.md`. Read the optional visual-design handoff and design-system pair only when that later phase was requested and completed. Read `docs/DEPLOYMENT.md` for release configuration and `docs/ACTIVATION.md` for post-delivery operational state; neither overrides the product contract. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it. `research-assessment.md` is the same kind of evidence for the pre-draft decision: read it when a statement cites an `RA-*` ID.
+Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`; for UI products, read `wireframes.html` next as the structural projection of that approved revision. Optional visual/design-system and operational records never override the Product Definition. Research artifacts hold evidence behind cited `RA-*` and `MR-*` findings.
 
 Two rules keep the package readable:
 
@@ -77,6 +77,19 @@ Use this structure:
 | Biggest risk | [One line] |
 
 [One paragraph describing the product, user, and outcome.]
+
+## Enhancement Impact Record
+Include this section only in enhancement mode.
+
+| Area | Impact | Affected IDs / decisions | Required refresh |
+| --- | --- | --- | --- |
+| Product scope / behavior | [unchanged / changed] | [IDs or none] | [Artifacts and gates or none] |
+| UI structure / style | [none / structure / style / both] | [UI/UX IDs or none] | [Wireframe/UI Design gates or none] |
+| Data / integrations | [unchanged / changed] | [IDs or none] | [Artifacts and gates or none] |
+| Architecture / stack | [unchanged / changed] | [ARCH IDs/layers or none] | [Stack checkpoint and artifacts or none] |
+| Data trust / AI | [unchanged / changed] | [Gate/IDs or none] | [Artifacts and gates or none] |
+| Monetization / partner | [unchanged / changed] | [Gate/IDs or none] | [Artifacts and gates or none] |
+| Release / operations | [unchanged / changed] | [Targets or none] | [Artifacts and gates or none] |
 
 ## Problem Statement
 [Current pain, trigger, and why now.]
@@ -149,6 +162,35 @@ Omit this section only when the product has no browser frontend.
 ## Data and Integration Requirements
 - [Data objects, external systems, freshness, retention]
 
+## Data and Trust
+Data and Trust Gate: [required / not_required / blocked] — [reason], decided by [human owner]
+
+When `required`, record the product decisions before selecting vendors:
+
+| Area | Decision | Owner / evidence | TEST IDs |
+| --- | --- | --- | --- |
+| Classification and ownership | [Public/internal/personal/sensitive/regulated/confidential/customer-owned classes and source of truth] | [Owner/evidence] | [TEST-*] |
+| Residency and vendor processing | [Allowed regions, subprocessors, transfer limits] | [Owner/evidence] | [TEST-*] |
+| Retention, deletion, and export | [Periods, triggers, legal holds, user/admin export and deletion behavior] | [Owner/evidence] | [TEST-*] |
+| Consent and policy basis | [Consent, notice, contract, or policy requirement] | [Owner/evidence] | [TEST-*] |
+| Human and administrative access | [Roles, approval, masking, audit] | [Owner/evidence] | [TEST-*] |
+| Incident and residual risk | [Detection, response owner, accepted residual risk] | [Owner/evidence] | [TEST-*] |
+
+## AI and Automation
+AI and Automation Gate: [required / not_required / blocked] — [reason], decided by [human owner]
+
+When `required`, record:
+
+| Area | Decision | Owner / evidence | TEST IDs |
+| --- | --- | --- | --- |
+| Capability and provider boundary | [What the model/automation does; provider or self-host boundary] | [Owner/evidence] | [TEST-*] |
+| Input, context, and retention | [Data allowed, retrieval sources, provider retention/training limits] | [Owner/evidence] | [TEST-*] |
+| Tool and side-effect permissions | [Allowed tools/actions, confirmation and human approval points] | [Owner/evidence] | [TEST-*] |
+| Evaluation and prohibited outcomes | [Representative eval set, thresholds, failure classes] | [Owner/evidence] | [TEST-*] |
+| Cost, latency, and observability | [Budgets, usage metrics, alerts] | [Owner/evidence] | [TEST-*] |
+| Fallback, shutoff, and incident path | [Degraded path, cancellation, disable switch, response owner] | [Owner/evidence] | [TEST-*] |
+| Injection and output validation | [Untrusted-input isolation, schema/policy checks, invalid-output handling] | [Owner/evidence] | [TEST-*] |
+
 ## Business Rules
 - [Rules, thresholds, approvals, calculations]
 
@@ -158,30 +200,36 @@ Record both gates even when they are not required. Do not select RevenueCat mere
 
 | Decision | Selection | Product rationale / evidence | Status | Trace IDs |
 | --- | --- | --- | --- | --- |
-| Monetization model | [none / one_time / subscription / usage_based / hybrid / undecided] | [Who pays and for what] | [selected / recommended / provisional / assumed] | [PRD-* / MR-* / RA-*] |
-| Monetization Infrastructure Gate | [required / not_required / blocked] | [Purchase surfaces and infrastructure need, or explicit reason none] | [selected / recommended / provisional / assumed] | [PRD-* / ARCH-* / TEST-*] |
-| Pricing and offer | [Tiers, price metric, interval/unit, trial/discount, currency/region, upgrade/downgrade/cancel/refund] | [Value and buyer fit] | [selected / recommended / provisional / assumed] | [PRD-* / TEST-*] |
-| Purchase and entitlement | [Store/web/invoice surfaces; product, purchase/subscription, and entitlement source of truth] | [Cross-platform and lifecycle needs] | [selected / recommended / provisional / assumed] | [ARCH-* / TEST-*] |
-| Merchant of record / tax owner | [Product company / Stripe arrangement / Paddle / Lemon Squeezy / other / n/a] | [Payment, invoice, tax, fraud, refund, chargeback, and billing-support ownership] | [selected / recommended / provisional / assumed] | [ARCH-* / TEST-*] |
-| Partner Channel Gate | [required / not_required / blocked] | [Outside distribution need, or explicit reason none] | [selected / recommended / provisional / assumed] | [PRD-* / ARCH-* / TEST-*] |
-| Partner motion | [none / affiliate / referral / reseller / hybrid / undecided] | [Link attribution, known-lead referral, partner-owned sale, or named combination] | [selected / recommended / provisional / assumed] | [PRD-* / TEST-*] |
-| Partner economics and operations | [Commission/discount, attribution, reversal, payout, customer ownership, provisioning, support, termination] | [Channel rules] | [selected / recommended / provisional / assumed] | [PRD-* / ARCH-* / TEST-*] |
+| Monetization model | [none / one_time / subscription / usage_based / hybrid / undecided] | [Who pays and for what] | [selected / approved / recommended / provisional / assumed] | [PRD-* / MR-* / RA-*] |
+| Monetization Infrastructure Gate | [required / not_required / blocked] | [Purchase surfaces and infrastructure need, or explicit reason none] | [selected / approved / recommended / provisional / assumed] | [PRD-* / ARCH-* / TEST-*] |
+| Pricing and offer | [Tiers, price metric, interval/unit, trial/discount, currency/region, upgrade/downgrade/cancel/refund] | [Value and buyer fit] | [selected / approved / recommended / provisional / assumed] | [PRD-* / TEST-*] |
+| Purchase and entitlement | [Store/web/invoice surfaces; product, purchase/subscription, and entitlement source of truth] | [Cross-platform and lifecycle needs] | [selected / approved / recommended / provisional / assumed] | [ARCH-* / TEST-*] |
+| Merchant of record / tax owner | [Product company / Stripe arrangement / Paddle / Lemon Squeezy / other / n/a] | [Payment, invoice, tax, fraud, refund, chargeback, and billing-support ownership] | [selected / approved / recommended / provisional / assumed] | [ARCH-* / TEST-*] |
+| Partner Channel Gate | [required / not_required / blocked] | [Outside distribution need, or explicit reason none] | [selected / approved / recommended / provisional / assumed] | [PRD-* / ARCH-* / TEST-*] |
+| Partner motion | [none / affiliate / referral / reseller / hybrid / undecided] | [Link attribution, known-lead referral, partner-owned sale, or named combination] | [selected / approved / recommended / provisional / assumed] | [PRD-* / TEST-*] |
+| Partner economics and operations | [Commission/discount, attribution, reversal, payout, customer ownership, provisioning, support, termination] | [Channel rules] | [selected / approved / recommended / provisional / assumed] | [PRD-* / ARCH-* / TEST-*] |
 
 Use `monetization-and-partner-channel-guide.md` to select providers only after these decisions. If either gate is `required`, add every customer, partner, and admin surface to the UI Surface Contract and `wireframes.html`, and add observable success, failure, cancellation, refund, attribution, commission, payout, provisioning, and termination obligations as applicable.
 
 ## Metrics
-| Metric | Definition | Target |
-| --- | --- | --- |
+| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |
+| --- | --- | --- | --- | --- | --- | --- |
 
 ## Risks
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 
 ## Assumptions
-- [Assumption]
+| Assumption | Impact if wrong | Validation | Owner | Decision date | Status |
+| --- | --- | --- | --- | --- | --- |
+| [Assumption] | [Impact] | [Evidence or experiment] | [Owner] | [YYYY-MM-DD] | [open / accepted / validated / rejected] |
 
 ## Open Questions
-- [Question]
+| Question | Why it matters | Owner | Decision deadline | Blocks approval | Status / resolution |
+| --- | --- | --- | --- | --- | --- |
+| [Question] | [Decision or requirement affected] | [Owner] | [YYYY-MM-DD] | [Yes / No] | [Open / resolved — answer] |
+
+Every open question names whether it blocks Product Definition Approval. An approved package has no unresolved `Yes` row. Non-blocking rows and open assumptions appear explicitly in the approval record; silence is not acceptance.
 
 ## Test Obligations
 | TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
@@ -194,7 +242,7 @@ Every `Must` functional requirement and every applicable non-functional requirem
 
 ## Builder UX Direction Decision
 
-Decision record. Read it when you need to know why the interface is shaped the way it is; skip it on a first pass.
+Include this section only for a UI-bearing product. Read it when you need to know why the interface is shaped the way it is; skip it on a first pass.
 
 Decision owner: [Human product/design owner or commissioning team]
 
@@ -218,14 +266,38 @@ Motion Need Gate:
 | --- | --- | --- | --- | --- |
 | [UI-* screen or named region] | [required / recommended / not_required / blocked] | [State feedback, progress, spatial relationship, hierarchy, brand expression, or reason none is needed] | [Owner selection / AI recommendation accepted by owner / assumed] | [Equivalent static state, immediate transition, or other non-motion signal] |
 
-The AI may recommend a gate when the owner delegated motion direction. Generated motion, autoplay or sound, a material performance budget, an accessibility exception, or a scope-changing treatment still needs a human decision. A `blocked` row prevents visual approval.
+The AI may recommend a gate when the owner delegated motion direction. Generated motion, autoplay or sound, a material performance budget, an accessibility exception, or a scope-changing treatment still needs a human decision. A `blocked` row prevents Product Definition and visual approval.
+
+## Product Definition Decisions
+
+This section is present for every product, including headless APIs and automations. It separates content decisions from the later filesystem publication authorization.
 
 ### Research Gate
 
-Research Gate: [go / clarify / stop] — assessed [YYYY-MM-DD], findings in [research-assessment.md path]
-[For `clarify`, the questions asked and their resolutions, and the final gate value after re-assessment. For a skipped assessment, which recorded reason applied: the user declined it, no web search or fetch tool was available, or the package is a trivial stub. Enhancement packages cite the prior package's gate unchanged instead of re-running it.]
+Research Gate: [go / clarify / stop / skipped] — [assessment date and findings path, or skip reason], decided by [human owner]
+[For `clarify`, the questions asked and their resolutions, and the final gate value after re-assessment. For a skipped assessment, record whether the user declined it, no web tool was available, confidential context prevented a safe query, or the package is a trivial stub. Enhancement packages cite the prior package's gate unchanged.]
+
+<!-- product-definition-approval:start -->
+### Product Definition Approval
+- Package mode: [new / enhancement]
+- Package revision: [Stable revision label for this candidate]
+- Decision: [approved / revision_requested / blocked]
+- Decision owner: [Human product owner]
+- Decided on: [YYYY-MM-DD]
+- Approved artifacts: [PRD.md, architecture.md, stack-decisions.md]
+- Market research reconciliation: [completed / skipped — reason / blocked — reason]
+- Stack Decision Checkpoint: [approved / revision_requested / blocked]
+- Accepted assumptions and non-blocking questions: [None / exact rows accepted for this revision]
+- Blocking items: [None / exact unresolved decisions]
+<!-- product-definition-approval:end -->
+
+Keep the required level-two PRD headings, Product Definition marker pair and fields, Data and Trust/AI gate lines, Metrics/Assumptions/Open Questions headers, and Monetization/Partner decision header plus its two gate row labels in English when surrounding prose is translated; the core-package checker treats them as machine anchors.
+
+The owner receives one concise package review: product scope and non-goals; Must requirements and acceptance criteria; data/trust, AI, monetization, and partner gates; metrics and required tests; architecture and release targets; the approved stack bundle; risks; and every assumption/open question. `approved` requires an approved Stack Decision Checkpoint, no unresolved question marked `Blocks approval: Yes`, no blocked trust/AI/commercial gate, and no unresolved scope-changing research finding. A substantive change to those approved contents creates a new package revision and reopens this gate. Appending later Wireframe Approval or UI Design Handoff evidence to `## Product Definition Decisions` keeps the same package revision and does not reopen product approval unless that work also changes scope, requirements, gates, metrics, architecture, or stack.
 
 ### Wireframe Approval
+
+Include this subsection only for a UI-bearing product and only after Product Definition Approval is `approved`.
 
 Artifact: [wireframes.html path]
 
@@ -242,6 +314,8 @@ Bounded revisions or unresolved items: [None / named items]
 Wireframe references consulted: [None — reason the Reference Pass was skipped / one line per source: URL, publisher, retrieval date, structural pattern adopted or rejected]
 
 Visual design phase: [not requested / requested / completed]
+
+If wireframe work exposes a missing or contradictory product obligation, update the PRD first, mint a new package revision, and re-run Product Definition Approval before approving a replacement wireframe. A wireframe decision never edits product scope by implication.
 
 ### UI Design Handoff
 
@@ -479,6 +553,8 @@ Rules:
 
 Use this structure:
 
+Keep the required level-two headings below in English when surrounding prose is translated; they are core-package checker anchors.
+
 ```markdown
 # Architecture: [Product Name]
 
@@ -488,7 +564,7 @@ Use this structure:
 Technology selections and their rationale live in `stack-decisions.md`.
 
 ## Product Archetype
-[Web app, mobile app, desktop app, browser extension, internal tool, automation or agent workflow, API or hybrid. For a mobile app, name the resolved platform: native iOS, native Android, Flutter, or React Native. For a desktop app, name the resolved platform: macOS, Windows, or cross-platform. For a browser extension, name the resolved browser target: Chrome with Manifest V3 by default; Firefox or Safari as explicit alternatives.]
+[Web app, mobile app, desktop app, browser extension, internal tool, automation or agent workflow, API or hybrid. Record mobile/desktop operating-system destinations and browser-extension targets separately from native/cross-platform strategy, framework, and toolchain; reference the approved stack rows rather than flattening those layers here.]
 
 ## System Context
 [Actors, systems, dependencies.]
@@ -517,9 +593,15 @@ Describe in a few lines: service boundaries, API style, data access, and backgro
 ## Auth, Permissions, and Security
 [Authentication, authorization, secrets, audit, privacy, abuse cases.]
 
+## Data and Trust Architecture
+[Implement the PRD Data and Trust Gate: data classification and ownership, source of truth, storage/processing regions, vendor boundaries, encryption, access/audit, retention, deletion/export, consent/policy, backup/recovery, and incident ownership. When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
+
+## AI and Automation Architecture
+[Implement the PRD AI and Automation Gate: model/provider and version boundary, allowed context and retrieval sources, prompt/tool trust boundaries, side-effect approvals, evaluation and output validation, cost/latency budgets, observability, fallback/shutoff, and incident handling. When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
+
 ## Integrations
-| System | Purpose | Direction | Failure Handling |
-| --- | --- | --- | --- |
+| System | Purpose | Data exchanged | Auth / scopes | Contract / limits | Failure / recovery | Owner |
+| --- | --- | --- | --- | --- | --- | --- |
 
 ## Monetization and Partner Channel Architecture
 [If both PRD gates are `not_required`, state that with the PRD reasons. Otherwise define product/price, order/invoice, purchase/subscription, entitlement, partner, referral/lead/deal, commission/discount, payout, refund, and chargeback ownership as applicable; identity joins; purchase and partner event flows; verified idempotent webhooks; replay/out-of-order handling; reconciliation; entitlement grant/revoke/restore; commission reversal; reseller provisioning/deprovisioning and delegated administration; environment separation; and external-console responsibilities. Reference the separate layers selected in `stack-decisions.md`.]
@@ -582,14 +664,35 @@ Coverage matrix. Fill it last and read it only when checking that a requirement 
 
 ## `stack-decisions.md`
 
-Every decision in this file uses the same shape: drivers, then resolved layers with status and authority/evidence on every row. The shared `Alternatives Considered` and `Unresolved Decision Protocol` tables at the end cover all decisions, so options and open decisions are compared in one place instead of repeated once per decision.
+Every decision in this file uses the same shape: drivers, coherent bundles presented to the owner, then resolved layers with status and authority/evidence on every row. The shared `Alternatives Considered` and `Unresolved Decision Protocol` tables cover all decisions.
 
-Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Recommended` is evidence-backed advice not yet accepted; `Provisional` is a leading choice pending named evidence. A section may mix statuses. `Authority / evidence` cites the source that justifies the row — for example a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is not another status label, and `PRD recommendation` alone is not evidence.
+Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation; `Recommended` is evidence-backed advice not yet accepted and is non-executable; `Provisional` is a leading choice pending named evidence. Only `Required`, `Selected`, and `Approved` are executable. A section may mix statuses. `Authority / evidence` cites the source that justifies the row. Authority is not another status label, and recommendation text alone is not approval.
 
 Use this structure:
 
 ```markdown
 # Stack Decisions: [Product Name]
+
+<!-- stack-decision-checkpoint:start -->
+## Stack Decision Checkpoint
+- Decision: [approved / revision_requested / blocked]
+- Decision owner: [Human owner]
+- Decided on: [YYYY-MM-DD]
+- Approved areas: [Frontend / Mobile or desktop / Backend or data / AI or automation / Monetization or partner channel / none]
+- Delegated choices: [None / exact decision classes explicitly delegated and source]
+- Open areas: [None / exact unresolved areas]
+<!-- stack-decision-checkpoint:end -->
+
+Keep the `Stack Decisions` title, this marker pair and fields, the Coherent Options header, every `Recorded or Approved Stack` heading, and layer-table header in English in a translated package; they are machine anchors.
+
+Before this checkpoint, present two or three coherent bundles for every applicable unresolved area. Each bundle names all coupled layers, fit, tradeoffs, operating and maintenance ownership, cost/license/data constraints, serious alternatives, and revisit triggers. The owner may approve the recommendation, modify layers, or rely on an explicit prior delegation. `Recommended` and `Provisional` rows keep this checkpoint blocked.
+
+### Coherent Options Presented
+Use this shared table for every unresolved area before the checkpoint. Preserve the complete option the owner accepted as well as rejected serious alternatives; do not record only the winning framework name.
+
+| Option ID | Area | Complete bundle | Best fit | Tradeoffs / ownership | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| OPT-FE-01 | [Frontend / Backend or data / Mobile or desktop / AI or automation / Commercial] | [Every coupled layer in this option] | [Why and when it fits] | [Cost, lock-in, data, maintenance, operations] | [recommended / approved / rejected] |
 
 ## Frontend Technology Decision
 Use this section for every product with a browser frontend. Omit it only when no browser surface exists.
@@ -597,17 +700,20 @@ Use this section for every product with a browser frontend. Omit it only when no
 ### Decision Drivers
 - [Product evidence that determines the choice: content density, interactivity, SEO, rendering, auth, edge data, team capability, reuse, performance, and deployment constraints.]
 
-### Recorded or Recommended Stack
+### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Deployment / runtime | [e.g. Cloudflare Workers with Static Assets] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Rendering model | [Static, SSG, SSR, on-demand, SPA, islands, or hybrid by route] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Framework | [e.g. Astro, React Router, or none] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| UI library | [e.g. React or none] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Build tool | [e.g. Vite, or framework-managed] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Routing and data | [Approach] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Styling and components | [Approach] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Testing | [Unit, component, end-to-end, accessibility] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Deployment / runtime | [e.g. Cloudflare Workers with Static Assets] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Rendering model | [Static, SSG, SSR, on-demand, SPA, islands, or hybrid by route] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Language | [TypeScript / JavaScript / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Package manager | [npm / pnpm / Yarn / Bun / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Framework | [e.g. Astro, React Router, or none] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| UI library | [e.g. React or none] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Component foundation | [e.g. shadcn/ui owned source, headless primitives, packaged suite, or custom] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Styling approach | [Tailwind CSS / CSS Modules / modern vanilla CSS / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Build tool | [e.g. Vite, or framework-managed] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Routing and data | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Testing | [Unit, component, end-to-end, accessibility] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 ### Rendering and Route Strategy
 | Route Group | Rendering | Data Source | Cache / Freshness | Auth Boundary | Rationale |
@@ -624,15 +730,21 @@ A product may add this section in a later revision after Frontend Technology Dec
 ### Decision Drivers
 - [Product evidence that determines the choice, weighed per `references/mobile-stack-selection.md`: target platforms and reach, native capability needs, offline/sync requirements, team capability, code reuse with an existing web frontend, distribution and store constraints, and performance expectations.]
 
-### Recorded or Recommended Stack
+### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Platform | [native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Toolchain | [e.g. Xcode/SwiftUI, Android Studio/Jetpack Compose, Flutter/Dart, Expo/React Native, or the desktop equivalent] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Distribution mechanism | [e.g. App Store/TestFlight, Play Console tracks, EAS Submit, MSIX, notarization — as applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Backend/API integration | [Approach for reaching the backend or APIs] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Push / offline sync | [Push notification and offline/sync approach, when applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Testing | [Unit and UI-automation framework per platform] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Target operating systems | [iOS / Android / both / macOS / Windows / exact set] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Client strategy | [Platform-native / cross-platform] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Framework | [SwiftUI / Jetpack Compose / Flutter / React Native / Tauri / Electron / exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Toolchain | [Xcode / Android Studio / Flutter-Dart / Expo or bare React Native / desktop equivalent] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Navigation and state | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Local persistence | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Secure storage | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Offline sync | [Approach or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Push and native modules | [Approach or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Backend/API integration | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Distribution mechanism | [Store/test track, signing/build service, installer/update feed] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Testing | [Unit and UI automation per platform] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
@@ -642,18 +754,18 @@ Use this section for every product with a backend, persistent data, or auth requ
 ### Decision Drivers
 - [Data shape/relationships, consistency/transaction needs, query complexity, scale, identity/compliance requirements, team capability, platform-managed services, integration surface.]
 
-### Recorded or Recommended Stack
+### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Service topology | [Monolith or named services; monorepo or polyrepo organization] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Backend runtime / framework | [Selection] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Database category | [Relational / Document / Key-value or cache only / None] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Database engine | [Selection] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Auth strategy | [Build custom / Managed third-party / Platform-native / None] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Auth provider | [Selection] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| API style | [REST / GraphQL / RPC / server actions] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Background jobs / queue | [Selection or not applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| File / object storage | [Selection or not applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Service topology | [Monolith or named services; monorepo or polyrepo organization] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Backend runtime / framework | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Database category | [Relational / Document / Key-value or cache only / None] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Database engine | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Auth strategy | [Build custom / Managed third-party / Platform-native / None] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Auth provider | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| API style | [REST / GraphQL / RPC / server actions] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Background jobs / queue | [Selection or not applicable] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| File / object storage | [Selection or not applicable] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 ### Data Entity to Store Mapping
 | Entity | Store | Rationale |
@@ -664,21 +776,40 @@ Use this section for every product with a backend, persistent data, or auth requ
 - Official sources: [Direct links]
 - Runtime/service requirements: [Bindings, connection limits, region/residency, quota, or other constraints]
 
+## AI and Automation Technology Decision
+Include this section only when the PRD's AI and Automation Gate is `required`.
+
+### Decision Drivers
+- [Capability, data classification, context/retrieval, tool permissions, evaluation thresholds, prohibited outcomes, cost/latency, observability, fallback/shutoff, provider terms, and team ownership.]
+
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Model / automation provider | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Model and version policy | [Pinned/rolling model, change and evaluation policy] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Context / retrieval | [Selection or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Tool execution and approvals | [Runtime, allowlist, human gates] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Evaluation and output validation | [Harness, dataset, schemas/policies] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Observability and cost controls | [Tracing, budgets, alerts] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Fallback and shutoff | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+
+Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
+
 ## Monetization and Partner Channel Technology Decision
 Always record the two PRD gate results here. When both are `not_required`, state their reasons and omit the layer table. Otherwise use `monetization-and-partner-channel-guide.md`, compare only current options that fit the resolved model and surfaces, and keep responsibilities separate.
 
 ### Decision Drivers
 - [Commercial model, buyer, pricing/offer rules, purchase surfaces, entitlement needs, merchant-of-record/tax responsibility, partner motion, attribution/commission/payout, reseller operations, existing systems, team capacity, and current official provider evidence.]
 
-### Recorded or Recommended Stack
+### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Store commerce / billing | [Native store, RevenueCat Billing, Stripe Billing, Paddle Billing, Lemon Squeezy, existing, custom, or n/a] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Subscription and entitlement source | [RevenueCat, Qonversion, Superwall, native/custom, existing, or n/a] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Paywall / checkout | [Adapty, Superwall, RevenueCat, provider checkout, custom, or n/a] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Merchant of record / tax | [Product company, Paddle, Lemon Squeezy, Stripe arrangement, other, or n/a] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Affiliate / referral / reseller platform | [PartnerStack, Rewardful, FirstPromoter, Lemon Squeezy Affiliates, custom, existing, or n/a] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Attribution, commission, payout, and reseller operations | [Provider/custom boundary] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Store commerce / billing | [Native store, RevenueCat Billing, Stripe Billing, Paddle Billing, Lemon Squeezy, existing, custom, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Subscription and entitlement source | [RevenueCat, Qonversion, Superwall, native/custom, existing, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Paywall / checkout | [Adapty, Superwall, RevenueCat, provider checkout, custom, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Merchant of record / tax | [Product company, Paddle, Lemon Squeezy, Stripe arrangement, other, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Affiliate / referral / reseller platform | [PartnerStack, Rewardful, FirstPromoter, Lemon Squeezy Affiliates, custom, existing, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Attribution, commission, payout, and reseller operations | [Provider/custom boundary] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
@@ -691,10 +822,10 @@ One row per rejected option, across every decision above.
 
 | Area | Alternative | Where It Fits Better | Why Not Selected Here | Revisit Trigger |
 | --- | --- | --- | --- | --- |
-| [Frontend / Mobile or desktop / Backend or data / Monetization or partner channel] | [Alternative] | [Context] | [Reason] | [Trigger] |
+| [Frontend / Mobile or desktop / Backend or data / AI or automation / Monetization or partner channel] | [Alternative or coherent bundle] | [Context] | [Reason] | [Trigger] |
 
 ### Unresolved Decision Protocol
-Use only when a layer cannot yet be decided.
+Use only when a layer cannot yet be decided. A bare `TBD` does not pass validation.
 
 | Area | Open Decision | Missing Evidence | Owner | Decision Date | Time-boxed Spike | Pass / Fail Criteria |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -762,23 +893,27 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 ### Readability
 
-- Each artifact opens with human-readable content and keeps ID matrices and decision records at the end: `PRD.md` opens with `## At a Glance`, and for a UI-bearing product closes with `## Builder UX Direction Decision`, including `### Wireframe Approval` and the optional `### UI Design Handoff` only when visual design was requested; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` closes with `## Options And Open Decisions`.
+- Each artifact opens with human-readable content and keeps decision records near the end: `PRD.md` opens with `## At a Glance`, includes Builder UX Direction only for UI-bearing products, and closes with the always-present `## Product Definition Decisions`; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` opens with its machine-anchored Stack Decision Checkpoint and closes with `## Options And Open Decisions`.
 - `## At a Glance` answers what the product is, who it is for, why now, what success looks like, and the biggest risk — one line each, on one screen.
 - Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved to another artifact instead of expanding.
 - No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical.
 
 ### Completeness
 
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. The staged `DEPLOYMENT.md` is present for every package with a deployable surface (a purely local product records `manual` mode or the skip in `stack-decisions.md` instead), contains the Required Secrets and Variables and External Console Setup handoff sections, records names and destinations but no values, and leaves implementation-owned details visibly unresolved for pre-deploy reconciliation. When the package has a web, iOS, or browser-extension release target, the sibling `product-activation` skill is available, and the live path is absent, a staged create-once `ACTIVATION.md` seed passes its checker against the staged PRD; an existing live Activation record is preserved and no replacement is staged. The staged `DOCUMENTS.md` manifest is present with its status column filled for every document this package creates or preserves. For a UI-bearing complete wireframe package, approved `wireframes.html` and `PRD.md`'s approved `### Wireframe Approval` are also present. An approved UI Design Handoff and validated design-system pair are required only when the owner explicitly requested and completed that later visual-design phase. For a product with no UI surface, wireframe and design artifacts are absent and `PRD.md` records that skip with its reason.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory. Their Product Definition Approval and Stack Decision Checkpoint are both `approved`, and `check_product_package.py --require-filled --require-approved` passes before any wireframe approval or publication. The staged operational documents follow their existing applicability rules. UI-bearing packages additionally require approved `wireframes.html`; headless packages skip only UI artifacts, not Product Definition Approval.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
-- `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
+- `## Test Obligations` is always present after `## Open Questions` and before the trailing product decision records. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
+- `## Metrics` records baseline, target or guardrail, measurement window, source/method, and owner for every success measure. Guardrails are separate metric rows when they need separate ownership or evidence.
+- `## Assumptions` and `## Open Questions` use their structured owner/decision tables. No unresolved Open Questions row marked `Blocks approval: Yes` remains when Product Definition Approval is approved; the approval record explicitly accepts any open non-blocking row or assumption.
+- Every PRD records a Data and Trust Gate and an AI and Automation Gate as `required`, `not_required`, or `blocked` with a reason and human owner. An approved package has neither gate blocked. Required gates are carried into architecture, stack decisions where technology is involved, UI surfaces, and `TEST-*` obligations.
 - Every `PRD.md` records both the Monetization Infrastructure Gate and Partner Channel Gate with `required`, `not_required`, or `blocked` plus a reason. Commercial products record the monetization model, pricing/offer rules, purchase surfaces, entitlement source, and merchant-of-record/tax owner. Products with outside distribution record affiliate, referral, reseller, or hybrid motion plus attribution, commission/discount, reversal, payout, customer ownership, provisioning, support, termination, and fraud rules as applicable.
+- Product Definition Approval requires both commercial gate rows to be `selected` or `approved`; `recommended`, `provisional`, `assumed`, or `blocked` remains a draft decision.
 - A pricing strategy never silently selects RevenueCat. `stack-decisions.md` compares current relevant providers through `monetization-and-partner-channel-guide.md`, cites official evidence and retrieval date, separates store/billing, entitlement, paywall/checkout, merchant-of-record/tax, and partner-channel layers, and records rejected alternatives and revisit triggers. Affiliate, referral, and reseller remain distinct motions.
 - When either gate is required, `architecture.md` defines the applicable revenue and partner entities, stable identity joins, verified idempotent event/webhook flows, retry/replay/reconciliation, refund/chargeback effects, entitlement grant/revoke/restore, commission reversal, and reseller provisioning/deprovisioning. Required UI surfaces and `TEST-*` obligations cover the chosen lifecycle, including failure and termination states.
 - For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, motion direction and decision authority, confirmation/recovery, validation depth, and decision status. Its Motion Need Gate classifies every key surface as `required`, `recommended`, `not_required`, or `blocked` with purpose, trigger, source, and reduced-motion fallback.
 - For a UI-bearing product, `wireframes.html` maps every `UI-*` entry exactly once in one self-contained `wireframes/3` file with working overview, page, responsive-target, state, section-label, runtime layout-QA, and PRD action controls; the checker keeps `wireframes/2` read compatibility for unchanged historical files. Every visible region action in schema 3 maps to exactly one local `page`, `overlay`, or `feedback` flow. Every PRD entry has exactly one `` `responsive` `` anchor; its set matches the HTML, contains at least three ascending web viewports or at least two native/desktop size classes, and every screen supplies complete per-target order, visibility, columns, spans, reflow, and interaction rules. Optional `mediaIntent` entries are validated deferred MCP-generation handoffs, not generated output. The file contains no design-reference styling or product implementation code, agrees with `PRD.md`, passes `wireframe-guide.md`'s quality check and `check_wireframe_html.py --require-filled --require-approved`, and has one human `approved` decision recorded in `PRD.md` before the wireframe phase completes. The approval record includes the real-browser matrix result and the PRD-bound diagnostic wave, consolidated ledger, and bounded repair/re-review outcome, or the exact capability-unavailable skip when the host cannot run that stage. No unintended overlap, clipping, occlusion, or horizontal overflow exists at any UI surface, responsive target, or non-`n/a` state, and every intentional overlay names its stacking, focus, and dismissal rule. `PRD.md` also records either the consulted wireframe references or the reason the Reference Pass was skipped.
-- An enhancement package records its UI-impact classification — `none`, `structure`, `style`, or `both`. When the impact is `structure` or `both`, the refreshed `### Wireframe Approval` covers the changed `UI-*` scope. When it is `style` or `both`, the package carries the owner's recorded decision to re-run the UI Design Pass or keep the existing direction; a style-impacting enhancement with an unchanged handoff or design-system pair and no recorded owner decision does not validate.
+- An enhancement package records the complete Enhancement Impact Record across product behavior, UI structure/style, data/integrations, architecture/stack, data trust/AI, monetization/partner, and release/operations. Each changed row names affected IDs/decisions, refreshed artifacts, and rerun gates. UI keeps the `none` / `structure` / `style` / `both` classification and its existing wireframe/design consequences.
 - A wireframe-only package records `Visual design phase: not requested` and validates without Taste, preview evidence, a UI Design Handoff, a Design System Need Gate, or design-system artifacts. When visual design was explicitly requested, `PRD.md` records those later decisions and evidence, and the `### UI Design Handoff` carries an `Iconography:` line recording the recommended set with cited sources or an explicit skip, `UNVALIDATED`, or no-icons reason, a `Typography:` line recording the pairing, CJK stack, and loading strategy or an explicit skip or `UNVALIDATED` reason, and a `Color & dark mode:` line recording the palette derivation and dark-mode scope — a visual package missing any of these three lines does not validate.
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
 - For every deployable web, API, mobile, desktop, or browser-extension surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, an explicit lowercase kebab-case surface suffix and release name, separate stable surface and stage-specific provider fields, a source policy naming the exact branch or ref, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Production uses the canonical `<product-slug>-<surface-suffix>` name without `-prod`; development uses that exact name plus `-dev`; release names are globally unique across surface IDs. Different providers by stage are valid for the same surface.
@@ -786,24 +921,26 @@ Before archiving earlier documents or publishing the staged package, verify:
 - For a deployable hosted web, API, or backend target, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
 - The hosted environment contract names the exact candidate run branch/ref as the internally tested development source and remote `main` as production. Initial delivery and enhancements both start from observed remote `main`; the exact candidate passes internal and applicable isolated development-environment verification before separately authorized fast-forward promotion to `main`. It also names distinct deployment units, isolated resources/secrets/data/auth/payment modes, migration order, evidence, and recovery. Development never uses production customer data, sessions, or live payment mutations. Native targets remain provider-neutral.
 - Native release recovery does not claim instant rollback when the channel cannot perform it. It records how to halt or reduce a staged/phased rollout and ship a corrected signed forward-fix through the same submission, review, or distribution path.
-- For a browser product, `stack-decisions.md` records the required/selected stack or recommends one frontend stack, separates its technology layers, maps rendering by route, and records official-source verification date and runtime constraints.
+- For a browser product, `stack-decisions.md` records the owner-approved coherent frontend stack, with language, package manager, component foundation, and styling as separate layers alongside runtime, rendering, framework, UI library, build, routing/data, and tests.
 - Every frontend layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
-- For a product with a backend, persistent data, or auth requirement, `stack-decisions.md` records the required/selected backend stack or recommends one, separates service topology first, then backend runtime, database category, database engine, auth strategy, and auth provider as distinct layers, maps data entities to stores, and records official-source verification date and runtime/service constraints. Service topology states monolith versus named services and monorepo versus polyrepo organization.
+- For a product with a backend, persistent data, or auth requirement, `stack-decisions.md` records the owner-approved coherent backend stack, separating topology, runtime, database category/engine, auth strategy/provider, API, jobs, and storage. No runtime, engine, or vendor is a silent default.
 - Every backend/data layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and the database category and auth strategy trace back to the interview's `AskUserQuestion` answers rather than a silent default.
-- For a product with a mobile app or desktop app target, `stack-decisions.md` records the required/selected stack or recommends one per `mobile-stack-selection.md`, separates platform, toolchain, distribution mechanism, backend/API integration, push/offline-sync approach, and testing as distinct layers, and records official-source verification date.
+- For a mobile or desktop target, operating-system destinations are resolved before native/cross-platform strategy and framework/toolchain. The approved stack separately records navigation/state, persistence, secure storage, sync, push/native modules, backend integration, distribution, and tests.
 - Every mobile/desktop layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
-- Any unresolved frontend, backend, database, auth, or mobile/desktop decision appears in `stack-decisions.md`'s shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
-- Before publishing, every `stack-decisions.md` layer row is `Required`, `Selected`, or `Recommended`. A `Provisional` row passes only when the user resolved it or explicitly accepted it as `Provisional`, and that acceptance is recorded in `stack-decisions.md`. A silent Provisional layer does not validate, because `delivery-harness` treats it as a stop condition at scaffold time.
+- Any unresolved frontend, backend, database, auth, mobile/desktop, AI/automation, or commercial decision appears in the shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass.
+- An approved Stack Decision Checkpoint contains only `Required`, `Selected`, or `Approved` executable rows. `Recommended` and `Provisional` may remain in a staged candidate but block Product Definition Approval and Harness. Explicit delegation is recorded in the checkpoint and turns the resulting accepted choice into `Approved`; it never makes `Recommended` executable.
 - When the visual-design phase was explicitly requested, the Design System Need Gate is not `blocked`. Its UI Design Handoff records one connected self-contained design-reference HTML review file: the left sidebar lists every in-scope `UI-*` page or screen, every visible product control performs its recorded page, state, modal/drawer, or feedback behavior, required functional UI motion runs locally with an equivalent reduced-motion path, and full CSS is present. Login, registration, recovery, and authentication-error previews are recorded `n/a` for this visual pass; the HTML starts from the main or authenticated entry without live auth. Generated image and motion positions remain static deferred-generation placeholders with dedicated prompts and no provider call. The handoff records its frozen PRD identity plus the PRD-bound diagnostic and bounded repair/re-review outcome, or the exact capability-unavailable skip. When the gate is `required`, the package includes the validated pair returned by `design-system-compiler` and the parent records its exact staged paths and passing checks. When it is `not_required`, no placeholder pair is present and the approved page-faithful UI target, `PRD.md`, and `wireframes.html` are explicitly named as the replacement visual contract.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
-- The market-research gap pass either produced `market-research.md`, or the package records which reason skipped it — the user declined, no web search or fetch tool was available, the package is a trivial stub, or the role returned blocked. A silently missing pass does not validate.
-- For a new package, `PRD.md` records a `### Research Gate` with a `go`, `clarify`, or `stop` value, and either `research-assessment.md` is staged with the package or the gate records which skip reason applied — the user declined the assessment, no web search or fetch tool was available, or the package is a trivial stub. An enhancement package cites the prior package's gate unchanged instead of re-running the assessment. A silently missing gate does not validate.
+- The market-research gap pass completes or records its skip/block reason before Stack Decision and Product Definition approval. Its queries pass the Research Disclosure Check; confidential inputs never leave the product context by implication.
+- For a new package, `PRD.md` records a `### Research Gate` with `go`, `clarify`, `stop`, or the permitted skip reason, including confidential-context constraints. An enhancement cites the prior gate unchanged and researches only the delta.
+- A silently missing Research Gate, Stack Decision Checkpoint, or Product Definition Approval does not validate.
 - When `research-assessment.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date, or is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
 - When `market-research.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date. Any claim without one is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
 - When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
 - Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
 - When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
+- Run `python skills/product-definition-builder/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --require-filled --require-approved` before Wireframe Approval and publication. It validates core headings, Must/NFR-to-TEST coverage, metrics, decision tables, both approval markers, executable stack statuses, and blocked trust/AI/commercial gates.
 
 ### Publication
 

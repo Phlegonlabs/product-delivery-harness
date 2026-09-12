@@ -22,6 +22,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from harness_manifest import plan_digest  # noqa: E402
 from harness_design_contract import generated_contract_block  # noqa: E402
 from harness_contract_join import (  # noqa: E402
+    full_product_package_checker_errors,
     full_wireframe_checker_errors,
     validate_frozen_contract_joins,
     validate_plan_prd_text,
@@ -644,6 +645,198 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         )
         self.assertEqual(1, len(missing))
         self.assertIn("full wireframe checker is unavailable", missing[0])
+
+    def test_approved_product_package_runs_the_full_builder_checker(self) -> None:
+        prd = self.approved_prd().encode("utf-8")
+        architecture = self.approved_architecture().encode("utf-8")
+        stack = self.approved_stack().encode("utf-8")
+        self.assertEqual(
+            [], full_product_package_checker_errors(prd, architecture, stack)
+        )
+
+        recommended = stack.replace(b"| Framework | React | Approved |", b"| Framework | React | Recommended |")
+        errors = full_product_package_checker_errors(prd, architecture, recommended)
+        self.assertTrue(any("owner approval is required" in error for error in errors))
+
+        missing = full_product_package_checker_errors(
+            prd,
+            architecture,
+            stack,
+            sibling_scripts=Path("nowhere") / "product-definition-builder",
+        )
+        self.assertEqual(1, len(missing))
+        self.assertIn("Product Definition checker is unavailable", missing[0])
+
+    def test_approval_marker_requires_and_joins_frozen_core_package(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prd_path = self.bind_prd(plan, root, self.approved_prd())
+            architecture_source = next(
+                source for source in plan["sources"] if source["kind"] == "architecture"
+            )
+            architecture_path = root / architecture_source["location"]
+            architecture_path.parent.mkdir(parents=True, exist_ok=True)
+            architecture_path.write_text(self.approved_architecture(), encoding="utf-8")
+            architecture_source["content_sha256"] = hashlib.sha256(
+                architecture_path.read_bytes()
+            ).hexdigest()
+            stack_path = root / "docs/product/stack-decisions.md"
+            stack_path.write_text(self.approved_stack(), encoding="utf-8")
+            plan["sources"].append(
+                {
+                    "id": "SRC-STACK",
+                    "kind": "stack decisions",
+                    "location": "docs/product/stack-decisions.md",
+                    "owner": "product",
+                    "status": "frozen",
+                    "content_sha256": hashlib.sha256(stack_path.read_bytes()).hexdigest(),
+                    "source_revision": None,
+                    "staged_revision": None,
+                    "notes": "approved stack",
+                }
+            )
+            self.assertTrue(prd_path.is_file())
+            self.assertEqual([], validate_frozen_contract_joins(plan, root))
+
+            plan["sources"] = [
+                source for source in plan["sources"] if source["kind"] != "stack decisions"
+            ]
+            errors = validate_frozen_contract_joins(plan, root)
+            self.assertTrue(
+                any("requires exactly one frozen stack-decisions.md" in error for error in errors)
+            )
+
+    @staticmethod
+    def approved_prd() -> str:
+        headings = (
+            "At a Glance",
+            "Problem Statement",
+            "Goals",
+            "Non-Goals",
+            "Users and Personas",
+            "User Journeys",
+        )
+        text = "# PRD: Fixture\n\n" + "\n".join(
+            f"## {heading}\nFilled." for heading in headings
+        )
+        return text + """
+## Functional Requirements
+| ID | Requirement | Priority | Acceptance Criteria |
+| --- | --- | --- | --- |
+| PRD-001 | Complete fixture | Must | Completion is observable |
+## Non-Functional Requirements
+| ID | Quality attribute | Scope / requirement | Measure | Target / threshold | TEST IDs |
+| --- | --- | --- | --- | --- | --- |
+| PRD-002 | Reliability | Fixture run | Passing executions | 100% | TEST-002 |
+## UX Requirements
+Filled.
+## Data and Integration Requirements
+Filled.
+## Data and Trust
+Data and Trust Gate: not_required — no sensitive data, decided by Owner
+## AI and Automation
+AI and Automation Gate: not_required — no AI, decided by Owner
+## Business Rules
+Filled.
+## Monetization and Partner Channels
+| Decision | Selection | Product rationale / evidence | Status | Trace IDs |
+| --- | --- | --- | --- | --- |
+| Monetization Infrastructure Gate | not_required | No commercial surface | approved | n/a |
+| Partner Channel Gate | not_required | No outside sellers | approved | n/a |
+## Metrics
+| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |
+| --- | --- | --- | --- | --- | --- | --- |
+| Completion | Completed | 0 | 90% | 30 days | Events | Owner |
+## Risks
+Filled.
+## Assumptions
+| Assumption | Impact if wrong | Validation | Owner | Decision date | Status |
+| --- | --- | --- | --- | --- | --- |
+## Open Questions
+| Question | Why it matters | Owner | Decision deadline | Blocks approval | Status / resolution |
+| --- | --- | --- | --- | --- | --- |
+## Test Obligations
+| TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
+| --- | --- | --- | --- | --- | --- |
+| TEST-001 | Complete fixture | integration | Yes | PRD-001 | Completion observed |
+| TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |
+## Product Definition Decisions
+### Research Gate
+Research Gate: go — assessed 2026-09-12, decided by Owner
+<!-- product-definition-approval:start -->
+### Product Definition Approval
+- Package mode: new
+- Package revision: PD-R1
+- Decision: approved
+- Decision owner: Owner
+- Decided on: 2026-09-12
+- Approved artifacts: PRD.md, architecture.md, stack-decisions.md
+- Market research reconciliation: completed
+- Stack Decision Checkpoint: approved
+- Accepted assumptions and non-blocking questions: none
+- Blocking items: none
+<!-- product-definition-approval:end -->
+"""
+
+    @staticmethod
+    def approved_architecture() -> str:
+        headings = (
+            "Architecture Summary",
+            "Product Archetype",
+            "System Context",
+            "Component Architecture",
+            "Data Model",
+            "API and Interface Contracts",
+            "Workflow and Data Flow",
+            "Auth, Permissions, and Security",
+            "Data and Trust Architecture",
+            "AI and Automation Architecture",
+            "Integrations",
+            "Deployment and Operations",
+            "Observability",
+            "Scaling and Reliability",
+            "Technical Risks and Tradeoffs",
+            "Architecture Trace Index",
+        )
+        return "# Architecture: Fixture\n\n" + "\n".join(
+            f"## {heading}\nFilled." for heading in headings
+        )
+
+    @staticmethod
+    def approved_stack() -> str:
+        return """# Stack Decisions: Fixture
+<!-- stack-decision-checkpoint:start -->
+## Stack Decision Checkpoint
+- Decision: approved
+- Decision owner: Owner
+- Decided on: 2026-09-12
+- Approved areas: frontend
+- Delegated choices: none
+- Open areas: none
+<!-- stack-decision-checkpoint:end -->
+### Coherent Options Presented
+| Option ID | Area | Complete bundle | Best fit | Tradeoffs / ownership | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| OPT-FE-01 | Frontend | React bundle | Synthetic app | Team ownership | approved |
+| OPT-FE-02 | Frontend | Astro bundle | Content app | Team ownership | rejected |
+## Frontend Technology Decision
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Deployment / runtime | Cloudflare Workers | Approved | Owner | Fits | None |
+| Rendering model | SPA | Approved | Owner | Fits | None |
+| Language | TypeScript | Approved | Owner | Fits | None |
+| Package manager | npm | Approved | Owner | Fits | None |
+| Framework | React | Approved | Owner | Fits | None |
+| UI library | React | Approved | Owner | Fits | None |
+| Component foundation | shadcn/ui owned source | Approved | Owner | Fits | Own source |
+| Styling approach | Tailwind CSS | Approved | Owner | Fits | None |
+| Build tool | Vite | Approved | Owner | Fits | None |
+| Routing and data | React Router | Approved | Owner | Fits | None |
+| Testing | Vitest and Playwright | Approved | Owner | Fits | None |
+"""
 
     def test_prd_join_uses_only_structured_entries_and_compares_semantics(self) -> None:
         plan = valid_plan()

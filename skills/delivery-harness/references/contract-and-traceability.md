@@ -10,6 +10,8 @@ Required full-stack freeze fields:
 
 ```text
 Product: objective, users, workflows, must-have requirements, non-goals, success criteria
+Product Definition Approval: package revision, human owner, approved PRD/architecture/stack set, accepted assumptions, non-blocking questions, and no blocking item
+Stack Decision Checkpoint: human owner, approved areas and coherent bundles, explicit delegation source if used, and no Recommended/Provisional executable layer
 Builder UX direction: human decision owner, experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, and selected/provisional/assumed status. When the source PRD came from `product-definition-builder`, its `PRD.md` Builder UX Direction table (see `../product-definition-builder/references/output-contract.md`) is the authority for each axis's valid values, e.g. experience priority is one of speed/clarity/guided completion/expert control/exploration/conversion/comprehension, guidance and control is guided/balanced/expert-flexible, and information density is sparse/balanced/dense. When no such upstream table exists, resolve each axis's value with the human decision owner instead of inventing terminology.
 Architecture: module boundaries, data model, API/action contracts, auth, permissions, side effects
 UI structure: routes, screens, navigation, regions, data-to-UI mapping, states
@@ -18,7 +20,7 @@ Verification: commands, E2E journey, evidence paths, acceptance thresholds
 Write scope: allowed paths, read-only paths, destructive-action approval gates
 ```
 
-The `PRD.md` UI surface contract remains the product authority for structure and behavior, and approved `wireframes.html` is its structural interactive projection. `PRD.md`'s approved UI Design Handoff names the active visual route: either a scoped immutable page-faithful target when the Design System Need Gate is `not_required`, or a frozen design-system pair when it is `required`. Harness consumes that active route, never candidate previews. A wireframe-only package with `Visual design phase: not requested` is a valid PRD stopping point but is not yet a visual implementation source.
+When a package comes from `product-definition-builder`, Harness first requires its machine-anchored Product Definition Approval and Stack Decision Checkpoint. The `PRD.md` UI surface contract remains product authority for UI structure and behavior, and approved `wireframes.html` is its projection. A headless package still needs the product and stack approvals. A wireframe-only UI package is a valid product-definition stop point but is not yet a visual implementation source.
 
 For large work, including parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
@@ -46,6 +48,7 @@ Record every canonical input and its status:
 | Source | Path / URL | Content SHA-256 / immutable revision | Owner | Status | Notes |
 |---|---|---|---|---|---|
 | PRD | <path> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <summary> |
+| Product Definition Approval | <PRD section> | <same PRD hash or revision> | human decision owner | approved / revision_requested / blocked | <package revision, accepted assumptions, blockers> |
 | Builder UX direction | <PRD section, path, or URL> | <hash or revision> | human decision owner | selected / provisional / assumed | <direction and validation needs> |
 | PRD UI surface contract | <path or URL> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <screens> |
 | Approved wireframe | <wireframes.html path> | <hash or revision> | human decision owner | draft / approved / delta_accepted / revision staged | <UI-* screens, labeled regions, states, exact responsive set, per-target layout, browser overlap/overflow check> |
@@ -54,7 +57,7 @@ Record every canonical input and its status:
 | Design system | <design-system.md path or n/a> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged / n/a | <required only when the Design System Need Gate is required> |
 | Design system (machine) | <design-system.json path or n/a> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged / n/a | <the allowlist check_ui_contract.py reads when a pair exists> |
 | Architecture | <path> | <hash or revision> | Codex / team | draft / frozen / delta_accepted / revision staged | <contract surfaces> |
-| Stack decisions | <path> | <hash or revision> | human / team | required / selected / recommended / provisional | <resolved frontend, backend/data, mobile/desktop layers> |
+| Stack decisions | <path> | <hash or revision> | human / team | approved / revision_requested / blocked | <Required/Selected/Approved frontend, backend/data, mobile/desktop, AI, and commercial layers> |
 ```
 
 For plan-backed work, the PLAN JSON `sources` array is canonical; the table is its human view. Every current PLAN-v6 source includes `content_sha256`, an immutable `source_revision`, or both. A mutable path or URL without either binding is not frozen. Recompute the PLAN digest and invalidate old attempts whenever source content or its upstream revision changes. Each trace references `source_ids` and records `priority`, `disposition`, and any disposition `rationale`. Canonical `ui_surfaces`, `risks`, mission `stop_conditions`, and verifier arrays are likewise the static source of truth; any Markdown table showing them elsewhere is a view only.
@@ -86,6 +89,7 @@ figma-refs.md
 Rules:
 
 - Do not require upstream files to come from a specific skill or pipeline.
+- When `PRD.md` contains `<!-- product-definition-approval:start -->`, freeze `architecture.md` and `stack-decisions.md` beside it and run the sibling `check_product_package.py` join. Missing files, a non-approved checkpoint, a `Recommended`/`Provisional` layer, a blocking open question, or a blocked trust/AI gate stops implementation.
 - Do not write harness-owned artifacts into the upstream document folder unless the user explicitly asks for that location.
 - When `implementation-plan.md` is present, read its `Harness Handoff Signals` table (dependency order, parallel candidates, shared resources, required reviews, human gates) as non-canonical planning hints before drafting the mission graph. Its dependency/sequencing intent is mandatory input, not optional color: the planner must either adopt it in the drafted graph or record a one-line divergence reason in the PLAN. Coverage and trace-ID authority stay with `PRD.md`, `architecture.md`, and `stack-decisions.md` — the handoff table never mints traces and never substitutes for them.
 - `PRD.md` is the binding structural and behavioral source for UI-bearing work; `wireframes.html` is its interactive review projection. Freeze both digests and the PRD Wireframe Approval record. A mismatch or structural change returns to `product-definition-builder` and invalidates downstream direction selection, previews, the approved UI target, design-system inputs, and implementation planning until the revised HTML is approved.
@@ -95,7 +99,7 @@ Rules:
 - A missing or `blocked` Design System Need Gate blocks implementation. For `required`, a missing or half-present pair is `missing` or `partial`. For `not_required`, a missing approved target or incomplete target scope is `missing` or `partial`. An in-scope route with no `UI-*` entry or matching approved wireframe is always a blocker.
 - If a PRD UI surface omits its states or invariant `` `responsive` `` anchor, resolve the gap before implementation or mark the surface `UNVALIDATED`. PRD, approved `wireframes.html`, every PLAN UI surface, and — when present — `design-system.json` use the same set — at least three ascending viewports for a web package, or at least two size classes for native or desktop; historical two-target web files stay readable under the legacy wireframes/2 checker and must not be re-frozen as new packages. The target-conformance handoff records that exact set and its passing browser matrix. The harness carries no default set and never infers a missing target.
 - When a design system exists for web, native iOS/Android/Flutter, macOS, or Windows, its tokens, primitive layers, and components keep their meaning and take the platform's own vocabulary. Target-conformance mode follows the named platform conventions without pretending a formal pair exists.
-- When `stack-decisions.md`'s Frontend Technology Decision is `Selected` or `Recommended` and no matching framework/UI-library/styling stack exists in the repository yet, that decision is the scaffold mission's install target: every named layer (deployment/runtime, framework, UI library, build tool, styling/components) becomes a task in mission M1, not just the framework. See `platform-archetypes.md`'s Greenfield / Empty Repository section and `HARNESS_PLAN.template.md`'s workspace-foundation example. A layer still `Provisional` is a stop condition, not a default guess.
+- When an approved Stack Decision Checkpoint names `Required`, `Selected`, or `Approved` frontend layers and no matching stack exists, those exact layers are the scaffold target: language, package manager, framework, UI library, component foundation, styling, build tool, and routing/testing as applicable. `Recommended` and `Provisional` are stop conditions, never defaults.
 
 ## Trace IDs
 
@@ -165,6 +169,7 @@ The validators block these. Fix the plan or run state; do not work around them:
 
 - `RUN.md` is not `ready` or `execution_authorized` is false: `select_ready_nodes.py` refuses to select a wave.
 - The canonical plan/run manifest is missing, invalid, stale, or inconsistent with the proposed wave.
+- A frozen `product-definition-builder` package carries its approval marker but fails the sibling core-package checker or omits its frozen architecture/stack sources.
 - A mission's write scope has no preintegration-stage review node covering it. Enforced at execution authorization rather than plan validation, so an upgraded v3 projection stays a valid PLAN — it simply cannot execute until its review nodes are authored. On a RUN-v11 run, coverage counts only a review node whose `review.mission_ids` contains exactly that one mission and which has a direct dependency edge from that mission's node — a multi-mission or integration-stage review cannot stand in for it. After all mission heads integrate, fresh integration-stage reviewers cover the unified head. Every new code-delivery PLAN also declares one `security` review covering every mission, and its scope contains every mission write scope; older valid PLANs remain readable and are never silently rewritten.
 - A planned trace has a downstream task but no verification row: a planned trace whose every carrying task has an empty `acceptance_matrix` fails plan validation. An implemented-but-unverified contract does not pass as covered.
 - A mission's `required_skills` names `design-system-compiler` without `frontend-design`, a design-system-source write scope omits that pair, or a wireframe-source write scope omits `product-definition-builder`.
@@ -176,6 +181,7 @@ Stop before implementation when:
 - Static validation fails, or a readiness obligation in `execution-state-model.md` is unmet. `plan_readiness` in RUN is the single machine gate; keeping it honest is the planner's obligation.
 - The requested action is false or absent in the authorization ledger. General execution permission does not imply task creation, worktree creation, commits, integration, push, archival, or cleanup permission.
 - Two PRD sections conflict on the primary UI flow.
+- Product Definition Approval or the Stack Decision Checkpoint is missing, blocked, revision-requested, or stale for a package produced by `product-definition-builder`.
 - Builder UX Direction is missing for UI-bearing work, its decision owner is unclear, or it conflicts with user evidence or accessibility without a recorded hypothesis and validation decision.
 - The wireframes contradict the PRD UI surface contract, lack human-owner approval, or the active approved UI target or required design system contradicts either source in a user-visible way.
 - `design-system.md` and `design-system.json` are both present but fail `design-system-compiler`'s pair checker, run read-only from the repository root: `python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <design-system.md> --registry <design-system.json> --require-filled`. Never run it with `--write` from the harness — that edits a frozen source. A failing pair means the two files no longer agree — usually a hand edit to one after publication. Route the fix through `design-input-updates.md`; do not guess which file is right or implement against half a contract.

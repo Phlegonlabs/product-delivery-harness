@@ -9,6 +9,15 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
+    def test_compilation_requires_product_and_stack_approval(self) -> None:
+        skill = self.read("SKILL.md")
+
+        self.assertIn("Product Definition Approval", skill)
+        self.assertIn("Stack Decision Checkpoint", skill)
+        self.assertIn("check_product_package.py", skill)
+        self.assertIn("component foundation and styling approach", skill)
+        self.assertIn("no `Recommended` or `Provisional` executable layer", skill)
+
     def test_motion_variants_follow_the_prd_motion_need_gate(self) -> None:
         skill = self.read("SKILL.md")
 

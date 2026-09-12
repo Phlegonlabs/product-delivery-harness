@@ -1,12 +1,13 @@
 # Backend Stack Selection
 
-Use this guide for every PRD package with a backend, persistent data, or auth requirement. The wider architecture may remain technology-neutral. This guide ensures backend runtime, database, and auth each record a required/selected choice or turn product evidence into one implementation-ready recommendation, rather than silently defaulting or listing unranked options.
+Use this guide for every PRD package with a backend, persistent data, or auth requirement. The wider architecture may remain technology-neutral. This guide separates the backend layers, produces coherent choices from product evidence, and requires owner acceptance before a recommendation becomes executable.
 
 Label the decision status accurately:
 
 - `Required`: mandated by the user, organization, or hard external constraint.
 - `Selected`: already adopted by the current product or repository.
-- `Recommended`: the PRD's evidence-backed advice; not yet user-approved.
+- `Approved`: accepted by the human owner for this package, directly or through an explicit recorded delegation.
+- `Recommended`: the PRD's evidence-backed proposal; not yet owner-approved and not executable.
 - `Provisional`: the leading choice pending named evidence or a spike.
 
 Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
@@ -23,17 +24,17 @@ Assign status per layer; one section may mix statuses. Every layer row also cite
 | Auth provider | Which specific vendor or mechanism implements that strategy? | Clerk, Auth0, WorkOS, Cloudflare Access, AWS Cognito, custom JWT/session store |
 | Supporting choices | How are secondary backend concerns implemented? | API style (REST/GraphQL/RPC), background jobs/queue, file/object storage, caching, rate limiting |
 
-Database category and auth strategy are separate decisions from database engine and auth provider: category and strategy are resolved via `AskUserQuestion` because each is a short, often organizationally- or compliance-driven choice; engine and provider are product-fit recommendations made within the already-resolved category or strategy, the same way frontend framework is recommended within an already-resolved deployment platform.
+Database category and auth strategy are separate from database engine and auth provider. Resolve or explicitly delegate the category/strategy first; then compare coherent engine/provider bundles inside those constraints. A recommendation remains non-executable until the Stack Decision Checkpoint accepts it.
 
 ## Service Topology Decision
 
 Decide this before naming a specific backend runtime, since the topology choice frames it.
 
 1. Monolith vs microservices — default to a single service (monolith) unless the product already has two or more confirmed independent deployment boundaries (separate release cadence, separate scaling profile, separate team ownership, or a hard platform constraint requiring separate deployables). Do not choose microservices for a hypothetical future need; splitting a well-organized monolith later is cheaper than un-splitting a premature microservice split, and the added operational complexity (service discovery, cross-service contracts, distributed tracing, more deployment surfaces) is real cost that KISS/YAGNI weighs against speculative scaling headroom.
-2. When microservices is justified: use a Bun workspace monorepo (`bun workspaces` declared in the root `package.json`, one package per service under `apps/` or `services/`, shared internal code under `packages/`) as the default project structure rather than a polyrepo — one repository keeps cross-service contract changes atomic and reviewable in one PR, and avoids the coordination overhead of separate release cycles for tightly-coupled internal services.
-3. Bun vs Node.js or another JavaScript runtime for the chosen service(s) — prefer Bun when startup time and per-request overhead matter (serverless/edge deployment, Cloudflare Workers compatibility) and the product's dependencies are confirmed compatible with Bun's current Node-API compatibility surface; fall back to Node.js when a required dependency's Bun compatibility is unverified or explicitly unsupported. Verify current compatibility against Bun's own documentation before committing, since it changes — do not assume parity with Node from memory.
+2. When multiple services are justified, decide monorepo versus polyrepo from release cadence, team ownership, contract-change atomicity, access boundaries, and existing repository policy. A monorepo is often simpler for tightly coupled internal services, but do not silently select its workspace manager or runtime.
+3. Choose Bun, Node.js, another JavaScript runtime, or another language/runtime only after checking the resolved deployment platform, required dependencies, team ownership, support window, and measured performance needs. Verify current compatibility from official documentation; no runtime is a standing default.
 
-Record the decision status (`Required`/`Selected`/`Recommended`/`Provisional`) for topology and runtime the same way as every other layer in this guide.
+Record the decision status (`Required`/`Selected`/`Approved`/`Recommended`/`Provisional`) for topology and runtime the same way as every other layer in this guide.
 
 ## Collect Decision Evidence
 
@@ -48,6 +49,7 @@ Score or describe these inputs before selecting a stack:
 7. Platform and runtime constraints: managed services available on the already-resolved deployment platform (for example Cloudflare D1, KV, or Durable Objects; AWS RDS or DynamoDB).
 8. Integration and API consumers: internal-only versus public API, third-party integrations, webhook or event needs.
 9. Delivery: migration and versioning strategy, environment isolation, observability, cost, and vendor lock-in tolerance.
+10. Ownership: the Stack Decision Mode, human decision owner, build-versus-buy constraints, data-processing restrictions, support obligations, and who operates each managed service.
 
 Do not let one factor decide by itself. A product that is mostly read-heavy content may still need a small relational store for accounts and orders.
 
@@ -120,17 +122,19 @@ Verify these rules against current official documentation on the date the PRD is
 1. Classify data entities, access patterns, and identity/authorization needs.
 2. Eliminate options that cannot satisfy a hard constraint or whose current support is unverified.
 3. Choose service topology first, then the simplest coherent combination of runtime, database, and auth that covers the dominant access patterns and identity needs without unnecessary infrastructure.
-4. Name the required/selected stack for service topology, backend runtime, database engine, and auth provider, or one recommendation when no choice exists — informed by the already-resolved database category and auth strategy. Do not hand the implementer an unranked shortlist, and do not present advice as an approved requirement.
-5. Explain at least two serious alternatives, where each would fit better, why it loses here, and what would trigger reconsideration.
-6. Verify current platform/vendor documentation and capture direct sources plus the check date.
-7. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional`, not `Selected`.
+4. Build two or three coherent backend bundles from the surviving choices. Each bundle covers topology, runtime, database category and engine, auth strategy and provider, API style, jobs/queue, storage, operational ownership, cost, and data constraints.
+5. Recommend one bundle and explain where the serious alternatives fit better, why they lose here, and what would trigger reconsideration. Present them under the recorded Stack Decision Mode instead of silently choosing vendors.
+6. Mark accepted new choices `Approved`; preserve adopted choices as `Selected` and hard constraints as `Required`. An unaccepted proposal remains `Recommended` and cannot enter implementation.
+7. Verify current platform/vendor documentation and capture direct sources plus the check date.
+8. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
 
 ## Required Architecture Record
 
 The `Backend and Data Technology Decision` section in `stack-decisions.md` must include:
 
 - Product evidence and hard constraints.
-- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, `Recommended`, and `Provisional` rows.
+- The Stack Decision Mode, human owner, coherent bundles presented, accepted bundle or layer overrides, delegation source when used, and checkpoint decision.
+- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. `Recommended` and `Provisional` rows remain draft-only; an approved package uses `Required`, `Selected`, or `Approved` for every executable layer.
 - One recorded stack separated in this order: service topology (monolith versus named services, and monorepo/polyrepo structure), backend runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
 - A data-entity-to-store mapping when more than one store is used.
 - Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
@@ -158,5 +162,6 @@ Use primary documentation, not marketplace roundups. These links cover Cloudflar
 - Building custom auth when SSO or compliance effectively mandates a managed or platform-native provider.
 - Conflating database category with database engine, or auth strategy with auth provider, as one decision.
 - Skipping the `AskUserQuestion` step and silently assuming a database category or auth strategy.
+- Treating a recommended runtime, engine, auth vendor, queue, or storage provider as executable before the owner accepts the coherent backend bundle.
 - Claiming current vendor support or limits without a date and official source.
 - Writing `TBD` without an owner, deadline, experiment, and decision threshold.

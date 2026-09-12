@@ -6,11 +6,14 @@ Use this reference for the research-first assessment: a bounded, read-only pass 
 
 Default: on, for every non-trivial new package, after the interview's free-text segments complete and before the first `AskUserQuestion` closed-set batch.
 
+Before any web query, run a Research Disclosure Check. Reduce the query context to public-safe product category, user job, and problem language. Never send secrets, personal data, private customer names, unreleased code names, internal metrics, contract terms, or other confidential details to a search or fetch provider. When useful research cannot be done without disclosing protected context, ask the owner to approve a sanitized scope or skip the pass and record `confidential context` as the reason. Research permission is not permission to disclose private inputs.
+
 Skip it when any of these is true, and record which one applies in `PRD.md`'s `### Research Gate`:
 
 - The user asked to skip the assessment.
 - No web search or fetch tool is available in the current session. Do not substitute model recall for research.
 - The package is a trivial single-screen stub.
+- Useful queries would disclose confidential context and the owner did not approve a sanitized research scope.
 
 Enhancement mode never runs this pass: the delta is assessed by the post-draft market-research pass, scoped to only what the new request adds or changes.
 
@@ -72,7 +75,7 @@ Researched on: [YYYY-MM-DD]
 The researcher recommends; the human owner decides. Record the decision in `PRD.md`'s `### Research Gate`:
 
 ```text
-Research Gate: [go | clarify | stop] — assessed [YYYY-MM-DD], findings in research-assessment.md
+Research Gate: [go | clarify | stop | skipped] — [assessment date and findings path, or skip reason], decided by [human owner]
 ```
 
 - `go` — the evidence supports drafting. Proceed to the closed-set decisions with the assessment's findings as input.

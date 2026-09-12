@@ -21,6 +21,13 @@ from harness_ui_evidence import validate_ui_surface_design_registry
 FROZEN_SOURCE_STATUSES = {"frozen", "delta_accepted", "delta accepted"}
 PRD_SOURCE_KINDS = {"prd", "product requirement", "product requirements"}
 WIREFRAME_SOURCE_KINDS = {"wireframe", "wireframes", "approved wireframe"}
+ARCHITECTURE_SOURCE_KINDS = {"architecture", "product architecture"}
+STACK_DECISION_SOURCE_KINDS = {
+    "stack decision",
+    "stack decisions",
+    "technology decision",
+    "technology decisions",
+}
 DESIGN_SYSTEM_JSON_SOURCE_KINDS = {
     "design system json",
     "design system machine",
@@ -31,6 +38,8 @@ DESIGN_SYSTEM_MARKDOWN_SOURCE_KINDS = {
 }
 JOINED_CONTRACT_FILENAMES = {
     "prd.md",
+    "architecture.md",
+    "stack-decisions.md",
     "wireframes.html",
     "design-system.md",
     "design-system.json",
@@ -679,6 +688,7 @@ def _resolve_source_bytes(
 
 
 _FULL_WIREFRAME_CHECKERS: dict[Path, Any] = {}
+_FULL_PRODUCT_PACKAGE_CHECKERS: dict[Path, Any] = {}
 
 
 def sibling_builder_scripts_dir() -> Path:
@@ -705,6 +715,27 @@ def _load_full_wireframe_checker(sibling_scripts: Path) -> Any:
                 pass
         checker = checker_module.validate
     _FULL_WIREFRAME_CHECKERS[key] = checker
+    return checker
+
+
+def _load_full_product_package_checker(sibling_scripts: Path) -> Any:
+    """Import the sibling skill's canonical core-package checker once."""
+
+    key = sibling_scripts
+    if key in _FULL_PRODUCT_PACKAGE_CHECKERS:
+        return _FULL_PRODUCT_PACKAGE_CHECKERS[key]
+    checker: Any = None
+    if (key / "check_product_package.py").is_file():
+        sys.path.insert(0, str(key))
+        try:
+            import check_product_package as checker_module
+        finally:
+            try:
+                sys.path.remove(str(key))
+            except ValueError:
+                pass
+        checker = checker_module.validate_texts
+    _FULL_PRODUCT_PACKAGE_CHECKERS[key] = checker
     return checker
 
 
@@ -754,6 +785,38 @@ def full_wireframe_checker_errors(
     return rewritten
 
 
+def full_product_package_checker_errors(
+    prd_bytes: bytes,
+    architecture_bytes: bytes,
+    stack_bytes: bytes,
+    *,
+    sibling_scripts: Path | None = None,
+) -> list[str]:
+    """Run Product Definition's approval checker on frozen core-package bytes."""
+
+    scripts = sibling_scripts or sibling_builder_scripts_dir()
+    validate_package = _load_full_product_package_checker(scripts)
+    if validate_package is None:
+        return [
+            "product package: the full Product Definition checker is unavailable — "
+            "install product-definition-builder next to delivery-harness "
+            f"(missing {scripts / 'check_product_package.py'})"
+        ]
+    try:
+        prd_text = prd_bytes.decode("utf-8")
+        architecture_text = architecture_bytes.decode("utf-8")
+        stack_text = stack_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return [f"product package: core artifact is not valid UTF-8 ({exc})"]
+    return validate_package(
+        prd_text,
+        architecture_text,
+        stack_text,
+        require_filled=True,
+        require_approved=True,
+    )
+
+
 def validate_frozen_contract_joins(
     plan: dict[str, Any],
     repo_root: str | Path,
@@ -777,6 +840,12 @@ def validate_frozen_contract_joins(
     )
     wireframe_sources = frozen_sources(
         plan, kinds=WIREFRAME_SOURCE_KINDS, filenames={"wireframes.html"}
+    )
+    architecture_sources = frozen_sources(
+        plan, kinds=ARCHITECTURE_SOURCE_KINDS, filenames={"architecture.md"}
+    )
+    stack_sources = frozen_sources(
+        plan, kinds=STACK_DECISION_SOURCE_KINDS, filenames={"stack-decisions.md"}
     )
     design_markdown_sources = frozen_sources(
         plan,
@@ -817,6 +886,7 @@ def validate_frozen_contract_joins(
         if contents is not None:
             resolved[label] = contents
     viewports_floor = web_viewport_floor_required(run)
+    prd_text: str | None = None
     if "PRD" in resolved:
         try:
             prd_text = resolved["PRD"].decode("utf-8")
@@ -826,6 +896,42 @@ def validate_frozen_contract_joins(
             errors.extend(validate_plan_prd_text(plan, prd_text))
             if viewports_floor:
                 errors.extend(prd_web_viewport_floor_errors(prd_text))
+            if (
+                "<!-- product-definition-approval:start -->" in prd_text
+                or "<!-- product-definition-approval:end -->" in prd_text
+            ):
+                if len(architecture_sources) != 1:
+                    errors.append(
+                        "plan.sources: an approved Product Definition package requires "
+                        "exactly one frozen architecture.md source"
+                    )
+                if len(stack_sources) != 1:
+                    errors.append(
+                        "plan.sources: an approved Product Definition package requires "
+                        "exactly one frozen stack-decisions.md source"
+                    )
+                if len(architecture_sources) == 1:
+                    contents, source_errors = _resolve_source_bytes(
+                        architecture_sources[0], repo_root, label="architecture"
+                    )
+                    errors.extend(source_errors)
+                    if contents is not None:
+                        resolved["architecture"] = contents
+                if len(stack_sources) == 1:
+                    contents, source_errors = _resolve_source_bytes(
+                        stack_sources[0], repo_root, label="stack-decisions"
+                    )
+                    errors.extend(source_errors)
+                    if contents is not None:
+                        resolved["stack-decisions"] = contents
+                if "architecture" in resolved and "stack-decisions" in resolved:
+                    errors.extend(
+                        full_product_package_checker_errors(
+                            resolved["PRD"],
+                            resolved["architecture"],
+                            resolved["stack-decisions"],
+                        )
+                    )
     if "wireframes" in resolved:
         try:
             wireframe_text = resolved["wireframes"].decode("utf-8")

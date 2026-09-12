@@ -56,7 +56,7 @@ The task boundary comments and every task field are invariant machine anchors. K
 
 ## Outcome Coverage And Sources
 
-Every PRD metric and every `TEST-*` row marked `Required: Yes` appears once in **Outcome Coverage**. Preserve the metric text and TEST ID exactly. Do not create another product trace family.
+Every PRD metric and every `TEST-*` row marked `Required: Yes` appears once in **Outcome Coverage**. New Product Definition packages use `Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner`; historical three-column `Metric | Definition | Target` tables remain readable. Preserve the metric text and TEST ID exactly. Do not create another product trace family.
 
 Every non-`n/a` coverage row names one `MS-*` source before it can be verified. A source records the exact provider target, environment, bounded retrieval definition, route plus target-scoped capability observation, typed release bindings, owner, status, and evidence IDs. Installing a tag, SDK, property, pixel, crash reporter, or dashboard does not verify a source. Verification requires fresh `readback` or `behavior` evidence bound to the exact release SHA and artifact identity; a manual statement cannot verify a measurement source.
 

@@ -11,9 +11,9 @@ Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN sta
 
 Keep upstream ownership separate:
 
-- `product-definition-builder` owns `PRD.md`, approved `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
+- `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, plus approved `wireframes.html` when the product has UI.
 - `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
-- This skill implements frozen inputs, including the Builder UX Direction and either the formal design-system pair or the approved page-faithful UI target recorded when the pair is `not_required`. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
+- This skill implements an approved Product Definition and Stack Decision Checkpoint, including Builder UX Direction and the active visual source when UI applies. Builder approval proves direction conformance, not usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents neither product, stack, nor design decisions.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
@@ -84,7 +84,7 @@ These rules apply to both routes:
 For small work:
 
 1. Inspect the bounded component and relevant instructions.
-2. Implement with one parent writer.
+2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint; then implement with one parent writer.
 3. Run the smallest focused checks that prove the change.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
@@ -190,7 +190,7 @@ If the user pauses or cancels a managed run, apply the durable control transitio
 
 ### 2. Plan Large Work
 
-Freeze only the inputs needed by the graph: source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. Use a bounded acyclic review-repair-review graph. Every runtime review is read-only, names one SHA, and reports all blocking findings in one attempt. Its attempt budget and owner gate are defined in `references/graph-orchestration.md`'s Root-Cause Repair Escalation: at most the initial review plus one repair re-review, counted across the mission, review surface, and root-cause lineage over PLAN revisions, with one extra successor attempt only through `grant-review-attempts` under that section's conditions. A generic instruction to continue or finish the run is not that decision.
+Freeze only approved inputs needed by the graph: Product Definition revision, Stack Decision Checkpoint, source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. When a PRD carries the Product Definition approval marker, the frozen join runs the sibling core-package checker over PRD, architecture, and stack decisions. Use the existing bounded review-repair graph and owner-attempt rules. A generic instruction to continue does not grant another attempt.
 
 ### 3. Pass Plan Readiness
 

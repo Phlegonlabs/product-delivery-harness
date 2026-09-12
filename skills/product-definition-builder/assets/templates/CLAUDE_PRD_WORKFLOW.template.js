@@ -2,7 +2,7 @@ export const meta = {
   name: "product-definition-builder-graph",
   description: "Draft and cross-check one PRD package from frozen discovery inputs.",
   phases: [
-    { title: "Analyze", detail: "Run product, architecture, UX, platform, backend, and monetization roles" },
+    { title: "Analyze", detail: "Run product, architecture, trust, AI, platform, backend, and monetization roles" },
     { title: "Synthesize", detail: "Join role outputs into one PRD package" },
     { title: "Verify", detail: "Cross-check trace coverage and consistency, and research market gaps" },
   ],
@@ -65,6 +65,19 @@ if (typeof workflowArgs.include_implementation_plan !== "boolean") {
 }
 if (typeof workflowArgs.market_research !== "boolean") {
   throw new Error("product-definition-builder-graph requires boolean args.market_research");
+}
+const stackDecisionModes = ["review_recommendation", "select_layers", "delegate"];
+if (!stackDecisionModes.includes(workflowArgs.stack_decision_mode)) {
+  throw new Error("product-definition-builder-graph requires args.stack_decision_mode as review_recommendation, select_layers, or delegate");
+}
+const applicabilityGates = ["required", "not_required", "blocked"];
+for (const field of ["data_trust_gate", "ai_automation_gate"]) {
+  if (!applicabilityGates.includes(workflowArgs[field])) {
+    throw new Error(`product-definition-builder-graph requires args.${field} as required, not_required, or blocked`);
+  }
+  if (workflowArgs[field] === "blocked") {
+    throw new Error(`product-definition-builder-graph cannot run while args.${field} is blocked`);
+  }
 }
 const monetizationModels = ["none", "one_time", "subscription", "usage_based", "hybrid", "undecided"];
 if (!monetizationModels.includes(workflowArgs.monetization_model)) {
@@ -291,6 +304,9 @@ const sourceContext = JSON.stringify({
   has_public_marketing_content: workflowArgs.has_public_marketing_content,
   monetization_model: workflowArgs.monetization_model,
   partner_channel_model: workflowArgs.partner_channel_model,
+  stack_decision_mode: workflowArgs.stack_decision_mode,
+  data_trust_gate: workflowArgs.data_trust_gate,
+  ai_automation_gate: workflowArgs.ai_automation_gate,
   market_research: workflowArgs.market_research,
   multi_agent_authorized: workflowArgs.multi_agent_authorized,
   single_agent_only: workflowArgs.single_agent_only || false,
@@ -300,29 +316,35 @@ const sourceContext = JSON.stringify({
 const roles = [
   {
     key: "requirements",
-    task: "Extract product goals, non-goals, personas, journeys, functional requirements, measurable non-functional requirements, metrics, risks, assumptions, and stable PRD/TEST trace IDs. Record each applicable quality attribute with scope, measure, target, units, population, window, and percentile where applicable; mark non-applicable categories N/A with a reason. Define a required TEST obligation with upstream trace IDs and an expected signal for every Must functional requirement and every applicable NFR.",
+    task: "Extract product goals, non-goals, personas, journeys, functional requirements, measurable non-functional requirements, data/trust and AI/automation gates, metrics, risks, assumptions, and stable PRD/TEST trace IDs. Every metric has baseline, target or guardrail, measurement window, source/method, and owner. Every assumption and open question has an owner, decision timing, status, and approval impact. Define a required TEST obligation with upstream trace IDs and an expected signal for every Must requirement, applicable NFR, and required trust/AI obligation.",
   },
   {
     key: "architecture",
-    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs, surface suffixes, and release names. Keep surface identity separate from each stage's provider and name the exact branch or ref. Production uses the supplied canonical product-and-surface release name without -prod; development uses that exact name plus -dev. Under the standard main-only branch contract, development releases build from the exact candidate run branch/ref and production builds from remote main after separately authorized fast-forward of that verified SHA. Initial delivery and enhancements both start from observed remote main. Close artifact/signing, channel, release gates, availability, rollout, and rollback or forward-fix. Upload or submission is not availability. Only when hosted_deployable is true, build environment details from the resolved platform and stage providers; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
+    task: "Define implementation-ready components, data, APIs, integrations, auth, security, Data and Trust Architecture, AI and Automation Architecture, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Integrations name data exchanged, auth/scopes, contract/limits, failure recovery, and owner. Cover every supplied deployable surface and preserve the supplied stable release target IDs, surface suffixes, and release names. Upload or submission is not availability. Never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
   },
 ];
 if (workflowArgs.browser_frontend || workflowArgs.mobile_desktop_platform) {
   roles.push({
     key: "frontend-platform",
-    task: "Recommend or preserve one explicit browser stack and rendering/platform strategy, separate technology layers, and record Selection, Status, cited Authority/evidence, Why it fits, and Constraint/follow-up per layer; sections may mix statuses. Identify official-source checks and leave unresolved decisions explicit. When a mobile or desktop target is in scope, apply the same row contract to the Mobile/Desktop Technology Decision layers — platform, toolchain, distribution, backend/API integration, push/offline sync, testing — on the supplied mobile_desktop_platform; never substitute or invent a platform.",
+    task: "Produce two or three coherent frontend or client stack bundles plus one recommendation under the supplied Stack Decision Mode. For browser work separate runtime, rendering, language, package manager, framework, UI library, component foundation, styling, build, routing/data, and tests. For mobile/desktop separate target OSs, client strategy, framework/toolchain, navigation/state, persistence, secure storage, sync, push/native modules, backend integration, distribution, and tests. New proposals stay Recommended; this lane cannot mark them Approved.",
   });
 }
 if (workflowArgs.has_backend) {
   roles.push({
     key: "backend",
-    task: "Decide service topology first (monolith versus named services and monorepo versus polyrepo), then recommend or preserve one explicit backend runtime/framework, database category and engine, and auth strategy and provider. Keep these as separate ordered layers and record Selection, Status, cited Authority/evidence, Why it fits, and Constraint/follow-up per row; sections may mix statuses. Map data entities to stores, identify official-source checks, and leave unresolved decisions explicit for the Backend and Data Technology Decision section.",
+    task: "Decide service topology first — monolith versus named services and monorepo versus polyrepo — then produce two or three coherent backend bundles plus one recommendation: runtime/framework, database category/engine, auth strategy/provider, API, jobs/queue, storage, operations owner, cost, and data constraints. Preserve existing Required/Selected rows; every new proposal stays Recommended until the parent records owner acceptance.",
   });
 }
 if (workflowArgs.monetization_model !== "none" || workflowArgs.partner_channel_model !== "none") {
   roles.push({
     key: "monetization-channel",
-    task: "Apply monetization-and-partner-channel-guide.md. Keep the Monetization Infrastructure Gate separate from the Partner Channel Gate. Resolve pricing and offer rules, purchase surfaces, product/purchase/subscription/entitlement ownership, merchant-of-record and tax responsibility, and current billing/store, entitlement, and paywall options without defaulting to RevenueCat. Separately resolve affiliate, referral, reseller, or hybrid operations: attribution, lead/deal deduplication, commission or wholesale discount, reversal, payout, customer ownership, provisioning, delegated administration, support, termination, fraud controls, and reconciliation. Compare only current official sources, record retrieval dates, and leave owner decisions explicit.",
+    task: "Apply monetization-and-partner-channel-guide.md and produce coherent commercial-infrastructure bundles rather than independent vendor menus. Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller operations separate. New provider proposals remain Recommended until owner acceptance.",
+  });
+}
+if (workflowArgs.ai_automation_gate === "required") {
+  roles.push({
+    key: "ai-automation",
+    task: "Define the AI/automation product and technology options: provider/model and version policy, allowed data/context and retrieval, tool permissions and human approvals, evaluation thresholds and prohibited outcomes, injection/output validation, cost/latency/observability, fallback/shutoff, and incident owner. Return two or three coherent options where unresolved; new proposals remain Recommended.",
   });
 }
 
@@ -350,7 +372,7 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const draft = await agent(
-  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. PRD.md always records explicit Monetization Infrastructure and Partner Channel gate results; pricing never automatically selects RevenueCat, and affiliate, referral, and reseller remain distinct. Applicable architecture and stack decisions keep store/billing, entitlement, paywall/checkout, merchant-of-record/tax, and partner operations separate. For a UI-bearing product, PRD.md must include the complete UI surface contract, exactly one `responsive` anchor per UI-* entry, and the Wireframe Approval record. Also return wireframes_html_data_json as a valid JSON string using schema wireframes/3 with the same global viewports or sizeClasses, canvasWidths, and complete screens, regions, states, neverDrop lists, and per-target responsiveLayouts required by WIREFRAMES.template.html. Every visible region action must match exactly one flow with presentation page, overlay, or feedback; page and overlay target another UI-* screen in the file. When the frozen owner answers already decide a media or motion treatment, include mediaIntent with treatment, a dedicated draftPrompt, the owner decision source, and generationStatus deferred; never generate media. The parent embeds the data into the supplied self-contained HTML shell and verifies it against PRD.md. Return the HTML data field as null only when ui_bearing is false. Do not create design-system artifacts or start visual design; the parent presents wireframes.html for human approval and stops unless the owner explicitly asks to continue. " +
+  "You are the synthesis role in a PRD org graph. Reconcile role results into candidate Markdown for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. Include the exact Data and Trust and AI and Automation gates, measurable Metrics contract, structured Assumptions and Open Questions, Product Definition Decisions section, and both machine marker pairs. Product Definition Approval and Stack Decision Checkpoint remain blocked in this candidate; a workflow cannot approve them. Keep every new technology proposal Recommended and present coherent bundles plus alternatives. For UI products, return draft wireframes_html_data_json matching the PRD, but do not claim Wireframe Approval. Use schema wireframes/3 with the exact global viewports or sizeClasses, canvasWidths, screens, regions, states, neverDrop lists, and per-target responsiveLayouts. Every visible action maps to exactly one page, overlay, or feedback flow; page and overlay target a known UI-* screen. A decided media position carries generationStatus deferred; never generate media. " +
     "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral release-target blocks for every expected surface, preserve each supplied surface_suffix and release_name, and name the exact branch or ref. Production has the canonical surface name without -prod; development has that exact name plus -dev. Keep surface separate from provider. Use the exact candidate run branch/ref for the internally tested development release and main for production after same-SHA fast-forward, recording the shared remote-main base rule and separate promotion authorization/read-back. Do not treat upload/submission as availability or force native distribution into the hosted environment table; native recovery may require a signed forward-fix. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer, except the mandated hosted environment contract in architecture.md, whose columns are all release-critical. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
@@ -363,11 +385,11 @@ if (!draft) {
 const reviewers = [
   {
     key: "trace-verifier",
-    task: "Check that PRD.md contains the mandatory measurable Non-Functional Requirements and stable Test Obligations tables, every Must functional requirement and applicable NFR maps to at least one required TEST row with an expected signal, optional implementation planning reuses those TEST IDs, and every major architecture, UI, and UX obligation has stable cross-document trace coverage.",
+    task: "Check measurable NFR and Metrics contracts, structured assumptions/open questions, Data and Trust and AI gates, stable Test Obligations, and trace coverage. Confirm every Must, applicable NFR, and required trust/AI obligation has a required TEST row.",
   },
   {
     key: "consistency-verifier",
-    task: "Check the complete draft package for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify both monetization and partner-channel gates are explicit; no pricing decision silently selects RevenueCat; affiliate, referral, and reseller are distinct; and provider claims cite current official sources. For UI products, verify wireframes/3 JSON maps every PRD UI-* entry, responsive set, state, never-drop region, working action flow, deferred media intent, and per-target layout without implementation code. Verify every expected surface has stable development and production targets whose release names match the supplied canonical production name and exact -dev development pair, with no release name reused across surface IDs. Confirm development builds from the exact candidate run branch/ref, production from remote main only after internal exact-SHA PASS and separately authorized fast-forward, and both initial and enhancement runs start from observed remote main. Reject missing surfaces, upload as availability, or invalid native rollback claims.",
+    task: "Check the complete candidate for contradictory scope, hidden assumptions, missing ownership, unsupported claims, incoherent stack combinations, silent defaults, and invalid approvals. Confirm machine approval blocks exist but remain blocked before the parent obtains human decisions; no Recommended or Provisional row is called executable. Verify trust/AI/commercial gates, release targets, and UI draft consistency.",
   },
 ];
 if (workflowArgs.has_public_marketing_content) {
@@ -388,7 +410,7 @@ if (workflowArgs.market_research) {
     "You are the market-research role in a PRD org graph. The package is already drafted; your job is to check it against what already exists in the market and report what is missing.\n" +
       "Research the alternatives users have today (named products, in-house builds, manual process, or nothing), the feature baseline that is table stakes versus a real differentiator, this product's differentiation against those alternatives, pricing reference points when it has a commercial surface, category benchmarks for the metric targets the draft sets, and market-side risks such as incumbent response, switching cost, platform dependency, and regulatory or licensing limits. " +
       "For an internal tool, the alternatives are the current spreadsheet, the existing internal system, and doing nothing — not commercial products nobody here would buy.\n" +
-      "Every factual claim carries a source with publisher, URL, and retrieval date, and prefers a primary source over a roundup. A claim you could not source is recorded in unresolved and marked UNVALIDATED with what you searched — never stated as fact. Do not invent a competitor, price, funding figure, user count, market size, or feature comparison; a plausible number with no source is the worst outcome of this role. Do not present vendor marketing copy as verified capability. When sources disagree, record both and say so.\n" +
+      "Run the Research Disclosure Check before searching: use only a public-safe category/problem summary and never send confidential inputs, personal data, customer identities, internal metrics, secrets, or contract terms to a provider. Every factual claim carries a source with publisher, URL, and retrieval date. Mark unsourced claims UNVALIDATED; never invent market facts. Do not present vendor marketing copy as verified capability.\n" +
       "Mint stable MR-* IDs for findings that could change a product decision. Each finding names the artifact and section it lands in and what should change; a finding that would widen product scope is a recommendation for the user, not a decision. Return status blocked with a null body when no web tool is available or every search failed, rather than publishing an artifact of unsourced rows.\n" +
       "Read only. Do not edit, create, move, or publish files, and do not ask the user anything. " +
       `Frozen task context: ${sourceContext}\n\nDraft package: ${JSON.stringify(draft)}`,

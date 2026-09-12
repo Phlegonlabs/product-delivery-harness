@@ -48,7 +48,35 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("`DS-*` ID names an entry that exists in `design-system.json` when", harness)
         self.assertIn("content_sha256", harness)
         self.assertIn("immutable `source_revision`", harness)
-        self.assertIn("Passing validation does not authorize", prd_lifecycle)
+        self.assertIn("Passing validation also does not authorize", prd_lifecycle)
+
+    def test_product_and_stack_approval_are_machine_joined_before_delivery(self) -> None:
+        product_skill = self.read("product-definition-builder/SKILL.md")
+        product_contract = self.read(
+            "product-definition-builder/references/output-contract.md"
+        )
+        checker = self.read(
+            "product-definition-builder/scripts/check_product_package.py"
+        )
+        delivery_skill = self.read("delivery-harness/SKILL.md")
+        delivery_contract = self.read(
+            "delivery-harness/references/contract-and-traceability.md"
+        )
+        join = self.read("delivery-harness/scripts/harness_contract_join.py")
+
+        for marker in (
+            "product-definition-approval:start",
+            "stack-decision-checkpoint:start",
+            "Product Definition Approval",
+            "Stack Decision Checkpoint",
+        ):
+            self.assertIn(marker, product_contract + checker + join)
+        self.assertIn("check_product_package.py", product_skill)
+        self.assertIn("full_product_package_checker_errors", join)
+        self.assertIn("exactly one frozen architecture.md source", join)
+        self.assertIn("exactly one frozen stack-decisions.md source", join)
+        self.assertIn("`Recommended` and `Provisional`", delivery_skill)
+        self.assertIn("stop conditions, never defaults", delivery_contract)
 
     def test_completed_goal_documents_archive_on_completion_declaration(self) -> None:
         harness = self.read(

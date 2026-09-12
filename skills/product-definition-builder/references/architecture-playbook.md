@@ -1,6 +1,6 @@
 # Architecture Playbook
 
-Use this playbook to make architecture sections implementation-ready. The overall architecture may remain stack-neutral where requirements do not justify a named choice. For products with a browser surface, record the required/selected frontend or make an evidence-backed recommendation as described in `frontend-stack-selection.md`. For products with a backend, persistent data, or auth requirement, apply the same per-layer status and cited-authority discipline to service topology first, then backend runtime, database, and auth layers as described in `references/backend-stack-selection.md`.
+Use this playbook to make architecture sections implementation-ready. The overall architecture may remain stack-neutral where requirements do not justify a named choice. Browser products use `references/frontend-stack-selection.md`; backend, persistent-data, or auth products use `references/backend-stack-selection.md`; mobile products use `references/mobile-stack-selection.md`. Technology proposals remain non-executable until the Stack Decision Checkpoint and Product Definition Approval are both approved.
 
 ## Baseline Architecture Coverage
 
@@ -9,7 +9,7 @@ Every architecture should cover:
 - Product archetype and target surfaces.
 - Actors and external systems.
 - Frontend or client responsibilities.
-- For products with a browser frontend, frontend technology layers: deployment/runtime, rendering model, framework, UI library, build tool, routing/data approach, styling/component approach, and testing.
+- For products with a browser frontend, frontend technology layers: deployment/runtime, rendering model, language, package manager, framework, UI library, component foundation, styling approach, build tool, routing/data approach, and testing.
 - For products with a backend, persistent data, or auth requirement, backend technology layers in this order: service topology (monolith versus named services and monorepo versus polyrepo), runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
 - Backend, service, or workflow orchestration responsibilities.
 - Data model and persistence.
@@ -17,6 +17,8 @@ Every architecture should cover:
 - Authentication, authorization, and role boundaries.
 - Monetization model; product/price, purchase/subscription, entitlement, payment, tax, refund, and chargeback ownership; and the separately resolved affiliate, referral, or reseller operating model when applicable. Apply `monetization-and-partner-channel-guide.md` instead of assuming RevenueCat or treating every partner as an affiliate.
 - Security, privacy, secrets, and audit concerns.
+- The Data and Trust Gate: classification, residency, retention, deletion/export, consent/policy basis, vendor and human access, encryption, incident ownership, and applicable tests.
+- The AI and Automation Gate when applicable: model/provider boundary, data use, prompt and tool permissions, human approval, evaluation, prohibited outcomes, cost/latency budgets, observability, fallback/shutoff, prompt-injection defense, and output validation.
 - Integrations and failure handling.
 - Deployment, environment configuration, migrations, and rollback.
 - For every deployable surface, provider-neutral release targets with stable IDs, development/production stage, source, artifact/signing, exact channel, release gate path, availability proof, rollout, and rollback or forward-fix.
@@ -67,7 +69,7 @@ Isolation does not mean development stays empty. When the product has content-sh
 Use for browser-based SaaS, marketplaces, dashboards, portals, and public web products.
 
 - Frontend: routes, layout model, server/client rendering assumptions, form validation, state management, responsive behavior.
-- Frontend decision: status (`Required`, `Selected`, `Recommended`, or `Provisional`), product-fit rationale, alternatives rejected, official-source verification date, runtime compatibility, and any spike needed to close uncertainty.
+- Frontend decision: status (`Required`, `Selected`, `Approved`, `Recommended`, or `Provisional`), product-fit rationale, alternatives, official-source verification date, and uncertainty. Only the first three are executable.
 - Backend: API layer, business services, validation, background jobs, file handling, notifications.
 - Data: relational entities by default for transactional products; include indexes, tenancy, soft delete, audit history, and retention when relevant.
 - APIs: list core REST, GraphQL, RPC, or server action contracts; include pagination, filtering, validation errors, auth errors, and rate limits.
@@ -143,7 +145,7 @@ Use for an installable desktop application on macOS, Windows, or both.
 
 ## Browser Extension Pattern
 
-Use for a browser extension. Chrome with Manifest V3 is the default target today; Firefox and Safari are explicit alternatives, each with its own store and API differences.
+Use for a browser extension. The interview resolves the complete v1 browser target set before architecture; Chrome with Manifest V3 is a common single-target choice, while Firefox and Safari have separate stores and API differences. Never turn the common case into a silent target decision.
 
 - Toolchain: TypeScript plus an extension-aware bundler such as Vite with CRXJS or WXT, so the manifest, content scripts, service worker, and extension pages build from one tool (see `frontend-stack-selection.md`).
 - Client architecture: a `manifest.json` (V3) declares the entry points. A service worker is the event-driven background context — there is no persistent background page. Content scripts run inside web pages with only partial extension-API access; extension pages (popup, options, side panel) are ordinary HTML/TypeScript documents with full API access. Assign each workflow to the context that owns it and define how contexts communicate (`chrome.runtime` messaging, long-lived ports, or storage events).
@@ -172,6 +174,9 @@ Use for scheduled automations, event-triggered workflows, AI agents, data pipeli
 - Tools and integrations: source system, destination system, auth method, scopes, rate limits, quotas, and sandbox behavior.
 - Data: run records, step logs, input snapshots, generated outputs, idempotency keys, deduplication, and replay support.
 - Safety: permission boundaries, dry-run mode, confirmation gates, prompt injection defenses for AI workflows, output validation.
+- Model and data boundary: provider/runtime, version-change policy, inputs and context sent to the model, retention/training terms, retrieval sources, and confidential-data exclusions.
+- Evaluation: representative task set, required quality and safety thresholds, prohibited outcomes, deterministic checks around model output, and regression cadence.
+- Human control: exact tools and side effects the automation may invoke, approval points, cancellation, emergency disable, fallback behavior, and who accepts residual risk.
 - Failure handling: partial success, retryable and non-retryable errors, dead-letter queue, alerting, resume, rollback or compensating actions.
 - Observability: run history, step-level logs, latency, success rate, cost, token or API usage, integration error rates.
 
@@ -191,7 +196,7 @@ Use when the product is mainly a service consumed by other systems.
 - Specify idempotency for payment, notification, import, workflow, and external mutation flows.
 - Keep monetization infrastructure separate from partner distribution. Pricing makes both gates applicable but does not automatically select RevenueCat; affiliate, referral, and reseller motions keep distinct attribution, customer-ownership, commission/discount, payout, provisioning, and support contracts.
 - Specify authorization at both UI and backend layers.
-- For a browser frontend, backend, persistent data, or auth requirement, name the required/selected stack or a recommended stack when requirements support a decision; do not leave the implementer to reinterpret a flat list of tools or present a recommendation as user-approved.
+- For each applicable frontend, backend/data, mobile/desktop, commercial, or AI/automation area, present coherent stack bundles and record the owner-approved result. `Recommended` and `Provisional` rows are draft inputs, never implementation authority.
 - Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
 - For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact candidate-run-branch-to-`main` promotion path.
 - Keep stable provider-neutral release target IDs above provider-specific commands. A successful publish command, upload, submission, or review is not availability without audience access and smoke evidence.

@@ -30,7 +30,7 @@ If `docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/stack-de
 
 The publish step still overwrites that exact path regardless of whether it enhances or replaces it, so the existing file must still be archived for safety — add it to the superseded-document inventory even though it is an unrelated product document. The general exclusion for unrelated product documents in "Inventory Superseded Documents" below applies to other documents found elsewhere in the repository, not to one already occupying a path this run will publish to.
 
-In the Approval Gate, label this path explicitly as "existing unrelated content that will be overwritten and archived," not as a generic prior-version overwrite, so the user can catch the collision before approving.
+In the Publication Authorization Gate, label this path explicitly as "existing unrelated content that will be overwritten and archived," not as a generic prior-version overwrite, so the user can catch the collision before authorizing it.
 
 ## Resolve Locations
 
@@ -86,17 +86,20 @@ Record the candidate paths before creating staged artifacts. Do not archive or o
 ## Stage and Validate
 
 1. Create a run-specific staging directory under `docs/product/.prd-staging/` — unless Detect Enhancement Mode found a staged package for this product and the user chose to resume it, in which case reuse that directory instead of opening a second one.
-2. Write the complete new package there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` (published under `docs/`) and the create-once `ACTIVATION.md` seed when applicable.
-3. Run the output-contract quality checklist against the staged files.
-4. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
+2. Write the core Markdown candidate there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` and the create-once `ACTIVATION.md` seed when applicable. Draft UI wireframe data may be prepared, but no wireframe is approved yet.
+3. Complete market reconciliation, Stack Decision Checkpoint, and Product Definition Approval. A substantive approved-content revision reopens approval; appending later wireframe/design evidence alone does not.
+4. Run `python <product-definition-builder-root>/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --require-filled --require-approved`.
+5. For a UI-bearing product, generate or refresh `wireframes.html` only from that approved package revision, then run its browser, grading, human approval, and static checker gates. A headless product skips this step.
+6. Run the output-contract quality checklist against the complete staged files.
+7. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
 
-## Approval Gate
+## Publication Authorization Gate
 
-Passing validation does not authorize an overwrite, move, or archive. Before publishing, list every exact final path that would be created or overwritten and every source-to-archive move. Continue only when the user's original request already authorized those exact mutations or the user explicitly approves the list. If approval is absent, keep the staged package and existing documents unchanged.
+Product Definition Approval accepts the package's content; it does not authorize filesystem changes. Passing validation also does not authorize an overwrite, move, or archive. Before publishing, list every exact final path that would be created or overwritten and every source-to-archive move. Continue only when the user's original request already authorized those exact mutations or the user explicitly approves the list. If authorization is absent, keep the staged package and existing documents unchanged; its recorded content approval remains intact.
 
 ## Archive and Publish
 
-After the entire staged package passes validation and the exact mutation list is authorized:
+After the entire staged package has an approved Product Definition decision, any applicable Wireframe Approval, passing checkers, and an authorized exact mutation list:
 
 1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>/`.
 2. Move only the previously inventoried superseded documents into that directory. Preserve recognizable filenames; when basenames collide, include the original parent directory or a numeric suffix.
