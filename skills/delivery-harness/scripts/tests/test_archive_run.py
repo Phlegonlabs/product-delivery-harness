@@ -10,8 +10,13 @@ import unittest
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+
+import manifest_fixtures as mf  # noqa: E402
 
 
 def run_markdown(status: str = "complete", gates: object = None) -> str:
@@ -28,14 +33,26 @@ def run_markdown(status: str = "complete", gates: object = None) -> str:
     )
 
 
+def complete_pair_markdown() -> tuple[str, str]:
+    """A genuine PLAN/RUN pair that passes validate_run with status complete."""
+    plan = mf.valid_plan()
+    run = mf.valid_closeout_run(plan)
+    run["run_id"] = "RUN-20260911-demo"
+    mf.mark_complete(plan, run)
+    plan_md = mf.manifest_markdown("## Harness Plan Manifest", "harness_plan", plan)
+    run_md = mf.manifest_markdown("## Harness Run State", "harness_run", run)
+    return plan_md, run_md
+
+
 class ArchiveRunTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self.goal = self.root / "docs" / "goal"
         self.goal.mkdir(parents=True)
-        (self.goal / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
-        (self.goal / "RUN.md").write_text(run_markdown(), encoding="utf-8")
+        self.plan_md, self.run_md = complete_pair_markdown()
+        (self.goal / "PLAN.md").write_text(self.plan_md, encoding="utf-8")
+        (self.goal / "RUN.md").write_text(self.run_md, encoding="utf-8")
         (self.goal / "DECISIONS.md").write_text("# Decisions\n", encoding="utf-8")
         evidence = self.goal / "evidence"
         evidence.mkdir()
@@ -84,6 +101,23 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("final gate", result.stderr)
 
+    def test_hand_edited_complete_run_fails_pair_validation(self) -> None:
+        # A hand-written RUN claiming complete + PASS but lacking the real
+        # v11 structure is refused by the full pair validation.
+        (self.goal / "RUN.md").write_text(run_markdown(), encoding="utf-8")
+        result = self.archive()
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("run validation failed", result.stderr)
+        self.assertTrue((self.goal / "RUN.md").exists())
+        self.assertFalse((self.goal / "archived").exists())
+
+    def test_unparseable_plan_is_refused(self) -> None:
+        (self.goal / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
+        result = self.archive()
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("cannot read PLAN manifest", result.stderr)
+        self.assertTrue((self.goal / "RUN.md").exists())
+
     def test_missing_plan_is_refused(self) -> None:
         (self.goal / "PLAN.md").unlink()
         result = self.archive()
@@ -131,8 +165,8 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertIn("docs/goal/archived/", text)
 
         # A second archival pass with the row present does not duplicate it.
-        (self.goal / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
-        (self.goal / "RUN.md").write_text(run_markdown(), encoding="utf-8")
+        (self.goal / "PLAN.md").write_text(self.plan_md, encoding="utf-8")
+        (self.goal / "RUN.md").write_text(self.run_md, encoding="utf-8")
         result = self.archive(
             "--apply", "--slug", "second-pass", "--stamp", "20260101-000001"
         )
@@ -149,8 +183,8 @@ class ArchiveRunTests(unittest.TestCase):
     def test_a_second_archive_into_an_existing_target_is_refused(self) -> None:
         result = self.archive("--apply", "--stamp", "20260101-000000")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        (self.goal / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
-        (self.goal / "RUN.md").write_text(run_markdown(), encoding="utf-8")
+        (self.goal / "PLAN.md").write_text(self.plan_md, encoding="utf-8")
+        (self.goal / "RUN.md").write_text(self.run_md, encoding="utf-8")
         result = self.archive("--apply", "--stamp", "20260101-000000")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("archive target already exists", result.stderr)
