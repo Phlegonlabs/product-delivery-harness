@@ -14,11 +14,8 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from harness_design_contract import compare_design_system_pair
-from harness_ui_evidence import (
-    _run_required_harness_version,
-    _version_at_least,
-    validate_ui_surface_design_registry,
-)
+from harness_schema import run_required_harness_version, version_at_least
+from harness_ui_evidence import validate_ui_surface_design_registry
 
 
 FROZEN_SOURCE_STATUSES = {"frozen", "delta_accepted", "delta accepted"}
@@ -179,8 +176,8 @@ def web_viewport_floor_required(run: dict[str, Any] | None) -> bool:
 
     if not isinstance(run, dict):
         return False
-    return _version_at_least(
-        _run_required_harness_version(run), WEB_VIEWPORT_FLOOR_VERSION
+    return version_at_least(
+        run_required_harness_version(run), WEB_VIEWPORT_FLOOR_VERSION
     )
 
 
