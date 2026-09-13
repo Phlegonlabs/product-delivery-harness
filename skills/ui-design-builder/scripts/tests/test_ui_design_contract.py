@@ -269,6 +269,19 @@ class UiDesignContractTests(unittest.TestCase):
                 wireframe_html(
                     {
                         "schema": "wireframes/4",
+                        "screens": [{"id": "UI-001", "regions": [{"id": "hero", "elements": [{"mediaIntent": intent}]}]}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            problems = []
+            checker._join_motion_intents(row, path, problems=problems)
+            self.assertTrue(any("attached directly" in item for item in problems))
+
+            path.write_text(
+                wireframe_html(
+                    {
+                        "schema": "wireframes/4",
                         "screens": [
                             {"id": "UI-001", "mediaIntent": intent},
                             {"id": "UI-002", "mediaIntent": intent},

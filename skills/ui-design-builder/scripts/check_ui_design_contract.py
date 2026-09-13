@@ -467,15 +467,22 @@ def _wireframe_media_intents(
             intent = node.get("mediaIntent")
             if isinstance(intent, dict):
                 intent_id = intent.get("id")
+                direct_screen = bool(re.fullmatch(r"wireframe-data\.screens\[\d+\]", owner_path))
+                direct_region = bool(re.search(r"\.regions\[\d+\]$", owner_path))
                 if not isinstance(intent_id, str) or not MM_ID_RE.fullmatch(intent_id):
                     _add(problems, f"{owner_path}.mediaIntent.id must be a valid MM-* ID")
+                elif not direct_screen and not direct_region:
+                    _add(
+                        problems,
+                        f"{owner_path}.mediaIntent must be attached directly to an explicit screen or region",
+                    )
                 elif not isinstance(current_screen, str) or not current_screen.strip():
                     _add(
                         problems,
                         f"{owner_path}.mediaIntent must be attached to an explicit screen or region",
                     )
                 else:
-                    if current_region is None and not owner_path.startswith("wireframe-data.screens["):
+                    if direct_region and not isinstance(current_region, str):
                         _add(
                             problems,
                             f"{owner_path}.mediaIntent must be attached to an explicit screen or region",
