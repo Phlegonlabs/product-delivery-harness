@@ -29,7 +29,7 @@ Regulated or sensitive data:
 
 Detect this before applying any archetype profile below: no toolchain manifest, no app source tree, or no locally runnable dev/build command exists yet. Greenfield detection is per-toolchain, not whole-repo — a repository can be simultaneously non-greenfield for an already-established platform (e.g. a working web app) and greenfield for a newly-added one (e.g. no iOS project yet); apply the toolchain-detection table below per target platform, and scope the new workspace-foundation mission only to the platform that is actually greenfield. Every archetype's "Common missions" list below assumes the workspace and chosen stack already exist — on a greenfield repository, insert one workspace-foundation mission before them and shift the archetype's own list down by one (its `M1` becomes `M2`, and so on). This renumbering applies only when drafting a fresh single-archetype plan from scratch; when a later plan revision adds a new platform to an already-integrated project, mint the new workspace-foundation mission with the next available mission ID in that revision instead — mission IDs are opaque and do not encode order (see `contract-and-traceability.md`'s Mission And Task Identity section), so do not renumber or disturb any already-integrated mission's ID.
 
-Detect which toolchain is (or should be) in play before scaffolding, and branch — do not assume a JS package manager. Match the frozen `stack-decisions.md` Frontend/Platform Technology Decision (see `../product-definition-builder/references/frontend-stack-selection.md`) to one of these, checking the repository for an existing manifest of each shape first:
+Detect which toolchain is in the approved Stack Decision Checkpoint before scaffolding; never assume a language, package manager, component foundation, or styling system. Match only `Required`, `Selected`, or `Approved` rows, checking the repository for an existing manifest first:
 
 ```text
 JS/TS web:        package.json + a lockfile (Bun/npm/pnpm/Yarn)
@@ -43,11 +43,13 @@ The scaffold mission installs every layer the frozen decision names for the dete
 
 ```text
 JS/TS web:
-  Workspace manager: init the chosen manager (Bun/npm/pnpm/Yarn) and its workspace layout, lockfile, and root script contract
+  Language: configure the approved TypeScript/JavaScript contract
+  Workspace manager: init the approved manager (Bun/npm/pnpm/Yarn), workspace layout, lockfile, and root scripts
   Web framework: install and wire the decided framework (e.g. Astro, a React framework)
   UI library: install the decided UI library when one is named (e.g. React, Preact, Vue), including the framework's integration for it
+  Component foundation: install or copy the approved source/primitives/suite and record code ownership
+  Styling approach: configure the approved Tailwind/CSS Modules/modern CSS/component-managed approach
   Build tool: install/configure the build tool the framework doesn't already own
-  Styling/components: install the decided styling and component approach (e.g. Tailwind, a component library) and wire its build-time configuration
   Routing/data, testing: scaffold the minimal contract needed for later missions to extend, per the decision record
 
 iOS/macOS Swift:
@@ -77,7 +79,7 @@ Windows .NET:
 
 **Environment configuration (every toolchain).** Apply `gitignore-contract.md` from the first scaffold commit. Reserve a place for environment secrets before any task needs one: create a tracked `.env.example` (or the toolchain's native equivalent — e.g. `local.properties.example` for Android, an `.xcconfig` template for Swift) listing every environment variable the app currently needs by name, with a placeholder or one-line description and no real value. Ensure the real `.env` (or equivalent local secret file) is git-ignored from this same commit, never committed. Treat `.env.example` as living documentation: a later task that reads a new environment variable adds its entry to `.env.example` in the same commit that introduces the read (see `commit-convention.md`), not as a separate cleanup pass. Never invent a placeholder's real value — when a required variable's actual value is unavailable, stop and ask per `contract-and-traceability.md`'s Stop And Ask Conditions rather than guessing.
 
-Exit criterion: a locally runnable dev/build for the detected toolchain and its passing build/compile plus test discovery — a running dev server and passing build/typecheck for JS/TS web, a successful `xcodebuild build`/`swift build` for Swift, a successful `./gradlew assembleDebug` for Android, `flutter build` (or `flutter run` device check) for Flutter, `dotnet build` for .NET — proving every installed layer actually works together rather than merely appearing in a manifest. Treat an unselected layer (still `Provisional` in `stack-decisions.md`) as a stop condition, not a default guess — request the missing decision instead of picking a stack yourself.
+Exit criterion: a locally runnable dev/build plus test discovery proving every approved layer works together. Any `Recommended` or `Provisional` executable layer, or a non-approved Stack Decision Checkpoint, is a stop condition; request the upstream decision instead of picking a stack.
 
 Common missions: `M1 workspace-foundation` (above), then the archetype's own list below renumbered to start at `M2` — but this renumbering is only for a fresh from-scratch single-archetype plan; a later revision that adds a new platform to an already-integrated project mints the workspace-foundation mission with the next available mission ID instead (see the per-toolchain and mission-ID note above).
 
@@ -101,7 +103,7 @@ This is a complete, copy-paste-ready PLAN-v6 mission object for the scaffold mis
   "worktree_eligible": true,
   "required_skills": [],
   "stop_conditions": [
-    "Stop if any Frontend Technology Decision layer is still Provisional; request the missing decision instead of guessing a stack."
+    "Stop unless the Stack Decision Checkpoint is approved and every executable frontend layer is Required, Selected, or Approved."
   ],
   "worker_verifiers": [
     {
@@ -116,7 +118,7 @@ This is a complete, copy-paste-ready PLAN-v6 mission object for the scaffold mis
       "id": "m1-build",
       "cwd": ".",
       "argv": ["<package-manager>", "run", "build"],
-      "pass_signal": "Build exits 0 with every installed layer (framework, UI library, build tool, styling/components) wired and locally runnable"
+      "pass_signal": "Build exits 0 with every approved layer (language, package manager, framework, UI library, component foundation, styling, and build tool) wired and locally runnable"
     }
   ],
   "tasks": [
@@ -131,7 +133,7 @@ This is a complete, copy-paste-ready PLAN-v6 mission object for the scaffold mis
     {
       "id": "M1/T02",
       "alias": "framework-and-ui-stack",
-      "objective": "Install and wire the decided framework, UI library, build tool, and styling/components together.",
+      "objective": "Install and wire the approved language, framework, UI library, component foundation, styling approach, and build tool together.",
       "depends_on": ["M1/T01"],
       "write_scope": ["apps/web/**"],
       "verifiers": [{"id": "m1-t02", "cwd": ".", "argv": ["<package-manager>", "run", "build"], "pass_signal": "Build exits 0 and the dev server serves a page locally"}]

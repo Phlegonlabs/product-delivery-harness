@@ -1,6 +1,6 @@
 # UI Design Pass
 
-Run this optional pass only after the human owner explicitly asks to continue beyond an approved `wireframes.html` and the market-research gap pass is resolved. It belongs to `product-definition-builder`: it turns the approved structural wireframe into a human-approved visual target before deciding whether a formal design-system pair is useful.
+Run this optional pass only after the human owner explicitly asks to continue beyond an approved Product Definition package and approved `wireframes.html`. It turns the approved structural wireframe into a human-approved visual target before deciding whether a formal design-system pair is useful.
 
 ## Frozen Inputs
 
@@ -10,9 +10,10 @@ Every direction and preview uses the same:
 - approved `wireframes.html` page, section, element, action, state, and responsive projection, checked against `PRD.md`;
 - exact copy or bounded display contracts;
 - Builder UX Direction, brand, accessibility, platform, and performance constraints; and
+- the approved Stack Decision Checkpoint, including component foundation and styling approach; and
 - applicable `MR-*` market evidence and inspected `REF-*` visual evidence.
 
-The pass may explore typography, color, composition, imagery, texture, and motion intent inside the PRD Motion Need Gate. Every direction records which moments move, their trigger and purpose, how strongly, what stays still, and the required reduced-motion fallback — `design-taste-frontend`'s recorded `MOTION_INTENSITY` when Taste ran, otherwise an explicit concept or `motion: minimal`. Required functional UI motion may run as deterministic local CSS or JavaScript in the review HTML so its meaning and fallback can be judged. Generated video, illustration animation, cinematic treatment, or other provider-created motion remains a labeled static placeholder with a deferred brief; the pass does not implement final generated motion. The pass may not add, remove, reorder, or reinterpret product scope, content responsibility, actions, flows, states, or trace IDs. A structural finding returns to the PRD and wireframe flow and requires renewed wireframe approval.
+The pass may explore typography, color, composition, imagery, texture, and motion intent inside the PRD Motion Need Gate. Every direction records which moments move, their trigger and purpose, how strongly, what stays still, and the required reduced-motion fallback — `design-taste-frontend`'s recorded `MOTION_INTENSITY` when Taste ran, otherwise an explicit concept or `motion: minimal`. Required functional UI motion may run as deterministic local CSS or JavaScript in the review HTML so its meaning and fallback can be judged. Generated video, illustration animation, cinematic treatment, or other provider-created motion remains a labeled static placeholder with a deferred brief; the pass does not implement final generated motion. The pass may not add, remove, reorder, or reinterpret product scope, content responsibility, actions, flows, states, trace IDs, or approved implementation-stack constraints. A structural finding returns to PRD and wireframe approval. A direction that genuinely requires a different component foundation, styling method, runtime, or framework returns to the Stack Decision Checkpoint and then Product Definition Approval before visual work continues; visual approval never overrides technology by implication.
 
 ## Motion Stage Contract
 

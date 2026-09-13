@@ -1,22 +1,24 @@
 # Mobile Stack Selection
 
-Use this guide for every PRD package whose product surface includes a mobile app. The wider architecture may remain technology-neutral. This guide ensures the mobile client itself records a required/selected choice or turns product evidence into one implementation-ready recommendation, rather than producing a fashionable list of frameworks. A mobile app's release path is an app store or a signed build, not the web deployment-platform question — its backend, if any, resolves its own hosting separately.
+Use this guide for every PRD package whose product surface includes a mobile app. First resolve the target operating systems, then compare native and cross-platform implementation strategies, and finally obtain owner acceptance for one coherent client stack. A mobile app's release path is an app store or signed build, not the web deployment-platform question; its backend resolves hosting separately.
 
 Label the decision status accurately:
 
 - `Required`: mandated by the user, organization, or hard external constraint.
 - `Selected`: already adopted by the current product or repository.
-- `Recommended`: the PRD's evidence-backed advice; not yet user-approved.
+- `Approved`: accepted by the human owner for this package, directly or through an explicit recorded delegation.
+- `Recommended`: the PRD's evidence-backed proposal; not yet owner-approved and not executable.
 - `Provisional`: the leading choice pending named evidence or a spike.
 
 Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
 
 ## First Separate the Layers
 
-Never compare `native iOS vs Flutter vs React Native vs Expo` as though they sit at the same level. The choice is a small stack of nested decisions, not one flat menu.
+Never compare `native iOS vs Flutter vs React Native vs Expo` as though they sit at the same level. Target operating systems, code-sharing strategy, framework, and toolchain are nested decisions, not one flat menu.
 
 | Layer | Question | Examples |
 | --- | --- | --- |
+| Target operating systems | Which destinations ship in v1? | iOS, Android, both; later targets explicitly deferred |
 | Cross-platform vs native | One shared codebase across platforms, or a separate native codebase per platform? | Cross-platform (Flutter, React Native) or native (Swift/SwiftUI for iOS, Kotlin/Jetpack Compose for Android) |
 | Cross-platform framework | If cross-platform, which framework owns the UI and app model? | Flutter (Dart codebase, its own rendering engine) or React Native (JavaScript/TypeScript, native platform components) |
 | React Native workflow / toolchain | If React Native, how is the app built, signed, and shipped? | Expo (managed workflow, `create-expo-app`, EAS Build/Submit/Update) or bare React Native (full native iOS/Android projects, ejection/prebuild for native modules) |
@@ -36,6 +38,7 @@ Score or describe these inputs before selecting a stack:
 6. Target surface beyond phones: React Native can additionally target the web (React Native for Web) and Windows/macOS; Flutter has its own web, desktop (Windows/macOS/Linux), and embedded targets. Record which extra surfaces are actually in scope for v1 versus later.
 7. Store and distribution obligations: both stores' developer-program requirements apply regardless of framework (see `architecture-playbook.md`'s native patterns). A cross-platform framework does not bypass either store.
 8. Timeline and delivery: launch date, number of platforms at launch, review-cycle tolerance, and whether one team ships both platforms.
+9. Ownership: Stack Decision Mode, decision owner, store-account/signing ownership, build-service cost, license limits, vendor lock-in, and who maintains native modules.
 
 Do not let one factor decide by itself. A team with deep React skills may still choose native when a single hard platform-capability or performance requirement dominates the product.
 
@@ -85,21 +88,23 @@ Follow `architecture-playbook.md`'s Native iOS Pattern and Native Android Patter
 
 ## Selection Procedure
 
-1. Classify the product by target platforms at launch, native-capability needs, performance profile, existing-codebase reuse potential, and team skills.
-2. Resolve cross-platform vs native, then the framework, then (for React Native) Expo vs bare, eliminating any option that cannot satisfy a hard constraint or whose current support is unverified.
-3. Choose the simplest coherent stack that covers the product's platforms and capabilities without unnecessary native-tooling burden or an unused extra language.
-4. Name the required/selected stack, or one recommendation when no choice exists. Do not hand the implementer an unranked shortlist, and do not present advice as an approved requirement.
-5. Explain at least two serious alternatives, where each would fit better, why it loses here, and what would trigger reconsideration.
-6. Verify current Expo/React Native/Flutter and Apple/Google documentation and capture direct sources plus the check date.
-7. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional`, not `Selected`.
+1. Resolve target operating systems at launch before discussing implementation frameworks.
+2. Classify native-capability needs, performance profile, existing-codebase reuse potential, team skills, signing/build ownership, and distribution constraints.
+3. Resolve native versus cross-platform, then the framework, then (for React Native) Expo versus bare, eliminating any option that cannot satisfy a hard constraint or whose current support is unverified.
+4. Build two or three coherent client bundles. Each covers target OSs, code strategy, framework/toolchain, navigation, state, local persistence, secure storage, sync, push, native modules, testing, signing/build, cost, and ownership.
+5. Recommend one bundle and present its tradeoffs plus serious alternatives under the recorded Stack Decision Mode. Do not hand the implementer an unranked shortlist.
+6. Mark accepted new choices `Approved`; retain adopted choices as `Selected` and hard constraints as `Required`. Keep unaccepted proposals `Recommended` and non-executable.
+7. Verify current Expo/React Native/Flutter and Apple/Google documentation and capture direct sources plus the check date.
+8. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
 
 ## Required Architecture Record
 
 The `Mobile/Desktop Technology Decision` section in `stack-decisions.md` must include (a sibling section template for it lives in `references/output-contract.md`):
 
-- Product evidence and hard constraints, including existing-codebase reuse potential and target platforms at launch.
-- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, `Recommended`, and `Provisional` rows.
-- One recorded stack separated by cross-platform-vs-native, framework (Flutter or React Native), React Native workflow (Expo or bare) when applicable, navigation, local persistence, state, offline/sync, secure storage, push, native-module boundaries, and testing.
+- Product evidence and hard constraints, including existing-codebase reuse potential and target operating systems at launch.
+- The Stack Decision Mode, human owner, coherent bundles presented, accepted bundle or layer overrides, delegation source when used, and checkpoint decision.
+- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Approved packages use `Required`, `Selected`, or `Approved`; `Recommended` and `Provisional` remain draft-only.
+- One recorded stack separated by target operating systems, cross-platform-vs-native, framework, React Native workflow when applicable, navigation, local persistence, state, offline/sync, secure storage, push, native-module boundaries, and testing.
 - The extra target surfaces (React Native for Web, Windows/macOS, Flutter web/desktop) that are in scope, if any.
 - Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.
@@ -126,6 +131,7 @@ For native iOS and Android store, signing, testing-track, and target-API sources
 ## Failure Modes
 
 - A flat `native iOS / Android / Flutter / React Native / Expo` options list with no layer model or recommendation.
+- Asking the owner to choose Flutter or React Native before the v1 target operating systems and native-capability constraints are known.
 - Treating Expo and React Native as separate competing frameworks instead of Expo being the current recommended way to build React Native apps.
 - Assuming bare React Native when Expo would remove unnecessary native-tooling burden, without a stated native-module or build reason not to use Expo.
 - Recommending Flutter or React Native for a team with a large existing React web codebase without weighing code/logic reuse against a fresh Dart codebase.
@@ -133,4 +139,5 @@ For native iOS and Android store, signing, testing-track, and target-API sources
 - Assuming a cross-platform framework covers a deep native capability for free instead of confirming a maintained native module exists or budgeting to write one.
 - Claiming current Expo SDK, EAS tier, or Flutter support without a date and official source, or copying a version/limit from memory.
 - Forgetting that a cross-platform choice still owes both stores' developer-program, signing, testing, and target-API obligations.
+- Sending a `Recommended` framework, build service, navigation, persistence, or push choice to implementation without owner acceptance.
 - Writing `TBD` without an owner, deadline, experiment, and decision threshold.

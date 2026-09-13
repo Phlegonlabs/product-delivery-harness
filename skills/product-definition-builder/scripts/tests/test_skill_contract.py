@@ -159,6 +159,9 @@ async function agent(_prompt, options) {
             "has_public_marketing_content": False,
             "monetization_model": "none",
             "partner_channel_model": "none",
+            "stack_decision_mode": "review_recommendation",
+            "data_trust_gate": "not_required",
+            "ai_automation_gate": "not_required",
             "include_implementation_plan": False,
             "market_research": True,
             "tool_profile": "builder_readonly",
@@ -172,19 +175,19 @@ async function agent(_prompt, options) {
         agent = self.read_agent_prompt()
 
         self.assertIn("references/frontend-stack-selection.md", skill)
-        self.assertIn("recommend one explicit stack", skill)
+        self.assertIn("produce coherent bundles rather than disconnected menus", skill)
         self.assertIn(
-            "recommendation is not misrepresented as a fixed requirement", skill
+            "`Recommended` and `Provisional` are non-executable draft states", skill
         )
         self.assertIn("Cloudflare is a deployment/runtime platform", skill)
-        self.assertIn("when the product has a browser surface", agent)
+        self.assertIn("component foundation such as shadcn/ui", agent)
 
     def test_completed_wireframe_stage_stops_before_harness(self) -> None:
         skill = self.read("SKILL.md")
 
         self.assertIn("An approved `wireframes.html` completes the wireframe stage", skill)
-        self.assertIn("do not invoke or automatically offer either", skill)
-        self.assertIn("If the owner later requests Harness work", skill)
+        self.assertIn("visual design and implementation are separate optional phases", skill)
+        self.assertIn("A later Harness request consumes", skill)
 
     def test_deployment_document_seeds_the_human_configuration_handoff(self) -> None:
         skill = self.read("SKILL.md")
@@ -199,7 +202,7 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(phrase, skill)
         self.assertIn("Which secret and variable names go where", contract)
-        self.assertIn("records names and destinations but no values", contract)
+        self.assertIn("contain secret names only and no secret values", contract)
         self.assertIn("before a deployable push", lifecycle)
 
     def test_publish_uses_distinct_repository_context_templates(self) -> None:
@@ -212,7 +215,7 @@ async function agent(_prompt, options) {
         )
         self.assertIn("PROJECT_AGENTS.template.md` for `AGENTS.md`", skill)
         self.assertIn("PROJECT_CLAUDE.template.md` for `CLAUDE.md`", skill)
-        self.assertIn("Never copy one template to both files", skill)
+        self.assertIn("never copy one template to both files", skill)
         self.assertNotIn(
             "both files exist before any implementation run starts", skill
         )
@@ -230,7 +233,7 @@ async function agent(_prompt, options) {
             "Only when the result is `required`, load `design-system-compiler`",
             skill,
         )
-        self.assertIn("define routes, screen structure, flows", skill)
+        self.assertIn("Define routes, screen structure, flows", skill)
         self.assertIn("Only when the owner explicitly continues into visual design", agent)
         self.assertIn("later optional visual-design phase", contract)
         self.assertIn("## UI Surface Contract", contract)
@@ -740,13 +743,13 @@ async function agent(_prompt, options) {
         self.assertIn("record `applicable`, `partially_applicable`, or `n/a: <reason>`", skill)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
         self.assertIn(
-            "list the locally installed skills visible to this session", skill
+            "List locally installed binding candidates", skill
         )
         self.assertIn(
             "confirm the bindings with the owner in one `AskUserQuestion`", skill
         )
         self.assertIn("stay at the bundled default", skill)
-        self.assertIn("never reopened for this", skill)
+        self.assertIn("or reopen an established context file", skill)
         self.assertIn("one self-contained design-reference HTML", guide)
         self.assertIn("Every visible product control responds", guide)
         self.assertIn("generationStatus: deferred", guide)
@@ -804,8 +807,8 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
-        research = skill.index("14. Run the market-research gap pass")
-        design = skill.index("15. Only when the owner explicitly requests visual design")
+        research = skill.index("13. Run the post-draft market-research reconciliation")
+        design = skill.index("18. Only when the owner explicitly requests visual design")
         self.assertLess(research, design)
         self.assertIn("valid `MR-*` evidence", skill)
         self.assertIn("Ask the human owner once for style preferences and visual references", skill)
@@ -842,11 +845,11 @@ async function agent(_prompt, options) {
             "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |",
             contract,
         )
-        self.assertIn("### Recorded or Recommended Stack", contract)
+        self.assertIn("### Recorded or Approved Stack", contract)
         self.assertIn("### Rendering and Route Strategy", contract)
         self.assertIn("### Platform Compatibility Verification", contract)
         self.assertIn("### Unresolved Decision Protocol", contract)
-        self.assertIn("a bare `TBD` does not pass validation", contract)
+        self.assertIn("A bare `TBD` does not pass validation", contract)
 
     def test_discovery_and_architecture_capture_selection_evidence(self) -> None:
         interview = self.read("references/interview-guide.md")
@@ -871,7 +874,7 @@ async function agent(_prompt, options) {
         self.assertNotIn("## Default Cloudflare Release Pattern", architecture)
         self.assertNotIn("organization default", agent)
         self.assertIn(
-            "resolve the deployment platform explicitly via the interview's platform `AskUserQuestion` step",
+            "an evidence-narrowed deployment-platform choice for hosted surfaces",
             skill,
         )
         self.assertIn("## Candidate-to-Production Release Pattern", architecture)
@@ -885,7 +888,7 @@ async function agent(_prompt, options) {
         self.assertIn("both initial delivery and enhancements start from observed remote `main`", skill)
         self.assertIn("candidate run branch/SHA", architecture)
         self.assertIn("Source policy: [exact candidate run branch/ref", contract)
-        self.assertIn("Use a main-only branch model", agent)
+        self.assertIn("main-only branch model", agent)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
@@ -900,13 +903,13 @@ async function agent(_prompt, options) {
         )
         for marked_bullet in (
             "or a hybrid? (AskUserQuestion)",
-            "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion",
+            "[AQ-DEPLOYMENT-PLATFORM] For a deployable web, API, or hosted backend target",
             "recurring usability benchmarking? (AskUserQuestion)",
         ):
             self.assertIn(marked_bullet, interview)
         self.assertNotIn("existing brand reference. (AskUserQuestion", interview)
         self.assertIn(
-            "Do not call `AskUserQuestion` during any free-text segment",
+            "do not call `AskUserQuestion` during any free-text segment",
             skill,
         )
         self.assertIn(
@@ -968,15 +971,15 @@ async function agent(_prompt, options) {
         for content in (skill, architecture, contract):
             self.assertIn("backend, persistent data, or auth requirement", content)
         self.assertIn(
-            "database category (Relational, Document, Key-value or cache only, or None)",
+            "Resolve database category separately from engine",
             agent,
         )
         self.assertIn(
-            "auth strategy (Build custom, Managed third-party provider, Platform-native, or No auth needed)",
+            "auth strategy separately from provider",
             agent,
         )
         self.assertIn(
-            "via AskUserQuestion unless the user or repository already names them",
+            "with AskUserQuestion and an evidence-backed recommendation route",
             agent,
         )
 
@@ -1045,11 +1048,11 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
 
-        self.assertIn("or no persistent database? (AskUserQuestion)", interview)
-        self.assertIn("or no auth needed? (AskUserQuestion)", interview)
+        self.assertIn("no persistent database, or an evidence-backed recommendation? (AskUserQuestion)", interview)
+        self.assertIn("no auth, or an evidence-backed recommendation? (AskUserQuestion)", interview)
         self.assertIn("database category and auth strategy", skill)
         self.assertIn(
-            "the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider",
+            "the resolved database category and auth strategy (or explicit recommendation request)",
             interview,
         )
 
@@ -1057,13 +1060,13 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
 
         self.assertIn(
-            "auth-strategy pair only when the product provably has no backend", skill
+            "skip database/auth questions only when the product provably has no backend", skill
         )
         self.assertIn(
-            "Skip the whole phase only when none of its questions apply.", skill
+            "Skip resolved or inapplicable questions", skill
         )
         self.assertIn(
-            "Do not silently pick a database category or auth strategy on the user's behalf.",
+            "Do not silently select a provider, framework, component system, CSS approach, database/auth implementation",
             skill,
         )
 
@@ -1074,7 +1077,7 @@ async function agent(_prompt, options) {
         interview = self.read("references/interview-guide.md")
 
         self.assertIn("Keep the deployment platform out of this call", skill)
-        self.assertIn("depend on step 5's archetype answer", skill)
+        self.assertIn("depends on step 5's archetype answer", skill)
         self.assertIn("see Workflow step 7, after the archetype is known", skill)
         self.assertIn("question tool's actual per-call question and option limits", interview)
         self.assertIn("There is no host-specific or cross-phase total-call cap", interview)
@@ -1082,9 +1085,11 @@ async function agent(_prompt, options) {
             "Never ask a final-phase question in the archetype call", interview
         )
         for slotted_bullet in (
-            "React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, final phase",
-            "cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion, final phase",
-            "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, final phase",
+            "[AQ-MOBILE-TARGETS] If the answer includes a mobile app",
+            "[AQ-DESKTOP-TARGETS] If the answer includes a desktop app",
+            "[AQ-CLIENT-STRATEGY] For a mobile or desktop client",
+            "[AQ-BROWSER-TARGETS] If the answer is browser extension",
+            "[AQ-STACK-DECISION-MODE] How should unresolved implementation technology be decided",
         ):
             self.assertIn(slotted_bullet, interview)
         self.assertIn(
@@ -1104,7 +1109,7 @@ async function agent(_prompt, options) {
         self.assertIn("`UI-*`", contract)
         self.assertIn("| TEST ID | Test Type", contract)
         self.assertIn(
-            "Passing validation does not authorize an overwrite, move, or archive",
+            "Passing validation also does not authorize an overwrite, move, or archive",
             lifecycle,
         )
         self.assertIn("keep the staged package", lifecycle)
@@ -1193,10 +1198,11 @@ async function agent(_prompt, options) {
         monetization = self.read("references/monetization-and-partner-channel-guide.md")
 
         header = "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |"
-        self.assertEqual(4, contract.count(header))
+        self.assertEqual(5, contract.count(header))
         for status_rule in (
             "`Required` means a user, organization, or hard external constraint",
             "`Selected` means the current product or repository already adopted it",
+            "`Approved` means the human owner accepted a new choice",
             "`Recommended` is evidence-backed advice not yet accepted",
             "`Provisional` is a leading choice pending named evidence",
         ):
@@ -1239,7 +1245,7 @@ async function agent(_prompt, options) {
         )
         self.assertIn("Record service topology first", skill)
         self.assertIn("Decide service topology first", workflow)
-        self.assertIn("record service topology first", agent)
+        self.assertIn("Record service topology first", agent)
         for content in (contract, backend, architecture, skill, workflow, agent):
             self.assertIn("monolith", content.lower())
             self.assertIn("monorepo", content.lower())
@@ -1742,7 +1748,7 @@ async function agent(_prompt, options) {
         # The assessment is its own workflow step, ordered between the
         # free-text interview and the first AskUserQuestion batch.
         self.assertIn("4. Run the research-first assessment", skill)
-        interview_at = skill.index("Conduct a complete but concise product interview")
+        interview_at = skill.index("Conduct exactly three bounded free-text turns")
         assessment_at = skill.index("4. Run the research-first assessment")
         first_batch_at = skill.index("5. After all applicable free-text segments")
         self.assertLess(interview_at, assessment_at)
@@ -1778,15 +1784,15 @@ async function agent(_prompt, options) {
         # PRD records the gate; a silently missing gate does not validate.
         self.assertIn("### Research Gate", contract)
         self.assertIn(
-            "Research Gate: [go / clarify / stop] — assessed [YYYY-MM-DD]",
+            "Research Gate: [go / clarify / stop / skipped]",
             contract,
         )
-        self.assertIn("A silently missing gate does not validate", contract)
+        self.assertIn("A silently missing Research Gate", contract)
         self.assertIn("`research-assessment.md`, and `outcome-review.md` in full", skill)
 
         # The post-draft pass reconciles the assessment instead of
         # researching the same ground twice.
-        self.assertIn("plus `research-assessment.md` when the research-first pass ran", skill)
+        self.assertIn("plus `research-assessment.md` when the pre-draft pass ran", skill)
         self.assertIn("The pass is a reconciliation", skill)
         self.assertIn(
             "`research-assessment.md` when the pre-draft research-first assessment ran",
@@ -1801,7 +1807,7 @@ async function agent(_prompt, options) {
 
         # The review is an owner-initiated post-publish step with a closed
         # verdict vocabulary and real measurement windows.
-        self.assertIn("21. When the owner asks for an outcome review", skill)
+        self.assertIn("24. When the owner asks for an outcome review", skill)
         self.assertIn("`no_change`, `enhancement`, or `incident`", skill)
         self.assertIn("never leave a run open waiting for adoption", skill)
         self.assertIn("Verdict: [no_change / enhancement / incident]", contract)
@@ -1824,7 +1830,7 @@ async function agent(_prompt, options) {
         self.assertIn(
             "`research-assessment.md`, and `outcome-review.md` in full", skill
         )
-        self.assertIn("reads `outcome-review.md` in full", skill)
+        self.assertIn("and `outcome-review.md` in full", skill)
         self.assertIn("`outcome-review.md` is a post-deployment record", lifecycle)
         self.assertIn("Activation source status:", contract)
         self.assertIn("matching verified `MS-*` sources", skill)
@@ -1903,7 +1909,7 @@ async function agent(_prompt, options) {
         )
         self.assertIn("hosted_deployable: workflowArgs.hosted_deployable,", workflow)
         self.assertIn("ui_bearing: workflowArgs.ui_bearing,", workflow)
-        self.assertIn("never substitute or invent a platform or provider", workflow)
+        self.assertIn("Never substitute or invent a platform or provider", workflow)
 
     def test_lifecycle_keeps_the_package_in_docs_product_not_flat_docs(self) -> None:
         lifecycle = self.read("references/artifact-lifecycle.md")
@@ -1941,7 +1947,7 @@ async function agent(_prompt, options) {
         self.assertNotIn("Codex CLI caps", skill)
         self.assertNotIn("drop order", interview)
         self.assertIn("minimum number of calls", interview)
-        self.assertIn("Do not drop an applicable decision", skill)
+        self.assertIn("do not drop an applicable decision", skill)
         rows = re.findall(
             r"^\| (AQ-[A-Z-]+) \| (independent|builder|final) \| ([^|]+?) \|$",
             interview,
@@ -1956,12 +1962,15 @@ async function agent(_prompt, options) {
             ("AQ-LAYOUT-PATTERN", "builder", "Layout and interaction pattern"),
             ("AQ-MOTION-DIRECTION", "builder", "Motion direction and decision authority"),
             ("AQ-DEPLOYMENT-PLATFORM", "final", "Deployment platform"),
-            ("AQ-MOBILE-PLATFORM", "final", "Mobile platform"),
-            ("AQ-DESKTOP-PLATFORM", "final", "Desktop platform"),
+            ("AQ-MOBILE-TARGETS", "final", "Mobile target operating systems"),
+            ("AQ-DESKTOP-TARGETS", "final", "Desktop target operating systems"),
+            ("AQ-CLIENT-STRATEGY", "final", "Native versus cross-platform client strategy"),
+            ("AQ-BROWSER-TARGETS", "final", "Browser-extension targets"),
             ("AQ-MONETIZATION-MODEL", "final", "Monetization model"),
             ("AQ-PARTNER-CHANNEL", "final", "Partner channel"),
             ("AQ-DATABASE-CATEGORY", "final", "Database category"),
             ("AQ-AUTH-STRATEGY", "final", "Auth strategy"),
+            ("AQ-STACK-DECISION-MODE", "final", "How the owner wants unresolved technology choices decided"),
         ]
         self.assertEqual(expected, rows)
 
@@ -2029,7 +2038,7 @@ async function agent(_prompt, options) {
         self.assertIn("monetization_model", workflow)
         self.assertIn("partner_channel_model", workflow)
         self.assertIn('key: "monetization-channel"', workflow)
-        self.assertIn("pricing does not automatically select RevenueCat", agent)
+        self.assertIn("Pricing does not automatically select RevenueCat", agent)
 
         commercial = self.base_workflow_args()
         commercial["monetization_model"] = "subscription"
@@ -2060,13 +2069,10 @@ async function agent(_prompt, options) {
             interview,
         )
         self.assertIn(
-            "not a separate `AskUserQuestion` platform question", interview
+            "[AQ-BROWSER-TARGETS] If the answer is browser extension", interview
         )
         self.assertIn(
-            "An extension also skips the deployment-platform question", interview
-        )
-        self.assertIn(
-            "or a browser-extension surface, whose release path is an app store, a signed installer, or a browser add-on store",
+            "A browser extension skips the hosted deployment-platform question",
             interview,
         )
         self.assertIn("## Browser Extension Pattern", architecture)
@@ -2092,12 +2098,7 @@ async function agent(_prompt, options) {
             "Evidence that strengthens or contradicts a named technology choice",
             guide,
         )
-        self.assertIn(
-            "`stack-decisions.md` `Frontend Technology Decision`, "
-            "`Mobile/Desktop Technology Decision`, or `Backend and Data Technology Decision` "
-            "table (Why It Fits), citing the `MR-*` ID",
-            guide,
-        )
+        self.assertIn("The applicable `stack-decisions.md` technology table", guide)
         self.assertIn(
             "| An alternative the market evidence speaks to | "
             "`stack-decisions.md` shared `Alternatives Considered` table",
@@ -2133,30 +2134,27 @@ async function agent(_prompt, options) {
         self.assertIn("service boundaries, API style, data access, and background jobs", architecture_block)
         self.assertIn("one line stating that there is no backend and why", architecture_block)
 
-    def test_provisional_stack_rows_gate_publication(self) -> None:
+    def test_unapproved_stack_rows_gate_product_approval_and_delivery(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
         self.assertIn(
-            "every `stack-decisions.md` layer row must be `Required`, `Selected`, or `Recommended`",
+            "only `Required`, `Selected`, or `Approved` executable stack rows",
             skill,
         )
         self.assertIn(
-            "a `Provisional` row blocks publication until it is resolved with the user "
-            "or the user explicitly accepts it as `Provisional`",
+            "`Recommended`, `Provisional`, or a blocked checkpoint remains staged and cannot enter Harness",
             skill,
         )
         self.assertIn(
-            "that acceptance is recorded in `stack-decisions.md`", skill
+            "Explicit delegation is recorded in the checkpoint", contract
         )
         self.assertIn(
-            "Before publishing, every `stack-decisions.md` layer row is "
-            "`Required`, `Selected`, or `Recommended`",
+            "only `Required`, `Selected`, or `Approved` executable rows",
             contract,
         )
         self.assertIn(
-            "explicitly accepted it as `Provisional`, and that acceptance is recorded in "
-            "`stack-decisions.md`",
+            "`Recommended` and `Provisional` may remain in a staged candidate but block Product Definition Approval and Harness",
             contract,
         )
 
@@ -2178,15 +2176,14 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(marker, guide)
         self.assertIn(
-            "Run `references/wireframe-guide.md`'s Reference Pass before drafting the HTML",
+            "Run the Reference Pass before drafting the HTML",
             skill,
         )
         self.assertIn(
-            "fetch the structures of mainstream comparable sites", skill
+            "fetch two to four mainstream comparable screen structures", skill
         )
         self.assertIn(
-            "record them in `PRD.md`'s `### Wireframe Approval` as "
-            "`Wireframe references consulted:`",
+            "record each adopted/rejected pattern or skip reason in `PRD.md`'s `Wireframe references consulted:` line",
             skill,
         )
         self.assertIn("Wireframe references consulted:", contract)
@@ -2222,17 +2219,16 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(marker, guide)
         self.assertIn(
-            "first classify the delta's UI impact with the owner", skill
+            "record the complete Enhancement Impact Record first", skill
         )
         self.assertIn(
-            "a stale visual contract never publishes silently", skill
+            "stale product, stack, data, commercial, release, wireframe, or visual contracts never publish silently", skill
         )
         self.assertIn(
-            "An enhancement package records its UI-impact classification", contract
+            "An enhancement package records the complete Enhancement Impact Record", contract
         )
         self.assertIn(
-            "a style-impacting enhancement with an unchanged handoff or design-system "
-            "pair and no recorded owner decision does not validate",
+            "Each changed row names affected IDs/decisions, refreshed artifacts, and rerun gates",
             contract,
         )
 
@@ -2291,10 +2287,10 @@ async function agent(_prompt, options) {
             self.assertIn(marker, guide)
         self.assertIn("Typography:", contract)
         self.assertIn("Color & dark mode:", contract)
-        self.assertIn("UI library, styling approach, build tool", skill)
+        self.assertIn("component foundation (including shadcn/ui when chosen), styling approach", skill)
         self.assertIn("| Styling approach |", frontend)
         self.assertIn(
-            "Record the styling approach as its own layer row", frontend
+            "Record component foundation and styling as separate layer rows", frontend
         )
 
     def test_design_reference_preview_is_interactive_auth_free_and_generation_deferred(self) -> None:
@@ -2497,6 +2493,105 @@ new Function(scripts.at(-1)[1]);
             "excluded surfaces",
             skill,
         )
+
+    def test_product_definition_approval_precedes_wireframes_and_visual_work(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        wireframe = self.read("references/wireframe-guide.md")
+
+        order = [
+            skill.index("12. Draft or repair the core Markdown package"),
+            skill.index("13. Run the post-draft market-research reconciliation"),
+            skill.index("14. Run the Stack Decision Checkpoint"),
+            skill.index("15. Run Product Definition Approval"),
+            skill.index("16. Only after step 15 passes"),
+            skill.index("18. Only when the owner explicitly requests visual design"),
+        ]
+        self.assertEqual(order, sorted(order))
+        for marker in (
+            "<!-- product-definition-approval:start -->",
+            "<!-- product-definition-approval:end -->",
+            "## Product Definition Decisions",
+            "### Product Definition Approval",
+            "Package revision:",
+            "Stack Decision Checkpoint:",
+        ):
+            self.assertIn(marker, contract)
+        self.assertIn("check_product_package.py", skill)
+        self.assertIn("Headless products still require Product Definition Approval", skill)
+        self.assertIn("only after the core PRD package passes", wireframe)
+
+    def test_stack_checkpoint_separates_and_approves_implementation_layers(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        frontend = self.read("references/frontend-stack-selection.md")
+
+        for marker in (
+            "<!-- stack-decision-checkpoint:start -->",
+            "<!-- stack-decision-checkpoint:end -->",
+            "## Stack Decision Checkpoint",
+            "### Coherent Options Presented",
+            "| Option ID | Area | Complete bundle | Best fit | Tradeoffs / ownership | Disposition |",
+            "| Language |",
+            "| Package manager |",
+            "| Component foundation |",
+            "| Styling approach |",
+            "## AI and Automation Technology Decision",
+        ):
+            self.assertIn(marker, contract)
+        self.assertIn("React and shadcn/ui are not peers", frontend)
+        self.assertIn("two or three coherent stack bundles", frontend)
+        self.assertIn("Mark accepted new choices `Approved`", frontend)
+        self.assertIn("`Recommended` or `Provisional` blocks", skill)
+
+    def test_data_trust_ai_metrics_and_open_questions_are_owner_decisions(self) -> None:
+        contract = self.read("references/output-contract.md")
+        interview = self.read("references/interview-guide.md")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+
+        for marker in (
+            "Data and Trust Gate:",
+            "AI and Automation Gate:",
+            "| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |",
+            "| Question | Why it matters | Owner | Decision deadline | Blocks approval | Status / resolution |",
+            "## Data and Trust Architecture",
+            "## AI and Automation Architecture",
+        ):
+            self.assertIn(marker, contract)
+        self.assertIn("Which data is sensitive", interview)
+        self.assertIn("For AI/automation", interview)
+        self.assertIn("data_trust_gate", workflow)
+        self.assertIn("ai_automation_gate", workflow)
+        self.assertIn('key: "ai-automation"', workflow)
+
+    def test_workflow_requires_stack_and_trust_decision_inputs(self) -> None:
+        for field in ("stack_decision_mode", "data_trust_gate", "ai_automation_gate"):
+            workflow_args = self.base_workflow_args()
+            workflow_args.pop(field)
+            result = self.run_workflow(workflow_args)
+            self.assertFalse(result["ok"])
+            self.assertIn(f"requires args.{field}", result["error"])
+
+        blocked = self.base_workflow_args()
+        blocked["data_trust_gate"] = "blocked"
+        result = self.run_workflow(blocked)
+        self.assertFalse(result["ok"])
+        self.assertIn("cannot run while args.data_trust_gate is blocked", result["error"])
+
+    def test_mobile_destinations_are_separate_from_client_strategy(self) -> None:
+        interview = self.read("references/interview-guide.md")
+        mobile = self.read("references/mobile-stack-selection.md")
+
+        for question_id in (
+            "AQ-MOBILE-TARGETS",
+            "AQ-DESKTOP-TARGETS",
+            "AQ-CLIENT-STRATEGY",
+            "AQ-BROWSER-TARGETS",
+        ):
+            self.assertIn(question_id, interview)
+        self.assertIn("This decides destinations, not framework", interview)
+        self.assertIn("Target operating systems", mobile)
+        self.assertIn("Target operating systems, code-sharing strategy", mobile)
 
 
 if __name__ == "__main__":

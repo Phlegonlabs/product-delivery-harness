@@ -1,12 +1,13 @@
 # Frontend Stack Selection
 
-Use this guide for every PRD package that includes a browser frontend. The wider architecture may remain technology-neutral. This guide ensures the frontend itself records a required/selected choice or turns product evidence into one implementation-ready recommendation, rather than producing a fashionable list of tools.
+Use this guide for every PRD package that includes a browser frontend. The wider architecture may remain technology-neutral. This guide turns product evidence into two or three coherent stack choices and one recommendation, then records the owner's accepted stack instead of handing an unapproved tool list to implementation.
 
 Label the decision status accurately:
 
 - `Required`: mandated by the user, organization, or hard external constraint.
 - `Selected`: already adopted by the current product or repository.
-- `Recommended`: the PRD's evidence-backed advice; not yet user-approved.
+- `Approved`: accepted by the human owner for this package, either directly or through an explicit recorded delegation.
+- `Recommended`: the PRD's evidence-backed proposal; not yet owner-approved and not executable.
 - `Provisional`: the leading choice pending named evidence or a spike.
 
 Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
@@ -19,15 +20,18 @@ Never compare `Cloudflare vs Astro vs Vite vs React` as though they solve the sa
 | --- | --- | --- |
 | Deployment / runtime | Where are assets and server code deployed and executed? | Cloudflare Workers with Static Assets, Cloudflare Pages, Vercel, AWS (Amplify/ECS/Lambda), self-hosted (Docker/VM/Kubernetes) |
 | Rendering model | When and where does HTML render? | Static, SSG, SSR, on-demand, SPA/CSR, islands, hybrid by route |
+| Language | What language contract does application code use? | TypeScript, JavaScript, another framework-native language |
+| Package manager | What owns dependency resolution, scripts, workspaces, and the lockfile? | npm, pnpm, Yarn, Bun |
 | Web framework | What owns routes, rendering conventions, and app structure? | Astro, React Router, TanStack Start |
 | UI library | What expresses interactive component behavior? | React, Preact, Vue, none |
+| Component foundation | Where do accessible primitives and reusable controls come from? | shadcn/ui-style owned source, headless primitives plus custom components, packaged component suite, fully custom |
 | Styling approach | How are styles authored and scoped? | Tailwind CSS utilities, CSS Modules, vanilla modern CSS (cascade layers, container queries), component-library-managed styles |
 | Build tool | What provides development, transforms, and production builds? | Vite, framework-managed Vite |
 | Supporting choices | How are product concerns implemented? | Routing/data loading, state, forms, styling, components, tests |
 
 Astro is a framework and uses Vite as part of its toolchain. React is a UI library and can be used inside Astro islands, with Vite in a custom SPA, or through a React framework. Cloudflare is the hosting/runtime target for any of those valid combinations.
 
-Record the styling approach as its own layer row, not a footnote inside supporting choices. Tailwind utilities, CSS Modules, and vanilla modern CSS (cascade layers, container queries) each change how the codebase scales: utility-first converges fast and pairs naturally with headless component kits, CSS Modules keep scoping explicit inside component frameworks, and vanilla modern CSS suits content-led sites with few components. When the chosen UI library or component kit already implies one — a shadcn-style kit implies Tailwind — the row cites that constraint as its authority instead of inventing a free choice. Verify the chosen approach's current official documentation and record the check date, the same as every other layer.
+Record component foundation and styling as separate layer rows. React and shadcn/ui are not peers: React is a UI runtime, while shadcn/ui is an owned-source component and code-distribution approach. Tailwind utilities, CSS Modules, and vanilla modern CSS each change how the codebase scales. When the chosen component foundation constrains styling — current shadcn/ui components use Tailwind, for example — the styling row cites that verified constraint instead of pretending it remains a free choice. Verify the current official documentation and record the check date for both rows.
 
 ## Collect Decision Evidence
 
@@ -42,6 +46,7 @@ Score or describe these inputs before selecting a stack:
 7. Product complexity: routing, forms, optimistic updates, real-time state, offline needs, and long-lived sessions.
 8. Team and codebase: existing stack, reusable components, expertise, maintenance ownership, migration cost, and test tooling.
 9. Delivery: preview environments, rollback, observability, runtime parity, release frequency, and cost constraints.
+10. Ownership: the interview's Stack Decision Mode, decision owner, build-versus-buy preference, license limits, acceptable vendor lock-in, and who maintains copied or customized component source.
 
 Do not let one factor decide by itself. A marketing route inside a large authenticated product may still justify a hybrid or separate frontend boundary.
 
@@ -63,9 +68,9 @@ React's official guidance recommends starting new React apps with a framework an
 
 ## Browser Extension Stacks
 
-When the product surface is a browser extension, the same layer separation and evidence discipline apply to a different layer set: browser target, extension bundler, UI framework, and testing. Chrome with Manifest V3 is the default target today; Firefox or Safari are explicit alternatives with their own stores and API differences.
+When the product surface is a browser extension, the same layer separation and approval discipline apply to browser targets, extension bundler, UI framework, component/styling approach, and testing. Use the v1 browser set resolved in the interview; do not silently default the target.
 
-- Browser target: Chrome with Manifest V3 unless the user, repository, or product evidence names another browser. Each added browser target multiplies store review and API-compatibility work — record it as its own decision, not a bundler flag.
+- Browser target: the approved v1 set (for example Chrome/Chromium with Manifest V3, Chrome plus Firefox, or an explicit Safari target). Each added browser multiplies store review and API-compatibility work; record it as a product target, not a bundler flag.
 - Bundler: TypeScript plus an extension-aware bundler — Vite with CRXJS or WXT — so the manifest, content scripts, service worker, and extension pages build from one tool.
 - UI framework: optional, sized to the popup/options UI complexity. A small popup or options page needs none; a complex side-panel or options UI justifies React or another library, with the same product-fit reasoning as the patterns above.
 - Record the extension layers in `stack-decisions.md`'s `Frontend Technology Decision` table with per-row status and cited authority, and the store distribution in `architecture.md` per `architecture-playbook.md`'s Browser Extension Pattern.
@@ -102,18 +107,20 @@ Platform-specific rule sets for these targets are not yet authored in this guide
 1. Classify every route group by audience, content, interactivity, rendering, auth, freshness, and caching.
 2. Eliminate options that cannot satisfy a hard constraint or whose current deployment support is unverified.
 3. Choose the simplest coherent stack that covers the dominant route groups without unnecessary client JavaScript or custom infrastructure.
-4. Name the required/selected stack, or one recommendation when no choice exists. Do not hand the implementer an unranked shortlist, and do not present advice as an approved requirement.
-5. Explain at least two serious alternatives, where each would fit better, why it loses here, and what would trigger reconsideration.
-6. Verify current platform/framework documentation and capture direct sources plus the check date.
-7. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional`, not `Selected`.
+4. Assemble two or three coherent stack bundles from the surviving layers. Each bundle names every applicable layer, fit, tradeoffs, ownership/maintenance cost, constraints, and revisit trigger. Do not offer disconnected framework, CSS, and component menus that could produce an incoherent combination.
+5. Recommend one bundle and explain why the serious alternatives lose here. Present the recommendation and alternatives to the owner under the recorded Stack Decision Mode: approve the recommendation, select or modify layers, or apply an explicit prior delegation.
+6. Mark accepted new choices `Approved`; preserve existing choices as `Selected` and hard constraints as `Required`. Keep an unaccepted proposal `Recommended`. Do not present advice as approved or hand `Recommended` rows to implementation.
+7. Verify current platform/framework/component/styling documentation and capture direct sources plus the check date.
+8. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
 
 ## Required Architecture Record
 
 The `Frontend Technology Decision` section in `stack-decisions.md` must include:
 
 - Product evidence and hard constraints.
-- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, `Recommended`, and `Provisional` rows.
-- One recorded stack separated by deployment/runtime, rendering, framework, UI library, build tool, routing/data, styling/components, and testing.
+- The Stack Decision Mode, human decision owner, coherent bundles presented, selected bundle or layer overrides, delegation source when used, and the `approved`, `revision_requested`, or `blocked` Stack Decision Checkpoint result.
+- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, and `Approved`; `Recommended` and `Provisional` remain draft-only.
+- One recorded stack separated by deployment/runtime, rendering, language, package manager, framework, UI library, component foundation, styling, build tool, routing/data, and testing.
 - A route-level rendering table.
 - Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.
@@ -136,6 +143,9 @@ Use primary documentation, not marketplace roundups:
 - [Astro Cloudflare adapter](https://docs.astro.build/en/guides/integrations-guide/cloudflare/)
 - [React: Creating a React App](https://react.dev/learn/creating-a-react-app)
 - [Vite guide](https://vite.dev/guide/)
+- [shadcn/ui introduction and code-ownership model](https://ui.shadcn.com/docs)
+- [shadcn/ui manual installation and current styling requirements](https://ui.shadcn.com/docs/installation/manual)
+- [Tailwind CSS documentation](https://tailwindcss.com/docs)
 
 ## Failure Modes
 
@@ -144,6 +154,8 @@ Use primary documentation, not marketplace roundups:
 - Choosing React + Vite solely because React is familiar while leaving routing, data, SEO, and SSR unresolved.
 - Calling Vite a UI framework or treating it as a substitute for React.
 - Adding React to Astro when native Astro or plain browser behavior is enough.
+- Treating React, shadcn/ui, Tailwind, and Vite as peer alternatives instead of separate runtime, component, styling, and build layers.
+- Sending a `Recommended` component or CSS choice to scaffolding without owner approval or an explicit recorded delegation.
 - Assuming client-side route protection secures a Worker API or protected asset.
 - Claiming current Cloudflare support without a date and official source.
 - Writing `TBD` without an owner, deadline, experiment, and decision threshold.

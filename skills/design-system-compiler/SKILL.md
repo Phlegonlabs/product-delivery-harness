@@ -1,6 +1,6 @@
 ---
 name: design-system-compiler
-description: Create or refine an implementation-ready frozen design-system contract (`design-system.md` and `design-system.json`) only when an approved PRD UI Design Handoff says a formal pair is required. Use for design systems, design tokens, UI primitives, product-component contracts, responsive/state matrices, or design-input deltas. The default path compiles an already approved UI direction and wireframes; it does not rerun Taste, concept generation, or preview selection.
+description: Create or refine an implementation-ready frozen design-system contract (`design-system.md` and `design-system.json`) only from an approved Product Definition, Stack Decision Checkpoint, wireframe, and PRD UI Design Handoff whose gate requires a formal pair. Use for design tokens, primitives, product-component contracts, responsive/state matrices, or design-input deltas.
 ---
 
 # Design System Compiler
@@ -12,7 +12,7 @@ Turn an approved UI direction into two binding reusable UI sources:
 - `design-system.md` for the selected visual direction and short human-facing rules; and
 - `design-system.json` for machine-readable tokens, primitives, closed variants, product components, motion, responsive rules, source paths, and the state matrix.
 
-This skill is optional. Invoke it only when an explicitly requested visual-design phase has produced an approved UI Design Handoff and `PRD.md` records `Design System Need Gate: required`. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the approved UI Design Handoff. Approved `wireframes.html` is its structural interactive review projection. Do not duplicate or change those contracts, rerun visual exploration by default, implement production UI code, or create Harness PLAN/RUN state.
+This skill is optional. Invoke it only when Product Definition Approval and the Stack Decision Checkpoint are approved, the visual phase has an approved UI Design Handoff, and `PRD.md` records `Design System Need Gate: required`. The compiler respects the approved component foundation and styling approach; it never changes stack by implication. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the UI Design Handoff; approved `wireframes.html` is its structural projection. Do not duplicate or change those contracts, implement production UI, or create Harness PLAN/RUN state.
 
 ## Compilation Skills Gate
 
@@ -30,9 +30,9 @@ Do not reload `design-taste-frontend` or `impeccable` merely to compile the pair
 
 Read the current sources in full before drafting:
 
-- `PRD.md`, including its UI surface contract, Builder UX Direction Decision, Motion Need Gate, approved `### UI Design Handoff`, and `Design System Need Gate: required` decision;
+- `PRD.md`, including Product Definition Approval, its UI surface contract, Builder UX Direction Decision, Motion Need Gate, approved `### UI Design Handoff`, and `Design System Need Gate: required` decision;
 - approved `wireframes.html`, including its matching `UI-*` page, complete viewport or size-class set, state, region, per-target layout, and passing browser overlap/overflow review, plus `PRD.md`'s `### Wireframe Approval` record;
-- `architecture.md` and `stack-decisions.md` when they constrain platform, rendering, accessibility, performance, or component sources;
+- `architecture.md` and `stack-decisions.md`, including the approved Stack Decision Checkpoint and its platform, rendering, component-foundation, styling, accessibility, and performance constraints;
 - existing `design-system.md` and `design-system.json` for an enhancement or delta; and
 - the immutable approved UI target and any confirmed `REF-*` / `RP-*` evidence named by the handoff.
 
@@ -46,13 +46,13 @@ Product scope, route, structure, content, action, flow, state, wireframe, or app
 
 ## Workflow
 
-1. Confirm that `PRD.md` says `Design System Need Gate: required`. If it says `not_required` or `blocked`, stop; this skill should not have been invoked.
-2. Pass the Compilation Skills Gate.
-3. Verify that the PRD UI surface contract, approved Wireframe Approval, approved UI Design Handoff, immutable UI target, and approved `wireframes.html` are complete and consistent. If not, return a bounded update to `product-definition-builder` and wait.
-4. Read `references/design-system-guide.md`. Use `frontend-design` to translate only the approved visual consequences, real controls, repeated compositions, states, responsive needs, and Motion Need Gate into the smallest complete implementation contract. Register motion variants only for `required` or approved `recommended` rows; a `not_required` row gets no decorative variant, and a `blocked` row returns upstream.
-5. Build `design-system.json`, write the short rationale in `design-system.md`, and reconcile names, required content order, the exact PRD/wireframe responsive set, per-target rules, states, browser-matrix evidence, and target provenance against the PRD and wireframes.
-6. Run the validation commands and the final checklist in `references/output-contract.md`.
-7. Stage and publish both files together using `references/artifact-lifecycle.md`. When called from `product-definition-builder`, return the validated pair to that parent workflow.
+1. Run the sibling `product-definition-builder/scripts/check_product_package.py --require-filled --require-approved` over PRD, architecture, and stack decisions. Stop on a missing or stale Product Definition/Stack approval.
+2. Confirm that `PRD.md` says `Design System Need Gate: required`; otherwise stop.
+3. Pass the Compilation Skills Gate.
+4. Verify the PRD UI surface contract, approved wireframe, handoff, target, component foundation, and styling approach are complete and consistent. A visual direction that needs another stack returns upstream.
+5. Read `references/design-system-guide.md` and compile only approved visual consequences with `frontend-design`. Register motion variants only for `required` or approved `recommended` rows; a `not_required` row gets no decorative variant, and a `blocked` row returns upstream. Every variant records reduced-motion behavior.
+6. Build and validate the pair against the PRD, wireframes, and approved technology constraints.
+7. Run the validation commands and final checklist, then stage and publish both files together through the existing artifact lifecycle.
 
 ## Validation
 
@@ -63,11 +63,13 @@ python skills/design-system-compiler/scripts/check_design_system_pair.py --markd
 python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled
 python skills/design-system-compiler/scripts/check_color_contrast.py <the arguments required by the staged design system>
 python skills/design-system-compiler/scripts/check_type_scale.py <the arguments required by the staged design system>
+python skills/product-definition-builder/scripts/check_product_package.py --prd <PRD.md> --architecture <architecture.md> --stack-decisions <stack-decisions.md> --require-filled --require-approved
 ```
 
 Also confirm:
 
 - the Design System Need Gate is `required` and names its owner and reason;
+- Product Definition Approval and the Stack Decision Checkpoint are approved, with no `Recommended` or `Provisional` executable layer;
 - every PRD UI surface has an addressable route or an explicit `n/a` reason;
 - every UI surface maps to an approved `wireframes.html` page with matching regions, states, responsive set, and per-target order, visibility, spans, reflow, and interaction rules;
 - the approved UI target, Taste applicability record, visual approval, scope, hash, exact responsive coverage, passing browser-matrix evidence, and tolerance are present in the UI Design Handoff;

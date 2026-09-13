@@ -35,6 +35,15 @@ VALID_PRD = """# PRD: Example
 | TEST-002 | Nice to have | unit | No | PRD-002 | Optional signal |
 """
 
+APPROVED_PRD = VALID_PRD.replace(
+    "| Metric | Definition | Target |\n"
+    "| --- | --- | --- |\n"
+    "| Activation rate | Users completing setup | 70% in 14 days |",
+    "| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |\n"
+    "| --- | --- | --- | --- | --- | --- | --- |\n"
+    "| Activation rate | Users completing setup | 0% | 70% | 14 days | Analytics event | Product owner |",
+)
+
 
 def task_fields(
     task_id: str = "ACT-001",
@@ -176,6 +185,12 @@ def valid_record(*, task_blocks: list[str] | None = None) -> str:
 
 
 class ActivationCheckerTests(unittest.TestCase):
+    def test_prd_signal_parser_accepts_approved_and_legacy_metric_tables(self) -> None:
+        for prd in (VALID_PRD, APPROVED_PRD):
+            signals, findings = check_activation._prd_signals(prd)
+            self.assertEqual([], findings)
+            self.assertEqual({"Activation rate", "TEST-001"}, signals)
+
     def test_template_is_structurally_valid_but_not_filled(self) -> None:
         template = (SKILL_ROOT / "assets" / "templates" / "ACTIVATION.template.md").read_text(
             encoding="utf-8"

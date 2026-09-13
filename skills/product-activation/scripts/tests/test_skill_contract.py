@@ -53,6 +53,15 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         self.assertIn("verified `MS-*`", skill)
         self.assertIn("real measurement window closes", skill)
 
+    def test_activation_consumes_approved_product_and_stack_decisions(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/activation-contract.md")
+
+        self.assertIn("approved Stack Decision Checkpoint", skill)
+        self.assertIn("check_product_package.py", skill)
+        self.assertIn("Target / guardrail", contract)
+        self.assertIn("historical three-column", contract)
+
     def test_template_passes_structural_checker(self) -> None:
         template = SKILL_ROOT / "assets" / "templates" / "ACTIVATION.template.md"
         checker = SKILL_ROOT / "scripts" / "check_activation.py"

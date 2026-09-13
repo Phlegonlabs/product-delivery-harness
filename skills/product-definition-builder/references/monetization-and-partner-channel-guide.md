@@ -32,7 +32,7 @@ For any non-`none` model, record eligibility/application, approval, attribution 
 
 This is a shortlist, not a default or exhaustive catalog. Compare two to four options that actually fit the resolved product. Record official sources and retrieval date in `stack-decisions.md`.
 
-Assign status per layer; one section may mix statuses. Authority is the cited source, not a status label. Record Selection, status, cited authority/evidence, fit, constraint, rejected alternatives, and revisit triggers using `output-contract.md`'s shared stack-decision shape.
+Assign status per layer; one section may mix statuses. `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation. `Recommended` is a proposal awaiting that decision and is not executable. Authority is the cited source, not a status label. Record Selection, status, cited authority/evidence, fit, constraint, rejected alternatives, and revisit triggers using `output-contract.md`'s shared stack-decision shape.
 
 ### Purchases, Subscriptions, Paywalls, And Entitlements
 
@@ -66,6 +66,8 @@ Assign status per layer; one section may mix statuses. Authority is the cited so
 - Choose an affiliate tool for link attribution and commission payout. Choose a partnership platform or custom reseller workflow when partners register deals, invoice buyers, receive wholesale terms, provision access, or support customers.
 - Billing and partner providers must join on stable customer, order/invoice, product/price, subscription, currency, net-revenue, refund, and chargeback identities. Define idempotent webhook handling and reconciliation before implementation.
 - Never claim that an affiliate or reseller feature is free, globally available, store-compliant, or supported by a billing provider without current official evidence.
+- Present two to four coherent commercial-infrastructure bundles that cover every applicable responsibility layer together. Recommend one, show operating cost and ownership tradeoffs, and obtain owner acceptance under the Stack Decision Checkpoint; do not ask the owner to combine unrelated provider menus blindly.
+- Mark accepted new provider choices `Approved`, existing providers `Selected`, and hard constraints `Required`. `Recommended` and `Provisional` rows keep the checkpoint blocked and cannot enter delivery.
 
 ## Required Product And Delivery Outputs
 
@@ -73,7 +75,7 @@ Assign status per layer; one section may mix statuses. Authority is the cited so
 
 `architecture.md` records the product/order/subscription/entitlement/partner/referral/deal/commission entities; payment and partner event flows; identity joins; webhook verification, idempotency, retries and reconciliation; refund/chargeback effects; provisioning/deprovisioning; environment separation; and external-console work.
 
-`stack-decisions.md` records the selected billing/store, subscription/entitlement, paywall/checkout, merchant-of-record/tax, and partner-channel providers as separate layers with status, official evidence, fit, constraints, alternatives, and revisit triggers.
+`stack-decisions.md` records the approved billing/store, subscription/entitlement, paywall/checkout, merchant-of-record/tax, and partner-channel providers as separate layers with status, official evidence, fit, constraints, alternatives, revisit triggers, and the human Stack Decision Checkpoint.
 
 For UI-bearing products, add or update every affected pricing, checkout, paywall, purchase restore/manage, affiliate application/dashboard, referral/deal registration, reseller administration, commission/payout, and error state in the PRD UI Surface Contract and `wireframes.html` before implementation.
 

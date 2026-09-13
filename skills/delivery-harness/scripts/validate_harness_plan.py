@@ -178,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run", help="Optional path to plan-backed RUN.md")
     parser.add_argument(
         "--repo-root",
-        help="Optional repository root used to bind PLAN-v6 sources and verify UI artifacts",
+        help="Optional repository root used to bind PLAN-v6 sources, verify approved Product Definition packages, and join UI artifacts",
     )
     parser.add_argument(
         "--prd",

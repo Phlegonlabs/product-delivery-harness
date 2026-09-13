@@ -1,6 +1,6 @@
 # Market Research Guide
 
-Use this reference for the `market-research` role: a bounded, read-only research pass that runs **after** the candidate package is drafted and reports what the PRD is missing.
+Use this reference for the `market-research` role: a bounded, read-only research pass that runs after the core Markdown candidate is drafted but before the Stack Decision Checkpoint, Product Definition Approval, and Wireframe Approval. It reports what the package is missing while every owner gate is still open.
 
 This role does not draft the product. Requirements, architecture, UX, and stack decisions are already written when it starts. Its job is to check those drafts against what actually exists in the market and hand back two things: the `market-research.md` artifact and a list of gap findings the parent patches into the package.
 
@@ -15,6 +15,8 @@ Skip it when any of these is true, and record which one applies:
 - The package is a trivial single-screen stub.
 
 In enhancement mode, run it only against what the new request adds or changes. Carry forward existing `MR-*` findings and their sources unchanged; do not re-research settled market context.
+
+Before any query, run the same Research Disclosure Check as `research-first-guide.md`: search only a public-safe category/problem summary and never disclose secrets, personal data, private customer identities, internal metrics, contract terms, or unreleased product details. If a useful pass would require protected context, ask the owner to approve a sanitized scope or return `blocked — confidential context`; do not search around the boundary.
 
 ## Inputs
 
@@ -83,7 +85,7 @@ Typical landing sites:
 | Pricing or business-model reference points | `PRD.md` `## Metrics` or `## Business Rules` |
 | A question research could not settle | `PRD.md` `## Open Questions` |
 | An integration the category expects | `architecture.md` `## Integrations` |
-| Evidence that strengthens or contradicts a named technology choice | `stack-decisions.md` `Frontend Technology Decision`, `Mobile/Desktop Technology Decision`, or `Backend and Data Technology Decision` table (Why It Fits), citing the `MR-*` ID |
+| Evidence that strengthens or contradicts a named technology choice | The applicable `stack-decisions.md` technology table (frontend, mobile/desktop, backend/data, AI/automation, or monetization/partner), citing the `MR-*` ID before the Stack Decision Checkpoint |
 | An alternative the market evidence speaks to | `stack-decisions.md` shared `Alternatives Considered` table, citing the `MR-*` ID |
 
 The role reports findings. It does not edit any file — the parent applies them, then reruns the quality checklist.

@@ -1,13 +1,13 @@
 # Wireframe Guide
 
-Use this guide after the `PRD.md` UI Surface Contract is complete. `product-definition-builder` owns one wireframe deliverable for every UI-bearing product: `wireframes.html`.
+Use this guide only after the core PRD package passes `check_product_package.py --require-approved` and `PRD.md` records `Product Definition Approval: approved`. `product-definition-builder` owns one wireframe deliverable for every UI-bearing product: `wireframes.html`.
 
 ## Ownership
 
 - `PRD.md` owns product scope, routes, screen purpose, content responsibilities, actions, flows, states, the platform-appropriate responsive set, per-target behavior, and `UI-*` / `UX-*` traces.
 - `wireframes.html` is the interactive structural projection of that contract. It owns no new behavior and never changes product scope.
 - A native mobile or desktop app is UI-bearing without a browser frontend and gets the same single `wireframes.html` deliverable: every `UI-*` screen in one file, with the product's own size classes standing in as the viewport toggle. The product ships no browser surface; the file exists purely as the review projection.
-- When the HTML exposes a gap, update `PRD.md` first, then regenerate only the affected `UI-*` page.
+- When the HTML exposes a gap, update `PRD.md` first. That content change invalidates Product Definition Approval; obtain approval for a new package revision, then regenerate only the affected `UI-*` page.
 - Later visual or implementation work consumes the approved HTML but does not edit it. Structural changes return to `product-definition-builder`.
 
 ## Reference Pass
@@ -58,7 +58,7 @@ A passing static check proves internal structure, self-containment, complete res
 
 After the first draft and before presenting `wireframes.html` to the human product/design decision owner, run `references/ui-grading-rubric.md` against the frozen PRD and candidate HTML. When the host has the required multi-agent browser capability and dispatch is explicitly authorized, run one complete diagnostic wave: one lead grader by default, with at most two non-overlapping specialists only for an owner request or recorded high-impact risk. Reconcile every finding into one root-cause defect ledger before editing. The candidate then gets at most one repair batch and one re-review; a second failure stops at the rubric's owner-decision gate instead of opening another round. When the capability is unavailable, record the rubric's exact capability-unavailable skip and continue. Record the resulting `UI grading:` line in `PRD.md`'s Wireframe Approval record. The grading stage supplements the runtime QA; it does not replace the browser check or the human decision.
 
-Present `wireframes.html` to the human product/design decision owner. Ask for one decision: approve the structure, or return named `UI-*` pages for revision.
+Before presentation, re-run the core package checker and confirm the wireframe is still bound to the approved package revision. Present `wireframes.html` to the human product/design decision owner. Ask for one decision: approve the structure, or return named `UI-*` pages for revision.
 
 Before approval, open the file in a real browser and exercise the full `UI-* × responsive target × non-n/a state` matrix. For every combination, the visible runtime QA must pass, including its exact review-canvas width check; enlarge the browser when its reviewer shell cannot display the selected target at that width. No reviewer-shell or canvas element may be unintentionally overlapped, clipped, occluded, or force horizontal page scrolling, long content must stay readable, and controls must remain usable by the input modes named in `interaction`. A modal, dropdown, tooltip, sticky region, or other intended overlap passes only when the target's `interaction` rule names its stacking, focus, and dismissal behavior. Record the browser and result in `PRD.md`'s Wireframe Approval record. Missing browser capability blocks approval.
 
@@ -72,7 +72,7 @@ Approval confirms only:
 
 Approval does not prove usability and does not select a visual style. Record the owner, decision, date, approved `UI-*` scope, and unresolved items in `PRD.md`'s `### Wireframe Approval`. The HTML `approvalStatus` uses the same decision vocabulary as that record: `draft` before the gate, then `approved`, `revision_requested`, or `blocked` matching the owner's latest decision — never a different wording.
 
-An approved `wireframes.html` completes the wireframe stage. Do not run Taste, design-reference preview generation, Design System Compiler, or Harness unless the owner separately asks to continue.
+An approved `wireframes.html`, together with the still-approved Product Definition package, completes the wireframe stage. Do not run Taste, design-reference preview generation, Design System Compiler, or Harness unless the owner separately asks to continue.
 
 ## Enhancement Revisions
 

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.35.5-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.36.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -25,8 +25,8 @@ It is not a prompt collection. The skill suite separates product definition, vis
 
 | If you have... | Start with | What you get |
 | --- | --- | --- |
-| A product idea | `product-definition-builder` | Requirements, a responsive `wireframes/2` review file for every UI surface and state, browser layout QA, architecture, stack decisions, release targets, tests, and sourced market research |
-| An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | One connected, self-contained design-reference HTML with every page in a left sidebar, complete CSS, clickable flows, and a mock login that enters the authenticated UI, plus a binding design-system pair when required |
+| A product idea | `product-definition-builder` | An owner-approved Product Definition, coherent approved stack choices, and then a responsive `wireframes/3` review for every UI surface and state |
+| An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when required | One connected design-reference HTML with complete CSS and clickable flows; auth preview scenes are explicitly `n/a`, plus a binding design-system pair when required |
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A fixed integrated code candidate | `code-security-review` | A read-only, exact-SHA security review with validated source-to-sink findings and explicit coverage gaps |
 | A delivered release that needs external setup | `product-activation` | Exact authorized console actions, verified measurement sources, and target-by-target activation readiness |
@@ -37,7 +37,8 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 
 - **Small work stays small.** One bounded change uses a direct inspect, implement, verify, and review loop.
 - **Large work is explicit.** PLAN v6 defines the typed graph; RUN v11 records authorization, attempts, and evidence.
-- **Product definition stops at a human gate.** A UI-bearing package ends in one responsive `wireframes.html`; every surface, target, state, and visible PRD action must work locally and pass browser layout review before owner approval. A web package declares at least three ascending responsive viewports; native and desktop keep their platform size classes. Its checker validates page, overlay, and feedback flows plus deferred `mediaIntent` handoffs. UI grading runs one complete diagnostic wave with one lead grader by default and at most two justified non-overlapping specialists. The parent consolidates all findings before one repair batch and one re-review; a second failure stops for a PRD correction or explicit owner-approved structural strategy instead of opening an unbounded round. Scores summarize visual quality, while explicit contract, behavior, layout, state, motion, and accessibility obligations remain hard gates.
+- **Product definition is approved before presentation.** Every product passes a human Product Definition Approval covering scope, measurable requirements, architecture, release targets, trust/AI/commercial gates, accepted assumptions, and the approved stack. UI-bearing products then pass the separate responsive `wireframes.html` structural gate; headless products skip only wireframes.
+- **Recommendations are not implementation authority.** Product Definition presents two or three coherent technology bundles per applicable area. New accepted choices are `Approved`, existing choices remain `Selected`, and hard constraints are `Required`; `Recommended` and `Provisional` block delivery. Frontend decisions separate language, package manager, framework, UI runtime, component foundation such as shadcn/ui, styling, build, routing/data, and tests.
 - **Visual targets are interactive responsive HTML.** A requested visual phase produces one connected design-reference HTML whose visible controls navigate, switch state, open recorded overlays, or show feedback. Login, registration, recovery, and authentication-error preview scenes are recorded `n/a` for this pass. The PRD Motion Need Gate marks each key surface `required`, `recommended`, `not_required`, or `blocked`; the owner may select a direction or accept an AI recommendation, while scope-changing or generated motion remains human-owned. Required functional UI motion may run locally in the reference with an equivalent reduced-motion path. Generated image and motion positions stay as static placeholders with dedicated prompts and `generationStatus: deferred`; no generation provider runs until a later explicitly authorized MCP pass. A Technical Hard Gate rejects runtime errors, unexpected requests, unreachable states, duplicate event effects, and required-motion failures. Human-gate readiness requires a design-reference overall score of at least 90 plus `H2` layout, `H4` responsive, and `H8` accessibility scores of at least 90; non-critical 60–79 scores are advisories and do not cause score-chasing rounds. Approved references stay under `docs/design/ui-references/`, and superseded sets are archived instead of deleted.
 - **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
 - **Every graph attempt is durable.** Non-mission nodes reserve an attempt, run their check or external action outside the RUN lock, then record outcome and evidence; an interrupted non-runtime attempt is recorded as `blocked` through the same result path. A local verifier may ignore the tracked RUN only for dirty-status purposes: the path must resolve inside the checkout, and its exact bytes and file identity stay protected across execution and result recording.
@@ -56,7 +57,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `product-definition-builder` | Product discovery, the pre-draft research-first assessment and its Research Gate, requirements, Builder UX Direction inputs, interactive responsive wireframes with browser QA and conditional PRD-bound multi-agent grading, architecture, stack decisions, release targets, test obligations, the reconciling post-draft market-research gap pass, the optional interactive design-reference HTML Design Pass with deferred media and motion generation, and the post-deploy outcome review | `PRD.md`, `research-assessment.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md`, `outcome-review.md` |
+| `product-definition-builder` | Discovery, public-safe research, measurable requirements and metrics, Data & Trust and AI gates, coherent stack options, Product Definition Approval, then responsive wireframes and optional visual design | Approved `PRD.md`, `architecture.md`, `stack-decisions.md`, research artifacts, and `wireframes.html` for UI products |
 | `design-system-compiler` | Compiling an approved UI Design Handoff into the frozen design-system pair, including the exact approved responsive set and layout-safety rules. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 | `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
@@ -75,11 +76,13 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 ```mermaid
 flowchart LR
-  Idea["Product idea or change request"] --> PRD["product-definition-builder\nProduct and technical definition"]
-  PRD --> Wireframe["wireframes/3 HTML\nresponsive structural matrix"]
+  Idea["Product idea or change request"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]
+  PRD --> ProductGate{"Stack Decision +\nProduct Definition Approval"}
+  ProductGate --> Wireframe["wireframes/3 HTML\nresponsive structural matrix"]
   Wireframe --> Gate{"Wireframe Approval Gate\nhuman owner"}
   Gate -->|"approved, visual design requested"| Design["UI Design Pass\ndesign-system-compiler when required"]
   Gate -->|"approved, no visual phase"| Harness["delivery-harness\nShared delivery core"]
+  ProductGate -->|"approved headless product"| Harness
   Design -->|"approved all-pages HTML reference or design-system pair"| Harness
   Harness --> Runtime["One host provider section\nCodex, Claude Code, Pi, or generic"]
   Runtime --> Security["code-security-review\nfresh unified exact-SHA review"]
@@ -91,7 +94,7 @@ flowchart LR
   Activate --> Outcome["Verified measurement sources\nLater outcome review"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — the pass leaves one approved self-contained design-reference HTML in `docs/design/ui-references/<run-id>/`, with every page in a left sidebar, complete CSS, clickable flows, and deferred media/motion handoffs; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
+You can start at any stage. `product-definition-builder` stops at an approved Product Definition for every product and an approved `wireframes.html` for UI products. Optional visual design adds the active visual contract; Harness implements only the frozen approved result; security review and activation keep their later boundaries.
 
 ### Full skill lifecycle
 
@@ -104,15 +107,16 @@ flowchart TB
     subgraph PRD["product-definition-builder — product definition"]
         direction TB
         interview[Structured interview<br/>3 free-text segments + AskUserQuestion]
-        pkg["Core package draft<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
+        pkg["Core package candidate<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
+        mr["market-research.md<br/>(reconcile candidate, skippable)"]
+        sgate{{"Stack Decision Checkpoint<br/>Required | Selected | Approved"}}
+        pgate{{"Product Definition Approval<br/>all products"}}
         wf["wireframes.html<br/>one interactive wireframe file (UI products)"]
         wgate{{"Wireframe Approval Gate<br/>(human approval = a complete stop point)"}}
         ra["research-first assessment<br/>research-assessment.md (skippable)"]
         rgate{{"Research Gate<br/>go | clarify | stop"}}
-        interview --> ra --> rgate --> pkg --> wf --> wgate
-        mr["market-research.md<br/>(gap pass, skippable)"]
-        ra -.-> mr
-        pkg -.-> mr
+        interview --> ra --> rgate --> pkg --> mr --> sgate --> pgate
+        pgate -->|UI-bearing| wf --> wgate
     end
 
     subgraph DESIGN["Visual design (optional; only on explicit owner request)"]
@@ -202,10 +206,10 @@ flowchart TB
 
     user --> interview
     wgate -->|continue into visual design| DESIGN
-    wgate -->|stop here| HARNESS
+    wgate -->|approved UI package| HARNESS
+    pgate -->|approved headless package| HARNESS
     pair --> route
     target --> route
-    mr --> route
     DIRECT --> handoff
     gates2 --> handoff
     status --> profiles
@@ -213,15 +217,15 @@ flowchart TB
     verdict -.->|next enhancement request| interview
 ```
 
-Wireframe Approval and the merge to `main` remain human gates. The delivery execution loop stays inside PLAN/RUN; post-delivery Activation starts only after RUN close and applies its own exact external-action approvals.
+Product Definition Approval, UI Wireframe Approval, and the merge to `main` are separate human gates. Publication authorization is also separate: accepting product content never authorizes overwriting or moving files.
 
 For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds it; Delivery Harness reconciles it against tracked environment declarations, CI, and auth/integration code before the push, then records the read-only deployment result afterward. Each independently released unit gets a lowercase surface name: production uses canonical `<product-slug>-<surface-suffix>` with no `-prod`, while development uses that exact name plus `-dev`. The normal suffixes are `web`, `api`, and `extension`; native artifacts and separately released admin, worker, job, agent, webhook, realtime, or CLI units use their own descriptive suffix. Provider and store names stay separate unless their artifacts actually differ. The record also lists exact secret and variable names, their preview and production placement, and external-console tasks such as auth callback URLs, but never stores secret values.
 
 After delivery, `product-activation` creates or reconciles `docs/ACTIVATION.md`, selects the applicable web, iOS, or browser-extension profiles, uses the safest available connector/API/CLI/Browser/Computer Use route, and performs only exact authorized actions. Capabilities and evidence bind to the exact target, environment, source SHA, and artifact/build identity; the newest matching result controls readiness. It records configuration separately from verification, never stores secret values, keeps unsupported hybrid targets outside its gate, and hands matching verified `MS-*` sources to the later outcome review.
 
-The loop closes at both ends. Before any closed-set decision, the research-first assessment gates drafting with a human `go | clarify | stop` Research Gate — published as `research-assessment.md` with stable `RA-*` findings and reconciled by the post-draft market-research pass. After Activation and the real measurement window, the owner can request `outcome-review.md`: measured actuals against the PRD's metrics and `TEST-*` expected signals, using only matching verified sources, with a `no_change | enhancement | incident` verdict that feeds the next enhancement run.
+The loop closes at both ends. Research-first gates drafting; post-draft market research reconciles the candidate before stack and product approval. Metrics now carry baseline, target/guardrail, measurement window, source/method, and owner so the later outcome review has a real contract.
 
-Small post-delivery changes keep the same product contract without forcing a new PLAN/RUN. When `docs/product/PRD.md` exists, the seeded `AGENTS.md` requires every direct change to update the affected PRD requirements and trace IDs in the same change. It classifies UI impact as `none`, `structure`, `style`, or `both`; adding a page or route is at least `structure`, so the affected UI Surface Contract and `wireframes.html` pages are updated and re-approved. Style changes revisit the approved UI direction, and only an approved formal design-system delta changes the design-system pair. Unaffected IDs, pages, and decisions stay unchanged.
+Enhancements record impact across product behavior, UI structure/style, data/integrations, architecture/stack, data trust/AI, commercial channels, and release/operations. Changed product content reopens Product Definition Approval; UI keeps its `none`/`structure`/`style`/`both` gate and refreshes only affected artifacts.
 
 Gitignore hygiene also applies to both direct and managed work. The scope scan records whether a task changes a local-only artifact class, then derives the narrowest rules from the observed toolchain. Value-bearing environment and credential files, reproducible build output, dependency directories, caches, logs, and local platform state are ignored; source, tests, lockfiles, migrations, tracked configuration examples and schemas, and canonical product or delivery artifacts stay visible. A new environment-variable read updates the tracked example and ignore rule in the same task. Harness verifies representative paths with `git check-ignore`, `git status --ignored`, and `git ls-files`; it never reads a secret value or hides a dirty worktree, and a likely secret already tracked by Git stops the run for owner action.
 
@@ -341,7 +345,7 @@ If the checkout has local `__pycache__` directories under `skills/`, exclude or 
 
 When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler` — plus the new `product-activation` skill. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
-The five bundled skills are independently invocable, but cross-skill modes enforce their dependencies. Frozen wireframe validation uses `product-definition-builder`'s checker next to `delivery-harness`; `design-system-compiler` requires an approved PRD UI Design Handoff, approved `wireframes.html`, and `frontend-design`; the optional UI Design Pass uses a design-direction skill plus a frontend-implementation skill; new managed code deliveries use `code-security-review` in the `code_security_verification` slot after integration; and `product-activation` consumes the release and deployment handoff after delivery. Install the dependencies required by the mode you run.
+The five bundled skills are independently invocable, but cross-skill modes enforce dependencies. Product Definition's core checker joins PRD, architecture, and stack decisions; wireframe validation adds the UI checker. `design-system-compiler`, Delivery, and Activation require the approved Product Definition and Stack Checkpoint before consuming their own later inputs.
 
 ### Zero-to-one flow
 
@@ -355,15 +359,15 @@ The five bundled skills are independently invocable, but cross-skill modes enfor
 Codex accepts the `$skill-name` form below. In Claude Code or any other host, ask for the skill by name, such as `product-definition-builder`. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `delivery-harness` by name.
 
 ```text
-Use $product-definition-builder to turn this idea into a PRD, responsive wireframes for every page, target, and state, browser layout QA, architecture, stack decisions, release targets, and test obligations.
+Use $product-definition-builder to draft this product, reconcile research, present coherent stack options, obtain Stack Decision and Product Definition approval, then create responsive wireframes for every UI page, target, and state.
 ```
 
 ```text
-Use $product-definition-builder to review every page-target-state in the staged wireframes.html, confirm no unintended overlap or overflow in a real browser, and record the Wireframe Approval decision before visual or implementation work.
+The Product Definition is approved. Use $product-definition-builder to build and review every page-target-state in staged wireframes.html, then record Wireframe Approval before visual or implementation work.
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every page and approved state in one self-contained design-reference HTML with complete CSS, a left sidebar listing all pages, clickable flows, and mock login that jumps directly to the authenticated UI. Browser-check the full responsive/state matrix and retain the approved file under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every in-scope page and state in one self-contained design-reference HTML with complete CSS and clickable flows; keep auth preview scenes n/a. Browser-check the full matrix and invoke $design-system-compiler only when required.
 ```
 
 ```text
@@ -468,6 +472,7 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
+- **0.36.0** — Product-first decisions now have an approval spine. Post-draft market research reconciles the core candidate before a human Stack Decision Checkpoint and Product Definition Approval; UI wireframes start only from that approved revision, while headless products still require product approval. New technology choices are presented as coherent bundles and become executable only as `Required`, `Selected`, or `Approved`; `Recommended` and `Provisional` block Harness. Frontend separates language, package manager, component foundation such as shadcn/ui, and styling; mobile destinations are separate from native/cross-platform and framework decisions. PRDs add Data & Trust and AI/Automation gates, measurable metric ownership, structured assumptions/open questions, and enhancement-wide impact records. The new `check_product_package.py` validates the three core files and is reused by the Harness frozen join when the approval marker is present. Breaking skill-bundle change.
 - **0.35.5** — New `scripts/parity_capture.py`: the Final Visual Parity Loop becomes executable — it enumerates the route×breakpoint×state matrix from PLAN `ui_surfaces`, drives the agent-browser CLI to capture the design-reference render and the implemented page at the same viewport (`-target.png`/`-actual.png` pairs under `docs/goal/evidence/parity/`), runs a DOM geometry probe per app page (horizontal overflow plus visible overlap findings) for the `layout_check` attestation, and writes `manifest.json` plus a self-contained `parity-board.html` for the judgment; a small per-run route map supplies reference selectors and optional state triggers, the ready state captures without a trigger, and manual capture remains the no-CLI fallback. Production smoke gets its first content definition: UI-bearing candidates re-capture parity at the production URL into `docs/goal/evidence/production/` (promotion contract condition 7, deployment contract, seeded AGENTS.md), so a deploy that drifted from the design reference is a recorded finding instead of a post-deploy surprise.
 - **0.35.4** — Direct small work now commits with the structured subject too: the seeded `AGENTS.md` and `commit-convention.md` require `<type>(<scope>): <imperative summary>` for every commit outside a managed run — including plan-mode edits made in place without a branch — with trailers optional and a shipped example pair (`fix(dashboard): correct save-button copy`, `chore(deps): bump playwright to 1.49`). The subject is the record: small changes between runs leave a searchable, typed trail in git history.
 - **0.35.3** — Added `scripts/docs_weight.py`: a read-only complexity-ratchet report that counts the normative words in every skill's SKILL.md plus its references and prints the per-file, per-skill, and grand-total deltas against the most recent `v*` tag. It runs in CI and in the Required Verification suite so documentation growth is visible at every release; it reports and never gates.

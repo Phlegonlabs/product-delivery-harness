@@ -1112,11 +1112,21 @@ def _prd_signals(prd_text: str) -> tuple[set[str], list[str]]:
     findings: list[str] = []
     signals: set[str] = set()
     metrics_header, metrics = _table(prd_text, "## Metrics")
-    if metrics_header[:3] != ["metric", "definition", "target"]:
+    legacy_metrics = ["metric", "definition", "target"]
+    approved_metrics = [
+        "metric",
+        "definition",
+        "baseline",
+        "target / guardrail",
+        "measurement window",
+        "source / method",
+        "owner",
+    ]
+    if metrics_header != legacy_metrics and metrics_header != approved_metrics:
         findings.append("PRD: Metrics table is missing or has unexpected columns")
     else:
         for row in metrics:
-            if len(row) >= 3 and row[0]:
+            if len(row) >= len(metrics_header) and row[0]:
                 signals.add(row[0])
     tests_header, tests = _table(prd_text, "## Test Obligations")
     expected_tests = ["test id", "obligation", "test type", "required", "upstream trace ids", "expected signal"]

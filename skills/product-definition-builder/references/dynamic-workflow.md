@@ -1,6 +1,6 @@
 # Claude Code Dynamic Workflow
 
-Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete, with one exception: the parent-side Optional Platform Research Lanes below are read-only lookups that run during discovery, before the platform `AskUserQuestion` menu. A running workflow cannot ask the user for decisions, create a design system, approve publication, or replace the parent-owned artifact lifecycle.
+Use this reference only after product discovery, applicable Builder UX Direction, Stack Decision Mode, Data and Trust Gate inputs, AI and Automation Gate inputs, and source identification are complete. A running workflow can draft recommendations and coherent stack options, but it cannot ask the user, approve a Stack Decision Checkpoint or Product Definition package, create a design system, authorize publication, or replace the parent-owned artifact lifecycle.
 
 ## Graph Model
 
@@ -29,6 +29,8 @@ Before launch, the parent must have:
 - a stable run ID;
 - the product name and archetype;
 - an interview summary or explicit assumption authorization;
+- the human decision owner and `args.stack_decision_mode` (`review_recommendation`, `select_layers`, or `delegate`) for unresolved technology choices;
+- `args.data_trust_gate` and `args.ai_automation_gate` as `required`, `not_required`, or `blocked`; a blocked gate prevents launch because a read-only lane cannot resolve the owner decision;
 - the Builder UX Direction record for UI-bearing products, passed as `args.builder_ux_direction` alongside `args.ui_bearing`. UI-bearing is not the same as having a browser frontend: a native mobile or desktop app is UI-bearing with `browser_frontend: false`, and the template rejects a UI-bearing launch with no direction;
 - source paths or a complete source summary;
 - a decision on whether a browser frontend and optional implementation plan are in scope;
@@ -46,7 +48,7 @@ If the host cannot enforce that read-only tool boundary, use the sequential pare
 
 ### Optional Platform Research Lanes
 
-Only when the platform choice is genuinely ambiguous under the technology-neutral, time-boxed-spike escape hatch (`SKILL.md`'s Output Standards), the parent may optionally run one or two short read-only research lookups before presenting the platform `AskUserQuestion` menu, each returning 2-3 named platform options with tradeoffs so the menu is evidence-backed rather than silently decided by the agent. This is an ad hoc parent-side lookup under the existing `builder_readonly` boundary, not a new stable Graph Model role — do not add a row to the table above or change `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` for it. Most PRDs skip this entirely: a single `AskUserQuestion` call offering Cloudflare, Vercel, AWS, and Self-hosted (plus Other) is sufficient absent real ambiguity.
+Only when platform choice is genuinely ambiguous, the parent may run one or two short read-only lookups before presenting the platform question. Return two or three serious applicable options with tradeoffs and an evidence-backed recommendation choice; do not dump a fixed global provider catalog into a tool with a smaller option limit. This is an ad hoc parent-side lookup under the existing `builder_readonly` boundary, not a new stable Graph Model role.
 
 ## Execution
 
@@ -57,9 +59,9 @@ Use `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` with structured arguments
 3. Synthesis starts only after the analysis barrier.
 4. Trace, consistency, and (when public-facing content is in scope) SEO copy verifiers review the same synthesis independently. Trace verification checks that every Must functional requirement and applicable NFR maps to a required stable `TEST-*` obligation with an observable expected signal.
 5. When `args.market_research` is true, the `market-research` role runs in the same stage against the same synthesis. It is not a verifier: it returns a `market-research.md` body and gap findings rather than a pass/fail decision, so it never blocks the package on its own. A role that finds nothing sourceable returns blocked, and the package publishes without the artifact.
-6. The parent receives candidate Markdown bodies, review findings, and the research result.
+6. The parent receives candidate Markdown bodies, coherent stack options, review findings, and the research result. Every proposed new stack row remains `Recommended`; the workflow cannot mark it `Approved`.
 
-A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle and repairs unresolved findings. For a UI-bearing product, `PRD.md` contains the frozen UI surface contract and its invariant responsive set, while `wireframes_html_data_json` supplies the matching `wireframes/3` structural projection with complete per-target layouts and working action flows. The parent embeds that data into `WIREFRAMES.template.html`, verifies it against `PRD.md`, exercises every page-target-state combination, action, and runtime layout QA in a real browser, and presents the resulting single-file `wireframes.html` for approval. The checker retains `wireframes/2` read compatibility for unchanged historical files. Approval completes this phase. The parent runs `ui-design-pass.md`, Taste, `design-system-compiler`, or Harness only after the owner explicitly requests a later visual-design or implementation phase. Research findings are applied by the parent, not the role: a finding that would widen product scope goes back to the user as a recommendation. Only after the complete requested package passes the output checklist does the parent present exact mutations for approval.
+A workflow result authorizes nothing. The parent applies research findings, presents coherent technology choices under the recorded Stack Decision Mode, records the owner's Stack Decision Checkpoint, then presents the reconciled core package for Product Definition Approval. Only after that approval may it materialize and approve `wireframes.html` from `wireframes_html_data_json`. A changed product obligation reopens Product Definition Approval before a replacement wireframe can pass. Publication authorization remains a later, separate filesystem decision.
 
 ## Failure And Resume
 
