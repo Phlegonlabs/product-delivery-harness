@@ -236,11 +236,11 @@ Repair cycle: a missing element, a structural difference, or any difference outs
 
 ### Final Page-Quality Pass
 
-Every run with at least one PLAN `ui_surfaces` entry follows the Final Visual Parity Loop with one final page-quality pass over the delivered design-reference pages, bound to the exact integration head. The pass runs the skill bound to the project's `ui_quality_verification` slot — `impeccable` by default — in evaluate mode: one `critique` (heuristic UX review) and one `audit` (accessibility, responsive, and performance checks) per delivered route, batched in a single round.
+Every run with at least one PLAN `ui_surfaces` entry follows the Final Visual Parity Loop with one final read-only page-quality review over the delivered design-reference pages, bound to the exact integration head. The planned reviewer uses browser and source evidence to cover heuristic UX, accessibility, responsive behavior, and performance per delivered route in one round. Impeccable is not the default for this node: its pinned workflow has disclosed subagent, browser/server, snapshot-write, and optional-download side effects. It may run only as a separately authorized UI-quality workflow, and its report may be cited as evidence without replacing the independent Harness reviewer.
 
 - Findings are ordinary review findings. A blocking defect enters the repair cycle under the same Root-Cause Repair Escalation budget as a parity repair; the pass adds no review attempts of its own. Record the pass, every finding, and its verdict as evidence rows bound to the integration head, and never relabel an unresolved finding to close the run.
 - The pass verifies quality, not direction. A finding that conflicts with frozen product behavior returns to `product-definition-builder`; a finding that conflicts with `ui-design.md`, approved `wireframes.html`, or the active visual source returns to `ui-design-builder`. Neither authorizes a local change.
-- Evaluate commands only. The pass never runs the bound skill's build, init, document, or live flows, and never creates `PRODUCT.md`, `DESIGN.md`, or another competing product authority in the repository.
+- Read-only reviewer actions only. The pass never runs a bound skill's build, init, document, snapshot, download, or live-server flows, and never creates `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, or another competing authority in the repository.
 - If the bound skill is unavailable in the delivery environment, record the gate `UNVALIDATED` with the named residual risk; it blocks final completion unless the user explicitly accepts the descoped gate.
 
 ## UX Direction And Usability Evidence

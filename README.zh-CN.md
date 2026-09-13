@@ -340,7 +340,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安装方式
 
-克隆仓库并运行安装脚本。它会把现有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中，把七个 Product Delivery Harness skills 复制进 `~/.agents/skills/`，并验证每个复制出来的 `SKILL.md`：
+克隆仓库并运行安装脚本。它先取得整个目标目录的单一锁，只 staging 七个 skill 中已进入 Git index 的文件，把当前与旧版 managed ID 一起移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份，安装 staging tree，并在释放锁之前逐路径、逐字节验证：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -349,24 +349,15 @@ cd product-delivery-harness
 # Windows PowerShell：powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-手动等效做法：
+更新时没有安全的 raw-copy 等效做法：手动复制会绕过 tracked-file manifest、目标目录锁、ownership marker、完整校验和 rollback。若两个 installer 都无法运行，应先停止并修复环境，不要覆盖现有安装。
 
-```bash
-cp -r product-delivery-harness/skills/delivery-harness \
-      product-delivery-harness/skills/product-definition-builder \
-      product-delivery-harness/skills/ui-design-builder \
-      product-delivery-harness/skills/design-system-compiler \
-      product-delivery-harness/skills/code-security-review \
-      product-delivery-harness/skills/product-activation \
-      product-delivery-harness/skills/seo-growth-review \
-      ~/.agents/skills/
-```
-
-如果 checkout 的 `skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。安装脚本同时也是更新脚本：重跑一次会先备份旧副本再替换。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制七个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
+安装器会忽略可重建的 Python cache，并拒绝其他所有未跟踪或被忽略的源文件，包括本机 `.env` 与 `.dev.vars` 值；已跟踪的 example 文件仍可安装。Bash 与 PowerShell updater 共用同一把锁。每个新 target 在完整 tree 校验前都有本次 attempt 的 owner marker，因此 rollback 只删除本次建立的路径并恢复旧备份；其他进程或用户建立的路径一律保留。重跑安装器仍需明确授权并先结束使用中的会话，成功后才重启宿主。
 
 从 0.23 或更早版本升级时，先在同一份备份中用原 ID 保存各旧目录。然后安装对应的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。复制完成后，验证 `~/.agents/skills/` 中已没有三个旧 ID；否则宿主会发现重复且触发范围重叠的 skills。
 
 七个内置技能可独立调用，但跨技能模式会校验依赖。Product Definition core checker 会 join PRD、architecture 和 stack；UI Design Builder 校验 Copy Freeze、`ui-design.md` 与 `wireframes.html`，Harness 0.37.0+ 在 UI delivery 前 join 这些来源。Design compilation、Delivery 与 Activation 仍要求适用的上游批准。SEO Growth Review 可以只用公开证据；如要得出已验证的第一方结论，则使用相符的 Activation sources。
+
+新项目的 Skill Bindings 会刻意保持 unresolved，直到会话观察本机候选且 owner 确认每个 slot 的唯一 skill。Pin 覆盖完整 skill tree，不只 `SKILL.md`。`check_external_skill_dependencies.py` 会校验已知 external tree 与允许用途。Pinned `frontend-design` 只提供 visual direction 与 frontend authoring；conformance 和 compilation contract 由 Harness 自己负责。Impeccable 绝不是默认的只读 Harness reviewer；使用其 pinned workflow 前，必须另行授权 subagents、browser/server、snapshot 写入和可能的 binary download。
 
 ### Zero-to-one 流程（从零开始）
 

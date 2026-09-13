@@ -7,6 +7,8 @@ import argparse
 import json
 from pathlib import Path
 
+from check_skill_bindings import PIN_RE, bound_skill_name, parse_binding_contract
+
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "assets" / "templates"
 DEFAULT_AGENTS_TEMPLATE = TEMPLATES_DIR / "PROJECT_AGENTS.template.md"
@@ -16,6 +18,8 @@ UNRESOLVED_PLACEHOLDER_MARKERS = (
     "<bundled",
     "<or your own",
     "<hash of",
+    "<resolve",
+    "<full-tree",
     "<databases",
 )
 
@@ -92,6 +96,15 @@ def unresolved_placeholders(root: Path) -> list[str]:
         for marker in UNRESOLVED_PLACEHOLDER_MARKERS:
             if marker in line:
                 findings.append(f"line {number}: unresolved placeholder {marker!r}")
+    rows, binding_findings = parse_binding_contract(
+        agents.read_text(encoding="utf-8")
+    )
+    findings.extend(f"skill bindings: {finding}" for finding in binding_findings)
+    for slot, cell, pin, number in rows:
+        if bound_skill_name(cell) is None or PIN_RE.fullmatch(pin) is None:
+            findings.append(
+                f"line {number}: unresolved Skill Bindings row for slot {slot!r}"
+            )
     return findings
 
 

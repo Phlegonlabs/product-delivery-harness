@@ -173,12 +173,12 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 Read `references/ui-implementation-contract.md` before UI implementation or review.
 
-- Design-system compilation mode requires `design-system-compiler` and `frontend-design` after approved Product Definition, UI design, Copy Freeze, wireframes, HiFi target, and `Design System Need Gate: required`. It does not reopen direction.
-- UI implementation uses `frontend-design` in conformance mode against the approved UI source; it does not reopen Style Integration.
+- `design-system-compiler` owns compilation after approved Product Definition, UI design, Copy Freeze, wireframes, HiFi, and a `required` Design System Need Gate. Do not claim another skill exposes compilation mode.
+- UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
 - System-conformance mode obeys the frozen PRD UI Surface Contract, approved `ui-design.md`, `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the UI design gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser evidence, and tolerance in `ui-design.md`. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
-- These are bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind other skills to the design, implementation, and page-quality-verification slots, plus the code-security-verification slot; the same modes, sources, and gates apply.
+- After the Final Visual Parity Loop, one read-only page-quality pass (`references/verification-gates.md`) runs on the exact head. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
+- Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow
 

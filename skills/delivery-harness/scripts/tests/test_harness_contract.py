@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import sys
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,43 +14,42 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from harness_contract import contract_digest  # noqa: E402
+from harness_contract import SKILL_NAMES, contract_digest  # noqa: E402
+
+
+def create_required_skills(root: Path) -> None:
+    skills_root = root / "skills"
+    for name in SKILL_NAMES:
+        skill = skills_root / name
+        skill.mkdir(parents=True, exist_ok=True)
+        (skill / "SKILL.md").write_text(f"# {name}\n", encoding="utf-8", newline="\n")
 
 
 class ContractDigestTests(unittest.TestCase):
-    @staticmethod
-    def build_tree(directory: Path, ending: str) -> None:
-        skills = directory / "skills" / "delivery-harness"
-        skills.mkdir(parents=True)
-        (skills / "SKILL.md").write_bytes(
-            b"# contract\n" + ending.encode() + b"line two\n"
-        )
-        (skills / "reference.md").write_bytes(
-            b"same bytes everywhere" + ending.encode()
-        )
-
     def test_line_endings_do_not_change_the_digest(self) -> None:
         # The digest gates dispatch; a Windows checkout (CRLF) and its packaged
         # copy (LF) must identify the same contract.
-        import tempfile
-
         with tempfile.TemporaryDirectory() as lf_dir, tempfile.TemporaryDirectory() as crlf_dir:
             lf_root, crlf_root = Path(lf_dir), Path(crlf_dir)
-            self.build_tree(lf_root, "\n")
-            self.build_tree(crlf_root, "\r\n")
+            create_required_skills(lf_root)
+            create_required_skills(crlf_root)
+            harness_lf = lf_root / "skills" / "delivery-harness"
+            harness_crlf = crlf_root / "skills" / "delivery-harness"
+            for path in harness_lf.rglob("*"):
+                if path.is_file():
+                    relative = path.relative_to(harness_lf)
+                    target = harness_crlf / relative
+                    target.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
             self.assertEqual(
                 contract_digest(lf_root / "skills"),
                 contract_digest(crlf_root / "skills"),
             )
 
     def test_tests_and_caches_are_ignored_but_real_files_are_not(self) -> None:
-        import tempfile
-
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            create_required_skills(root)
             skills = root / "skills" / "delivery-harness"
-            skills.mkdir(parents=True)
-            (skills / "SKILL.md").write_text("# contract\n", encoding="utf-8")
             skills_root = root / "skills"
             before = contract_digest(skills_root)
             ignored_test = skills / "scripts" / "tests" / "test_new.py"
@@ -63,40 +64,31 @@ class ContractDigestTests(unittest.TestCase):
             runtime_file.write_text("# new runtime file\n", encoding="utf-8")
             self.assertNotEqual(contract_digest(skills_root), before)
 
-    def test_product_activation_is_part_of_the_runtime_contract_digest(self) -> None:
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            harness = root / "skills" / "delivery-harness"
-            harness.mkdir(parents=True)
-            (harness / "SKILL.md").write_text("# harness\n", encoding="utf-8")
-            activation = root / "skills" / "product-activation"
-            activation.mkdir(parents=True)
-            (activation / "SKILL.md").write_text("# activation\n", encoding="utf-8")
-            skills_root = root / "skills"
-            before = contract_digest(skills_root)
-            (activation / "SKILL.md").write_text("# activation changed\n", encoding="utf-8")
-            self.assertNotEqual(contract_digest(skills_root), before)
-
-    def test_new_bundled_skills_are_part_of_the_runtime_contract_digest(self) -> None:
-        import tempfile
-
-        for skill_name in ("ui-design-builder", "seo-growth-review"):
+    def test_each_bundled_runtime_skill_is_part_of_the_digest(self) -> None:
+        for skill_name in SKILL_NAMES:
             with self.subTest(skill=skill_name), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                harness = root / "skills" / "delivery-harness"
-                harness.mkdir(parents=True)
-                (harness / "SKILL.md").write_text("# harness\n", encoding="utf-8")
-                added = root / "skills" / skill_name
-                added.mkdir(parents=True)
-                (added / "SKILL.md").write_text(f"# {skill_name}\n", encoding="utf-8")
+                create_required_skills(root)
                 skills_root = root / "skills"
                 before = contract_digest(skills_root)
-                (added / "SKILL.md").write_text(
-                    f"# {skill_name} changed\n", encoding="utf-8"
+                skill_file = skills_root / skill_name / "SKILL.md"
+                skill_file.write_text(
+                    f"# {skill_name} changed\n", encoding="utf-8", newline="\n"
                 )
                 self.assertNotEqual(contract_digest(skills_root), before)
+
+    def test_missing_required_skill_fails_explicitly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_required_skills(root)
+            missing = root / "skills" / "product-activation"
+            shutil.rmtree(missing)
+            with self.assertRaises(FileNotFoundError) as raised:
+                contract_digest(root / "skills")
+            self.assertEqual(
+                f"required bundled skill directory is absent: {missing}",
+                str(raised.exception),
+            )
 
 
 if __name__ == "__main__":

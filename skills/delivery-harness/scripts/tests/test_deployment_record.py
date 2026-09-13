@@ -400,9 +400,17 @@ class ConfigurePlaceholderTests(unittest.TestCase):
     def test_a_resolved_agents_md_reports_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            pin = "0" * 64
             (root / "AGENTS.md").write_text(
-                "# Rules\n\n| design_direction | UI | `design-taste-frontend` | "
-                + "0" * 64 + " |\n",
+                "# Rules\n\n## Skill Bindings\n\n"
+                "| Slot | Stage | Bound skill | Pinned SHA-256 |\n"
+                "| --- | --- | --- | --- |\n"
+                f"| ui_design | UI | `design-taste-frontend` | {pin} |\n"
+                f"| style_integration | style | `design-taste-frontend` | {pin} |\n"
+                f"| design_compilation | pair | `design-taste-frontend` | {pin} |\n"
+                f"| frontend_implementation | code | `design-taste-frontend` | {pin} |\n"
+                f"| ui_quality_verification | quality | `design-taste-frontend` | {pin} |\n"
+                f"| code_security_verification | security | `design-taste-frontend` | {pin} |\n",
                 encoding="utf-8",
             )
             self.assertEqual([], configure_project_context.unresolved_placeholders(root))

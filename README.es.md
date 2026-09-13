@@ -339,7 +339,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Configuración más rápida
 
-Clona el repositorio y ejecuta el instalador. Mueve cualquier copia existente a un solo backup con timestamp bajo `~/.agents/skill-backups/product-delivery-harness/`, copia los siete skills de Product Delivery Harness en `~/.agents/skills/` y verifica cada `SKILL.md` copiado:
+Clona el repositorio y ejecuta el instalador. Primero toma un bloqueo único para todo el destino, prepara solo los archivos de los siete skills registrados en el índice de Git, mueve los IDs gestionados actuales y heredados a un backup con timestamp bajo `~/.agents/skill-backups/product-delivery-harness/`, instala los árboles preparados y verifica cada ruta y byte antes de liberar el bloqueo:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -348,24 +348,15 @@ cd product-delivery-harness
 # Windows PowerShell: powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Equivalente manual:
+No existe un equivalente seguro de copia directa para actualizar: omitiría el manifest de archivos registrados, el bloqueo del destino, los marcadores de propiedad, la verificación completa y el rollback. Si ninguno de los instaladores puede ejecutarse, detente y repara el entorno en vez de copiar sobre una instalación existente.
 
-```bash
-cp -r product-delivery-harness/skills/delivery-harness \
-      product-delivery-harness/skills/product-definition-builder \
-      product-delivery-harness/skills/ui-design-builder \
-      product-delivery-harness/skills/design-system-compiler \
-      product-delivery-harness/skills/code-security-review \
-      product-delivery-harness/skills/product-activation \
-      product-delivery-harness/skills/seo-growth-review \
-      ~/.agents/skills/
-```
-
-Si el checkout tiene directorios locales `__pycache__` bajo `skills/`, exclúyelos o bórralos de la copia — los hosts nunca necesitan el bytecode. En Windows, `Copy-Item -Recurse` hace lo mismo. El instalador es también el actualizador: volver a ejecutarlo respalda las copias anteriores y las reemplaza. Una actualización necesita aprobación explícita de install/update y ninguna sesión activa que use los skills. Copia los siete directorios actuales, verifica que sus archivos coincidan con el checkout y arranca una sesión fresca del host. Restaura el backup si la verificación falla; nunca sobrescribas ni borres las copias anteriores.
+El instalador omite caches de Python reproducibles y rechaza cualquier otro artefacto de origen sin seguimiento o ignorado, incluidos valores locales `.env` y `.dev.vars`; los archivos example registrados siguen permitidos. Bash y PowerShell comparten el mismo bloqueo. Cada target nuevo conserva un marcador del intento hasta terminar la verificación del árbol completo, por lo que el rollback solo elimina rutas creadas por ese intento y restaura el backup anterior; conserva rutas creadas por otra persona o proceso. Repetir el instalador sigue requiriendo autorización explícita y sesiones de skills detenidas. Reinicia el host solo después del éxito.
 
 Al actualizar desde 0.23 o anterior, archiva los directorios heredados bajo sus IDs originales (archive the legacy directories under their original IDs) en ese mismo backup. Luego instala sus reemplazos — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder` y `product-design-builder` → `design-system-compiler` — más el skill nuevo `product-activation`. Después de copiar, verifica que los tres IDs heredados ya no estén en `~/.agents/skills/`; si no, el host descubrirá skills duplicados con triggers solapados.
 
 Los siete skills se pueden invocar por separado, pero los modos cross-skill validan dependencias. El checker core de Product Definition une PRD, arquitectura y stack. UI Design Builder valida Copy Freeze, `ui-design.md` y `wireframes.html`; Harness 0.37.0+ une esos sources aprobados antes de UI delivery. Design compilation, Delivery y Activation exigen los inputs upstream aplicables. SEO Growth Review puede usar solo evidencia pública, pero las conclusiones first-party verificadas consumen fuentes de Activation coincidentes cuando existen.
+
+Los Skill Bindings de un proyecto nuevo quedan deliberadamente unresolved hasta que la sesión observe candidatos instalados y el owner confirme un único skill por slot. El pin cubre el árbol completo, no solo `SKILL.md`. `check_external_skill_dependencies.py` valida el árbol externo conocido y su uso permitido. El `frontend-design` fijado sirve para dirección visual y autoría frontend; Harness posee los contratos de conformance y compilation. Impeccable nunca es el reviewer Harness de solo lectura por defecto: su workflow fijado exige autorización separada para subagents, browser/server, escritura de snapshots y cualquier descarga binaria opcional.
 
 ### Flujo Zero-to-one
 

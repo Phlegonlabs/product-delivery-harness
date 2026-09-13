@@ -482,7 +482,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("| frontend_implementation |", project_agents)
         self.assertIn("| ui_quality_verification |", project_agents)
         self.assertIn("| code_security_verification |", project_agents)
-        self.assertIn("An unbound slot uses the bundled default", project_agents)
+        self.assertIn("intentionally unresolved", project_agents)
+        self.assertIn("full-tree SHA-256", project_agents)
+        self.assertIn("not a Harness read-only reviewer", project_agents)
         # Required Reading names the installed orchestration skill itself; the
         # Skill Bindings table binds only the stage slots it dispatches.
         self.assertIn(
@@ -490,7 +492,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             project_agents,
         )
         self.assertNotIn("bound in the Skill Bindings table", project_agents)
-        self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
+        self.assertIn("owner-confirmed Skill Bindings table", skill)
 
     @unittest.skipIf(REPO_ROOT is None, "security skill requires a source checkout")
     def test_code_security_review_is_exact_sha_read_only_and_blocking(self) -> None:
@@ -656,18 +658,18 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         gates = self.read("references/verification-gates.md")
         contract = self.read("references/ui-implementation-contract.md")
 
-        for content in (skill, gates, contract):
+        for content in (skill, contract):
             self.assertIn("page-quality pass", content)
         self.assertIn("### Final Page-Quality Pass", gates)
         self.assertIn("follows the Final Visual Parity Loop", gates)
-        self.assertIn("`ui_quality_verification`", gates)
-        self.assertIn("`impeccable` by default", gates)
+        self.assertIn("read-only page-quality review", gates)
+        self.assertIn("Impeccable is not the default", gates)
         self.assertIn("adds no review attempts of its own", gates)
         self.assertIn("Neither authorizes a local change", gates)
-        self.assertIn("Evaluate commands only", gates)
+        self.assertIn("Read-only reviewer actions only", gates)
         self.assertIn("returns to `ui-design-builder`", gates)
         self.assertIn("`UNVALIDATED`", gates)
-        self.assertIn("page-quality-verification slots", skill)
+        self.assertIn("unresolved or incompatible slot", skill)
 
     def test_seo_metadata_is_bound_through_implementation(self) -> None:
         contract = self.read("references/ui-implementation-contract.md")
@@ -957,20 +959,18 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("RUN-v11 workers never delegate", runbook)
         self.assertIn("all reviews are parent-dispatched graph nodes", runbook)
 
-    def test_frontend_design_has_compilation_and_conformance_modes(self) -> None:
+    def test_harness_owns_compilation_and_conformance_contracts(self) -> None:
         skill = self.read("SKILL.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         design_updates = self.read("references/design-input-updates.md")
 
-        for content in (skill, worker_goal):
-            self.assertIn("frontend-design", content)
-            self.assertIn("conformance mode", content)
-            self.assertIn("design-input delta", content)
+        for content in (skill, plan, worker_goal):
             self.assertIn("design-system-compiler", content)
-            self.assertIn("compilation mode", content.casefold())
-        self.assertIn("Design-system compilation requires", plan)
-        self.assertIn("UI implementation uses `frontend-design`", plan)
+            self.assertIn("frontend-author", content)
+            self.assertNotIn("frontend-design` in conformance mode", content)
+            self.assertNotIn("`frontend-design` and `design-system-compiler`", content)
+        self.assertIn("Harness—not the external skill—owns", worker_goal)
         self.assertIn("proposed design-input delta", design_updates)
         self.assertIn("return formal pair changes to `design-system-compiler`", design_updates)
 

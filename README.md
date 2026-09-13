@@ -340,7 +340,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Fastest setup
 
-Clone the repository and run the installer. It moves any existing copies to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, copies the seven Product Delivery Harness skills into `~/.agents/skills/`, and verifies each copied `SKILL.md`:
+Clone the repository and run the installer. It takes one destination-wide lock, stages only Git-index-tracked files from the seven skills, moves current and legacy managed IDs to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, installs the staged trees, and verifies every path and byte before releasing the lock:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -349,24 +349,15 @@ cd product-delivery-harness
 # Windows PowerShell: powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Manual equivalent:
+There is no safe raw-copy equivalent for updates: it would bypass the tracked-file manifest, destination lock, ownership markers, complete verification, and rollback. If neither installer can run, stop and repair that environment instead of copying over an existing install.
 
-```bash
-cp -r product-delivery-harness/skills/delivery-harness \
-      product-delivery-harness/skills/product-definition-builder \
-      product-delivery-harness/skills/ui-design-builder \
-      product-delivery-harness/skills/design-system-compiler \
-      product-delivery-harness/skills/code-security-review \
-      product-delivery-harness/skills/product-activation \
-      product-delivery-harness/skills/seo-growth-review \
-      ~/.agents/skills/
-```
-
-If the checkout has local `__pycache__` directories under `skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. The installer is also the updater: re-running it backs up the previous copies and replaces them. An update needs explicit install/update approval and no active skill-using session. Copy the seven current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
+The installer ignores reproducible Python caches and refuses every other untracked or ignored source artifact, including local `.env` and `.dev.vars` values; tracked example files remain allowed. Its lock serializes Bash and PowerShell updaters. Each created target carries an attempt owner marker until full-tree verification finishes, so rollback removes only paths created by that attempt and restores the prior backup. A foreign or concurrently created path is preserved. Re-running the installer is the update path and still requires explicit authorization plus quiesced skill-using sessions. Start a fresh host session only after success.
 
 When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler` — plus the new `product-activation` skill. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
 The seven bundled skills are independently invocable, but cross-skill modes enforce dependencies. Product Definition's core checker joins PRD, architecture, and stack decisions. UI Design Builder validates Copy Freeze, `ui-design.md`, and `wireframes.html`; Harness 0.37.0+ joins those approved UI sources before delivery. Design compilation, Delivery, and Activation require the applicable approved upstream inputs. SEO Growth Review can use public evidence alone, but verified first-party conclusions consume matching Activation sources when they exist.
+
+New project Skill Bindings are deliberately unresolved until the session observes installed candidates and the owner confirms one skill per slot. Pins cover each complete skill tree, not only `SKILL.md`. `check_external_skill_dependencies.py` verifies the known external tree and its allowed use. The pinned `frontend-design` supports visual direction and frontend authoring; the Harness owns conformance and compilation contracts. Impeccable is never a default read-only Harness reviewer: using its pinned workflow needs separate authorization for subagents, browser/server work, snapshot writes, and any optional binary download.
 
 ### Zero-to-one flow
 

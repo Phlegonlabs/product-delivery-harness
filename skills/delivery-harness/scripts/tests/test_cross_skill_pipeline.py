@@ -106,7 +106,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("Read `PRD.md`, `architecture.md`, `stack-decisions.md`, approved `ui-design.md`", implementation)
         self.assertIn("## System-Conformance Mode", implementation)
         self.assertIn("## Target-Conformance Mode", implementation)
-        self.assertIn("load `frontend-design` in conformance mode", implementation)
+        self.assertIn("load the owner-bound frontend-authoring skill", implementation)
+        self.assertIn("apply this document's conformance rules", implementation)
+        self.assertNotIn("load `frontend-design` in conformance mode", implementation)
         self.assertIn("approved and copy-frozen page", implementation)
         self.assertIn("never frozen copy", self.read("delivery-harness/references/verification-gates.md"))
 
