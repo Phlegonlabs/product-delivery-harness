@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -499,6 +500,62 @@ def _resolve_ui_design_digest(
         _add(problems, f"{label} canonical UI approval sha256 does not match current bytes")
 
 
+class _HiFiSurfaceParser(HTMLParser):
+    """Collect only markers nested inside each explicit HiFi surface container."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.surfaces: dict[str, dict[str, Any]] = {}
+        self._stack: list[str] = []
+        self._elements: list[tuple[str, str | None]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {name.lower(): value for name, value in attrs}
+        surface_id = values.get("data-ui-surface")
+        if isinstance(surface_id, str):
+            self.surfaces.setdefault(
+                surface_id,
+                {
+                    "route": set(),
+                    "states": set(),
+                    "targets": set(),
+                    "navigation": set(),
+                    "controls": set(),
+                    "text": [],
+                },
+            )
+            self._stack.append(surface_id)
+        self._elements.append((tag.lower(), surface_id if isinstance(surface_id, str) else None))
+        if not self._stack:
+            return
+        current = self.surfaces[self._stack[-1]]
+        for attr, key in (
+            ("data-ui-route", "route"),
+            ("data-state", "states"),
+            ("data-responsive-target", "targets"),
+            ("data-navigation-id", "navigation"),
+            ("data-control-id", "controls"),
+        ):
+            value = values.get(attr)
+            if isinstance(value, str) and value.strip():
+                current[key].add(value.strip())
+
+    def handle_endtag(self, tag: str) -> None:
+        tag_name = tag.lower()
+        for index in range(len(self._elements) - 1, -1, -1):
+            element_tag, surface_id = self._elements[index]
+            if element_tag != tag_name:
+                continue
+            self._elements = self._elements[:index]
+            if surface_id is not None and self._stack and self._stack[-1] == surface_id:
+                self._stack.pop()
+            break
+
+    def handle_data(self, data: str) -> None:
+        if self._stack:
+            self.surfaces[self._stack[-1]]["text"].append(data)
+
+
 def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any] | None = None) -> None:
     """Apply only the generic self-contained HTML safety rules to HiFi."""
 
@@ -584,14 +641,32 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
         expected_by_id = {item.get("id"): item for item in scope.get("surfaces", []) if isinstance(item, dict)}
         if set(manifest_by_id) != set(expected_by_id):
             _add(problems, "Connected HiFi manifest surfaces must exactly match Approved target scope")
+        dom_parser = _HiFiSurfaceParser()
+        dom_parser.feed(html)
+        dom_parser.close()
         for surface_id, expected in expected_by_id.items():
             actual = manifest_by_id.get(surface_id)
             if actual is None:
                 continue
             if actual.get("route") != expected.get("route") or actual.get("states") != expected.get("states") or actual.get("responsive") != scope.get("responsive"):
                 _add(problems, f"Connected HiFi manifest {surface_id} does not match Approved target scope")
-            if re.search(rf"data-ui-surface=[\"']{re.escape(surface_id)}[\"']", html, re.IGNORECASE) is None:
+            container = dom_parser.surfaces.get(surface_id)
+            if container is None:
                 _add(problems, f"Connected HiFi DOM is missing a container for {surface_id}")
+                continue
+            expected_targets = {str(item) for item in scope.get("responsive", {}).get("targets", [])}
+            if container["route"] != {expected.get("route")}:
+                _add(problems, f"Connected HiFi DOM route binding is wrong for {surface_id}")
+            if container["states"] != {str(item) for item in expected.get("states", [])}:
+                _add(problems, f"Connected HiFi DOM state coverage is wrong for {surface_id}")
+            if container["targets"] != expected_targets:
+                _add(problems, f"Connected HiFi DOM responsive target coverage is wrong for {surface_id}")
+            if not set(actual.get("navigation", [])) <= container["navigation"]:
+                _add(problems, f"Connected HiFi DOM navigation coverage is incomplete for {surface_id}")
+            if not set(actual.get("controls", [])) <= container["controls"]:
+                _add(problems, f"Connected HiFi DOM control coverage is incomplete for {surface_id}")
+            if len("".join(container["text"]).strip()) < 20:
+                _add(problems, f"Connected HiFi DOM content is not meaningful for {surface_id}")
 
 
 def _read_wireframe_data(path: Path, problems: list[str]) -> dict[str, Any] | None:
@@ -678,7 +753,7 @@ def _validate_target_scope_join(
     release_classes = {
         surface_class
         for target in release_contract.targets
-        for surface_class in [_release_surface_class(target.surface)]
+        for surface_class in [_release_surface_class(target)]
         if surface_class is not None
     }
     if wire_kind == "sizeClasses":
@@ -699,6 +774,10 @@ def _validate_target_scope_join(
         expected = {expected_modes[item] for item in release_classes if item in expected_modes}
         if len(expected) != 1 or capture not in expected:
             _add(problems, "Approved target captureMode must match the typed ReleaseTarget surface class")
+        elif (capture in {"native", "desktop"} and wire_kind != "sizeClasses") or (
+            capture in {"hosted-browser", "browser-extension"} and wire_kind != "viewports"
+        ):
+            _add(problems, "Approved target responsive kind must match captureMode platform")
 
 
 def _screen_state_ids(screen: dict[str, Any]) -> set[str]:
@@ -709,27 +788,9 @@ def _screen_state_ids(screen: dict[str, Any]) -> set[str]:
     }
 
 
-def _release_surface_class(surface: str) -> str | None:
-    normalized = surface.casefold()
-    if "extension" in normalized:
-        return "browser_extension"
-    if normalized in {"web", "web-app", "website", "hosted-web"} or normalized.startswith("web-"):
-        return "hosted_web"
-    if normalized.startswith("ios"):
-        return "ios"
-    if normalized.startswith("android"):
-        return "android"
-    if normalized.startswith("react-native"):
-        return "react-native"
-    if normalized.startswith("flutter"):
-        return "flutter"
-    if normalized.startswith("macos"):
-        return "macos"
-    if normalized.startswith("windows"):
-        return "windows"
-    if normalized.startswith("desktop"):
-        return "desktop"
-    return None
+def _release_surface_class(target: Any) -> str | None:
+    value = getattr(target, "surface_class", None)
+    return value.casefold() if isinstance(value, str) else None
 
 
 def _relative_cli_path(path: Path, repo_root: Path, label: str, problems: list[str]) -> str | None:

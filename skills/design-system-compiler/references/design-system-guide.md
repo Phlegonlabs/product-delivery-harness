@@ -21,6 +21,8 @@ Publish the Markdown and JSON together.
 
 Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`.
 
+Browser-extension UI uses `platform: web` with the UI approval `captureMode: browser-extension`; it is not silently treated as hosted web.
+
 - current source bindings plus token and primitive source paths;
 - the responsive verification set;
 - tokens the product actually uses;

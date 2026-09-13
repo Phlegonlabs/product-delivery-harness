@@ -143,7 +143,7 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
         }],
     })
     hifi.write_text(
-        '<html><body><nav>Pages</nav><main data-ui-surface="UI-001" data-state="ready"><h1>HiFi review surface with meaningful content</h1></main><span data-responsive-target="390"></span><span data-responsive-target="768"></span><span data-responsive-target="1200"></span>'
+        '<html><body><nav>Pages</nav><main data-ui-surface="UI-001" data-ui-route="/home" data-state="ready" data-navigation-id="home" data-control-id="refresh"><h1>HiFi review surface with meaningful content</h1><span data-responsive-target="390"></span><span data-responsive-target="768"></span><span data-responsive-target="1200"></span></main>'
         '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
         encoding="utf-8",
     )
@@ -439,6 +439,33 @@ class UiDesignContractTests(unittest.TestCase):
             problems = []
             checker._validate_hifi_surface(path, problems)
             self.assertTrue(any("active external or executable" in item for item in problems))
+
+    def test_hifi_surface_containers_cannot_be_spoofed_by_global_markers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "hifi.html"
+            manifest = json.dumps({
+                "schema": "ui-hifi/1",
+                "surfaces": [
+                    {"id": "UI-001", "route": "/home", "states": ["ready"], "responsive": {"kind": "viewports", "targets": [390]}, "navigation": ["home"], "controls": ["refresh"]},
+                    {"id": "UI-002", "route": "/settings", "states": ["ready"], "responsive": {"kind": "viewports", "targets": [390]}, "navigation": ["settings"], "controls": ["save"]},
+                ],
+            })
+            path.write_text(
+                '<html><body><div data-state="ready" data-responsive-target="390">global spoof</div>'
+                '<main data-ui-surface="UI-001" data-ui-route="/home" data-state="ready" data-navigation-id="home" data-control-id="refresh">Surface one content</main>'
+                '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
+                encoding="utf-8",
+            )
+            scope = {
+                "surfaces": [
+                    {"id": "UI-001", "route": "/home", "states": ["ready"]},
+                    {"id": "UI-002", "route": "/settings", "states": ["ready"]},
+                ],
+                "responsive": {"kind": "viewports", "targets": [390]},
+            }
+            problems: list[str] = []
+            checker._validate_hifi_surface(path, problems, scope)
+            self.assertTrue(any("UI-002" in item for item in problems))
 
     def test_motion_join_rejects_missing_duplicate_and_mismatch(self):
         intent = {
