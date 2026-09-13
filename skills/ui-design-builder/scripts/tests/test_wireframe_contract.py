@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -136,6 +137,15 @@ def wireframe_data(**overrides):
     return data
 
 
+def draft_wireframe_data():
+    data = wireframe_data(approvalStatus="draft")
+    data["copyFreeze"]["status"] = "draft"
+    data["copyFreeze"]["approvedOn"] = "pending"
+    for screen in data["screens"]:
+        screen["copyStatus"] = "draft"
+    return data
+
+
 def legacy_wireframe_data(schema):
     data = wireframe_data()
     data["schema"] = schema
@@ -160,19 +170,16 @@ def legacy_wireframe_data(schema):
 
 def render_html(data):
     payload = json.dumps(data, ensure_ascii=False)
-    return (
-        "<!doctype html><html><head><title>Wireframes</title></head><body>"
-        '<script id="wireframe-data" type="application/json">' + payload + "</script>"
-        '<nav id="page-list">All pages</nav>'
-        '<div id="responsive-controls" data-responsive-target="390"></div>'
-        '<div id="state-controls">textContent</div>'
-        '<dialog id="copy-inventory"></dialog>'
-        '<aside id="inspector"></aside>'
-        '<div class="product-copy">copyFreeze</div>'
-        '<div data-layout-qa="pass"></div>'
-        '<script>function runLayoutQa(){}</script>'
-        "</body></html>"
-    )
+    template = (
+        Path(__file__).resolve().parents[2]
+        / "assets"
+        / "templates"
+        / "WIREFRAMES.template.html"
+    ).read_text(encoding="utf-8")
+    match = check_wireframe_html.DATA_BLOCK_RE.search(template)
+    assert match is not None
+    start, end = match.span("data")
+    return template[:start] + "\n" + payload + "\n" + template[end:]
 
 
 def prd_markdown(
@@ -280,10 +287,9 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
 
     def test_external_resources_are_rejected(self):
         html = render_html(wireframe_data()).replace(
-            "<title>Wireframes</title>",
-            "<title>Wireframes</title>"
+            "<title>",
             '<link rel="stylesheet" href="theme.css">'
-            '<img src="https://cdn.example.com/logo.png">',
+            '<img src="https://cdn.example.com/logo.png"><title>',
         )
         problems = validate_html(html)
         self.assertTrue(
@@ -387,7 +393,7 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         self.assertEqual([], validate_html(render_html(data)))
 
     def test_css_comments_do_not_count_as_external_resources(self):
-        html = render_html(wireframe_data()).replace(
+        html = render_html(draft_wireframe_data()).replace(
             "<title>",
             "<style>"
             "/* url(https://cdn.example.com/comment.png) */"
@@ -397,6 +403,225 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         )
 
         self.assertEqual([], validate_html(html))
+
+    def test_active_external_and_executable_network_surfaces_are_rejected(self):
+        markup_cases = {
+            "base href": '<base href="local.html">',
+            "form action": '<form action="https://example.invalid/submit"></form>',
+            "formaction": '<button formaction="//example.invalid/go"></button>',
+            "meta refresh": '<meta http-equiv="refresh" content="0; url=https://example.invalid/">',
+            "javascript URL": '<a href="javascript:alert(1)">Go</a>',
+            "unsafe data navigation": '<a href="data:text/html,hello">Go</a>',
+            "unsafe data resource": '<script src="data:text/javascript,alert(1)"></script>',
+            "executable iframe srcdoc": '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+            "external script URL": '<script src="https://example.invalid/shell.js"></script>',
+        }
+        script_cases = {
+            "fetch": 'fetch("https://example.invalid/data")',
+            "optional fetch": 'fetch?.("/api")',
+            "aliased fetch": "const request = fetch; request('/api')",
+            "XMLHttpRequest": 'new XMLHttpRequest()',
+            "WebSocket": 'new WebSocket("wss://example.invalid/socket")',
+            "EventSource": 'new EventSource("https://example.invalid/stream")',
+            "sendBeacon": 'navigator.sendBeacon("https://example.invalid/beacon")',
+            "dynamic import": 'import("https://example.invalid/module.js")',
+            "importScripts": 'importScripts("https://example.invalid/worker.js")',
+            "Worker": 'new Worker("https://example.invalid/worker.js")',
+            "SharedWorker": 'new SharedWorker("https://example.invalid/shared.js")',
+            "static import": 'import shell from "./shell.js"',
+        }
+
+        for label, markup in markup_cases.items():
+            with self.subTest(case=label):
+                html = render_html(wireframe_data()).replace(
+                    "<title>", markup + "<title>"
+                )
+                joined = "\n".join(validate_html(html))
+                self.assertTrue(
+                    "active external or executable network surfaces" in joined
+                    or "must not load external resources" in joined,
+                    joined,
+                )
+
+        for label, expression in script_cases.items():
+            with self.subTest(case=label):
+                html = render_html(wireframe_data()).replace(
+                    "</body>", f"<script>{expression};</script></body>"
+                )
+                joined = "\n".join(validate_html(html))
+                self.assertIn(
+                    "must not contain active external or executable network surfaces",
+                    joined,
+                )
+
+    def test_inline_event_handlers_are_rejected(self):
+        for markup in (
+            '<button onclick="fetch(\'/api\')">Go</button>',
+            '<img onload="new XMLHttpRequest()" alt="">',
+        ):
+            with self.subTest(markup=markup):
+                html = render_html(wireframe_data()).replace(
+                    "<title>", markup + "<title>"
+                )
+                joined = "\n".join(validate_html(html))
+                self.assertIn("inline event handler", joined)
+
+    def test_relative_resources_are_rejected(self):
+        markup_cases = (
+            '<script src="./shell.js"></script>',
+            '<img src="./image.png">',
+            '<iframe src="./page.html"></iframe>',
+            '<object data="./asset.png"></object>',
+            '<video poster="./poster.png"></video>',
+            '<svg><image xlink:href="./image.png"></image></svg>',
+            '<svg><image href="./image.png"></image></svg>',
+            '<svg><use href="./sprite.svg#icon"></use></svg>',
+            '<style>.hero{background-image:url(./image.png)}</style>',
+            '<style>.hero{background-image:image-set("./image.png" 1x)}</style>',
+        )
+        for markup in markup_cases:
+            with self.subTest(markup=markup):
+                html = render_html(wireframe_data()).replace(
+                    "<title>", markup + "<title>"
+                )
+                joined = "\n".join(validate_html(html))
+                self.assertTrue(
+                    "external resources" in joined
+                    or "external CSS resources" in joined,
+                    joined,
+                )
+
+    def test_local_hash_and_safe_data_image_destinations_are_accepted(self):
+        html = render_html(draft_wireframe_data()).replace(
+            "<title>",
+            '<img src="data:image/png;base64,iVBORw0KGgo=">'
+            '<object data="data:image/png;base64,iVBORw0KGgo="></object>'
+            '<a href="#local-screen">Local</a>'
+            '<form action="#local-submit"><button formaction="#result">Result</button></form>'
+            '<img srcset="data:image/png;base64,AAAA 1x, data:image/png;base64,BBBB 2x">'
+            '<img srcset="data:image/png,abc,def 1x">'
+            '<svg><use href="#local-symbol"></use></svg>'
+            "<title>",
+        )
+
+        self.assertEqual([], validate_html(html))
+
+    def test_json_scripts_cannot_supply_visible_reviewer_markers(self):
+        html = render_html(wireframe_data())
+        html = re.sub(
+            r'<nav\b[^>]*\bid="page-list"[^>]*>[\s\S]*?</nav>',
+            "",
+            html,
+            count=1,
+        )
+        html = html.replace(
+            "<title>",
+            '<script type="application/json">'
+            '{"page-list":"All pages","copyFreeze":"product-copy"}'
+            "</script><title>",
+        )
+
+        joined = "\n".join(validate_html(html))
+        self.assertIn("missing reviewer-shell marker 'page-list'", joined)
+
+    def test_html_comments_json_text_and_data_attributes_are_not_active_surfaces(self):
+        data = draft_wireframe_data()
+        data["recordedScript"] = "fetch('https://example.invalid/recorded')"
+        data["recordedApi"] = "new WebSocket('wss://example.invalid/recorded')"
+        html = render_html(data).replace(
+            "<title>",
+            "<!-- <base href='local.html'> <script>fetch('https://example.invalid/comment')</script> -->"
+            '<div data-example="fetch(\'https://example.invalid/data\')"></div>'
+            '<script type="application/json">{"fetch":"https://example.invalid/json"}</script>'
+            "<title>",
+        )
+
+        self.assertEqual([], validate_html(html))
+
+    def test_inert_template_examples_are_not_active_surfaces(self):
+        html = render_html(draft_wireframe_data()).replace(
+            "<title>",
+            "<template>"
+            '<base href="local.html">'
+            '<form action="https://example.invalid/submit"></form>'
+            '<button formaction="//example.invalid/go"></button>'
+            '<meta http-equiv="refresh" content="0; url=https://example.invalid/">'
+            '<a href="javascript:alert(1)">Go</a>'
+            '<a href="data:text/html,hello">Go</a>'
+            '<script src="data:text/javascript,alert(1)"></script>'
+            '<iframe srcdoc="<script>alert(1)</script>"></iframe>'
+            "<script>fetch('https://example.invalid/data');</script>"
+            "</template>"
+            "<title>",
+        )
+
+        self.assertEqual([], validate_html(html))
+
+    def test_declarative_shadow_dom_is_rejected(self):
+        for mode in ("open", "closed"):
+            with self.subTest(mode=mode):
+                html = render_html(wireframe_data()).replace(
+                    "<title>",
+                    f'<template shadowrootmode="{mode}">'
+                    '<img src="https://example.invalid/a.png">'
+                    "</template><title>",
+                )
+                self.assertIn(
+                    "template[shadowrootmode]",
+                    "\n".join(validate_html(html)),
+                )
+
+    def test_approved_schema_four_requires_the_canonical_script_bundle(self):
+        for expression in (
+            'f\\u0065tch("/api")',
+            'document.createElement("img").src="/api"',
+        ):
+            with self.subTest(expression=expression):
+                html = render_html(wireframe_data()).replace(
+                    "</body>", f"<script>{expression};</script></body>"
+                )
+                joined = "\n".join(validate_html(html))
+                self.assertIn("exact canonical shell", joined)
+
+    def test_approved_schema_four_binds_script_tags_and_dom_order(self):
+        canonical = render_html(wireframe_data())
+        script_match = re.search(r"\n  <script>\n[\s\S]*?</script>", canonical)
+        self.assertIsNotNone(script_match)
+        script = script_match.group(0)
+        cases = {
+            "nomodule": canonical.replace(
+                "\n  <script>\n", "\n  <script nomodule>\n", 1
+            ),
+            "script before data": canonical.replace(script, "").replace(
+                '  <script id="wireframe-data"',
+                script + '\n  <script id="wireframe-data"',
+                1,
+            ),
+            "speculation rules": canonical.replace(
+                "</body>",
+                '<script type="speculationrules">'
+                '{"prefetch":[{"source":"list","urls":["https://evil.invalid/"]}]}'
+                "</script></body>",
+            ),
+        }
+        for label, html in cases.items():
+            with self.subTest(case=label):
+                self.assertIn("exact canonical shell", "\n".join(validate_html(html)))
+
+    def test_reviewer_shell_markers_must_be_active(self):
+        html = render_html(wireframe_data())
+        html = re.sub(
+            r'(<nav\b[^>]*\bid="page-list"[^>]*>[\s\S]*?</nav>)',
+            r"<template>\1</template>",
+            html,
+            count=1,
+        )
+        html = html.replace("const runLayoutQa", "const disabledLayoutQa")
+
+        problems = validate_html(html)
+
+        self.assertTrue(any("missing reviewer-shell marker 'page-list'" in p for p in problems))
+        self.assertTrue(any("missing reviewer-shell marker 'runLayoutQa'" in p for p in problems))
 
     def test_draft_status_requires_the_approval_flag(self):
         data = wireframe_data()
@@ -466,6 +691,15 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             validate_html(render_html(legacy), require_copy_approved=True)
         )
         self.assertIn("must be 'wireframes/4' for the Copy Freeze Gate", joined)
+
+        legacy["approvalStatus"] = "approved"
+        joined = "\n".join(
+            validate_html(render_html(legacy), require_approved=True)
+        )
+        self.assertIn(
+            "must be 'wireframes/4' when structural approval is required",
+            joined,
+        )
 
     def test_dynamic_copy_requires_a_complete_display_contract(self):
         data = wireframe_data()

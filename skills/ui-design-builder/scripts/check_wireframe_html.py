@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+import hashlib
 import json
 import math
 import re
@@ -27,11 +28,11 @@ DATA_BLOCK_RE = re.compile(
     r"(?P<data>[\s\S]*?)</script>",
     re.IGNORECASE,
 )
-REMOTE_CSS_URL_RE = re.compile(
+CSS_URL_RE = re.compile(
     r"""url\s*\(\s*(?:
-        "(?P<double>(?:https?:)?//[^"]+)"
-        |'(?P<single>(?:https?:)?//[^']+)'
-        |(?P<bare>(?:https?:)?//[^\s)]+)
+        "(?P<double>[^"]+)"
+        |'(?P<single>[^']+)'
+        |(?P<bare>[^\s)]+)
     )\s*\)""",
     re.IGNORECASE | re.VERBOSE,
 )
@@ -44,6 +45,40 @@ REMOTE_CSS_STRING_RE = re.compile(
     )""",
     re.IGNORECASE | re.VERBOSE,
 )
+CSS_STRING_RE = re.compile(r'"(?P<double>[^"]+)"|\'(?P<single>[^\']+)\'')
+REMOTE_SCRIPT_URL_RE = re.compile(r"(?:https?:)?//", re.IGNORECASE)
+NETWORK_SCRIPT_RE = re.compile(
+    r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|"
+    r"importScripts|Worker|SharedWorker)\b|\bimport\b",
+    re.IGNORECASE,
+)
+RUNTIME_QA_RE = re.compile(
+    r"function\s+runLayoutQa\s*\(|(?:const|let|var)\s+runLayoutQa\s*=",
+    re.IGNORECASE,
+)
+DYNAMIC_ATTRIBUTE_RE = re.compile(
+    r"setAttribute\(\s*['\"]([a-z0-9_.:-]+)['\"]",
+    re.IGNORECASE,
+)
+SAFE_DATA_IMAGE_TYPES = {
+    "image/apng",
+    "image/avif",
+    "image/bmp",
+    "image/gif",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+}
+RESOURCE_ATTRIBUTES = {
+    "href",
+    "src",
+    "srcset",
+    "poster",
+    "data",
+    "xlink:href",
+}
+SAFE_DATA_IMAGE_TAGS = {"img", "input", "object", "picture", "source"}
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
 LOCALE_RE = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 VALID_APPROVAL_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
@@ -66,6 +101,121 @@ NON_HUMAN_OWNERS = {
 WIREFRAME_SCHEMA = "wireframes/4"
 INTERACTIVE_WIREFRAME_SCHEMAS = {"wireframes/3", WIREFRAME_SCHEMA}
 LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2", "wireframes/3"}
+
+
+def _normalize_url(value: str) -> str:
+    """Remove characters browsers ignore while recognizing a URL scheme."""
+
+    return re.sub(r"[\x00-\x20\x7f]+", "", value)
+
+
+def _url_scheme(value: str) -> str:
+    match = re.match(r"([A-Za-z][A-Za-z0-9+.-]*):", _normalize_url(value))
+    return match.group(1).lower() if match else ""
+
+
+def _is_network_url(value: str) -> bool:
+    normalized = _normalize_url(value)
+    return normalized.startswith("//") or _url_scheme(normalized) in {
+        "http",
+        "https",
+    }
+
+
+def _is_local_navigation(value: str) -> bool:
+    normalized = _normalize_url(value)
+    return not normalized or normalized.startswith("#")
+
+
+def _is_safe_data_url(value: str) -> bool:
+    normalized = _normalize_url(value)
+    if not normalized.lower().startswith("data:"):
+        return False
+    payload = normalized[5:]
+    comma = payload.find(",")
+    if comma < 0:
+        return False
+    media_type = payload[:comma].split(";", 1)[0].strip().lower()
+    return media_type in SAFE_DATA_IMAGE_TYPES
+
+
+def _is_safe_embedded_css_resource(value: str) -> bool:
+    normalized = _normalize_url(value)
+    return normalized.startswith("#") or _is_safe_data_url(normalized)
+
+
+def _srcset_urls(value: str) -> list[str]:
+    """Return candidate URLs without splitting the required comma in data URLs."""
+
+    urls: list[str] = []
+    position = 0
+    length = len(value)
+    while position < length:
+        while position < length and (value[position].isspace() or value[position] == ","):
+            position += 1
+        if position >= length:
+            break
+        start = position
+        if value[position : position + 5].casefold() == "data:":
+            while position < length and not value[position].isspace():
+                position += 1
+        else:
+            while position < length and not value[position].isspace() and value[position] != ",":
+                position += 1
+        urls.append(value[start:position])
+        while position < length and value[position] != ",":
+            position += 1
+    return urls
+
+
+def _strip_javascript_comments(code: str) -> str:
+    """Blank JS comments so commented network code cannot be treated as live."""
+
+    output: list[str] = []
+    index = 0
+    quote: str | None = None
+    escaped = False
+    while index < len(code):
+        character = code[index]
+        if quote is not None:
+            output.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = None
+            index += 1
+            continue
+        if character in {"'", '"', "`"}:
+            quote = character
+            output.append(character)
+            index += 1
+            continue
+        if code.startswith("//", index):
+            end = code.find("\n", index + 2)
+            if end < 0:
+                break
+            output.append("\n")
+            index = end + 1
+            continue
+        if code.startswith("/*", index):
+            end = code.find("*/", index + 2)
+            if end < 0:
+                break
+            output.append(" ")
+            index = end + 2
+            continue
+        if code.startswith("<!--", index):
+            end = code.find("\n", index + 4)
+            if end < 0:
+                break
+            output.append("\n")
+            index = end + 1
+            continue
+        output.append(character)
+        index += 1
+    return "".join(output)
 
 
 def _strip_css_comments(css: str) -> str:
@@ -167,14 +317,101 @@ class ResourceParser(HTMLParser):
         self.duplicate_attributes: list[str] = []
         self.external_resources: list[str] = []
         self.external_css_resources: list[str] = []
+        self.active_security_surfaces: list[str] = []
+        self.active_attribute_names: set[str] = set()
+        self.active_ids: set[str] = set()
+        self.active_classes: set[str] = set()
+        self.active_text: list[str] = []
+        self.executable_scripts: list[str] = []
         self.css_imports = False
         self._data_block: list[str] | None = None
         self._style_depth = 0
         self._css_chunks: list[str] = []
+        self._inert_depth = 0
+        self._in_script = False
+        self._script_is_executable = False
         self.link_tags = 0
+
+    @staticmethod
+    def _is_executable_script(script_type: str | None) -> bool:
+        if script_type is None:
+            return True
+        media_type = script_type.strip().partition(";")[0].strip().lower()
+        return media_type in {
+            "",
+            "application/ecmascript",
+            "application/javascript",
+            "application/x-ecmascript",
+            "application/x-javascript",
+            "module",
+            "text/ecmascript",
+            "text/javascript",
+            "text/jscript",
+            "text/x-ecmascript",
+            "text/x-javascript",
+        }
+
+    def _record_url(self, tag: str, name: str, value: str) -> None:
+        if not value:
+            return
+        lowered = _normalize_url(value).lower()
+        if lowered.startswith("javascript:"):
+            self.active_security_surfaces.append(f"{tag}[{name}=javascript:]")
+            return
+
+        if lowered.startswith("data:"):
+            data_allowed = tag in SAFE_DATA_IMAGE_TAGS and name in RESOURCE_ATTRIBUTES
+            if not data_allowed or not _is_safe_data_url(value):
+                self.active_security_surfaces.append(f"{tag}[{name}=data:]")
+            return
+
+        if name in {"action", "formaction"}:
+            if not _is_local_navigation(value):
+                self.active_security_surfaces.append(
+                    f"{tag}[{name}={value.strip()!r}]"
+                )
+            return
+
+        if tag == "a" and name == "href":
+            if not _is_local_navigation(value):
+                self.active_security_surfaces.append(
+                    f"{tag}[{name}={value.strip()!r}]"
+                )
+            return
+
+        if name == "href" and _normalize_url(value).startswith("#"):
+            return
+
+        if name in RESOURCE_ATTRIBUTES and value.strip():
+            self.external_resources.append(f"{tag}[{name}={value!r}]")
+            return
+
+        if _is_network_url(value):
+            if tag == "script" and name == "src":
+                self.active_security_surfaces.append(f"{tag}[{name}={value!r}]")
+            else:
+                self.external_resources.append(f"{tag}[{name}={value!r}]")
+        elif _url_scheme(value) and name in {
+            "src",
+            "href",
+            "xlink:href",
+            "poster",
+            "data",
+        }:
+            self.external_resources.append(f"{tag}[{name}={value!r}]")
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
+        if self._inert_depth:
+            if tag_name == "template":
+                self._inert_depth += 1
+            return
+        if tag_name == "template":
+            if any(name.lower() == "shadowrootmode" for name, _ in attrs):
+                self.active_security_surfaces.append("template[shadowrootmode]")
+            self._inert_depth += 1
+            return
+
         seen_attributes: set[str] = set()
         for name, _ in attrs:
             lowered_name = name.lower()
@@ -182,11 +419,26 @@ class ResourceParser(HTMLParser):
                 self.duplicate_attributes.append(f"{tag_name}[{lowered_name}]")
             seen_attributes.add(lowered_name)
         values = dict(attrs)
+        self.active_attribute_names.update(name.lower() for name in values)
+        for name in values:
+            if re.fullmatch(r"on[a-z0-9_-]+", name, re.IGNORECASE):
+                self.active_security_surfaces.append(
+                    f"{tag_name}[{name.lower()}] inline event handler"
+                )
+        identifier = values.get("id")
+        if identifier:
+            self.active_ids.add(identifier)
+        classes = values.get("class")
+        if classes:
+            self.active_classes.update(classes.split())
+
         if tag_name == "link":
             self.link_tags += 1
         if tag_name == "script":
             script_id = values.get("id")
             script_type = values.get("type")
+            self._in_script = True
+            self._script_is_executable = self._is_executable_script(script_type)
             if (
                 isinstance(script_id, str)
                 and script_id.strip().lower() == "wireframe-data"
@@ -198,39 +450,65 @@ class ResourceParser(HTMLParser):
         elif tag_name == "style":
             self._style_depth += 1
 
+        if (
+            tag_name == "base"
+            and isinstance(values.get("href"), str)
+        ):
+            self.active_security_surfaces.append("base[href]")
+        if (
+            tag_name == "meta"
+            and values.get("http-equiv", "").strip().lower() == "refresh"
+        ):
+            self.active_security_surfaces.append("meta[http-equiv=refresh]")
+        if tag_name == "iframe" and values.get("srcdoc"):
+            self.active_security_surfaces.append("iframe[srcdoc]")
+
         inline_style = values.get("style")
         if inline_style:
             self._css_chunks.append(inline_style)
 
-        for name in ("src", "href", "xlink:href", "poster"):
+        for name in ("src", "href", "xlink:href", "poster", "action", "formaction"):
             value = values.get(name)
-            if not value:
-                continue
-            lowered = value.strip().lower()
-            if lowered.startswith(("http://", "https://", "//")):
-                self.external_resources.append(f"{tag}[{name}={value!r}]")
+            if isinstance(value, str):
+                self._record_url(tag_name, name.lower(), value)
 
         if tag_name == "object":
             value = values.get("data")
-            if value and value.strip().lower().startswith(("http://", "https://", "//")):
-                self.external_resources.append(f"{tag}[data={value!r}]")
+            if isinstance(value, str):
+                self._record_url(tag_name, "data", value)
 
         srcset = values.get("srcset")
         if srcset:
-            for match in re.finditer(r"(?:https?:)?//[^\s,]+", srcset, re.IGNORECASE):
-                self.external_resources.append(f"{tag}[srcset={match.group(0)!r}]")
+            for resource in _srcset_urls(srcset):
+                self._record_url(tag_name, "srcset", resource)
 
     def handle_data(self, data: str) -> None:
         if self._data_block is not None:
             self._data_block.append(data)
+            return
+        if self._inert_depth:
+            return
         if self._style_depth:
             self._css_chunks.append(data)
+            return
+        if self._in_script:
+            if self._script_is_executable:
+                self.executable_scripts.append(data)
+            return
+        self.active_text.append(data)
 
     def handle_endtag(self, tag: str) -> None:
         tag_name = tag.lower()
-        if tag_name == "script" and self._data_block is not None:
-            self.data_blocks.append("".join(self._data_block))
-            self._data_block = None
+        if self._inert_depth:
+            if tag_name == "template":
+                self._inert_depth -= 1
+            return
+        if tag_name == "script":
+            if self._data_block is not None:
+                self.data_blocks.append("".join(self._data_block))
+                self._data_block = None
+            self._in_script = False
+            self._script_is_executable = False
         elif tag_name == "style" and self._style_depth:
             self._style_depth -= 1
 
@@ -238,11 +516,12 @@ class ResourceParser(HTMLParser):
         super().close()
         css = _decode_css_escapes(_strip_css_comments("\n".join(self._css_chunks)))
         self.css_imports = re.search(r"@import\b", css, re.IGNORECASE) is not None
-        for match in REMOTE_CSS_URL_RE.finditer(css):
+        for match in CSS_URL_RE.finditer(css):
             resource = next(
                 value for value in match.groups() if value is not None
             )
-            self.external_css_resources.append(f"CSS url({resource!r})")
+            if not _is_safe_embedded_css_resource(resource):
+                self.external_css_resources.append(f"CSS url({resource!r})")
         for match in CSS_IMAGE_SET_RE.finditer(css):
             start = match.end()
             depth = 1
@@ -275,6 +554,45 @@ class ResourceParser(HTMLParser):
                 self.external_css_resources.append(
                     f"CSS image-set({resource!r})"
                 )
+            for resource_match in CSS_STRING_RE.finditer(contents):
+                prefix = contents[max(0, resource_match.start() - 8) : resource_match.start()]
+                if re.search(r"type\s*\(\s*$", prefix, re.IGNORECASE):
+                    continue
+                resource = next(
+                    value
+                    for value in resource_match.groups()
+                    if value is not None
+                )
+                if not _is_safe_embedded_css_resource(resource):
+                    self.external_css_resources.append(
+                        f"CSS image-set({resource!r})"
+                    )
+        executable_code = _strip_javascript_comments(
+            "\n".join(self.executable_scripts)
+        )
+        if REMOTE_SCRIPT_URL_RE.search(executable_code):
+            self.active_security_surfaces.append("script external URL")
+        for match in NETWORK_SCRIPT_RE.finditer(executable_code):
+            self.active_security_surfaces.append(
+                f"script network API {match.group(0).strip()!r}"
+            )
+
+
+def _shell_without_product_data(html_text: str) -> str | None:
+    normalized = html_text.replace("\r\n", "\n")
+    matches = list(DATA_BLOCK_RE.finditer(normalized))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    start, end = match.span("data")
+    return normalized[:start] + "\n__PRODUCT_WIREFRAME_DATA__\n" + normalized[end:]
+
+
+def canonical_shell_sha256(html_text: str) -> str | None:
+    shell = _shell_without_product_data(html_text)
+    if shell is None:
+        return None
+    return hashlib.sha256(shell.encode("utf-8")).hexdigest()
 
 
 def _nonempty(value: Any) -> bool:
@@ -1053,6 +1371,7 @@ def validate(
     problems.extend(_validate_data(data, require_filled=require_filled))
     if not isinstance(data, dict):
         return problems
+    schema = data.get("schema")
 
     if prd_path is not None:
         try:
@@ -1066,32 +1385,50 @@ def validate(
             validate_prd_wireframe_data(prd_text, data, web_floor=web_floor)
         )
 
-    for required in (
-        'id="page-list"',
-        'id="state-controls"',
-        'id="responsive-controls"',
-        "data-responsive-target",
-        "runLayoutQa",
-        "data-layout-qa",
-        "All pages",
-        "textContent",
-    ):
-        if required not in html:
+    executable_code = _strip_javascript_comments(
+        "\n".join(parser.executable_scripts)
+    )
+    active_text_or_code = "\n".join(parser.active_text) + "\n" + executable_code
+    dynamic_attributes = {
+        match.group(1).lower()
+        for match in DYNAMIC_ATTRIBUTE_RE.finditer(executable_code)
+    }
+
+    for required in ("page-list", "state-controls", "responsive-controls"):
+        if required not in parser.active_ids:
+            _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
+    for required in ("data-responsive-target", "data-layout-qa"):
+        if (
+            required not in parser.active_attribute_names
+            and required not in dynamic_attributes
+        ):
+            _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
+    if RUNTIME_QA_RE.search(executable_code) is None:
+        _add(problems, str(html_path), "missing reviewer-shell marker 'runLayoutQa'")
+    for required in ("All pages", "textContent"):
+        if required not in active_text_or_code:
             _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
 
     if data.get("schema") == WIREFRAME_SCHEMA:
-        for required in (
-            'id="copy-inventory"',
-            'id="inspector"',
-            "product-copy",
-            "copyFreeze",
-        ):
-            if required not in html:
+        for required in ("copy-inventory", "inspector"):
+            if required not in parser.active_ids:
                 _add(
                     problems,
                     str(html_path),
                     f"missing wireframes/4 reviewer marker {required!r}",
                 )
+        if "product-copy" not in parser.active_classes and "product-copy" not in executable_code:
+            _add(
+                problems,
+                str(html_path),
+                "missing wireframes/4 reviewer marker 'product-copy'",
+            )
+        if "copyFreeze" not in active_text_or_code:
+            _add(
+                problems,
+                str(html_path),
+                "missing wireframes/4 reviewer marker 'copyFreeze'",
+            )
 
     if parser.link_tags:
         _add(problems, str(html_path), "must not contain <link> resources")
@@ -1104,10 +1441,59 @@ def validate(
         )
     if parser.css_imports:
         _add(problems, str(html_path), "must not contain CSS @import")
+    if parser.active_security_surfaces:
+        _add(
+            problems,
+            str(html_path),
+            "must not contain active external or executable network surfaces: "
+            + ", ".join(parser.active_security_surfaces),
+        )
+
+    claimed_copy_status = data.get("copyFreeze")
+    claimed_copy_status = (
+        claimed_copy_status.get("status")
+        if isinstance(claimed_copy_status, dict)
+        else None
+    )
+    if schema == WIREFRAME_SCHEMA and (
+        require_approved
+        or require_copy_approved
+        or data.get("approvalStatus") == "approved"
+        or claimed_copy_status == "approved"
+    ):
+        actual_shell_sha = canonical_shell_sha256(html)
+        try:
+            template_path = (
+                Path(__file__).resolve().parents[1]
+                / "assets"
+                / "templates"
+                / "WIREFRAMES.template.html"
+            )
+            canonical_shell_sha = canonical_shell_sha256(
+                template_path.read_text(encoding="utf-8")
+            )
+        except OSError as exc:
+            _add(
+                problems,
+                str(html_path),
+                f"cannot read the canonical reviewer-shell script: {exc}",
+            )
+        else:
+            if (
+                actual_shell_sha is None
+                or canonical_shell_sha is None
+                or actual_shell_sha != canonical_shell_sha
+            ):
+                _add(
+                    problems,
+                    str(html_path),
+                    "approved wireframes/4 must use the exact canonical shell outside "
+                    "the product JSON block (expected sha256 "
+                    f"{canonical_shell_sha}, found {actual_shell_sha})",
+                )
 
     if require_approved and data.get("approvalStatus") != "approved":
         _add(problems, "wireframe-data.approvalStatus", "must be 'approved'")
-    schema = data.get("schema")
     copy_freeze = data.get("copyFreeze")
     copy_status = copy_freeze.get("status") if isinstance(copy_freeze, dict) else None
     if require_copy_approved and schema != WIREFRAME_SCHEMA:
@@ -1115,6 +1501,12 @@ def validate(
             problems,
             "wireframe-data.schema",
             "must be 'wireframes/4' for the Copy Freeze Gate",
+        )
+    if require_approved and schema != WIREFRAME_SCHEMA:
+        _add(
+            problems,
+            "wireframe-data.schema",
+            "must be 'wireframes/4' when structural approval is required",
         )
     if schema == WIREFRAME_SCHEMA and copy_status != "approved":
         if data.get("approvalStatus") == "approved":
