@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Optional path to wireframes.html. Required when the PLAN freezes "
         "that source: its bytes must match the frozen hash, its screen ids, "
         "routes, and states must agree with the PLAN's ui_surfaces, and it must "
-        "pass product-definition-builder's full wireframe checker (reviewer "
+        "pass ui-design-builder's full wireframe checker (reviewer "
         "shell, self-containment, approved status, PRD join).",
     )
     parser.add_argument(

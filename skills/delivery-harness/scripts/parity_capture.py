@@ -311,7 +311,7 @@ def _board(
         ".verdict{margin-top:8px;font-family:monospace}"
         "</style></head><body>"
         "<h1>Parity board — design reference vs implementation</h1>"
-        "<p>Compare each pair item by item within the PRD handoff's recorded "
+        "<p>Compare each pair item by item within ui-design.md's recorded "
         "tolerance; record the verdict in RUN's target_comparison.</p>"
         + "".join(rows)
         + "</body></html>",

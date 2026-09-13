@@ -18,7 +18,7 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Billing / entitlements | yes / no | planned | | |
 | Audit / observability | yes / no | planned | | |
 | Browser journey | yes / no | planned | | |
-| Builder UX Direction conformance | yes / no | planned | | |
+| UI Design Intake conformance | yes / no | planned | | |
 | Usability / task success | yes / no | planned | | |
 | Responsive layout safety | yes / no | planned | <viewport captures + browser geometry/reviewer evidence per entry> | every required breakpoint or size-class × state renders with no unintended overlap, clipping, occlusion, or horizontal overflow; intentional overlays match their recorded stacking, focus, safe-area, and dismissal behavior |
 | Console / network | yes / no | planned | | |

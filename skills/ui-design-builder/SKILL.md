@@ -1,0 +1,60 @@
+---
+name: ui-design-builder
+description: Turn an approved Product Definition into an owner-approved UI design package. Use after product-definition-builder for UI intake, responsive structural wireframes, motion and media intent, frontend-design style integration, connected HiFi design-reference HTML, Impeccable review, PRD-bound scoring, visual approval, and the Design System Need Gate. Do not use for product scope, backend architecture, technology-stack selection, or production implementation.
+---
+
+# UI Design Builder
+
+## Purpose
+
+Use this skill only after `product-definition-builder` has produced an owner-approved `PRD.md`, `architecture.md`, and `stack-decisions.md`. Product Definition decides what the product does and which frontend, backend, data, auth, deployment, mobile, and commercial technologies it uses. This skill decides how the approved UI is structured and expressed.
+
+For every UI-bearing product, this skill owns:
+
+- `docs/design/ui-design.md`;
+- `docs/design/wireframes.html`;
+- retained all-screens HiFi references under `docs/design/ui-references/<run-id>/`; and
+- the Style Intake, Motion and Media Intent, Wireframe Approval, Style Integration, HiFi Review, Visual Approval, and Design System Need gates.
+
+It does not change product scope, routes, actions, states, responsive targets, copy responsibilities, architecture, or stack by implication. Return those changes to `product-definition-builder` and resume only from a newly approved Product Definition revision.
+
+## Required Skills And Inputs
+
+1. Load `frontend-design` for both structural composition and HiFi style integration. During wireframing, use only its information hierarchy, layout, and interaction judgment; do not freeze a visual theme or design tokens.
+2. Load `impeccable` in evaluate mode for the HiFi review: one `critique` and one `audit`. It reviews; it does not author the selected direction or edit the candidate.
+3. Require an approved Product Definition and Stack Decision Checkpoint. Run the sibling `product-definition-builder/scripts/check_product_package.py --require-filled --require-approved` before UI work.
+4. Read the complete PRD UI Surface Contract and the approved frontend stack, including component foundation and styling approach. A design that needs a stack change returns upstream before wireframing or Style Integration continues.
+5. Read `references/artifact-lifecycle.md` and inspect any existing `ui-design.md`, `wireframes.html`, retained references, and design-system pair before drafting. Preserve stable `UI-*`, `UX-*`, `VD-*`, `REF-*`, and `RP-*` identities.
+
+## Workflow
+
+1. Read `references/ui-design-intake.md`. Ask only UI-design questions that the approved Product Definition did not already answer.
+2. Run the **UI Design Intake Gate**. Capture the decision owner, experience priority, guidance versus expert control, information density, preferred layout and interaction pattern, desired visual character, disliked patterns, color and typography constraints, imagery and icon preferences, validation depth, and references. Ask whether the owner wants one recommended direction or three comparable directions. End the turn and wait. Do not draft a wireframe, recommend a visual direction, or invoke a generation provider in the same turn.
+3. Run the **Motion and Media Intent Gate** from `references/motion-and-media-routing.md`. Ask whether motion is unnecessary, functional only, expressive, or delegated for a recommendation. For every marquee or media-bearing region, record exactly one treatment: `none`, `image`, `motion`, or `image + motion`, plus its purpose, trigger, static or reduced-motion fallback, and decision source. End the turn and wait when any owner decision remains open.
+4. Use `frontend-design` in structural mode and `references/wireframe-guide.md` to create one grayscale, self-contained `wireframes.html` for the complete `UI-* × responsive target × non-n/a state` matrix. Typed media regions appear only as labeled placeholders; no final image, animation, palette, typography system, or token set is produced.
+5. Run the real-browser matrix, the static checker, and the `W1`–`W5` scope in `references/ui-grading-rubric.md`. The wireframe is ready for the human gate only when its overall score is at least 80, every dimension is at least 60, and no block remains. Obtain explicit human Wireframe Approval. A structural correction changes the PRD first and reopens Product Definition Approval.
+6. Only after Wireframe Approval, select the motion and generated-media route. Simple functional feedback uses CSS or the Web Animations API without an extra skill. Load `gsap-core` for scripted animation, add `gsap-timeline` only for multi-step choreography, and add `gsap-scrolltrigger` only for scroll-driven behavior. Record Higgsfield MCP or another generation provider as a conditional route, but do not invoke it before a visual direction is selected.
+7. Run **Style Integration** with `frontend-design`. Use the approved intake, wireframe, stack, brand evidence, and motion/media decisions to produce one direction or the requested three-direction set. Present it to the human owner and end the turn for `approve`, `select`, `mix`, or `reject`. Only after that decision, integrate the selected direction into one connected, self-contained HiFi design-reference HTML containing every in-scope screen and state. An installed Higgsfield MCP may create a selected generated or curated motion asset during this HiFi work only after exact provider/action authorization. Candidate colors, type, spacing, radii, imagery, and motion are not yet the frozen design-system contract.
+8. Run the **Impeccable HiFi Review and PRD-bound Grading Gate**. Apply `impeccable critique` and `impeccable audit` to the exact candidate, then score `H1`–`H9` using `references/ui-grading-rubric.md`. Impeccable's native heuristic scores are diagnostic evidence; the `H1`–`H9` result remains the release gate. Combine all findings into one root-cause ledger before editing. `frontend-design` owns one repair batch; then Impeccable and the complete rubric run one re-review on the new SHA-256. Do not open separate polish loops.
+9. Present only a passing candidate for **Human Visual Approval**. Readiness requires an overall score of at least 90, `H2`, `H4`, and `H8` each at least 90, every dimension at least 60, and no block or disputed dimension. Record the selected `VD-*` direction, target hash, exact scope, tolerances, evidence, advisories, and owner decision in `ui-design.md`.
+10. Run the **Design System Need Gate** only after Visual Approval. If `required`, invoke `design-system-compiler` to compile the approved direction into `docs/design/design-system.md` and `docs/design/design-system.json`. If `not_required`, the approved HiFi target, `ui-design.md`, `wireframes.html`, and PRD form the visual contract. A blocked result prevents implementation.
+11. Validate and publish only the exact approved UI artifacts under `references/artifact-lifecycle.md`. A later `delivery-harness` run implements the frozen result; this skill writes no production UI.
+
+## Review And Repair Boundaries
+
+- `frontend-design` is the single design author for wireframes and HiFi. Impeccable and graders are read-only.
+- Impeccable's full critique follows its own capability and subagent-authorization contract. Missing authorization is not capability failure and never grants delegation.
+- The wireframe and HiFi checks each use one complete diagnostic wave, one consolidated repair batch, and one re-review. Another failure stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+- Numeric scores summarize quality; they never override a PRD contradiction, broken browser matrix, inaccessible required flow, dead control, or missing human approval.
+- A generated image or motion asset is optional unless the approved Motion and Media Intent record makes it required. Provider failure never authorizes a substitute treatment.
+
+## Reference Routing
+
+- Read `references/ui-design-intake.md` before asking UI direction questions.
+- Read `references/motion-and-media-routing.md` for placeholder type, CSS/WAAPI, GSAP, and Higgsfield routing.
+- Read `references/design-reference-guide.md` before inspecting or recording a visual reference or direction.
+- Read `references/wireframe-guide.md` for `wireframes.html` structure, browser checks, and approval.
+- Read `references/ui-design-pass.md` for Style Integration, the connected HiFi reference, Impeccable review, visual approval, and the Design System Need Gate.
+- Read `references/ui-grading-rubric.md` before scoring either wireframes or HiFi.
+- Read `references/output-contract.md` for `ui-design.md` and evidence fields.
+- Read `references/artifact-lifecycle.md` before staging, publishing, archiving, or replacing UI artifacts.

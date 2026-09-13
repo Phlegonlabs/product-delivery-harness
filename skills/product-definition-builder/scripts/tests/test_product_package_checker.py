@@ -66,6 +66,9 @@ Risks.
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | Complete fixture | integration | Yes | PRD-001 | Completion observed |
 | TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |
+## UI Design Handoff Status
+UI design: not_required — fixture is headless
+UI decision owner: n/a for headless
 ## Product Definition Decisions
 ### Research Gate
 Research Gate: go — assessed 2026-09-12, decided by Owner
@@ -298,7 +301,7 @@ class ProductPackageCheckerTests(unittest.TestCase):
             any("Partner Channel Gate remains 'recommended'" in item for item in self.validate(prd=prd))
         )
 
-    def test_ui_packages_require_builder_direction_and_resolved_motion(self) -> None:
+    def test_ui_packages_require_an_explicit_ui_design_builder_handoff(self) -> None:
         ui_contract = """
 <!-- ui-surface-contract:start -->
 ## UI Surface Contract
@@ -309,21 +312,20 @@ class ProductPackageCheckerTests(unittest.TestCase):
 <!-- ui-surface-contract:end -->
 """
         prd = valid_prd() + ui_contract
-        self.assertTrue(any("missing Builder UX Direction" in item for item in self.validate(prd=prd)))
+        self.assertTrue(any("must defer UI design" in item for item in self.validate(prd=prd)))
+
+        prd = prd.replace(
+            "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",
+            "UI design: pending explicit ui-design-builder request\nUI decision owner: Product owner",
+        )
+        self.assertEqual([], self.validate(prd=prd))
 
         broken_contract = ui_contract.replace("- `route`: /home\n", "")
-        prd = valid_prd() + broken_contract
+        prd = valid_prd().replace(
+            "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",
+            "UI design: pending explicit ui-design-builder request\nUI decision owner: Product owner",
+        ) + broken_contract
         self.assertTrue(any("requires exactly one `route` anchor" in item for item in self.validate(prd=prd)))
-
-        builder = """
-## Builder UX Direction Decision
-Motion Need Gate:
-| UI scope | Gate | Purpose and trigger | Decision source | Reduced-motion fallback |
-| --- | --- | --- | --- | --- |
-| UI-001 | blocked | Needs owner decision | Owner | Static state |
-"""
-        prd = valid_prd().replace("## Product Definition Decisions", builder + "\n## Product Definition Decisions") + ui_contract
-        self.assertTrue(any("Motion Need Gate remains blocked" in item for item in self.validate(prd=prd)))
 
     def test_ui_target_requires_matching_stack_area(self) -> None:
         ui_contract = """
@@ -335,15 +337,9 @@ Motion Need Gate:
 - `responsive`: viewports: 390, 768, 1200
 <!-- ui-surface-contract:end -->
 """
-        builder = """
-## Builder UX Direction Decision
-| UI scope | Gate | Purpose and trigger | Decision source | Reduced-motion fallback |
-| --- | --- | --- | --- | --- |
-| UI-001 | not_required | Static workflow | Owner | Static state |
-"""
         prd = valid_prd().replace(
-            "## Product Definition Decisions",
-            builder + "\n## Product Definition Decisions",
+            "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",
+            "UI design: pending explicit ui-design-builder request\nUI decision owner: Product owner",
         ) + ui_contract
         stack = valid_stack().replace("- Approved areas: frontend", "- Approved areas: none")
         stack = stack[: stack.index("## Frontend Technology Decision")]

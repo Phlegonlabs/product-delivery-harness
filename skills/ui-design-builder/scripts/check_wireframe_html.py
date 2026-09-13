@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a self-contained PRD wireframe HTML projection."""
+"""Validate a self-contained UI Design Builder wireframe projection."""
 
 from __future__ import annotations
 
@@ -11,6 +11,12 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+
+PRODUCT_BUILDER_SCRIPTS = (
+    Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
+)
+if str(PRODUCT_BUILDER_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(PRODUCT_BUILDER_SCRIPTS))
 
 from prd_ui_contract import validate_prd_wireframe_data
 
@@ -41,9 +47,11 @@ PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
 VALID_APPROVAL_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 VALID_PRIORITIES = {"primary", "secondary", "quiet"}
 VALID_FLOW_PRESENTATIONS = {"page", "overlay", "feedback"}
-VALID_MEDIA_TREATMENTS = {"motion-led", "imagery-led", "motion + imagery"}
-WIREFRAME_SCHEMA = "wireframes/3"
-LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2"}
+VALID_MEDIA_TREATMENTS = {"none", "image", "motion", "image + motion"}
+LEGACY_MEDIA_TREATMENTS = {"motion-led", "imagery-led", "motion + imagery"}
+WIREFRAME_SCHEMA = "wireframes/4"
+LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2", "wireframes/3"}
+INTERACTIVE_WIREFRAME_SCHEMAS = {"wireframes/3", WIREFRAME_SCHEMA}
 
 
 def _strip_css_comments(css: str) -> str:
@@ -283,19 +291,38 @@ def _add(problems: list[str], path: str, message: str) -> None:
 
 
 def _validate_media_intent(
-    value: Any, path: str, problems: list[str]
+    value: Any,
+    path: str,
+    problems: list[str],
+    *,
+    schema: str,
 ) -> None:
     if not isinstance(value, dict):
         _add(problems, path, "must be an object when present")
         return
     treatment = value.get("treatment")
-    if treatment not in VALID_MEDIA_TREATMENTS:
+    valid_treatments = (
+        VALID_MEDIA_TREATMENTS
+        if schema == WIREFRAME_SCHEMA
+        else LEGACY_MEDIA_TREATMENTS
+    )
+    if treatment not in valid_treatments:
         _add(
             problems,
             f"{path}.treatment",
-            f"must be one of {sorted(VALID_MEDIA_TREATMENTS)}",
+            f"must be one of {sorted(valid_treatments)}",
         )
-    for key in ("draftPrompt", "source"):
+    required = ["draftPrompt", "source"]
+    if schema == WIREFRAME_SCHEMA:
+        required.extend(
+            (
+                "purpose",
+                "trigger",
+                "reducedMotionFallback",
+                "generationRoute",
+            )
+        )
+    for key in required:
         if not _nonempty(value.get(key)):
             _add(problems, f"{path}.{key}", "must be a non-empty string")
     if value.get("generationStatus") != "deferred":
@@ -315,9 +342,9 @@ def _validate_responsive_data(
     has_size_classes = "sizeClasses" in data
     viewports = data.get("viewports")
     size_classes = data.get("sizeClasses")
-    # wireframes/3 carries the three-viewport web floor; legacy wireframes/2
-    # files stay readable with their historical two-target sets.
-    web_floor = 3 if data.get("schema") == WIREFRAME_SCHEMA else 2
+    # wireframes/3 and later carry the three-viewport web floor; historical
+    # wireframes/2 files stay readable with their two-target sets.
+    web_floor = 3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2
     floor_words = {2: "two", 3: "three"}
     valid_viewports = (
         isinstance(viewports, list)
@@ -409,7 +436,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             "wireframe-data.schema",
             f"must be one of {sorted(LEGACY_WIREFRAME_SCHEMAS | {WIREFRAME_SCHEMA})}",
         )
-    interactive_contract = schema == WIREFRAME_SCHEMA
+    interactive_contract = schema in INTERACTIVE_WIREFRAME_SCHEMAS
 
     for key in ("product", "approvalStatus", "source"):
         if not _nonempty(data.get(key)):
@@ -457,7 +484,12 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         if "traces" in screen and not _string_list(screen["traces"]):
             _add(problems, f"{path}.traces", "must be a string list when present")
         if interactive_contract and "mediaIntent" in screen:
-            _validate_media_intent(screen["mediaIntent"], f"{path}.mediaIntent", problems)
+            _validate_media_intent(
+                screen["mediaIntent"],
+                f"{path}.mediaIntent",
+                problems,
+                schema=schema,
+            )
 
         regions = screen.get("regions")
         if not isinstance(regions, list) or not regions:
@@ -509,7 +541,10 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                 _add(problems, f"{region_path}.traces", "must be a string list when present")
             if interactive_contract and "mediaIntent" in region:
                 _validate_media_intent(
-                    region["mediaIntent"], f"{region_path}.mediaIntent", problems
+                    region["mediaIntent"],
+                    f"{region_path}.mediaIntent",
+                    problems,
+                    schema=schema,
                 )
 
         never_drop = screen.get("neverDrop")
@@ -785,7 +820,9 @@ def validate(
             prd_text = prd_path.read_text(encoding="utf-8")
         except OSError as exc:
             return [f"{prd_path}: cannot read PRD: {exc}"]
-        web_floor = 3 if data.get("schema") == WIREFRAME_SCHEMA else 2
+        web_floor = (
+            3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2
+        )
         problems.extend(
             validate_prd_wireframe_data(prd_text, data, web_floor=web_floor)
         )

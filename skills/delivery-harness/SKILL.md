@@ -11,9 +11,9 @@ Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN sta
 
 Keep upstream ownership separate:
 
-- `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, plus approved `wireframes.html` when the product has UI.
-- `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
-- This skill implements an approved Product Definition and Stack Decision Checkpoint, including Builder UX Direction and the active visual source when UI applies. Builder approval proves direction conformance, not usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents neither product, stack, nor design decisions.
+- `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, including complete frontend and backend architecture and technology decisions.
+- `ui-design-builder` owns `docs/design/ui-design.md`, UI Design Intake, approved `wireframes.html`, Style Integration with `frontend-design`, the Impeccable HiFi review, PRD-bound UI scores, Visual Approval, and the active HiFi target. `design-system-compiler`, with `frontend-design`, owns the design-system pair only when the UI design contract's Design System Need Gate is `required`.
+- This skill implements an approved Product Definition and Stack Decision Checkpoint plus approved `ui-design.md` and the active visual source when UI applies. UI owner approval proves direction conformance, not representative-user usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents neither product, stack, nor design decisions.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
@@ -173,9 +173,9 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 Read `references/ui-implementation-contract.md` before UI implementation or review.
 
-- Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after approved wireframes, an approved UI Design Handoff, and `Design System Need Gate: required`. It does not reopen Taste or concept generation by default.
-- UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser layout evidence, and tolerance in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
+- Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after approved Product Definition and UI design contracts, approved wireframes and HiFi target, and `Design System Need Gate: required`. It does not reopen direction.
+- UI implementation uses `frontend-design` in conformance mode against the approved UI source; it does not reopen Style Integration.
+- System-conformance mode obeys the frozen PRD UI Surface Contract, approved `ui-design.md`, `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the UI design gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser evidence, and tolerance in `ui-design.md`. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 - After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
 - These are bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind other skills to the design, implementation, and page-quality-verification slots, plus the code-security-verification slot; the same modes, sources, and gates apply.

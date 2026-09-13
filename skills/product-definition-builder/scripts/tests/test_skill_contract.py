@@ -8,11 +8,18 @@ import unittest
 from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
+UI_SKILL_ROOT = SKILL_ROOT.parent / "ui-design-builder"
 
 
 class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
-        return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+        path = SKILL_ROOT / relative_path
+        if not path.is_file():
+            path = UI_SKILL_ROOT / relative_path
+        return path.read_text(encoding="utf-8")
+
+    def read_ui(self, relative_path: str) -> str:
+        return (UI_SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
     def read_agent_prompt(self) -> str:
         return " ".join(self.read("agents/openai.yaml").split())
@@ -166,7 +173,7 @@ async function agent(_prompt, options) {
             "market_research": True,
             "tool_profile": "builder_readonly",
             "multi_agent_authorized": True,
-            "builder_ux_direction": "Guided, balanced-density native workflow.",
+            "ui_design_owner": "Product owner",
             "mobile_desktop_platform": "native iOS",
         }
 
@@ -182,12 +189,12 @@ async function agent(_prompt, options) {
         self.assertIn("Cloudflare is a deployment/runtime platform", skill)
         self.assertIn("component foundation such as shadcn/ui", agent)
 
-    def test_completed_wireframe_stage_stops_before_harness(self) -> None:
+    def test_product_definition_stops_before_ui_design_or_harness(self) -> None:
         skill = self.read("SKILL.md")
 
-        self.assertIn("An approved `wireframes.html` completes the wireframe stage", skill)
-        self.assertIn("visual design and implementation are separate optional phases", skill)
-        self.assertIn("A later Harness request consumes", skill)
+        self.assertIn("After step 15 passes, create no UI artifact", skill)
+        self.assertIn("later explicit `ui-design-builder` request", skill)
+        self.assertIn("UI design and implementation are separate optional phases", skill)
 
     def test_deployment_document_seeds_the_human_configuration_handoff(self) -> None:
         skill = self.read("SKILL.md")
@@ -220,22 +227,16 @@ async function agent(_prompt, options) {
             "both files exist before any implementation run starts", skill
         )
 
-    def test_ui_design_pass_is_explicit_and_pair_compilation_is_conditional(self) -> None:
+    def test_ui_design_is_an_explicit_downstream_skill(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         agent = self.read_agent_prompt()
 
         for content in (skill, contract, agent):
-            self.assertIn("design-system-compiler", content)
-            self.assertIn("frontend-design", content)
-            self.assertIn("design-taste-frontend", content)
-        self.assertIn(
-            "Only when the result is `required`, load `design-system-compiler`",
-            skill,
-        )
-        self.assertIn("Define routes, screen structure, flows", skill)
-        self.assertIn("Only when the owner explicitly continues into visual design", agent)
-        self.assertIn("later optional visual-design phase", contract)
+            self.assertIn("ui-design-builder", content)
+        self.assertNotIn("design-taste-frontend", skill)
+        self.assertIn("complete frontend and backend architecture", contract)
+        self.assertIn("A later explicit UI request invokes `ui-design-builder`", skill)
         self.assertIn("## UI Surface Contract", contract)
         self.assertIn("<!-- ui-surface-contract:start -->", contract)
         self.assertIn("<!-- ui-surface-contract:end -->", contract)
@@ -244,8 +245,7 @@ async function agent(_prompt, options) {
         self.assertIn("- `responsive`: [Exactly one responsive set", contract)
         self.assertIn("invariant machine anchors", contract)
         self.assertNotIn("wireframes.md", contract)
-        self.assertIn("Wireframe Approval Gate", skill)
-        self.assertIn("Design System Need Gate", contract)
+        self.assertIn("## UI Design Handoff Status", contract)
 
     def test_seo_metadata_is_part_of_the_ui_surface_contract(self) -> None:
         contract = self.read("references/output-contract.md")
@@ -261,7 +261,7 @@ async function agent(_prompt, options) {
         self.assertIn("sitemap and robots policy", contract)
         self.assertIn("traces to its own `TEST-*` row", contract)
 
-    def test_product_definition_builder_owns_wireframe_deliverable(self) -> None:
+    def test_ui_design_builder_owns_wireframe_deliverable(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
@@ -270,24 +270,22 @@ async function agent(_prompt, options) {
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
         for content in (skill, contract, lifecycle):
-            self.assertIn("wireframes.html", content)
-            self.assertNotIn("wireframes.md", content)
-        self.assertFalse((SKILL_ROOT / "assets/templates/WIREFRAMES.template.md").exists())
-        self.assertIn("`product-definition-builder` owns one wireframe deliverable", guide)
+            self.assertIn("ui-design-builder", content)
+        self.assertFalse((UI_SKILL_ROOT / "assets/templates/WIREFRAMES.template.md").exists())
+        self.assertIn("`ui-design-builder` owns one wireframe deliverable", guide)
         self.assertIn("Create one screen for every `UI-*` entry", guide)
         self.assertIn("## HTML Requirements", guide)
         self.assertIn("Generate one self-contained file", guide)
         self.assertIn("an all-pages overview plus a page switcher", guide)
         self.assertIn("## Wireframe Approval Gate", guide)
-        self.assertIn("PRD.md` wins", contract)
-        self.assertIn("Visual design phase: not requested", contract)
+        self.assertIn("Later UI artifacts never override", contract)
 
         payload = html_template.split(
             '<script id="wireframe-data" type="application/json">', 1
         )[1].split("</script>", 1)[0]
         data = json.loads(payload)
-        self.assertEqual(data["schema"], "wireframes/3")
-        self.assertGreaterEqual(len(data["viewports"]), 2)
+        self.assertEqual(data["schema"], "wireframes/4")
+        self.assertGreaterEqual(len(data["viewports"]), 3)
         self.assertEqual(
             set(data["canvasWidths"]), {str(value) for value in data["viewports"]}
         )
@@ -301,8 +299,8 @@ async function agent(_prompt, options) {
         self.assertIn("Hero Section", html_template)
         self.assertIn("textContent", html_template)
         self.assertNotIn("https://", html_template)
-        self.assertIn("wireframes_html_data_json", workflow)
-        self.assertIn("wireframes/3", workflow)
+        self.assertNotIn("wireframes_html_data_json", workflow)
+        self.assertIn("do not create wireframe data", workflow)
         for screen in data["screens"]:
             self.assertTrue(screen["neverDrop"])
             self.assertEqual(
@@ -310,9 +308,9 @@ async function agent(_prompt, options) {
                 {str(value) for value in data["viewports"]},
             )
 
-        checker = SKILL_ROOT / "scripts/check_wireframe_html.py"
+        checker = UI_SKILL_ROOT / "scripts/check_wireframe_html.py"
         result = subprocess.run(
-            [sys.executable, str(checker), "--html", str(SKILL_ROOT / "assets/templates/WIREFRAMES.template.html")],
+            [sys.executable, str(checker), "--html", str(UI_SKILL_ROOT / "assets/templates/WIREFRAMES.template.html")],
             capture_output=True,
             text=True,
             check=False,
@@ -353,7 +351,7 @@ async function agent(_prompt, options) {
             return subprocess.run(
                 [
                     sys.executable,
-                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    str(UI_SKILL_ROOT / "scripts/check_wireframe_html.py"),
                     "--html",
                     str(path),
                     *(extra_args or []),
@@ -390,7 +388,7 @@ async function agent(_prompt, options) {
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    str(UI_SKILL_ROOT / "scripts/check_wireframe_html.py"),
                     "--html", str(html_path),
                     "--prd", str(prd_path),
                 ],
@@ -413,7 +411,7 @@ async function agent(_prompt, options) {
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    str(UI_SKILL_ROOT / "scripts/check_wireframe_html.py"),
                     "--html", str(html_path),
                     "--prd", str(prd_path),
                 ],
@@ -437,7 +435,7 @@ async function agent(_prompt, options) {
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    str(UI_SKILL_ROOT / "scripts/check_wireframe_html.py"),
                     "--html", str(html_path),
                     "--prd", str(prd_path),
                 ],
@@ -465,7 +463,7 @@ async function agent(_prompt, options) {
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    str(UI_SKILL_ROOT / "scripts/check_wireframe_html.py"),
                     "--html", str(html_path),
                     "--prd", str(prd_path),
                 ],
@@ -537,7 +535,7 @@ async function agent(_prompt, options) {
                     result = subprocess.run(
                         [
                             sys.executable,
-                            str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                            str(UI_SKILL_ROOT / "scripts/check_wireframe_html.py"),
                             "--html",
                             str(html_path),
                             "--prd",
@@ -731,100 +729,49 @@ async function agent(_prompt, options) {
             result = self.run_checker_with_data(data)
             self.assertEqual(result.returncode, 0, f"{decision}: {result.stderr}")
 
-    def test_ui_design_handoff_has_taste_and_interactive_html_preview_gates(self) -> None:
-        skill = self.read("SKILL.md")
-        contract = self.read("references/output-contract.md")
-        guide = self.read("references/ui-design-pass.md")
+    def test_ui_design_builder_has_frontend_design_and_impeccable_gates(self) -> None:
+        skill = self.read_ui("SKILL.md")
+        contract = self.read_ui("references/output-contract.md")
+        guide = self.read_ui("references/ui-design-pass.md")
 
         for content in (skill, guide):
-            self.assertIn("design-taste-frontend", content)
-            self.assertIn("UI Preview Gate", content)
-        self.assertIn("Connected HTML review:", contract)
-        self.assertIn("record `applicable`, `partially_applicable`, or `n/a: <reason>`", skill)
-        self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
-        self.assertIn(
-            "List locally installed binding candidates", skill
-        )
-        self.assertIn(
-            "confirm the bindings with the owner in one `AskUserQuestion`", skill
-        )
-        self.assertIn("stay at the bundled default", skill)
-        self.assertIn("or reopen an established context file", skill)
+            self.assertIn("frontend-design", content)
+            self.assertIn("Impeccable", content)
+            self.assertNotIn("design-taste-frontend` leads", content)
+        self.assertIn("Connected HiFi reference:", contract)
         self.assertIn("one self-contained design-reference HTML", guide)
-        self.assertIn("Every visible product control responds", guide)
-        self.assertIn("generationStatus: deferred", guide)
-        self.assertNotIn("imagegen-frontend-web", guide)
-        self.assertNotIn("imagegen-frontend-mobile", guide)
-        self.assertIn("## Responsive Browser Gate", guide)
-        self.assertIn("unintended element overlap, clipping, occlusion", guide)
-        self.assertIn("Browser unavailability blocks approval", guide)
-        self.assertIn("Responsive browser check:", contract)
-        self.assertIn("An approved preview becomes an implementation target", guide)
-        self.assertIn("## Design System Need Gate", guide)
+        self.assertIn(
+            "generationStatus: deferred",
+            self.read_ui("references/wireframe-guide.md"),
+        )
+        self.assertIn("## Impeccable HiFi Review And PRD-Bound Grading", guide)
+        self.assertIn("Render every page-target-state", guide)
+        self.assertIn("Design System Need Gate", guide)
 
     def test_ui_design_pass_records_provenance_and_retention_consequences(self) -> None:
-        guide = self.read("references/ui-design-pass.md")
-        contract = self.read("references/output-contract.md")
-        references = self.read(
-            "../design-system-compiler/references/design-reference-guide.md"
-        )
+        guide = self.read_ui("references/ui-design-pass.md")
+        contract = self.read_ui("references/output-contract.md")
+        references = self.read_ui("references/design-reference-guide.md")
 
         self.assertIn("design-reference-guide.md", guide)
         self.assertIn("`VD-*` ID", guide)
-        self.assertIn("`REF-*` record", guide)
-        self.assertIn("`RP-*` record", guide)
-        self.assertIn(
-            "visual authority then reverts to `PRD.md` plus approved `wireframes.html`",
-            guide,
-        )
-        self.assertIn("A durable target binding requires retention", guide)
-        self.assertIn(
-            "regenerate the affected screens' style layer from the current direction",
-            guide,
-        )
-        self.assertIn(
-            "a reference that accumulates styles from previous versions is not approvable",
-            guide,
-        )
-        self.assertIn(
-            "refresh the handoff's recorded SHA-256 for that file in the same run",
-            guide,
-        )
-        self.assertIn(
-            "Selected direction: [VD-* ID and one-line visual intent, "
-            "with confirmed REF-* / RP-* IDs or none]",
-            contract,
-        )
-        self.assertIn(
-            "optional deferred `mediaIntent`, `UX-*` traces, and element display contracts",
-            contract,
-        )
-        self.assertIn(
-            "record protocol also governs the `product-definition-builder` UI Design Pass", references
-        )
+        self.assertIn("`REF-*` sources", guide)
+        self.assertIn("`RP-*` principles", guide)
+        self.assertIn("Archive superseded references", guide)
+        self.assertIn("Selected direction: [VD-* ID", contract)
+        self.assertIn("Record every inspected source with a stable `REF-*` ID", references)
 
     def test_market_research_precedes_style_aware_design_handoff(self) -> None:
         skill = self.read("SKILL.md")
-        contract = self.read("references/output-contract.md")
+        ui_skill = self.read_ui("SKILL.md")
+        intake = self.read_ui("references/ui-design-intake.md")
 
         research = skill.index("13. Run the post-draft market-research reconciliation")
-        design = skill.index("18. Only when the owner explicitly requests visual design")
-        self.assertLess(research, design)
-        self.assertIn("valid `MR-*` evidence", skill)
-        self.assertIn("Ask the human owner once for style preferences and visual references", skill)
-        self.assertIn("produce one recommended product-specific direction by default", skill)
-        self.assertIn("Produce three comparable directions only when", skill)
-        self.assertIn(
-            "A direction may call itself market-supported only when valid `MR-*` evidence applies",
-            skill,
-        )
-        self.assertIn("a market-research URL is not visual evidence", skill)
-        self.assertIn("`design inspiration` or `page-faithful target`", contract)
-        self.assertIn("do not infer faithful-copy intent", contract)
-        self.assertIn("Stop after the human owner approves `wireframes.html`", contract)
-        interview = self.read("references/interview-guide.md")
-        self.assertIn("produces one recommended product-specific direction by default", interview)
-        self.assertIn("three comparable directions only when the owner asks", interview)
+        approval = skill.index("15. Run Product Definition Approval")
+        self.assertLess(research, approval)
+        self.assertIn("after `product-definition-builder`", ui_skill)
+        self.assertIn("End the turn and wait for the answer", intake)
+        self.assertIn("one recommended direction or three comparable directions", intake)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
@@ -1076,7 +1023,7 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
 
-        self.assertIn("Keep the deployment platform out of this call", skill)
+        self.assertIn("Keep deployment and UI design preferences out of this call", skill)
         self.assertIn("depends on step 5's archetype answer", skill)
         self.assertIn("see Workflow step 7, after the archetype is known", skill)
         self.assertIn("question tool's actual per-call question and option limits", interview)
@@ -1138,7 +1085,7 @@ async function agent(_prompt, options) {
         )
         self.assertLess(
             contract.index("## Test Obligations"),
-            contract.index("## Builder UX Direction Decision"),
+            contract.index("## UI Design Handoff Status"),
         )
         self.assertIn(
             "| ID | Quality attribute | Scope / requirement | Measure | Target / threshold | TEST IDs |",
@@ -1621,7 +1568,7 @@ async function agent(_prompt, options) {
 
     def test_market_research_delegation_requires_explicit_authorization(self) -> None:
         skill = self.read("SKILL.md")
-        dynamic = self.read("references/dynamic-workflow.md")
+        work_graph = self.read("references/dynamic-workflow.md")
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
         self.assertIn(
@@ -1629,10 +1576,10 @@ async function agent(_prompt, options) {
             skill,
         )
         self.assertIn("no delegation authorization is present", skill)
-        self.assertIn("args.multi_agent_authorized: true", dynamic)
+        self.assertIn("args.multi_agent_authorized: true", work_graph)
         self.assertIn(
             "single read-only subagent only when the parent has a separate explicit delegation authorization",
-            dynamic,
+            work_graph,
         )
         self.assertIn("requires explicit args.multi_agent_authorized=true", workflow)
         self.assertIn(
@@ -1648,7 +1595,7 @@ async function agent(_prompt, options) {
             "requires explicit args.multi_agent_authorized=true", result["error"]
         )
 
-    def test_dynamic_workflow_rejects_single_agent_or_sequential_only_constraints(
+    def test_agent_work_graph_rejects_single_agent_or_sequential_only_constraints(
         self,
     ) -> None:
         for constraint in ("single_agent_only", "sequential_only"):
@@ -1661,7 +1608,7 @@ async function agent(_prompt, options) {
                 result["error"],
             )
 
-    def test_dynamic_workflow_rejects_non_boolean_execution_constraints(self) -> None:
+    def test_agent_work_graph_rejects_non_boolean_execution_constraints(self) -> None:
         for constraint in ("single_agent_only", "sequential_only"):
             workflow_args = self.base_workflow_args()
             workflow_args[constraint] = "false"
@@ -1692,7 +1639,7 @@ async function agent(_prompt, options) {
         guide = self.read("references/market-research-guide.md")
         contract = self.read("references/output-contract.md")
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
-        dynamic = self.read("references/dynamic-workflow.md")
+        work_graph = self.read("references/dynamic-workflow.md")
 
         for content in (skill, guide, contract, workflow):
             self.assertIn("UNVALIDATED", content)
@@ -1709,8 +1656,8 @@ async function agent(_prompt, options) {
             "Do not present vendor marketing copy as verified capability", workflow
         )
         self.assertIn("never invent a competitor, price, or market figure", skill)
-        self.assertIn("| market-research |", dynamic)
-        self.assertIn("it never blocks the package on its own", dynamic)
+        self.assertIn("| market-research |", work_graph)
+        self.assertIn("it never blocks the package on its own", work_graph)
 
     def test_market_research_artifact_is_contracted_and_published(self) -> None:
         skill = self.read("SKILL.md")
@@ -1856,7 +1803,7 @@ async function agent(_prompt, options) {
         self.assertIn("never stages, overwrites, archives, resets", contract)
         self.assertIn("Exclude it from the superseded-document inventory", lifecycle)
 
-    def test_dynamic_workflow_uses_org_roles_and_parent_owned_staging(self) -> None:
+    def test_agent_work_graph_uses_org_roles_and_parent_owned_staging(self) -> None:
         skill = self.read("SKILL.md")
         guide = self.read("references/dynamic-workflow.md")
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
@@ -1865,6 +1812,9 @@ async function agent(_prompt, options) {
         self.assertIn("stable PRD roles as an org graph", skill)
         self.assertIn("The stable org graph", guide)
         self.assertIn("The temporary work graph", guide)
+        self.assertIn("Codex and generic hosts dispatch read-only sibling agents", guide)
+        self.assertIn("Pi uses its installed read-only roles", guide)
+        self.assertIn("Claude Code invokes", guide)
         self.assertIn('typeof args === "string" ? JSON.parse(args) : args', workflow)
         self.assertIn('phase("Analyze")', workflow)
         self.assertIn("await parallel", workflow)
@@ -1882,7 +1832,7 @@ async function agent(_prompt, options) {
         self.assertIn("## Harness Handoff Signals", contract)
         self.assertIn("not a canonical Harness PLAN or RUN graph", contract)
 
-    def test_workflow_lanes_receive_resolved_platform_and_ux_direction(self) -> None:
+    def test_workflow_lanes_receive_resolved_platform_and_ui_owner(self) -> None:
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
         self.assertIn(
@@ -1890,7 +1840,7 @@ async function agent(_prompt, options) {
             workflow,
         )
         self.assertIn(
-            "requires non-empty args.builder_ux_direction for a ui_bearing product",
+            "requires non-empty args.ui_design_owner for a ui_bearing product",
             workflow,
         )
         self.assertIn(
@@ -1909,6 +1859,7 @@ async function agent(_prompt, options) {
         )
         self.assertIn("hosted_deployable: workflowArgs.hosted_deployable,", workflow)
         self.assertIn("ui_bearing: workflowArgs.ui_bearing,", workflow)
+        self.assertIn("ui_design_owner: workflowArgs.ui_design_owner || null,", workflow)
         self.assertIn("Never substitute or invent a platform or provider", workflow)
 
     def test_lifecycle_keeps_the_package_in_docs_product_not_flat_docs(self) -> None:
@@ -1927,18 +1878,15 @@ async function agent(_prompt, options) {
         self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
 
     def test_design_system_not_required_is_a_normal_ui_outcome(self) -> None:
-        skill = self.read("SKILL.md")
-        contract = self.read("references/output-contract.md")
+        skill = self.read_ui("SKILL.md")
+        contract = self.read_ui("references/output-contract.md")
 
+        self.assertIn("If `not_required`", skill)
+        self.assertIn("Decision: [required / not_required / blocked]", contract)
         self.assertIn(
-            "Mark it `not_required` for a small or single-surface UI",
-            skill,
+            "publish no placeholder pair",
+            self.read_ui("references/ui-design-pass.md"),
         )
-        self.assertIn(
-            "`not_required` is a normal result for a small or single-surface UI",
-            contract,
-        )
-        self.assertIn("publish no placeholder pair", skill)
 
     def test_closed_questions_batch_without_dropping_decisions(self) -> None:
         interview = self.read("references/interview-guide.md")
@@ -1949,18 +1897,13 @@ async function agent(_prompt, options) {
         self.assertIn("minimum number of calls", interview)
         self.assertIn("do not drop an applicable decision", skill)
         rows = re.findall(
-            r"^\| (AQ-[A-Z-]+) \| (independent|builder|final) \| ([^|]+?) \|$",
+            r"^\| (AQ-[A-Z-]+) \| (independent|final) \| ([^|]+?) \|$",
             interview,
             re.MULTILINE,
         )
         expected = [
             ("AQ-ARCHETYPE", "independent", "Product archetype"),
             ("AQ-VALIDATION-DEPTH", "independent", "Validation depth"),
-            ("AQ-EXPERIENCE-PRIORITY", "builder", "Experience priority"),
-            ("AQ-GUIDANCE-CONTROL", "builder", "Guidance versus expert control"),
-            ("AQ-INFORMATION-DENSITY", "builder", "Information density"),
-            ("AQ-LAYOUT-PATTERN", "builder", "Layout and interaction pattern"),
-            ("AQ-MOTION-DIRECTION", "builder", "Motion direction and decision authority"),
             ("AQ-DEPLOYMENT-PLATFORM", "final", "Deployment platform"),
             ("AQ-MOBILE-TARGETS", "final", "Mobile target operating systems"),
             ("AQ-DESKTOP-TARGETS", "final", "Desktop target operating systems"),
@@ -1993,7 +1936,7 @@ async function agent(_prompt, options) {
 
         for per_call_limit in range(1, 6):
             flattened: list[str] = []
-            for phase in ("independent", "builder", "final"):
+            for phase in ("independent", "final"):
                 phase_ids = [row[0] for row in rows if row[1] == phase]
                 batches = [
                     phase_ids[start : start + per_call_limit]
@@ -2159,9 +2102,9 @@ async function agent(_prompt, options) {
         )
 
     def test_wireframe_reference_pass_consults_comparable_structures(self) -> None:
-        skill = self.read("SKILL.md")
-        guide = self.read("references/wireframe-guide.md")
-        contract = self.read("references/output-contract.md")
+        skill = self.read_ui("SKILL.md")
+        guide = self.read_ui("references/wireframe-guide.md")
+        contract = self.read_ui("references/output-contract.md")
 
         self.assertIn("## Reference Pass", guide)
         for marker in (
@@ -2171,51 +2114,38 @@ async function agent(_prompt, options) {
             "A gallery shot ranks below a live mainstream product",
             "structural pattern adopted or rejected",
             "They never create scope",
-            "override the Builder UX Direction Decision",
+            "override the approved UI Design Intake",
             "UNVALIDATED",
         ):
             self.assertIn(marker, guide)
         self.assertIn(
-            "Run the Reference Pass before drafting the HTML",
-            skill,
-        )
-        self.assertIn(
-            "fetch two to four mainstream comparable screen structures", skill
-        )
-        self.assertIn(
-            "record each adopted/rejected pattern or skip reason in `PRD.md`'s `Wireframe references consulted:` line",
+            "references/wireframe-guide.md",
             skill,
         )
         self.assertIn("Wireframe references consulted:", contract)
         self.assertIn(
-            "reason the Reference Pass was skipped",
+            "or skip reason",
             contract,
         )
 
     def test_enhancement_classifies_ui_impact_before_drafting(self) -> None:
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
-        guide = self.read("references/wireframe-guide.md")
+        guide = self.read_ui("references/wireframe-guide.md")
         contract = self.read("references/output-contract.md")
 
         self.assertIn(
             "classify the delta's UI impact explicitly with the owner", interview
         )
         self.assertIn(
-            "`none` (no UI change), `structure` (screens, regions, flows, or states "
-            "change), `style` (the visual direction or design system is affected), "
-            "or `both`",
-            interview,
-        )
-        self.assertIn(
-            "Never assume `none` because the request reads backend- or data-side",
+            "`style`-only request routes to `ui-design-builder`",
             interview,
         )
         self.assertIn("## Enhancement Revisions", guide)
         for marker in (
             "re-run the Wireframe Approval Gate on the changed scope",
             "re-run `references/ui-design-pass.md` for the affected scope",
-            "a stale visual contract never publishes silently",
+            "A stale visual contract never publishes silently",
         ):
             self.assertIn(marker, guide)
         self.assertIn(
@@ -2233,60 +2163,37 @@ async function agent(_prompt, options) {
         )
 
     def test_iconography_is_researched_not_remembered(self) -> None:
-        skill = self.read("SKILL.md")
-        guide = self.read("references/ui-design-pass.md")
-        contract = self.read("references/output-contract.md")
+        skill = self.read_ui("SKILL.md")
+        guide = self.read_ui("references/ui-design-pass.md")
+        contract = self.read_ui("references/output-contract.md")
 
         for marker in (
-            "Choose iconography through an online lookup, not from memory",
-            "exactly four maintained icon libraries: Lucide, Phosphor, "
-            "Heroicons, and Tabler",
-            "Pick the primary set and the named fallback from this closed "
-            "candidate set",
-            "license, framework support, and maintenance status",
-            "Do not widen the candidate set with other libraries",
-            "mark an unevidenced pick `UNVALIDATED`",
-            "never silently default to a remembered library",
+            "Choose iconography through current official-source lookup",
+            "Lucide, Phosphor, Heroicons, and Tabler",
+            "select one primary and one named fallback",
+            "license, framework support, maintenance evidence",
+            "never silently choose from memory",
         ):
             self.assertIn(marker, guide)
-        self.assertIn(
-            "Choose iconography through `references/ui-design-pass.md`'s online lookup",
-            skill,
-        )
-        self.assertIn(
-            "from the closed candidate set — Lucide, Phosphor, Heroicons, "
-            "and Tabler —",
-            skill,
-        )
-        self.assertIn("Iconography:", contract)
-        self.assertIn(
-            "a visual package missing any of these three lines does not validate",
-            contract,
-        )
+        self.assertIn("Style Integration", skill)
+        self.assertIn("imagery, and motion rules", contract)
 
     def test_typography_color_and_styling_layers_are_decided_with_evidence(self) -> None:
         skill = self.read("SKILL.md")
-        guide = self.read("references/ui-design-pass.md")
-        contract = self.read("references/output-contract.md")
+        guide = self.read_ui("references/ui-design-pass.md")
+        contract = self.read_ui("references/output-contract.md")
         frontend = self.read("references/frontend-stack-selection.md")
 
         for marker in (
-            "Choose typography through the same online-lookup discipline",
-            "Latin plus CJK coverage",
-            "Noto Sans TC/SC class family or the platform system-font stack",
-            "self-host versus CDN, subsetting, `font-display`",
-            "handoff's `Typography:` line",
-            "an unevidenced pick is `UNVALIDATED`",
+            "Choose typography with the same evidence discipline",
+            "Latin and CJK coverage",
+            "fallback order",
+            "loading strategy",
+            "palette derivation",
+            "dark mode",
         ):
             self.assertIn(marker, guide)
-        for marker in (
-            "handoff's `Color & dark mode:` line",
-            "whether dark mode is in scope for this pass or a named later scope",
-            "check_color_contrast.py",
-        ):
-            self.assertIn(marker, guide)
-        self.assertIn("Typography:", contract)
-        self.assertIn("Color & dark mode:", contract)
+        self.assertIn("Candidate theme:", contract)
         self.assertIn("component foundation (including shadcn/ui when chosen), styling approach", skill)
         self.assertIn("| Styling approach |", frontend)
         self.assertIn(
@@ -2294,20 +2201,21 @@ async function agent(_prompt, options) {
         )
 
     def test_design_reference_preview_is_interactive_auth_free_and_generation_deferred(self) -> None:
-        skill = self.read("SKILL.md")
-        guide = self.read("references/ui-design-pass.md")
-        contract = self.read("references/output-contract.md")
+        guide = self.read_ui("references/ui-design-pass.md")
+        contract = self.read_ui("references/output-contract.md")
 
-        for content in (skill, guide, contract):
-            lowered = content.lower()
-            self.assertIn("one self-contained design-reference html", lowered)
-            self.assertIn("login, registration, recovery", lowered)
-            self.assertIn("generationstatus: deferred", lowered)
+        lowered = guide.lower()
+        self.assertIn("one self-contained design-reference html", lowered)
+        self.assertIn("login, registration, recovery", lowered)
+        self.assertIn(
+            "generationstatus: deferred",
+            self.read_ui("references/wireframe-guide.md").lower(),
+        )
         for marker in (
-            "Every visible product control responds",
-            "opens the documented modal, drawer, or other overlay",
-            "never calls a live backend, account, credential, identity provider, image generator, or animation generator",
-            "Do not generate, embed, or claim generated image or animation output",
+            "Each visible control navigates",
+            "opens the documented overlay",
+            "calls no live backend, credential, identity provider, or unapproved generation provider",
+            "Generated output cannot add copy, controls, states, routes, or claims",
         ):
             self.assertIn(marker, guide)
         for forbidden in (
@@ -2315,28 +2223,27 @@ async function agent(_prompt, options) {
             "auth-related UI states remain directly selectable",
             "imagegen-frontend-web",
             "imagegen-frontend-mobile",
-            "Higgsfield MCP",
             "embed each retained image as a data URI",
         ):
             self.assertNotIn(forbidden, guide)
         for marker in (
-            "Frozen PRD basis:",
-            "Preview scope:",
-            "Key-surface treatments:",
-            "Deferred generation handoff:",
-            "no live backend, authentication, or generation call",
+            "PRD source:",
+            "Motion And Media Intent",
+            "Connected HiFi reference:",
+            "Impeccable critique:",
+            "Approved target:",
         ):
             self.assertIn(marker, contract)
 
     def test_multi_agent_ui_grading_is_prd_bound_authorized_and_capability_optional(self) -> None:
-        skill = self.read("SKILL.md")
-        wireframe = self.read("references/wireframe-guide.md")
-        guide = self.read("references/ui-design-pass.md")
-        rubric = self.read("references/ui-grading-rubric.md")
-        contract = self.read("references/output-contract.md")
+        skill = self.read_ui("SKILL.md")
+        wireframe = self.read_ui("references/wireframe-guide.md")
+        guide = self.read_ui("references/ui-design-pass.md")
+        rubric = self.read_ui("references/ui-grading-rubric.md")
+        contract = self.read_ui("references/output-contract.md")
 
         for marker in (
-            "exact PRD path plus revision or SHA-256",
+            "exact PRD and `ui-design.md` paths",
             "Capability does not grant permission",
             "multi-agent capability unavailable",
             "matching current RUN `spawn_subagents` grant",
@@ -2381,50 +2288,39 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(marker, rubric)
         self.assertNotIn("graders: parent-only", rubric)
-        self.assertIn("skipped — multi-agent capability unavailable", contract)
-        for content in (skill, wireframe, guide):
-            self.assertIn("multi-agent browser capability", content)
-            self.assertIn("capability is unavailable", content)
-            self.assertIn("one complete diagnostic wave", content)
-            self.assertIn("one repair batch", content)
-            self.assertIn("one re-review", content)
+        self.assertIn("Impeccable critique:", contract)
+        self.assertIn("one repair batch", skill)
+        self.assertIn("one re-review", skill)
+        self.assertIn("one repair batch", wireframe)
+        self.assertIn("complete rubric once", guide)
 
-    def test_motion_need_gate_separates_local_ui_motion_from_generated_motion(self) -> None:
-        skill = self.read("SKILL.md")
+    def test_motion_and_media_gate_separates_ui_motion_from_generated_assets(self) -> None:
+        skill = self.read_ui("SKILL.md")
         interview = self.read("references/interview-guide.md")
-        wireframe = self.read("references/wireframe-guide.md")
-        guide = self.read("references/ui-design-pass.md")
-        rubric = self.read("references/ui-grading-rubric.md")
-        contract = self.read("references/output-contract.md")
+        wireframe = self.read_ui("references/wireframe-guide.md")
+        guide = self.read_ui("references/ui-design-pass.md")
+        rubric = self.read_ui("references/ui-grading-rubric.md")
+        contract = self.read_ui("references/output-contract.md")
+        router = self.read_ui("references/motion-and-media-routing.md")
 
-        for content in (skill, interview, guide, rubric, contract):
-            self.assertIn("Motion Need Gate", content)
-            lowered = content.lower()
-            self.assertIn("required", lowered)
-            self.assertIn("recommended", lowered)
-            self.assertIn("not_required", lowered)
-            self.assertIn("blocked", lowered)
-            self.assertIn("reduced-motion", content)
-        self.assertIn("AQ-MOTION-DIRECTION", interview)
-        self.assertIn("let the AI recommend", interview)
-        self.assertIn("## Motion Stage Contract", guide)
-        self.assertIn("PRD discovery records the Motion Need Gate", guide)
-        self.assertIn("`wireframes.html` shows motion intent as a static annotation only", guide)
-        self.assertIn("Delivery Harness implements the approved motion", guide)
-        self.assertIn("deterministic local CSS or JavaScript", guide)
-        self.assertIn("generationStatus: deferred", guide)
-        self.assertIn("implements no final animation", wireframe)
-        self.assertIn("Functional UI motion evidence:", contract)
+        for content in (skill, guide, rubric, contract):
+            self.assertIn("motion and media intent", content.lower())
+        self.assertIn("`mediaIntent`", router)
+        for treatment in ("`none`", "`image`", "`motion`", "`image + motion`"):
+            self.assertIn(treatment, router)
+        self.assertIn("GSAP", router)
+        self.assertIn("Higgsfield MCP", router)
+        self.assertIn("reduced-motion", router)
+        self.assertIn("Do not ask about preferred density", interview)
+        self.assertIn("generationStatus: deferred", wireframe)
+        self.assertIn("implements no final image or animation", wireframe)
 
     def test_wireframe_actions_and_media_handoffs_are_executable_and_validated(self) -> None:
-        skill = self.read("SKILL.md")
-        wireframe = self.read("references/wireframe-guide.md")
-        contract = self.read("references/output-contract.md")
-        template = self.read("assets/templates/WIREFRAMES.template.html")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
-        checker = self.read("scripts/check_wireframe_html.py")
+        wireframe = self.read_ui("references/wireframe-guide.md")
+        template = self.read_ui("assets/templates/WIREFRAMES.template.html")
+        checker = self.read_ui("scripts/check_wireframe_html.py")
 
-        for content in (skill, wireframe, contract):
+        for content in (wireframe, template):
             self.assertIn("page", content)
             self.assertIn("overlay", content)
             self.assertIn("feedback", content)
@@ -2435,6 +2331,8 @@ async function agent(_prompt, options) {
             "dialog.showModal()",
             "dataset.flowTrigger = label",
             '"generationStatus": "deferred"',
+            '"generationRoute"',
+            '"reducedMotionFallback"',
         ):
             self.assertIn(marker, template)
         for marker in (
@@ -2445,13 +2343,14 @@ async function agent(_prompt, options) {
             "must match exactly one visible region action",
         ):
             self.assertIn(marker, checker)
-        self.assertIn("generationStatus deferred; never generate media", workflow)
+        self.assertIn("wireframes/4", checker)
+        self.assertIn("Higgsfield MCP", template)
 
     def test_wireframe_reviewer_javascript_parses(self) -> None:
         node = shutil.which("node")
         if node is None:
             self.skipTest("Node.js is required for wireframe JavaScript validation")
-        template_path = SKILL_ROOT / "assets/templates/WIREFRAMES.template.html"
+        template_path = UI_SKILL_ROOT / "assets/templates/WIREFRAMES.template.html"
         runner = r"""
 const fs = require("fs");
 const html = fs.readFileSync(process.argv[1], "utf8");
@@ -2467,45 +2366,31 @@ new Function(scripts.at(-1)[1]);
         )
         self.assertEqual(0, completed.returncode, completed.stderr)
 
-    def test_visual_phase_opens_with_taste_plus_frontend_design(self) -> None:
-        skill = self.read("SKILL.md")
-        guide = self.read("references/ui-design-pass.md")
+    def test_visual_phase_uses_frontend_design_then_impeccable(self) -> None:
+        skill = self.read_ui("SKILL.md")
+        guide = self.read_ui("references/ui-design-pass.md")
 
-        for marker in (
-            "The standard recipe is both skills, working from the approved "
-            "PRD package",
-            "`design-taste-frontend` leads the overall design direction for "
-            "the surfaces it covers",
-            "`frontend-design` executes the surfaces Taste excludes",
-            "run the whole pass as one combined effort",
-            "Taste first for the overall direction",
-            "Neither skill reopens product scope",
-        ):
-            self.assertIn(marker, guide)
-        self.assertIn(
-            "The visual phase opens from the approved PRD package and runs as "
-            "one combined pass with both skills",
-            skill,
-        )
-        self.assertIn(
-            "the design-direction skill leads the overall direction, and the "
-            "frontend-implementation skill covers the direction skill's "
-            "excluded surfaces",
-            skill,
+        self.assertIn("`frontend-design` is the single design author", skill)
+        self.assertIn("Load `frontend-design`", guide)
+        self.assertIn("Do not load `design-taste-frontend`", guide)
+        self.assertIn("Run `impeccable critique` and `impeccable audit`", guide)
+        self.assertLess(
+            guide.index("## Frontend Design Style Integration"),
+            guide.index("## Impeccable HiFi Review"),
         )
 
-    def test_product_definition_approval_precedes_wireframes_and_visual_work(self) -> None:
+    def test_product_definition_approval_precedes_ui_design_builder(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
-        wireframe = self.read("references/wireframe-guide.md")
+        ui_skill = self.read_ui("SKILL.md")
+        wireframe = self.read_ui("references/wireframe-guide.md")
 
         order = [
             skill.index("12. Draft or repair the core Markdown package"),
             skill.index("13. Run the post-draft market-research reconciliation"),
             skill.index("14. Run the Stack Decision Checkpoint"),
             skill.index("15. Run Product Definition Approval"),
-            skill.index("16. Only after step 15 passes"),
-            skill.index("18. Only when the owner explicitly requests visual design"),
+            skill.index("16. After step 15 passes, create no UI artifact"),
         ]
         self.assertEqual(order, sorted(order))
         for marker in (
@@ -2518,8 +2403,9 @@ new Function(scripts.at(-1)[1]);
         ):
             self.assertIn(marker, contract)
         self.assertIn("check_product_package.py", skill)
-        self.assertIn("Headless products still require Product Definition Approval", skill)
-        self.assertIn("only after the core PRD package passes", wireframe)
+        self.assertIn("including headless products", skill)
+        self.assertIn("only after the core Product Definition package passes", wireframe)
+        self.assertIn("only after `product-definition-builder`", ui_skill)
 
     def test_stack_checkpoint_separates_and_approves_implementation_layers(self) -> None:
         skill = self.read("SKILL.md")

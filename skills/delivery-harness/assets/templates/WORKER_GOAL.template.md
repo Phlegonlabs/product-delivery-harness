@@ -61,11 +61,11 @@ Repair context (omit for an initial implementation):
 - If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`; do not wait for a host timeout to create the checkpoint.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
 
-For design-system compilation mode, load `design-system-compiler` and `frontend-design` together. Read the approved `PRD.md` UI Design Handoff plus approved `wireframes.html`; proceed only when the Design System Need Gate is `required`, and do not reopen Taste or preview selection.
+For design-system compilation mode, load `design-system-compiler` and `frontend-design` together. Read approved `PRD.md`, `ui-design.md`, `wireframes.html`, and the HiFi target; proceed only when the Design System Need Gate is `required`, and do not reopen direction.
 
-For frontend-design conformance mode, read the named PRD UI surface, approved matching wireframe, and active visual source. In system-conformance mode, read `design-system.md` and `design-system.json` and invent no token, primitive, variant, component, or motion rule. In target-conformance mode, read the approved immutable UI target and stay inside its scope and tolerance. Return a design-input delta and stop when the active source is incomplete.
+For frontend-design conformance mode, read the named PRD UI surface, approved `ui-design.md`, matching wireframe, and active visual source. In system-conformance mode, read `design-system.md` and `design-system.json` and invent no token, primitive, variant, component, or motion rule. In target-conformance mode, read the approved immutable UI target and stay inside its scope and tolerance. Return a design-input delta and stop when the active source is incomplete.
 
-For any UI-touching mission, classify the completed change's UI impact against the `PRD.md` UI surface contract — `none`, `style`, `structure`, or `both` — and state it in the terminal payload's `integration_notes` line, e.g. `UI impact: <none|style|structure|both>`, so the parent records the mission's strongest task impact in the run's `ui_impact_summary`. A `structure` or `both` change that the frozen `PRD.md` entries or approved `wireframes.html` do not already reflect returns a design-input delta and stops; it is never reported as `worker_passed`.
+For any UI-touching mission, classify the completed change against frozen product and UI-design sources as `none`, `style`, `structure`, or `both`, and state it in the terminal payload's `integration_notes`. A `structure` or `both` change absent from the approved PRD and UI-design contracts returns upstream and stops; it is never reported as `worker_passed`.
 
 ## Verify
 

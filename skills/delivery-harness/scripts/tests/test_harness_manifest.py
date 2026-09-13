@@ -1548,7 +1548,7 @@ class RunValidationTests(unittest.TestCase):
         run = legacy_run(plan, 5)
         self.assertEqual(validate_run(plan, run), [])
 
-    def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
+    def test_schema_v6_routes_claude_workflow_driver(self) -> None:
         plan = legacy_plan()
         run = legacy_run(plan, 6)
         run["runtime_capabilities"] = {
@@ -1607,7 +1607,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "must be omitted for flat dynamic-workflow orchestration",
+            "must be omitted for flat Claude workflow-driver orchestration",
         )
 
     def test_schema_v10_routes_pi_subagents(self) -> None:

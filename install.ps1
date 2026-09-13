@@ -1,4 +1,4 @@
-# Install the five Product Delivery Harness skills into a user skills directory.
+# Install the six Product Delivery Harness skills into a user skills directory.
 # Any pre-existing copies are moved to one timestamped backup first - nothing is
 # overwritten or deleted. Re-running this script is the update path.
 param(
@@ -13,6 +13,7 @@ $backupRoot = "$HOME\.agents\skill-backups\product-delivery-harness"
 $skills = @(
     "delivery-harness",
     "product-definition-builder",
+    "ui-design-builder",
     "design-system-compiler",
     "code-security-review",
     "product-activation"

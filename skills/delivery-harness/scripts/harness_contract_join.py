@@ -20,6 +20,7 @@ from harness_ui_evidence import validate_ui_surface_design_registry
 
 FROZEN_SOURCE_STATUSES = {"frozen", "delta_accepted", "delta accepted"}
 PRD_SOURCE_KINDS = {"prd", "product requirement", "product requirements"}
+UI_DESIGN_SOURCE_KINDS = {"ui design", "ui design contract", "approved ui design"}
 WIREFRAME_SOURCE_KINDS = {"wireframe", "wireframes", "approved wireframe"}
 ARCHITECTURE_SOURCE_KINDS = {"architecture", "product architecture"}
 STACK_DECISION_SOURCE_KINDS = {
@@ -40,6 +41,7 @@ JOINED_CONTRACT_FILENAMES = {
     "prd.md",
     "architecture.md",
     "stack-decisions.md",
+    "ui-design.md",
     "wireframes.html",
     "design-system.md",
     "design-system.json",
@@ -171,6 +173,7 @@ def normalized_responsive(
 
 
 WEB_VIEWPORT_FLOOR_VERSION = (0, 34, 0)
+UI_DESIGN_CONTRACT_REQUIRED_VERSION = (0, 37, 0)
 
 
 def web_viewport_floor_required(run: dict[str, Any] | None) -> bool:
@@ -688,6 +691,7 @@ def _resolve_source_bytes(
 
 
 _FULL_WIREFRAME_CHECKERS: dict[Path, Any] = {}
+_FULL_UI_DESIGN_CHECKERS: dict[Path, Any] = {}
 _FULL_PRODUCT_PACKAGE_CHECKERS: dict[Path, Any] = {}
 
 
@@ -695,6 +699,12 @@ def sibling_builder_scripts_dir() -> Path:
     """The product-definition-builder scripts dir shipped next to this skill."""
 
     return Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
+
+
+def sibling_ui_design_scripts_dir() -> Path:
+    """The ui-design-builder scripts dir shipped next to this skill."""
+
+    return Path(__file__).resolve().parents[2] / "ui-design-builder" / "scripts"
 
 
 def _load_full_wireframe_checker(sibling_scripts: Path) -> Any:
@@ -715,6 +725,27 @@ def _load_full_wireframe_checker(sibling_scripts: Path) -> Any:
                 pass
         checker = checker_module.validate
     _FULL_WIREFRAME_CHECKERS[key] = checker
+    return checker
+
+
+def _load_full_ui_design_checker(sibling_scripts: Path) -> Any:
+    """Import ui-design-builder's canonical package checker once."""
+
+    key = sibling_scripts
+    if key in _FULL_UI_DESIGN_CHECKERS:
+        return _FULL_UI_DESIGN_CHECKERS[key]
+    checker: Any = None
+    if (key / "check_ui_design_contract.py").is_file():
+        sys.path.insert(0, str(key))
+        try:
+            import check_ui_design_contract as checker_module
+        finally:
+            try:
+                sys.path.remove(str(key))
+            except ValueError:
+                pass
+        checker = checker_module.validate
+    _FULL_UI_DESIGN_CHECKERS[key] = checker
     return checker
 
 
@@ -745,7 +776,7 @@ def full_wireframe_checker_errors(
     *,
     sibling_scripts: Path | None = None,
 ) -> list[str]:
-    """Run product-definition-builder's full wireframe checker on frozen bytes.
+    """Run ui-design-builder's full wireframe checker on frozen bytes.
 
     The harness's own PLAN-side join stays; this adds the checker's wireframe
     structure, reviewer-shell, self-containment, approval, and PRD join rules
@@ -755,12 +786,12 @@ def full_wireframe_checker_errors(
     tree.
     """
 
-    scripts = sibling_scripts or sibling_builder_scripts_dir()
+    scripts = sibling_scripts or sibling_ui_design_scripts_dir()
     validate_wireframes = _load_full_wireframe_checker(scripts)
     if validate_wireframes is None:
         return [
             "wireframes: the full wireframe checker is unavailable — install "
-            "product-definition-builder next to delivery-harness "
+            "ui-design-builder next to delivery-harness "
             f"(missing {scripts / 'check_wireframe_html.py'})"
         ]
     with tempfile.TemporaryDirectory() as directory:
@@ -783,6 +814,41 @@ def full_wireframe_checker_errors(
             problem = problem.replace(f"{prd_path}: ", "prd: ")
         rewritten.append(problem)
     return rewritten
+
+
+def full_ui_design_checker_errors(
+    ui_design_bytes: bytes,
+    wireframe_bytes: bytes,
+    prd_bytes: bytes,
+    *,
+    sibling_scripts: Path | None = None,
+) -> list[str]:
+    """Run ui-design-builder's approved visual-contract checker on frozen bytes."""
+
+    scripts = sibling_scripts or sibling_ui_design_scripts_dir()
+    validate_ui_design = _load_full_ui_design_checker(scripts)
+    if validate_ui_design is None:
+        return [
+            "ui-design: the full UI design checker is unavailable — install "
+            "ui-design-builder next to delivery-harness "
+            f"(missing {scripts / 'check_ui_design_contract.py'})"
+        ]
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        ui_design_path = root / "ui-design.md"
+        wireframes_path = root / "wireframes.html"
+        prd_path = root / "PRD.md"
+        ui_design_path.write_bytes(ui_design_bytes)
+        wireframes_path.write_bytes(wireframe_bytes)
+        prd_path.write_bytes(prd_bytes)
+        return validate_ui_design(
+            ui_design_path,
+            prd_path=prd_path,
+            wireframes_path=wireframes_path,
+            require_filled=True,
+            require_wireframe_approved=True,
+            require_visual_approved=True,
+        )
 
 
 def full_product_package_checker_errors(
@@ -841,6 +907,9 @@ def validate_frozen_contract_joins(
     wireframe_sources = frozen_sources(
         plan, kinds=WIREFRAME_SOURCE_KINDS, filenames={"wireframes.html"}
     )
+    ui_design_sources = frozen_sources(
+        plan, kinds=UI_DESIGN_SOURCE_KINDS, filenames={"ui-design.md"}
+    )
     architecture_sources = frozen_sources(
         plan, kinds=ARCHITECTURE_SOURCE_KINDS, filenames={"architecture.md"}
     )
@@ -863,11 +932,24 @@ def validate_frozen_contract_joins(
         and trace["id"].startswith("DS-")
         for trace in (plan.get("traces") or [])
     )
+    required_version = run_required_harness_version(run) if run is not None else None
+    ui_design_required = bool(
+        has_ui
+        and required_version
+        and version_at_least(required_version, UI_DESIGN_CONTRACT_REQUIRED_VERSION)
+    )
+    if ui_design_required and len(ui_design_sources) != 1:
+        errors.append(
+            "plan.sources: Harness 0.37.0+ UI delivery requires exactly one "
+            "frozen ui-design.md source"
+        )
     families: list[tuple[str, list[dict[str, Any]]]] = []
     if has_ui or prd_sources:
         families.append(("PRD", prd_sources))
     if has_ui or wireframe_sources:
         families.append(("wireframes", wireframe_sources))
+    if ui_design_required or ui_design_sources:
+        families.append(("ui-design", ui_design_sources))
     if has_design_contract:
         families.extend(
             [
@@ -947,6 +1029,14 @@ def validate_frozen_contract_joins(
                     resolved["wireframes"], resolved.get("PRD")
                 )
             )
+    if all(name in resolved for name in ("ui-design", "wireframes", "PRD")):
+        errors.extend(
+            full_ui_design_checker_errors(
+                resolved["ui-design"],
+                resolved["wireframes"],
+                resolved["PRD"],
+            )
+        )
     registry: Any = None
     if "design-system.json" in resolved:
         try:

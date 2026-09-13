@@ -180,6 +180,8 @@ def _is_reconciled_interrupted_review(
 
 
 PRODUCT_DESIGN_SOURCE_PATHS = (
+    "docs/design/design-system.md",
+    "docs/design/design-system.json",
     "docs/product/design-system.md",
     "docs/product/design-system.json",
 )
@@ -192,6 +194,7 @@ PRODUCT_DESIGN_SOURCE_KINDS = {
     "design system machine",
 }
 PRODUCT_WIREFRAME_SOURCE_PATHS = (
+    "docs/design/wireframes.html",
     "docs/product/wireframes.html",
 )
 PRODUCT_WIREFRAME_SOURCE_FILENAMES = {"wireframes.html"}
@@ -423,7 +426,10 @@ def _is_product_staging_location(value: Any) -> bool:
     normalized = value.replace("\\", "/").removeprefix("./").strip("/").lower()
     parts = normalized.split("/")
     for index in range(len(parts) - 2):
-        if parts[index : index + 3] == ["docs", "product", ".prd-staging"]:
+        if parts[index : index + 3] in (
+            ["docs", "product", ".prd-staging"],
+            ["docs", "design", ".ui-staging"],
+        ):
             return True
     return False
 
@@ -468,7 +474,9 @@ def _scope_includes_staged_product_source(
     normalized = scope.replace("\\", "/").removeprefix("./").strip("/").lower()
     parts = normalized.split("/")
     staging_index = next(
-        index for index, part in enumerate(parts) if part == ".prd-staging"
+        index
+        for index, part in enumerate(parts)
+        if part in {".prd-staging", ".ui-staging"}
     )
     tree_scope = parts[-1] == "**"
     tail = parts[staging_index + 1 : -1] if tree_scope else parts[staging_index + 1 :]
@@ -4042,7 +4050,7 @@ def _validate_run_workers(
                 _add(
                     errors,
                     f"{path}.nested_subagent_policy",
-                    "must be omitted for flat dynamic-workflow orchestration",
+                    "must be omitted for flat Claude workflow-driver orchestration",
                 )
             if (
                 schema_version in {6, 7, 8, 9}
@@ -5181,7 +5189,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(
                     errors,
                     "run.runtime_capabilities.nested_subagents",
-                    "must be omitted for flat dynamic-workflow orchestration",
+                    "must be omitted for flat Claude workflow-driver orchestration",
                 )
         permission = runtime.get("permission_boundary")
         if permission is not None and _keys(

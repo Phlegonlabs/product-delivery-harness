@@ -118,7 +118,7 @@ Observe Workflow, direct Agent tools, `EnterWorktree`, permission mode, slots, c
 
 For `chrome_devtools`, start the Claude Code host with Chrome integration enabled (`claude --chrome`). The probe surface is Claude in Chrome: the fresh reviewer child must resolve its deferred `mcp__claude-in-chrome__*` tools and successfully inspect a connected tab with a deterministic console or JavaScript check. Record `provider: claude_code` and `surface: claude_in_chrome`. This surface is Chrome integration, not arbitrary raw CDP; name it accurately. The flag, parent tools, or a connected parent tab alone is not enough.
 
-Record the normalized Claude Code host version and loaded Harness release in `runtime_adapter.version_gate`. Dynamic Workflow requires Claude Code 2.1.154 or later. After a host or plugin update, mark `restart_required`, run `/reload-plugins` or restart Claude Code, and re-probe from the fresh session; never hot-upgrade a Workflow.
+Record the normalized Claude Code host version and loaded Harness release in `runtime_adapter.version_gate`. The Claude workflow driver requires Claude Code 2.1.154 or later. After a host or plugin update, mark `restart_required`, run `/reload-plugins` or restart Claude Code, and re-probe from the fresh session; never hot-upgrade a Workflow.
 
 Prefer:
 

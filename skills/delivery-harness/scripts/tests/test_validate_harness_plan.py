@@ -762,6 +762,9 @@ Filled.
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | Complete fixture | integration | Yes | PRD-001 | Completion observed |
 | TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |
+## UI Design Handoff Status
+UI design: not_required — fixture is headless
+UI decision owner: n/a for headless
 ## Product Definition Decisions
 ### Research Gate
 Research Gate: go — assessed 2026-09-12, decided by Owner
@@ -1365,7 +1368,7 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
         )
         wireframes = wireframes_html(
             [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
-            schema="wireframes/3" if len(viewports) >= 3 else "wireframes/2",
+            schema="wireframes/4" if len(viewports) >= 3 else "wireframes/2",
             viewports=tuple(viewports),
         )
         registry = self.web_floor_registry(viewports)

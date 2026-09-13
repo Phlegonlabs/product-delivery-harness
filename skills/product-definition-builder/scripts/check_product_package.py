@@ -47,6 +47,7 @@ REQUIRED_PRD_HEADINGS = (
     "## Assumptions",
     "## Open Questions",
     "## Test Obligations",
+    "## UI Design Handoff Status",
     "## Product Definition Decisions",
 )
 
@@ -217,13 +218,6 @@ COMMERCIAL_DECISIONS_HEADER = (
     "trace ids",
 )
 
-MOTION_GATE_HEADER = (
-    "ui scope",
-    "gate",
-    "purpose and trigger",
-    "decision source",
-    "reduced-motion fallback",
-)
 
 FUNCTIONAL_REQUIREMENTS_HEADER = (
     "id",
@@ -833,44 +827,44 @@ def validate_texts(
                 if selection == "required":
                     required_stack_areas.add("commercial")
 
-    ui_bearing = (
-        "<!-- ui-surface-contract:start -->" in prd_text
-        or "<!-- ui-surface-contract:end -->" in prd_text
-    )
-    builder_ux = _section(prd_text, "## Builder UX Direction Decision")
-    if ui_bearing and builder_ux is None:
-        _add(problems, "prd", "UI-bearing package is missing Builder UX Direction Decision")
-    if builder_ux is not None:
-        motion_rows = _find_table(builder_ux, MOTION_GATE_HEADER)
-        if motion_rows is None:
-            _add(problems, "prd", "Builder UX Direction is missing the Motion Need Gate table")
+    # Product Definition owns the UI surface contract but not UI direction,
+    # wireframes, motion/media treatment, or visual approval. Require an
+    # explicit downstream handoff instead of making those later decisions a
+    # prerequisite for Product Definition Approval.
+    ui_handoff = _section(prd_text, "## UI Design Handoff Status")
+    if ui_handoff is not None:
+        status_match = re.search(
+            r"^UI design:\s*(.+?)\s*$", ui_handoff, re.IGNORECASE | re.MULTILINE
+        )
+        owner_match = re.search(
+            r"^UI decision owner:\s*(.+?)\s*$",
+            ui_handoff,
+            re.IGNORECASE | re.MULTILINE,
+        )
+        status = status_match.group(1).strip() if status_match else ""
+        owner = owner_match.group(1).strip() if owner_match else ""
+        if not status_match:
+            _add(problems, "prd", "UI Design Handoff Status is missing UI design")
+        if not owner_match:
+            _add(problems, "prd", "UI Design Handoff Status is missing UI decision owner")
+        if ui_surfaces:
+            if require_filled and not status.casefold().startswith(
+                "pending explicit ui-design-builder request"
+            ):
+                _add(
+                    problems,
+                    "prd",
+                    "UI-bearing package must defer UI design to ui-design-builder",
+                )
+            if require_filled and _invalid_human_owner(owner):
+                _add(problems, "prd", "UI decision owner must name a human owner")
         else:
-            _validate_table_rows(
-                motion_rows,
-                len(MOTION_GATE_HEADER),
-                label="Motion Need Gate",
-                require_filled=require_filled,
-                problems=problems,
-            )
-            if require_approved:
-                for row in motion_rows:
-                    if len(row) != len(MOTION_GATE_HEADER):
-                        continue
-                    motion_gate = row[1].casefold()
-                    if motion_gate == "blocked":
-                        _add(
-                            problems,
-                            "prd",
-                            f"Motion Need Gate remains blocked for {row[0]!r}",
-                        )
-                    if motion_gate == "recommended" and not any(
-                        marker in row[3].casefold() for marker in ("owner", "accepted")
-                    ):
-                        _add(
-                            problems,
-                            "prd",
-                            f"recommended motion for {row[0]!r} lacks owner acceptance",
-                        )
+            if require_filled and not status.casefold().startswith("not_required"):
+                _add(problems, "prd", "headless package must record UI design not_required")
+            if require_filled and status.casefold().startswith("not_required"):
+                reason = status[len("not_required") :].strip(" —-:")
+                if not reason or _placeholder_cell(reason):
+                    _add(problems, "prd", "headless UI design status needs a concrete reason")
     for gate_label in ("Data and Trust Gate", "AI and Automation Gate"):
         gate_record = _gate_record(prd_text, gate_label)
         if gate_record is None:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the five Product Delivery Harness skills into a user skills directory.
+# Install the six Product Delivery Harness skills into a user skills directory.
 # Any pre-existing copies are moved to one timestamped backup first — nothing is
 # overwritten or deleted. Re-running this script is the update path.
 set -euo pipefail
@@ -11,6 +11,7 @@ backup_root="${SKILL_BACKUP_ROOT:-$HOME/.agents/skill-backups/product-delivery-h
 skills=(
   delivery-harness
   product-definition-builder
+  ui-design-builder
   design-system-compiler
   code-security-review
   product-activation

@@ -90,8 +90,8 @@ if (!partnerChannelModels.includes(workflowArgs.partner_channel_model)) {
 if (workflowArgs.tool_profile !== "builder_readonly") {
   throw new Error("product-definition-builder-graph requires args.tool_profile builder_readonly");
 }
-if (workflowArgs.ui_bearing && (typeof workflowArgs.builder_ux_direction !== "string" || !workflowArgs.builder_ux_direction.trim())) {
-  throw new Error("product-definition-builder-graph requires non-empty args.builder_ux_direction for a ui_bearing product");
+if (workflowArgs.ui_bearing && (typeof workflowArgs.ui_design_owner !== "string" || !workflowArgs.ui_design_owner.trim())) {
+  throw new Error("product-definition-builder-graph requires non-empty args.ui_design_owner for a ui_bearing product");
 }
 if (workflowArgs.hosted_deployable && (typeof workflowArgs.deployment_platform !== "string" || !workflowArgs.deployment_platform.trim())) {
   throw new Error("product-definition-builder-graph requires non-empty args.deployment_platform for a hosted deployable web, API, or backend surface");
@@ -225,7 +225,6 @@ const draftSchema = {
   type: "object",
   required: [
     "prd_markdown",
-    "wireframes_html_data_json",
     "architecture_markdown",
     "stack_decisions_markdown",
     "implementation_plan_markdown",
@@ -236,7 +235,6 @@ const draftSchema = {
   ],
   properties: {
     prd_markdown: { type: "string" },
-    wireframes_html_data_json: { type: ["string", "null"] },
     architecture_markdown: { type: "string" },
     stack_decisions_markdown: { type: "string" },
     implementation_plan_markdown: { type: ["string", "null"] },
@@ -290,7 +288,7 @@ const sourceContext = JSON.stringify({
   source_paths: workflowArgs.source_paths,
   source_summary: workflowArgs.source_summary || "",
   interview_summary: workflowArgs.interview_summary,
-  builder_ux_direction: workflowArgs.builder_ux_direction || null,
+  ui_design_owner: workflowArgs.ui_design_owner || null,
   ui_bearing: workflowArgs.ui_bearing,
   browser_frontend: workflowArgs.browser_frontend,
   deployment_platform: workflowArgs.deployment_platform || null,
@@ -372,7 +370,7 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const draft = await agent(
-  "You are the synthesis role in a PRD org graph. Reconcile role results into candidate Markdown for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. Include the exact Data and Trust and AI and Automation gates, measurable Metrics contract, structured Assumptions and Open Questions, Product Definition Decisions section, and both machine marker pairs. Product Definition Approval and Stack Decision Checkpoint remain blocked in this candidate; a workflow cannot approve them. Keep every new technology proposal Recommended and present coherent bundles plus alternatives. For UI products, return draft wireframes_html_data_json matching the PRD, but do not claim Wireframe Approval. Use schema wireframes/3 with the exact global viewports or sizeClasses, canvasWidths, screens, regions, states, neverDrop lists, and per-target responsiveLayouts. Every visible action maps to exactly one page, overlay, or feedback flow; page and overlay target a known UI-* screen. A decided media position carries generationStatus deferred; never generate media. " +
+  "You are the synthesis role in a Product Definition org graph. Reconcile role results into candidate Markdown for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. Include the exact Data and Trust and AI and Automation gates, measurable Metrics contract, structured Assumptions and Open Questions, UI Design Handoff Status, Product Definition Decisions section, and both machine marker pairs. Product Definition Approval and Stack Decision Checkpoint remain blocked in this candidate; a workflow cannot approve them. Keep every new technology proposal Recommended and present coherent frontend, backend/data/auth, mobile/desktop, AI/automation, deployment, and commercial bundles plus alternatives. For UI products, finish the UI Surface Contract but do not create wireframe data, choose layout/style/motion/media, or claim any UI approval; those belong to a later ui-design-builder run. " +
     "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral release-target blocks for every expected surface, preserve each supplied surface_suffix and release_name, and name the exact branch or ref. Production has the canonical surface name without -prod; development has that exact name plus -dev. Keep surface separate from provider. Use the exact candidate run branch/ref for the internally tested development release and main for production after same-SHA fast-forward, recording the shared remote-main base rule and separate promotion authorization/read-back. Do not treat upload/submission as availability or force native distribution into the hosted environment table; native recovery may require a signed forward-fix. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer, except the mandated hosted environment contract in architecture.md, whose columns are all release-critical. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,

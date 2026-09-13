@@ -49,7 +49,15 @@ def tracked_files(repo_root: Path, ref: str | None) -> list[Path]:
     """SKILL.md plus references/*.md under skills/ at ref (None = worktree)."""
 
     if ref is None:
-        listing = _git(repo_root, "ls-files", "--", "skills")
+        listing = _git(
+            repo_root,
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "--",
+            "skills",
+        )
     else:
         listing = _git(repo_root, "ls-tree", "-r", "--name-only", ref, "--", "skills")
     files = []
@@ -58,6 +66,11 @@ def tracked_files(repo_root: Path, ref: str | None) -> list[Path]:
         if not path:
             continue
         pure = Path(path)
+        if ref is None and not (repo_root / pure).is_file():
+            # A working-tree move/deletion can leave the old path in the index
+            # before the user authorizes a commit. Count the live worktree,
+            # not a path whose bytes no longer exist.
+            continue
         if pure.parent.parent == SKILLS_ROOT and pure.name == "SKILL.md":
             files.append(pure)
         elif (

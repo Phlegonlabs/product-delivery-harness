@@ -2389,7 +2389,7 @@ class GraphManifestTests(unittest.TestCase):
     def test_native_claude_code_nodes_carry_their_own_plan_selected_model(self) -> None:
         # Wave grouping (by model/effort/tool profile) is no longer a
         # graph-selector concern: select_ready_nodes never returns a
-        # "wave_launches" key, and grouping same-host Dynamic Workflow
+        # "wave_launches" key, and grouping the same-host Claude workflow driver
         # launches now belongs entirely to the Claude Code adapter. Each
         # dispatchable node still carries its own exact PLAN-selected
         # runtime_binding so the adapter can group them itself.

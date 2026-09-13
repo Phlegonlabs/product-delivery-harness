@@ -1,14 +1,14 @@
 # Design System Guide
 
-Use this guide to publish the small frontend implementation contract in `docs/product/design-system.md` and `docs/product/design-system.json`.
+Use this guide to publish the small frontend implementation contract in `docs/design/design-system.md` and `docs/design/design-system.json`.
 
 The design system exists so frontend implementation can follow one set of tokens, primitives, component variants, states, responsive rules, and accessibility rules. It is not a design-research archive, component showcase, page recipe, or governance manual.
 
 ## Drafting Order
 
-1. Confirm that `PRD.md` records `Design System Need Gate: required`, then load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
-2. Confirm that the PRD UI surface contract is complete and frozen, `wireframes.html` has explicit human-owner approval for its complete responsive browser matrix recorded in `### Wireframe Approval`, and `### UI Design Handoff` records an approved immutable target with scope, hash, the same responsive set, passing browser-matrix evidence, and tolerance.
-3. Consume the selected direction, Taste applicability result, Design Read and dials when applicable, visual evidence, and human approval from the UI Design Handoff. Do not rerun visual-direction generation, `impeccable`, `design-taste-frontend`, or the UI Preview Gate during normal compilation.
+1. Confirm that `docs/design/ui-design.md` records `Design System Need Gate: required`, then load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
+2. Confirm that the PRD UI Surface Contract is complete and frozen and that `docs/design/ui-design.md` records approved Wireframe and Visual decisions for the complete responsive browser matrix and immutable target.
+3. Consume the selected direction, Style Integration rules, Impeccable review evidence, H1-H9 result, and human approval from `ui-design.md`. Do not rerun `frontend-design`, Impeccable, direction generation, or the HiFi review during normal compilation.
 4. Use `frontend-design` in contract-compilation mode to translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
 6. Reconcile the final token, primitive, and product-component names against every required PRD UI element and state. An unresolved page-local exception blocks publication.
@@ -45,7 +45,7 @@ Record:
 - decision status: `selected`, `provisional`, or `assumed`;
 - the human decision owner;
 - the selected or consolidated `VD-*` direction ID;
-- the Taste applicability decision and confirmed Design Read or dial settings when applicable;
+- the approved Style Integration direction and candidate theme rules;
 - the representative surface mode, concept thesis, and named visual world when the approved handoff includes them;
 - applicable `MR-*` market evidence, or an explicit statement that no valid market evidence supports the visual decision;
 - inspected `REF-*` sources with direct URL or attachment label and retrieval date;
@@ -143,7 +143,7 @@ Resolve conflicts in this order:
 5. selected Visual Direction;
 6. provisional or assumed preference.
 
-`PRD.md` owns product structure and behavior, and approved `wireframes.html` is its structural interactive review projection. The design system owns visual implementation. A visual treatment that needs a structural change returns to `product-definition-builder` instead of silently changing the screen.
+`PRD.md` owns product behavior, approved `wireframes.html` is its structural interactive projection, and `ui-design.md` owns the selected visual direction. The design system owns reusable visual implementation rules. A product change returns to `product-definition-builder`; a wireframe or visual change returns to `ui-design-builder`.
 
 ## Publish Check
 

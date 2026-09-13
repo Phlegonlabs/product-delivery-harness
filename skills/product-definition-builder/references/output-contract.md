@@ -5,19 +5,18 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/PRD.md`
 - `docs/product/architecture.md`
 - `docs/product/stack-decisions.md`
-- `docs/product/wireframes.html` for a UI-bearing product
 
-Every package passes a human Product Definition Approval before implementation. The owner approves the product scope, measurable requirements, architecture, applicable trust/AI/commercial gates, resolved stack choices, release targets, accepted assumptions, and non-blocking open questions as one named package revision. For a UI-bearing product, the approved PRD is then projected into one interactive `wireframes.html`, receives its separate structural approval, and stops. A headless product skips only the wireframe gate, not Product Definition Approval.
+Every package passes a human Product Definition Approval before UI design or implementation. The owner approves product scope, measurable requirements, complete frontend and backend architecture, applicable trust/AI/commercial gates, resolved stack choices, release targets, accepted assumptions, and non-blocking open questions as one named package revision. A UI-bearing product then stops for a later explicit `ui-design-builder` request. A headless product records UI design as `not_required` but still passes Product Definition Approval.
 
-This contract covers the owner-approved product and technology definition plus approved structural screen behavior where UI exists. It does not require a visual direction, preview, token set, closed component variants, or design-system rules. Those belong to a later optional visual-design phase.
+This contract covers the owner-approved product, architecture, technology stack, and required UI behavior. It does not require a wireframe, visual direction, motion/media treatment, preview, token set, or design-system rules. Those belong to `ui-design-builder` and, when needed, `design-system-compiler`.
 
-It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass runs before Stack Decision and Product Definition approval so its findings cannot silently stale an accepted package or wireframe. When the user declined it, no web tool was available, confidential context prevented a safe query, or the role returned blocked, the package records that state explicitly. See `market-research-guide.md`.
+It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass runs before Stack Decision and Product Definition approval so its findings cannot silently stale an accepted package. When the user declined it, no web tool was available, confidential context prevented a safe query, or the role returned blocked, the package records that state explicitly. See `market-research-guide.md`.
 
 For a product with a web, iOS, or browser-extension release target, it also creates a one-time operational seed at `docs/ACTIVATION.md` from the sibling `product-activation` template when that path is absent. The seed maps release targets, every PRD metric, and every required `TEST-*` signal, but it contains no external authorization, account guess, secret value, or claim that a source is verified. An existing Activation record is owned by `product-activation` and is preserved byte-for-byte during product enhancement.
 
-It specifies what each UI surface must show and do and shows its structure in a self-contained HTML reviewer. Do not turn `wireframes.html` into a design-reference mockup or add token schemas, component catalogs, or styling rules here.
+It specifies what each UI surface must show and do. It does not decide how the surface is composed or styled and creates no HTML reviewer.
 
-`PRD.md` is the canonical source for product scope, routes, screen purpose, visible-region responsibility, content, actions, states, responsive behavior, flows, trace IDs, trust/AI gates, Builder UX Direction, and Product Definition Approval. `stack-decisions.md` records a separate Stack Decision Checkpoint. `wireframes.html` is the only structural review projection and never overrides the approved PRD revision.
+`PRD.md` is the canonical source for product scope, routes, screen purpose, content responsibility, actions, states, responsive obligations, flows, trace IDs, trust/AI gates, and Product Definition Approval. `architecture.md` fixes frontend and backend structure, and `stack-decisions.md` records the separate Stack Decision Checkpoint. Later UI artifacts never override the approved Product Definition revision.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -30,7 +29,6 @@ Every artifact has one primary reader and one job. Write for that reader.
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
 | `PRD.md` | The owner and anyone deciding whether to build this | What it is, for whom, what counts as done, and whether the product definition is approved |
-| `wireframes.html` | The human owner reviewing the full UI map | How all pages, labeled sections, viewport arrangements, and states fit together in one interactive file |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `stack-decisions.md` | The owner and engineer choosing or reviewing technology | Which coherent options were considered, what the owner approved, and why |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
@@ -39,9 +37,8 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, and what actually deployed |
 | `docs/ACTIVATION.md` | The owner or operator activating a delivered release | Which external actions and measurement sources are pending, configured, verified, blocked, or stale |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
-| `design-system.md` + `design-system.json` (only after an explicitly requested visual-design phase whose Design System Need Gate is `required`) | A designer or frontend engineer styling reusable surfaces | The binding token, primitive, component, and state contract; read alongside `PRD.md` and `wireframes.html` |
 
-Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`; for UI products, read `wireframes.html` next as the structural projection of that approved revision. Optional visual/design-system and operational records never override the Product Definition. Research artifacts hold evidence behind cited `RA-*` and `MR-*` findings.
+Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`. For UI products, `docs/design/ui-design.md` and `docs/design/wireframes.html` are later downstream inputs. Optional UI/design-system and operational records never override Product Definition. Research artifacts hold evidence behind cited `RA-*` and `MR-*` findings.
 
 Two rules keep the package readable:
 
@@ -51,7 +48,6 @@ Two rules keep the package readable:
 Length budget. These are targets, not caps — say less when the product is simple, and go over only when the product is genuinely more complex, not when a section drifted:
 
 - `PRD.md`: about 200 lines. `## At a Glance` fits on one screen.
-- `wireframes.html`: one self-contained file; keep product data in the embedded data block and reuse the supplied reviewer shell rather than duplicating page-specific CSS or JavaScript.
 - `architecture.md`: about 250 lines.
 - `stack-decisions.md`: about 150 lines.
 - `market-research.md`: about 150 lines. Findings and sources, not an industry report.
@@ -130,7 +126,7 @@ Record every applicable quality category as a measurable `PRD-*` requirement, or
 <!-- ui-surface-contract:start -->
 ## UI Surface Contract
 
-Omit this section only when the product has no shipped UI surface. Define one entry per addressable screen or bounded UI surface. This is the canonical implementation source for structure and behavior.
+Omit this section only when the product has no shipped UI surface. Define one entry per addressable screen or bounded UI surface. This is the canonical product source for what each surface must support; `ui-design-builder` later decides its layout and visual structure.
 
 The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, `` `states` ``, and `` `responsive` `` field names are invariant machine anchors. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it, and each entry contains exactly one of each anchor. Keep them unchanged when the surrounding PRD is written in another language. Each entry has exactly one literal route; use a separate `UI-*` entry when another addressable route needs the same presentation.
 
@@ -138,19 +134,18 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 
 - `route`: [One literal route value, or `n/a — <reason>`]
 - Main purpose: [One primary user goal]
-- Layout pattern and density: [Task-fit pattern and reason]
-- Region order and responsibilities: [Ordered visible regions; exact copy or bounded display contract for each]
+- Content responsibilities: [Required information and controls; exact copy or bounded display contract for each, without choosing layout or region order]
 - Actions and transitions: [Primary, secondary, destructive, navigation, success, and failure paths]
 - `states`: [Comma-separated state IDs. Record an inapplicable state as `<state>:n/a — <reason>` so the PLAN join can preserve the decision]
 - `responsive`: [Exactly one responsive set: at least three ascending `viewports: 390, 768, 1200` for web, or at least two `sizeClasses: compact, regular` for native/desktop. Every UI-* entry in one package uses the same set]
-- Responsive behavior: [For every declared target: order, grid/stacking, visibility, never-drop content/actions, interaction-mode changes, long-content handling, and intended-overlay stacking/focus/dismissal behavior]
+- Responsive obligations: [Content/actions that never drop, required interaction modes, long-content behavior, and overlay focus/dismissal requirements; layout order, grid, spans, and reflow remain UI-design decisions]
 - Accessibility: [Focus, labels, announcements, heading order, and alt text as applicable]
 - SEO metadata: [Per-route `<title>` and meta description; canonical URL or `n/a — <reason>`; Open Graph/social, robots, and structured-data decisions as applicable or `n/a — <reason>`]
 - Trace IDs: [PRD-*, UX-*, ARCH-*, TEST-*]
 
 <!-- ui-surface-contract:end -->
 
-Every route maps to exactly one `UI-*` entry. Every region states what it displays, where the content comes from, what the user should understand or do, and any ordering, format, count, or length constraint. Do not use generic placeholders such as `Main content`, `Feature section`, or `Card 1`.
+Every route maps to exactly one `UI-*` entry. Every required content responsibility states what it displays, where the content comes from, what the user should understand or do, and any format, count, or length constraint. Do not invent layout regions in Product Definition.
 
 SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description, written for that page's actual content, plus the applicable extras or an explicit `n/a — <reason>`. Site-level SEO obligations — indexing strategy, sitemap and robots policy, canonical policy, default structured data — are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement.
 
@@ -209,7 +204,7 @@ Record both gates even when they are not required. Do not select RevenueCat mere
 | Partner motion | [none / affiliate / referral / reseller / hybrid / undecided] | [Link attribution, known-lead referral, partner-owned sale, or named combination] | [selected / approved / recommended / provisional / assumed] | [PRD-* / TEST-*] |
 | Partner economics and operations | [Commission/discount, attribution, reversal, payout, customer ownership, provisioning, support, termination] | [Channel rules] | [selected / approved / recommended / provisional / assumed] | [PRD-* / ARCH-* / TEST-*] |
 
-Use `monetization-and-partner-channel-guide.md` to select providers only after these decisions. If either gate is `required`, add every customer, partner, and admin surface to the UI Surface Contract and `wireframes.html`, and add observable success, failure, cancellation, refund, attribution, commission, payout, provisioning, and termination obligations as applicable.
+Use `monetization-and-partner-channel-guide.md` to select providers only after these decisions. If either gate is `required`, add every customer, partner, and admin surface to the UI Surface Contract and add observable success, failure, cancellation, refund, attribution, commission, payout, provisioning, and termination obligations. The later `ui-design-builder` run projects those approved surfaces into wireframes.
 
 ## Metrics
 | Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |
@@ -240,33 +235,15 @@ Every `Must` functional requirement and every applicable non-functional requirem
 
 ---
 
-## Builder UX Direction Decision
+## UI Design Handoff Status
 
-Include this section only for a UI-bearing product. Read it when you need to know why the interface is shaped the way it is; skip it on a first pass.
+Every Product Definition records exactly one result:
 
-Decision owner: [Human product/design owner or commissioning team]
+UI design: [pending explicit ui-design-builder request / not_required — headless reason]
 
-| Dimension | Direction | Product / user rationale | Status | Validation needed |
-| --- | --- | --- | --- | --- |
-| Experience priority | [Speed / clarity / guided completion / expert control / exploration / conversion / comprehension] | [Why this fits the product and user task] | [selected / provisional / assumed] | [None / prototype review / likely-user test / benchmark] |
-| Guidance and control | [Guided / balanced / expert-flexible] | [Reason] | [selected / provisional / assumed] | [Method or none] |
-| Information density | [Sparse / balanced / dense] | [Reason] | [selected / provisional / assumed] | [Method or none] |
-| Interaction and layout | [Familiar / expressive; preferred primary pattern] | [Reason] | [selected / provisional / assumed] | [Method or none] |
-| Motion direction | [Quiet with functional feedback / expressive where justified / AI recommendation] | [Reason and who may decide per-surface motion] | [selected / provisional / assumed] | [Normal plus reduced-motion review / owner decision] |
-| Confirmation and recovery | [Confirm / undo / retry / escalation expectations] | [Reason] | [selected / provisional / assumed] | [Method or none] |
+UI decision owner: [Human owner / n/a for headless]
 
-Validation depth: [lightweight direction-conformance review only / moderate (conformance plus targeted checks) / deep (formal usability or user-evidence validation)] — [selected / provisional / assumed], decided by [decision owner]
-This is the single recorded home for the interview's validation-depth answer, so the design-system step and downstream skills can read it here instead of re-asking.
-
-Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
-
-Motion Need Gate:
-
-| UI scope | Gate | Purpose and trigger | Decision source | Reduced-motion fallback |
-| --- | --- | --- | --- | --- |
-| [UI-* screen or named region] | [required / recommended / not_required / blocked] | [State feedback, progress, spatial relationship, hierarchy, brand expression, or reason none is needed] | [Owner selection / AI recommendation accepted by owner / assumed] | [Equivalent static state, immediate transition, or other non-motion signal] |
-
-The AI may recommend a gate when the owner delegated motion direction. Generated motion, autoplay or sound, a material performance budget, an accessibility exception, or a scope-changing treatment still needs a human decision. A `blocked` row prevents Product Definition and visual approval.
+Product Definition does not decide density, layout preference, visual style, motion treatment, media placeholders, wireframes, page theme, or design tokens. `ui-design-builder` records those decisions later in `docs/design/ui-design.md` without changing the approved Product Definition unless it finds a product or stack gap.
 
 ## Product Definition Decisions
 
@@ -293,93 +270,15 @@ Research Gate: [go / clarify / stop / skipped] — [assessment date and findings
 
 Keep the required level-two PRD headings, Product Definition marker pair and fields, Data and Trust/AI gate lines, Metrics/Assumptions/Open Questions headers, and Monetization/Partner decision header plus its two gate row labels in English when surrounding prose is translated; the core-package checker treats them as machine anchors.
 
-The owner receives one concise package review: product scope and non-goals; Must requirements and acceptance criteria; data/trust, AI, monetization, and partner gates; metrics and required tests; architecture and release targets; the approved stack bundle; risks; and every assumption/open question. `approved` requires an approved Stack Decision Checkpoint, no unresolved question marked `Blocks approval: Yes`, no blocked trust/AI/commercial gate, and no unresolved scope-changing research finding. A substantive change to those approved contents creates a new package revision and reopens this gate. Appending later Wireframe Approval or UI Design Handoff evidence to `## Product Definition Decisions` keeps the same package revision and does not reopen product approval unless that work also changes scope, requirements, gates, metrics, architecture, or stack.
+The owner receives one concise package review: product scope and non-goals; Must requirements and acceptance criteria; data/trust, AI, monetization, and partner gates; metrics and required tests; complete frontend and backend architecture; release targets; the approved stack bundle; risks; and every assumption/open question. `approved` requires an approved Stack Decision Checkpoint, no unresolved question marked `Blocks approval: Yes`, no blocked trust/AI/commercial gate, and no unresolved scope-changing research finding. A substantive change to those approved contents creates a new package revision and reopens this gate. Later UI evidence lives in `docs/design/ui-design.md`; it does not reopen Product Definition unless it exposes or requests a change to the approved product or stack.
 
-### Wireframe Approval
+### Downstream UI Design
 
-Include this subsection only for a UI-bearing product and only after Product Definition Approval is `approved`.
+For a UI-bearing product, Product Definition ends after the approved core package is published. A later explicit `ui-design-builder` run consumes that exact revision and owns `docs/design/ui-design.md`, `docs/design/wireframes.html`, retained HiFi references, UI grading, visual approval, and the Design System Need Gate. Those artifacts never become approved merely because this PRD exists.
 
-Artifact: [wireframes.html path]
+If UI design exposes a missing route, action, state, responsive obligation, content responsibility, architecture decision, or stack constraint, return the gap to this skill, revise the affected core artifact, and obtain Product Definition Approval on a new revision before UI work resumes.
 
-Decision: [approved / revision_requested / blocked], decided by [human owner] on [YYYY-MM-DD]
-
-Approved scope: [UI-* entries, routes, the exact `responsive` viewports or size classes, and states]
-
-Responsive browser check: [Browser and date; PASS for every UI-* × responsive target × non-n/a state with no unintended overlap, clipping, occlusion, or horizontal overflow; intended overlays and their stacking/focus/dismissal rule]
-
-UI grading: [One complete diagnostic wave; lead and any justified specialist lenses; frozen PRD path plus revision or SHA-256; current candidate HTML SHA-256; Technical Hard Gate and DOM geometry results; 0–100 visual-quality scores plus statuses and medians when applicable; wireframe overall threshold 80 or design-reference overall threshold 90; advisories; disputed dimensions; design-reference H2/H4/H8 threshold 90 results; one consolidated root-cause defect ledger; the one repair batch and one re-review outcome or blocked owner decision; inline detail rows / skipped — multi-agent capability unavailable, with the same frozen identities and hard-gate result]
-
-Bounded revisions or unresolved items: [None / named items]
-
-Wireframe references consulted: [None — reason the Reference Pass was skipped / one line per source: URL, publisher, retrieval date, structural pattern adopted or rejected]
-
-Visual design phase: [not requested / requested / completed]
-
-If wireframe work exposes a missing or contradictory product obligation, update the PRD first, mint a new package revision, and re-run Product Definition Approval before approving a replacement wireframe. A wireframe decision never edits product scope by implication.
-
-### UI Design Handoff
-
-Include this subsection only after the human owner explicitly requests the visual-design phase.
-
-Taste applicability: [applicable / partially_applicable / n/a: reason]
-
-Design method: [design-taste-frontend / frontend-design for named excluded surfaces / explicit gpt-taste alternative for named scope]
-
-Design Read and dials: [one-line Design Read plus DESIGN_VARIANCE / MOTION_INTENSITY / VISUAL_DENSITY when Taste applies; otherwise the platform/design-system basis]
-
-Selected direction: [VD-* ID and one-line visual intent, with confirmed REF-* / RP-* IDs or none] — [approved / provisional / blocked], decided by [human owner]
-
-Frozen PRD basis: [PRD.md path plus revision or SHA-256 used by the HTML and grading stage]
-
-Preview scope: [Included UI-* screens and states; login, registration, recovery, and authentication-error previews recorded n/a without removing production auth requirements]
-
-Key-surface treatments: [Per screen/region: Motion Need Gate plus motion-led / imagery-led / motion + imagery / quiet treatment, with owner or accepted AI-recommendation source]
-
-Functional UI motion evidence: [Per required position: trigger, purpose, deterministic local CSS/JavaScript behavior, normal-mode result, and equivalent reduced-motion result]
-
-Deferred generation handoff: [Per generated media/motion position: placement or trigger, dedicated prompt, source, reduced-motion expectation when applicable, generationStatus: deferred; no provider invoked]
-
-Iconography: [Recommended primary icon set plus named fallback, with cited official-source URLs and retrieval dates / None — the product uses no icons / UNVALIDATED pick and why]
-
-Typography: [Recommended display + body pairing and CJK stack with cited official-source URLs and retrieval dates; loading strategy (self-host/CDN, subsetting, font-display) / Platform-fixed faces — reason / UNVALIDATED pick and why]
-
-Color & dark mode: [Palette derivation and named scale approach with cited source; dark mode in scope or named later scope]
-
-Connected HTML review: [One self-contained design-reference HTML path; complete embedded CSS; left sidebar listing every in-scope UI-* page or screen; working page, state, modal/drawer, feedback, approved-flow interactions, and required local UI motion with a reduced-motion fallback; no live backend, authentication, or generation call]
-
-| UI target | Source path or immutable version | SHA-256 | Routes / states | Responsive scope | Tolerance and allowed deviations |
-| --- | --- | --- | --- | --- | --- |
-| [Preview ID] | [Path or version] | [Digest] | [UI-* and states] | [Exact PRD viewports or size classes plus browser matrix evidence] | [Comparison method, tolerance, real-data/platform-chrome allowances; named stacking/focus/dismissal behavior for intentional overlays] |
-
-Preview evidence: [Interactive HTML browser matrix; Technical Hard Gate, console, and element-level DOM geometry results; working-control, keyboard/focus, accessibility, responsive, motion in normal and reduced modes, and design-consistency evidence; limitations; diagnostic scores, consolidated defect ledger, bounded repair/re-review outcome, or capability-unavailable skip]
-
-Visual approval is direction conformance, not usability proof or production readiness.
-
-Design System Need Gate: [required / not_required / blocked] — [reason], decided by [owner]
-
-Replacement visual contract when `not_required`: [approved page-faithful target above plus PRD.md and wireframes.html]
-
-Approved wireframe review projection: [wireframes.html path]
 ```
-
-Keep the `### UI Design Handoff` heading text exactly as written when that optional subsection is present because the design-system workflow consumes it by anchor.
-
-## `wireframes.html`
-
-Produce this file for every UI-bearing product, using `wireframe-guide.md` and `assets/templates/WIREFRAMES.template.html`.
-
-It must be one self-contained local file containing:
-
-1. every `UI-*` page or shipped surface;
-2. an all-pages overview and page/route switcher;
-3. data-driven controls for the exact PRD responsive set, with at least three ascending web viewports or at least two native/desktop size classes;
-4. required state switching for each page;
-5. complete per-target order, visibility, grid spans, reflow, and interaction rules for every page;
-6. visible product-fit section names plus purpose, priority, elements, working PRD actions, and state treatment;
-7. runtime region-overlap and horizontal-overflow QA for the selected matrix entry; and
-8. approval status that agrees with `PRD.md`'s `### Wireframe Approval`.
-
-The embedded page data must agree exactly with `PRD.md`; `PRD.md` wins on conflict. Every visible region action maps to exactly one `page`, `overlay`, or `feedback` flow and works locally without a network request. The data block may also project optional deferred `mediaIntent`, `UX-*` traces, and element display contracts described in `wireframe-guide.md`; they inherit the same agreement rule. Use inline CSS and JavaScript only for the structural review shell. Make no external request and include no production component, brand styling, design-reference visual direction, generated imagery, final animation, or design-system token decision. Human approval completes the wireframe phase; do not start visual design or implementation unless separately requested.
 
 ## `market-research.md`
 
@@ -831,11 +730,9 @@ Use only when a layer cannot yet be decided. A bare `TBD` does not pass validati
 | --- | --- | --- | --- | --- | --- | --- |
 ```
 
-## Optional UI Design And Product Design Handoff
+## Optional UI Design Handoff
 
-Stop after the human owner approves `wireframes.html` unless they explicitly ask to continue into visual design. On that later request, run `ui-design-pass.md`: record Taste applicability, use `design-taste-frontend` where applicable or `frontend-design` for excluded surfaces, produce the connected interactive design-reference HTML with deferred image and motion handoffs, obtain human visual approval, and freeze the selected result in `PRD.md`'s `### UI Design Handoff`. Pass a known reference use as `design inspiration` or `page-faithful target`; do not infer faithful-copy intent from a URL, screenshot, or Figma frame.
-
-Run the Design System Need Gate after approval. `not_required` is a normal result for a small or single-surface UI; its approved page-faithful target plus `PRD.md` and `wireframes.html` form the replacement visual contract. When the gate is `required`, pass the approved UI Design Handoff and staged product sources to `../design-system-compiler/SKILL.md`; it owns `design-system.md` and `design-system.json`, preserves stable `DS-*` and `DS-COMP-*` IDs, and does not reopen visual direction by default. If the product has no shipped UI surface, record the reason in `PRD.md` and publish no placeholder wireframe, preview, or design artifacts.
+Stop after Product Definition Approval. When the owner later asks to design the UI, invoke `../ui-design-builder/SKILL.md` with the approved PRD, architecture, and stack paths. It asks UI, style, motion, and media questions; creates and scores the wireframe; integrates the approved style with `frontend-design`; runs Impeccable HiFi review plus H1–H9 grading; obtains visual approval; and invokes `design-system-compiler` only when its later gate is `required`.
 
 ## Optional `implementation-plan.md`
 
@@ -893,14 +790,14 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 ### Readability
 
-- Each artifact opens with human-readable content and keeps decision records near the end: `PRD.md` opens with `## At a Glance`, includes Builder UX Direction only for UI-bearing products, and closes with the always-present `## Product Definition Decisions`; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` opens with its machine-anchored Stack Decision Checkpoint and closes with `## Options And Open Decisions`.
+- Each artifact opens with human-readable content and keeps decision records near the end: `PRD.md` opens with `## At a Glance`, records `## UI Design Handoff Status`, and closes with `## Product Definition Decisions`; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` opens with its machine-anchored Stack Decision Checkpoint and closes with `## Options And Open Decisions`.
 - `## At a Glance` answers what the product is, who it is for, why now, what success looks like, and the biggest risk — one line each, on one screen.
 - Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved to another artifact instead of expanding.
 - No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical.
 
 ### Completeness
 
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory. Their Product Definition Approval and Stack Decision Checkpoint are both `approved`, and `check_product_package.py --require-filled --require-approved` passes before any wireframe approval or publication. The staged operational documents follow their existing applicability rules. UI-bearing packages additionally require approved `wireframes.html`; headless packages skip only UI artifacts, not Product Definition Approval.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory. Their Product Definition Approval and Stack Decision Checkpoint are both `approved`, and `check_product_package.py --require-filled --require-approved` passes before publication. The staged operational documents follow their existing applicability rules. UI-bearing packages record a pending `ui-design-builder` handoff; headless packages record `not_required` without skipping Product Definition Approval.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing product decision records. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
@@ -911,11 +808,9 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Product Definition Approval requires both commercial gate rows to be `selected` or `approved`; `recommended`, `provisional`, `assumed`, or `blocked` remains a draft decision.
 - A pricing strategy never silently selects RevenueCat. `stack-decisions.md` compares current relevant providers through `monetization-and-partner-channel-guide.md`, cites official evidence and retrieval date, separates store/billing, entitlement, paywall/checkout, merchant-of-record/tax, and partner-channel layers, and records rejected alternatives and revisit triggers. Affiliate, referral, and reseller remain distinct motions.
 - When either gate is required, `architecture.md` defines the applicable revenue and partner entities, stable identity joins, verified idempotent event/webhook flows, retry/replay/reconciliation, refund/chargeback effects, entitlement grant/revoke/restore, commission reversal, and reseller provisioning/deprovisioning. Required UI surfaces and `TEST-*` obligations cover the chosen lifecycle, including failure and termination states.
-- For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, motion direction and decision authority, confirmation/recovery, validation depth, and decision status. Its Motion Need Gate classifies every key surface as `required`, `recommended`, `not_required`, or `blocked` with purpose, trigger, source, and reduced-motion fallback.
-- For a UI-bearing product, `wireframes.html` maps every `UI-*` entry exactly once in one self-contained `wireframes/3` file with working overview, page, responsive-target, state, section-label, runtime layout-QA, and PRD action controls; the checker keeps `wireframes/2` read compatibility for unchanged historical files. Every visible region action in schema 3 maps to exactly one local `page`, `overlay`, or `feedback` flow. Every PRD entry has exactly one `` `responsive` `` anchor; its set matches the HTML, contains at least three ascending web viewports or at least two native/desktop size classes, and every screen supplies complete per-target order, visibility, columns, spans, reflow, and interaction rules. Optional `mediaIntent` entries are validated deferred MCP-generation handoffs, not generated output. The file contains no design-reference styling or product implementation code, agrees with `PRD.md`, passes `wireframe-guide.md`'s quality check and `check_wireframe_html.py --require-filled --require-approved`, and has one human `approved` decision recorded in `PRD.md` before the wireframe phase completes. The approval record includes the real-browser matrix result and the PRD-bound diagnostic wave, consolidated ledger, and bounded repair/re-review outcome, or the exact capability-unavailable skip when the host cannot run that stage. No unintended overlap, clipping, occlusion, or horizontal overflow exists at any UI surface, responsive target, or non-`n/a` state, and every intentional overlay names its stacking, focus, and dismissal rule. `PRD.md` also records either the consulted wireframe references or the reason the Reference Pass was skipped.
+- For a UI-bearing product, `PRD.md` records the human owner for later UI design plus complete surfaces, routes, actions, states, responsive obligations, copy responsibilities, accessibility, confirmation, and recovery behavior. It does not contain a guessed layout, style, motion/media treatment, wireframe approval, or design token.
 - An enhancement package records the complete Enhancement Impact Record across product behavior, UI structure/style, data/integrations, architecture/stack, data trust/AI, monetization/partner, and release/operations. Each changed row names affected IDs/decisions, refreshed artifacts, and rerun gates. UI keeps the `none` / `structure` / `style` / `both` classification and its existing wireframe/design consequences.
-- A wireframe-only package records `Visual design phase: not requested` and validates without Taste, preview evidence, a UI Design Handoff, a Design System Need Gate, or design-system artifacts. When visual design was explicitly requested, `PRD.md` records those later decisions and evidence, and the `### UI Design Handoff` carries an `Iconography:` line recording the recommended set with cited sources or an explicit skip, `UNVALIDATED`, or no-icons reason, a `Typography:` line recording the pairing, CJK stack, and loading strategy or an explicit skip or `UNVALIDATED` reason, and a `Color & dark mode:` line recording the palette derivation and dark-mode scope — a visual package missing any of these three lines does not validate.
-- Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
+- UI preference is not presented as user validation. `ui-design-builder` later records those choices and keeps conflicts with user evidence or accessibility requirements explicit.
 - For every deployable web, API, mobile, desktop, or browser-extension surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, an explicit lowercase kebab-case surface suffix and release name, separate stable surface and stage-specific provider fields, a source policy naming the exact branch or ref, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Production uses the canonical `<product-slug>-<surface-suffix>` name without `-prod`; development uses that exact name plus `-dev`; release names are globally unique across surface IDs. Different providers by stage are valid for the same surface.
 - Upload, submission, deployment-command success, notarization, or store approval alone is not accepted as availability. Hosted targets prove the route/API is serving and passes smoke checks; store or signed-installer targets prove the intended audience can actually install/download the artifact and that its release smoke check passes.
 - For a deployable hosted web, API, or backend target, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
@@ -930,7 +825,6 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
 - Any unresolved frontend, backend, database, auth, mobile/desktop, AI/automation, or commercial decision appears in the shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass.
 - An approved Stack Decision Checkpoint contains only `Required`, `Selected`, or `Approved` executable rows. `Recommended` and `Provisional` may remain in a staged candidate but block Product Definition Approval and Harness. Explicit delegation is recorded in the checkpoint and turns the resulting accepted choice into `Approved`; it never makes `Recommended` executable.
-- When the visual-design phase was explicitly requested, the Design System Need Gate is not `blocked`. Its UI Design Handoff records one connected self-contained design-reference HTML review file: the left sidebar lists every in-scope `UI-*` page or screen, every visible product control performs its recorded page, state, modal/drawer, or feedback behavior, required functional UI motion runs locally with an equivalent reduced-motion path, and full CSS is present. Login, registration, recovery, and authentication-error previews are recorded `n/a` for this visual pass; the HTML starts from the main or authenticated entry without live auth. Generated image and motion positions remain static deferred-generation placeholders with dedicated prompts and no provider call. The handoff records its frozen PRD identity plus the PRD-bound diagnostic and bounded repair/re-review outcome, or the exact capability-unavailable skip. When the gate is `required`, the package includes the validated pair returned by `design-system-compiler` and the parent records its exact staged paths and passing checks. When it is `not_required`, no placeholder pair is present and the approved page-faithful UI target, `PRD.md`, and `wireframes.html` are explicitly named as the replacement visual contract.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - The market-research gap pass completes or records its skip/block reason before Stack Decision and Product Definition approval. Its queries pass the Research Disclosure Check; confidential inputs never leave the product context by implication.
 - For a new package, `PRD.md` records a `### Research Gate` with `go`, `clarify`, `stop`, or the permitted skip reason, including confidential-context constraints. An enhancement cites the prior gate unchanged and researches only the delta.
@@ -939,8 +833,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 - When `market-research.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date. Any claim without one is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
 - When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
 - Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
-- When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
-- Run `python skills/product-definition-builder/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --require-filled --require-approved` before Wireframe Approval and publication. It validates core headings, Must/NFR-to-TEST coverage, metrics, decision tables, both approval markers, executable stack statuses, and blocked trust/AI/commercial gates.
+- When the read-only agent work graph was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Agent output is treated as a candidate; the parent still owns staging and publication.
+- Run `python skills/product-definition-builder/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --require-filled --require-approved` before publication. It validates core headings, Must/NFR-to-TEST coverage, metrics, decision tables, both approval markers, executable stack statuses, and blocked trust/AI/commercial gates.
 
 ### Publication
 

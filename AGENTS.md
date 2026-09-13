@@ -30,7 +30,7 @@
 
 - When `docs/product/PRD.md` exists, every product change updates the affected PRD requirements, acceptance criteria, and trace IDs in the same change, including small post-delivery fixes that do not use Product Delivery Harness PLAN/RUN.
 - Before implementation, classify the change's UI impact as `none`, `structure`, `style`, or `both`. Adding a page, route, visible region, state, or responsive behavior is at least `structure`.
-- For `structure` or `both`, update only the affected PRD UI Surface Contract entries and `wireframes.html` pages, then re-run their applicable validation and approval gate. For `style` or `both`, also update the approved UI direction or record the owner's decision to keep it; update the design-system contract only when the approved change requires it.
+- For `structure` or `both`, update product-owned behavior through `product-definition-builder` first, obtain Product Definition Approval, then update only the affected `ui-design.md` and `wireframes.html` scope through `ui-design-builder` and rerun its gates. For `style` or `both`, rerun Style Integration, Impeccable review, H1-H9 grading, and Visual Approval or record the owner's decision to retain the existing direction; update the design-system pair only when required.
 - Preserve unaffected requirements, IDs, pages, wireframes, and design decisions. A direct task may stay small, but it is not complete while implementation and the canonical product documents disagree.
 
 ## Monetization And Partner Channels
@@ -38,7 +38,7 @@
 - When a product has pricing, paid access, purchase-gated features, or outside sellers, keep explicit Monetization Infrastructure and Partner Channel gates in `docs/product/PRD.md`; record `not_required` with a reason when either does not apply.
 - Resolve the commercial model and purchase surfaces before selecting technology. RevenueCat is one candidate, never the default: compare current official evidence for native store billing, RevenueCat, Qonversion, Adapty, Superwall, Stripe Billing, Paddle, Lemon Squeezy, or another product-fit option.
 - Treat affiliate, referral, and reseller as different motions. A reseller decision must cover deal registration, price authority or wholesale terms, customer ownership, provisioning, delegated administration, support, renewals, termination, and channel conflict; an affiliate link alone does not satisfy it.
-- Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller-operation responsibilities separate in PRD, architecture, stack decisions, implementation, and tests. Update affected UI Surface Contract entries and `wireframes.html` before implementing customer, partner, pricing, purchase, or administration surfaces.
+- Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller-operation responsibilities separate in PRD, architecture, stack decisions, implementation, and tests. Update affected UI Surface Contract entries through `product-definition-builder`, then update `ui-design.md` and `wireframes.html` through `ui-design-builder` before implementing customer, partner, pricing, purchase, or administration surfaces.
 
 ## Mission Task Split
 
@@ -59,7 +59,7 @@
 
 ## Update Local Skills
 
-- Every push that changes `skills/` is followed by the local skills update, in the same turn. Quiesce active skill-using sessions first. Move any existing `delivery-harness`, `product-definition-builder`, `design-system-compiler`, `product-activation`, `code-security-review`, `full-harness`, `prd-builder`, and `product-design-builder` directories to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the discovery root; never overwrite or delete them. Copy the five current repository skills into `~/.agents/skills/`, verify their files match canonical, verify the three legacy IDs are absent from that discovery directory, then restart the host. Restore the backup if verification fails. This step is mandatory after a push, never deferred to a later request.
+- Every push that changes `skills/` is followed by the local skills update, in the same turn. Quiesce active skill-using sessions first. Move any existing `delivery-harness`, `product-definition-builder`, `ui-design-builder`, `design-system-compiler`, `product-activation`, `code-security-review`, `full-harness`, `prd-builder`, and `product-design-builder` directories to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the discovery root; never overwrite or delete them. Copy the six current repository skills into `~/.agents/skills/`, verify their files match canonical, verify the three legacy IDs are absent from that discovery directory, then restart the host. Restore the backup if verification fails. This step is mandatory after a push, never deferred to a later request.
 - Per-runtime copies (Codex plugin, Claude plugin, Pi extension) stay retired. Do not install, update, or reinstall them.
 
 ## Required Verification
@@ -69,11 +69,12 @@ Edit only the canonical sources in `skills/`, then run all of this from the repo
 ```text
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
+python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 python -m unittest discover -s skills/product-activation/scripts/tests -v
 git diff --check

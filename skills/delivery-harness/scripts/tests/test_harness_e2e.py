@@ -145,7 +145,7 @@ class HarnessCliE2ETests(unittest.TestCase):
             self.assertEqual(run_text, run_path.read_text(encoding="utf-8"))
             return proposal
 
-    def test_validated_claude_run_selects_dynamic_workflow_launch_path(self) -> None:
+    def test_validated_claude_run_selects_workflow_driver_launch_path(self) -> None:
         plan = valid_graph_plan()
         detach_mission_edges(plan)
         plan["max_parallel_workers"] = 2

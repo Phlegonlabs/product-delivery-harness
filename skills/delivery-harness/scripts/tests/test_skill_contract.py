@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.36.0"', package)
+        self.assertIn('"version": "0.37.0"', package)
         self.assertEqual(
-            "0.36.0",
+            "0.37.0",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -43,6 +43,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         current = {
             "delivery-harness": "Delivery Harness",
             "product-definition-builder": "Product Definition Builder",
+            "ui-design-builder": "UI Design Builder",
             "design-system-compiler": "Design System Compiler",
             "code-security-review": "Code Security Review",
             "product-activation": "Product Activation",
@@ -69,6 +70,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 self.assertIn("Product Delivery Harness", readme)
                 self.assertIn("`delivery-harness`", readme)
                 self.assertIn("`product-definition-builder`", readme)
+                self.assertIn("`ui-design-builder`", readme)
                 self.assertIn("`design-system-compiler`", readme)
                 self.assertIn("`code-security-review`", readme)
                 self.assertIn("`product-activation`", readme)
@@ -91,6 +93,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                     "product-design-builder",
                     "delivery-harness",
                     "product-definition-builder",
+                    "ui-design-builder",
                     "design-system-compiler",
                     "code-security-review",
                     "product-activation",
@@ -470,12 +473,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             skill,
         )
         self.assertIn("## Skill Bindings", project_agents)
-        self.assertIn("| design_direction |", project_agents)
+        self.assertIn("| ui_design |", project_agents)
+        self.assertIn("| style_integration |", project_agents)
         self.assertIn("| design_compilation |", project_agents)
         self.assertIn("| frontend_implementation |", project_agents)
         self.assertIn("| ui_quality_verification |", project_agents)
         self.assertIn("| code_security_verification |", project_agents)
-        self.assertIn("a project edit, not a harness change", project_agents)
         self.assertIn("An unbound slot uses the bundled default", project_agents)
         # Required Reading names the installed orchestration skill itself; the
         # Skill Bindings table binds only the stage slots it dispatches.
@@ -563,7 +566,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("--max-diff-bytes", packet_guide)
         self.assertIn("REFINEMENT_BACKLOG.template.md", updates)
         self.assertIn(
-            "| `design-system.md` / `design-system.json` | `docs/product/` |", documents
+            "| `design-system.md` + `design-system.json` | `docs/design/` |", documents
         )
         self.assertIn("- `tasks.md` is a rendered view", documents)
 
@@ -598,21 +601,19 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "`none`, `style`, `structure`, or `both`", contract
         )
-        self.assertIn(
-            "never integrate a structural change ahead of its doc delta", contract
-        )
+        self.assertIn("approved UI-design sources already reflect the change", contract)
         self.assertIn("RUN `deviation_ledger`", gates)
         self.assertIn(
             "accumulated in-tolerance drift never substitutes for a doc update", gates
         )
         self.assertIn("The RUN `deviation_ledger` is complete", gates)
-        self.assertIn("classify the completed change's UI impact", worker_goal)
+        self.assertIn("classify the completed change", worker_goal)
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)
         self.assertIn("rule-8 UI-impact classification", skill)
         self.assertIn("never a silent local restyle", updates)
         self.assertIn(
-            "returns through `product-definition-builder` as a design-input delta",
+            "return to `ui-design-builder`",
             updates,
         )
         self.assertIn(
@@ -627,8 +628,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "`doc_delta` is required when that strongest impact is `structure` or `both`",
             contract,
         )
-        self.assertIn("`integration_notes` line", worker_goal)
-        self.assertIn("UI impact: <none|style|structure|both>", worker_goal)
+        self.assertIn("`integration_notes`", worker_goal)
         self.assertIn("is a recorded attestation, not a validator-proven fact", gates)
         self.assertIn("strongest task impact the mission's workers reported", gates)
 
@@ -639,11 +639,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         gates = self.read("references/verification-gates.md")
         join = self.read("scripts/harness_contract_join.py")
 
-        self.assertIn("exact responsive set", skill)
-        self.assertIn("declared platform minimum", skill)
+        self.assertIn("responsive sets must agree", skill)
         self.assertIn("invariant `` `responsive` `` anchor", trace)
-        self.assertIn("PRD, approved `wireframes.html`, every PLAN UI surface", trace)
-        self.assertIn("missing or mismatched responsive set", ui_contract)
+        self.assertIn("PRD's `UI-*` surface contract agree exactly", trace)
+        self.assertIn("missing or mismatched route, state, responsive set", ui_contract)
         self.assertIn("unintended element overlap, clipping, occlusion", gates)
         self.assertIn("browser geometry/reviewer evidence", gates)
         self.assertIn("PRD_RESPONSIVE_RE", join)
@@ -661,9 +660,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("`ui_quality_verification`", gates)
         self.assertIn("`impeccable` by default", gates)
         self.assertIn("adds no review attempts of its own", gates)
-        self.assertIn("never authorizes a local change", gates)
+        self.assertIn("Neither authorizes a local change", gates)
         self.assertIn("Evaluate commands only", gates)
-        self.assertIn("route it to `product-definition-builder` as a design-input delta", gates)
+        self.assertIn("returns to `ui-design-builder`", gates)
         self.assertIn("`UNVALIDATED`", gates)
         self.assertIn("page-quality-verification slots", skill)
 
@@ -936,7 +935,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.36.0"', runbook)
+        self.assertIn('"required_harness_version": "0.37.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -961,13 +960,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         design_updates = self.read("references/design-input-updates.md")
 
-        for content in (skill, plan, worker_goal):
-            self.assertIn("frontend-design conformance mode", content)
+        for content in (skill, worker_goal):
+            self.assertIn("frontend-design", content)
+            self.assertIn("conformance mode", content)
             self.assertIn("design-input delta", content)
             self.assertIn("design-system-compiler", content)
             self.assertIn("compilation mode", content.casefold())
-        self.assertIn("user explicitly selected it", plan)
-        self.assertIn("new or high-impact visual surface", plan)
+        self.assertIn("Design-system compilation requires", plan)
+        self.assertIn("UI implementation uses `frontend-design`", plan)
         self.assertIn("proposed design-input delta", design_updates)
         self.assertIn("return formal pair changes to `design-system-compiler`", design_updates)
 
@@ -981,11 +981,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("only after the user requests faithful matching", updates)
         self.assertIn("Source version / hash", updates)
         self.assertIn("Tolerance / allowed deviations", updates)
-        self.assertIn("PRD UI Design Handoff", updates)
+        self.assertIn("approved UI design contract", updates)
         self.assertIn("Design System Need Gate", updates)
         self.assertIn("user explicitly requests faithful conformance", skill)
 
-    def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
+    def test_schema_v6_routes_claude_workflow_driver(self) -> None:
         skill = self.read("references/runtime-adapters.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
@@ -995,7 +995,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, runbook, orchestration, selector_reference):
             self.assertIn("runtime_adapter", content)
             self.assertIn("dynamic_workflow", content)
-        self.assertIn("## Launch Selected Claude Dynamic Workflow", orchestration)
+        self.assertIn("## Launch The Selected Claude Workflow Driver", orchestration)
         self.assertIn("`scriptPath`", orchestration)
         self.assertIn("run_dynamic_workflow", selector_reference)
         self.assertIn("CLAUDE_DYNAMIC_WORKFLOW.template.js", skill)
@@ -1008,12 +1008,66 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("context_bytes", workflow)
         self.assertIn("complete live task", workflow)
 
+    @unittest.skipIf(REPO_ROOT is None, "host-neutral documentation check requires a source checkout")
+    def test_human_facing_docs_use_host_neutral_agent_graph_language(self) -> None:
+        repo_paths = (
+            "README.md",
+            "README.zh-TW.md",
+            "README.zh-CN.md",
+            "README.es.md",
+            "CLAUDE.md",
+            "skills/delivery-harness/assets/templates/GOAL.template.md",
+            "skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md",
+            "skills/delivery-harness/assets/templates/PROJECT_CLAUDE.template.md",
+            "skills/delivery-harness/assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js",
+            "skills/delivery-harness/references/execution-state-model.md",
+            "skills/delivery-harness/references/graph-orchestration.md",
+            "skills/delivery-harness/references/orchestration-research-notes.md",
+            "skills/delivery-harness/references/parallel-mission-selection.md",
+            "skills/delivery-harness/references/runtime-adapters.md",
+            "skills/delivery-harness/references/runtime-upgrades.md",
+            "skills/delivery-harness/references/worktree-thread-orchestration.md",
+            "skills/product-definition-builder/SKILL.md",
+            "skills/product-definition-builder/references/dynamic-workflow.md",
+            "skills/product-definition-builder/references/output-contract.md",
+            "skills/product-definition-builder/references/research-first-guide.md",
+        )
+        for relative_path in repo_paths:
+            with self.subTest(path=relative_path):
+                content = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+                self.assertNotIn("dynamic workflow", content.casefold())
+                self.assertNotIn("动态工作流", content)
+                self.assertNotIn("動態工作流", content)
+
+        self.assertIn(
+            "## Graph execution across agent hosts",
+            (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "# Read-Only Agent Work Graph",
+            (
+                REPO_ROOT
+                / "skills"
+                / "product-definition-builder"
+                / "references"
+                / "dynamic-workflow.md"
+            ).read_text(encoding="utf-8"),
+        )
+
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
 
         self.assertIn("Keep all 12 schema-v11 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
         self.assertIn("one top-level left-sidebar task with its own clean exact-base app-managed worktree", goal)
+        self.assertIn(
+            "Never replace explicitly requested top-level app tasks with coordinator-owned subagents or sequential parent execution",
+            goal,
+        )
+        self.assertIn(
+            "Only when the user did not require independent top-level app tasks",
+            goal,
+        )
 
     def test_run_template_matches_the_local_only_default(self) -> None:
         """The template must keep remote publication behind explicit intent."""
@@ -1142,7 +1196,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
 
 
-    def test_builder_ux_direction_is_ready_before_implementation_and_not_usability_proof(self) -> None:
+    def test_ui_design_intake_is_ready_before_implementation_and_not_usability_proof(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/contract-and-traceability.md")
         updates = self.read("references/design-input-updates.md")
@@ -1152,11 +1206,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
         goal = self.read("assets/templates/GOAL.template.md")
 
-        for content in (skill, contract, updates, verification, plan_template, runbook, e2e_template, goal):
-            self.assertIn("Builder UX Direction", content)
+        for content in (skill, verification, plan_template, e2e_template):
+            self.assertIn("UI Design Intake", content)
+        self.assertIn("human-owned `ui-design.md`", goal)
+        self.assertIn("ui-design.md", contract)
+        self.assertIn("ui-design-builder", updates)
         self.assertIn("every must-have `UX-*` trace", skill)
         self.assertIn("## UX Direction And Usability Evidence", verification)
-        self.assertIn("Builder approval proves only direction conformance", verification)
+        self.assertIn("owner approval proves only direction conformance", verification)
         self.assertIn("## UX Evidence", runbook)
 
     def test_stop_and_ask_separates_validator_and_judgment_stops(self) -> None:
@@ -1281,7 +1338,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("repository-external", content)
         self.assertIn("real cross-mission", verification)
         self.assertIn("broad regression, browser E2E", skill)
-        self.assertIn("after exact-SHA code review and repair loops converge", plan)
+        self.assertIn("after exact-SHA review and repair converge", plan)
 
     def test_schema_v10_closes_only_with_real_ui_evidence(self) -> None:
         skill = self.read("SKILL.md")

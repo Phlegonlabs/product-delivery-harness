@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.36.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.37.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -25,28 +25,28 @@
 
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
 | --- | --- | --- |
-| 一個產品構想 | `product-definition-builder` | 經 owner 核准的產品定義、完整技術選項與已核准 stack；UI 產品再交付涵蓋所有 surface/state 的 responsive `wireframes/3` |
-| 已核准線框稿、需要視覺設計的套件 | `product-definition-builder` UI Design Pass；需要時再進 `design-system-compiler` + `frontend-design` | 一份含完整 CSS 與可點擊流程的連通設計參考 HTML；auth 預覽明確標記 `n/a`，需要時再加設計系統契約 |
+| 一個產品構想 | `product-definition-builder` | 經 owner 核准的 Product Definition，包含完整 frontend/backend 架構、stack、UI 行為、release targets 與 tests |
+| 已核准 Product Definition、需要 UI 設計 | `ui-design-builder` | 人工 UI/style/motion/media intake、responsive `wireframes/4`、`frontend-design` Style Integration、Impeccable HiFi review、W/H 評分、Visual Approval 與 design-system 決策 |
 | 既有儲存庫中的明確變更 | `delivery-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 | 已固定並完成整合的程式候選 | `code-security-review` | 唯讀、綁定精確 SHA 的安全審查，包含經驗證的 source-to-sink 發現與明確的覆蓋缺口 |
 | 已交付、需要外部設定的 release | `product-activation` | 精確授權的 console 動作、已驗證的量測來源，以及逐 target 的 activation readiness |
 
-五個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
+六個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
 
 ## 核心保證
 
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
 - **大型工作明確記錄。** PLAN v6 定義 typed graph；RUN v11 記錄授權、嘗試與佐證。
-- **先核准產品定義，再進畫面。** 每個產品都要由 owner 核准 scope、可量測需求、架構、release targets、trust/AI/commercial gates、assumptions 與 stack。UI 產品再走獨立的 responsive `wireframes.html` 結構關卡；headless 產品只跳過 wireframe。
+- **先核准 Product Definition，再進 UI 設計。** 每個產品都要由 owner 核准 scope、可量測需求、完整 frontend/backend 架構、release targets、trust/AI/commercial gates、assumptions 與 stack。UI 產品只有在明確要求後才進 `ui-design-builder`。
 - **建議不等於實作權威。** 每個適用領域先提供兩到三組 coherent stack。新選擇經核准後標記 `Approved`，既有選擇是 `Selected`，硬限制是 `Required`；`Recommended` 與 `Provisional` 會阻擋 delivery。Frontend 會分開 language、package manager、framework、UI runtime、shadcn/ui 這類 component foundation、styling、build、routing/data 與 tests。
-- **視覺目標是可互動的 responsive HTML。** 受要求的視覺階段會產出一份連通的設計參考 HTML reference；每個可見控制項都能換頁、切換 state、開啟已記錄的 overlay 或顯示 feedback。PRD Motion Need Gate 會把每個關鍵 surface 標記為 `required`、`recommended`、`not_required` 或 `blocked`；owner 可自行選擇，也可接受 AI 建議，但會改變 scope 或需要生成服務的 motion 仍由人決定。必要的 functional UI motion 可以在 reference 內以本機方式運作，並提供等價的 reduced-motion 路徑。生成式 image 與 motion 位置保留為靜態 placeholder，附專屬 prompt 與 `generationStatus: deferred`；只有後續取得明確授權的 MCP 階段才會呼叫生成工具。Technical Hard Gate 會拒絕 runtime error、意外 request、無法到達的 state、重複事件效果與必要 motion 失效。設計參考人工關卡要求總分至少 90，`H2` 排版、`H4` responsive 與 `H8` accessibility 也都至少 90；非關鍵的 60–79 分是 advisory，不會觸發追分 round。核可的 references 保留在 `docs/design/ui-references/`，被取代的組合採歸檔而非刪除。
+- **UI 設計有獨立核准主線。** `ui-design-builder` 會先詢問 UI、style、motion，以及各區域要用 image 或 motion，再開始畫面。`frontend-design` 是 wireframe 與 HiFi 的單一作者；wireframe 先走 W1–W5 與人工結構核准，Style Integration 再產出連通 HiFi。Impeccable 執行 `critique` + `audit`，H1–H9 維持正式門檻：總分 90+、H2/H4/H8 各 90+、每項 60+，且無 block/dispute。簡單 UI motion 使用 CSS/WAAPI；GSAP skills 依需求選用；Higgsfield MCP 只在精確授權下生成動畫。Design tokens 只在 Visual Approval 後編譯。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
 - **每個 graph attempt 都可持久追蹤。** 非 mission 節點先保留 attempt，在 RUN lock 外執行檢查或外部動作，再記錄 outcome 與佐證；中斷的非 runtime attempt 也透過同一條結果路徑記為 `blocked`。本機 verifier 只能在 dirty-status 檢查中忽略 tracked RUN；路徑必須解析在 checkout 內，且執行與結果記錄期間都會保護其精確位元組與檔案身分。
 - **Runtime binding 明確可驗證。** `lease-worker` 從選取器 directive 衍生 provider、driver、model、effort 與 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精確目標可直接沿用，新精確目標只能從已啟用的 wildcard 授權 materialize，不會擴大權限。
 - **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
 - **Activation 必須讀回驗證。** 外部設定留在 PLAN/RUN 之外，核准綁定精確 action digest，且只有獨立 read-back 與行為證據完成後才算 verified。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
-- **UI 佐證證明版面，而不只是像素。** 固定到 harness 0.34.0 及之後的 RUN 會在每條 route-breakpoint-state 佐證行記錄來自真實瀏覽器幾何掃描的 `layout_check`；每個 UI 任務在驗收前分類其影響（`none`/`style`/`structure`/`both`），被接受的 parity 偏差連同引用記入 deviation ledger，上線 motion 必須追溯到 PRD Motion Need Gate 的決策。固定到 0.35.0 及之後的 RUN 還會機器校驗 `deviation_ledger` 與逐 mission 的 `ui_impact_summary`。
+- **UI 佐證證明版面，而不只是像素。** 固定到 harness 0.34.0 及之後的 RUN 會在每條 route-breakpoint-state 佐證行記錄真實瀏覽器幾何掃描的 `layout_check`；每個 UI 任務在驗收前分類影響（`none`/`style`/`structure`/`both`），被接受的 parity 偏差連同引用記入 deviation ledger，上線 motion 必須追溯 `ui-design.md` 的 Motion and Media Intent。固定到 0.35.0 及之後的 RUN 還會機器校驗 `deviation_ledger` 與逐 mission 的 `ui_impact_summary`。
 - **完成的 run 會收檔。** 晉升之後，`scripts/archive_run.py` 在 dry-run 移動清單確認後，把整個協作集——PLAN、RUN、決策、backlog、證據、tasks 視圖——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不刪除，歸檔 commit 沿同一條晉升路徑落到 `main`。tasks 視圖結尾有一個 renderer 逐字保留的手寫 Update Log：plan 完成後，owner 或 agent 每一筆未進 PRD 的更新都以帶日期的一行記在那裡；歸檔集僅以凍結 hash 引用 PRD——PRD 永不進歸檔，始終是活引用。
 - **Parity 靠實拍，不靠記憶。** `scripts/parity_capture.py` 驅動 agent-browser CLI，為 PLAN 的每個 route×breakpoint×state 用同一 viewport 拍攝已核准的設計參考 HTML 與實作頁面，逐頁探測 DOM 幾何，並產生逐項判定的 parity board；生產驗證會對部署 URL 重跑一遍。
 - **讀規則是強制的。** 種子化的專案 `AGENTS.md` 要求：受管工作前必讀已安裝的 `delivery-harness` SKILL.md，影響產品的直接工作前必讀受影響的 PRD 段落；跳過即 blocking review finding。
@@ -57,8 +57,9 @@
 
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
-| `product-definition-builder` | Discovery、public-safe research、可量測需求與 metrics、Data & Trust／AI gates、coherent stack 選項、Product Definition Approval，之後才是 responsive wireframe 與選用視覺設計 | 已核准的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究產物，以及 UI 產品的 `wireframes.html` |
-| `design-system-compiler` | 將已核准的 UI Design Handoff 編譯成凍結的設計系統契約，包含完全一致的已核准 responsive set 與版面安全規則。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `design-system.md`、`design-system.json` |
+| `product-definition-builder` | Discovery、research、可量測產品/UI 行為、完整 frontend/backend 架構、coherent stack、release targets、tests 與 Product Definition Approval | 已核准的 `PRD.md`、`architecture.md`、`stack-decisions.md` 與研究產物 |
+| `ui-design-builder` | UI Design Intake、typed motion/media、responsive wireframe、`frontend-design` Style Integration、Impeccable HiFi review、W/H 評分、Visual Approval 與 Design System Need Gate | `docs/design/ui-design.md`、`wireframes.html` 與已核准連通 HiFi target |
+| `design-system-compiler` | Visual Approval 後按需把已核准 `ui-design.md` target 編譯成凍結 design-system pair | `docs/design/design-system.md`、`docs/design/design-system.json` |
 | `delivery-harness` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：一份共用契約，加上每個 host（Codex、Claude Code、Pi 或 generic）各一段 provider 段落 | 直接動手，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 實作與統一整合後的唯讀安全審查，優先由 fresh sibling agent 執行；主動滲透測試與修復不屬於本技能 | 精確 SHA 決策、trust-boundary 覆蓋、驗證後的發現與修復測試 |
 | `product-activation` | Web、iOS 與 browser-extension target 的交付後設定，包含 capability routing、精確外部動作授權、read-back、量測來源與 outcome-review 交接 | `docs/ACTIVATION.md` |
@@ -78,10 +79,10 @@
 flowchart LR
   Idea["產品構想或變更需求"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]
   PRD --> ProductGate{"Stack Decision +\nProduct Definition Approval"}
-  ProductGate --> Wireframe["wireframes/3 HTML\nresponsive 結構矩陣"]
-  Wireframe --> Gate{"Wireframe Approval Gate\n人類 owner"}
-  Gate -->|"核准且要求視覺設計"| Design["UI Design Pass\n需要時進 design-system-compiler"]
-  Gate -->|"核准、不進視覺階段"| Harness["delivery-harness\n共用交付核心"]
+  ProductGate -->|"UI 產品核准且明確要求"| UIDesign["ui-design-builder\nintake + wireframes/4 + Style Integration"]
+  UIDesign --> UIReview["frontend-design 作者\nImpeccable review + W/H 評分"]
+  UIReview --> Design["已核准 HiFi target\n需要時進 design-system-compiler"]
+  ProductGate -->|"核准、延後 UI 階段"| Harness["delivery-harness\n共用交付核心"]
   ProductGate -->|"核准的 headless 產品"| Harness
   Design -->|"核可的全頁面 HTML reference 或設計系統契約"| Harness
   Harness --> Runtime["單一 host 轉接器\nCodex、Claude Code 或 Pi"]
@@ -94,11 +95,11 @@ flowchart LR
   Activate --> Outcome["已驗證量測來源\n後續 outcome review"]
 ```
 
-你可以從任何階段開始。`product-definition-builder` 對所有產品止於已核准的 Product Definition，UI 產品再止於已核准的 `wireframes.html`。選用視覺階段補上 active visual contract；Harness 只實作已凍結並核准的結果，security review 與 activation 維持後續邊界。
+你可以從任何階段開始。`product-definition-builder` 止於已核准的 Product Definition；`ui-design-builder` 在明確要求後才另外建立並核准 wireframe 與 HiFi。Harness 只實作凍結並核准的 product/UI sources，security review 與 activation 維持後續邊界。
 
 ### 完整技能生命週期
 
-五個 skill 的完整生命周期，包含每個閘門與橫切機制：
+六個 skill 的完整生命周期，包含每個閘門與橫切機制：
 
 ```mermaid
 flowchart TB
@@ -111,21 +112,22 @@ flowchart TB
         mr["market-research.md<br/>（對帳 candidate，可跳過）"]
         sgate{{"Stack Decision Checkpoint<br/>Required | Selected | Approved"}}
         pgate{{"Product Definition Approval<br/>所有產品"}}
-        wf["wireframes.html<br/>單一互動式線框檔（UI 產品）"]
-        wgate{{"Wireframe Approval Gate<br/>（人工核可 = 完整停點）"}}
         ra["research-first 評估<br/>research-assessment.md（可跳過）"]
         rgate{{"Research Gate<br/>go | clarify | stop"}}
         interview --> ra --> rgate --> pkg --> mr --> sgate --> pgate
-        pgate -->|UI-bearing| wf --> wgate
     end
 
-    subgraph DESIGN["視覺設計（可選；owner 明確要求才進場）"]
+    subgraph DESIGN["ui-design-builder — UI 設計（owner 明確要求）"]
         direction TB
-        taste["UI Design Pass<br/>依 Skill Bindings 槽位選 taste skill"]
-        handoff[UI Design Handoff]
+        intake{{"UI Design Intake<br/>style + motion + media；等待 owner"}}
+        wf["frontend-design 結構模式<br/>wireframes/4"]
+        wgate{{"Wireframe Approval<br/>W1–W5 + 人類 owner"}}
+        style["frontend-design<br/>Style Integration + HiFi target"]
+        review["Impeccable critique + audit<br/>H1–H9 評分"]
+        vgate{{"Human Visual Approval"}}
         dgate{{"Design System Need Gate"}}
         pair["design-system-compiler<br/>design-system.md + design-system.json"]
-        taste --> handoff --> dgate
+        intake --> wf --> wgate --> style --> review --> vgate --> dgate
         dgate -->|required| pair
         dgate -->|not_required| target[核可的 page-faithful target]
     end
@@ -205,9 +207,8 @@ flowchart TB
     end
 
     user --> interview
-    wgate -->|繼續視覺設計| DESIGN
-    wgate -->|已核准 UI package| HARNESS
-    pgate -->|已核准 headless package| HARNESS
+    pgate -->|UI 產品核准且明確要求 UI| intake
+    pgate -->|headless 或延後 UI| HARNESS
     pair --> route
     target --> route
     DIRECT --> handoff
@@ -288,20 +289,20 @@ flowchart TB
 
 一次執行只有一個 active host。same-repository handoff 只有在 Host A 關閉 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 後才允許；`active_wave` 物件仍保留在 RUN 中，不能把物件缺失當成交接訊號：Host B 保留 PLAN/RUN 與 graph state，重新探測 runtime，並在選取下一波前審查目前的 exact SHA。若需要修復，路由回 Host A 且舊 review 立即失效；除非未來 schema 增加可攜式的儲存庫／狀態身分，否則不支援 cross-machine handoff。
 
-## 圖引擎與 Dynamic Workflow
+## 跨 agent host 的圖執行
 
 這些技能使用兩層圖：
 
 - **org 圖**是穩定的角色契約：產品、架構、UX、設計系統、mission-worker、surface reviewer、security reviewer、審批、整合，以及生命週期職責。
-- **work 圖**是單次執行的暫時性任務圖。PRD 與設計工作流只有在 host 能夠強制套用 `builder_readonly` 工具設定檔時，才會使用有界的分析圖；否則會退回循序的 parent。工程流則使用標準的 PLAN v6 圖與 RUN v11 狀態。
+- **work 圖**是單次執行的暫時性任務圖。Product Definition 與設計技能只有在目前 host 能夠強制套用必要的唯讀工具邊界時，才會使用有界的 agent 分析圖；否則退回循序 parent。工程流則使用標準的 PLAN v6 圖與 RUN v11 狀態。
 
-訪談與審批留在執行中的工作流之外，因為 Claude Code Dynamic Workflow 無法在執行途中向使用者索取輸入。Parent 會先凍結輸入，執行一個有界的工作流，接著掌管分階段寫入、衝突解決、審批與發佈。
+Child agent run 不負責訪談或審批。Parent 先凍結輸入，再啟動有界的 host-native agent run，並自行掌管分階段寫入、衝突解決、審批與發佈。Codex、Claude Code、Pi 與 generic host 都遵守同一份契約。
 
 在工程流中，Harness 會先驗證並選出相依已就緒的 frontier，才建立或請求 worktree。原生的 Claude mission 使用位於 `.claude/worktrees/` 底下、由 parent 管理的 worktree，把每個 worker 綁到精確的批次 base，並要求在存取儲存庫前先 `EnterWorktree`。在每一條路線上，parent 都會驗證回傳的 commit 與實際的 Git diff、序列化地整合被接受的 commit，並重新計算圖的 frontier。
 
 非 runtime graph 節點採用 reserve／execute／record 順序：`reserve-node-attempt` 在 RUN lock 內建立 receipt，approval、external wait、deterministic verifier 或 lifecycle side effect 在 lock 外執行，`record-node-result` 只關閉相符的 attempt，並以宣告的 outcome 推導 graph phase。Lifecycle transition 只記錄佐證，不執行動作。`lease-worker` 把選取器衍生的 runtime binding 與精確 task／thread 身分帶入 RUN，並遵守 compatibility 檢查與既有 wildcard 授權。
 
-Claude Graph Workflow 會把 mixed frontier 按 homogeneous `tool_profile` 分成多個呼叫；同一組內可以使用不同模型與推理強度，但一次呼叫絕不混合寫入 mission 與唯讀 review。tool profile 是標籤與 prompt/result 契約，不是 permission-level tool removal。
+在 Claude Code 上，host adapter 會把 mixed frontier 按 homogeneous `tool_profile` 分成多個呼叫；同一組內可以使用不同模型與推理強度，但一次呼叫絕不混合寫入 mission 與唯讀 review。tool profile 是標籤與 prompt/result 契約，不是 permission-level tool removal。
 
 - `mission_write` 要求 `EnterWorktree` 與 mission 的有界寫入契約。
 - `code_review_readonly` 要求 frontend、backend、integration 或 security 的精確路徑審查與唯讀結果佐證；它不會移除繼承的工具。
@@ -321,7 +322,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安裝方式
 
-clone 儲存庫並執行安裝腳本。它會把現有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份，把五個 Product Delivery Harness skills 複製進 `~/.agents/skills/`，並驗證每個複製出來的 `SKILL.md`：
+clone 儲存庫並執行安裝腳本。它會把現有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份，把六個 Product Delivery Harness skills 複製進 `~/.agents/skills/`，並驗證每個複製出來的 `SKILL.md`：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -335,21 +336,22 @@ cd product-delivery-harness
 ```bash
 cp -r product-delivery-harness/skills/delivery-harness \
       product-delivery-harness/skills/product-definition-builder \
+      product-delivery-harness/skills/ui-design-builder \
       product-delivery-harness/skills/design-system-compiler \
       product-delivery-harness/skills/code-security-review \
       product-delivery-harness/skills/product-activation \
       ~/.agents/skills/
 ```
 
-如果 checkout 的 `skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。安裝腳本同時就是更新腳本：重跑一次會先備份舊副本再替換。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製五個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
+如果 checkout 的 `skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。安裝腳本同時就是更新腳本：重跑一次會先備份舊副本再替換。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製六個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
 
 從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到重複且觸發範圍重疊的 skills。
 
-五個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition 的 core checker 會 join PRD、architecture 與 stack decisions；wireframe 驗證再加 UI checker。`design-system-compiler`、Delivery 與 Activation 都要先確認 Product Definition 和 Stack Checkpoint 已核准，再讀取各自後續輸入。
+六個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition core checker 會 join PRD、architecture 與 stack；UI Design Builder 驗證 `ui-design.md` 與 `wireframes.html`，Harness 0.37.0+ 在 UI delivery 前 join 這些來源。Design compilation、Delivery 與 Activation 仍要求適用的上游核准。
 
 ### Zero-to-one 流程（從零開始）
 
-1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與五個 Product Delivery Harness skills，並用該 host 執行這次交付。
+1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與六個 Product Delivery Harness skills，並用該 host 執行這次交付。
 2. 開啟新的 host session，確認技能可見，然後呼叫 `delivery-harness`。
 3. 讓規模閘決定直接工作或 PLAN/RUN；小型工作不要預先建立 worker。
 4. 大型執行一次只保留一個 active host，並在 same-repository handoff 前關閉與審查每個 wave。
@@ -359,15 +361,15 @@ cp -r product-delivery-harness/skills/delivery-harness \
 Codex 接受下列的 `$skill-name` 寫法。在 Claude Code 或其他 host 中，直接用名稱指定技能，例如 `product-definition-builder`。在 Pi 中，可以使用自動找到的 project skill，或用 `--skill` 傳入技能目錄，再直接指定 `delivery-harness`。
 
 ```text
-Use $product-definition-builder to draft this product, reconcile research, present coherent stack options, obtain Stack Decision and Product Definition approval, then create responsive wireframes for every UI page, target, and state.
+Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests, and Product Definition Approval. Stop before wireframes.
 ```
 
 ```text
-The Product Definition is approved. Use $product-definition-builder to build and review every page-target-state in staged wireframes.html, then record Wireframe Approval before visual or implementation work.
+The Product Definition is approved. Use $ui-design-builder to ask me for UI, style, motion, and per-region image/motion preferences, then use $frontend-design to create and score responsive wireframes/4. Stop for my Wireframe Approval.
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every in-scope page and state in one self-contained design-reference HTML with complete CSS and clickable flows; keep auth preview scenes n/a. Browser-check the full matrix and invoke $design-system-compiler only when required.
+The wireframes are approved. Continue $ui-design-builder with $frontend-design Style Integration, create one connected HiFi reference, run $impeccable critique and audit plus H1-H9 grading, obtain Visual Approval, and invoke $design-system-compiler only when required.
 ```
 
 ```text
@@ -403,7 +405,7 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 | 執行環境 | 偏好的平行路線 | 退回方案 |
 | --- | --- | --- |
 | Codex app | 在隔離、由 app 管理的 worktree 中執行 app 任務 | 直接使用 subagent，再退到單一循序的 parent |
-| Claude Code | 使用對齊 base、由 parent 管理的 `.claude/worktrees/` worktree 執行 Dynamic Workflow | 直接使用 subagent，再退到單一循序的 parent |
+| Claude Code | 在對齊 base、由 parent 管理的 `.claude/worktrees/` worktree 中執行平面的 sibling-agent runner | 直接使用 subagent，再退到單一循序的 parent |
 | Pi | 在 parent 管理的 worktree 中使用已安裝的 Pi 角色，並由 Pi 選擇模型與 fallback | 單一循序的 parent |
 | 其他任何 host | 由 parent 隔離的 fresh subagent | 單一循序的 parent |
 
@@ -431,10 +433,11 @@ install.sh / install.ps1                             一鍵安裝進 ~/.agents/s
 ```bash
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
+python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 python -m unittest discover -s skills/product-activation/scripts/tests -v
 git diff --check
@@ -471,6 +474,8 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.37.0** — UI 設計正式拆成獨立核准邊界。`product-definition-builder` 定案產品 scope、完整 frontend/backend 架構與 stack 後即停止；新 `ui-design-builder` 負責人工 UI/style/motion/media intake、`wireframes/4` typed image/motion placeholders、W1–W5 結構評分、`frontend-design` Style Integration、連通 HiFi HTML、Impeccable critique/audit、H1–H9 評分、Visual Approval、條件式 GSAP 路由、精確授權的 Higgsfield MCP 生成動畫，以及 Design System Need Gate。正式 tokens 只在視覺核准後編譯；canonical UI 產物改放 `docs/design/`，Harness 0.37.0+ 對 UI delivery 強制 join 已核准 `ui-design.md`，舊設計路徑維持讀取相容。Product Definition 的唯讀分析圖改用目前 host 的原生 sibling-agent runner；Codex、Claude Code、Pi 與 generic host 共用同一份角色與 parent-ownership 契約。破壞性 skill-bundle 變更。
 
 - **0.36.0** — Product-first 決策加入完整核准主線。草稿後 market research 先對帳核心 candidate，再進人工 Stack Decision Checkpoint 與 Product Definition Approval；UI wireframe 只能從該核准 revision 開始，headless 產品仍須產品核准。技術選項以 coherent bundles 呈現，只有 `Required`、`Selected`、`Approved` 可實作；`Recommended` 與 `Provisional` 會阻擋 Harness。Frontend 分開 language、package manager、shadcn/ui 這類 component foundation 與 styling；mobile destination 與 native/cross-platform、framework 決策分離。PRD 新增 Data & Trust、AI/Automation gates、可量測 metric ownership、結構化 assumptions/open questions，以及涵蓋全契約的 enhancement impact record。新 `check_product_package.py` 驗證三份核心文件，Harness 在 approval marker 存在時沿用同一 checker。破壞性 skill-bundle 變更。
 - **0.35.5** — 新增 `scripts/parity_capture.py`：Final Visual Parity Loop 變為可執行——從 PLAN `ui_surfaces` 列舉 route×breakpoint×state 矩陣，驅動 agent-browser CLI 以同一 viewport 拍攝設計參考渲染與實作頁面（`docs/goal/evidence/parity/` 下的 `-target.png`/`-actual.png` 配對），每頁跑 DOM 幾何探針（水平溢位＋可見重疊）供 `layout_check` attestation 引用，並寫出 `manifest.json` 與自包含的 `parity-board.html` 供判定；每 run 一份小 route map 提供參考選擇器與可選狀態觸發，ready 狀態免觸發即可拍，無 CLI 時手動拍攝仍是後備。Production smoke 首次獲得內容定義：帶 UI 的候選用同一腳本對正式 URL 重拍 parity 到 `docs/goal/evidence/production/`（晉升合約第 7 條、部署合約、種子 AGENTS.md）——部署偏離設計參考從此是被記錄的 finding，而不是 deploy 後的驚喜。

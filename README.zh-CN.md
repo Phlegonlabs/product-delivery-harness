@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.36.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.37.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -25,28 +25,28 @@
 
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
 | --- | --- | --- |
-| 一个产品想法 | `product-definition-builder` | 经 owner 批准的产品定义、完整技术选项和已批准 stack；UI 产品再交付覆盖所有 surface/state 的响应式 `wireframes/3` |
-| 已批准线框图、需要视觉设计的包 | `product-definition-builder` UI Design Pass；需要时再进入 `design-system-compiler` + `frontend-design` | 一份带完整 CSS 和可点击流程的连通设计参考 HTML；auth 预览明确标记 `n/a`，需要时再加设计系统契约 |
+| 一个产品想法 | `product-definition-builder` | 经 owner 批准的 Product Definition，包含完整 frontend/backend 架构、stack、UI 行为、release targets 和 tests |
+| 已批准 Product Definition、需要 UI 设计 | `ui-design-builder` | 人工 UI/style/motion/media intake、响应式 `wireframes/4`、`frontend-design` Style Integration、Impeccable HiFi review、W/H 评分、Visual Approval 与 design-system 决策 |
 | 现有仓库中的明确变更 | `delivery-harness` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 已固定并完成集成的代码候选 | `code-security-review` | 只读、绑定精确 SHA 的安全审查，包含经验证的 source-to-sink 发现与明确的覆盖缺口 |
 | 已交付、需要外部设置的 release | `product-activation` | 精确授权的 console 动作、已验证的量测来源，以及逐 target 的 activation readiness |
 
-五个内置技能都可以单独调用；完整流程是可选的。但每种模式仍会校验明确声明的输入和依赖。
+六个内置技能都可以单独调用；完整流程是可选的。但每种模式仍会校验明确声明的输入和依赖。
 
 ## 核心保证
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
-- **先批准产品定义，再进入画面。** 每个产品都由 owner 批准 scope、可量测需求、架构、release targets、trust/AI/commercial gates、assumptions 与 stack。UI 产品再走独立的响应式 `wireframes.html` 结构关卡；headless 产品只跳过 wireframe。
+- **先批准 Product Definition，再进入 UI 设计。** 每个产品都由 owner 批准 scope、可量测需求、完整 frontend/backend 架构、release targets、trust/AI/commercial gates、assumptions 与 stack。UI 产品只有在明确要求后才进入 `ui-design-builder`。
 - **建议不等于实现权威。** 每个适用领域先给出两到三组 coherent stack。新选择获批后标记 `Approved`，现有选择是 `Selected`，硬限制是 `Required`；`Recommended` 和 `Provisional` 会阻止 delivery。Frontend 分开记录 language、package manager、framework、UI runtime、shadcn/ui 这类 component foundation、styling、build、routing/data 与 tests。
-- **视觉目标是可交互的响应式 HTML。** 被要求的视觉阶段会产出一份连通的设计参考 HTML reference；每个可见控件都能换页、切换 state、打开已记录的 overlay 或显示 feedback。PRD Motion Need Gate 会把每个关键 surface 标记为 `required`、`recommended`、`not_required` 或 `blocked`；owner 可以自行选择，也可以接受 AI 建议，但会改变 scope 或需要生成服务的 motion 仍由人决定。必要的 functional UI motion 可以在 reference 内以本地方式运行，并提供等价的 reduced-motion 路径。生成式 image 和 motion 位置保留为静态 placeholder，附专属 prompt 与 `generationStatus: deferred`；只有后续获得明确授权的 MCP 阶段才会调用生成工具。Technical Hard Gate 会拒绝 runtime error、意外请求、无法到达的 state、重复事件效果和必要 motion 失效。设计参考人工关卡要求总分至少 90，`H2` 排版、`H4` responsive 和 `H8` accessibility 也都至少 90；非关键的 60–79 分是 advisory，不会触发追分 round。批准的 references 保留在 `docs/design/ui-references/`，被取代的组合归档而非删除。
+- **UI 设计有独立批准主线。** `ui-design-builder` 先询问 UI、style、motion，以及各区域使用 image 还是 motion，再开始画面。`frontend-design` 是 wireframe 与 HiFi 的单一作者；wireframe 先走 W1–W5 与人工结构批准，Style Integration 再产出连通 HiFi。Impeccable 执行 `critique` + `audit`，H1–H9 保持正式门槛：总分 90+、H2/H4/H8 各 90+、每项 60+，且无 block/dispute。简单 UI motion 使用 CSS/WAAPI；GSAP skills 按需调用；Higgsfield MCP 只在精确授权下生成动画。Design tokens 只在 Visual Approval 后编译。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **每个 graph attempt 都可持久追踪。** 非 mission 节点先保留 attempt，在 RUN lock 外执行检查或外部动作，再记录 outcome 与证据；中断的非 runtime attempt 也通过同一结果路径记录为 `blocked`。本地 verifier 只能在 dirty-status 检查中忽略 tracked RUN；路径必须解析在 checkout 内，且执行与结果记录期间都会保护其精确字节和文件身份。
 - **Runtime binding 明确可验证。** `lease-worker` 从选择器 directive 派生 provider、driver、model、effort 和 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精确目标可直接沿用，新精确目标只能从已启用的 wildcard 授权 materialize，不会扩大权限。
 - **有能力不等于有权限。** 即使运行时能够推送或清理，每个动作仍需要精确授权。
 - **Activation 必须读回验证。** 外部设置留在 PLAN/RUN 之外，批准绑定精确 action digest，而且只有独立 read-back 与行为证据完成后才算 verified。
 - **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
-- **UI 证据证明版面，而不只是像素。** 固定到 harness 0.34.0 及之后的 RUN 会在每条 route-breakpoint-state 证据行记录来自真实浏览器几何扫描的 `layout_check`；每个 UI 任务在验收前分类其影响（`none`/`style`/`structure`/`both`），被接受的 parity 偏差连同引用记入 deviation ledger，上线 motion 必须追溯到 PRD Motion Need Gate 的决策。固定到 0.35.0 及之后的 RUN 还会机器校验 `deviation_ledger` 与逐 mission 的 `ui_impact_summary`。
+- **UI 证据证明版面，而不只是像素。** 固定到 harness 0.34.0 及之后的 RUN 会在每条 route-breakpoint-state 证据行记录真实浏览器几何扫描的 `layout_check`；每个 UI 任务在验收前分类影响（`none`/`style`/`structure`/`both`），被接受的 parity 偏差连同引用记入 deviation ledger，上线 motion 必须追溯 `ui-design.md` 的 Motion and Media Intent。固定到 0.35.0 及之后的 RUN 还会机器校验 `deviation_ledger` 与逐 mission 的 `ui_impact_summary`。
 - **完成的 run 会收档。** 晋升之后，`scripts/archive_run.py` 在 dry-run 移动清单确认后，把整个协作集——PLAN、RUN、决策、backlog、证据、tasks 视图——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不删除，归档 commit 沿同一条晋升路径落到 `main`。tasks 视图结尾有一个 renderer 逐字保留的手写 Update Log：plan 完成后，owner 或 agent 每一笔未进 PRD 的更新都以带日期的一行记在那里；归档集只以冻结 hash 引用 PRD——PRD 永不进归档，始终是活引用。
 - **Parity 靠实拍，不靠记忆。** `scripts/parity_capture.py` 驱动 agent-browser CLI，为 PLAN 的每个 route×breakpoint×state 用同一 viewport 拍摄已批准的设计参考 HTML 与实现页面，逐页探测 DOM 几何，并生成逐项判定的 parity board；生产验证会对部署 URL 重跑一遍。
 - **读规则是强制的。** 种子化的项目 `AGENTS.md` 要求：受管工作前必读已安装的 `delivery-harness` SKILL.md，影响产品的直接工作前必读受影响的 PRD 段落；跳过即 blocking review finding。
@@ -57,8 +57,9 @@
 
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
-| `product-definition-builder` | Discovery、public-safe research、可量测需求和 metrics、Data & Trust／AI gates、coherent stack 选项、Product Definition Approval，之后才是 responsive wireframe 与可选视觉设计 | 已批准的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究产物，以及 UI 产品的 `wireframes.html` |
-| `design-system-compiler` | 将已批准的 UI Design Handoff 编译成冻结的设计系统契约，包含完全一致的已批准响应式集合与布局安全规则。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `design-system.md`、`design-system.json` |
+| `product-definition-builder` | Discovery、research、可量测产品/UI 行为、完整 frontend/backend 架构、coherent stack、release targets、tests 与 Product Definition Approval | 已批准的 `PRD.md`、`architecture.md`、`stack-decisions.md` 和研究产物 |
+| `ui-design-builder` | UI Design Intake、typed motion/media、响应式 wireframe、`frontend-design` Style Integration、Impeccable HiFi review、W/H 评分、Visual Approval 与 Design System Need Gate | `docs/design/ui-design.md`、`wireframes.html` 和已批准连通 HiFi target |
+| `design-system-compiler` | Visual Approval 后按需把已批准 `ui-design.md` target 编译成冻结 design-system pair | `docs/design/design-system.md`、`docs/design/design-system.json` |
 | `delivery-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：一份共享契约，加上每个宿主（Codex、Claude Code、Pi 或 generic）各一段 provider 章节 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 实现与统一集成后的只读安全审查，优先由 fresh sibling agent 执行；主动渗透测试与修复不属于本技能 | 精确 SHA 决策、trust-boundary 覆盖、验证后的发现与修复测试 |
 | `product-activation` | Web、iOS 与 browser-extension target 的交付后设置，包括 capability routing、精确外部动作授权、read-back、量测来源与 outcome-review 交接 | `docs/ACTIVATION.md` |
@@ -78,10 +79,10 @@
 flowchart LR
   Idea["产品想法或变更请求"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]
   PRD --> ProductGate{"Stack Decision +\nProduct Definition Approval"}
-  ProductGate --> Wireframe["wireframes/3 HTML\n响应式结构矩阵"]
-  Wireframe --> Gate{"Wireframe Approval Gate\n人类 owner"}
-  Gate -->|"批准且要求视觉设计"| Design["UI Design Pass\n需要时进入 design-system-compiler"]
-  Gate -->|"批准、不进入视觉阶段"| Harness["delivery-harness\n共享交付核心"]
+  ProductGate -->|"UI 产品批准且明确要求"| UIDesign["ui-design-builder\nintake + wireframes/4 + Style Integration"]
+  UIDesign --> UIReview["frontend-design 作者\nImpeccable review + W/H 评分"]
+  UIReview --> Design["已批准 HiFi target\n需要时进入 design-system-compiler"]
+  ProductGate -->|"批准、延后 UI 阶段"| Harness["delivery-harness\n共享交付核心"]
   ProductGate -->|"已批准的 headless 产品"| Harness
   Design -->|"批准的全页面 HTML reference 或设计系统契约"| Harness
   Harness --> Runtime["单一宿主适配器\nCodex、Claude Code 或 Pi"]
@@ -94,11 +95,11 @@ flowchart LR
   Activate --> Outcome["已验证量测来源\n后续 outcome review"]
 ```
 
-你可以从任意阶段起步。`product-definition-builder` 对所有产品止于已批准的 Product Definition，UI 产品再止于已批准的 `wireframes.html`。可选视觉阶段补充 active visual contract；Harness 只实现已冻结并批准的结果，security review 与 activation 保持后续边界。
+你可以从任意阶段起步。`product-definition-builder` 止于已批准 Product Definition；`ui-design-builder` 在明确要求后才另行创建并批准 wireframe 与 HiFi。Harness 只实现冻结并批准的 product/UI sources，security review 与 activation 保持后续边界。
 
 ### 完整技能生命周期
 
-五个 skill 的完整生命周期，包含每个闸门与横切机制：
+六个 skill 的完整生命周期，包含每个闸门与横切机制：
 
 ```mermaid
 flowchart TB
@@ -111,21 +112,22 @@ flowchart TB
         mr["market-research.md<br/>（对账 candidate，可跳过）"]
         sgate{{"Stack Decision Checkpoint<br/>Required | Selected | Approved"}}
         pgate{{"Product Definition Approval<br/>所有产品"}}
-        wf["wireframes.html<br/>单一互动式线框档（UI 产品）"]
-        wgate{{"Wireframe Approval Gate<br/>（人工核准 = 完整停点）"}}
         ra["research-first 评估<br/>research-assessment.md（可跳过）"]
         rgate{{"Research Gate<br/>go | clarify | stop"}}
         interview --> ra --> rgate --> pkg --> mr --> sgate --> pgate
-        pgate -->|UI-bearing| wf --> wgate
     end
 
-    subgraph DESIGN["视觉设计（可选；owner 明确要求才进场）"]
+    subgraph DESIGN["ui-design-builder — UI 设计（owner 明确要求）"]
         direction TB
-        taste["UI Design Pass<br/>依 Skill Bindings 槽位选 taste skill"]
-        handoff[UI Design Handoff]
+        intake{{"UI Design Intake<br/>style + motion + media；等待 owner"}}
+        wf["frontend-design 结构模式<br/>wireframes/4"]
+        wgate{{"Wireframe Approval<br/>W1–W5 + 人工 owner"}}
+        style["frontend-design<br/>Style Integration + HiFi target"]
+        review["Impeccable critique + audit<br/>H1–H9 评分"]
+        vgate{{"Human Visual Approval"}}
         dgate{{"Design System Need Gate"}}
         pair["design-system-compiler<br/>design-system.md + design-system.json"]
-        taste --> handoff --> dgate
+        intake --> wf --> wgate --> style --> review --> vgate --> dgate
         dgate -->|required| pair
         dgate -->|not_required| target[核准的 page-faithful target]
     end
@@ -205,9 +207,8 @@ flowchart TB
     end
 
     user --> interview
-    wgate -->|继续视觉设计| DESIGN
-    wgate -->|已批准 UI package| HARNESS
-    pgate -->|已批准 headless package| HARNESS
+    pgate -->|UI 产品批准且明确要求 UI| intake
+    pgate -->|headless 或延后 UI| HARNESS
     pair --> route
     target --> route
     DIRECT --> handoff
@@ -288,20 +289,20 @@ flowchart TB
 
 一次运行只有一个 active host。same-repository handoff 只有在 Host A 关闭 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 后才允许；`active_wave` 对象仍保留在 RUN 中，不能把对象缺失当作交接信号：Host B 保留 PLAN/RUN 和 graph state，重新探测 runtime，并在选取下一波前审查当前 exact SHA。若需修复，路由回 Host A 且旧 review 立即失效；除非未来 schema 增加可携带的仓库/状态身份，否则不支持 cross-machine handoff。
 
-## 图工程与动态工作流
+## 跨 agent host 的图执行
 
 这些技能使用两层图：
 
 - **组织图（org graph）** 是稳定的角色契约：产品、架构、UX、设计系统、任务工作节点、surface 审查者、security 审查者、审批、集成和生命周期职责。
-- **工作图（work graph）** 是单次运行的临时任务图。只有当宿主能够强制执行 `builder_readonly` 工具画像时，PRD 和设计工作流才会使用有界的分析图；否则它们退回到顺序执行的父级。工程部分使用规范的 PLAN v6 图和 RUN v11 状态。
+- **工作图（work graph）** 是单次运行的临时任务图。Product Definition 与设计技能只有在当前宿主能够强制执行必要的只读工具边界时，才会使用有界的 agent 分析图；否则退回顺序父级。工程部分使用规范的 PLAN v6 图和 RUN v11 状态。
 
-访谈和审批保持在运行中的工作流之外，因为 Claude Code 的动态工作流无法在运行途中征询用户输入。父级先冻结输入，运行一个有界的工作流，再自行负责分阶段写入、冲突解决、审批和发布。
+Child agent run 不负责访谈或审批。父级先冻结输入，再启动有界的 host-native agent run，并自行负责分阶段写入、冲突解决、审批和发布。Codex、Claude Code、Pi 与 generic host 都遵守同一份契约。
 
 对于工程部分，Harness 会在创建或申请工作树之前，先验证并选出依赖已就绪的前沿（frontier）。原生 Claude 任务使用 `.claude/worktrees/` 下父级托管的工作树，把每个工作节点绑定到精确的批次基点，并要求在访问仓库前先执行 `EnterWorktree`。在每一条路线中，父级都会验证返回的提交和实际的 Git 差异，串行地集成被接受的提交，并重新计算图的前沿。
 
 非 runtime 图节点采用 reserve／execute／record 顺序：`reserve-node-attempt` 在 RUN lock 内建立 receipt，approval、external wait、deterministic verifier 或 lifecycle side effect 在 lock 外执行，`record-node-result` 只关闭相符的 attempt，并按声明的 outcome 派生 graph phase。Lifecycle transition 只记录证据，不执行动作。`lease-worker` 把选择器派生的 runtime binding 与精确 task／thread 身份写入 RUN，并遵守 compatibility 检查与现有 wildcard 授权。
 
-Claude Graph Workflow 会把 mixed frontier 按 homogeneous `tool_profile` 分成多个调用；同一组内可以使用不同模型和推理强度，但一次调用绝不混合写入 mission 与只读 review。tool profile 是标签和 prompt/result 契约，不是 permission-level tool removal。
+在 Claude Code 上，host adapter 会把 mixed frontier 按 homogeneous `tool_profile` 分成多个调用；同一组内可以使用不同模型和推理强度，但一次调用绝不混合写入 mission 与只读 review。tool profile 是标签和 prompt/result 契约，不是 permission-level tool removal。
 
 - `mission_write` 要求 `EnterWorktree` 和 mission 的有界写入契约。
 - `code_review_readonly` 要求 frontend、backend、integration 或 security 的精确路径审查和只读结果证据；它不会移除继承的工具。
@@ -321,7 +322,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安装方式
 
-克隆仓库并运行安装脚本。它会把现有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中，把五个 Product Delivery Harness skills 复制进 `~/.agents/skills/`，并验证每个复制出来的 `SKILL.md`：
+克隆仓库并运行安装脚本。它会把现有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中，把六个 Product Delivery Harness skills 复制进 `~/.agents/skills/`，并验证每个复制出来的 `SKILL.md`：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -335,21 +336,22 @@ cd product-delivery-harness
 ```bash
 cp -r product-delivery-harness/skills/delivery-harness \
       product-delivery-harness/skills/product-definition-builder \
+      product-delivery-harness/skills/ui-design-builder \
       product-delivery-harness/skills/design-system-compiler \
       product-delivery-harness/skills/code-security-review \
       product-delivery-harness/skills/product-activation \
       ~/.agents/skills/
 ```
 
-如果 checkout 的 `skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。安装脚本同时也是更新脚本：重跑一次会先备份旧副本再替换。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制五个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
+如果 checkout 的 `skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。安装脚本同时也是更新脚本：重跑一次会先备份旧副本再替换。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制六个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
 
 从 0.23 或更早版本升级时，先在同一份备份中用原 ID 保存各旧目录。然后安装对应的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。复制完成后，验证 `~/.agents/skills/` 中已没有三个旧 ID；否则宿主会发现重复且触发范围重叠的 skills。
 
-五个内置技能可独立调用，但跨技能模式会校验依赖。Product Definition 的 core checker 会 join PRD、architecture 和 stack decisions；wireframe 校验再加入 UI checker。`design-system-compiler`、Delivery 与 Activation 都要先确认 Product Definition 和 Stack Checkpoint 已批准，再读取各自后续输入。
+六个内置技能可独立调用，但跨技能模式会校验依赖。Product Definition core checker 会 join PRD、architecture 和 stack；UI Design Builder 校验 `ui-design.md` 与 `wireframes.html`，Harness 0.37.0+ 在 UI delivery 前 join 这些来源。Design compilation、Delivery 与 Activation 仍要求适用的上游批准。
 
 ### Zero-to-one 流程（从零开始）
 
-1. 安装一个受支持的宿主（Codex、Claude Code、Pi 或任何会发现 `~/.agents/skills/` 的宿主）和五个 Product Delivery Harness skills，并用该宿主运行本次交付。
+1. 安装一个受支持的宿主（Codex、Claude Code、Pi 或任何会发现 `~/.agents/skills/` 的宿主）和六个 Product Delivery Harness skills，并用该宿主运行本次交付。
 2. 开启新的宿主会话，确认技能可见，然后调用 `delivery-harness`。
 3. 让规模闸决定直接工作还是 PLAN/RUN；小型工作不要预先创建工作节点。
 4. 大型运行一次只保留一个 active host，并在 same-repository handoff 前关闭和审查每个 wave。
@@ -359,15 +361,15 @@ cp -r product-delivery-harness/skills/delivery-harness \
 Codex 接受下面的 `$skill-name` 形式。在 Claude Code 或其他宿主中，直接按名称请求技能，例如 `product-definition-builder`。在 Pi 中，可以使用自动发现的项目技能，或通过 `--skill` 传入技能目录，然后按名称请求 `delivery-harness`。
 
 ```text
-Use $product-definition-builder to draft this product, reconcile research, present coherent stack options, obtain Stack Decision and Product Definition approval, then create responsive wireframes for every UI page, target, and state.
+Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests, and Product Definition Approval. Stop before wireframes.
 ```
 
 ```text
-The Product Definition is approved. Use $product-definition-builder to build and review every page-target-state in staged wireframes.html, then record Wireframe Approval before visual or implementation work.
+The Product Definition is approved. Use $ui-design-builder to ask me for UI, style, motion, and per-region image/motion preferences, then use $frontend-design to create and score responsive wireframes/4. Stop for my Wireframe Approval.
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every in-scope page and state in one self-contained design-reference HTML with complete CSS and clickable flows; keep auth preview scenes n/a. Browser-check the full matrix and invoke $design-system-compiler only when required.
+The wireframes are approved. Continue $ui-design-builder with $frontend-design Style Integration, create one connected HiFi reference, run $impeccable critique and audit plus H1-H9 grading, obtain Visual Approval, and invoke $design-system-compiler only when required.
 ```
 
 ```text
@@ -403,7 +405,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 | 运行时 | 首选并行路线 | 回退方案 |
 | --- | --- | --- |
 | Codex 应用 | 在隔离的、应用托管的工作树中运行应用任务 | 直接子代理，然后退到单一顺序父级 |
-| Claude Code | 采用精确基点、父级托管的 `.claude/worktrees/` 工作树的动态工作流 | 直接子代理，然后退到单一顺序父级 |
+| Claude Code | 在精确基点、父级托管的 `.claude/worktrees/` 工作树中运行平面 sibling-agent runner | 直接子代理，然后退到单一顺序父级 |
 | Pi | 在父级托管工作树中使用已安装的 Pi 角色，并由 Pi 选择模型和回退方案 | 单一顺序父级 |
 | 其他任何宿主 | 父级隔离的全新子代理 | 单一顺序父级 |
 
@@ -431,10 +433,11 @@ install.sh / install.ps1                             一键安装进 ~/.agents/s
 ```bash
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
+python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 python -m unittest discover -s skills/product-activation/scripts/tests -v
 git diff --check
@@ -471,6 +474,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.37.0** — UI 设计正式拆成独立批准边界。`product-definition-builder` 确定产品 scope、完整 frontend/backend 架构与 stack 后即停止；新 `ui-design-builder` 负责人工 UI/style/motion/media intake、`wireframes/4` typed image/motion placeholders、W1–W5 结构评分、`frontend-design` Style Integration、连通 HiFi HTML、Impeccable critique/audit、H1–H9 评分、Visual Approval、条件式 GSAP 路由、精确授权的 Higgsfield MCP 生成动画，以及 Design System Need Gate。正式 tokens 只在视觉批准后编译；canonical UI 产物改放 `docs/design/`，Harness 0.37.0+ 对 UI delivery 强制 join 已批准 `ui-design.md`，旧设计路径保持读取兼容。Product Definition 的只读分析图改用当前宿主的原生 sibling-agent runner；Codex、Claude Code、Pi 与 generic host 共用同一份角色与父级 ownership 契约。破坏性 skill-bundle 变更。
 
 - **0.36.0** — Product-first 决策加入完整批准主线。草稿后 market research 先对账核心 candidate，再进入人工 Stack Decision Checkpoint 与 Product Definition Approval；UI wireframe 只能从该批准 revision 开始，headless 产品仍需产品批准。技术选项按 coherent bundles 呈现，只有 `Required`、`Selected`、`Approved` 可以实现；`Recommended` 和 `Provisional` 会阻止 Harness。Frontend 分开 language、package manager、shadcn/ui 这类 component foundation 与 styling；mobile destination 与 native/cross-platform、framework 决策分离。PRD 新增 Data & Trust、AI/Automation gates、可量测 metric ownership、结构化 assumptions/open questions，以及覆盖全契约的 enhancement impact record。新的 `check_product_package.py` 验证三份核心文件，Harness 在 approval marker 存在时复用同一 checker。破坏性 skill-bundle 变更。
 - **0.35.5** — 新增 `scripts/parity_capture.py`：Final Visual Parity Loop 变为可执行——从 PLAN `ui_surfaces` 列举 route×breakpoint×state 矩阵，驱动 agent-browser CLI 以同一 viewport 拍摄设计参考渲染与实现页面（`docs/goal/evidence/parity/` 下的 `-target.png`/`-actual.png` 配对），每页跑 DOM 几何探针（水平溢位＋可见重叠）供 `layout_check` attestation 引用，并写出 `manifest.json` 与自包含的 `parity-board.html` 供判定；每 run 一份小 route map 提供参考选择器与可选状态触发，ready 状态免触发即可拍，无 CLI 时手动拍摄仍是后备。Production smoke 首次获得内容定义：带 UI 的候选用同一脚本对生产 URL 重拍 parity 到 `docs/goal/evidence/production/`（晋升合约第 7 条、部署合约、种子 AGENTS.md）——部署偏离设计参考从此是被记录的 finding，而不是 deploy 后的惊喜。

@@ -66,7 +66,7 @@ The parent/coordinator exclusively owns:
 - source intake, contract freeze, and plan revisions;
 - canonical `PLAN.md` and `RUN.md` writes;
 - authorization checks and runtime capability detection;
-- provider/driver routing and Dynamic Workflow argument construction;
+- provider/driver routing and Claude workflow-driver argument construction;
 - batch-base selection, wave confirmation, leases, and worker prompts;
 - non-runtime node reservations/results and lifecycle evidence receipts;
 - branch/worktree creation when authorized;
@@ -161,7 +161,7 @@ linked-worktree Git metadata, temp/cache, network, local-binding, and socket req
 
 Also inspect the current Git status, worktree list, existing branches/refs, and intended integration head. Stop before overwriting, moving, deleting, resetting, or cleaning anything.
 
-Branch and worktree identities are runtime allocations, not static PLAN truth. Derive collision-resistant names from the run, mission, and attempt, then compare the exact proposed branch and path with observed refs/worktrees before creation. For Claude Dynamic Workflow, place parent-managed worktrees under `.claude/worktrees/<run>-<mission>-<attempt>/` so `EnterWorktree` can bind the child without the outside-worktree confirmation added in current Claude Code releases. Never reuse a branch or directory merely because its human alias looks related. Record the final allocation in RUN worker state.
+Branch and worktree identities are runtime allocations, not static PLAN truth. Derive collision-resistant names from the run, mission, and attempt, then compare the exact proposed branch and path with observed refs/worktrees before creation. For the Claude workflow driver, place parent-managed worktrees under `.claude/worktrees/<run>-<mission>-<attempt>/` so `EnterWorktree` can bind the child without the outside-worktree confirmation added in current Claude Code releases. Never reuse a branch or directory merely because its human alias looks related. Record the final allocation in RUN worker state.
 
 ## Select And Confirm A Wave
 
@@ -182,13 +182,13 @@ The selector does not emit a batch base, an effective budget, or a bundled wave.
 
 When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
 
-## Launch Selected Claude Dynamic Workflow
+## Launch The Selected Claude Workflow Driver
 
 This section is retained schema-v6-through-v9 context for in-flight legacy runs only. The current mechanics live in `runtime-adapters.md` (Claude Code section), which routes by wave composition rather than schema version; read that section first. Current selection requires PLAN v6/RUN v11, so current tools never produce a v6-v9 wave — nothing below can fire from a newly selected wave.
 
 When the accepted schema-v6-through-v9 wave routes to `claude_code` + `dynamic_workflow`, use one flat workflow for the selected wave:
 
-1. Confirm Dynamic Workflow is available in the current Claude Code runtime. Treat version support and observed command availability as capability evidence, not authorization.
+1. Confirm the native Workflow runner is available in the current Claude Code runtime. Treat version support and observed command availability as capability evidence, not authorization.
 2. Allocate one authorized parent-managed worktree, durable branch, worker ID, and lease per selected mission from the fixed `batch_base_sha`. The parent owns these mutations and records the concrete identities in RUN.
 3. Render the workflow arguments from the accepted selector result and `WORKER_GOAL.template.md` handoffs. Each mission receives its lease ID, branch ref, assigned existing worktree path, scope, tasks, resources, verifiers, permission boundary, and frozen plan/base identity. `CLAUDE_DYNAMIC_WORKFLOW.template.js` has no `EnterWorktree` tool or allowlist; its mission prompt instructs the agent in plain English to enter the existing worktree at that exact path before any repository read, write, or shell action, then verify repository root, branch, and batch base. It returns blocked if it cannot bind; it never creates a replacement worktree or writes in the parent checkout. (The typed-graph route in `CLAUDE_GRAPH_WORKFLOW.template.js` instructs the agent the same way, in prompt text; it differs only in carrying `node_kind`, `tool_profile`, and typed review bindings — see `references/graph-orchestration.md`. Neither route applies a tool allowlist.)
 The launcher's `args` object is not the selector's output. `select_ready_nodes.py` emits scheduling facts (`execution_route`, `node_id`, `kind`, `ref`, `launch_kind`, `tool_profile`, `runtime_binding`, `required_actions`); the parent has to add the identities it just minted and the rendered prompt. `execution_route` is derived selection output only; `runtime_driver` remains the transport binding. Per node the flat launcher requires `mission_id`, `lease_id`, `branch_ref`, `worktree_path`, `worker_prompt`, and `model`; the typed-graph launcher additionally requires `node_id`, `node_kind`, `attempt_id`, and `failure_outcome`, and for a review node `review_id`, `review_type`, `reviewed_sha`, `review_path`, `review_scope`, `required_evidence`, `required_tools`, and `reviewer_tool_capabilities`.
@@ -199,7 +199,7 @@ Two mappings are easy to miss: the selector's `kind` is the launcher's `node_kin
 5. Do not ask for user input inside the workflow. A mission that needs a contract decision or refined tasks returns a blocked/refinement result; the parent updates PLAN/RUN and starts a later workflow after the decision.
 6. Validate every result against live worktree, branch, head, scope, and verifier facts. Integrate accepted mission heads serially and recompute the next wave.
 
-Claude Code currently supports nested subagents, but this schema-v6-through-v9 route intentionally has no nested worker layer and omits `nested_subagents`. The workflow script coordinates sibling mission agents; each remains the sole writer for its lease and is instructed not to delegate. The script does not directly read files, run shell commands, edit PLAN/RUN, integrate, or push. If Dynamic Workflow is unavailable, use the recorded fallback route; do not simulate it with an untracked ad hoc fan-out.
+Claude Code currently supports nested subagents, but this schema-v6-through-v9 route intentionally has no nested worker layer and omits `nested_subagents`. The workflow script coordinates sibling mission agents; each remains the sole writer for its lease and is instructed not to delegate. The script does not directly read files, run shell commands, edit PLAN/RUN, integrate, or push. If the workflow driver is unavailable, use the recorded fallback route; do not simulate it with an untracked ad hoc fan-out.
 
 ## Launch Selected Codex App Threads
 

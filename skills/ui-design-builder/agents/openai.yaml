@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Design Builder"
+  short_description: "Create approved wireframes and HiFi UI"
+  default_prompt: "Use $ui-design-builder after Product Definition Approval to ask for UI, style, motion, and media preferences; create and score responsive wireframes; integrate the approved style with $frontend-design; review the HiFi reference with $impeccable; and decide whether $design-system-compiler is required."

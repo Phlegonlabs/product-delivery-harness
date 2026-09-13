@@ -8,8 +8,12 @@ import unittest
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+PRODUCT_SCRIPTS_DIR = (
+    Path(__file__).resolve().parents[3] / "product-definition-builder" / "scripts"
+)
+for scripts_dir in (SCRIPTS_DIR, PRODUCT_SCRIPTS_DIR):
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
 
 check_wireframe_html = importlib.import_module("check_wireframe_html")
 prd_ui_contract = importlib.import_module("prd_ui_contract")
@@ -17,7 +21,7 @@ prd_ui_contract = importlib.import_module("prd_ui_contract")
 
 def wireframe_data(**overrides):
     data = {
-        "schema": "wireframes/3",
+        "schema": "wireframes/4",
         "product": "Test Product",
         "approvalStatus": "approved",
         "source": "PRD.md#UI-Surface-Contract",
@@ -351,15 +355,23 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
     def test_media_intent_accepts_only_deferred_generation_handoffs(self):
         data = wireframe_data()
         data["screens"][0]["mediaIntent"] = {
-            "treatment": "motion-led",
+            "treatment": "motion",
+            "purpose": "Explain that the total changed",
+            "trigger": "After refresh",
             "draftPrompt": "Animate the account total after refresh",
             "source": "Owner decision 2026-09-09",
+            "reducedMotionFallback": "Show the updated total without movement",
+            "generationRoute": "CSS-WAAPI",
             "generationStatus": "deferred",
         }
         data["screens"][0]["regions"][0]["mediaIntent"] = {
-            "treatment": "imagery-led",
+            "treatment": "image",
+            "purpose": "Explain the account summary",
+            "trigger": "static",
             "draftPrompt": "Account summary illustration for the balance region",
             "source": "Owner decision 2026-09-09",
+            "reducedMotionFallback": "Use the same static image",
+            "generationRoute": "existing asset",
             "generationStatus": "deferred",
         }
         self.assertEqual([], validate_html(render_html(data)))
@@ -369,35 +381,51 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             (
                 {
                     "treatment": "cinematic",
+                    "purpose": "Explain the update",
+                    "trigger": "After refresh",
                     "draftPrompt": "Prompt",
                     "source": "Owner",
+                    "reducedMotionFallback": "Show the final state",
+                    "generationRoute": "Higgsfield MCP",
                     "generationStatus": "deferred",
                 },
                 "mediaIntent.treatment",
             ),
             (
                 {
-                    "treatment": "motion-led",
+                    "treatment": "motion",
+                    "purpose": "Explain the update",
+                    "trigger": "After refresh",
                     "draftPrompt": "",
                     "source": "Owner",
+                    "reducedMotionFallback": "Show the final state",
+                    "generationRoute": "CSS-WAAPI",
                     "generationStatus": "deferred",
                 },
                 "mediaIntent.draftPrompt",
             ),
             (
                 {
-                    "treatment": "motion-led",
+                    "treatment": "motion",
+                    "purpose": "Explain the update",
+                    "trigger": "After refresh",
                     "draftPrompt": "Prompt",
                     "source": "",
+                    "reducedMotionFallback": "Show the final state",
+                    "generationRoute": "CSS-WAAPI",
                     "generationStatus": "deferred",
                 },
                 "mediaIntent.source",
             ),
             (
                 {
-                    "treatment": "motion-led",
+                    "treatment": "motion",
+                    "purpose": "Explain the update",
+                    "trigger": "After refresh",
                     "draftPrompt": "Prompt",
                     "source": "Owner",
+                    "reducedMotionFallback": "Show the final state",
+                    "generationRoute": "CSS-WAAPI",
                     "generationStatus": "generated",
                 },
                 "mediaIntent.generationStatus",
@@ -410,12 +438,36 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
                 joined = "\n".join(validate_html(render_html(candidate)))
                 self.assertIn(expected, joined)
 
+        missing_route = wireframe_data()
+        missing_route["screens"][0]["mediaIntent"] = {
+            "treatment": "motion",
+            "purpose": "Explain the update",
+            "trigger": "After refresh",
+            "draftPrompt": "Prompt",
+            "source": "Owner",
+            "reducedMotionFallback": "Show the final state",
+            "generationStatus": "deferred",
+        }
+        joined = "\n".join(validate_html(render_html(missing_route)))
+        self.assertIn("mediaIntent.generationRoute", joined)
+
     def test_legacy_v2_projection_remains_readable(self):
         data = wireframe_data()
         data["schema"] = "wireframes/2"
         data["flows"][0].pop("presentation")
         data["flows"][0]["trigger"] = "Historical trigger without a visible action"
         data["screens"][0]["mediaIntent"] = "historically ignored extension data"
+        self.assertEqual([], validate_html(render_html(data)))
+
+    def test_legacy_v3_media_intent_remains_readable(self):
+        data = wireframe_data()
+        data["schema"] = "wireframes/3"
+        data["screens"][0]["mediaIntent"] = {
+            "treatment": "motion-led",
+            "draftPrompt": "Historical motion prompt",
+            "source": "Historical owner decision",
+            "generationStatus": "deferred",
+        }
         self.assertEqual([], validate_html(render_html(data)))
 
     def test_actions_and_flows_must_form_one_working_local_mapping(self):

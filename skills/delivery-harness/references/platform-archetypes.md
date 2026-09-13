@@ -275,7 +275,7 @@ Required E2E scenarios:
 
 Use this profile when the target is a native mobile or desktop app instead of a web surface: native iOS, native Android, Flutter (one codebase targeting iOS + Android and optionally more), or a macOS/Windows desktop app. These do not have a URL model or SEO metadata. Freeze the surfaces below before implementation.
 
-The design-source input for this profile is the active visual route recorded in the PRD UI Design Handoff, written for the resolved platform's HIG, Material, or desktop window conventions. When the Design System Need Gate is `required`, `design-system.md` and `design-system.json` bind and their primitive layers take the platform's vocabulary. When it is `not_required`, the approved native or desktop target plus platform conventions bind and no placeholder pair is created. UI evidence uses the native row and per-platform capture mechanism in `references/verification-gates.md`'s UI Evidence Gate (Simulator/Emulator/device screenshots), not browser screenshots.
+The design-source input for this profile is the active visual route recorded in `ui-design.md`, written for the resolved platform's HIG, Material, or desktop window conventions. When the Design System Need Gate is `required`, `design-system.md` and `design-system.json` bind and their primitive layers take the platform's vocabulary. When it is `not_required`, the approved native or desktop target plus platform conventions bind and no placeholder pair is created. UI evidence uses the native row and per-platform capture mechanism in `references/verification-gates.md`'s UI Evidence Gate (Simulator/Emulator/device screenshots), not browser screenshots.
 
 Freeze these surfaces:
 

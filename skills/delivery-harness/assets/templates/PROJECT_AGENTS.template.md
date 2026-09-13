@@ -20,13 +20,14 @@ The delivery flow binds stage slots, not fixed skill names. This table binds the
 
 | Slot | Stage | Bound skill | Pinned SHA-256 |
 | --- | --- | --- | --- |
-| design_direction | wireframes → UI direction and mockup (UI Design Pass) | <bundled Taste-aware pass (`design-taste-frontend`), or an installed taste skill> | <hash of the bound skill's SKILL.md> |
+| ui_design | approved Product Definition → UI intake, wireframes, HiFi, approvals | <bundled `ui-design-builder`, or an installed UI-design orchestrator> | <hash of the bound skill's SKILL.md> |
+| style_integration | approved wireframe → page theme and connected HiFi target | <bundled `frontend-design`, or an installed frontend design skill> | <hash of the bound skill's SKILL.md> |
 | design_compilation | frozen design-system pair | <bundled `design-system-compiler` + `frontend-design`, or your own> | n/a for defaults |
 | frontend_implementation | implementation missions | <bundled `frontend-design`, or your own frontend skill> | <hash of the bound skill's SKILL.md> |
-| ui_quality_verification | final page-quality pass after all design-reference pages are implemented | <bundled `impeccable` evaluate pass (`critique` + `audit`), or an installed UI-quality skill> | <hash of the bound skill's SKILL.md> |
+| ui_quality_verification | HiFi review before Visual Approval and final page-quality after implementation | <bundled `impeccable` evaluate pass (`critique` + `audit`), or an installed UI-quality skill> | <hash of the bound skill's SKILL.md> |
 | code_security_verification | fresh unified code-security review before final regression and closeout | <bundled `code-security-review`, or an installed read-only security-review skill> | n/a for default |
 
-An unbound slot uses the bundled default. A non-default bound skill pins the SHA-256 of its SKILL.md; `delivery-harness/scripts/check_skill_bindings.py` recomputes it and fails on a mismatch, so changing a bound skill's content is a deliberate, reviewed pin update — never a silent swap. PLAN missions resolve their workers' skill lists from this table where a slot applies. The `code_security_verification` slot is loaded by a parent-dispatched, read-only integration-stage reviewer after all missions share one fixed candidate SHA; the reviewer receives no implementation or lifecycle authority.
+An unbound slot uses the bundled default. `ui-design-builder` orchestrates UI decisions; `frontend-design` is the default design author for both Style Integration and implementation conformance; `impeccable` reviews but does not author. A non-default bound skill pins the SHA-256 of its SKILL.md; `delivery-harness/scripts/check_skill_bindings.py` recomputes it and fails on a mismatch. The `code_security_verification` reviewer receives no implementation or lifecycle authority.
 
 ## Core Development Principles
 
@@ -74,7 +75,7 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 
 - When `docs/product/PRD.md` exists, every product change updates the affected PRD requirements, acceptance criteria, and trace IDs in the same change, including small post-delivery fixes that do not use Product Delivery Harness PLAN/RUN.
 - Before implementation, classify the change's UI impact as `none`, `structure`, `style`, or `both`. Adding a page, route, visible region, state, or responsive behavior is at least `structure`.
-- For `none`, preserve `wireframes.html` and the approved UI direction. For `structure` or `both`, update only the affected PRD UI Surface Contract entries and `wireframes.html` pages, then re-run their applicable validation and approval gate. For `style` or `both`, also update the approved UI direction or record the owner's decision to keep it; update `design-system.md` and `design-system.json` only when the approved change requires the formal pair to change.
+- For `none`, preserve all UI sources. For `structure` or `both`, update affected PRD behavior through `product-definition-builder`, then update `ui-design.md` and `wireframes.html` through `ui-design-builder` and rerun their gates. For `style` or `both`, rerun Style Integration, Impeccable review, H1-H9 grading, and Visual Approval or record the owner's decision to retain the existing direction. Update the design-system pair only when the approved change requires it.
 - Preserve unaffected requirements, IDs, pages, wireframes, and design decisions. A direct task may stay small, but it is not complete while implementation and the canonical product documents disagree.
 
 ## Monetization And Partner Channels
@@ -82,7 +83,7 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 - When a product has pricing, paid access, purchase-gated features, or outside sellers, keep explicit Monetization Infrastructure and Partner Channel gates in `docs/product/PRD.md`; record `not_required` with a reason when either does not apply.
 - Resolve the commercial model and purchase surfaces before selecting technology. RevenueCat is one candidate, never the default: compare current official evidence for native store billing, RevenueCat, Qonversion, Adapty, Superwall, Stripe Billing, Paddle, Lemon Squeezy, or another product-fit option.
 - Treat affiliate, referral, and reseller as different motions. A reseller decision must cover deal registration, price authority or wholesale terms, customer ownership, provisioning, delegated administration, support, renewals, termination, and channel conflict; an affiliate link alone does not satisfy it.
-- Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller-operation responsibilities separate in PRD, architecture, stack decisions, implementation, and tests. Update affected UI Surface Contract entries and `wireframes.html` before implementing customer, partner, pricing, purchase, or administration surfaces.
+- Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller-operation responsibilities separate in PRD, architecture, stack decisions, implementation, and tests. Update affected UI Surface Contract entries through `product-definition-builder`, then update `ui-design.md` and `wireframes.html` through `ui-design-builder` before implementing customer, partner, pricing, purchase, or administration surfaces.
 
 ## Protect Local Data
 

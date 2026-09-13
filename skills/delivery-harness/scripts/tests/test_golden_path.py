@@ -7,10 +7,10 @@ CI enables this test explicitly. Run it locally with:
         -s skills/delivery-harness/scripts/tests \
         -p "test_golden_path.py" -v
 
-The per-component suites each stay green while the four skills drift apart;
+The per-component suites can stay green while the six skills drift apart;
 this test walks the documented spine in order against one synthetic package —
 `new_run.py` generating RUN from PLAN, `validate_harness_plan.py` re-running
-the frozen source joins including the sibling skill's core-package and wireframe checkers,
+the frozen source joins including the sibling skills' product, UI-design, and wireframe checkers,
 and `validate_result.py` validating a returned graph payload with `--repo-root`
 — so cross-skill contract drift surfaces here as one red test.
 """
@@ -35,6 +35,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import load_run  # noqa: E402
+from harness_contract_join import validate_frozen_contract_joins  # noqa: E402
 from manifest_fixtures import (  # noqa: E402
     git,
     init_repo,
@@ -123,12 +124,9 @@ Filled.
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | Complete fixture | integration | Yes | PRD-001 | Completion observed |
 | TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |
-## Builder UX Direction Decision
-Decision owner: Owner
-Motion Need Gate:
-| UI scope | Gate | Purpose and trigger | Decision source | Reduced-motion fallback |
-| --- | --- | --- | --- | --- |
-| UI-001 | not_required | Static fixture | Owner | Static fixture |
+## UI Design Handoff Status
+UI design: pending explicit ui-design-builder request
+UI decision owner: Owner
 ## Product Definition Decisions
 ### Research Gate
 Research Gate: go — assessed 2026-09-12, decided by Owner
@@ -215,6 +213,67 @@ def approved_stack() -> str:
 """
 
 
+def approved_ui_design() -> str:
+    return """# UI Design Contract
+
+## Source Product Definition
+PRD source: docs/product/PRD.md @ fixture
+Architecture source: docs/product/architecture.md @ fixture
+Stack source: docs/product/stack-decisions.md @ fixture
+Product Definition Approval: approved — Owner, 2026-09-13
+Stack Decision Checkpoint: approved — Owner, 2026-09-13
+## UI Design Intake
+Decision owner: Owner
+Decided on: 2026-09-13
+Visual Preference Brief: Plain synthetic fixture UI
+Direction mode: one recommended direction
+## Motion And Media Intent
+Motion direction: not_required — Owner
+| Intent ID | UI scope / region | Treatment | Purpose and trigger | Static / reduced-motion fallback | Generation route | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| MM-001 | UI-001 / main | none | Static fixture | Static fixture | none | approved |
+## Wireframe Approval
+Wireframe: docs/design/wireframes.html @ fixture
+Frozen PRD basis: docs/product/PRD.md @ fixture
+Responsive browser check: passed synthetic matrix
+UI grading: W1-W5 overall 90 with no block
+Wireframe score: 90
+Wireframe lowest dimension: 90
+Wireframe blocks: none
+Decision: approved
+Decision owner: Owner
+Decided on: 2026-09-13
+## Style Integration
+Design author: frontend-design
+Selected direction: VD-R1-01 synthetic fixture
+Direction decision: approved
+Direction decision owner: Owner
+Direction decided on: 2026-09-13
+Candidate theme: plain fixture CSS
+Connected HiFi reference: docs/design/ui-references/golden/index.html @ fixture
+## HiFi Review
+Impeccable critique: passed synthetic review 40/40
+Impeccable audit: passed synthetic audit 20/20
+UI grading: H1-H9 overall 95; H2 95; H4 95; H8 95; no block
+HiFi score: 95
+H2 score: 95
+H4 score: 95
+H8 score: 95
+HiFi lowest dimension: 90
+HiFi blocks or disputes: none
+## Visual Approval
+Decision: approved
+Decision owner: Owner
+Decided on: 2026-09-13
+Approved target: docs/design/ui-references/golden/index.html @ fixture; UI-001 ready; 390, 768, 1200
+## Design System Need Gate
+Decision: not_required
+Decision owner: Owner
+Reason: Synthetic single-surface target
+Replacement visual contract when not_required: ui-design.md, wireframes.html, PRD.md, approved target
+"""
+
+
 @unittest.skipUnless(
     os.environ.get("HARNESS_GOLDEN_PATH"),
     "set HARNESS_GOLDEN_PATH=1 to run the golden-path E2E",
@@ -227,13 +286,15 @@ class GoldenPathTests(unittest.TestCase):
 
             product = root / "docs" / "product"
             product.mkdir(parents=True)
+            design = root / "docs" / "design"
+            design.mkdir(parents=True)
             prd_path = product / "PRD.md"
             prd_path.write_text(approved_prd(), encoding="utf-8")
-            wireframes_path = product / "wireframes.html"
+            wireframes_path = design / "wireframes.html"
             wireframes_path.write_text(
                 wireframes_html(
                     [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
-                    schema="wireframes/3",
+                    schema="wireframes/4",
                     viewports=(390, 768, 1200),
                 ),
                 encoding="utf-8",
@@ -242,6 +303,8 @@ class GoldenPathTests(unittest.TestCase):
             architecture_path.write_text(approved_architecture(), encoding="utf-8")
             stack_path = product / "stack-decisions.md"
             stack_path.write_text(approved_stack(), encoding="utf-8")
+            ui_design_path = design / "ui-design.md"
+            ui_design_path.write_text(approved_ui_design(), encoding="utf-8")
 
             plan = valid_plan()
             plan["security_review"] = {
@@ -278,8 +341,14 @@ class GoldenPathTests(unittest.TestCase):
                 frozen_source(
                     "SRC-WIREFRAMES",
                     "wireframe",
-                    "docs/product/wireframes.html",
+                    "docs/design/wireframes.html",
                     wireframes_path,
+                ),
+                frozen_source(
+                    "SRC-UI-DESIGN",
+                    "ui design contract",
+                    "docs/design/ui-design.md",
+                    ui_design_path,
                 ),
             ]
             git(root, "add", "docs")
@@ -330,6 +399,20 @@ class GoldenPathTests(unittest.TestCase):
             self.assertEqual("PASS", json.loads(validated.stdout)["status"])
 
             run = load_run(run_path)
+            missing_ui_design = json.loads(json.dumps(plan))
+            missing_ui_design["sources"] = [
+                source
+                for source in missing_ui_design["sources"]
+                if source["id"] != "SRC-UI-DESIGN"
+            ]
+            self.assertTrue(
+                any(
+                    "requires exactly one frozen ui-design.md source" in error
+                    for error in validate_frozen_contract_joins(
+                        missing_ui_design, root, run=run
+                    )
+                )
+            )
             run["integration"]["batch_base_sha"] = head
             node_result = running_result(plan, run)
             run_path.write_text(

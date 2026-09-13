@@ -435,7 +435,7 @@
 
   <script id="wireframe-data" type="application/json">
   {
-    "schema": "wireframes/3",
+    "schema": "wireframes/4",
     "product": "<Product Name>",
     "approvalStatus": "draft",
     "source": "PRD.md#UI-Surface-Contract",
@@ -448,7 +448,7 @@
         "route": "/",
         "goal": "<Primary user goal>",
         "traces": ["UX-001"],
-        "mediaIntent": {"treatment": "motion-led", "draftPrompt": "<Draft page-level motion prompt>", "source": "<Recorded owner decision that settled the treatment>", "generationStatus": "deferred"},
+        "mediaIntent": {"treatment": "motion", "purpose": "<What this treatment helps the user understand or do>", "trigger": "<When the treatment begins>", "draftPrompt": "<Draft page-level motion prompt>", "source": "<Recorded owner decision that settled the treatment>", "reducedMotionFallback": "<Equivalent static or reduced-motion treatment>", "generationRoute": "<CSS-WAAPI / GSAP / Higgsfield MCP / another owner-approved route>", "generationStatus": "deferred"},
         "regions": [
           {
             "id": "global-header",
@@ -482,7 +482,7 @@
               {"label": "<Media placeholder and content responsibility>", "contract": {"source": "<Copy or data source>", "count": "<Maximum items>"}}
             ],
             "actions": [],
-            "mediaIntent": {"treatment": "imagery-led", "draftPrompt": "<Draft image prompt for this hero media position>", "source": "<Recorded owner decision that settled the treatment>", "generationStatus": "deferred"}
+            "mediaIntent": {"treatment": "image", "purpose": "<What this image helps the user understand or do>", "trigger": "static", "draftPrompt": "<Draft image prompt for this hero media position>", "source": "<Recorded owner decision that settled the treatment>", "reducedMotionFallback": "same static image", "generationRoute": "<existing asset / later image generation>", "generationStatus": "deferred"}
           },
           {
             "id": "feature-grid",

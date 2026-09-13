@@ -40,11 +40,11 @@ def wireframes_html(
     schema: str = "wireframes/2",
     viewports: list[int] | tuple[int, ...] = (390, 1200),
 ) -> str:
-    """A wireframes.html that passes product-definition-builder's full checker.
+    """A wireframes.html that passes ui-design-builder's full checker.
 
     Each screen dict carries the PLAN surface's ``id``, ``route``, and
     ``states``; the shell carries every reviewer marker and stays
-    self-contained. Pass ``schema="wireframes/3"`` with three viewports for
+    self-contained. Pass ``schema="wireframes/4"`` with three viewports for
     the current three-viewport web contract; the default stays at the
     legacy wireframes/2 two-target shape.
     """

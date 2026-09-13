@@ -1,11 +1,11 @@
 # Product Design Output Contract
 
-Publish these files only when `PRD.md` records `Design System Need Gate: required`:
+Publish these files only when `docs/design/ui-design.md` records `Design System Need Gate: required`:
 
-- `design-system.md`
-- `design-system.json`
+- `docs/design/design-system.md`
+- `docs/design/design-system.json`
 
-The pair forms one reusable visual implementation handoff. `PRD.md` owns product structure, behavior, and the approved UI Design Handoff; approved `wireframes.html` provides its structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. The approved preview remains a scoped page-faithful target outside this pair.
+The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved HiFi target; approved `wireframes.html` provides the structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together.
 
 ## `design-system.md`
 
@@ -32,24 +32,24 @@ Keep it the sole structured authority for:
 - registered motion variants; and
 - the UI state matrix.
 
-## PRD Input Quality Check
+## Approved Input Quality Check
 
 - The Design System Need Gate is `required` and records its human owner and reason.
-- `### UI Design Handoff` records an approved immutable target, source hash, routes and states, the exact PRD/wireframe responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
-- `wireframes.html` has human approval recorded in `PRD.md`, and each `UI-*` page matches the PRD.
+- `ui-design.md` records an approved immutable target, source hash, routes and states, the exact PRD/wireframe responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
+- `wireframes.html` has human approval recorded in `ui-design.md`, and each `UI-*` page matches the PRD.
 - Each UI surface has one main purpose, one task-fit layout pattern, a real route or explicit `n/a`, and a density reason.
 - Every visible region has exact copy or a bounded display contract, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
 - Public surfaces have bounded SEO fields, correct heading order, and image alt-text contracts.
 - Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a` at every responsive target.
 - Scope, routes, actions, content responsibilities, wireframe structure, responsive rearrangement, and trace IDs stay fixed across visual directions.
 
-If any item is missing, return a bounded PRD update. Do not invent it in the design system.
+If product behavior or stack is missing, return a bounded Product Definition update. If UI direction or evidence is missing, return to `ui-design-builder`. Do not invent either in the design system.
 
 ## Final Quality Check
 
 - `frontend-design` was loaded with `design-system-compiler` in contract-compilation mode.
-- `impeccable` and `design-taste-frontend` were not rerun during normal compilation; their approved consequences are read from the PRD UI Design Handoff.
-- The Taste applicability record contains a Design Read and dial settings when applicable, or a specific `n/a` reason.
+- `frontend-design` and Impeccable were not rerun during normal compilation; their approved consequences are read from `ui-design.md`.
+- The Style Integration record names `frontend-design`, the selected direction, and its candidate theme rules.
 - The human owner approved one immutable UI target, or explicitly authorized a provisional assumption.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.

@@ -1,6 +1,6 @@
 ---
 name: design-system-compiler
-description: Create or refine an implementation-ready frozen design-system contract (`design-system.md` and `design-system.json`) only from an approved Product Definition, Stack Decision Checkpoint, wireframe, and PRD UI Design Handoff whose gate requires a formal pair. Use for design tokens, primitives, product-component contracts, responsive/state matrices, or design-input deltas.
+description: Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair. Use only after Product Definition, Stack Decision, Wireframe, Style Integration, Impeccable HiFi review, PRD-bound scoring, and Visual Approval have passed and ui-design.md records Design System Need Gate: required. It freezes tokens, primitives, product components, motion variants, responsive rules, and states; it does not choose product, stack, layout, or visual direction.
 ---
 
 # Design System Compiler
@@ -12,7 +12,7 @@ Turn an approved UI direction into two binding reusable UI sources:
 - `design-system.md` for the selected visual direction and short human-facing rules; and
 - `design-system.json` for machine-readable tokens, primitives, closed variants, product components, motion, responsive rules, source paths, and the state matrix.
 
-This skill is optional. Invoke it only when Product Definition Approval and the Stack Decision Checkpoint are approved, the visual phase has an approved UI Design Handoff, and `PRD.md` records `Design System Need Gate: required`. The compiler respects the approved component foundation and styling approach; it never changes stack by implication. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the UI Design Handoff; approved `wireframes.html` is its structural projection. Do not duplicate or change those contracts, implement production UI, or create Harness PLAN/RUN state.
+This skill is optional. Invoke it only when Product Definition Approval and the Stack Decision Checkpoint are approved and `docs/design/ui-design.md` records approved Wireframe and Visual decisions plus `Design System Need Gate: required`. The compiler respects the approved component foundation and styling approach; it never changes stack by implication. `PRD.md` owns product behavior, while `ui-design-builder` owns `ui-design.md`, the approved wireframe, and the HiFi target. Do not duplicate or change those contracts, implement production UI, or create Harness PLAN/RUN state.
 
 ## Compilation Skills Gate
 
@@ -24,34 +24,35 @@ Before creating or revising a formal pair:
 
 For a Harness design-source mission, `required_skills` must contain `design-system-compiler` and `frontend-design`. This is distinct from Harness UI implementation conformance mode, which obeys frozen sources and does not revise them.
 
-Do not reload `design-taste-frontend` or `impeccable` merely to compile the pair. Their approved consequences, when used, are already frozen in `PRD.md`'s UI Design Handoff. Reopen visual direction only when the human owner explicitly asks; follow the bounded expansion in Reference Routing, return the selected result to `product-definition-builder` for approval and recording, and restart compilation from that updated source.
+Do not run Impeccable or another design pass merely to compile the pair. Their approved consequences are already frozen in `ui-design.md`. A request to reopen layout, style, motion, media, or visual direction returns to `ui-design-builder`; a product or stack change returns to `product-definition-builder`.
 
 ## Inputs And Ownership
 
 Read the current sources in full before drafting:
 
-- `PRD.md`, including Product Definition Approval, its UI surface contract, Builder UX Direction Decision, Motion Need Gate, approved `### UI Design Handoff`, and `Design System Need Gate: required` decision;
-- approved `wireframes.html`, including its matching `UI-*` page, complete viewport or size-class set, state, region, per-target layout, and passing browser overlap/overflow review, plus `PRD.md`'s `### Wireframe Approval` record;
+- `PRD.md`, including Product Definition Approval and its UI Surface Contract;
+- `docs/design/ui-design.md`, including UI Design Intake, Motion and Media Intent, Wireframe Approval, Style Integration, Impeccable HiFi review, H1-H9 grading, Visual Approval, and `Design System Need Gate: required`;
+- approved `wireframes.html`, including its matching `UI-*` page, complete viewport or size-class set, state, region, per-target layout, and passing browser overlap/overflow review;
 - `architecture.md` and `stack-decisions.md`, including the approved Stack Decision Checkpoint and its platform, rendering, component-foundation, styling, accessibility, and performance constraints;
 - existing `design-system.md` and `design-system.json` for an enhancement or delta; and
-- the immutable approved UI target and any confirmed `REF-*` / `RP-*` evidence named by the handoff.
+- the immutable approved UI target and any confirmed `REF-*` / `RP-*` evidence named by `ui-design.md`.
 
-Read `market-research.md` only when the handoff cites its `MR-*` evidence. Repository-discovered images remain non-canonical design inspiration unless the PRD handoff explicitly promotes one to a scoped page-faithful target with its hash, route, state, responsive scope, and tolerance.
+Read `market-research.md` only when `ui-design.md` cites its `MR-*` evidence. Repository-discovered images remain non-canonical design inspiration unless the UI design contract promotes one to a scoped page-faithful target with its hash, route, state, responsive scope, and tolerance.
 
 If a required source is named but missing or unreadable, stop and request its path or contents. A statement that an approved source exists is not a substitute for reading it.
 
 If an existing pair or staged revision describes the same product, enhance it. Preserve unaffected content and stable `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*` IDs. Never regenerate the pair from a blank slate.
 
-Product scope, route, structure, content, action, flow, state, wireframe, or approved-target gaps return to `product-definition-builder` or the named product owner. A treatment that needs one of those changes is a finding, not permission to edit the source.
+Product scope, route, content, action, flow, state, responsive, architecture, or stack gaps return to `product-definition-builder`. Wireframe, style, motion/media, or approved-target gaps return to `ui-design-builder`. A treatment that needs one of those changes is a finding, not permission to edit the source.
 
 ## Workflow
 
 1. Run the sibling `product-definition-builder/scripts/check_product_package.py --require-filled --require-approved` over PRD, architecture, and stack decisions. Stop on a missing or stale Product Definition/Stack approval.
-2. Confirm that `PRD.md` says `Design System Need Gate: required`; otherwise stop.
+2. Confirm that `ui-design.md` says `Design System Need Gate: required`; otherwise stop.
 3. Pass the Compilation Skills Gate.
-4. Verify the PRD UI surface contract, approved wireframe, handoff, target, component foundation, and styling approach are complete and consistent. A visual direction that needs another stack returns upstream.
-5. Read `references/design-system-guide.md` and compile only approved visual consequences with `frontend-design`. Register motion variants only for `required` or approved `recommended` rows; a `not_required` row gets no decorative variant, and a `blocked` row returns upstream. Every variant records reduced-motion behavior.
-6. Build and validate the pair against the PRD, wireframes, and approved technology constraints.
+4. Verify the PRD UI Surface Contract, `ui-design.md`, approved wireframe, HiFi target, component foundation, and styling approach are complete and consistent. A visual direction that needs another stack returns upstream.
+5. Read `references/design-system-guide.md` and compile only approved visual consequences with `frontend-design`. Register motion variants only for approved `functional_only` or `expressive` intents that use deterministic UI motion; `not_required` gets no decorative variant, and a blocked intent returns upstream. Generated provider assets remain media sources rather than motion variants. Every variant records reduced-motion behavior.
+6. Build and validate the pair against the PRD, `ui-design.md`, wireframes, and approved technology constraints.
 7. Run the validation commands and final checklist, then stage and publish both files together through the existing artifact lifecycle.
 
 ## Validation
@@ -68,14 +69,14 @@ python skills/product-definition-builder/scripts/check_product_package.py --prd 
 
 Also confirm:
 
-- the Design System Need Gate is `required` and names its owner and reason;
+- `ui-design.md` records the Design System Need Gate as `required` with its owner and reason;
 - Product Definition Approval and the Stack Decision Checkpoint are approved, with no `Recommended` or `Provisional` executable layer;
 - every PRD UI surface has an addressable route or an explicit `n/a` reason;
 - every UI surface maps to an approved `wireframes.html` page with matching regions, states, responsive set, and per-target order, visibility, spans, reflow, and interaction rules;
-- the approved UI target, Taste applicability record, visual approval, scope, hash, exact responsive coverage, passing browser-matrix evidence, and tolerance are present in the UI Design Handoff;
+- the approved UI target, Style Integration record, Impeccable critique/audit, H1-H9 scores, visual approval, scope, hash, exact responsive coverage, passing browser-matrix evidence, and tolerance are present in `ui-design.md`;
 - every surface covers the final state matrix or records `<state>: n/a - <reason>` in `PRD.md`;
 - every required UI element maps to a registered primitive or product component;
-- every Motion Need Gate row is resolved; `required` and approved `recommended` motion maps to a registered variant plus reduced-motion behavior, while `not_required` introduces no decorative variant;
+- every Motion and Media Intent row is resolved; approved deterministic motion maps to a registered variant plus reduced-motion behavior, while `not_required` introduces no decorative variant; generated Higgsfield or other provider assets remain media sources, not UI-state implementations;
 - exactly one responsive set exists — web `viewports` with at least three ascending targets, or native or desktop `sizeClasses` with at least two — and it matches the PRD and approved wireframe set;
 - no unresolved placeholder, page-local value, or one-off control remains; and
 - `design-system.md` and `design-system.json` publish together and agree through the pair checker.
@@ -87,7 +88,7 @@ Also confirm:
 - Read `references/artifact-lifecycle.md` before creating staging files or publishing.
 - Use `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json` for the pair.
 - Use the three scripts under `scripts/` for deterministic pair, contrast, and type-scale validation.
-- Only when the owner explicitly asks to reopen direction, read `references/visual-direction-guide.md`, `references/design-reference-guide.md`, and `references/impeccable-concept-generation.md`; load `impeccable`, `frontend-design`, and the design method selected by the PRD UI Design Handoff. Use `../product-definition-builder/references/ui-design-pass.md` for Taste applicability, the connected interactive HTML, and deferred media or motion handoffs. Return the result upstream for human approval instead of writing the pair against an unrecorded direction.
+- When the owner asks to reopen direction, stop compilation and invoke `../ui-design-builder/SKILL.md`. Resume only after its updated `ui-design.md`, wireframe when affected, HiFi target, Impeccable review, grading, and human Visual Approval pass.
 
 ## Output Rules
 
@@ -95,5 +96,5 @@ Also confirm:
 - Keep the design system implementation-facing.
 - Keep candidate directions, reference analysis, and preview artifacts outside the published pair.
 - Keep stable trace IDs across revisions; do not reuse retired IDs for different meanings.
-- Builder approval proves direction conformance, not usability. Record unresolved validation needs.
+- UI owner approval proves direction conformance, not representative-user usability. Record unresolved validation needs.
 - Report exact staged and published paths, validation results, assumptions, and every intentionally unresolved gap.
