@@ -40,6 +40,25 @@ def verifier(verifier_id: str) -> dict[str, object]:
         "cwd": ".",
         "argv": ["python3", "-m", "unittest"],
         "pass_signal": "exit_code_0",
+        "execution": {
+            "parallel_safe": True,
+            "resources": [],
+            "isolation": "container",
+            "sandbox": {
+                "runtime": "docker",
+                "image": "fixture@sha256:" + "1" * 64,
+                "network": "none",
+                "read_only_rootfs": True,
+                "no_new_privileges": True,
+                "cap_drop": ["ALL"],
+                "tmpfs": ["/tmp"],
+                "memory": "512m",
+                "cpus": "1",
+                "pids_limit": "256",
+                "user": "65532:65532",
+                "pull": "never",
+            },
+        },
     }
 
 
@@ -127,6 +146,7 @@ def retained_verifier_result(
             "cwd": declaration["cwd"],
             "argv": declaration["argv"],
             "pass_signal": declaration["pass_signal"],
+            "execution": declaration["execution"],
             "cache": {"mode": "disabled", "environment_keys": []},
         },
         "context": context,
@@ -432,6 +452,8 @@ def validate(
     observed_head: str = HEAD_SHA,
     ancestry: bool = True,
     retained: list[dict[str, object]] | None = None,
+    observed_commits: list[str] | None = None,
+    observed_task_changed_files: dict[str, list[str]] | None = None,
 ) -> list[dict[str, str]]:
     effective_observed_files = [CHANGED_FILE] if observed_files is None else observed_files
     verifier_changed_files = [
@@ -448,6 +470,13 @@ def validate(
             for item in result.get("verifiers", [])
             if isinstance(item, dict) and isinstance(item.get("id"), str)
         ]
+    effective_observed_commits = observed_commits
+    if (
+        effective_observed_commits is None
+        and run.get("schema_version") in {10, 11}
+        and isinstance(result.get("commits"), list)
+    ):
+        effective_observed_commits = result["commits"]
     return subject.validate_worker_result_data(
         plan,
         run,
@@ -456,6 +485,8 @@ def validate(
         observed_changed_files=effective_observed_files,
         ancestry_confirmed=ancestry,
         retained_verifier_results=retained,
+        observed_commit_order=effective_observed_commits,
+        observed_task_changed_files=observed_task_changed_files,
     )
 
 
@@ -504,6 +535,11 @@ class ValidateWorkerResultTests(unittest.TestCase):
                 "lease_id",
             ):
                 key_document.pop(key)
+            # Protocol v2 binds the normalized execution policy in the key
+            # document even for this legacy (live) fixture.  The schema-11
+            # task/worker path uses container execution; this schema-3 test
+            # intentionally exercises the backward-compatible live default.
+            key_document["execution"] = verifier(item["verifier_id"])["execution"]
             execution_key = hashlib.sha256(
                 json.dumps(
                     key_document,
@@ -561,6 +597,17 @@ class ValidateWorkerResultTests(unittest.TestCase):
             "required_verifier_missing",
             error_codes(validate(applicable, applicable_run, applicable_result)),
         )
+
+    def test_task_commit_slice_must_stay_inside_that_task_scope(self) -> None:
+        result = copy.deepcopy(self.result)
+        task_id = result["task_results"][0]["task_id"]
+        errors = validate(
+            self.plan,
+            self.run,
+            result,
+            observed_task_changed_files={task_id: ["src/outside/task.py"]},
+        )
+        self.assertIn("task_scope_escape", error_codes(errors))
 
     def test_worker_claim_does_not_control_verifier_selection(self) -> None:
         plan = copy.deepcopy(self.plan)

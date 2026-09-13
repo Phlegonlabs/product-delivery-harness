@@ -315,8 +315,12 @@ class GoldenPathTests(unittest.TestCase):
             plan["security_review"] = {
                 "status": "not_applicable",
                 "skill_slot": "code_security_verification",
-                "reason": "synthetic contract fixture has no implementation candidate",
+                "reason": "documentation-only synthetic contract fixture has no implementation candidate",
             }
+            for mission in plan.get("missions", []):
+                mission["write_scope"] = ["docs/README.md"]
+                for task in mission.get("tasks", []):
+                    task["write_scope"] = ["docs/README.md"]
             plan["ui_surfaces"] = [
                 {
                     "id": "UI-001",
@@ -376,6 +380,8 @@ class GoldenPathTests(unittest.TestCase):
                 "RUN-GOLDEN",
                 "--branch",
                 "refs/heads/run/golden-path",
+                "--repo-root",
+                str(root),
                 "--out",
                 str(root / "RUN.md"),
             )

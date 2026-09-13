@@ -37,6 +37,8 @@ Worker mission gate:
 - Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
+Current RUN-v11 task and worker verifiers execute in the declared pinned local container sandbox, with an exact PLAN-bound runtime/image RepoDigest observation recorded before readiness. `verifier_runtime.py` fails closed when that preflight is missing, stale, or unavailable. A `read_only` declaration or Git snapshot alone is not process confinement and never authorizes a PASS; an external provider is only a future separately implemented route.
+
 Non-runtime node gate:
 
 - Applies to `approval`, `external_wait`, `lifecycle`, and deterministic (`local_command` or `harness_parent`) verifier nodes.
@@ -134,14 +136,33 @@ The parent supplies normalized, repository-relative observed paths to `select_ve
 
 Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v11 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
 
-Every applicable declared verifier runs through `verifier_runtime.py`'s `run_verifier()`, cache configured or not; its returned `execution_key` is the worker result's reported `evidence`. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
+Every applicable declared verifier runs through an explicit machine-enforced container route with a pinned observed image RepoDigest, read-only Git archive mount, no network, read-only rootfs, dropped capabilities, and bounded resources. Missing, live, or `git_snapshot` isolation is rejected before execution. Local task/worker subprocess execution is rejected by `verifier_runtime.py`; external read-only providers must return the retained execution and sandbox attestation needed for the worker result's reported `evidence`. External, browser, network, and mutable-environment checks use `external_wait`, lifecycle, or browser routes instead of a local candidate subprocess. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
 
 A parent-owned batch/final graph verifier also carries the reserved node/attempt nonce and Git guard emitted by `reserve-node-attempt`. The runtime verifies the exact branch, HEAD, clean tree, and tracked-file fingerprint before and after execution. The exact tracked RUN excluded from dirty status is not excluded from integrity checks: its bytes and file identity are snapshotted across execution, its starting SHA-256 is attested, and `record-node-result` rehashes it before accepting evidence. A different checkout, replayed nonce, retargeted request, checkout drift, protected coordination-file change, or request/result artifact inside the reviewed checkout is rejected.
 
-A local verifier may declare:
+A Container verifier declarations include the full execution policy:
 
 ```json
 {
+  "execution": {
+    "parallel_safe": true,
+    "resources": [],
+    "isolation": "container",
+    "sandbox": {
+      "runtime": "docker",
+      "image": "<observed-image>@sha256:<observed-repodigest>",
+      "network": "none",
+      "read_only_rootfs": true,
+      "no_new_privileges": true,
+      "cap_drop": ["ALL"],
+      "tmpfs": ["/tmp"],
+      "memory": "512m",
+      "cpus": "1",
+      "pids_limit": "256",
+      "user": "65532:65532",
+      "pull": "never"
+    }
+  },
   "selection": {
     "mode": "changed_files",
     "scopes": ["apps/api/**"]
@@ -155,7 +176,7 @@ A local verifier may declare:
 
 `session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`.
 
-Integration, batch, and final gates refuse reuse by default. That default keys on the gate's layer, but the property that decides safety is the command's nature. A verifier at those layers may add `cache.deterministic_local: true` to attest it is a pure local deterministic command and become reusable. Never set it for runtime review, browser capture, migration, mutable-environment smoke, a network or shared-database check, or a time/random-dependent command; those are not pure functions of the tree and stay uncacheable regardless of layer. A static source scan such as `check_ui_contract.py` is a legitimate candidate. The parent must also mark the command deterministic and local, supply a clean checkout, and place the session cache in a repository-external path. The execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, executable identity, OS/architecture, pass signal, and selected environment-value digests.
+Container verifier results are never reused from a session cache. Any retained cache root remains repository-external for compatibility and is never a sandbox escape. The exact execution key still binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, pinned image policy, OS/architecture, pass signal, and selected environment-value digests. `session_exact` remains a legacy declaration shape but cannot bypass the container boundary.
 
 Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malformed entry, failure, timeout, missing cache root, or unsafe cache location runs the command fresh. Logical attribution — verifier ID, layer, mission, task, attempt, and lease — is not in the execution key, so equivalent opted-in task and worker gates may cite one exact execution while each keeps its own PASS record, context, and evidence key. Never use this cache for runtime review, browser capture, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
 

@@ -77,6 +77,7 @@ def validate(value: dict[str, object], **overrides: object) -> list[str]:
         expected_base_sha=overrides.get("expected_base_sha", BASE),
         expected_scope=overrides.get("expected_scope", SCOPE),
         required_tools=overrides.get("required_tools", []),
+        required_checks=overrides.get("required_checks", []),
         allowed_decisions=overrides.get(
             "allowed_decisions",
             ["pass", "fix_required", "blocked", "contract_gap", "retryable_failure"],
@@ -87,6 +88,23 @@ def validate(value: dict[str, object], **overrides: object) -> list[str]:
 class SecurityReviewResultTests(unittest.TestCase):
     def test_complete_exact_sha_pass_is_valid(self) -> None:
         self.assertEqual([], validate(valid_result()))
+
+    def test_reported_checks_must_equal_declared_required_checks(self) -> None:
+        result = valid_result()
+        result["checks"] = [
+            {"id": "declared", "execution_key": "c" * 64},
+            {"id": "forged-extra", "execution_key": "d" * 64},
+        ]
+
+        errors = validate(result, required_checks=["declared"])
+
+        self.assertTrue(
+            any("undeclared checks are not allowed: forged-extra" in item for item in errors),
+            errors,
+        )
+
+        result["checks"] = [{"id": "declared", "execution_key": "c" * 64}]
+        self.assertEqual([], validate(result, required_checks=["declared"]))
 
     def test_wrong_sha_scope_and_partial_coverage_are_rejected(self) -> None:
         result = valid_result()

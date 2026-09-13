@@ -229,6 +229,89 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertEqual("FAIL", payload["status"])
         self.assertTrue(any("does not exist under --repo-root" in error for error in payload["errors"]))
 
+    def test_current_source_revision_requires_and_reads_immutable_git_bytes(self) -> None:
+        plan = valid_plan()
+        source = plan["sources"][1]
+        plan["sources"] = [source]
+        for trace in plan["traces"]:
+            trace["source_ids"] = ["SRC-002"]
+        source_path = Path(source["location"])
+        contents = b"# Frozen revision\n"
+        source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+        source["source_revision"] = None
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / source_path
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(contents)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Harness Test"], cwd=root, check=True)
+            subprocess.run(["git", "add", str(source_path)], cwd=root, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "source"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            revision = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            source["source_revision"] = revision
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+
+            standalone = self.run_cli(plan_path, None)
+            self.assertEqual(1, standalone.returncode)
+            self.assertTrue(
+                any(
+                    "current source_revision validation requires --repo-root" in error
+                    for error in json.loads(standalone.stdout)["errors"]
+                )
+            )
+
+            immutable = self.run_cli(plan_path, None, repo_root=root)
+            self.assertEqual(0, immutable.returncode, immutable.stdout)
+
+            destination.write_bytes(b"# Changed working tree\n")
+            current_only = self.run_cli(plan_path, None, repo_root=root)
+            self.assertEqual(0, current_only.returncode, current_only.stderr)
+
+            source["source_revision"] = "f" * 40
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            missing_revision = self.run_cli(plan_path, None, repo_root=root)
+            self.assertEqual(1, missing_revision.returncode)
+            self.assertTrue(
+                any(
+                    "missing at immutable source_revision" in error
+                    for error in json.loads(missing_revision.stdout)["errors"]
+                )
+            )
+
+    def test_old_schema_retains_explicit_shape_only_source_revision_compatibility(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 4
+        for source in plan["sources"]:
+            source.pop("staged_revision")
+        for mission in plan["missions"]:
+            for task in mission["tasks"]:
+                task["acceptance_matrix"] = [row["criterion"] for row in task["acceptance_matrix"]]
+        plan["sources"][0]["source_revision"] = "f" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            plan_path = Path(directory) / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            result = self.run_cli(plan_path, None)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_invalid_plan_reports_fail_with_exit_code_one(self) -> None:
         plan = valid_plan()
         plan["missions"] = []
@@ -1353,8 +1436,12 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
         plan["security_review"] = {
             "status": "not_applicable",
             "skill_slot": "code_security_verification",
-            "reason": "fixture has no implementation candidate",
+            "reason": "documentation-only fixture with no implementation candidate",
         }
+        for mission in plan.get("missions", []):
+            mission["write_scope"] = ["docs/README.md"]
+            for task in mission.get("tasks", []):
+                task["write_scope"] = ["docs/README.md"]
         breakpoints = [str(value) for value in viewports]
         plan["ui_surfaces"] = [dict(HOME_SURFACE, breakpoints=breakpoints)]
         copy_anchor = (

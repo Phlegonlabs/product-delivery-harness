@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Iterable
@@ -405,6 +406,73 @@ def _validate_scope_list(
     return claims
 
 
+SANDBOX_POLICY_KEYS = {
+    "runtime",
+    "image",
+    "network",
+    "read_only_rootfs",
+    "no_new_privileges",
+    "cap_drop",
+    "tmpfs",
+    "memory",
+    "cpus",
+    "pids_limit",
+    "user",
+    "pull",
+}
+
+
+def normalize_sandbox_policy(value: Any) -> dict[str, Any]:
+    """Validate and normalize the machine-enforced container policy."""
+
+    if not isinstance(value, dict) or set(value) != SANDBOX_POLICY_KEYS:
+        raise ValueError("sandbox policy must contain the exact required keys")
+    runtime = value["runtime"]
+    image = value["image"]
+    if runtime not in {"docker", "podman"}:
+        raise ValueError("sandbox runtime must be docker or podman")
+    if not isinstance(image, str) or re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", image
+    ) is None:
+        raise ValueError("sandbox image must be a safe OCI reference pinned by @sha256 digest")
+    if image.rsplit("@", 1)[-1] == "sha256:" + "0" * 64:
+        raise ValueError(
+            "sandbox image digest must be an observed non-zero RepoDigest, not a template placeholder"
+        )
+    if value["network"] != "none":
+        raise ValueError("sandbox network must be none")
+    if value["read_only_rootfs"] is not True or value["no_new_privileges"] is not True:
+        raise ValueError("sandbox rootfs and no-new-privileges flags must be true")
+    if not isinstance(value["cap_drop"], list) or value["cap_drop"] != ["ALL"]:
+        raise ValueError("sandbox cap_drop must equal ['ALL']")
+    if not isinstance(value["tmpfs"], list) or not value["tmpfs"]:
+        raise ValueError("sandbox tmpfs must be a non-empty list")
+    for item in value["tmpfs"]:
+        if not isinstance(item, str) or re.fullmatch(
+            r"/[A-Za-z0-9._/-]+(?::[A-Za-z0-9_=,.-]+)?", item
+        ) is None or ".." in item.split(":", 1)[0].split("/"):
+            raise ValueError("sandbox tmpfs entries must be safe absolute container paths")
+    if not isinstance(value["memory"], str) or re.fullmatch(
+        r"[1-9][0-9]*(?:[bkmg])?", value["memory"].lower()
+    ) is None:
+        raise ValueError("sandbox memory must use a positive numeric grammar")
+    if not isinstance(value["cpus"], str) or re.fullmatch(
+        r"[1-9][0-9]*(?:\.[0-9]+)?", value["cpus"]
+    ) is None:
+        raise ValueError("sandbox cpus must use a positive numeric grammar")
+    if not isinstance(value["pids_limit"], str) or re.fullmatch(
+        r"[1-9][0-9]{0,5}", value["pids_limit"]
+    ) is None:
+        raise ValueError("sandbox pids_limit must be a positive bounded integer")
+    if not isinstance(value["user"], str) or re.fullmatch(
+        r"[1-9][0-9]*:[1-9][0-9]*", value["user"]
+    ) is None:
+        raise ValueError("sandbox user must be a non-root uid:gid")
+    if value["pull"] != "never":
+        raise ValueError("sandbox pull must be never")
+    return json.loads(json.dumps(value, sort_keys=True, ensure_ascii=False))
+
+
 def _validate_verifier(
     errors: list[str],
     path: str,
@@ -412,15 +480,22 @@ def _validate_verifier(
     *,
     selection_scopes: Iterable[str] | None = None,
     cache_allowed: bool = True,
+    execution_required: bool = True,
 ) -> None:
     required = {"id", "cwd", "argv", "pass_signal"}
-    optional = {"selection", "cache", "execution"}
+    optional = {"selection", "cache", "read_only"}
+    if execution_required:
+        required.add("execution")
+    else:
+        optional.add("execution")
     if not _keys(errors, path, value, required, optional):
         return
     for key in ("id", "cwd", "pass_signal"):
         if not _nonempty_string(value[key]):
             _add(errors, f"{path}.{key}", "must be a non-empty string")
     _strings(errors, f"{path}.argv", value["argv"], nonempty=True)
+    if "read_only" in value and not isinstance(value["read_only"], bool):
+        _add(errors, f"{path}.read_only", "must be boolean")
 
     selection = value.get("selection")
     if selection is not None:
@@ -492,11 +567,79 @@ def _validate_verifier(
                 _add(errors, f"{path}.pass_signal", "session_exact requires the literal pass signal exit 0")
 
     execution = value.get("execution")
-    if execution is not None:
-        execution_path = f"{path}.execution"
-        if _keys(errors, execution_path, execution, {"parallel_safe", "resources"}):
+    if execution is None and not execution_required:
+        return
+    execution_path = f"{path}.execution"
+    if _keys(
+        errors,
+        execution_path,
+        execution,
+        {"parallel_safe", "resources", "isolation", "sandbox"},
+    ):
             if not isinstance(execution["parallel_safe"], bool):
                 _add(errors, f"{execution_path}.parallel_safe", "must be boolean")
+            isolation = execution["isolation"]
+            if isolation != "container":
+                _add(
+                    errors,
+                    f"{execution_path}.isolation",
+                    "must equal container for every verifier runtime layer",
+                )
+            sandbox_path = f"{execution_path}.sandbox"
+            sandbox = execution["sandbox"]
+            try:
+                normalize_sandbox_policy(sandbox)
+            except ValueError as exc:
+                _add(errors, sandbox_path, str(exc))
+            if _keys(
+                errors,
+                sandbox_path,
+                sandbox,
+                {
+                    "runtime",
+                    "image",
+                    "network",
+                    "read_only_rootfs",
+                    "no_new_privileges",
+                    "cap_drop",
+                    "tmpfs",
+                    "memory",
+                    "cpus",
+                    "pids_limit",
+                    "user",
+                    "pull",
+                },
+            ):
+                    if sandbox["runtime"] not in {"docker", "podman"}:
+                        _add(errors, f"{sandbox_path}.runtime", "must be docker or podman")
+                    if not isinstance(sandbox["image"], str) or re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", sandbox["image"]
+                    ) is None:
+                        _add(errors, f"{sandbox_path}.image", "must be pinned by @sha256 digest")
+                    if sandbox["network"] != "none":
+                        _add(errors, f"{sandbox_path}.network", "must equal none")
+                    for flag in ("read_only_rootfs", "no_new_privileges"):
+                        if sandbox[flag] is not True:
+                            _add(errors, f"{sandbox_path}.{flag}", "must be true")
+                    if not isinstance(sandbox["cap_drop"], list) or "ALL" not in sandbox["cap_drop"]:
+                        _add(errors, f"{sandbox_path}.cap_drop", "must include ALL")
+                    if not isinstance(sandbox["tmpfs"], list) or not sandbox["tmpfs"] or any(
+                        not isinstance(item, str)
+                        or re.fullmatch(r"/[A-Za-z0-9._/-]+(?::[A-Za-z0-9_=,.-]+)?", item) is None
+                        or ".." in item.split(":", 1)[0].split("/")
+                        for item in sandbox["tmpfs"]
+                    ):
+                        _add(errors, f"{sandbox_path}.tmpfs", "must be a non-empty list")
+                    if not isinstance(sandbox["memory"], str) or re.fullmatch(r"[1-9][0-9]*(?:[bkmg])?", sandbox["memory"].lower()) is None:
+                        _add(errors, f"{sandbox_path}.memory", "must use a bounded numeric memory grammar")
+                    if not isinstance(sandbox["cpus"], str) or re.fullmatch(r"[1-9][0-9]*(?:\.[0-9]+)?", sandbox["cpus"]) is None:
+                        _add(errors, f"{sandbox_path}.cpus", "must use a numeric CPU grammar")
+                    if not isinstance(sandbox["pids_limit"], str) or re.fullmatch(r"[1-9][0-9]{0,5}", sandbox["pids_limit"]) is None:
+                        _add(errors, f"{sandbox_path}.pids_limit", "must use a bounded PID grammar")
+                    if not isinstance(sandbox["user"], str) or re.fullmatch(r"[1-9][0-9]*:[1-9][0-9]*", sandbox["user"]) is None:
+                        _add(errors, f"{sandbox_path}.user", "must be a non-root uid:gid")
+                    if sandbox["pull"] != "never":
+                        _add(errors, f"{sandbox_path}.pull", "must equal never")
             resources = execution["resources"]
             if not isinstance(resources, list):
                 _add(errors, f"{execution_path}.resources", "must be a list")

@@ -48,13 +48,51 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
         "id": "final-check",
         "cwd": ".",
         "argv": ["<runner>", "<final-argument>"],
-        "pass_signal": "<literal pass signal>"
+        "pass_signal": "<literal pass signal>",
+        "execution": {
+          "parallel_safe": true,
+          "resources": [],
+          "isolation": "container",
+          "sandbox": {
+            "runtime": "docker",
+            "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "network": "none",
+            "read_only_rootfs": true,
+            "no_new_privileges": true,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never"
+          }
+        }
       },
       {
         "id": "final-closeout",
         "cwd": ".",
         "argv": ["<runner>", "<closeout-argument>"],
-        "pass_signal": "<literal pass signal>"
+        "pass_signal": "<literal pass signal>",
+        "execution": {
+          "parallel_safe": true,
+          "resources": [],
+          "isolation": "container",
+          "sandbox": {
+            "runtime": "docker",
+            "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "network": "none",
+            "read_only_rootfs": true,
+            "no_new_privileges": true,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never"
+          }
+        }
       }
     ],
     "graph": {
@@ -205,6 +243,26 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "cwd": ".",
             "argv": ["<runner>", "<mission-argument>"],
             "pass_signal": "exit 0",
+            "read_only": true,
+            "execution": {
+              "parallel_safe": true,
+              "resources": [],
+              "isolation": "container",
+              "sandbox": {
+                "runtime": "docker",
+                "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "network": "none",
+                "read_only_rootfs": true,
+                "no_new_privileges": true,
+                "cap_drop": ["ALL"],
+                "tmpfs": ["/tmp"],
+                "memory": "512m",
+                "cpus": "1",
+                "pids_limit": "256",
+                "user": "65532:65532",
+                "pull": "never"
+              }
+            },
             "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
             "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
           }
@@ -214,7 +272,26 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "id": "mission-integration",
             "cwd": ".",
             "argv": ["<runner>", "<integration-argument>"],
-            "pass_signal": "<literal pass signal>"
+            "pass_signal": "<literal pass signal>",
+            "execution": {
+              "parallel_safe": true,
+              "resources": [],
+              "isolation": "container",
+              "sandbox": {
+                "runtime": "docker",
+                "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "network": "none",
+                "read_only_rootfs": true,
+                "no_new_privileges": true,
+                "cap_drop": ["ALL"],
+                "tmpfs": ["/tmp"],
+                "memory": "512m",
+                "cpus": "1",
+                "pids_limit": "256",
+                "user": "65532:65532",
+                "pull": "never"
+              }
+            }
           }
         ],
         "tasks": [
@@ -243,6 +320,26 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
                 "cwd": ".",
                 "argv": ["<runner>", "<task-argument>"],
                 "pass_signal": "exit 0",
+                "read_only": true,
+                "execution": {
+                  "parallel_safe": true,
+                  "resources": [],
+                  "isolation": "container",
+                  "sandbox": {
+                    "runtime": "docker",
+                    "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                    "network": "none",
+                    "read_only_rootfs": true,
+                    "no_new_privileges": true,
+                    "cap_drop": ["ALL"],
+                    "tmpfs": ["/tmp"],
+                    "memory": "512m",
+                    "cpus": "1",
+                    "pids_limit": "256",
+                    "user": "65532:65532",
+                    "pull": "never"
+                  }
+                },
                 "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
                 "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
               }
@@ -265,7 +362,7 @@ For each `runtime_worker` node, Plan Mode may leave `preferred_provider` null an
 
 Every PLAN-v6 source binds the published input with `content_sha256`, `source_revision`, or both. Contract joins use immutable bytes and require `content_sha256`. When a frozen PRD contains Product Definition Approval, PLAN also freezes `architecture.md` and `stack-decisions.md`. Harness 0.37.0+ UI delivery additionally freezes approved `ui-design.md` and `wireframes.html`; the sibling checkers validate the complete product and UI joins, and a required design-system Markdown/JSON pair remains atomic. URLs are never fetched, so an external source needs an immutable revision or local snapshot. `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, update its hash/revision, clear `staged_revision`, then increment PLAN revision and digest.
 
-Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. Equivalent opted-in task and worker commands on the same immutable inputs reuse one execution even though their verifier IDs differ.
+Every executable verifier declaration uses the explicit container policy shown above. Replace the example image reference with a locally observed immutable RepoDigest before readiness; zero or fabricated template digests are rejected. External, network, browser, and mutable-environment checks use an external-wait, lifecycle, or browser route instead of a local candidate subprocess. Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. Equivalent opted-in task and worker commands on the same immutable inputs reuse one execution even though their verifier IDs differ.
 
 Before readiness, apply `references/execution-task-decomposition.md`'s Mission Cohesion Gate to every mission. Split independent product surfaces or domain capabilities even when they share router, auth, schema, migration, or serialized resources; model the shared foundation and ordering explicitly instead of creating a catch-all mission. Plan each mission as one bounded fresh-child worker slice that normally stays within 10-20 minutes of implementation plus focused verification, treating that range as an upper shape rather than capacity to fill. Make every executable task one atomic initial commit boundary: verify and commit it before the next task begins; keep later repair commits separate and attributed to that task.
 

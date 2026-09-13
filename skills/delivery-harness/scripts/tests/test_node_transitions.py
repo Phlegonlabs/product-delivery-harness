@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import os
 import sys
 import json
 import subprocess
@@ -12,6 +13,7 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -237,6 +239,18 @@ class NodeTransitionTests(unittest.TestCase):
                     ]
                 ),
             )
+            fake_runtime = control / "docker.cmd"
+            fake_runtime.write_text(
+                "@echo off\r\n"
+                "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
+                "if \"%1\"==\"image\" (echo [\"fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111\"]&exit /b 0)\r\n"
+                "if \"%1\"==\"run\" exit /b 0\r\n"
+                "exit /b 1\r\n",
+                encoding="utf-8",
+            )
+            runtime_environment = os.environ.copy()
+            runtime_environment["PATH"] = str(control) + os.pathsep + runtime_environment.get("PATH", "")
+            runtime_environment["PATHEXT"] = ".CMD;.EXE;.BAT;.COM"
             completed = subprocess.run(
                 [
                     sys.executable,
@@ -247,6 +261,7 @@ class NodeTransitionTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                env=runtime_environment,
             )
             self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
             result_path.write_text(completed.stdout, encoding="utf-8")
@@ -619,15 +634,35 @@ class NodeTransitionTests(unittest.TestCase):
                 repo_root=root,
             )
             request["verifier"]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
-            execution = run_verifier(
-                request["verifier"],
-                request["context"],
-                checkout_root=root,
-                environment={},
-                git_guard=request["git_guard"],
-                reservation=request["reservation"],
-                request_sha256=harness_transition._json_sha256(request),
-            )
+            policy = request["verifier"]["execution"]["sandbox"]
+            image = policy["image"]
+            fake_attestation = {
+                "runtime": policy["runtime"],
+                "runtime_probe": "fixture-runtime",
+                "image": image,
+                "image_probe": image,
+                "policy": policy,
+                "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
+                "network": "none",
+            }
+            with patch(
+                "verifier_runtime._run_container_verifier",
+                return_value=(
+                    subprocess.CompletedProcess(
+                        args=["docker", "run"], returncode=0, stdout="", stderr=""
+                    ),
+                    fake_attestation,
+                ),
+            ):
+                execution = run_verifier(
+                    request["verifier"],
+                    request["context"],
+                    checkout_root=root,
+                    environment={},
+                    git_guard=request["git_guard"],
+                    reservation=request["reservation"],
+                    request_sha256=harness_transition._json_sha256(request),
+                )
             self.assertEqual("PASS", execution["status"])
             self.assertEqual(request["reservation"], execution["reservation"])
             self.assertEqual(

@@ -1360,6 +1360,16 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("SHA-256", content)
             self.assertIn("docs/goal/evidence/", content)
 
+    def test_verifier_docs_bind_current_local_container_preflight(self) -> None:
+        graph = self.read("references/graph-orchestration.md")
+        verification = self.read("references/verification-gates.md")
+        worker = self.read("references/worker-result-contract.md")
+        for content in (graph, verification, worker):
+            self.assertIn("pinned local container", content)
+            self.assertIn("PLAN-bound", content)
+            self.assertIn("future separately implemented route", content)
+            self.assertNotIn("route them through a planned external read-only verifier node", content)
+
     def test_bootstrap_seeds_agents_and_claude_governance_templates(self) -> None:
         skill = self.read("SKILL.md")
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")

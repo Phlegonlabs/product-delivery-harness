@@ -549,6 +549,12 @@ class HarnessCliE2ETests(unittest.TestCase):
                     base_sha,
                     heads[mission_id],
                 ).stdout.splitlines()
+                observed_commits = self.git(
+                    repository,
+                    "rev-list",
+                    "--reverse",
+                    f"{base_sha}..{heads[mission_id]}",
+                ).stdout.splitlines()
                 for prior_review in run["review_workers"]:
                     prior_review["phase"] = "superseded"
                 review_attempt_id = f"ATT-REVIEW-{mission_id}"
@@ -600,6 +606,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                         observed_head_sha=heads[mission_id],
                         observed_changed_files=observed_files,
                         ancestry_confirmed=ancestry,
+                        observed_commit_order=observed_commits,
                         retained_verifier_results=candidate[
                             "retained_verifier_results"
                         ],
@@ -728,6 +735,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                 "cwd": verifier["cwd"],
                 "argv": verifier["argv"],
                 "pass_signal": verifier["pass_signal"],
+                "execution": verifier["execution"],
                 "cache": {"mode": "disabled", "environment_keys": []},
             },
             "context": context,

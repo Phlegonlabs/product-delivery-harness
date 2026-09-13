@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import math
 import re
@@ -857,6 +858,7 @@ def full_product_package_checker_errors(
     stack_bytes: bytes,
     *,
     sibling_scripts: Path | None = None,
+    repo_root: str | Path | None = None,
 ) -> list[str]:
     """Run Product Definition's approval checker on frozen core-package bytes."""
 
@@ -874,12 +876,17 @@ def full_product_package_checker_errors(
         stack_text = stack_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         return [f"product package: core artifact is not valid UTF-8 ({exc})"]
+    kwargs: dict[str, Any] = {
+        "require_filled": True,
+        "require_approved": True,
+    }
+    if repo_root is not None and "repo_root" in inspect.signature(validate_package).parameters:
+        kwargs["repo_root"] = Path(repo_root)
     return validate_package(
         prd_text,
         architecture_text,
         stack_text,
-        require_filled=True,
-        require_approved=True,
+        **kwargs,
     )
 
 
@@ -1012,6 +1019,7 @@ def validate_frozen_contract_joins(
                             resolved["PRD"],
                             resolved["architecture"],
                             resolved["stack-decisions"],
+                            repo_root=repo_root,
                         )
                     )
     if "wireframes" in resolved:

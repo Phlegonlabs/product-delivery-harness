@@ -26,7 +26,9 @@ from harness_core import (
     extract_json_manifest_text,
     is_full_sha,
     mission_conflicts,
+    parent_owned_path,
     plan_digest,
+    path_in_scopes,
 )
 from harness_manifest import (
     _verifier_owners,
@@ -37,12 +39,22 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import RUN_DISPATCH_STATUSES, RUN_HEADING
+from push_integration_branch import (
+    make_push_request,
+    validate_push_receipt,
+    validate_push_target,
+)
+from verifier_runtime import observe_plan_sandboxes, sandbox_host_fingerprint
 from harness_worker_result_transition import (
     record_worker_result,
     reject_worker_result,
     verify_worker_observation,
 )
-from select_ready_nodes import GraphSelectionError, select_ready_nodes
+from select_ready_nodes import (
+    GraphSelectionError,
+    _sandbox_observation_reasons,
+    select_ready_nodes,
+)
 from select_ready_nodes import _runtime_binding
 from security_review_result import (
     SecurityReviewResultError,
@@ -66,6 +78,61 @@ def _json_sha256(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _candidate_changed_paths(root: Path, base_sha: str, head_sha: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ManifestError("cannot observe candidate changed paths from Git")
+    return sorted({line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()})
+
+
+def _candidate_allowed_scopes(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
+    scopes: list[str] = []
+    for mission in plan.get("missions", []):
+        if isinstance(mission, dict) and isinstance(mission.get("write_scope"), list):
+            scopes.extend(item for item in mission["write_scope"] if isinstance(item, str))
+    return sorted(set(scopes))
+
+
+def _reject_unplanned_candidate_paths(
+    plan: dict[str, Any], run: dict[str, Any], root: Path, base_sha: str, head_sha: str,
+    *, allowed_scopes: list[str] | None = None,
+) -> None:
+    changed = _candidate_changed_paths(root, base_sha, head_sha)
+    allowed = _candidate_allowed_scopes(plan, run) if allowed_scopes is None else allowed_scopes
+    integration = run.get("integration") if isinstance(run, dict) else None
+    coordination_paths = (
+        integration.get("coordination_paths", [])
+        if isinstance(integration, dict)
+        else []
+    )
+    if not isinstance(coordination_paths, list):
+        coordination_paths = []
+    # PLAN/RUN are parent-owned coordination state, never product changes.
+    # A coordination scope is likewise a protected exception for guard
+    # snapshots, not an authorization to commit those files in an integration
+    # candidate.  Reject both before applying mission write scopes so a broad
+    # scope such as ``docs/goal/**`` cannot smuggle committed RUN/PLAN state.
+    unplanned = [
+        path
+        for path in changed
+        if parent_owned_path(path)
+        or path_in_scopes(path, coordination_paths)
+        or not path_in_scopes(path, allowed)
+    ]
+    if unplanned:
+        raise ManifestError(
+            "candidate changed paths are outside declared mission/integration scopes: "
+            + ", ".join(unplanned)
+        )
+
+
 DEFAULT_LOCK_STALE_MINUTES = 15
 
 # Dispatching the write path is single-writer work: these commands require
@@ -76,6 +143,7 @@ DISPATCH_COMMANDS = {
     "record-worker-result",
     "reject-worker-result",
     "reserve-review-dispatch",
+    "bind-review-task-thread",
     "record-integration",
     "close-wave",
     "reserve-node-attempt",
@@ -337,6 +405,32 @@ def _git_status_excluding_run(
     return _git_out(repo_root, *arguments)
 
 
+def _git_status_excluding_run_or_none(
+    repo_root: Path, run_path: str | Path | None
+) -> str | None:
+    """Return status text, or ``None`` when Git cannot observe the checkout."""
+
+    arguments = ["status", "--porcelain", "--untracked-files=all", "--", "."]
+    if run_path is not None:
+        try:
+            relative = Path(run_path).resolve().relative_to(repo_root.resolve())
+        except (OSError, ValueError):
+            relative = None
+        if relative is not None:
+            arguments.append(f":(exclude,top,literal){relative.as_posix()}")
+    result = subprocess.run(
+        ["git", *arguments],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _same_path(left: str | Path, right: str | Path) -> bool:
     return os.path.normcase(os.path.realpath(left)) == os.path.normcase(
         os.path.realpath(right)
@@ -381,6 +475,26 @@ def _require_non_default_integration_branch(run: dict[str, Any]) -> str:
             "use a separate run branch"
         )
     return branch
+
+
+def _validate_push_side_effect(
+    run: dict[str, Any], repo_root: Path | None, authorized_head_sha: Any
+) -> None:
+    """Bind push reservation/completion to the exact live branch head."""
+
+    if not is_full_sha(authorized_head_sha):
+        raise ManifestError("push lifecycle requires a full authorized head SHA")
+    branch = _require_non_default_integration_branch(run)
+    integration = run.get("integration")
+    if not isinstance(integration, dict) or integration.get("integration_head_sha") != authorized_head_sha:
+        raise ManifestError(
+            "lifecycle authorization target or head is stale; reserve a fresh node attempt"
+        )
+    if repo_root is None:
+        raise ManifestError("push lifecycle reservation/completion requires --repo-root")
+    target = validate_push_target(run, repo_root, authorized_head_sha)
+    if target["branch"] != branch:
+        raise ManifestError("push authorization target does not match the live integration branch")
 
 
 def _validate_security_integration_checkout(
@@ -469,9 +583,12 @@ def _validate_security_integration_checkout(
             f"batch base {batch_base} is not an ancestor of integration head {live_head}; "
             f"{operation} security integration review cannot proceed"
         )
+    _reject_unplanned_candidate_paths(plan, run, repo_root, batch_base, live_head)
 
 
-def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
+def _record_observation(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
     """Write exactly what the parent observes: live Git facts plus a timestamp.
 
     This replaces hand-transcribing `harness_step.py`'s printed snapshot into
@@ -485,7 +602,7 @@ def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
     repo_top_level = Path(_git_out(root, "rev-parse", "--show-toplevel").strip())
     head = _git_out(root, "rev-parse", "HEAD").strip()
     branch = _git_branch_name(root)
-    porcelain = _git_status_excluding_run(
+    porcelain = _git_status_excluding_run_or_none(
         repo_top_level, getattr(args, "run", None)
     )
     worktrees_raw = _git_out(root, "worktree", "list", "--porcelain")
@@ -516,7 +633,7 @@ def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
         dirty: bool | None = False
         if isinstance(path, str):
             if _same_path(path, repo_top_level):
-                entry["dirty"] = bool(porcelain.strip())
+                entry["dirty"] = None if porcelain is None else bool(porcelain.strip())
                 entry.setdefault("head_sha", None)
                 entry.setdefault("branch_ref", None)
                 entry["managed_by"] = "parent"
@@ -529,7 +646,7 @@ def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
                     text=True,
                     timeout=30,
                 )
-                dirty = bool(status.stdout.strip())
+                dirty = None if status.returncode != 0 else bool(status.stdout.strip())
             except (OSError, subprocess.SubprocessError):
                 # A pruned/dead worktree must not abort the mandatory
                 # observation; record it as unavailable rather than crash.
@@ -541,7 +658,8 @@ def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
         )
         entry["dirty"] = dirty
 
-    run["observed"]["captured_at"] = _now()
+    captured_at = _now()
+    run["observed"]["captured_at"] = captured_at
     # The parent worktree is recorded exactly as `git worktree list` prints
     # it, so the selector's path-identity comparison against the sibling
     # entries matches on every platform (a resolved local Path string would
@@ -565,13 +683,23 @@ def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
             "parent_worktree_path": parent_path,
             "parent_branch": branch,
             "parent_head_sha": head,
-            "parent_dirty": bool(porcelain.strip()),
+            "parent_dirty": None if porcelain is None else bool(porcelain.strip()),
             "worktrees": worktrees,
         }
     )
     default_branch = _remote_default_branch(root)
     if default_branch is not None:
         run["observed"]["git"]["default_branch"] = default_branch
+    sandbox_entries, sandbox_errors = observe_plan_sandboxes(plan)
+    run["observed"]["sandbox"] = {
+        "status": "available" if not sandbox_errors else "unavailable",
+        "plan_revision": plan.get("revision"),
+        "plan_digest_sha256": plan_digest(plan),
+        "captured_at": captured_at,
+        "host": sandbox_host_fingerprint(),
+        "entries": sandbox_entries,
+        "errors": sandbox_errors,
+    }
 
 
 def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
@@ -1196,6 +1324,7 @@ def _reserve_node_attempt(
     node_dispatch = None
     verifier_dispatch = None
     verifier_request = None
+    push_request = None
     if node.get("kind") == "verifier" and node.get("executor") in {
         "local_command",
         "harness_parent",
@@ -1221,10 +1350,35 @@ def _reserve_node_attempt(
             raise ManifestError(
                 f"lifecycle action {node.get('ref')!r} is not currently authorized"
             )
+        if node.get("ref") == "push":
+            _validate_push_side_effect(
+                run, getattr(args, "repo_root", None), entry.get("authorized_head_sha")
+            )
         node_dispatch = {
             "target": node.get("target") or "*",
             "authorized_head_sha": entry.get("authorized_head_sha"),
         }
+        if node.get("ref") == "push" and run.get("schema_version") == 11:
+            if getattr(args, "request_out", None) is None:
+                raise ManifestError(
+                    "current push reservation requires --request-out outside the checkout"
+                )
+            push_request = make_push_request(
+                plan,
+                run,
+                Path(args.repo_root),
+                node_id=args.node_id,
+                attempt_id=args.attempt_id,
+                authorized_head_sha=entry.get("authorized_head_sha"),
+            )
+            node_dispatch["remote"] = push_request["remote"]
+            node_dispatch["push_endpoint_kind"] = push_request["push_endpoint_kind"]
+            node_dispatch["push_endpoint_summary"] = push_request["push_endpoint_summary"]
+            node_dispatch["push_url_sha256"] = push_request["push_url_sha256"]
+            node_dispatch["branch"] = push_request["branch"]
+            node_dispatch["branch_ref"] = push_request["branch_ref"]
+            node_dispatch["request_sha256"] = _json_sha256(push_request)
+            node_dispatch["push_request"] = copy.deepcopy(push_request)
     state.update(
         {
             "phase": "running",
@@ -1261,6 +1415,7 @@ def _reserve_node_attempt(
         "evidence": list(attempt["evidence"]),
         "directive": copy.deepcopy(directive),
         **({"verifier_request": copy.deepcopy(verifier_request)} if verifier_request is not None else {}),
+        **({"push_request": copy.deepcopy(push_request)} if push_request is not None else {}),
     }
 
 
@@ -1332,6 +1487,7 @@ def _record_node_result(
     if attempt.get("result") != "reserved":
         raise ManifestError(f"node attempt {attempt_id!r} is already terminal")
 
+    push_receipt: dict[str, Any] | None = None
     if node.get("kind") == "lifecycle":
         dispatch = attempt.get("node_dispatch")
         if not isinstance(dispatch, dict):
@@ -1345,6 +1501,26 @@ def _record_node_result(
             )
         action = node.get("ref")
         reserved_head = dispatch.get("authorized_head_sha")
+        if action == "push" and outcome not in {"blocked", "contract_gap"}:
+            _validate_push_side_effect(
+                run, getattr(args, "repo_root", None), reserved_head
+            )
+            if run.get("schema_version") == 11 and outcome == "pass":
+                receipt_path = getattr(args, "push_receipt", None)
+                if receipt_path is None:
+                    raise ManifestError(
+                        "a current push PASS requires --push-receipt from the reserved side effect"
+                    )
+                if getattr(args, "repo_root", None) is None:
+                    raise ManifestError("recording a push receipt requires --repo-root")
+                push_receipt = validate_push_receipt(
+                    plan,
+                    run,
+                    Path(args.repo_root),
+                    node_id=node_id,
+                    attempt_id=attempt_id,
+                    receipt_path=Path(receipt_path),
+                )
         # A successful or retryable lifecycle result still needs the exact
         # current grant and head. A blocked/contract-gap result is recovery for
         # an uncertain attempt and must remain recordable after revocation or
@@ -1378,6 +1554,8 @@ def _record_node_result(
                 raise ManifestError(
                     "lifecycle integration head changed after reservation; reserve a fresh node attempt"
                 )
+    elif getattr(args, "push_receipt", None) is not None:
+        raise ManifestError("--push-receipt is only valid for a push lifecycle node")
 
     # Local verifier execution files are retained before the gate projection is
     # written.  The worker-result transition owns the strict execution shape;
@@ -1545,6 +1723,8 @@ def _record_node_result(
     )
     if blockers:
         attempt["evidence"] = list(dict.fromkeys([*attempt["evidence"], *blockers]))
+    if push_receipt is not None:
+        attempt["push_receipt"] = copy.deepcopy(push_receipt)
 
     edge_receipts: list[str] = []
     for edge in plan.get("graph", {}).get("edges", []):
@@ -2027,6 +2207,21 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
         raise ManifestError(
             f"batch base {batch_base_sha} is not an ancestor of {args.integrated_sha}"
         )
+    mission_contract = next(
+        (
+            mission
+            for mission in plan.get("missions", [])
+            if isinstance(mission, dict) and mission.get("id") == args.mission_id
+        ),
+        None,
+    )
+    integration_scopes = list(
+        mission_contract.get("write_scope", []) if isinstance(mission_contract, dict) else []
+    )
+    _reject_unplanned_candidate_paths(
+        plan, run, args.repo_root, integration_parent, args.integrated_sha,
+        allowed_scopes=sorted(set(integration_scopes)),
+    )
     live_head = _git_out(args.repo_root, "rev-parse", "HEAD").strip()
     if live_head != args.integrated_sha:
         raise ManifestError(
@@ -2534,6 +2729,29 @@ def _reserve_review_dispatch(
     ):
         raise ManifestError(f"duplicate attempt ID {args.attempt_id!r}")
     reviewed_sha, review_path = _review_target(plan, run, node, repo_root)
+    if node["review"].get("type") == "security":
+        required_checks = (
+            plan.get("security_review", {}).get("required_checks", [])
+            if isinstance(plan.get("security_review"), dict)
+            else []
+        )
+        executions = run.get("verifier_executions", [])
+        for check_id in required_checks:
+            matches = [
+                execution
+                for execution in executions
+                if isinstance(execution, dict)
+                and execution.get("verifier_id") == check_id
+                and execution.get("layer") in {"batch", "final"}
+                and execution.get("status") == "PASS"
+                and execution.get("exit_code") == 0
+                and isinstance(execution.get("context"), dict)
+                and execution["context"].get("head_sha") == reviewed_sha
+            ]
+            if len(matches) != 1:
+                raise ManifestError(
+                    f"security review requires one current PASS execution for check {check_id!r} before reservation"
+                )
     review_base_sha = run.get("integration", {}).get("batch_base_sha")
     if node["review"].get("type") == "security" and not is_full_sha(review_base_sha):
         raise ManifestError("security review dispatch requires a full batch_base_sha")
@@ -2589,6 +2807,61 @@ def _reserve_review_dispatch(
     }
 
 
+def _bind_review_task_thread(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> dict[str, Any]:
+    """Bind the actual Codex task created by a reserved thread-poll review."""
+
+    worker = next(
+        (
+            item
+            for item in run.get("review_workers", [])
+            if isinstance(item, dict) and item.get("worker_id") == args.worker_id
+        ),
+        None,
+    )
+    if worker is None:
+        raise ManifestError(f"review worker {args.worker_id!r} has no reserved dispatch")
+    if worker.get("phase") != "leased":
+        raise ManifestError("only a leased review dispatch can bind its actual task thread")
+    if worker.get("completion_channel") != "thread_poll":
+        raise ManifestError("review task-thread binding requires a thread_poll completion channel")
+    task_thread_id = args.task_thread_id
+    if not isinstance(task_thread_id, str) or not task_thread_id.strip():
+        raise ManifestError("bind-review-task-thread requires a non-empty --task-thread-id")
+    if any(
+        isinstance(item, dict)
+        and item is not worker
+        and item.get("task_thread_id") == task_thread_id
+        for item in [*run.get("workers", []), *run.get("review_workers", [])]
+    ):
+        raise ManifestError(
+            f"task thread id {task_thread_id!r} is already bound to another worker"
+        )
+
+    if plan.get("schema_version") == 6 and run.get("schema_version") == 11:
+        sandbox_reasons = _sandbox_observation_reasons(plan, run)
+        if sandbox_reasons:
+            raise ManifestError(
+                "accept-wave sandbox preflight is stale or incomplete: "
+                + ", ".join(sorted(sandbox_reasons))
+            )
+    node = _review_node(plan, worker.get("node_id"))
+    for mission_id in node["review"].get("mission_ids", []):
+        _materialize_authorized_target(
+            run, "create_user_owned_tasks", mission_id, f"task:{task_thread_id}"
+        )
+    worker["task_thread_id"] = task_thread_id
+    worker["phase"] = "worker_running"
+    return {
+        "command": "bind-review-task-thread",
+        "worker_id": args.worker_id,
+        "node_id": worker["node_id"],
+        "task_thread_id": task_thread_id,
+        "phase": worker["phase"],
+    }
+
+
 def _record_review_attempt(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
 ) -> None:
@@ -2616,6 +2889,12 @@ def _record_review_attempt(
         )
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("review dispatch is not active")
+    if worker.get("completion_channel") == "thread_poll" and not (
+        isinstance(worker.get("task_thread_id"), str) and worker["task_thread_id"].strip()
+    ):
+        raise ManifestError(
+            "thread_poll review completion requires the bound actual task_thread_id"
+        )
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
@@ -2664,6 +2943,11 @@ def _record_review_attempt(
             expected_base_sha=worker.get("base_sha"),
             expected_scope=node["review"].get("scope", []),
             required_tools=node["review"].get("required_tools", []),
+            required_checks=(
+                plan.get("security_review", {}).get("required_checks", [])
+                if isinstance(plan.get("security_review"), dict)
+                else []
+            ),
             allowed_decisions=node.get("allowed_outcomes", []),
         )
         if security_errors:
@@ -2895,6 +3179,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="also render the reviewer packet from the in-memory reserved run",
     )
+    bind_review_task = subparsers.add_parser("bind-review-task-thread")
+    bind_review_task.add_argument("--worker-id", required=True)
+    bind_review_task.add_argument("--task-thread-id", required=True)
     review = subparsers.add_parser("record-review-attempt")
     review.add_argument("--lineage", required=True)
     review.add_argument("--attempt-id", required=True)
@@ -2957,6 +3244,11 @@ def build_parser() -> argparse.ArgumentParser:
     record_node.add_argument("--evidence", action="append", default=[])
     record_node.add_argument("--blocker", action="append", default=[])
     record_node.add_argument("--verifier-result", action="append", type=Path, default=[])
+    record_node.add_argument(
+        "--push-receipt",
+        type=Path,
+        help="immutable receipt written by the reserved push side effect",
+    )
     worker_result = subparsers.add_parser("record-worker-result")
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
@@ -3033,10 +3325,12 @@ def _transition_under_lock(
         if args.repo_root is None:
             raise ManifestError("reserve-review-dispatch requires --repo-root")
         receipt = _reserve_review_dispatch(plan, run, args, repo_root=args.repo_root)
+    elif args.command == "bind-review-task-thread":
+        receipt = _bind_review_task_thread(plan, run, args)
     elif args.command == "skip-integration-review":
         _skip_integration_review(plan, run, args)
     elif args.command == "record-observation":
-        _record_observation(run, args)
+        _record_observation(plan, run, args)
     elif args.command == "accept-wave":
         _accept_wave(plan, run, args)
     elif args.command == "close-wave":
@@ -3086,13 +3380,20 @@ def _transition_under_lock(
         packet = render_packet(plan, run, args.node_id, args.repo_root)
 
     verifier_request = None
+    push_request_document = None
     request_out = getattr(args, "request_out", None)
     if request_out is not None:
-        if not isinstance(receipt, dict) or not isinstance(
-            receipt.get("verifier_request"), dict
-        ):
+        if not isinstance(receipt, dict):
             raise ManifestError(
-                "--request-out is only valid when reserving a local verifier node"
+                "--request-out is only valid when reserving a local verifier or push node"
+            )
+        if isinstance(receipt.get("verifier_request"), dict):
+            request_document = receipt["verifier_request"]
+        elif isinstance(receipt.get("push_request"), dict):
+            request_document = receipt["push_request"]
+        else:
+            raise ManifestError(
+                "--request-out is only valid when reserving a local verifier or push node"
             )
         repo_root = getattr(args, "repo_root", None)
         if repo_root is not None:
@@ -3104,12 +3405,16 @@ def _transition_under_lock(
                 raise ManifestError(
                     "local verifier request files must live outside the reviewed checkout"
                 )
-        verifier_request = json.dumps(
-            receipt["verifier_request"],
+        request_text = json.dumps(
+            request_document,
             sort_keys=True,
             indent=2,
             ensure_ascii=False,
         ) + "\n"
+        if isinstance(receipt.get("verifier_request"), dict):
+            verifier_request = request_text
+        else:
+            push_request_document = request_text
 
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
@@ -3125,6 +3430,14 @@ def _transition_under_lock(
             raise ManifestError(
                 f"{exc}; the RUN reservation is durable and its exact request remains "
                 "under attempt_log[].verifier_dispatch.request"
+            ) from exc
+    if push_request_document is not None:
+        try:
+            _write_text_exclusive(request_out, push_request_document)
+        except (ManifestError, OSError) as exc:
+            raise ManifestError(
+                f"{exc}; the RUN reservation is durable and its exact request remains "
+                "under attempt_log[].node_dispatch.push_request"
             ) from exc
     return receipt, report, True
 

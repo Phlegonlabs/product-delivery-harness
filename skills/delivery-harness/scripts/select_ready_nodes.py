@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
@@ -26,10 +27,33 @@ from harness_manifest import (
 )
 
 from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS, RUN_DISPATCH_STATUSES
+from verifier_runtime import sandbox_host_fingerprint
 
 
 class GraphSelectionError(ValueError):
     """Raised when canonical graph state cannot produce a safe frontier."""
+
+
+def _requires_repo_root(plan: dict[str, Any]) -> bool:
+    """Return whether a current PLAN carries real sources to bind."""
+
+    if plan.get("schema_version") != 6:
+        return False
+    for source in plan.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        location = source.get("location")
+        if not isinstance(location, str) or not location.strip():
+            continue
+        location = location.strip()
+        if location.startswith("<") and location.endswith(">"):
+            continue
+        if location or (
+            isinstance(source.get("source_revision"), str)
+            and source["source_revision"].strip("0")
+        ):
+            return True
+    return False
 
 
 def _tool_profile(node: dict[str, Any]) -> str:
@@ -660,7 +684,7 @@ def _current_authorized_head(run: dict[str, Any]) -> str | None:
     return None
 
 
-def _write_launch_reasons(run: dict[str, Any]) -> set[str]:
+def _write_launch_reasons(plan: dict[str, Any], run: dict[str, Any]) -> set[str]:
     reasons: set[str] = set()
     integration = run.get("integration", {})
     observed = run.get("observed", {})
@@ -683,7 +707,92 @@ def _write_launch_reasons(run: dict[str, Any]) -> set[str]:
             reasons.add("batch_base_stale")
     if observed_git.get("parent_dirty") is not False:
         reasons.add("parent_state_unreconciled")
+    reasons.update(_sandbox_observation_reasons(plan, run))
     return reasons
+
+
+def _sandbox_observation_reasons(
+    plan: dict[str, Any], run: dict[str, Any]
+) -> set[str]:
+    """Require a current, successful PLAN-bound sandbox preflight."""
+
+    if plan.get("schema_version") != 6 or run.get("schema_version") != 11:
+        return set()
+    observed = run.get("observed")
+    sandbox = observed.get("sandbox") if isinstance(observed, dict) else None
+    if not isinstance(sandbox, dict):
+        return {"sandbox_preflight_missing"}
+    if sandbox.get("status") != "available":
+        return {"sandbox_preflight_unavailable"}
+    if sandbox.get("errors") != []:
+        return {"sandbox_preflight_unavailable"}
+    if sandbox.get("host") != sandbox_host_fingerprint():
+        return {"sandbox_preflight_stale"}
+    if sandbox.get("captured_at") != observed.get("captured_at"):
+        return {"sandbox_preflight_stale"}
+    if sandbox.get("plan_revision") != plan.get("revision"):
+        return {"sandbox_preflight_stale"}
+    if sandbox.get("plan_digest_sha256") != plan_digest(plan):
+        return {"sandbox_preflight_stale"}
+    expected: set[tuple[str, str]] = set()
+    declarations: list[dict[str, Any]] = []
+    for group in ("batch_verifiers", "final_gates"):
+        declarations.extend(item for item in plan.get(group, []) if isinstance(item, dict))
+    for mission in plan.get("missions", []):
+        if not isinstance(mission, dict):
+            continue
+        declarations.extend(
+            item
+            for group in ("worker_verifiers", "integration_verifiers")
+            for item in mission.get(group, [])
+            if isinstance(item, dict)
+        )
+        declarations.extend(
+            item
+            for task in mission.get("tasks", [])
+            if isinstance(task, dict)
+            for item in task.get("verifiers", [])
+            if isinstance(item, dict)
+        )
+    for declaration in declarations:
+        execution = declaration.get("execution")
+        sandbox_policy = execution.get("sandbox") if isinstance(execution, dict) else None
+        if isinstance(sandbox_policy, dict):
+            expected.add((sandbox_policy.get("runtime"), sandbox_policy.get("image")))
+    entries = sandbox.get("entries")
+    observed_keys = {
+        (entry.get("runtime"), entry.get("image"))
+        for entry in entries
+        if isinstance(entry, dict)
+    } if isinstance(entries, list) else set()
+    if observed_keys != expected:
+        return {"sandbox_preflight_stale"}
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict):
+            return {"sandbox_preflight_unavailable"}
+        runtime = entry.get("runtime")
+        image = entry.get("image")
+        repo_digest = entry.get("repo_digest")
+        if runtime not in {"docker", "podman"} or not isinstance(image, str) or re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", image
+        ) is None or image.rsplit("@", 1)[-1] == "sha256:" + "0" * 64:
+            return {"sandbox_preflight_unavailable"}
+        if not isinstance(repo_digest, str) or re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", repo_digest) is None:
+            return {"sandbox_preflight_unavailable"}
+        if not repo_digest.endswith("@" + image.rsplit("@", 1)[-1]):
+            return {"sandbox_preflight_stale"}
+        probe = entry.get("runtime_probe")
+        if not isinstance(probe, dict) or set(probe) != {"executable", "executable_sha256", "version_output_sha256"}:
+            return {"sandbox_preflight_unavailable"}
+        if not isinstance(probe.get("executable"), str) or not probe["executable"].strip():
+            return {"sandbox_preflight_unavailable"}
+        if any(
+            not isinstance(probe.get(key), str)
+            or re.fullmatch(r"[0-9a-f]{64}", probe[key]) is None
+            for key in ("executable_sha256", "version_output_sha256")
+        ):
+            return {"sandbox_preflight_unavailable"}
+    return set()
 
 
 def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
@@ -864,7 +973,7 @@ def _dispatch_reasons(
         # position, so both need a reconciled parent and a known batch base
         # before launch. verifier, approval, and external_wait nodes are
         # read-only with respect to that state and do not need this gate.
-        reasons.update(_write_launch_reasons(run))
+        reasons.update(_write_launch_reasons(plan, run))
     if node["kind"] == "mission":
         workspace_mode = runtime["workspace_mode"]
         if workspace_mode == "shared_checkout":
@@ -1003,6 +1112,7 @@ def select_ready_nodes(
     *,
     repo_root: str | Path | None = None,
     manifest_already_validated: bool = False,
+    require_repo_root: bool = False,
 ) -> dict[str, Any]:
     # Callers that just validated the identical on-disk pair (for example the
     # reserve transition, which validates once before selection and once after
@@ -1011,7 +1121,12 @@ def select_ready_nodes(
     validation_errors = (
         []
         if manifest_already_validated
-        else validate_current_plan_run(plan, run, repo_root=repo_root)
+        else validate_current_plan_run(
+            plan,
+            run,
+            repo_root=repo_root,
+            require_repo_root=require_repo_root,
+        )
     )
     if validation_errors:
         if not is_current_pair(plan, run):
@@ -1233,7 +1348,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--repo-root",
         type=Path,
-        help="Optional repository root used to bind PLAN-v6 sources",
+        help="repository root used to bind current PLAN-v6 sources",
     )
     return parser
 
@@ -1241,8 +1356,21 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        plan = load_plan(args.plan)
+        run = load_run(args.run)
+        if (
+            is_current_pair(plan, run)
+            and _requires_repo_root(plan)
+            and args.repo_root is None
+        ):
+            raise GraphSelectionError(
+                "current PLAN/RUN selection requires --repo-root for immutable source validation"
+            )
         result = select_ready_nodes(
-            load_plan(args.plan), load_run(args.run), repo_root=args.repo_root
+            plan,
+            run,
+            repo_root=args.repo_root,
+            require_repo_root=is_current_pair(plan, run) and _requires_repo_root(plan),
         )
     except (ManifestError, OSError, GraphSelectionError) as exc:
         print(json.dumps({"status": "ERROR", "errors": [str(exc)]}, sort_keys=True, indent=2))

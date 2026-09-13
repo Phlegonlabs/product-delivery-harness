@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -26,6 +26,7 @@ from verifier_runtime import (  # noqa: E402
     VerifierRuntimeError,
     build_execution_key,
     protected_path_sha256,
+    probe_plan_sandboxes,
     run_verifier_batch,
     run_verifier,
 )
@@ -60,7 +61,7 @@ def context() -> dict[str, object]:
 def cacheable_context() -> dict[str, object]:
     """A worker-layer context: the only shape session_exact caching is ever
     reachable from through a validated PLAN (cache_allowed=False for
-    integration/batch/final; harness_manifest.py)."""
+    batch/final; harness_manifest.py)."""
 
     context_document = context()
     context_document.update(
@@ -87,12 +88,40 @@ def counter_command(counter: Path, *, exit_code: int = 0, delay: float = 0) -> l
     return [sys.executable, "-c", source, str(counter), str(delay), str(exit_code)]
 
 
+def container_execution() -> dict[str, object]:
+    return {
+        "parallel_safe": True,
+        "resources": [],
+        "isolation": "container",
+        "sandbox": {
+            "runtime": "docker",
+            "image": "fixture@sha256:" + "1" * 64,
+            "network": "none",
+            "read_only_rootfs": True,
+            "no_new_privileges": True,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never",
+        },
+    }
+
+
 def verifier(counter: Path, *, identifier: str = "focused") -> dict[str, object]:
     return {
         "id": identifier,
         "cwd": ".",
         "argv": counter_command(counter),
         "pass_signal": "exit 0",
+        # Legacy batch/final fixtures execute in-process; current task/worker
+        # declarations add an explicit container execution policy in their
+        # PLAN.  Keep the read-only contract here so guard validation tests
+        # reach the intended branch before isolation is checked.
+        "read_only": True,
+        "execution": container_execution(),
         "cache": {"mode": "session_exact", "environment_keys": ["CI"]},
     }
 
@@ -104,10 +133,81 @@ class VerifierRuntimeTests(unittest.TestCase):
         self.checkout = self.root / "checkout"
         self.cache = self.root / "cache"
         self.checkout.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "integration"], cwd=self.checkout, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=self.checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Harness Test"],
+            cwd=self.checkout,
+            check=True,
+        )
+        fixture = self.checkout / ".fixture"
+        fixture.write_text("fixture\n", encoding="utf-8")
+        (self.checkout / "subdir").mkdir()
+        (self.checkout / "subdir" / ".keep").write_text("fixture\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.checkout, check=True)
+        subprocess.run(["git", "commit", "-qm", "fixture"], cwd=self.checkout, check=True)
+        global SHA_A, SHA_B
+        SHA_A = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=self.checkout, text=True
+        ).strip()
+        fixture.write_text("fixture-head\n", encoding="utf-8")
+        subprocess.run(["git", "add", ".fixture"], cwd=self.checkout, check=True)
+        subprocess.run(["git", "commit", "-qm", "fixture head"], cwd=self.checkout, check=True)
+        SHA_B = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=self.checkout, text=True
+        ).strip()
         self.environment = dict(os.environ)
         self.environment["CI"] = "true"
+        self._container_patch = patch(
+            "verifier_runtime._run_container_verifier",
+            side_effect=self._fake_container_verifier,
+        )
+        self._container_patch.start()
+
+    def _fake_container_verifier(
+        self,
+        _checkout_root: Path,
+        snapshot_root: Path,
+        declared_cwd: str,
+        argv: list[str],
+        policy: dict[str, object],
+        timeout_seconds: float,
+    ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+        execution_cwd = (snapshot_root / declared_cwd).resolve()
+        environment = dict(os.environ)
+        environment["PWD"] = str(execution_cwd)
+        for key in ("OLDPWD", "GIT_DIR", "GIT_WORK_TREE"):
+            environment.pop(key, None)
+        completed = subprocess.run(
+            argv,
+            cwd=execution_cwd,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+        image = str(policy["image"])
+        return completed, {
+            "runtime": str(policy["runtime"]),
+            "runtime_probe": "fixture-runtime",
+            "image": image,
+            "image_probe": image,
+            "policy": policy,
+            "mount": {
+                "source": "git_archive",
+                "destination": "/workspace",
+                "read_only": True,
+            },
+            "network": "none",
+        }
 
     def tearDown(self) -> None:
+        self._container_patch.stop()
         self.temp.cleanup()
 
     def read_count(self, counter: Path) -> int:
@@ -164,23 +264,221 @@ class VerifierRuntimeTests(unittest.TestCase):
             "cwd": ".",
             "argv": [sys.executable, "-c", source, str(tracked)],
             "pass_signal": "exit 0",
+            "execution": container_execution(),
             "cache": {"mode": "disabled", "environment_keys": []},
         }
-        result = run_verifier(
-            declaration,
-            guarded_context,
-            checkout_root=self.checkout,
-            environment=self.environment,
-            git_guard={
-                "expected_branch": "integration",
-                "expected_head_sha": head,
-                "ignored_paths": [],
-            },
+        with self.assertRaisesRegex(VerifierRuntimeError, "must not reference the live checkout"):
+            run_verifier(
+                declaration,
+                guarded_context,
+                checkout_root=self.checkout,
+                environment=self.environment,
+                git_guard={
+                    "expected_branch": "integration",
+                    "expected_head_sha": head,
+                    "ignored_paths": [],
+                },
+            )
+
+    def test_worker_guard_head_must_match_context_head(self) -> None:
+        worker_context = context()
+        worker_context.update(
+            {
+                "layer": "worker",
+                "checkout_role": "worker",
+                "mission_id": "M1",
+                "attempt_id": "A1",
+                "lease_id": "L1",
+            }
+        )
+        declaration = verifier(self.root / "counter.txt")
+        with self.assertRaisesRegex(VerifierRuntimeError, "expected_head_sha"):
+            run_verifier(
+                declaration,
+                worker_context,
+                checkout_root=self.checkout,
+                environment=self.environment,
+                git_guard={
+                    "expected_branch": "integration",
+                    "expected_head_sha": SHA_A,
+                    "ignored_paths": [],
+                },
+            )
+
+    def test_worker_command_without_read_only_contract_is_rejected(self) -> None:
+        worker_context = context()
+        worker_context.update(
+            {
+                "layer": "worker",
+                "checkout_role": "worker",
+                "mission_id": "M1",
+                "attempt_id": "A1",
+                "lease_id": "L1",
+            }
+        )
+        declaration = verifier(self.root / "counter.txt")
+        declaration.pop("read_only")
+        with self.assertRaisesRegex(VerifierRuntimeError, "read_only declaration"):
+            run_verifier(
+                declaration,
+                worker_context,
+                checkout_root=self.checkout,
+                environment=self.environment,
+                git_guard={
+                    "expected_branch": "integration",
+                    "expected_head_sha": SHA_B,
+                    "ignored_paths": [],
+                },
+            )
+
+    def test_worker_local_subprocess_is_fail_closed_even_with_snapshot_flag(self) -> None:
+        worker_context = context()
+        worker_context.update(
+            {
+                "layer": "worker",
+                "checkout_role": "worker",
+                "mission_id": "M1",
+                "attempt_id": "A1",
+                "lease_id": "L1",
+            }
+        )
+        declaration = verifier(self.root / "counter.txt")
+        declaration["execution"]["isolation"] = "live"
+        with self.assertRaisesRegex(
+            VerifierRuntimeError,
+            r"execution\.isolation=container",
+        ):
+            run_verifier(
+                declaration,
+                worker_context,
+                checkout_root=self.checkout,
+                environment=self.environment,
+                git_guard={
+                    "expected_branch": "integration",
+                    "expected_head_sha": SHA_B,
+                    "ignored_paths": [],
+                },
+            )
+
+    def test_worker_batch_job_requires_git_guard(self) -> None:
+        job = self.batch_job("worker-gate")
+        job["context"] = {"layer": "worker", "checkout_role": "worker"}
+        with self.assertRaisesRegex(VerifierRuntimeError, "require git_guard"):
+            run_verifier_batch([job], max_parallel=1)
+
+    def test_every_verifier_layer_routes_through_container_without_host_sentinel(self) -> None:
+        sentinel = self.root / "host-sentinel.txt"
+        declaration = verifier(sentinel)
+        declaration["cache"] = {"mode": "disabled", "environment_keys": []}
+        declaration["argv"] = [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; Path(__import__('sys').argv[1]).write_text('host')",
+            str(sentinel),
+        ]
+        calls: list[str] = []
+
+        def sandbox_only(
+            _checkout_root: Path,
+            _snapshot_root: Path,
+            _declared_cwd: str,
+            _argv: list[str],
+            policy: dict[str, object],
+            _timeout_seconds: float,
+        ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+            calls.append(str(policy["runtime"]))
+            image = str(policy["image"])
+            return subprocess.CompletedProcess(
+                args=["docker", "run"], returncode=0, stdout="", stderr=""
+            ), {
+                "runtime": str(policy["runtime"]),
+                "runtime_probe": "fixture-runtime",
+                "image": image,
+                "image_probe": image,
+                "policy": policy,
+                "mount": {
+                    "source": "git_archive",
+                    "destination": "/workspace",
+                    "read_only": True,
+                },
+                "network": "none",
+            }
+
+        contexts: list[dict[str, object]] = []
+        for layer in ("task", "worker"):
+            current = context()
+            current.update(
+                {
+                    "layer": layer,
+                    "checkout_role": "worker",
+                    "mission_id": "M1",
+                    "task_id": "M1/T01" if layer == "task" else None,
+                    "attempt_id": "A1",
+                    "lease_id": "L1",
+                }
+            )
+            contexts.append(current)
+        mission = context()
+        mission.update({"layer": "mission_integration", "mission_id": "M1"})
+        contexts.append(mission)
+        contexts.extend(
+            [
+                context(),
+                {**context(), "layer": "final"},
+            ]
         )
 
-        self.assertEqual("ERROR", result["status"])
-        self.assertIsNone(result["exit_code"])
-        self.assertIn("verifier inputs changed", result["stderr"])
+        with patch("verifier_runtime._run_container_verifier", side_effect=sandbox_only):
+            for current in contexts:
+                guard = (
+                    {
+                        "expected_branch": "integration",
+                        "expected_head_sha": current["head_sha"],
+                        "ignored_paths": [],
+                    }
+                    if current["layer"] in {"task", "worker"}
+                    else None
+                )
+                result = run_verifier(
+                    declaration,
+                    current,
+                    checkout_root=self.checkout,
+                    environment=self.environment,
+                    git_guard=guard,
+                )
+                self.assertEqual(result["status"], "PASS")
+                self.assertEqual(
+                    result["git_guard_attestation"]["isolation_mode"]
+                    if guard is not None
+                    else result["key_document"]["execution"]["isolation"],
+                    "container",
+                )
+        self.assertEqual(len(calls), 5)
+        self.assertFalse(sentinel.exists())
+
+    def test_sandbox_preflight_proves_runtime_and_exact_repo_digest(self) -> None:
+        declaration = verifier(self.root / "unused.txt")
+        plan = {"batch_verifiers": [declaration], "final_gates": [], "missions": []}
+        image = declaration["execution"]["sandbox"]["image"]
+        with patch("verifier_runtime.shutil.which", return_value="docker") as which:
+            with patch("verifier_runtime.Path.read_bytes", return_value=b"fixture-runtime"):
+                with patch(
+                "verifier_runtime.subprocess.run",
+                side_effect=[
+                    subprocess.CompletedProcess(
+                        args=["docker", "version"], returncode=0, stdout="fixture", stderr=""
+                    ),
+                    subprocess.CompletedProcess(
+                        args=["docker", "image", "inspect"],
+                        returncode=0,
+                        stdout=json.dumps([image]),
+                        stderr="",
+                    ),
+                ],
+                ) as run:
+                    self.assertEqual([], probe_plan_sandboxes(plan))
+        which.assert_called_once_with("docker")
+        self.assertEqual(run.call_count, 2)
 
     def test_git_guard_rejects_changes_to_an_ignored_coordination_file(self) -> None:
         subprocess.run(
@@ -236,37 +534,27 @@ class VerifierRuntimeTests(unittest.TestCase):
                 str(run_path),
             ],
             "pass_signal": "exit 0",
+            "execution": container_execution(),
             "cache": {"mode": "disabled", "environment_keys": []},
         }
-        expected_protected_hash = hashlib.sha256(run_path.read_bytes()).hexdigest()
-
-        result = run_verifier(
-            declaration,
-            guarded_context,
-            checkout_root=self.checkout,
-            environment=self.environment,
-            git_guard={
-                "expected_branch": "integration",
-                "expected_head_sha": head,
-                "ignored_paths": ["docs/goal/RUN.md"],
-            },
-            reservation={
-                "node_id": "N-FINAL",
-                "attempt_id": "ATT-FINAL",
-                "nonce": "n" * 64,
-            },
-            request_sha256="d" * 64,
-        )
-
-        self.assertEqual("ERROR", result["status"])
-        self.assertIsNone(result["exit_code"])
-        self.assertIn("verifier inputs changed", result["stderr"])
-        self.assertEqual(
-            expected_protected_hash,
-            result["dispatch_attestation"]["protected_path_sha256"][
-                "docs/goal/RUN.md"
-            ],
-        )
+        with self.assertRaisesRegex(VerifierRuntimeError, "must not reference the live checkout"):
+            run_verifier(
+                declaration,
+                guarded_context,
+                checkout_root=self.checkout,
+                environment=self.environment,
+                git_guard={
+                    "expected_branch": "integration",
+                    "expected_head_sha": head,
+                    "ignored_paths": ["docs/goal/RUN.md"],
+                },
+                reservation={
+                    "node_id": "N-FINAL",
+                    "attempt_id": "ATT-FINAL",
+                    "nonce": "n" * 64,
+                },
+                request_sha256="d" * 64,
+            )
 
     def test_protected_path_hashes_reject_path_escape(self) -> None:
         with self.assertRaisesRegex(VerifierRuntimeError, "repository-relative"):
@@ -333,25 +621,27 @@ class VerifierRuntimeTests(unittest.TestCase):
             environment=self.environment,
         )
         self.assertEqual(first["status"], "PASS")
-        self.assertEqual(first["cache_status"], "stored")
-        self.assertEqual(worker["cache_status"], "reused")
+        self.assertEqual(first["cache_status"], "bypassed")
+        self.assertEqual(first["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(worker["cache_status"], "bypassed")
+        self.assertEqual(worker["cache_reason"], "container_execution_not_cacheable")
         self.assertEqual(first["execution_key"], worker["execution_key"])
         self.assertEqual(worker["verifier_id"], "mission-focused")
         self.assertEqual(worker["context"]["layer"], "worker")
         self.assertNotIn("verifier_id", worker["key_document"])
         self.assertNotIn("layer", worker["key_document"])
         self.assertNotIn("attempt_id", worker["key_document"])
-        self.assertEqual(self.read_count(counter), 1)
+        self.assertEqual(self.read_count(counter), 2)
 
     def test_exact_key_invalidates_on_every_immutable_input_axis(self) -> None:
         variants = []
 
         changed = context()
-        changed["head_sha"] = "d" * 40
+        changed["head_sha"] = SHA_A
         variants.append(("head", verifier(self.root / "counter.txt"), changed, self.environment))
 
         changed = context()
-        changed["batch_base_sha"] = "e" * 40
+        changed["batch_base_sha"] = SHA_B
         variants.append(("base", verifier(self.root / "counter.txt"), changed, self.environment))
 
         changed = context()
@@ -379,7 +669,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         variants.append(("environment", verifier(self.root / "counter.txt"), context(), environment))
 
         subdir = self.checkout / "subdir"
-        subdir.mkdir()
+        subdir.mkdir(exist_ok=True)
         changed_verifier = verifier(self.root / "counter.txt")
         changed_verifier["cwd"] = "subdir"
         variants.append(("cwd", changed_verifier, context(), self.environment))
@@ -462,14 +752,12 @@ class VerifierRuntimeTests(unittest.TestCase):
                 )
                 self.assertEqual(result["status"], "PASS")
                 self.assertEqual(result["cache_status"], "bypassed")
-                self.assertEqual(result["cache_reason"], "layer_not_cacheable")
+                self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
         # Every call above executed for real; none could have reused a prior PASS.
         self.assertEqual(self.read_count(counter), len(CACHE_BANNED_LAYERS))
 
-    def test_deterministic_local_attestation_reuses_at_banned_layers(self) -> None:
-        """The ban keys on layer, but the property that matters is the command's
-        nature. A verifier that attests it is a pure local deterministic command
-        may reuse an exact-input PASS at those layers."""
+    def test_container_execution_never_reuses_at_banned_layers(self) -> None:
+        """Container results are not reused, even for deterministic commands."""
 
         counter = self.root / "counter.txt"
         attested = verifier(counter)
@@ -489,9 +777,9 @@ class VerifierRuntimeTests(unittest.TestCase):
                 environment=self.environment,
             )
             self.assertEqual(result["status"], "PASS")
-        self.assertEqual(result["cache_status"], "reused")
-        # The second call reused the first; the command ran exactly once.
-        self.assertEqual(self.read_count(counter), 1)
+        self.assertEqual(result["cache_status"], "bypassed")
+        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(self.read_count(counter), 2)
 
     def test_dirty_checkout_bypasses_existing_pass(self) -> None:
         counter = self.root / "counter.txt"
@@ -512,7 +800,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             environment=self.environment,
         )
         self.assertEqual(result["cache_status"], "bypassed")
-        self.assertEqual(result["cache_reason"], "checkout_dirty")
+        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
         self.assertEqual(self.read_count(counter), 2)
 
     def test_failure_timeout_and_missing_cache_root_never_reuse(self) -> None:
@@ -566,7 +854,7 @@ class VerifierRuntimeTests(unittest.TestCase):
                 cache_root=None,
                 environment=self.environment,
             )
-            self.assertEqual(result["cache_reason"], "cache_root_missing")
+            self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
         self.assertEqual(self.read_count(uncached_counter), 2)
 
     def test_corrupt_cache_never_hits_or_gets_overwritten(self) -> None:
@@ -590,8 +878,8 @@ class VerifierRuntimeTests(unittest.TestCase):
                 cache_root=self.cache,
                 environment=self.environment,
             )
-            self.assertEqual(result["cache_status"], "miss")
-            self.assertEqual(result["cache_reason"], "cache_entry_malformed")
+            self.assertEqual(result["cache_status"], "bypassed")
+            self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
         self.assertEqual(self.read_count(counter), 2)
         self.assertEqual(cache_path.read_text(encoding="utf-8"), "not json\n")
 
@@ -606,7 +894,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             cache_root=self.cache,
             environment=self.environment,
         )
-        self.assertEqual(result["cache_reason"], "not_declared_deterministic_local")
+        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
 
         inside_counter = self.root / "inside.txt"
         result = run_verifier(
@@ -616,7 +904,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             cache_root=self.checkout / ".cache",
             environment=self.environment,
         )
-        self.assertEqual(result["cache_reason"], "cache_root_inside_checkout")
+        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
         self.assertFalse((self.checkout / ".cache").exists())
 
     def test_dot_slash_argv0_resolves_against_verifier_cwd_not_real_process_cwd(
@@ -639,6 +927,7 @@ class VerifierRuntimeTests(unittest.TestCase):
                     "cwd": "workspace",
                     "argv": ["./probe.sh"],
                     "pass_signal": "exit 0",
+                    "execution": container_execution(),
                     "cache": {"mode": "disabled", "environment_keys": []},
                 },
                 context(),
@@ -649,14 +938,8 @@ class VerifierRuntimeTests(unittest.TestCase):
             os.chdir(real_cwd)
 
         resolved_path = key_document["executable_identity"]["path"]
-        self.assertEqual(
-            Path(resolved_path),
-            (mission / "probe.sh").resolve(),
-        )
-        self.assertEqual(
-            key_document["executable_identity"]["size"],
-            (mission / "probe.sh").stat().st_size,
-        )
+        self.assertTrue(resolved_path.startswith("container:fixture@sha256:"))
+        self.assertNotIn(str(self.checkout.resolve()), resolved_path)
 
     def batch_job(
         self,
@@ -671,12 +954,13 @@ class VerifierRuntimeTests(unittest.TestCase):
             "cwd": ".",
             "argv": [sys.executable, "-c", "raise SystemExit(0)"],
             "pass_signal": "exit 0",
-        }
-        if include_execution:
-            candidate["execution"] = {
+            "execution": {
                 "parallel_safe": parallel_safe,
                 "resources": [] if resources is None else resources,
-            }
+                "isolation": "container",
+                "sandbox": container_execution()["sandbox"],
+            },
+        }
         return {
             "job_id": job_id,
             "verifier": candidate,

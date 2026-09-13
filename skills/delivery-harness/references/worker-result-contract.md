@@ -46,6 +46,8 @@ Read this reference only while rendering or validating a delegated worker's term
 ```
 For a worker-level verifier, use `"layer": "worker"` and `"task_id": null`. Use `"graph_revision": null` outside a graph run.
 
+In current RUN-v11, task and worker verifier commands run through the declared pinned local container policy and retain its machine-verifiable sandbox attestation. Readiness requires a current PLAN-bound runtime/image RepoDigest observation; missing or stale preflight blocks dispatch. A `read_only` flag or Git snapshot is not sufficient process confinement. An external provider is only a future separately implemented route.
+
 ## Worker Result
 
 ```json

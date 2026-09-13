@@ -37,6 +37,7 @@ from test_harness_manifest import (  # noqa: E402
     mark_legacy_complete,
     mark_complete,
     retained_gate_execution,
+    sandbox_observation,
     valid_plan,
     valid_closeout_run,
     valid_run,
@@ -378,6 +379,8 @@ def valid_graph_run(plan: dict[str, object]) -> dict[str, object]:
     """The canonical RUN with a live observation, ready for node selection."""
     run = valid_run(plan)
     run["observed"]["captured_at"] = "2026-07-25T00:00:00Z"
+    run["observed"]["sandbox"] = sandbox_observation(plan)
+    run["observed"]["sandbox"]["captured_at"] = run["observed"]["captured_at"]
     return run
 
 
@@ -533,7 +536,9 @@ class GraphManifestTests(unittest.TestCase):
             "reason": "documentation-only delivery with no executable surface",
         }
 
-        self.assertEqual([], validate_plan(plan))
+        self.assertTrue(
+            any("not_applicable is unsafe" in error for error in validate_plan(plan))
+        )
 
     def test_review_stage_accepts_only_preintegration_or_integration(self) -> None:
         plan = valid_plan()
@@ -568,6 +573,26 @@ class GraphManifestTests(unittest.TestCase):
 
         self.assertEqual([], validate_plan(plan))
         self.assertEqual("code_review_readonly", _tool_profile(node))
+
+    def test_security_required_checks_bind_to_declared_graph_verifiers(self) -> None:
+        plan = valid_plan()
+        add_security_review(plan)
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+            "required_checks": ["claimant-controlled-check"],
+        }
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any(
+                "unknown verifier ID 'claimant-controlled-check'" in error
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_security_review_rejects_preintegration_stage(self) -> None:
         plan = valid_plan()
@@ -1795,6 +1820,8 @@ class GraphManifestTests(unittest.TestCase):
         digest = plan_digest(plan)
         run["plan"]["digest_sha256"] = digest
         run["active_wave"]["plan_digest_sha256"] = digest
+        run["observed"]["sandbox"] = sandbox_observation(plan)
+        run["observed"]["sandbox"]["captured_at"] = run["observed"]["captured_at"]
         authorize_execution(run, mission_ids)
         for action in (
             "spawn_subagents",

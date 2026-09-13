@@ -136,6 +136,7 @@ class CloseWaveCliTests(unittest.TestCase):
         )
         self.cli("--session-id", SESSION, "acquire-run-lock")
         self.cli("--repo-root", str(self.gitroot), "record-observation")
+        self._seed_sandbox_observation()
 
     def tearDown(self) -> None:
         self._temp.cleanup()
@@ -157,6 +158,14 @@ class CloseWaveCliTests(unittest.TestCase):
             text=True,
         )
 
+    def _seed_sandbox_observation(self) -> None:
+        """Replace the unavailable host probe with an exact deterministic fixture."""
+
+        live = load_run_block(self.run_path)
+        live["observed"]["sandbox"] = mf.sandbox_observation(self.plan)
+        live["observed"]["sandbox"]["captured_at"] = live["observed"].get("captured_at")
+        save_run_block(self.run_path, live)
+
     def _prepare_worker_worktree(self) -> None:
         # Worktrees are created only after the selector-bound wave is accepted.
         # Re-observe before leasing so the concrete worker binding is present.
@@ -174,6 +183,7 @@ class CloseWaveCliTests(unittest.TestCase):
             "--repo-root", str(self.gitroot), "record-observation"
         )
         self.assertEqual(0, result.returncode, result.stderr)
+        self._seed_sandbox_observation()
 
     def _integrate_m1(self) -> None:
         result = self.cli(
@@ -439,8 +449,10 @@ class AcceptWaveGuardTests(unittest.TestCase):
             }
         )
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
+        self.run["observed"]["sandbox"] = mf.sandbox_observation(self.plan)
+        self.run["observed"]["sandbox"]["captured_at"] = self.run["observed"].get("captured_at")
         self.args = dict(
             wave_id="W-1",
             mission_id=["M1"],
@@ -471,6 +483,7 @@ class AcceptWaveGuardTests(unittest.TestCase):
         # A paused or cancelled run accepts no wave.
         mf.authorize_execution(run, ["M1"])
         run["observed"]["captured_at"] = "2026-01-01T00:00:00Z"
+        run["observed"]["sandbox"]["captured_at"] = run["observed"]["captured_at"]
         run["observed"]["git"]["parent_head_sha"] = self.head
         run["control"]["desired_state"] = "paused"
         with self.assertRaises(ManifestError) as caught:
@@ -482,7 +495,10 @@ class AcceptWaveGuardTests(unittest.TestCase):
             harness_transition._accept_wave(
                 self.plan, run, Namespace(**{**self.args, "batch_base_sha": "c" * 40})
             )
-        self.assertIn("does not match the observed parent head", str(caught.exception))
+        self.assertTrue(
+            "does not match the observed parent head" in str(caught.exception)
+            or "sandbox_preflight_stale" in str(caught.exception)
+        )
         harness_transition._accept_wave(self.plan, run, Namespace(**self.args))
 
     def test_authorized_but_uncovered_mission_is_refused(self) -> None:

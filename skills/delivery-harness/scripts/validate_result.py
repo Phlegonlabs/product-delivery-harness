@@ -27,7 +27,11 @@ from harness_manifest import (
     validate_run,
 )
 from validate_node_result import validate_node_result
-from validate_worker_result import load_worker_result, validate_worker_result_data
+from validate_worker_result import (
+    _observe_git_worker,
+    load_worker_result,
+    validate_worker_result_data,
+)
 
 
 def _unwrap(document: Any, key: str) -> Any:
@@ -99,6 +103,33 @@ def main(argv: list[str] | None = None) -> int:
 
     current_pair = is_current_pair(plan, run)
     if current_pair:
+        live_observation = None
+        if worker_result is not None and args.repo_root is not None:
+            try:
+                live_observation = _observe_git_worker(
+                    run, worker_result, args.repo_root
+                )
+                if live_observation.get("dirty") is not False:
+                    errors.append(
+                        "--repo-root: live worker checkout is dirty or unavailable; RUN dirty=false is not sufficient"
+                    )
+            except ManifestError as exc:
+                errors.append(f"--repo-root: {exc}")
+        elif worker_result is not None and isinstance(worker_result, dict):
+            worker_path = next(
+                (
+                    worker.get("worktree_path")
+                    for worker in run.get("workers", [])
+                    if isinstance(worker, dict)
+                    and worker.get("mission_id") == worker_result.get("mission_id")
+                    and worker.get("lease_id") == worker_result.get("lease_id")
+                ),
+                None,
+            )
+            if isinstance(worker_path, str) and Path(worker_path).is_dir():
+                errors.append(
+                    "--repo-root: current worker validation requires the live bound worktree"
+                )
         errors.extend(
             validate_current_plan_run(plan, run, repo_root=args.repo_root)
         )
@@ -116,16 +147,41 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         if worker_result is not None:
+            observed_head = (
+                live_observation["head_sha"]
+                if live_observation is not None
+                else args.observed_head_sha
+            )
+            observed_changed = (
+                live_observation["changed_files"]
+                if live_observation is not None
+                else args.observed_changed_file
+            )
+            ancestry = (
+                live_observation["ancestry_confirmed"]
+                if live_observation is not None
+                else args.ancestry_confirmed
+            )
             errors.extend(
                 f"{issue['path']}: {issue['message']}" if isinstance(issue, dict) else str(issue)
                 for issue in validate_worker_result_data(
                     plan,
                     run,
                     worker_result,
-                    observed_head_sha=args.observed_head_sha,
-                    observed_changed_files=args.observed_changed_file,
-                    ancestry_confirmed=args.ancestry_confirmed,
+                    observed_head_sha=observed_head,
+                    observed_changed_files=observed_changed,
+                    ancestry_confirmed=ancestry,
                     retained_verifier_results=retained,
+                    observed_commit_order=(
+                        live_observation["commit_order"]
+                        if live_observation is not None
+                        else None
+                    ),
+                    observed_task_changed_files=(
+                        live_observation["task_changed_files"]
+                        if live_observation is not None
+                        else None
+                    ),
                     manifest_already_validated=True,
                 )
             )

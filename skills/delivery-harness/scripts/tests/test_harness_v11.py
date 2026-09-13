@@ -226,6 +226,70 @@ class HarnessV11Tests(unittest.TestCase):
             subprocess.run(["git", "commit", "-qm", "code after review"], cwd=root, check=True)
             self.assertTrue(validate_integration_head_against_git(run, root))
 
+    def test_candidate_guard_rejects_parent_owned_and_coordination_paths(self) -> None:
+        """A broad mission scope cannot authorize committed PLAN/RUN state."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", "-b", "integration"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root,
+                check=True,
+            )
+            source = root / "src.txt"
+            source.write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+            base = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+
+            goal = root / "docs" / "goal"
+            goal.mkdir(parents=True)
+            (goal / "RUN.md").write_text("parent coordination\n", encoding="utf-8")
+            subprocess.run(["git", "add", "docs/goal/RUN.md"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "committed run"], cwd=root, check=True)
+            candidate = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+
+            plan = {"missions": [{"id": "M1", "write_scope": ["docs/goal/**"]}]}
+            run = {"integration": {"coordination_paths": ["docs/goal/**"]}}
+            with self.assertRaisesRegex(
+                harness_transition.ManifestError,
+                "RUN.md",
+            ):
+                harness_transition._reject_unplanned_candidate_paths(
+                    plan,
+                    run,
+                    root,
+                    base,
+                    candidate,
+                    allowed_scopes=["docs/goal/**"],
+                )
+
+            # The parent-owned filename remains blocked even when the RUN
+            # snapshot forgot to list it as a coordination path.
+            run["integration"]["coordination_paths"] = []
+            with self.assertRaisesRegex(
+                harness_transition.ManifestError,
+                "RUN.md",
+            ):
+                harness_transition._reject_unplanned_candidate_paths(
+                    plan,
+                    run,
+                    root,
+                    base,
+                    candidate,
+                    allowed_scopes=["docs/goal/**"],
+                )
+
     def test_documented_closeout_rewrites_do_not_stale_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -894,6 +958,115 @@ class HarnessV11Tests(unittest.TestCase):
             self.assertEqual("traversed", edge["status"])
             self.assertEqual(1, edge["traversals"])
             self.assertEqual("ATT-REVIEW-1", edge["source_attempt_id"])
+
+    def test_thread_poll_review_binds_actual_task_after_reserved_launch(self) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["authorizations"]["create_user_owned_tasks"] = {
+            "authorized": True,
+            "source": "user authorized a review task",
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["M1"],
+                "targets": ["*"],
+            },
+            "expires_when": "run_complete",
+        }
+        review_worker = {
+            "worker_id": "RW-THREAD",
+            "node_id": "N-FRONTEND-REVIEW",
+            "attempt_id": "ATT-REVIEW-THREAD",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": digest,
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "reviewed_sha": "b" * 40,
+            "review_path": "C:/repo/worktrees/M1",
+            "worker_runtime": "app_task",
+            "completion_channel": "thread_poll",
+            "runtime_binding": {
+                "provider": "codex",
+                "driver": "app_threads",
+                "source": "host",
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "medium",
+                "option_source": "plan_provider_options",
+            },
+            "task_thread_id": None,
+            "report_path": None,
+            "phase": "leased",
+            "outcome": None,
+            "findings": [],
+        }
+        run["review_workers"] = [review_worker]
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {
+                "phase": "running",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-THREAD",
+                "last_outcome": None,
+                "bound_worker_id": "RW-THREAD",
+                "blockers": [],
+            }
+        )
+
+        with self.assertRaisesRegex(
+            harness_transition.ManifestError,
+            "requires the bound actual task_thread_id",
+        ):
+            harness_transition._record_review_attempt(
+                plan,
+                run,
+                Namespace(
+                    lineage="REVIEW-N-FRONTEND-REVIEW",
+                    attempt_id="ATT-REVIEW-THREAD",
+                    worker_id="RW-THREAD",
+                    mission_id="M1",
+                    result="pass",
+                    evidence=["reviewed the reserved head"],
+                    finding=[],
+                    security_result=None,
+                    failure_family_id=None,
+                    failure_primitive=None,
+                    equivalence_class=[],
+                    strategy=None,
+                    tree_sha=None,
+                ),
+            )
+
+        receipt = harness_transition._bind_review_task_thread(
+            plan,
+            run,
+            Namespace(worker_id="RW-THREAD", task_thread_id="THREAD-REVIEW-ACTUAL"),
+        )
+        self.assertEqual("worker_running", receipt["phase"])
+        self.assertEqual("THREAD-REVIEW-ACTUAL", review_worker["task_thread_id"])
+        self.assertIn(
+            "task:THREAD-REVIEW-ACTUAL",
+            run["authorizations"]["create_user_owned_tasks"]["scope"]["targets"],
+        )
+
+        harness_transition._record_review_attempt(
+            plan,
+            run,
+            Namespace(
+                lineage="REVIEW-N-FRONTEND-REVIEW",
+                attempt_id="ATT-REVIEW-THREAD",
+                worker_id="RW-THREAD",
+                mission_id="M1",
+                result="pass",
+                evidence=["reviewed the reserved head through the bound thread"],
+                finding=[],
+                security_result=None,
+                failure_family_id=None,
+                failure_primitive=None,
+                equivalence_class=[],
+                strategy=None,
+                tree_sha=None,
+            ),
+        )
+        self.assertEqual("worker_passed", review_worker["phase"])
 
     def test_cli_grant_review_attempts_is_exact_and_one_shot(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

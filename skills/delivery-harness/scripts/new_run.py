@@ -36,6 +36,28 @@ from harness_manifest import (
 from harness_contract import contract_digest
 from harness_core import load_run
 
+
+def _requires_repo_root(plan: dict[str, Any]) -> bool:
+    """Current plans must bind real source paths before a RUN is generated."""
+
+    if plan.get("schema_version") != 6:
+        return False
+    for source in plan.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        location = source.get("location")
+        if not isinstance(location, str) or not location.strip():
+            continue
+        location = location.strip()
+        if location.startswith("<") and location.endswith(">"):
+            continue
+        revision = source.get("source_revision")
+        if isinstance(revision, str) and revision.strip("0"):
+            return True
+        if "://" in location or location:
+            return True
+    return False
+
 def _harness_version() -> str:
     """Read the Harness version from skill-local or package metadata.
 
@@ -228,6 +250,15 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
                 "isolation_capacity": 1,
                 "completion_channel_available": True,
             },
+            "sandbox": {
+                "status": "unobserved",
+                "plan_revision": None,
+                "plan_digest_sha256": None,
+                "captured_at": None,
+                "host": None,
+                "entries": [],
+                "errors": [],
+            },
         },
         "integration": {
             "branch": branch,
@@ -350,6 +381,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="write RUN.md here; refuses to overwrite an existing file",
     )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="repository root used to validate immutable current PLAN sources",
+    )
     return parser
 
 
@@ -361,7 +397,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cannot read plan: {exc}", file=sys.stderr)
         return 2
 
-    errors = validate_plan(plan)
+    if _requires_repo_root(plan) and args.repo_root is None:
+        print(
+            "current PLAN-v6 generation requires --repo-root for immutable source validation",
+            file=sys.stderr,
+        )
+        return 2
+    errors = validate_plan(plan, repo_root=args.repo_root)
     if errors:
         print("plan does not validate; fix it before generating a run:", file=sys.stderr)
         for message in errors:
@@ -370,7 +412,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         run = build_run(plan, run_id=args.run_id, branch=args.branch)
-        run_errors = validate_current_plan_run(plan, run)
+        run_errors = validate_current_plan_run(
+            plan,
+            run,
+            repo_root=args.repo_root,
+            require_repo_root=_requires_repo_root(plan),
+        )
     except (ManifestError, OSError) as exc:
         print(f"cannot generate run: {exc}", file=sys.stderr)
         return 2

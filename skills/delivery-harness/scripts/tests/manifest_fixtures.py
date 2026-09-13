@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -213,12 +214,37 @@ def init_repo(root: Path, *files: str, default_branch: str = "main") -> str:
     return git(root, "rev-parse", "HEAD")
 
 
+def container_execution() -> dict[str, object]:
+    """Canonical fixture policy for every executable verifier layer."""
+
+    return {
+        "parallel_safe": True,
+        "resources": [],
+        "isolation": "container",
+        "sandbox": {
+            "runtime": "docker",
+            "image": "fixture@sha256:" + "1" * 64,
+            "network": "none",
+            "read_only_rootfs": True,
+            "no_new_privileges": True,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never",
+        },
+    }
+
+
 def verifier(identifier: str, *argv: str) -> dict[str, object]:
     return {
         "id": identifier,
         "cwd": ".",
         "argv": list(argv) or ["python3", "-m", "unittest"],
         "pass_signal": "exit 0",
+        "execution": container_execution(),
     }
 
 
@@ -497,6 +523,50 @@ def valid_plan() -> dict[str, object]:
     }
 
 
+def sandbox_observation(plan: dict[str, object]) -> dict[str, object]:
+    entries: dict[tuple[str, str], dict[str, str]] = {}
+    declarations: list[dict[str, object]] = []
+    for group in ("batch_verifiers", "final_gates"):
+        declarations.extend(item for item in plan.get(group, []) if isinstance(item, dict))
+    for mission in plan.get("missions", []):
+        if not isinstance(mission, dict):
+            continue
+        for group in ("worker_verifiers", "integration_verifiers"):
+            declarations.extend(item for item in mission.get(group, []) if isinstance(item, dict))
+        for task_entry in mission.get("tasks", []):
+            if isinstance(task_entry, dict):
+                declarations.extend(item for item in task_entry.get("verifiers", []) if isinstance(item, dict))
+    for declaration in declarations:
+        execution = declaration.get("execution")
+        policy = execution.get("sandbox") if isinstance(execution, dict) else None
+        if isinstance(policy, dict):
+            runtime = str(policy["runtime"])
+            image = str(policy["image"])
+            entries[(runtime, image)] = {
+                "runtime": runtime,
+                "image": image,
+                "repo_digest": image,
+                "runtime_probe": {
+                    "executable": "C:/fixture/docker.exe",
+                    "executable_sha256": "a" * 64,
+                    "version_output_sha256": "b" * 64,
+                },
+            }
+    return {
+        "status": "available",
+        "plan_revision": plan["revision"],
+        "plan_digest_sha256": plan_digest(plan),
+        "captured_at": "fixture-observation",
+        "host": {
+            "system": platform.system(),
+            "machine": platform.machine(),
+            "node_sha256": hashlib.sha256(platform.node().encode("utf-8")).hexdigest(),
+        },
+        "entries": list(entries.values()),
+        "errors": [],
+    }
+
+
 def legacy_plan(schema_version: int = 2) -> dict[str, object]:
     """Build a valid non-graph PLAN using an explicitly supported old schema."""
     if schema_version not in {2, 3}:
@@ -603,7 +673,7 @@ def _valid_run(plan: dict[str, object]) -> dict[str, object]:
             },
         },
         "observed": {
-            "captured_at": None,
+            "captured_at": "fixture-observation",
             "git": {
                 "parent_worktree_path": "C:/repo/product-delivery-harness",
                 "parent_branch": "main",
@@ -616,6 +686,7 @@ def _valid_run(plan: dict[str, object]) -> dict[str, object]:
                 "isolation_capacity": 1,
                 "completion_channel_available": True,
             },
+            "sandbox": sandbox_observation(plan),
         },
         "integration": {
             "branch": "codex/test",
@@ -1251,6 +1322,7 @@ def retained_gate_execution(
         "cwd": declaration["cwd"],
         "argv": declaration["argv"],
         "pass_signal": declaration["pass_signal"],
+        "execution": declaration["execution"],
         "cache": declared_cache,
     }
     key_document = {

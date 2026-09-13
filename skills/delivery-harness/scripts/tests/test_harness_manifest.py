@@ -49,6 +49,8 @@ from manifest_fixtures import (  # noqa: E402
     authorize_action,
     authorize_execution,
     codex_capability_probe,
+    container_execution,
+    sandbox_observation,
     current_version_gate,
     legacy_graph_plan,
     legacy_graph_run,
@@ -73,6 +75,8 @@ __all__ = [
     "authorize_action",
     "authorize_execution",
     "codex_capability_probe",
+    "container_execution",
+    "sandbox_observation",
     "current_version_gate",
     "legacy_graph_plan",
     "legacy_graph_run",
@@ -519,13 +523,11 @@ class PlanValidationTests(unittest.TestCase):
     def test_verifier_parallel_execution_metadata_is_resource_bounded(self) -> None:
         plan = valid_plan()
         verifier = plan["missions"][0]["worker_verifiers"][0]
-        verifier["execution"] = {
-            "parallel_safe": True,
-            "resources": [
-                {"key": "database:test", "access": "shared_read"},
-                {"key": "port:4173", "access": "exclusive"},
-            ],
-        }
+        verifier["execution"] = container_execution()
+        verifier["execution"]["resources"] = [
+            {"key": "database:test", "access": "shared_read"},
+            {"key": "port:4173", "access": "exclusive"},
+        ]
         self.assertEqual(validate_plan(plan), [])
 
         duplicate = copy.deepcopy(plan)
@@ -539,6 +541,29 @@ class PlanValidationTests(unittest.TestCase):
             "access"
         ] = "write"
         self.assert_error_contains(invalid_access, "must be shared_read or exclusive")
+
+    def test_current_plan_requires_explicit_container_verifier_policy(self) -> None:
+        plan = valid_plan()
+        plan["missions"][0]["tasks"][0]["verifiers"][0].pop("execution")
+        self.assert_error_contains(plan, "missing keys: execution")
+
+        plan = valid_plan()
+        plan["final_gates"][0]["execution"]["isolation"] = "live"
+        self.assert_error_contains(plan, "must equal container for every verifier runtime layer")
+
+    def test_legacy_plan_without_execution_remains_readable(self) -> None:
+        plan = legacy_plan()
+        for verifier_group in ("batch_verifiers", "final_gates"):
+            for verifier in plan[verifier_group]:
+                verifier.pop("execution", None)
+        for mission in plan["missions"]:
+            for group in ("worker_verifiers", "integration_verifiers"):
+                for verifier in mission[group]:
+                    verifier.pop("execution", None)
+            for task_entry in mission["tasks"]:
+                for verifier in task_entry["verifiers"]:
+                    verifier.pop("execution", None)
+        self.assertEqual([], validate_plan(plan))
 
 
 
@@ -719,12 +744,42 @@ class RunValidationTests(unittest.TestCase):
 
     def test_v2_verifier_execution_omits_logical_gate_attribution(self) -> None:
         plan = valid_plan()
+        sandbox_policy = {
+            "runtime": "docker",
+            "image": "fixture@sha256:" + "1" * 64,
+            "network": "none",
+            "read_only_rootfs": True,
+            "no_new_privileges": True,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never",
+        }
+        plan["missions"][0]["tasks"][0]["verifiers"][0]["read_only"] = True
+        plan["missions"][0]["tasks"][0]["verifiers"][0]["execution"] = {
+            "parallel_safe": True,
+            "resources": [],
+            "isolation": "container",
+            "sandbox": sandbox_policy,
+        }
         run = valid_closeout_run(plan)
         mark_complete(plan, run)
         execution = run["verifier_executions"][0]
         execution["protocol"] = "harness-verifier-execution-v2"
+        execution["verifier"]["read_only"] = True
+        execution["verifier"]["execution"] = {
+            "parallel_safe": True,
+            "resources": [],
+            "isolation": "container",
+            "sandbox": sandbox_policy,
+        }
         key_document = execution["key_document"]
         key_document["protocol"] = "harness-verifier-execution-v2"
+        key_document["read_only"] = True
+        key_document["execution"] = execution["verifier"]["execution"]
         for key in (
             "verifier_id",
             "layer",
@@ -744,8 +799,42 @@ class RunValidationTests(unittest.TestCase):
         ).hexdigest()
         execution["execution_key"] = execution_key
         execution["evidence_key"] = execution_key
+        execution["git_guard_attestation"] = {
+            "checkout_root": "C:/repo/worktrees/M1",
+            "git_guard": {
+                "expected_branch": "codex/m1",
+                "expected_head_sha": execution["context"]["head_sha"],
+                "ignored_paths": [],
+            },
+            "isolation_mode": "container",
+            "source_head_sha": execution["context"]["head_sha"],
+            "sandbox_attestation": {
+                "runtime": "docker",
+                "runtime_probe": "fixture",
+                "image": sandbox_policy["image"],
+                "image_probe": sandbox_policy["image"],
+                "policy": sandbox_policy,
+                "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
+                "network": "none",
+            },
+            "tracked_files": {},
+            "protected_path_sha256": {},
+            "protected_path_stats": {},
+        }
 
         self.assertEqual(validate_run(plan, run), [])
+        for field in ("policy", "mount", "network"):
+            tampered = copy.deepcopy(run)
+            attestation = tampered["verifier_executions"][0]["git_guard_attestation"]
+            if field == "policy":
+                attestation["sandbox_attestation"]["policy"]["image"] = "other@sha256:" + "f" * 64
+            elif field == "mount":
+                attestation["sandbox_attestation"]["mount"]["read_only"] = False
+            else:
+                attestation["sandbox_attestation"]["network"] = "host"
+            self.assertTrue(
+                any("sandbox_attestation" in error for error in validate_run(plan, tampered))
+            )
 
     def test_default_branch_observation_is_optional_without_a_schema_bump(self) -> None:
         plan = valid_plan()
@@ -757,6 +846,38 @@ class RunValidationTests(unittest.TestCase):
 
         run["observed"]["git"]["default_branch"] = 42
         self.assert_run_error_contains(plan, run, "default_branch")
+
+    def test_container_sandbox_policy_rejects_unsafe_fields(self) -> None:
+        plan = valid_plan()
+        verifier = plan["missions"][0]["tasks"][0]["verifiers"][0]
+        verifier["execution"] = {
+            "parallel_safe": True,
+            "resources": [],
+            "isolation": "container",
+            "sandbox": {
+                "runtime": "docker",
+                "image": "-bad@sha256:" + "0" * 64,
+                "network": "host",
+                "read_only_rootfs": False,
+                "no_new_privileges": False,
+                "cap_drop": [],
+                "tmpfs": ["relative"],
+                "memory": "secret",
+                "cpus": "all",
+                "pids_limit": "0",
+                "user": "0:0",
+                "pull": "always",
+            },
+        }
+        errors = validate_plan(plan)
+        self.assertTrue(any("sandbox" in error for error in errors))
+
+    def test_container_sandbox_rejects_unresolved_zero_digest(self) -> None:
+        plan = valid_plan()
+        verifier = plan["missions"][0]["tasks"][0]["verifiers"][0]
+        verifier["execution"]["sandbox"]["image"] = "fixture@sha256:" + "0" * 64
+        errors = validate_plan(plan)
+        self.assertTrue(any("observed non-zero RepoDigest" in error for error in errors))
 
     def test_integration_branch_must_not_resolve_to_the_default_branch(self) -> None:
         plan = valid_plan()
@@ -1130,6 +1251,40 @@ class RunValidationTests(unittest.TestCase):
 
         run["integration"]["prior_head_shas"] = [SHA_B]
         self.assertEqual([], validate_run(plan, run))
+
+    def test_canonical_template_verifiers_declare_container_sandbox(self) -> None:
+        plan = load_plan(SCRIPTS_DIR.parent / "assets/templates/HARNESS_PLAN.template.md")
+        declarations: list[dict[str, object]] = []
+        declarations.extend(item for item in plan.get("batch_verifiers", []) if isinstance(item, dict))
+        declarations.extend(item for item in plan.get("final_gates", []) if isinstance(item, dict))
+        for mission in plan.get("missions", []):
+            if not isinstance(mission, dict):
+                continue
+            declarations.extend(
+                item
+                for item in mission.get("worker_verifiers", [])
+                if isinstance(item, dict)
+            )
+            declarations.extend(
+                item
+                for item in mission.get("integration_verifiers", [])
+                if isinstance(item, dict)
+            )
+            for task_entry in mission.get("tasks", []):
+                if isinstance(task_entry, dict):
+                    declarations.extend(
+                        item
+                        for item in task_entry.get("verifiers", [])
+                        if isinstance(item, dict)
+                    )
+
+        self.assertTrue(declarations)
+        for declaration in declarations:
+            execution = declaration.get("execution")
+            self.assertIsInstance(execution, dict, declaration.get("id"))
+            self.assertEqual(execution.get("isolation"), "container")
+            self.assertIsInstance(execution.get("sandbox"), dict)
+        self.assertEqual([], validate_plan(plan))
 
     def test_harness_028_run_requires_explicit_security_policy(self) -> None:
         plan = valid_plan()
