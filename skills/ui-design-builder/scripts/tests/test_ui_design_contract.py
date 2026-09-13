@@ -161,7 +161,7 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
         }],
     })
     hifi.write_text(
-        '<html><body><nav>Pages</nav><main data-ui-surface="UI-001" data-ui-route="/home" data-navigation-id="home" data-control-id="refresh"><h1>HiFi review surface with meaningful content</h1><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
+        '<html><body><main data-ui-surface="UI-001" data-ui-route="/home"><nav data-navigation-id="home">Pages</nav><h1>HiFi review surface with meaningful content</h1><button data-control-id="refresh">Refresh</button><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
         '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
         encoding="utf-8",
     )

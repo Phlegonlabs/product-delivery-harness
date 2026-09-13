@@ -507,6 +507,7 @@ class _HiFiSurfaceParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.surfaces: dict[str, dict[str, Any]] = {}
         self.counts: dict[str, int] = {}
+        self.nested: list[tuple[str, str]] = []
         self._stack: list[str] = []
         self._elements: list[tuple[str, str | None]] = []
 
@@ -514,6 +515,8 @@ class _HiFiSurfaceParser(HTMLParser):
         values = {name.lower(): value for name, value in attrs}
         surface_id = values.get("data-ui-surface")
         if isinstance(surface_id, str):
+            if self._stack:
+                self.nested.append((self._stack[-1], surface_id))
             self.counts[surface_id] = self.counts.get(surface_id, 0) + 1
             self.surfaces.setdefault(
                 surface_id,
@@ -533,15 +536,24 @@ class _HiFiSurfaceParser(HTMLParser):
             return
         current = self.surfaces[self._stack[-1]]
         for attr, key in (
-            ("data-ui-route", "route"),
             ("data-state", "states"),
             ("data-responsive-target", "targets"),
-            ("data-navigation-id", "navigation"),
-            ("data-control-id", "controls"),
         ):
             value = values.get(attr)
             if isinstance(value, str) and value.strip():
                 current[key].add(value.strip())
+        route = values.get("data-ui-route")
+        if isinstance(surface_id, str) and isinstance(route, str) and route.strip():
+            current["route"].add(route.strip())
+        role = (values.get("role") or "").casefold()
+        nav_valid = tag.lower() in {"a", "nav"} or role in {"link", "navigation", "menuitem", "tab"}
+        control_valid = tag.lower() in {"button", "input", "select", "textarea"} or role in {
+            "button", "checkbox", "combobox", "radio", "slider", "spinbutton", "switch", "tab", "textbox"
+        }
+        if nav_valid and isinstance(values.get("data-navigation-id"), str) and values["data-navigation-id"].strip():
+            current["navigation"].add(values["data-navigation-id"].strip())
+        if control_valid and isinstance(values.get("data-control-id"), str) and values["data-control-id"].strip():
+            current["controls"].add(values["data-control-id"].strip())
         state_value = values.get("data-state")
         target_value = values.get("data-responsive-target")
         if isinstance(state_value, str) and state_value.strip() and isinstance(target_value, str) and target_value.strip():
@@ -651,6 +663,8 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
         dom_parser = _HiFiSurfaceParser()
         dom_parser.feed(html)
         dom_parser.close()
+        for parent_surface, nested_surface in dom_parser.nested:
+            _add(problems, f"Connected HiFi DOM must not nest surface {nested_surface} inside {parent_surface}")
         for surface_id, expected in expected_by_id.items():
             actual = manifest_by_id.get(surface_id)
             if actual is None:
@@ -772,28 +786,25 @@ def _validate_target_scope_join(
         for surface_class in [_release_surface_class(target)]
         if surface_class is not None
     }
-    if wire_kind == "sizeClasses":
-        if capture not in {"native", "desktop"}:
-            _add(problems, "sizeClasses target requires native or desktop captureMode")
-    else:
-        expected_modes = {
-            "hosted_web": "hosted-browser",
-            "browser_extension": "browser-extension",
-            "ios": "native",
-            "android": "native",
-            "react-native": "native",
-            "flutter": "native",
-            "macos": "desktop",
-            "windows": "desktop",
-            "desktop": "desktop",
-        }
-        expected = {expected_modes[item] for item in release_classes if item in expected_modes}
-        if len(expected) != 1 or capture not in expected:
-            _add(problems, "Approved target captureMode must match the typed ReleaseTarget surface class")
-        elif (capture in {"native", "desktop"} and wire_kind != "sizeClasses") or (
-            capture in {"hosted-browser", "browser-extension"} and wire_kind != "viewports"
-        ):
-            _add(problems, "Approved target responsive kind must match captureMode platform")
+    expected_modes_by_class = {
+        "hosted_web": "hosted-browser",
+        "browser_extension": "browser-extension",
+        "ios": "native",
+        "android": "native",
+        "react-native": "native",
+        "flutter": "native",
+        "macos": "desktop",
+        "windows": "desktop",
+        "desktop": "desktop",
+    }
+    expected = {expected_modes_by_class[item] for item in release_classes if item in expected_modes_by_class}
+    if len(expected) != 1:
+        _add(problems, "Approved target must resolve exactly one typed ReleaseTarget capture mode")
+    elif capture not in expected:
+        _add(problems, "Approved target captureMode must match the typed ReleaseTarget surface class")
+    expected_kind = "sizeClasses" if capture in {"native", "desktop"} else "viewports"
+    if capture in {"hosted-browser", "browser-extension", "native", "desktop"} and wire_kind != expected_kind:
+        _add(problems, "Approved target responsive kind must match captureMode platform")
 
 
 def _screen_state_ids(screen: dict[str, Any]) -> set[str]:
