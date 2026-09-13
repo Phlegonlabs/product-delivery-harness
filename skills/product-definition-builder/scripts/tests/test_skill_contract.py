@@ -702,7 +702,7 @@ async function agent(_prompt, options) {
         )
         self.assertEqual(clean.returncode, 0, clean.stderr)
 
-    def test_require_approved_blocks_unapproved_wireframes(self) -> None:
+    def test_require_approved_blocks_draft_and_legacy_wireframes(self) -> None:
         result = self.run_checker_with_data(
             self.minimal_wireframe_data(), extra_args=["--require-approved"]
         )
@@ -714,7 +714,8 @@ async function agent(_prompt, options) {
         result = self.run_checker_with_data(
             approved, extra_args=["--require-approved"]
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be 'wireframes/4'", result.stderr)
 
     def test_approval_status_uses_the_gate_decision_vocabulary(self) -> None:
         for retired in ("provisional", "revise"):

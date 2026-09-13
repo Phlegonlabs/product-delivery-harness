@@ -1040,14 +1040,14 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             problems = check_wireframe_html.validate(html_path, prd_path=prd_path)
             self.assertTrue(any("responsive set" in problem for problem in problems))
 
-    def test_prd_join_requires_and_matches_copy_status_for_v4(self):
+    def test_prd_join_allows_draft_to_advance_and_rejects_missing_copy(self):
         with tempfile.TemporaryDirectory() as directory:
             html_path = Path(directory) / "wireframes.html"
             prd_path = Path(directory) / "PRD.md"
             html_path.write_text(render_html(wireframe_data()), encoding="utf-8")
             prd_path.write_text(prd_markdown(copy_status="draft"), encoding="utf-8")
             problems = check_wireframe_html.validate(html_path, prd_path=prd_path)
-            self.assertTrue(any("copy status" in problem for problem in problems))
+            self.assertEqual([], problems)
 
             prd_path.write_text(
                 prd_markdown().replace(
@@ -1151,7 +1151,7 @@ class PrdUiContractParserTests(unittest.TestCase):
         self.assertTrue(
             any("exactly one matched" in error for error in errors)
         )
-        self.assertEqual(set(entries), {"UI-001"})
+        self.assertEqual({}, entries)
 
     def test_heading_outside_boundary_is_rejected(self):
         text = prd_markdown() + (
