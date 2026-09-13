@@ -52,7 +52,7 @@ If product behavior or stack is missing, return a bounded Product Definition upd
 - The approved `frontend-design` direction is recorded in `ui-design.md`; the compiler owns pair generation and validation.
 - `frontend-design` and Impeccable were not rerun during normal compilation; their approved consequences are read from `ui-design.md`.
 - The Style Integration record names `frontend-design`, the selected direction, and its candidate theme rules.
-- The human owner approved one immutable UI target, or explicitly authorized a provisional assumption.
+- The human owner approved one immutable UI target.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
 - The Direction Checkpoint records owner approval of the thesis, complementary reference-role map, representative composition, typography and density intent, interaction signature, responsive consequence, and avoid list before full HTML or token compilation.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.

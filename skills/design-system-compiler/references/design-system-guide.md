@@ -44,7 +44,7 @@ Do not preserve reference-image files, the full image extraction or `Check This`
 
 Record:
 
-- decision status: `selected`, `provisional`, or `assumed`;
+- decision status: `selected` only;
 - the human decision owner;
 - the selected or consolidated `VD-*` direction ID;
 - the approved Style Integration direction and candidate theme rules;
@@ -143,7 +143,7 @@ Resolve conflicts in this order:
 3. accessibility requirement;
 4. target-platform convention;
 5. selected Visual Direction;
-6. provisional or assumed preference.
+6. an explicitly approved selected direction.
 
 `PRD.md` owns product behavior, approved `wireframes.html` is its structural interactive projection, and `ui-design.md` owns the selected visual direction. The design system owns reusable visual implementation rules. A product change returns to `product-definition-builder`; a wireframe or visual change returns to `ui-design-builder`.
 
@@ -151,7 +151,7 @@ Resolve conflicts in this order:
 
 Before publication:
 
-1. Confirm one selected or explicitly provisional Visual Direction plus UI preview evidence or an explicit owner waiver.
+1. Confirm one selected Visual Direction plus UI preview evidence.
 2. Confirm every token, primitive, component, state, and responsive entry is used or required.
 3. Confirm every required PRD UI element maps to a registered primitive or product component.
 4. Confirm no page-local value or control is required.

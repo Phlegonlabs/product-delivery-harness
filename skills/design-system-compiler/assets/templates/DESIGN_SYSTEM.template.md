@@ -21,12 +21,12 @@ The two files publish together. Edit structured fields in JSON, then run `script
 | PRD | JSON `sourceBindings.prd`: current path and SHA-256 | product scope and requirements |
 | PRD UI Surface Contract | JSON `sourceBindings.prd` section | product-owned routes, content responsibilities, actions, states, flows, and responsive obligations |
 | Approved wireframe | JSON `sourceBindings.wireframe`: current path and SHA-256 | structural all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
-| Approved UI design contract | JSON `sourceBindings.uiDesign` and `sourceBindings.hifi`: current path and SHA-256; direction ID, scope, tolerance, and Design System Need Gate | approved visual input and pair requirement |
+| Approved UI design contract | JSON `sourceBindings.uiDesign`: current path and canonical UI approval SHA-256; `sourceBindings.hifi`: current path and SHA-256; direction ID, structured scope, tolerance, and Design System Need Gate | approved visual input and pair requirement |
 | Style Integration and HiFi evidence | <frontend-design direction, Impeccable critique/audit, H1-H9 result, target manifest and approval> | frozen UI treatment and direction-review evidence |
 
 ## Selected Visual Direction
 
-- Status: <selected / provisional / assumed>
+- Status: <selected>
 - Decision owner: <human product/design owner>
 - Direction ID: <VD-R1-01 or consolidated direction ID>
 - Approval or assumption: <record>

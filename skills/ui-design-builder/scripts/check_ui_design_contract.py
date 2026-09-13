@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, datetime, timezone
 import hashlib
 import json
 import re
@@ -27,6 +27,7 @@ if str(DESIGN_SYSTEM_SCRIPTS) not in sys.path:
 
 from markdown_contract import active_text  # noqa: E402
 from release_targets import parse_release_targets  # noqa: E402
+from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
 
 
 REQUIRED_HEADINGS = (
@@ -43,7 +44,10 @@ ANGLE_PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
 SOURCE_RE = re.compile(r"^(?P<path>[A-Za-z0-9._/-]+) @ sha256:(?P<sha256>[0-9a-f]{64})$")
 TARGET_SOURCE_RE = re.compile(
     r"^(?P<path>[A-Za-z0-9._/-]+) @ sha256:(?P<sha256>[0-9a-f]{64}); "
-    r"scope=(?P<scope>[^;]+)$"
+    r"scope=surfaces=(?P<surfaces>[^|;]+)\|routes=(?P<routes>[^|;]+)\|"
+    r"states=(?P<states>[^|;]+)\|responsive=(?P<responsive>[^|;]+)\|"
+    r"tolerance=(?P<tolerance>[^|;]+)\|allowedDeviations=(?P<deviations>[^|;]+)\|"
+    r"captureMode=(?P<captureMode>hosted-browser|browser-extension|native|desktop)$"
 )
 PAIR_RE = re.compile(
     r"^(?P<markdown>[A-Za-z0-9._/-]+) @ sha256:(?P<markdown_sha256>[0-9a-f]{64})"
@@ -51,7 +55,7 @@ PAIR_RE = re.compile(
 )
 EVIDENCE_RE = re.compile(
     r"^PASS\s+—\s+evidence=(?P<path>[A-Za-z0-9._/-]+)\s+@\s+"
-    r"sha256:(?P<sha256>[0-9a-f]{64})(?:;\s*(?P<details>.+))?$"
+    r"sha256:(?P<sha256>[0-9a-f]{64})$"
 )
 REPLACEMENT_RE = re.compile(
     r"^(?P<key>target|ui-design|wireframe|prd)="
@@ -77,9 +81,24 @@ NON_HUMAN_OWNERS = {
 }
 VALID_TREATMENTS = {"none", "image", "motion", "image + motion"}
 VALID_MOTION_STATUSES = {"approved", "deferred"}
-VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive", "recommend"}
+VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive"}
 VALID_WIREFRAME_DECISIONS = {"draft", "approved", "revision_requested", "blocked"}
 VALID_DIRECTION_DECISIONS = {"approved", "selected", "mixed-and-approved"}
+VALID_DIRECTION_MODES = {"one recommended direction", "three comparable directions"}
+NON_HUMAN_TOKEN_RE = re.compile(
+    r"(?<!\w)(?:ai|agent|assistant|automation|automated|model|bot|claude|codex|"
+    r"system|machine)(?!\w)",
+    re.IGNORECASE,
+)
+EVIDENCE_SCHEMA = "ui-evidence/1"
+EVIDENCE_CHECKS = {
+    "Responsive browser check": "wireframe-browser",
+    "Wireframe UI grading": "wireframe-grading",
+    "Impeccable critique verdict": "hifi-impeccable-critique",
+    "Impeccable audit verdict": "hifi-impeccable-audit",
+    "HiFi UI grading": "hifi-grading",
+    "HiFi browser check": "hifi-browser",
+}
 
 
 def _add(problems: list[str], message: str) -> None:
@@ -149,7 +168,7 @@ def _human_owner(value: str | None) -> bool:
     if not _filled(value):
         return False
     normalized = value.strip().casefold().strip(".:-")
-    return normalized not in NON_HUMAN_OWNERS
+    return normalized not in NON_HUMAN_OWNERS and NON_HUMAN_TOKEN_RE.search(value) is None
 
 
 def _date(value: str | None) -> bool:
@@ -170,13 +189,12 @@ def _pass_evidence(value: str | None, label: str, problems: list[str]) -> dict[s
         _add(
             problems,
             f"{label} must use 'PASS — evidence=<repo-relative-path> @ "
-            "sha256:<lowercase sha256>; <details>'",
+            "sha256:<lowercase sha256>'",
         )
         return None
     return {
         "path": match.group("path"),
         "sha256": match.group("sha256"),
-        "details": match.group("details") or "",
     }
 
 
@@ -236,14 +254,18 @@ def _validate_motion_table(
         "intent id",
         "ui scope / region",
         "treatment",
-        "purpose and trigger",
+        "purpose",
+        "trigger",
+        "draft prompt",
+        "source",
         "static / reduced-motion fallback",
         "generation route",
         "status",
+        "generation status",
     ]
     intents: dict[str, dict[str, str]] = {}
     if not rows or [cell.casefold() for cell in rows[0]] != expected:
-        _add(problems, "Motion And Media Intent has no canonical seven-column table")
+        _add(problems, "Motion And Media Intent has no canonical eleven-column table")
         return intents
     if require_filled and not rows[1:]:
         _add(problems, "Motion And Media Intent has no decision row")
@@ -268,19 +290,25 @@ def _validate_motion_table(
             _add(problems, f"{intent_id} has invalid treatment {row[2]!r}")
         if require_filled and any(not _filled(cell) for cell in row):
             _add(problems, f"{intent_id} contains an empty value or placeholder")
-        status = row[6].casefold()
+        status = row[9].casefold()
         if status == "blocked" or (
             require_filled and status not in VALID_MOTION_STATUSES
         ):
-            _add(problems, f"{intent_id} has invalid status {row[6]!r}")
+            _add(problems, f"{intent_id} has invalid status {row[9]!r}")
+        if require_filled and row[10].casefold() != "deferred":
+            _add(problems, f"{intent_id} has invalid generation status {row[10]!r}")
         else:
             intents[intent_id] = {
                 "scope": row[1].strip(),
                 "treatment": row[2],
                 "purpose": row[3],
-                "fallback": row[4],
-                "generationRoute": row[5],
-                "status": row[6],
+                "trigger": row[4],
+                "draftPrompt": row[5],
+                "source": row[6],
+                "fallback": row[7],
+                "generationRoute": row[8],
+                "status": row[9],
+                "generationStatus": row[10],
             }
     return intents
 
@@ -296,12 +324,16 @@ def _source_syntax(value: str | None, label: str, problems: list[str]) -> bool:
 
 
 def _target_source_syntax(value: str | None, label: str, problems: list[str]) -> bool:
-    if not _filled(value) or TARGET_SOURCE_RE.fullmatch(value.strip()) is None:
+    match = TARGET_SOURCE_RE.fullmatch(value.strip()) if value else None
+    if not _filled(value) or match is None:
         _add(
             problems,
             f"{label} must use '<repo-relative-path> @ sha256:<lowercase sha256>; "
             "scope=<exact scope>'",
         )
+        return False
+    if any(not _filled(match.group(name)) for name in ("surfaces", "routes", "states", "responsive", "tolerance", "deviations")):
+        _add(problems, f"{label} scope fields must be concrete and non-empty")
         return False
     return True
 
@@ -339,6 +371,51 @@ def _resolve_source(
         return
     if hashlib.sha256(candidate.read_bytes()).hexdigest() != match.group("sha256"):
         _add(problems, f"{label} sha256 does not match current bytes: {relative}")
+
+
+def _resolve_ui_design_digest(
+    ui_design_path: Path,
+    *,
+    repo_root: Path,
+    expected_digest: str,
+    label: str,
+    problems: list[str],
+) -> None:
+    try:
+        text = ui_design_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        _add(problems, f"{label} cannot read UI design source: {exc}")
+        return
+    if canonical_ui_approval_sha256(text) != expected_digest:
+        _add(problems, f"{label} canonical UI approval sha256 does not match current bytes")
+
+
+def _validate_hifi_surface(path: Path, problems: list[str]) -> None:
+    """Apply only the generic self-contained HTML safety rules to HiFi."""
+
+    try:
+        html = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        _add(problems, f"Connected HiFi reference cannot be read: {exc}")
+        return
+    parser = check_wireframe_html.ResourceParser()
+    parser.feed(html)
+    parser.close()
+    if parser.duplicate_attributes:
+        _add(problems, "Connected HiFi reference has duplicate HTML attributes")
+    if parser.link_tags:
+        _add(problems, "Connected HiFi reference must not contain <link> resources")
+    resources = parser.external_resources + parser.external_css_resources
+    if resources:
+        _add(problems, "Connected HiFi reference must not load external resources: " + ", ".join(resources))
+    if parser.css_imports:
+        _add(problems, "Connected HiFi reference must not contain CSS @import")
+    if parser.active_security_surfaces:
+        _add(
+            problems,
+            "Connected HiFi reference must not contain active external or executable surfaces: "
+            + ", ".join(parser.active_security_surfaces),
+        )
 
 
 def _relative_cli_path(path: Path, repo_root: Path, label: str, problems: list[str]) -> str | None:
@@ -386,16 +463,84 @@ def _resolve_evidence(
     repo_root: Path,
     label: str,
     problems: list[str],
+    expected_artifact: str | None = None,
 ) -> None:
     parsed = _pass_evidence(value, label, problems)
     if parsed is None:
         return
-    _resolve_source(
-        f"{parsed['path']} @ sha256:{parsed['sha256']}",
-        repo_root=repo_root,
-        label=f"{label} evidence",
-        problems=problems,
-    )
+    evidence_path = (repo_root / parsed["path"]).resolve()
+    try:
+        evidence_path.relative_to(repo_root.resolve())
+    except ValueError:
+        _add(problems, f"{label} evidence path escapes repo-root")
+        return
+    if not evidence_path.is_file():
+        _add(problems, f"{label} evidence path does not exist: {parsed['path']}")
+        return
+    if hashlib.sha256(evidence_path.read_bytes()).hexdigest() != parsed["sha256"]:
+        _add(problems, f"{label} evidence sha256 does not match current bytes")
+        return
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        _add(problems, f"{label} evidence must be valid UTF-8 JSON: {exc}")
+        return
+    if not isinstance(evidence, dict):
+        _add(problems, f"{label} evidence must be a JSON object")
+        return
+    if set(evidence) != {"schema", "check", "result", "reviewedArtifact", "execution", "owner"}:
+        _add(problems, f"{label} evidence has an invalid ui-evidence/1 key set")
+        return
+    expected_check = EVIDENCE_CHECKS.get(label)
+    if evidence.get("schema") != EVIDENCE_SCHEMA or evidence.get("result") != "PASS":
+        _add(problems, f"{label} evidence must record schema ui-evidence/1 and result PASS")
+    if expected_check is None or evidence.get("check") != expected_check:
+        _add(problems, f"{label} evidence check must be {expected_check}")
+    artifact = evidence.get("reviewedArtifact")
+    execution = evidence.get("execution")
+    if not isinstance(artifact, dict) or set(artifact) != {"path", "sha256"}:
+        _add(problems, f"{label} evidence reviewedArtifact must contain path and sha256")
+    else:
+        artifact_path = artifact.get("path")
+        artifact_sha = artifact.get("sha256")
+        if not isinstance(artifact_path, str) or SOURCE_RE.fullmatch(
+            f"{artifact_path} @ sha256:{artifact_sha}"
+        ) is None:
+            _add(problems, f"{label} evidence reviewedArtifact path and sha256 are invalid")
+        else:
+            reviewed = (repo_root / artifact_path).resolve()
+            try:
+                reviewed.relative_to(repo_root.resolve())
+            except ValueError:
+                _add(problems, f"{label} evidence reviewedArtifact escapes repo-root")
+            else:
+                if not reviewed.is_file():
+                    _add(problems, f"{label} evidence reviewedArtifact does not exist: {artifact_path}")
+                elif hashlib.sha256(reviewed.read_bytes()).hexdigest() != artifact_sha:
+                    _add(problems, f"{label} evidence reviewedArtifact sha256 does not match current bytes")
+                if expected_artifact is not None and artifact_path.casefold() != expected_artifact.casefold():
+                    _add(problems, f"{label} evidence reviewedArtifact must be {expected_artifact}")
+    if not isinstance(execution, dict) or set(execution) != {"command", "method", "executedAt"}:
+        _add(problems, f"{label} evidence execution must contain command, method, and executedAt")
+    else:
+        for key in ("command", "method"):
+            value_text = execution.get(key)
+            if not isinstance(value_text, str) or not value_text.strip() or re.search(
+                r"\b(?:not\s+run|unavailable|skipped|future|todo)\b", value_text, re.IGNORECASE
+            ):
+                _add(problems, f"{label} evidence execution.{key} must describe an executed action")
+        timestamp = execution.get("executedAt")
+        try:
+            parsed_time = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+            if parsed_time.tzinfo is None:
+                raise ValueError("timestamp must include timezone")
+            if parsed_time > datetime.now(timezone.utc):
+                _add(problems, f"{label} evidence executedAt cannot be in the future")
+        except (TypeError, ValueError):
+            _add(problems, f"{label} evidence executedAt must be a past ISO-8601 timestamp")
+    owner = evidence.get("owner")
+    if not isinstance(owner, str) or not _human_owner(owner):
+        _add(problems, f"{label} evidence owner must be human")
 
 
 def _resolve_target_source(
@@ -537,6 +682,12 @@ def _join_motion_intents(
                 _add(problems, f"{intent_id} treatment differs from the wireframe")
             if projected_intent.get("purpose") != intent.get("purpose"):
                 _add(problems, f"{intent_id} purpose differs from the wireframe")
+            if projected_intent.get("trigger") != intent.get("trigger"):
+                _add(problems, f"{intent_id} trigger differs from the wireframe")
+            if projected_intent.get("draftPrompt") != intent.get("draftPrompt"):
+                _add(problems, f"{intent_id} draft prompt differs from the wireframe")
+            if projected_intent.get("source") != intent.get("source"):
+                _add(problems, f"{intent_id} source differs from the wireframe")
             if projected_intent.get("reducedMotionFallback") != intent.get("fallback"):
                 _add(problems, f"{intent_id} reduced-motion fallback differs from the wireframe")
             if projected_intent.get("generationRoute") != intent.get("generationRoute"):
@@ -544,6 +695,10 @@ def _join_motion_intents(
                     problems,
                     f"{intent_id} generation route authority differs from the wireframe",
                 )
+            if projected_intent.get("generationStatus") != intent.get("generationStatus"):
+                _add(problems, f"{intent_id} generation status differs from the wireframe")
+            if "status" in projected_intent and projected_intent.get("status") != intent.get("status"):
+                _add(problems, f"{intent_id} status differs from the wireframe")
 
     for intent_id in sorted(set(projected_by_id) - set(intents)):
         _add(
@@ -610,6 +765,13 @@ def validate_text(
             _add(problems, "UI Design Intake Decision owner must be human")
         if require_filled and not _date(values.get("Decided on")):
             _add(problems, "UI Design Intake Decided on must be a real YYYY-MM-DD date")
+        direction_mode = (values.get("Direction mode") or "").strip().casefold()
+        if (require_filled or require_wireframe_approved or require_visual_approved) and direction_mode not in VALID_DIRECTION_MODES:
+            _add(
+                problems,
+                "UI Design Intake Direction mode must be one of "
+                + ", ".join(sorted(VALID_DIRECTION_MODES)),
+            )
 
     motion_intents: dict[str, dict[str, str]] = {}
     motion = sections.get("## Motion And Media Intent")
@@ -621,13 +783,18 @@ def validate_text(
             require_filled=require_filled,
             problems=problems,
         )
-        direction = motion_values.get("Motion direction", "").split("—", 1)[0].strip().casefold()
+        raw_direction = motion_values.get("Motion direction", "")
+        direction_parts = [part.strip() for part in raw_direction.split("—", 1)]
+        direction = direction_parts[0].casefold()
         if (require_filled or require_wireframe_approved or require_visual_approved) and direction not in VALID_MOTION_DIRECTIONS:
             _add(
                 problems,
                 "Motion And Media Intent Motion direction must be one of "
                 + ", ".join(sorted(VALID_MOTION_DIRECTIONS)),
             )
+        if require_filled or require_wireframe_approved or require_visual_approved:
+            if len(direction_parts) != 2 or not _human_owner(direction_parts[1]):
+                _add(problems, "Motion And Media Intent Motion direction must include a human owner")
         motion_intents = _validate_motion_table(
             motion, require_filled=require_filled, problems=problems
         )
@@ -664,6 +831,17 @@ def validate_text(
             wireframe_path = Path(wireframe_value.split(" @ ", 1)[0])
         if require_filled or require_wireframe_approved or require_visual_approved:
             _source_syntax(values.get("Frozen PRD basis"), "Frozen PRD basis", problems)
+            prd_identity = SOURCE_RE.fullmatch(
+                (_field(source, "PRD source") or "").strip()
+            )
+            frozen_identity = SOURCE_RE.fullmatch(
+                (values.get("Frozen PRD basis") or "").strip()
+            )
+            if prd_identity is not None and frozen_identity is not None and (
+                prd_identity.group("path") != frozen_identity.group("path")
+                or prd_identity.group("sha256") != frozen_identity.group("sha256")
+            ):
+                _add(problems, "Frozen PRD basis must exactly match Source Product Definition PRD source")
         if require_wireframe_approved or require_visual_approved:
             if values.get("Decision", "").casefold() not in VALID_WIREFRAME_DECISIONS:
                 _add(
@@ -890,6 +1068,7 @@ def validate(
     hifi_path: Path | None = None,
     design_system_markdown_path: Path | None = None,
     design_system_registry_path: Path | None = None,
+    verify_design_system_pair: bool = True,
     require_filled: bool = False,
     require_wireframe_approved: bool = False,
     require_visual_approved: bool = False,
@@ -941,6 +1120,25 @@ def validate(
     _resolve_source(recorded_hifi, repo_root=root, label="Connected HiFi reference", problems=problems)
     _resolve_target_source(recorded_target, repo_root=root, label="Approved target", problems=problems)
 
+    if approved_gate:
+        product_matches = [
+            SOURCE_RE.fullmatch((source_values.get(name) or "").strip())
+            for name in ("PRD source", "Architecture source", "Stack source")
+        ]
+        if all(product_matches):
+            try:
+                import check_product_package
+
+                product_problems = check_product_package.validate(
+                    *(root / match.group("path") for match in product_matches if match is not None),
+                    require_filled=True,
+                    require_approved=True,
+                    repo_root=root,
+                )
+                problems.extend(f"product-definition: {item}" for item in product_problems)
+            except (ImportError, OSError, UnicodeError) as exc:
+                _add(problems, f"cannot run the Product Definition checker: {exc}")
+
     # Approved publication always checks the exact files named by the contract;
     # callers cannot substitute a convenient sibling or a stale staging copy.
     checked_prd = _require_exact_cli_path(
@@ -967,6 +1165,7 @@ def validate(
             problems=problems,
         )
         if checked_hifi is not None:
+            _validate_hifi_surface(checked_hifi, problems)
             _resolve_source(
                 recorded_hifi,
                 repo_root=root,
@@ -984,6 +1183,11 @@ def validate(
                 repo_root=root,
                 label=field_name,
                 problems=problems,
+                expected_artifact=(
+                    TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip()).group("path")
+                    if TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip())
+                    else None
+                ),
             )
         if checked_hifi is not None:
             target_match = TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip())
@@ -1001,6 +1205,11 @@ def validate(
                 repo_root=root,
                 label=field_name,
                 problems=problems,
+                expected_artifact=(
+                    SOURCE_RE.fullmatch((recorded_wireframe or "").strip()).group("path")
+                    if SOURCE_RE.fullmatch((recorded_wireframe or "").strip())
+                    else None
+                ),
             )
 
     architecture_value = source_values.get("Architecture source")
@@ -1031,7 +1240,7 @@ def validate(
         gate_decision = (_field(gate, "Decision") or "").strip().casefold()
         compiled = _field(gate, "Compiled design system pair")
         replacement = _field(gate, "Replacement visual contract when not_required")
-        if gate_decision == "required":
+        if gate_decision == "required" and verify_design_system_pair:
             pair_match = PAIR_RE.fullmatch((compiled or "").strip()) if compiled else None
             if design_system_markdown_path is None or design_system_registry_path is None:
                 _add(problems, "required Design System Need Gate requires --design-system-markdown and --design-system-registry")
@@ -1089,7 +1298,12 @@ def validate(
                             }
                             ui_relative = _relative_cli_path(ui_design_path, root, "UI design", problems)
                             if ui_relative is not None:
-                                ui_digest = hashlib.sha256(ui_design_path.read_bytes()).hexdigest()
+                                try:
+                                    ui_digest = canonical_ui_approval_sha256(
+                                        ui_design_path.read_text(encoding="utf-8")
+                                    )
+                                except (OSError, UnicodeError):
+                                    ui_digest = ""
                                 expected_bindings["uiDesign"] = f"{ui_relative} @ sha256:{ui_digest}"
                             for key, expected_value in expected_bindings.items():
                                 expected_match = SOURCE_RE.fullmatch((expected_value or "").strip())
@@ -1098,7 +1312,7 @@ def validate(
                                     continue
                                 if actual.get("path") != expected_match.group("path") or actual.get("sha256") != expected_match.group("sha256"):
                                     _add(problems, f"compiled pair sourceBindings.{key} does not match UI/Product identities")
-        elif gate_decision == "not_required":
+        elif gate_decision == "not_required" and verify_design_system_pair:
             parts = _replacement_parts(replacement, problems)
             if design_system_markdown_path is not None or design_system_registry_path is not None:
                 _add(problems, "not_required Design System Need Gate must not receive compiled pair CLI paths")
@@ -1115,7 +1329,11 @@ def validate(
                 )
             ui_relative = _relative_cli_path(ui_design_path, root, "UI design", problems)
             if ui_relative is not None:
-                expected_values["ui-design"] = f"{ui_relative} @ sha256:{hashlib.sha256(ui_design_path.read_bytes()).hexdigest()}"
+                try:
+                    ui_digest = canonical_ui_approval_sha256(ui_design_path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeError):
+                    ui_digest = ""
+                expected_values["ui-design"] = f"{ui_relative} @ sha256:{ui_digest}"
             for key, expected_value in expected_values.items():
                 if key not in parts or parts[key] != expected_value:
                     _add(problems, f"not_required replacement {key} must exactly match the recorded source")

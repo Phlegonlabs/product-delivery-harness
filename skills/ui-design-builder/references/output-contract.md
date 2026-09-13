@@ -44,7 +44,7 @@ Direction mode: [one recommended direction / three comparable directions]
 
 Motion direction: [not_required / functional_only / expressive] — [owner or accepted recommendation]
 
-| Intent ID | UI scope / region | Treatment | Purpose and trigger | Static / reduced-motion fallback | Generation route | Status |
+| Intent ID | UI scope / region | Treatment | Purpose | Trigger | Draft prompt | Source | Static / reduced-motion fallback | Generation route | Status | Generation status |
 | --- | --- | --- | --- | --- | --- | --- |
 | MM-001 | [UI-* / region] | [none / image / motion / image + motion] | [purpose and trigger] | [fallback] | [none / existing asset / CSS-WAAPI / GSAP / Higgsfield MCP / other owner-approved] | [approved / deferred] |
 
@@ -62,11 +62,11 @@ Copy locale: [primary BCP 47 locale]
 
 Copy approved on: [YYYY-MM-DD]
 
-Responsive browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[complete matrix]
+Responsive browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
 Wireframe references consulted: [sources and structural pattern adopted/rejected, or skip reason]
 
-UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[W1-W5, overall, findings, repair/re-review history]
+UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
 Wireframe score: [0-100]
 
@@ -94,17 +94,19 @@ Direction decided on: [YYYY-MM-DD]
 
 Candidate theme: [color, typography, spacing, shape, iconography, imagery, and motion rules used in the HiFi reference; not yet a frozen design-system pair]
 
-Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>, routes, states, responsive scope]
+Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>]
+
+The connected HiFi HTML must pass the generic self-contained surface check: no active external resources, network or executable APIs, remote forms, base/meta refresh navigation, CSS imports, or external scripts. This check does not apply the wireframe schema or canonical reviewer shell.
 
 ## HiFi Review
 
-Impeccable critique: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[target, method, score, P0-P3 findings]
+Impeccable critique: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
-Impeccable audit: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[target, score, accessibility/responsive/performance findings]
+Impeccable audit: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
-UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[H1-H9, overall, H2/H4/H8 thresholds, advisories, defect ledger, repair/re-review history]
+UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
-HiFi browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[complete page, state, and target matrix]
+HiFi browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
 HiFi score: [0-100]
 
@@ -118,6 +120,8 @@ HiFi lowest dimension: [0-100]
 
 HiFi blocks or disputes: [none / named blocks or disputes]
 
+Each PASS evidence file is a `ui-evidence/1` JSON object with exactly `schema`, `check`, `result`, `reviewedArtifact`, `execution`, and `owner`. `check` is one of `wireframe-browser`, `wireframe-grading`, `hifi-impeccable-critique`, `hifi-impeccable-audit`, `hifi-grading`, or `hifi-browser`; `reviewedArtifact` carries the exact current path and SHA-256; `execution` carries `command`, `method`, and a past timezone-aware `executedAt`; and `owner` names a human.
+
 ## Visual Approval
 
 Decision: [approved / revision_requested / blocked]
@@ -126,7 +130,7 @@ Decision owner: [human owner]
 
 Decided on: [YYYY-MM-DD]
 
-Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=<routes, states, responsive set, tolerance, and allowed deviations>]
+Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=surfaces=<...>|routes=<...>|states=<...>|responsive=<kind and ordered targets>|tolerance=<...>|allowedDeviations=<...>|captureMode=<hosted-browser|browser-extension|native|desktop>]
 
 ## Design System Need Gate
 

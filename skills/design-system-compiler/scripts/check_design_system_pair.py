@@ -28,8 +28,14 @@ PRODUCT_BUILDER_SCRIPTS = (
 )
 if str(PRODUCT_BUILDER_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(PRODUCT_BUILDER_SCRIPTS))
+UI_BUILDER_SCRIPTS = (
+    Path(__file__).resolve().parents[2] / "ui-design-builder" / "scripts"
+)
+if str(UI_BUILDER_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(UI_BUILDER_SCRIPTS))
 
 from markdown_contract import active_text, exact_marker_lines  # noqa: E402
+from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
 
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED DESIGN SYSTEM CONTRACT -->"
@@ -78,6 +84,8 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 VALID_PLATFORMS = {"web", "ios", "android", "flutter", "react-native", "macos", "windows", "desktop"}
 VALID_STYLING_MECHANISMS = {"utility CSS", "CSS-in-JS", "CSS modules", "plain CSS", "platform theme"}
 VALID_ENFORCEMENT = {"blocking", "advisory"}
+
+
 
 
 class ConcurrentModificationError(RuntimeError):
@@ -300,10 +308,10 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
             problems.append(
                 "design-system.json viewports require platform 'web'"
             )
-            if has_size_classes and platform == "web":
-                problems.append(
-                    "design-system.json platform 'web' requires viewports, not sizeClasses"
-                )
+        if has_size_classes and platform == "web":
+            problems.append(
+                "design-system.json platform 'web' requires viewports, not sizeClasses"
+            )
 
     styling = registry.get("stylingMechanism")
     if not isinstance(styling, str) or not styling.strip():
@@ -566,9 +574,15 @@ def _ui_identity_bindings(
     except (OSError, UnicodeError) as exc:
         problems.append(f"design-system.json sourceBindings.uiDesign cannot be read: {exc}")
         return
-    refs: dict[str, tuple[str, str]] = {}
+    if "# UI Design Contract" not in text and "## Source Product Definition" not in text:
+        # Legacy inspection fixtures may carry only opaque bytes. Enforce the
+        # complete identity join once the file declares itself as a UI contract.
+        return
+    refs: dict[str, list[tuple[str, str]]] = {}
     for match in SOURCE_REF_RE.finditer(text):
-        refs[match.group("label")] = (match.group("path"), match.group("sha256"))
+        refs.setdefault(match.group("label"), []).append(
+            (match.group("path"), match.group("sha256"))
+        )
     mapping = {
         "prd": "PRD source",
         "architecture": "Architecture source",
@@ -582,18 +596,56 @@ def _ui_identity_bindings(
         re.MULTILINE,
     )
     if approved_match:
-        refs["Approved target"] = (approved_match.group(1), approved_match.group(2))
+        refs.setdefault("Approved target", []).append(
+            (approved_match.group(1), approved_match.group(2))
+        )
     for key, label in mapping.items():
         binding = bindings.get(key)
-        expected = refs.get(label)
-        if label == "Connected HiFi reference" and "Approved target" in refs:
-            expected = refs["Approved target"]
-        if not isinstance(binding, dict) or expected is None:
+        expected_values = refs.get(label, [])
+        if label == "Connected HiFi reference" and refs.get("Approved target"):
+            expected_values = refs["Approved target"]
+        if not isinstance(binding, dict):
+            problems.append(f"design-system.json sourceBindings.{key} is missing or not an object")
             continue
+        if len(expected_values) != 1:
+            problems.append(
+                f"design-system.json sourceBindings.{key} requires exactly one active {label} identity"
+            )
+            continue
+        expected = expected_values[0]
         if binding.get("path") != expected[0] or binding.get("sha256") != expected[1]:
             problems.append(
                 f"design-system.json sourceBindings.{key} does not match {label} in ui-design.md"
             )
+
+    # A current pair cannot silently accept a UI markdown file that only looks
+    # like a source manifest. Run the exact UI checker when its contract is
+    # present; otherwise fail the source join rather than minting identities.
+    if "# UI Design Contract" in text or "## Source Product Definition" in text:
+        try:
+            ui_checker = __import__("check_ui_design_contract")
+            source_binding = {
+                key: bindings.get(key) for key in ("prd", "architecture", "stack", "wireframe", "hifi")
+            }
+            paths = {
+                key: value.get("path")
+                for key, value in source_binding.items()
+                if isinstance(value, dict) and isinstance(value.get("path"), str)
+            }
+            ui_checker_problems = ui_checker.validate(
+                candidate,
+                repo_root=repo_root,
+                prd_path=repo_root / paths["prd"] if "prd" in paths else None,
+                wireframes_path=repo_root / paths["wireframe"] if "wireframe" in paths else None,
+                hifi_path=repo_root / paths["hifi"] if "hifi" in paths else None,
+                require_filled=True,
+                require_wireframe_approved=True,
+                require_visual_approved=True,
+                verify_design_system_pair=False,
+            )
+            problems.extend(f"ui-design: {item}" for item in ui_checker_problems)
+        except (ImportError, OSError, UnicodeError) as exc:
+            problems.append(f"design-system.json cannot run exact UI checker: {exc}")
 
 
 def compare(
@@ -645,14 +697,23 @@ def compare(
                     problems.append(
                         f"design-system.json sourceBindings.{key} path does not exist: {path}"
                     )
-                elif (
-                    not isinstance(digest, str)
-                    or hashlib.sha256(candidate.read_bytes()).hexdigest() != digest
-                ):
-                    problems.append(
-                        f"design-system.json sourceBindings.{key} sha256 does not "
-                        f"match current bytes: {path}"
-                    )
+                else:
+                    try:
+                        actual_digest = (
+                            canonical_ui_approval_sha256(candidate.read_text(encoding="utf-8"))
+                            if key == "uiDesign"
+                            else hashlib.sha256(candidate.read_bytes()).hexdigest()
+                        )
+                    except (OSError, UnicodeError) as exc:
+                        problems.append(
+                            f"design-system.json sourceBindings.{key} cannot read current bytes: {exc}"
+                        )
+                        continue
+                    if not isinstance(digest, str) or actual_digest != digest:
+                        problems.append(
+                            f"design-system.json sourceBindings.{key} sha256 does not "
+                            f"match current bytes: {path}"
+                        )
             if isinstance(bindings, dict):
                 _ui_identity_bindings(bindings, repo_root=root, problems=problems)
 

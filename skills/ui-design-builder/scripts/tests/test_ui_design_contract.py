@@ -45,9 +45,9 @@ Direction mode: one recommended direction
 
 Motion direction: functional_only — Product owner
 
-| Intent ID | UI scope / region | Treatment | Purpose and trigger | Static / reduced-motion fallback | Generation route | Status |
+| Intent ID | UI scope / region | Treatment | Purpose | Trigger | Draft prompt | Source | Static / reduced-motion fallback | Generation route | Status | Generation status |
 | --- | --- | --- | --- | --- | --- | --- |
-| MM-001 | UI-001 / hero | motion | Explain data flow on entry | Static diagram | CSS-WAAPI | approved |
+| MM-001 | UI-001 / hero | motion | Explain data flow | on entry | A restrained data-flow motion placeholder | owner decision | Static diagram | CSS-WAAPI | approved | deferred |
 
 ## Wireframe Approval
 
@@ -57,8 +57,8 @@ Copy Freeze: approved
 Copy owner: Product owner
 Copy locale: en-US
 Copy approved on: 2026-09-13
-Responsive browser check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:{EVIDENCE_HASH}; scope=complete matrix
-UI grading: PASS — evidence=docs/evidence/wireframe-grading.json @ sha256:{EVIDENCE_HASH}; scope=W1-W5 overall 90
+Responsive browser check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:{EVIDENCE_HASH}
+UI grading: PASS — evidence=docs/evidence/wireframe-grading.json @ sha256:{EVIDENCE_HASH}
 Wireframe score: 90
 Wireframe lowest dimension: 90
 Wireframe blocks: none
@@ -78,10 +78,10 @@ Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E
 
 ## HiFi Review
 
-Impeccable critique: PASS — evidence=docs/evidence/impeccable-critique.json @ sha256:{EVIDENCE_HASH}; scope=32/40 no blocking finding
-Impeccable audit: PASS — evidence=docs/evidence/impeccable-audit.json @ sha256:{EVIDENCE_HASH}; scope=18/20 no blocking finding
-UI grading: PASS — evidence=docs/evidence/hifi-grading.json @ sha256:{EVIDENCE_HASH}; scope=H1-H9 overall 94; H2 95; H4 94; H8 96; no block or dispute
-HiFi browser check: PASS — evidence=docs/evidence/hifi-browser.json @ sha256:{EVIDENCE_HASH}; scope=complete page, state, and target matrix
+Impeccable critique: PASS — evidence=docs/evidence/impeccable-critique.json @ sha256:{EVIDENCE_HASH}
+Impeccable audit: PASS — evidence=docs/evidence/impeccable-audit.json @ sha256:{EVIDENCE_HASH}
+UI grading: PASS — evidence=docs/evidence/hifi-grading.json @ sha256:{EVIDENCE_HASH}
+HiFi browser check: PASS — evidence=docs/evidence/hifi-browser.json @ sha256:{EVIDENCE_HASH}
 HiFi score: 94
 H2 score: 95
 H4 score: 94
@@ -94,7 +94,7 @@ HiFi blocks or disputes: none
 Decision: {visual}
 Decision owner: Product owner
 Decided on: 2026-09-13
-Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=all routes and states, web targets 390/768/1200
+Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=surfaces=UI-001|routes=all|states=all|responsive=web:390/768/1200|tolerance=exact|allowedDeviations=none|captureMode=hosted-browser
 
 ## Design System Need Gate
 
@@ -158,7 +158,7 @@ class UiDesignContractTests(unittest.TestCase):
 
     def test_visual_contract_requires_frontend_design_and_impeccable(self):
         candidate = contract(author="design-taste-frontend").replace(
-            f"Impeccable critique: PASS — evidence=docs/evidence/impeccable-critique.json @ sha256:{EVIDENCE_HASH}; scope=32/40 no blocking finding\n",
+            f"Impeccable critique: PASS — evidence=docs/evidence/impeccable-critique.json @ sha256:{EVIDENCE_HASH}\n",
             "",
         )
         joined = "\n".join(
@@ -227,18 +227,75 @@ class UiDesignContractTests(unittest.TestCase):
 
     def test_structured_pass_requires_hashed_evidence(self):
         candidate = contract().replace(
-            "Responsive browser check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:" + EVIDENCE_HASH + "; scope=complete matrix",
+            "Responsive browser check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:" + EVIDENCE_HASH,
             "Responsive browser check: PASS — complete matrix",
         )
         problems = checker.validate_text(candidate, require_wireframe_approved=True)
         self.assertTrue(any("Responsive browser check must use" in item for item in problems))
+
+    def test_evidence_json_binds_check_artifact_and_execution(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            artifact = root / "wireframes.html"
+            artifact.write_text("wireframe", encoding="utf-8")
+            evidence = {
+                "schema": "ui-evidence/1",
+                "check": "wireframe-browser",
+                "result": "PASS",
+                "reviewedArtifact": {
+                    "path": "wireframes.html",
+                    "sha256": hashlib.sha256(b"wireframe").hexdigest(),
+                },
+                "execution": {
+                    "command": "python browser_check.py",
+                    "method": "real browser matrix",
+                    "executedAt": "2020-01-01T00:00:00Z",
+                },
+                "owner": "Product owner",
+            }
+            evidence_path = root / "evidence.json"
+            evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+            line = "PASS — evidence=evidence.json @ sha256:" + hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+            problems: list[str] = []
+            checker._resolve_evidence(
+                line,
+                repo_root=root,
+                label="Responsive browser check",
+                expected_artifact="wireframes.html",
+                problems=problems,
+            )
+            self.assertEqual([], problems)
+            reused: list[str] = []
+            checker._resolve_evidence(
+                line,
+                repo_root=root,
+                label="HiFi browser check",
+                expected_artifact="wireframes.html",
+                problems=reused,
+            )
+            self.assertTrue(any("check must be hifi-browser" in item for item in reused))
+
+    def test_hifi_surface_rejects_external_and_network_surfaces(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "hifi.html"
+            path.write_text("<html><body><h1>HiFi</h1></body></html>", encoding="utf-8")
+            problems: list[str] = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertEqual([], problems)
+            path.write_text(
+                '<base href="https://example.test/"><script>fetch("https://example.test")</script>',
+                encoding="utf-8",
+            )
+            problems = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertTrue(any("active external or executable" in item for item in problems))
 
     def test_motion_join_rejects_missing_duplicate_and_mismatch(self):
         intent = {
             "id": "MM-001",
             "scope": "UI-001 / screen",
             "treatment": "motion",
-            "purpose": "Explain data flow on entry",
+            "purpose": "Explain data flow",
             "trigger": "on entry",
             "reducedMotionFallback": "Static diagram",
             "generationRoute": "CSS-WAAPI",
@@ -342,6 +399,17 @@ class UiDesignContractTests(unittest.TestCase):
         candidate = contract().replace("| motion |", "| cinematic |")
         joined = "\n".join(checker.validate_text(candidate, require_filled=True))
         self.assertIn("invalid treatment", joined)
+
+    def test_direction_and_motion_enums_are_closed_and_human_owned(self):
+        candidate = (
+            contract()
+            .replace("Direction mode: one recommended direction", "Direction mode: recommend")
+            .replace("Motion direction: functional_only — Product owner", "Motion direction: recommend — AI")
+        )
+        joined = "\n".join(checker.validate_text(candidate, require_filled=True))
+        self.assertIn("Direction mode must be one of", joined)
+        self.assertIn("Motion direction must be one of", joined)
+        self.assertIn("Motion direction must include a human owner", joined)
 
     def test_blocked_motion_intent_fails(self):
         candidate = contract().replace("| CSS-WAAPI | approved |", "| CSS-WAAPI | blocked |")

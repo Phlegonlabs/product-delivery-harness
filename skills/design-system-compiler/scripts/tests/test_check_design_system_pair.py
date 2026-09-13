@@ -108,9 +108,14 @@ def prepare_source_bindings(data: dict, root: Path) -> dict:
         target = root / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
+        digest = (
+            checker.canonical_ui_approval_sha256(content.decode("utf-8"))
+            if key == "uiDesign"
+            else hashlib.sha256(content).hexdigest()
+        )
         bindings[key] = {
             "path": path,
-            "sha256": hashlib.sha256(content).hexdigest(),
+            "sha256": digest,
         }
     data["sourceBindings"] = bindings
     return data
@@ -521,6 +526,26 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         markdown = "```text\n" + checker.generated_contract_block(data) + "\n```\n"
         _, problems = self.run_pair(markdown, data)
         self.assertTrue(any("exactly one matched generated" in item for item in problems))
+
+    def test_ui_approval_digest_ignores_derived_linkage_fields(self):
+        text = (
+            "# UI Design Contract\n\n"
+            "Decision: approved\n"
+            "Compiled design system pair: first.md @ sha256:" + "1" * 64 +
+            " and first.json @ sha256:" + "2" * 64 + "\n"
+            "Replacement visual contract when_not_required: target=x @ sha256:" + "3" * 64 +
+            "; ui-design=x @ sha256:" + "4" * 64 +
+            "; wireframe=x @ sha256:" + "5" * 64 +
+            "; prd=x @ sha256:" + "6" * 64 + "\n"
+        )
+        from ui_approval_digest import canonical_ui_approval_sha256
+
+        self.assertEqual(
+            checker.canonical_ui_approval_sha256(text),
+            canonical_ui_approval_sha256(text),
+        )
+        changed = text.replace("first.md", "second.md").replace("sha256:" + "1" * 64, "sha256:" + "f" * 64)
+        self.assertEqual(checker.canonical_ui_approval_sha256(text), checker.canonical_ui_approval_sha256(changed))
 
     def test_fenced_and_commented_ds_ids_are_not_active_authority(self):
         markdown = (
