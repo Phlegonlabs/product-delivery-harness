@@ -310,6 +310,32 @@ class ProductPackageCheckerTests(unittest.TestCase):
             )
         )
 
+        trailing_text_fence = (
+            "````markdown\n```not-a-close\n"
+            + valid_prd()
+            + "\n````\n"
+        )
+        self.assertTrue(
+            any(
+                "active exact standalone product-definition approval" in item
+                for item in self.validate(prd=trailing_text_fence)
+            )
+        )
+
+        raw_html = valid_prd().replace(
+            "<!-- product-definition-approval:start -->",
+            "<script>\n<!-- product-definition-approval:start -->",
+        ).replace(
+            "<!-- product-definition-approval:end -->",
+            "<!-- product-definition-approval:end -->\n</script>",
+        )
+        self.assertTrue(
+            any(
+                "active exact standalone product-definition approval" in item
+                for item in self.validate(prd=raw_html)
+            )
+        )
+
         commented_ui = (
             valid_prd().replace(
                 "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",

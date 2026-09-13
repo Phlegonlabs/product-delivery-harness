@@ -9,6 +9,19 @@ import re
 ActiveLine = tuple[int, str]
 
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+_FENCE_CLOSE_RE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})[ \t]*$")
+_RAW_HTML_TAGS = {
+    "address", "article", "aside", "blockquote", "body", "caption", "center",
+    "colgroup", "dd", "details", "dialog", "dir", "div", "dl", "dt",
+    "fieldset", "figcaption", "figure", "footer", "form", "frameset", "head",
+    "header", "html", "iframe", "legend", "li", "main", "menu", "nav",
+    "noframes", "ol", "optgroup", "option", "p", "pre", "script", "search",
+    "section", "style", "summary", "table", "tbody", "td", "template", "tfoot",
+    "th", "thead", "title", "tr", "ul",
+}
+_RAW_HTML_OPEN_RE = re.compile(
+    r"^[ ]{0,3}<([A-Za-z][A-Za-z0-9-]*)(?:\s|>|$)", re.IGNORECASE
+)
 
 
 def active_markdown_lines(
@@ -25,8 +38,20 @@ def active_markdown_lines(
     fence: tuple[str, int] | None = None
     in_comment = False
     in_outer_comment = False
+    html_block_tag: str | None = None
 
     for number, line in enumerate(text.splitlines(), start=1):
+        if fence is None and html_block_tag is not None:
+            if re.search(rf"</{re.escape(html_block_tag)}\s*>", line, re.IGNORECASE):
+                html_block_tag = None
+            continue
+        if fence is None:
+            html_open = _RAW_HTML_OPEN_RE.match(line)
+            if html_open and html_open.group(1).casefold() in _RAW_HTML_TAGS:
+                tag = html_open.group(1).casefold()
+                if re.search(rf"</{re.escape(tag)}\s*>", line, re.IGNORECASE) is None:
+                    html_block_tag = tag
+                continue
         # Contract anchors and tables are top-level Markdown. Four-space and
         # tab-indented lines render as code and therefore carry no authority.
         if line.startswith("\t") or re.match(r"^ {4,}\S", line):
@@ -36,7 +61,7 @@ def active_markdown_lines(
 
         while remainder:
             if fence is not None:
-                closing = _FENCE_RE.match(remainder)
+                closing = _FENCE_CLOSE_RE.match(remainder)
                 if (
                     closing
                     and closing.group(1)[0] == fence[0]
