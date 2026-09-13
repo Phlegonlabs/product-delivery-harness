@@ -603,7 +603,7 @@ def _ui_identity_bindings(
         text,
         re.MULTILINE,
     )
-    if approved_match:
+    if approved_match and not refs.get("Approved target"):
         refs.setdefault("Approved target", []).append(
             (approved_match.group(1), approved_match.group(2))
         )

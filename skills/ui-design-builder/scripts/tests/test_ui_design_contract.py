@@ -6,13 +6,19 @@ import json
 import sys
 import unittest
 import tempfile
-from types import SimpleNamespace
-from unittest import mock
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+PDB_TESTS = Path(__file__).resolve().parents[3] / "product-definition-builder" / "scripts" / "tests"
+if str(PDB_TESTS) not in sys.path:
+    sys.path.insert(0, str(PDB_TESTS))
+DS_TESTS = Path(__file__).resolve().parents[3] / "design-system-compiler" / "scripts" / "tests"
+if str(DS_TESTS) not in sys.path:
+    sys.path.insert(0, str(DS_TESTS))
 
 checker = importlib.import_module("check_ui_design_contract")
 
@@ -116,17 +122,29 @@ def wireframe_html(data: object) -> str:
 
 
 def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, Path, Path, Path, Path | None]:
+    from test_product_package_checker import valid_prd, valid_stack, ui_contract
+    from test_wireframe_contract import render_html, wireframe_data
+
     product = root / "docs/product/PRD.md"
     architecture = root / "docs/product/architecture.md"
     stack = root / "docs/product/stack-decisions.md"
     wireframe = root / "docs/design/wireframes.html"
     hifi = root / "docs/design/ui-references/run-1/index.html"
     ui_design = root / "docs/design/ui-design.md"
+    ux = "## UX Requirements\n| ID | User / task | Requirement | Success and failure signal | Evidence status |\n| --- | --- | --- | --- | --- |\n| UX-001 | Delivery owner reviews status | Show fixture completion and recovery actions | Success is visible status; failure is recoverable feedback | approved |\n"
+    product_text = valid_prd()
+    start = product_text.index("## UX Requirements")
+    end = product_text.index("## Data and Integration Requirements", start)
+    product_text = product_text[:start] + ux + product_text[end:]
+    product_text = product_text.replace("UI design: not_required — fixture is headless", "UI design: pending explicit ui-design-builder request").replace("UI decision owner: n/a for headless", "UI decision owner: Owner")
+    approval_end = product_text.index("<!-- product-definition-approval:end -->") + len("<!-- product-definition-approval:end -->")
+    product_text = product_text[:approval_end] + "\n" + ui_contract(copy="approved — owner-approved copy") + product_text[approval_end:]
+    data = wireframe_data()
     for path, content in (
-        (product, "prd"),
-        (architecture, "architecture"),
-        (stack, "stack"),
-        (wireframe, "wireframe"),
+        (product, product_text),
+        (architecture, __import__("test_product_package_checker").release_architecture()),
+        (stack, valid_stack()),
+        (wireframe, render_html(data)),
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
@@ -143,7 +161,7 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
         }],
     })
     hifi.write_text(
-        '<html><body><nav>Pages</nav><main data-ui-surface="UI-001" data-ui-route="/home" data-state="ready" data-navigation-id="home" data-control-id="refresh"><h1>HiFi review surface with meaningful content</h1><span data-responsive-target="390"></span><span data-responsive-target="768"></span><span data-responsive-target="1200"></span></main>'
+        '<html><body><nav>Pages</nav><main data-ui-surface="UI-001" data-ui-route="/home" data-navigation-id="home" data-control-id="refresh"><h1>HiFi review surface with meaningful content</h1><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
         '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
         encoding="utf-8",
     )
@@ -157,19 +175,91 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
     }
     for old, new in replacements.items():
         ui = ui.replace(old, new)
+    evidence_cases = [
+        {"surface": "UI-001", "state": "ready", "target": str(target)}
+        for target in (390, 768, 1200)
+    ]
+    evidence_specs = {
+        "wireframe-browser.json": "wireframe-browser",
+        "wireframe-grading.json": "wireframe-browser-grading",
+        "impeccable-critique.json": "hifi-browser-impeccable-critique",
+        "impeccable-audit.json": "hifi-browser-impeccable-audit",
+        "hifi-grading.json": "hifi-browser-grading",
+        "hifi-browser.json": "hifi-browser",
+    }
+    evidence_dir = root / "docs/evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    for name, check_name in evidence_specs.items():
+        reviewed = "docs/design/wireframes.html" if name.startswith("wireframe") else "docs/design/ui-references/run-1/index.html"
+        reviewed_bytes = wireframe.read_bytes() if name.startswith("wireframe") else hifi.read_bytes()
+        subject = {"path": reviewed, "sha256": hashlib.sha256(reviewed_bytes).hexdigest()}
+        output_path = evidence_dir / (name.replace(".json", "-output.json"))
+        output = {
+            "schema": "ui-output/1",
+            "check": check_name,
+            "subject": subject,
+            "matrix": {"cases": evidence_cases},
+            "results": [dict(case, result="PASS") for case in evidence_cases],
+        }
+        output_path.write_text(json.dumps(output), encoding="utf-8")
+        receipt = {
+            "tool": "rubric-grader" if check_name.endswith("grading") else "impeccable" if "impeccable" in check_name else "playwright",
+            "method": "rubric-grading" if check_name.endswith("grading") else "impeccable-critique" if "critique" in check_name else "impeccable-audit" if "audit" in check_name else "browser-matrix",
+            "matrix": {"cases": evidence_cases},
+            "results": [dict(case, result="PASS") for case in evidence_cases],
+            "outputArtifact": {"path": output_path.relative_to(root).as_posix(), "sha256": hashlib.sha256(output_path.read_bytes()).hexdigest()},
+            "executedAt": "2020-01-01T00:00:00Z",
+        }
+        evidence = {
+            "schema": "ui-evidence/2",
+            "check": check_name,
+            "result": "PASS",
+            "reviewedArtifact": subject,
+            "receipt": receipt,
+            "attestation": "human-attested",
+            "owner": "Product owner",
+        }
+        evidence_path = evidence_dir / name
+        evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+        ui = ui.replace(
+            f"evidence=docs/evidence/{name} @ sha256:{EVIDENCE_HASH}",
+            f"evidence=docs/evidence/{name} @ sha256:{hashlib.sha256(evidence_path.read_bytes()).hexdigest()}",
+        )
     pair_markdown = pair_registry = None
     if required:
+        from test_check_design_system_pair import registry as make_registry
+        import check_design_system_pair
+
         pair_markdown = root / "docs/design/design-system.md"
         pair_registry = root / "docs/design/design-system.json"
-        pair_markdown.write_text("# Pair\n", encoding="utf-8")
-        pair_registry.write_text("{}", encoding="utf-8")
+        pair_data = make_registry(schema="design-system/2")
+        pair_data["sourceBindings"] = {
+            "prd": {"path": "docs/product/PRD.md", "sha256": replacements[A_HASH]},
+            "architecture": {"path": "docs/product/architecture.md", "sha256": replacements[B_HASH]},
+            "stack": {"path": "docs/product/stack-decisions.md", "sha256": replacements[C_HASH]},
+            "uiDesign": {"path": "docs/design/ui-design.md", "sha256": "0" * 64},
+            "wireframe": {"path": "docs/design/wireframes.html", "sha256": replacements[D_HASH]},
+            "hifi": {"path": "docs/design/ui-references/run-1/index.html", "sha256": replacements[E_HASH]},
+        }
+        pair_registry.write_text(json.dumps(pair_data), encoding="utf-8")
+        pair_markdown.write_text(check_design_system_pair.replace_generated_contract("# Pair\n", pair_data), encoding="utf-8")
         ui = ui.replace("Decision: not_required", "Decision: required")
         ui = ui.replace(
             "Replacement visual contract when_not_required: target=docs/design/ui-references/run-1/index.html @ sha256:" + replacements[E_HASH] + "; ui-design=docs/design/ui-design.md @ sha256:" + U_HASH + "; wireframe=docs/design/wireframes.html @ sha256:" + replacements[D_HASH] + "; prd=docs/product/PRD.md @ sha256:" + replacements[A_HASH],
-            "Compiled design system pair: docs/design/design-system.md @ sha256:" + hashlib.sha256(pair_markdown.read_bytes()).hexdigest() + " and docs/design/design-system.json @ sha256:" + hashlib.sha256(pair_registry.read_bytes()).hexdigest(),
+            "Compiled design system pair: docs/design/design-system.md @ sha256:" + "0" * 64 + " and docs/design/design-system.json @ sha256:" + "0" * 64,
         )
     ui_design.write_text(ui, encoding="utf-8")
-    if not required:
+    ui_digest = checker.canonical_ui_approval_sha256(ui_design.read_text(encoding="utf-8"))
+    if required:
+        pair_data["sourceBindings"]["uiDesign"]["sha256"] = ui_digest
+        pair_registry.write_text(json.dumps(pair_data), encoding="utf-8")
+        pair_markdown.write_text(check_design_system_pair.replace_generated_contract("# Pair\n", pair_data), encoding="utf-8")
+        ui = ui.replace(
+            "Compiled design system pair: docs/design/design-system.md @ sha256:" + "0" * 64 + " and docs/design/design-system.json @ sha256:" + "0" * 64,
+            "Compiled design system pair: docs/design/design-system.md @ sha256:" + hashlib.sha256(pair_markdown.read_bytes()).hexdigest() + " and docs/design/design-system.json @ sha256:" + hashlib.sha256(pair_registry.read_bytes()).hexdigest(),
+        )
+        ui_design.write_text(ui, encoding="utf-8")
+    else:
         digest = checker.canonical_ui_approval_sha256(ui_design.read_text(encoding="utf-8"))
         ui = ui.replace(U_HASH, digest)
         ui_design.write_text(ui, encoding="utf-8")
@@ -182,25 +272,16 @@ class UiDesignContractTests(unittest.TestCase):
             root = Path(temp)
             product, architecture, stack, wireframe, hifi, _ = materialize_publication(root, required=False)
             ui_design = root / "docs/design/ui-design.md"
-            import check_product_package
-
-            with (
-                mock.patch.object(check_product_package, "validate", return_value=[]),
-                mock.patch.object(checker.check_wireframe_html, "validate", return_value=[]),
-                mock.patch.object(checker, "_validate_target_scope_join"),
-                mock.patch.object(checker, "_resolve_evidence"),
-                mock.patch.object(checker, "parse_release_targets", return_value=(SimpleNamespace(explicit_none_reason=None, targets=()), [])),
-            ):
-                problems = checker.validate(
-                    ui_design,
-                    repo_root=root,
-                    prd_path=product,
-                    wireframes_path=wireframe,
-                    hifi_path=hifi,
-                    require_filled=True,
-                    require_wireframe_approved=True,
-                    require_visual_approved=True,
-                )
+            problems = checker.validate(
+                ui_design,
+                repo_root=root,
+                prd_path=product,
+                wireframes_path=wireframe,
+                hifi_path=hifi,
+                require_filled=True,
+                require_wireframe_approved=True,
+                require_visual_approved=True,
+            )
             self.assertEqual([], problems)
 
     def test_full_validate_required_publication_round_trip(self):
@@ -208,29 +289,18 @@ class UiDesignContractTests(unittest.TestCase):
             root = Path(temp)
             product, architecture, stack, wireframe, hifi, pair = materialize_publication(root, required=True)
             ui_design = root / "docs/design/ui-design.md"
-            import check_product_package
-            import check_design_system_pair
-
-            with (
-                mock.patch.object(check_product_package, "validate", return_value=[]),
-                mock.patch.object(checker.check_wireframe_html, "validate", return_value=[]),
-                mock.patch.object(checker, "_validate_target_scope_join"),
-                mock.patch.object(checker, "_resolve_evidence"),
-                mock.patch.object(checker, "parse_release_targets", return_value=(SimpleNamespace(explicit_none_reason=None, targets=()), [])),
-                mock.patch.object(check_design_system_pair, "compare", return_value=[]),
-            ):
-                problems = checker.validate(
-                    ui_design,
-                    repo_root=root,
-                    prd_path=product,
-                    wireframes_path=wireframe,
-                    hifi_path=hifi,
-                    design_system_markdown_path=pair[0],
-                    design_system_registry_path=pair[1],
-                    require_filled=True,
-                    require_wireframe_approved=True,
-                    require_visual_approved=True,
-                )
+            problems = checker.validate(
+                ui_design,
+                repo_root=root,
+                prd_path=product,
+                wireframes_path=wireframe,
+                hifi_path=hifi,
+                design_system_markdown_path=pair[0],
+                design_system_registry_path=pair[1],
+                require_filled=True,
+                require_wireframe_approved=True,
+                require_visual_approved=True,
+            )
             self.assertEqual([], problems)
 
     def test_complete_visual_contract_passes(self):
@@ -452,7 +522,7 @@ class UiDesignContractTests(unittest.TestCase):
             })
             path.write_text(
                 '<html><body><div data-state="ready" data-responsive-target="390">global spoof</div>'
-                '<main data-ui-surface="UI-001" data-ui-route="/home" data-state="ready" data-navigation-id="home" data-control-id="refresh">Surface one content</main>'
+                '<main data-ui-surface="UI-001" data-ui-route="/home" data-navigation-id="home" data-control-id="refresh">Surface one content</main>'
                 '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
                 encoding="utf-8",
             )

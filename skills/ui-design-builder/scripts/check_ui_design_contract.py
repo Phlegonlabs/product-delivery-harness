@@ -506,6 +506,7 @@ class _HiFiSurfaceParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.surfaces: dict[str, dict[str, Any]] = {}
+        self.counts: dict[str, int] = {}
         self._stack: list[str] = []
         self._elements: list[tuple[str, str | None]] = []
 
@@ -513,12 +514,14 @@ class _HiFiSurfaceParser(HTMLParser):
         values = {name.lower(): value for name, value in attrs}
         surface_id = values.get("data-ui-surface")
         if isinstance(surface_id, str):
+            self.counts[surface_id] = self.counts.get(surface_id, 0) + 1
             self.surfaces.setdefault(
                 surface_id,
                 {
                     "route": set(),
                     "states": set(),
                     "targets": set(),
+                    "cases": set(),
                     "navigation": set(),
                     "controls": set(),
                     "text": [],
@@ -539,6 +542,10 @@ class _HiFiSurfaceParser(HTMLParser):
             value = values.get(attr)
             if isinstance(value, str) and value.strip():
                 current[key].add(value.strip())
+        state_value = values.get("data-state")
+        target_value = values.get("data-responsive-target")
+        if isinstance(state_value, str) and state_value.strip() and isinstance(target_value, str) and target_value.strip():
+            current["cases"].add((state_value.strip(), target_value.strip()))
 
     def handle_endtag(self, tag: str) -> None:
         tag_name = tag.lower()
@@ -651,6 +658,8 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
             if actual.get("route") != expected.get("route") or actual.get("states") != expected.get("states") or actual.get("responsive") != scope.get("responsive"):
                 _add(problems, f"Connected HiFi manifest {surface_id} does not match Approved target scope")
             container = dom_parser.surfaces.get(surface_id)
+            if dom_parser.counts.get(surface_id, 0) != 1:
+                _add(problems, f"Connected HiFi DOM must contain exactly one non-nested container for {surface_id}")
             if container is None:
                 _add(problems, f"Connected HiFi DOM is missing a container for {surface_id}")
                 continue
@@ -661,6 +670,13 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
                 _add(problems, f"Connected HiFi DOM state coverage is wrong for {surface_id}")
             if container["targets"] != expected_targets:
                 _add(problems, f"Connected HiFi DOM responsive target coverage is wrong for {surface_id}")
+            expected_cases = {
+                (str(state), str(target))
+                for state in expected.get("states", [])
+                for target in scope.get("responsive", {}).get("targets", [])
+            }
+            if container["cases"] != expected_cases:
+                _add(problems, f"Connected HiFi DOM state/target case coverage is wrong for {surface_id}")
             if not set(actual.get("navigation", [])) <= container["navigation"]:
                 _add(problems, f"Connected HiFi DOM navigation coverage is incomplete for {surface_id}")
             if not set(actual.get("controls", [])) <= container["controls"]:
@@ -1003,7 +1019,7 @@ def _evidence_check(label: str, capture_mode: str | None) -> str | None:
         return EVIDENCE_CHECKS.get(label)
     if label in {"Responsive surface check", "Wireframe UI grading"}:
         return f"wireframe-{suffix}" if label.startswith("Responsive") else f"wireframe-{suffix}-grading"
-    if label in {"HiFi surface check", "HiFi UI grading", "Impeccable critique verdict", "Impeccable audit verdict"}:
+    if label in {"HiFi surface check", "HiFi UI grading", "Impeccable critique", "Impeccable audit", "Impeccable critique verdict", "Impeccable audit verdict"}:
         if label == "HiFi surface check":
             return f"hifi-{suffix}"
         if label == "HiFi UI grading":
@@ -1682,7 +1698,7 @@ def validate(
                     if TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip())
                     else None
                 ),
-                expected_check=_evidence_check(field_name, capture_mode),
+                expected_check=_evidence_check("HiFi UI grading" if field_name == "UI grading" else field_name, capture_mode),
                 expected_matrix=evidence_matrix,
             )
         if checked_hifi is not None:
@@ -1706,7 +1722,7 @@ def validate(
                     if SOURCE_RE.fullmatch((recorded_wireframe or "").strip())
                     else None
                 ),
-                expected_check=_evidence_check(field_name, capture_mode),
+                expected_check=_evidence_check("Wireframe UI grading" if field_name == "UI grading" else field_name, capture_mode),
                 expected_matrix=evidence_matrix,
             )
 
