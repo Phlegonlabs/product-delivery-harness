@@ -15,9 +15,11 @@ from pathlib import Path
 SKILL_NAMES = (
     "delivery-harness",
     "product-definition-builder",
+    "ui-design-builder",
     "design-system-compiler",
     "code-security-review",
     "product-activation",
+    "seo-growth-review",
 )
 IGNORED_PARTS = {"__pycache__", "tests"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}

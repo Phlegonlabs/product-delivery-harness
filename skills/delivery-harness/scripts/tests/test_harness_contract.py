@@ -79,6 +79,25 @@ class ContractDigestTests(unittest.TestCase):
             (activation / "SKILL.md").write_text("# activation changed\n", encoding="utf-8")
             self.assertNotEqual(contract_digest(skills_root), before)
 
+    def test_new_bundled_skills_are_part_of_the_runtime_contract_digest(self) -> None:
+        import tempfile
+
+        for skill_name in ("ui-design-builder", "seo-growth-review"):
+            with self.subTest(skill=skill_name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                harness = root / "skills" / "delivery-harness"
+                harness.mkdir(parents=True)
+                (harness / "SKILL.md").write_text("# harness\n", encoding="utf-8")
+                added = root / "skills" / skill_name
+                added.mkdir(parents=True)
+                (added / "SKILL.md").write_text(f"# {skill_name}\n", encoding="utf-8")
+                skills_root = root / "skills"
+                before = contract_digest(skills_root)
+                (added / "SKILL.md").write_text(
+                    f"# {skill_name} changed\n", encoding="utf-8"
+                )
+                self.assertNotEqual(contract_digest(skills_root), before)
+
 
 if __name__ == "__main__":
     unittest.main()
