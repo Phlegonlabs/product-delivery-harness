@@ -62,7 +62,7 @@ Copy locale: [primary BCP 47 locale]
 
 Copy approved on: [YYYY-MM-DD]
 
-Responsive browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
+Responsive surface check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
 Wireframe references consulted: [sources and structural pattern adopted/rejected, or skip reason]
 
@@ -106,7 +106,7 @@ Impeccable audit: PASS — evidence=[repo-relative evidence path] @ sha256:[lowe
 
 UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
-HiFi browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
+HiFi surface check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 
 HiFi score: [0-100]
 
@@ -120,7 +120,7 @@ HiFi lowest dimension: [0-100]
 
 HiFi blocks or disputes: [none / named blocks or disputes]
 
-Each PASS evidence file is a `ui-evidence/1` JSON object with exactly `schema`, `check`, `result`, `reviewedArtifact`, `execution`, and `owner`. `check` is one of `wireframe-browser`, `wireframe-grading`, `hifi-impeccable-critique`, `hifi-impeccable-audit`, `hifi-grading`, or `hifi-browser`; `reviewedArtifact` carries the exact current path and SHA-256; `execution` carries `command`, `method`, and a past timezone-aware `executedAt`; and `owner` names a human.
+Each PASS evidence file is a `ui-evidence/2` human-attested JSON receipt with exactly `schema`, `check`, `result`, `reviewedArtifact`, `receipt`, `attestation`, and `owner`. `check` is platform-specific (for example `wireframe-browser`, `wireframe-browser-grading`, `wireframe-extension`, `wireframe-native`, `wireframe-desktop`, and corresponding HiFi checks); `reviewedArtifact` carries the exact current path and SHA-256; `receipt` carries a closed tool/method, exact surfaces/states/targets matrix, PASS result rows, a transcript/output artifact path+hash, and a past timezone-aware `executedAt`; and `owner` names a human. The receipt is an attestation record, not an automatic approval—human Visual Approval remains required.
 
 ## Visual Approval
 
@@ -130,7 +130,7 @@ Decision owner: [human owner]
 
 Decided on: [YYYY-MM-DD]
 
-Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=surfaces=<...>|routes=<...>|states=<...>|responsive=<kind and ordered targets>|tolerance=<...>|allowedDeviations=<...>|captureMode=<hosted-browser|browser-extension|native|desktop>]
+Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=surfaces=[{"id":"UI-001","route":"/path","states":["ready"]}]|routes=["/path"]|states=["ready"]|responsive={"kind":"viewports","targets":[390,768,1200]}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser]
 
 ## Design System Need Gate
 
@@ -142,7 +142,7 @@ Decided on: [YYYY-MM-DD]
 
 Reason: [product-specific reason]
 
-Replacement visual contract when not_required: target=[path @ sha256:hash]; ui-design=[path @ sha256:hash]; wireframe=[path @ sha256:hash]; prd=[path @ sha256:hash]
+Replacement visual contract when not_required: target=[path @ sha256:hash]; ui-design=[path @ sha256:canonical-ui-approval-digest]; wireframe=[path @ sha256:hash]; prd=[path @ sha256:hash]
 
 Compiled design system pair: [markdown path @ sha256:<lowercase sha256> and json path @ sha256:<lowercase sha256>]
 

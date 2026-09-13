@@ -27,6 +27,7 @@ if str(DESIGN_SYSTEM_SCRIPTS) not in sys.path:
 
 from markdown_contract import active_text  # noqa: E402
 from release_targets import parse_release_targets  # noqa: E402
+from prd_ui_contract import parse_prd_ui_contract  # noqa: E402
 from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
 
 
@@ -90,14 +91,31 @@ NON_HUMAN_TOKEN_RE = re.compile(
     r"system|machine)(?!\w)",
     re.IGNORECASE,
 )
-EVIDENCE_SCHEMA = "ui-evidence/1"
+EVIDENCE_SCHEMA = "ui-evidence/2"
+RECEIPT_TOOLS = {
+    "playwright",
+    "chrome-devtools",
+    "playwright-extension",
+    "xcode-simulator",
+    "android-emulator",
+    "desktop-browser",
+}
+RECEIPT_METHODS = {
+    "browser-matrix",
+    "extension-matrix",
+    "native-matrix",
+    "desktop-matrix",
+    "rubric-grading",
+    "impeccable-critique",
+    "impeccable-audit",
+}
 EVIDENCE_CHECKS = {
-    "Responsive browser check": "wireframe-browser",
+    "Responsive surface check": "wireframe-browser",
     "Wireframe UI grading": "wireframe-grading",
     "Impeccable critique verdict": "hifi-impeccable-critique",
     "Impeccable audit verdict": "hifi-impeccable-audit",
     "HiFi UI grading": "hifi-grading",
-    "HiFi browser check": "hifi-browser",
+    "HiFi surface check": "hifi-browser",
 }
 
 
@@ -329,13 +347,63 @@ def _target_source_syntax(value: str | None, label: str, problems: list[str]) ->
         _add(
             problems,
             f"{label} must use '<repo-relative-path> @ sha256:<lowercase sha256>; "
-            "scope=<exact scope>'",
+            "scope=<one-line JSON scope contract>'",
         )
         return False
-    if any(not _filled(match.group(name)) for name in ("surfaces", "routes", "states", "responsive", "tolerance", "deviations")):
+    if any(not match.group(name).strip() for name in ("surfaces", "routes", "states", "responsive", "tolerance", "deviations")):
         _add(problems, f"{label} scope fields must be concrete and non-empty")
         return False
     return True
+
+
+def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[str, Any] | None:
+    match = TARGET_SOURCE_RE.fullmatch((value or "").strip()) if value else None
+    if match is None:
+        return None
+    try:
+        scope = {
+            "surfaces": json.loads(match.group("surfaces")),
+            "responsive": json.loads(match.group("responsive")),
+            "tolerance": json.loads(match.group("tolerance")),
+            "allowedDeviations": json.loads(match.group("deviations")),
+            "captureMode": match.group("captureMode"),
+            "routes": json.loads(match.group("routes")),
+            "states": json.loads(match.group("states")),
+        }
+    except json.JSONDecodeError as exc:
+        _add(problems, f"{label} scope fields must be one-line JSON values: {exc}")
+        return None
+    if set(scope) != {"surfaces", "responsive", "tolerance", "allowedDeviations", "captureMode", "routes", "states"}:
+        _add(problems, f"{label} scope has unexpected keys")
+        return None
+    surfaces = scope["surfaces"]
+    if (
+        not isinstance(surfaces, list)
+        or not surfaces
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"id", "route", "states"}
+            or not isinstance(item.get("id"), str)
+            or not isinstance(item.get("route"), str)
+            or not isinstance(item.get("states"), list)
+            or any(not isinstance(state, str) for state in item.get("states", []))
+            for item in surfaces
+        )
+        or len({item["id"] for item in surfaces if isinstance(item, dict)}) != len(surfaces)
+    ):
+        _add(problems, f"{label} scope surfaces must be unique objects with id, route, and states")
+    responsive = scope["responsive"]
+    if not isinstance(responsive, dict) or set(responsive) != {"kind", "targets"}:
+        _add(problems, f"{label} scope responsive must contain kind and ordered targets")
+    elif responsive.get("kind") not in {"viewports", "sizeClasses"} or not isinstance(responsive.get("targets"), list) or not responsive["targets"]:
+        _add(problems, f"{label} scope responsive kind/targets are invalid")
+    if not isinstance(scope["routes"], list) or not isinstance(scope["states"], list):
+        _add(problems, f"{label} scope routes and states must be JSON arrays")
+    if not isinstance(scope["tolerance"], str) or not scope["tolerance"].strip():
+        _add(problems, f"{label} scope tolerance must be non-empty")
+    if not isinstance(scope["allowedDeviations"], list) or any(not isinstance(item, str) for item in scope["allowedDeviations"]):
+        _add(problems, f"{label} scope allowedDeviations must be a string array")
+    return scope
 
 
 def _pair_syntax(value: str | None, problems: list[str]) -> bool:
@@ -390,7 +458,7 @@ def _resolve_ui_design_digest(
         _add(problems, f"{label} canonical UI approval sha256 does not match current bytes")
 
 
-def _validate_hifi_surface(path: Path, problems: list[str]) -> None:
+def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any] | None = None) -> None:
     """Apply only the generic self-contained HTML safety rules to HiFi."""
 
     try:
@@ -398,6 +466,27 @@ def _validate_hifi_surface(path: Path, problems: list[str]) -> None:
     except (OSError, UnicodeError) as exc:
         _add(problems, f"Connected HiFi reference cannot be read: {exc}")
         return
+    if re.search(r"<html\b", html, re.IGNORECASE) is None or re.search(r"<body\b", html, re.IGNORECASE) is None:
+        _add(problems, "Connected HiFi reference must contain meaningful <html> and <body> elements")
+    visible = re.sub(r"<script\b[\s\S]*?</script>|<style\b[\s\S]*?</style>|<[^>]+>", " ", html, flags=re.IGNORECASE)
+    if len(re.sub(r"\s+", "", visible)) < 20:
+        _add(problems, "Connected HiFi reference must contain meaningful visible content")
+    if scope is not None:
+        if re.search(r"<(?:nav|button|a)\b", html, re.IGNORECASE) is None:
+            _add(problems, "Connected HiFi reference must expose reviewer navigation/state controls")
+        for surface in scope.get("surfaces", []):
+            surface_id = surface.get("id") if isinstance(surface, dict) else None
+            if not isinstance(surface_id, str) or re.search(
+                rf"data-ui-surface=[\"']{re.escape(surface_id)}[\"']", html, re.IGNORECASE
+            ) is None:
+                _add(problems, f"Connected HiFi reference is missing surface coverage for {surface_id}")
+            for state in surface.get("states", []) if isinstance(surface, dict) else []:
+                if re.search(rf"data-state=[\"']{re.escape(str(state))}[\"']", html, re.IGNORECASE) is None:
+                    _add(problems, f"Connected HiFi reference is missing state coverage for {surface_id}/{state}")
+        responsive = scope.get("responsive", {})
+        for target in responsive.get("targets", []) if isinstance(responsive, dict) else []:
+            if re.search(rf"data-responsive-target=[\"']{re.escape(str(target))}[\"']", html, re.IGNORECASE) is None:
+                _add(problems, f"Connected HiFi reference is missing responsive target coverage for {target}")
     parser = check_wireframe_html.ResourceParser()
     parser.feed(html)
     parser.close()
@@ -416,6 +505,106 @@ def _validate_hifi_surface(path: Path, problems: list[str]) -> None:
             "Connected HiFi reference must not contain active external or executable surfaces: "
             + ", ".join(parser.active_security_surfaces),
         )
+
+
+def _read_wireframe_data(path: Path, problems: list[str]) -> dict[str, Any] | None:
+    try:
+        html = path.read_text(encoding="utf-8")
+        match = WIREFRAME_DATA_RE.search(html)
+        if match is None:
+            _add(problems, "wireframe-data is missing from the recorded wireframe")
+            return None
+        value = json.loads(match.group("data"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        _add(problems, f"cannot read recorded wireframe data: {exc}")
+        return None
+    if not isinstance(value, dict):
+        _add(problems, "recorded wireframe data must be a JSON object")
+        return None
+    return value
+
+
+def _validate_target_scope_join(
+    scope: dict[str, Any],
+    *,
+    prd_path: Path,
+    wireframes_path: Path,
+    stack_text: str,
+    architecture_text: str,
+    problems: list[str],
+) -> None:
+    try:
+        prd_text = prd_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        _add(problems, f"cannot read PRD for Approved target scope join: {exc}")
+        return
+    wireframe_data = _read_wireframe_data(wireframes_path, problems)
+    if wireframe_data is None:
+        return
+    prd_surfaces, prd_findings = parse_prd_ui_contract(
+        prd_text,
+        require_responsive=True,
+        require_copy=wireframe_data.get("schema") == check_wireframe_html.WIREFRAME_SCHEMA,
+        web_floor=3 if wireframe_data.get("schema") in check_wireframe_html.INTERACTIVE_WIREFRAME_SCHEMAS else 2,
+    )
+    problems.extend(f"target scope PRD: {finding}" for finding in prd_findings)
+    target_by_id = {item.get("id"): item for item in scope.get("surfaces", []) if isinstance(item, dict)}
+    if set(target_by_id) != set(prd_surfaces):
+        _add(problems, "Approved target surfaces must exactly match PRD UI-* identities")
+    screens = {
+        item.get("id"): item
+        for item in (wireframe_data.get("screens") or [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    if set(target_by_id) != set(screens):
+        _add(problems, "Approved target surfaces must exactly match wireframe screen identities")
+    for surface_id, target in target_by_id.items():
+        prd = prd_surfaces.get(surface_id)
+        screen = screens.get(surface_id)
+        if prd is None or screen is None:
+            continue
+        expected_states = list(prd.get("states", []))
+        if target.get("route") != (prd.get("routes") or [None])[0] or target.get("states") != expected_states:
+            _add(problems, f"Approved target surface {surface_id} route/states differ from PRD")
+        if target.get("route") != screen.get("route") or {str(item).casefold() for item in target.get("states", [])} != _screen_state_ids(screen):
+            _add(problems, f"Approved target surface {surface_id} route/states differ from wireframe")
+    expected_routes = [target.get("route") for target in scope.get("surfaces", [])]
+    expected_states = sorted({str(state) for target in scope.get("surfaces", []) for state in target.get("states", [])})
+    if scope.get("routes") != expected_routes:
+        _add(problems, "Approved target routes array must equal the ordered surface route union")
+    if scope.get("states") != expected_states:
+        _add(problems, "Approved target states array must equal the sorted surface state union")
+    responsive = scope.get("responsive")
+    wire_kind = "viewports" if isinstance(wireframe_data.get("viewports"), list) else "sizeClasses"
+    wire_targets = wireframe_data.get(wire_kind) or []
+    wire_targets = [int(value) if isinstance(value, float) and value.is_integer() else value for value in wire_targets]
+    prd_sets = {(entry.get("responsiveKind"), tuple(entry.get("responsiveTargets", []))) for entry in prd_surfaces.values()}
+    expected_prd = next(iter(prd_sets), (None, ()))
+    target_targets = responsive.get("targets") if isinstance(responsive, dict) else None
+    if not isinstance(responsive, dict) or responsive.get("kind") != wire_kind or list(target_targets or []) != list(wire_targets):
+        _add(problems, "Approved target responsive kind/targets must match wireframe")
+    if expected_prd[0] != wire_kind or [str(item) for item in expected_prd[1]] != [str(item) for item in wire_targets]:
+        _add(problems, "Approved target responsive kind/targets must match PRD")
+    capture = scope.get("captureMode")
+    release_contract, release_findings = parse_release_targets(architecture_text)
+    problems.extend(f"target scope Release Targets: {finding}" for finding in release_findings)
+    release_surfaces = {target.surface.casefold() for target in release_contract.targets}
+    if wire_kind == "sizeClasses":
+        if capture not in {"native", "desktop"}:
+            _add(problems, "sizeClasses target requires native or desktop captureMode")
+    elif "extension" in release_surfaces:
+        if capture != "browser-extension":
+            _add(problems, "extension product requires browser-extension captureMode")
+    elif capture != "hosted-browser":
+        _add(problems, "hosted web target requires hosted-browser captureMode")
+
+
+def _screen_state_ids(screen: dict[str, Any]) -> set[str]:
+    return {
+        str(item.get("id")).casefold()
+        for item in (screen.get("states") or [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
 
 
 def _relative_cli_path(path: Path, repo_root: Path, label: str, problems: list[str]) -> str | None:
@@ -464,6 +653,7 @@ def _resolve_evidence(
     label: str,
     problems: list[str],
     expected_artifact: str | None = None,
+    expected_check: str | None = None,
 ) -> None:
     parsed = _pass_evidence(value, label, problems)
     if parsed is None:
@@ -488,16 +678,16 @@ def _resolve_evidence(
     if not isinstance(evidence, dict):
         _add(problems, f"{label} evidence must be a JSON object")
         return
-    if set(evidence) != {"schema", "check", "result", "reviewedArtifact", "execution", "owner"}:
-        _add(problems, f"{label} evidence has an invalid ui-evidence/1 key set")
+    if set(evidence) != {"schema", "check", "result", "reviewedArtifact", "receipt", "attestation", "owner"}:
+        _add(problems, f"{label} evidence has an invalid ui-evidence/2 key set")
         return
-    expected_check = EVIDENCE_CHECKS.get(label)
+    expected_check = expected_check or EVIDENCE_CHECKS.get(label)
     if evidence.get("schema") != EVIDENCE_SCHEMA or evidence.get("result") != "PASS":
-        _add(problems, f"{label} evidence must record schema ui-evidence/1 and result PASS")
+        _add(problems, f"{label} evidence must record schema ui-evidence/2 and result PASS")
     if expected_check is None or evidence.get("check") != expected_check:
         _add(problems, f"{label} evidence check must be {expected_check}")
     artifact = evidence.get("reviewedArtifact")
-    execution = evidence.get("execution")
+    receipt = evidence.get("receipt")
     if not isinstance(artifact, dict) or set(artifact) != {"path", "sha256"}:
         _add(problems, f"{label} evidence reviewedArtifact must contain path and sha256")
     else:
@@ -520,16 +710,47 @@ def _resolve_evidence(
                     _add(problems, f"{label} evidence reviewedArtifact sha256 does not match current bytes")
                 if expected_artifact is not None and artifact_path.casefold() != expected_artifact.casefold():
                     _add(problems, f"{label} evidence reviewedArtifact must be {expected_artifact}")
-    if not isinstance(execution, dict) or set(execution) != {"command", "method", "executedAt"}:
-        _add(problems, f"{label} evidence execution must contain command, method, and executedAt")
+    if evidence.get("attestation") != "human-attested":
+        _add(problems, f"{label} evidence must be explicitly human-attested")
+    if not isinstance(receipt, dict) or set(receipt) != {"tool", "method", "matrix", "results", "outputArtifact", "executedAt"}:
+        _add(problems, f"{label} evidence receipt must contain tool, method, matrix, results, outputArtifact, and executedAt")
     else:
-        for key in ("command", "method"):
-            value_text = execution.get(key)
-            if not isinstance(value_text, str) or not value_text.strip() or re.search(
-                r"\b(?:not\s+run|unavailable|skipped|future|todo)\b", value_text, re.IGNORECASE
-            ):
-                _add(problems, f"{label} evidence execution.{key} must describe an executed action")
-        timestamp = execution.get("executedAt")
+        if receipt.get("tool") not in RECEIPT_TOOLS:
+            _add(problems, f"{label} evidence receipt.tool is not an approved tool")
+        if receipt.get("method") not in RECEIPT_METHODS:
+            _add(problems, f"{label} evidence receipt.method is not an approved method")
+        matrix = receipt.get("matrix")
+        if (
+            not isinstance(matrix, dict)
+            or set(matrix) != {"surfaces", "states", "targets"}
+            or not all(isinstance(matrix.get(key), list) and matrix[key] for key in ("surfaces", "states", "targets"))
+        ):
+            _add(problems, f"{label} evidence receipt.matrix must contain non-empty surfaces, states, and targets arrays")
+        results = receipt.get("results")
+        if (
+            not isinstance(results, list)
+            or not results
+            or any(not isinstance(item, dict) or set(item) != {"case", "result"} or not isinstance(item.get("case"), str) or item.get("result") != "PASS" for item in results)
+        ):
+            _add(problems, f"{label} evidence receipt.results must contain only PASS case rows")
+        output = receipt.get("outputArtifact")
+        if not isinstance(output, dict) or set(output) != {"path", "sha256"}:
+            _add(problems, f"{label} evidence receipt.outputArtifact must contain path and sha256")
+        else:
+            output_path = output.get("path")
+            output_sha = output.get("sha256")
+            if not isinstance(output_path, str) or SOURCE_RE.fullmatch(f"{output_path} @ sha256:{output_sha}") is None:
+                _add(problems, f"{label} evidence receipt.outputArtifact path and sha256 are invalid")
+            else:
+                output_file = (repo_root / output_path).resolve()
+                try:
+                    output_file.relative_to(repo_root.resolve())
+                except ValueError:
+                    _add(problems, f"{label} evidence receipt.outputArtifact escapes repo-root")
+                else:
+                    if not output_file.is_file() or hashlib.sha256(output_file.read_bytes()).hexdigest() != output_sha:
+                        _add(problems, f"{label} evidence receipt.outputArtifact is missing or stale")
+        timestamp = receipt.get("executedAt")
         try:
             parsed_time = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
             if parsed_time.tzinfo is None:
@@ -541,6 +762,26 @@ def _resolve_evidence(
     owner = evidence.get("owner")
     if not isinstance(owner, str) or not _human_owner(owner):
         _add(problems, f"{label} evidence owner must be human")
+
+
+def _evidence_check(label: str, capture_mode: str | None) -> str | None:
+    suffix = {
+        "hosted-browser": "browser",
+        "browser-extension": "extension",
+        "native": "native",
+        "desktop": "desktop",
+    }.get(capture_mode or "")
+    if suffix is None:
+        return EVIDENCE_CHECKS.get(label)
+    if label in {"Responsive surface check", "Wireframe UI grading"}:
+        return f"wireframe-{suffix}" if label.startswith("Responsive") else f"wireframe-{suffix}-grading"
+    if label in {"HiFi surface check", "HiFi UI grading", "Impeccable critique verdict", "Impeccable audit verdict"}:
+        if label == "HiFi surface check":
+            return f"hifi-{suffix}"
+        if label == "HiFi UI grading":
+            return f"hifi-{suffix}-grading"
+        return f"hifi-{suffix}-impeccable-{'critique' if 'critique' in label.casefold() else 'audit'}"
+    return EVIDENCE_CHECKS.get(label)
 
 
 def _resolve_target_source(
@@ -603,17 +844,20 @@ def _wireframe_media_intents(
         if isinstance(node, dict):
             current_screen = screen_id
             current_region = region_id
-            if owner_path.startswith("wireframe-data.screens["):
+            direct_screen_node = bool(re.fullmatch(r"wireframe-data\.screens\[\d+\]", owner_path))
+            direct_region_node = bool(re.search(r"\.regions\[\d+\]$", owner_path))
+            if direct_screen_node:
                 candidate = node.get("id")
                 current_screen = candidate if isinstance(candidate, str) else current_screen
-            if ".regions[" in owner_path:
+                current_region = None
+            if direct_region_node:
                 candidate = node.get("id")
                 current_region = candidate if isinstance(candidate, str) else current_region
             intent = node.get("mediaIntent")
             if isinstance(intent, dict):
                 intent_id = intent.get("id")
-                direct_screen = bool(re.fullmatch(r"wireframe-data\.screens\[\d+\]", owner_path))
-                direct_region = bool(re.search(r"\.regions\[\d+\]$", owner_path))
+                direct_screen = direct_screen_node
+                direct_region = direct_region_node
                 if not isinstance(intent_id, str) or not MM_ID_RE.fullmatch(intent_id):
                     _add(problems, f"{owner_path}.mediaIntent.id must be a valid MM-* ID")
                 elif not direct_screen and not direct_region:
@@ -646,7 +890,7 @@ def _wireframe_media_intents(
                     )
             for key, child in node.items():
                 if key != "mediaIntent":
-                    child_path = f"{owner_path}.{key}" if key != "regions" else owner_path
+                    child_path = f"{owner_path}.{key}"
                     visit(child, child_path, current_screen, current_region)
         elif isinstance(node, list):
             for index, child in enumerate(node):
@@ -812,7 +1056,7 @@ def validate_text(
                 "Copy owner",
                 "Copy locale",
                 "Copy approved on",
-                "Responsive browser check",
+                "Responsive surface check",
                 "UI grading",
                 "Wireframe score",
                 "Wireframe lowest dimension",
@@ -872,8 +1116,8 @@ def validate_text(
                     "Wireframe Approval Decided on must be a real YYYY-MM-DD date",
                 )
             _pass_evidence(
-                values.get("Responsive browser check"),
-                "Responsive browser check",
+                values.get("Responsive surface check"),
+                "Responsive surface check",
                 problems,
             )
             _pass_evidence(values.get("UI grading"), "Wireframe UI grading", problems)
@@ -930,7 +1174,7 @@ def validate_text(
                 "Impeccable critique",
                 "Impeccable audit",
                 "UI grading",
-                "HiFi browser check",
+                "HiFi surface check",
                 "HiFi score",
                 "H2 score",
                 "H4 score",
@@ -952,7 +1196,7 @@ def validate_text(
         )
         _pass_evidence(review_values.get("UI grading"), "HiFi UI grading", problems)
         _pass_evidence(
-            review_values.get("HiFi browser check"), "HiFi browser check", problems
+            review_values.get("HiFi surface check"), "HiFi surface check", problems
         )
         for name, minimum in (
             ("HiFi score", 90),
@@ -984,6 +1228,7 @@ def validate_text(
         _target_source_syntax(
             visual_values.get("Approved target"), "Approved target", problems
         )
+        _target_scope(visual_values.get("Approved target"), "Approved target", problems)
         connected = SOURCE_RE.fullmatch(
             (style_values.get("Connected HiFi reference") or "").strip()
         )
@@ -1156,6 +1401,12 @@ def validate(
         problems=problems,
     ) if approved_gate else wireframes_path
 
+    target_scope_for_evidence = _target_scope(recorded_target, "Approved target", problems) if approved_gate else None
+    capture_mode = (
+        target_scope_for_evidence.get("captureMode")
+        if isinstance(target_scope_for_evidence, dict)
+        else None
+    )
     if require_visual_approved:
         checked_hifi = _require_exact_cli_path(
             hifi_path,
@@ -1165,7 +1416,7 @@ def validate(
             problems=problems,
         )
         if checked_hifi is not None:
-            _validate_hifi_surface(checked_hifi, problems)
+            _validate_hifi_surface(checked_hifi, problems, target_scope_for_evidence)
             _resolve_source(
                 recorded_hifi,
                 repo_root=root,
@@ -1176,7 +1427,7 @@ def validate(
             "Impeccable critique",
             "Impeccable audit",
             "UI grading",
-            "HiFi browser check",
+            "HiFi surface check",
         ):
             _resolve_evidence(
                 _field(_section(active, "## HiFi Review") or "", field_name),
@@ -1188,6 +1439,7 @@ def validate(
                     if TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip())
                     else None
                 ),
+                expected_check=_evidence_check(field_name, capture_mode),
             )
         if checked_hifi is not None:
             target_match = TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip())
@@ -1199,7 +1451,7 @@ def validate(
                 _add(problems, "Connected HiFi reference and Approved target must be identical")
 
     if approved_gate:
-        for field_name in ("Responsive browser check", "UI grading"):
+        for field_name in ("Responsive surface check", "UI grading"):
             _resolve_evidence(
                 _field(wireframe, field_name),
                 repo_root=root,
@@ -1210,6 +1462,7 @@ def validate(
                     if SOURCE_RE.fullmatch((recorded_wireframe or "").strip())
                     else None
                 ),
+                expected_check=_evidence_check(field_name, capture_mode),
             )
 
     architecture_value = source_values.get("Architecture source")
@@ -1235,6 +1488,26 @@ def validate(
                 prd_path=checked_prd,
             )
         )
+
+    if require_visual_approved and checked_prd is not None and checked_wireframe is not None:
+        scope = _target_scope(recorded_target, "Approved target", problems)
+        architecture_match = SOURCE_RE.fullmatch((source_values.get("Architecture source") or "").strip())
+        stack_match = SOURCE_RE.fullmatch((source_values.get("Stack source") or "").strip())
+        if scope is not None and architecture_match is not None and stack_match is not None:
+            try:
+                architecture_text = (root / architecture_match.group("path")).read_text(encoding="utf-8")
+                stack_text = (root / stack_match.group("path")).read_text(encoding="utf-8")
+            except (OSError, UnicodeError) as exc:
+                _add(problems, f"cannot read architecture/stack for Approved target scope join: {exc}")
+            else:
+                _validate_target_scope_join(
+                    scope,
+                    prd_path=checked_prd,
+                    wireframes_path=checked_wireframe,
+                    stack_text=stack_text,
+                    architecture_text=architecture_text,
+                    problems=problems,
+                )
 
     if require_visual_approved:
         gate_decision = (_field(gate, "Decision") or "").strip().casefold()

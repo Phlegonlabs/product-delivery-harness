@@ -57,7 +57,7 @@ Copy Freeze: approved
 Copy owner: Product owner
 Copy locale: en-US
 Copy approved on: 2026-09-13
-Responsive browser check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:{EVIDENCE_HASH}
+Responsive surface check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:{EVIDENCE_HASH}
 UI grading: PASS — evidence=docs/evidence/wireframe-grading.json @ sha256:{EVIDENCE_HASH}
 Wireframe score: 90
 Wireframe lowest dimension: 90
@@ -81,7 +81,7 @@ Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E
 Impeccable critique: PASS — evidence=docs/evidence/impeccable-critique.json @ sha256:{EVIDENCE_HASH}
 Impeccable audit: PASS — evidence=docs/evidence/impeccable-audit.json @ sha256:{EVIDENCE_HASH}
 UI grading: PASS — evidence=docs/evidence/hifi-grading.json @ sha256:{EVIDENCE_HASH}
-HiFi browser check: PASS — evidence=docs/evidence/hifi-browser.json @ sha256:{EVIDENCE_HASH}
+HiFi surface check: PASS — evidence=docs/evidence/hifi-browser.json @ sha256:{EVIDENCE_HASH}
 HiFi score: 94
 H2 score: 95
 H4 score: 94
@@ -94,7 +94,7 @@ HiFi blocks or disputes: none
 Decision: {visual}
 Decision owner: Product owner
 Decided on: 2026-09-13
-Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=surfaces=UI-001|routes=all|states=all|responsive=web:390/768/1200|tolerance=exact|allowedDeviations=none|captureMode=hosted-browser
+Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=surfaces=[{{"id":"UI-001","route":"/home","states":["ready"]}}]|routes=["/home"]|states=["ready"]|responsive={{"kind":"viewports","targets":[390,768,1200]}}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser
 
 ## Design System Need Gate
 
@@ -182,13 +182,13 @@ class UiDesignContractTests(unittest.TestCase):
 
     def test_fake_and_inactive_evidence_are_rejected(self):
         candidate = contract().replace(
-            "Responsive browser check: PASS", "Responsive browser check: passed"
+            "Responsive surface check: PASS", "Responsive surface check: passed"
         )
         candidate = candidate.replace(
             "Impeccable audit: PASS", "<!-- Impeccable audit: PASS -->\nImpeccable audit: not run"
         )
         joined = "\n".join(checker.validate_text(candidate, require_visual_approved=True))
-        self.assertIn("Responsive browser check must use", joined)
+        self.assertIn("Responsive surface check must use", joined)
         self.assertIn("Impeccable audit verdict must use", joined)
 
     def test_design_system_gate_alternatives_are_exclusive(self):
@@ -227,30 +227,39 @@ class UiDesignContractTests(unittest.TestCase):
 
     def test_structured_pass_requires_hashed_evidence(self):
         candidate = contract().replace(
-            "Responsive browser check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:" + EVIDENCE_HASH,
-            "Responsive browser check: PASS — complete matrix",
+            "Responsive surface check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:" + EVIDENCE_HASH,
+            "Responsive surface check: PASS — complete matrix",
         )
         problems = checker.validate_text(candidate, require_wireframe_approved=True)
-        self.assertTrue(any("Responsive browser check must use" in item for item in problems))
+        self.assertTrue(any("Responsive surface check must use" in item for item in problems))
 
     def test_evidence_json_binds_check_artifact_and_execution(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             artifact = root / "wireframes.html"
             artifact.write_text("wireframe", encoding="utf-8")
+            output = root / "output.txt"
+            output.write_text("PASS output", encoding="utf-8")
             evidence = {
-                "schema": "ui-evidence/1",
+                "schema": "ui-evidence/2",
                 "check": "wireframe-browser",
                 "result": "PASS",
                 "reviewedArtifact": {
                     "path": "wireframes.html",
                     "sha256": hashlib.sha256(b"wireframe").hexdigest(),
                 },
-                "execution": {
-                    "command": "python browser_check.py",
-                    "method": "real browser matrix",
+                "receipt": {
+                    "tool": "playwright",
+                    "method": "browser-matrix",
+                    "matrix": {"surfaces": ["UI-001"], "states": ["ready"], "targets": ["390"]},
+                    "results": [{"case": "UI-001/ready/390", "result": "PASS"}],
+                    "outputArtifact": {
+                        "path": "output.txt",
+                        "sha256": hashlib.sha256(b"PASS output").hexdigest(),
+                    },
                     "executedAt": "2020-01-01T00:00:00Z",
                 },
+                "attestation": "human-attested",
                 "owner": "Product owner",
             }
             evidence_path = root / "evidence.json"
@@ -260,7 +269,7 @@ class UiDesignContractTests(unittest.TestCase):
             checker._resolve_evidence(
                 line,
                 repo_root=root,
-                label="Responsive browser check",
+                label="Responsive surface check",
                 expected_artifact="wireframes.html",
                 problems=problems,
             )
@@ -269,7 +278,7 @@ class UiDesignContractTests(unittest.TestCase):
             checker._resolve_evidence(
                 line,
                 repo_root=root,
-                label="HiFi browser check",
+                label="HiFi surface check",
                 expected_artifact="wireframes.html",
                 problems=reused,
             )
@@ -278,7 +287,7 @@ class UiDesignContractTests(unittest.TestCase):
     def test_hifi_surface_rejects_external_and_network_surfaces(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "hifi.html"
-            path.write_text("<html><body><h1>HiFi</h1></body></html>", encoding="utf-8")
+            path.write_text("<html><body><nav>Pages</nav><main><h1>HiFi review surface</h1></main></body></html>", encoding="utf-8")
             problems: list[str] = []
             checker._validate_hifi_surface(path, problems)
             self.assertEqual([], problems)
@@ -321,6 +330,18 @@ class UiDesignContractTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertIsNone(checker._join_motion_intents(row, path, problems=[]))
+
+            region_intent = dict(intent, scope="UI-001 / hero")
+            path.write_text(
+                wireframe_html(
+                    {
+                        "schema": "wireframes/4",
+                        "screens": [{"id": "UI-001", "regions": [{"id": "hero", "mediaIntent": region_intent}]}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertIsNone(checker._join_motion_intents({"MM-001": region_intent}, path, problems=[]))
 
             path.write_text(
                 wireframe_html(

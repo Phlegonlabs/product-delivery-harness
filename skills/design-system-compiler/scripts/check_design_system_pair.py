@@ -556,7 +556,7 @@ SOURCE_REF_RE = re.compile(
 
 
 def _ui_identity_bindings(
-    bindings: dict[str, Any], *, repo_root: Path, problems: list[str]
+    bindings: dict[str, Any], *, repo_root: Path, problems: list[str], require_contract: bool = False
 ) -> None:
     """Cross-check pair source bindings against the UI contract they name."""
 
@@ -577,6 +577,8 @@ def _ui_identity_bindings(
     if "# UI Design Contract" not in text and "## Source Product Definition" not in text:
         # Legacy inspection fixtures may carry only opaque bytes. Enforce the
         # complete identity join once the file declares itself as a UI contract.
+        if require_contract:
+            problems.append("design-system.json sourceBindings.uiDesign must point to a complete UI Design Contract")
         return
     refs: dict[str, list[tuple[str, str]]] = {}
     for match in SOURCE_REF_RE.finditer(text):
@@ -715,7 +717,12 @@ def compare(
                             f"match current bytes: {path}"
                         )
             if isinstance(bindings, dict):
-                _ui_identity_bindings(bindings, repo_root=root, problems=problems)
+                _ui_identity_bindings(
+                    bindings,
+                    repo_root=root,
+                    problems=problems,
+                    require_contract=require_filled,
+                )
 
     # Every DS-* id active Markdown names — prose or tables, never fences or
     # must resolve to a registered id: a product component dsId, a primitive

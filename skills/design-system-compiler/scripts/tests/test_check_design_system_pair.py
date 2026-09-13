@@ -504,6 +504,15 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         _, problems = self.run_pair(markdown, data, require_filled=True)
         self.assertTrue(any("current publication requires design-system/2" in item for item in problems))
 
+    def test_current_schema_two_publication_rejects_opaque_ui_design_binding(self):
+        data = registry(schema="design-system/2")
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, require_filled=True)
+        self.assertTrue(
+            any("sourceBindings.uiDesign must point to a complete UI Design Contract" in item for item in problems),
+            problems,
+        )
+
     def test_schema_two_rejects_invalid_enums_and_duplicate_semantic_paths(self):
         data = registry(schema="design-system/2")
         data["platform"] = "browser"
