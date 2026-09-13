@@ -234,22 +234,32 @@ def _capture_app(
     )
 
 
-def _geometry_probe(cli: str) -> dict[str, Any] | None:
+def _geometry_probe(cli: str) -> tuple[dict[str, Any] | None, str | None]:
     probed = _run_browser(
         cli, ["eval", "--stdin"], stdin=GEOMETRY_PROBE_JS, timeout=60
     )
     if probed.returncode != 0:
-        return None
+        reason = probed.stderr.strip() or f"browser eval exited {probed.returncode}"
+        return None, reason
     text = probed.stdout.strip()
     # The CLI prints the eval result; accept the last JSON-looking line.
     for line in reversed(text.splitlines()):
         line = line.strip()
         if line.startswith("{") and line.endswith("}"):
             try:
-                return json.loads(line)
+                result = json.loads(line)
             except json.JSONDecodeError:
                 continue
-    return None
+            if not isinstance(result, dict):
+                return None, "geometry probe returned a non-object JSON value"
+            overflow = result.get("overflowX")
+            overlaps = result.get("overlaps")
+            if not isinstance(overflow, (int, float)) or isinstance(overflow, bool):
+                return None, "geometry probe returned an invalid overflowX value"
+            if not isinstance(overlaps, list):
+                return None, "geometry probe returned an invalid overlaps value"
+            return result, None
+    return None, "geometry probe returned no valid JSON object"
 
 
 def _board(
@@ -264,6 +274,7 @@ def _board(
             f"{item['breakpoint']}px · {item['state']}"
         )
         geometry = item.get("geometry") or {}
+        geometry_error = item.get("geometry_error")
         findings = []
         if geometry.get("overflowX", 0) > 1:
             findings.append(f"horizontal overflow: {geometry['overflowX']}px")
@@ -272,6 +283,8 @@ def _board(
                 f"overlap {overlap.get('a')} × {overlap.get('b')} "
                 f"({overlap.get('px')}×{overlap.get('py')}px)"
             )
+        if geometry_error:
+            findings.append(f"geometry probe unavailable: {geometry_error}")
         findings_html = (
             "<ul>"
             + "".join(f"<li>{html.escape(str(f))}</li>" for f in findings)
@@ -337,6 +350,7 @@ def capture(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    all_combos = _matrix(plan, None)
     combos = _matrix(plan, args.only)
     if not combos:
         print("error: no route x breakpoint x state combinations found", file=sys.stderr)
@@ -435,25 +449,41 @@ def capture(args: argparse.Namespace) -> int:
                     f"{name} actual: {problem}" for problem in app_errors
                 )
                 continue
-            geometry = _geometry_probe(cli)
+            geometry, geometry_error = _geometry_probe(cli)
+            if geometry_error:
+                errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
             captured.append(
                 {
                     **combo,
                     "target": target.as_posix(),
                     "actual": actual.as_posix(),
                     "geometry": geometry,
+                    "geometry_error": geometry_error,
                 }
             )
             print(f"captured {name}")
 
     _run_browser(cli, ["close"], timeout=30)
+    if skipped:
+        errors.extend(
+            f"{item['route']} x {item['breakpoint']} x {item['state']}: "
+            f"{item['reason']}" for item in skipped
+        )
+    if not captured:
+        errors.append("no parity pairs were captured")
+    partial = bool(args.only)
     manifest = {
+        "status": "FAIL" if errors else ("PARTIAL" if partial else "PASS"),
+        "gating_eligible": not partial and not errors,
         "session": session,
         "reference": args.reference.as_posix(),
         "base_url": base_url,
         "viewport_height": args.height or VIEWPORT_HEIGHT,
         "full_page": args.full_page,
         "reference_nav": nav_methods,
+        "required_combinations": len(all_combos),
+        "selected_combinations": len(combos),
+        "only_routes": [args.only] if args.only else [],
         "captured": captured,
         "skipped": skipped,
         "errors": errors,
@@ -465,12 +495,22 @@ def capture(args: argparse.Namespace) -> int:
     )
     board = _board(out_dir, captured, skipped)
     print(
-        f"done: {len(captured)} pairs captured, {len(skipped)} skipped, "
+        f"done: {len(captured)} of {len(combos)} selected pairs captured "
+        f"({len(all_combos)} full-plan required), "
+        f"{len(skipped)} skipped, "
         f"{len(errors)} errors; board: {board}"
     )
     for problem in errors:
         print(f"error: {problem}", file=sys.stderr)
-    return 1 if errors else 0
+    if errors:
+        return 1
+    if partial:
+        print(
+            "partial diagnostic capture is not eligible for a parity gate",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

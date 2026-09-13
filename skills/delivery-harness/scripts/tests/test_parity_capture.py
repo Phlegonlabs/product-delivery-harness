@@ -35,7 +35,14 @@ if argv[:1] == ["screenshot"]:
 if argv[:1] == ["eval"]:
     body = sys.stdin.read() if not sys.stdin.isatty() else ""
     if "overflowX" in body:
-        print('{"overflowX": 0, "scanned": 5, "overlaps": []}')
+        mode = os.environ.get("STUB_GEOMETRY_MODE", "pass")
+        if mode == "exit":
+            print("geometry unavailable", file=sys.stderr)
+            raise SystemExit(3)
+        if mode == "malformed":
+            print("not json")
+        else:
+            print('{"overflowX": 0, "scanned": 5, "overlaps": []}')
     elif "a[href=" in body:
         print(os.environ.get("STUB_PROBE_RESULT", "false"))
     else:
@@ -78,6 +85,7 @@ class ParityCaptureTests(unittest.TestCase):
             "PATH": os.environ.get("PATH"),
             "STUB_LOG": os.environ.get("STUB_LOG"),
             "STUB_PROBE_RESULT": os.environ.get("STUB_PROBE_RESULT"),
+            "STUB_GEOMETRY_MODE": os.environ.get("STUB_GEOMETRY_MODE"),
         }
         os.environ["PATH"] = str(stub_dir) + os.pathsep + (self._old_env["PATH"] or "")
         os.environ["STUB_LOG"] = str(self.log_path)
@@ -128,10 +136,17 @@ class ParityCaptureTests(unittest.TestCase):
             return []
         return [json.loads(line) for line in self.log_path.read_text().splitlines()]
 
-    def test_captures_ready_pairs_skips_untriggered_and_na_states(self) -> None:
+    def test_captures_the_full_non_na_matrix(self) -> None:
         route_map = self.root / "route-map.json"
         route_map.write_text(
-            json.dumps({"/home": {"reference": {"selector": "#nav-home"}}}),
+            json.dumps(
+                {
+                    "/home": {
+                        "reference": {"selector": "#nav-home"},
+                        "states": {"empty": {"app_eval": "window.__setEmpty()"}},
+                    }
+                }
+            ),
             encoding="utf-8",
         )
         code, out = self.run_main("--route-map", str(route_map))
@@ -143,11 +158,12 @@ class ParityCaptureTests(unittest.TestCase):
             self.assertTrue(target.exists(), target)
             self.assertTrue(actual.exists(), actual)
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(3, len(manifest["captured"]))
-        self.assertEqual(3, len(manifest["skipped"]))
-        self.assertTrue(
-            all("no app_eval trigger for state 'empty'" in item["reason"] for item in manifest["skipped"])
-        )
+        self.assertEqual(6, len(manifest["captured"]))
+        self.assertEqual(0, len(manifest["skipped"]))
+        self.assertEqual(6, manifest["required_combinations"])
+        self.assertEqual(6, manifest["selected_combinations"])
+        self.assertEqual("PASS", manifest["status"])
+        self.assertTrue(manifest["gating_eligible"])
         self.assertNotIn("loading", {item["state"] for item in manifest["captured"] + manifest["skipped"]})
         self.assertEqual(
             "route-map selector #nav-home", manifest["reference_nav"]["/home"]
@@ -184,13 +200,34 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual(0, len(manifest["skipped"]))
         self.assertIn(["eval", "--stdin"], self.calls())
 
+    def test_a_skipped_required_state_combination_fails(self) -> None:
+        route_map = self.root / "route-map.json"
+        route_map.write_text(
+            json.dumps({"/home": {"reference": {"selector": "#nav-home"}}}),
+            encoding="utf-8",
+        )
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(1, code, out)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(3, len(manifest["captured"]))
+        self.assertEqual(3, len(manifest["skipped"]))
+        self.assertEqual("FAIL", manifest["status"])
+        self.assertTrue(
+            any(
+                "no app_eval trigger for state 'empty'" in problem
+                for problem in manifest["errors"]
+            )
+        )
+
     def test_reference_probe_failure_skips_with_reason(self) -> None:
         os.environ["STUB_PROBE_RESULT"] = "false"
         code, out = self.run_main()
-        self.assertEqual(0, code, out)
+        self.assertEqual(1, code, out)
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(0, len(manifest["captured"]))
         self.assertEqual(6, len(manifest["skipped"]))
+        self.assertEqual("FAIL", manifest["status"])
+        self.assertIn("no parity pairs were captured", manifest["errors"])
         # Ready reaches navigation and fails there; untriggered states are
         # skipped earlier for their missing app_eval trigger.
         reasons = [item["reason"] for item in manifest["skipped"]]
@@ -236,9 +273,62 @@ class ParityCaptureTests(unittest.TestCase):
             encoding="utf-8",
         )
         code, out = self.run_main("--route-map", str(route_map), "--only", "/settings")
-        self.assertEqual(0, code, out)
+        self.assertEqual(2, code, out)
         self.assertTrue((self.out / "settings-ready-390-target.png").exists())
         self.assertFalse((self.out / "home-ready-390-target.png").exists())
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual("PARTIAL", manifest["status"])
+        self.assertFalse(manifest["gating_eligible"])
+        self.assertEqual(2, manifest["required_combinations"])
+        self.assertEqual(1, manifest["selected_combinations"])
+        self.assertEqual(["/settings"], manifest["only_routes"])
+
+    def test_geometry_probe_nonzero_fails_the_capture(self) -> None:
+        os.environ["STUB_GEOMETRY_MODE"] = "exit"
+        route_map = self.root / "route-map.json"
+        route_map.write_text(
+            json.dumps(
+                {
+                    "/home": {
+                        "reference": {"selector": "#nav-home"},
+                        "states": {"empty": {"app_eval": "window.__setEmpty()"}},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(1, code, out)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual("FAIL", manifest["status"])
+        self.assertFalse(manifest["gating_eligible"])
+        self.assertTrue(
+            any("geometry unavailable" in problem for problem in manifest["errors"])
+        )
+        board = (self.out / "parity-board.html").read_text(encoding="utf-8")
+        self.assertIn("geometry probe unavailable", board)
+        self.assertNotIn("geometry probe: clean", board)
+
+    def test_geometry_probe_malformed_json_fails_the_capture(self) -> None:
+        os.environ["STUB_GEOMETRY_MODE"] = "malformed"
+        route_map = self.root / "route-map.json"
+        route_map.write_text(
+            json.dumps(
+                {
+                    "/home": {
+                        "reference": {"selector": "#nav-home"},
+                        "states": {"empty": {"app_eval": "window.__setEmpty()"}},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(1, code, out)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(
+            any("no valid JSON object" in problem for problem in manifest["errors"])
+        )
 
     def test_missing_cli_degrades_with_install_hint(self) -> None:
         os.environ["PATH"] = str(self.root / "nowhere")
