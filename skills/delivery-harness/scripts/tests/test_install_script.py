@@ -32,6 +32,11 @@ class InstallScriptTests(unittest.TestCase):
             self.skipTest("no repository checkout with install.sh")
         if shutil.which("bash") is None:
             self.skipTest("bash is not available")
+        bash_probe = subprocess.run(
+            ["bash", "--version"], capture_output=True, timeout=10, check=False
+        )
+        if bash_probe.returncode != 0:
+            self.skipTest("bash command is present but no usable shell is available")
         self._home = tempfile.TemporaryDirectory()
         self.addCleanup(self._home.cleanup)
         self.home = Path(self._home.name)
@@ -51,7 +56,7 @@ class InstallScriptTests(unittest.TestCase):
             env=env,
             cwd=self.home,
         )
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
 
         source_root = REPO_ROOT / "skills"
         for skill in self.SKILLS:
