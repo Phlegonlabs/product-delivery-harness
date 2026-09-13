@@ -397,6 +397,18 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
         _add(problems, f"{label} scope responsive must contain kind and ordered targets")
     elif responsive.get("kind") not in {"viewports", "sizeClasses"} or not isinstance(responsive.get("targets"), list) or not responsive["targets"]:
         _add(problems, f"{label} scope responsive kind/targets are invalid")
+    elif responsive.get("kind") == "viewports":
+        targets = responsive["targets"]
+        if (
+            len(targets) < 3
+            or any(not isinstance(item, (int, float)) or isinstance(item, bool) or item <= 0 for item in targets)
+            or any(left >= right for left, right in zip(targets, targets[1:]))
+        ):
+            _add(problems, f"{label} scope viewports must be at least three ascending positive numbers")
+    else:
+        targets = responsive["targets"]
+        if len(targets) < 2 or any(not isinstance(item, str) or not item.strip() for item in targets) or len(set(targets)) != len(targets):
+            _add(problems, f"{label} scope sizeClasses must be at least two unique strings")
     if not isinstance(scope["routes"], list) or not isinstance(scope["states"], list):
         _add(problems, f"{label} scope routes and states must be JSON arrays")
     if not isinstance(scope["tolerance"], str) or not scope["tolerance"].strip():
