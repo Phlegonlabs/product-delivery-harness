@@ -54,6 +54,15 @@ LEGACY_MEDIA_TREATMENTS = {"motion-led", "imagery-led", "motion + imagery"}
 VALID_COPY_ITEM_STATUSES = {"draft", "approved"}
 VALID_COPY_KINDS = {"static", "dynamic"}
 COPY_CONTRACT_FIELDS = ("source", "order", "format", "count", "length", "fallback")
+NON_HUMAN_OWNERS = {
+    "ai",
+    "agent",
+    "assistant",
+    "automation",
+    "codex",
+    "model",
+    "system",
+}
 WIREFRAME_SCHEMA = "wireframes/4"
 INTERACTIVE_WIREFRAME_SCHEMAS = {"wireframes/3", WIREFRAME_SCHEMA}
 LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2", "wireframes/3"}
@@ -272,6 +281,13 @@ def _nonempty(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _human_owner(value: Any) -> bool:
+    if not _nonempty(value):
+        return False
+    normalized = value.strip().casefold().strip(".:-")
+    return normalized not in NON_HUMAN_OWNERS
+
+
 def _iso_date(value: Any) -> bool:
     if not _nonempty(value):
         return False
@@ -313,14 +329,14 @@ def _validate_copy_item(
         return
 
     kind = value.get("kind")
-    if kind not in VALID_COPY_KINDS:
+    if not isinstance(kind, str) or kind not in VALID_COPY_KINDS:
         _add(problems, f"{path}.kind", f"must be one of {sorted(VALID_COPY_KINDS)}")
     for key in ("role", "source"):
         if not _nonempty(value.get(key)):
             _add(problems, f"{path}.{key}", "must be a non-empty string")
 
     status = value.get("status")
-    if status not in VALID_COPY_ITEM_STATUSES:
+    if not isinstance(status, str) or status not in VALID_COPY_ITEM_STATUSES:
         _add(
             problems,
             f"{path}.status",
@@ -366,7 +382,7 @@ def _validate_action(
         if not _nonempty(value.get(key)):
             _add(problems, f"{path}.{key}", "must be a non-empty string")
     status = value.get("status")
-    if status not in VALID_COPY_ITEM_STATUSES:
+    if not isinstance(status, str) or status not in VALID_COPY_ITEM_STATUSES:
         _add(
             problems,
             f"{path}.status",
@@ -385,7 +401,7 @@ def _validate_copy_freeze(data: dict[str, Any], problems: list[str]) -> bool:
         _add(problems, path, "must be an object in wireframes/4")
         return False
     status = value.get("status")
-    if status not in VALID_APPROVAL_STATUSES:
+    if not isinstance(status, str) or status not in VALID_APPROVAL_STATUSES:
         _add(
             problems,
             f"{path}.status",
@@ -394,6 +410,9 @@ def _validate_copy_freeze(data: dict[str, Any], problems: list[str]) -> bool:
     for key in ("owner", "locale", "approvedOn"):
         if not _nonempty(value.get(key)):
             _add(problems, f"{path}.{key}", "must be a non-empty string")
+    owner = value.get("owner")
+    if _nonempty(owner) and not _human_owner(owner):
+        _add(problems, f"{path}.owner", "must name a human owner")
     locale = value.get("locale")
     if (
         _nonempty(locale)
@@ -612,7 +631,10 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                 _add(problems, f"{path}.{key}", "must be a non-empty string")
         if copy_contract:
             copy_status = screen.get("copyStatus")
-            if copy_status not in VALID_APPROVAL_STATUSES:
+            if (
+                not isinstance(copy_status, str)
+                or copy_status not in VALID_APPROVAL_STATUSES
+            ):
                 _add(
                     problems,
                     f"{path}.copyStatus",
@@ -1086,7 +1108,8 @@ def validate(
     if require_approved and data.get("approvalStatus") != "approved":
         _add(problems, "wireframe-data.approvalStatus", "must be 'approved'")
     schema = data.get("schema")
-    copy_status = (data.get("copyFreeze") or {}).get("status")
+    copy_freeze = data.get("copyFreeze")
+    copy_status = copy_freeze.get("status") if isinstance(copy_freeze, dict) else None
     if require_copy_approved and schema != WIREFRAME_SCHEMA:
         _add(
             problems,

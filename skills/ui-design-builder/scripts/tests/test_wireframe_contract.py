@@ -422,6 +422,11 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         self.assertIn("must be a BCP 47-style language tag", joined)
 
         data = wireframe_data()
+        data["copyFreeze"]["owner"] = "AI"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("copyFreeze.owner: must name a human owner", joined)
+
+        data = wireframe_data()
         data["copyFreeze"]["status"] = "draft"
         data["copyFreeze"]["approvedOn"] = "pending"
         data["approvalStatus"] = "draft"
@@ -479,6 +484,49 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         self.assertIn("elements[0]: must be an object in wireframes/4", joined)
         self.assertIn("actions[0]: must be an object in wireframes/4", joined)
         self.assertIn("copyStatus: must be 'approved' when copy is frozen", joined)
+
+    def test_v4_malformed_copy_enums_return_errors_instead_of_crashing(self):
+        cases = []
+
+        data = wireframe_data()
+        data["copyFreeze"] = "approved"
+        cases.append(("copyFreeze object", data, "copyFreeze: must be an object"))
+
+        for label, mutate, expected in (
+            (
+                "copy kind",
+                lambda value: value["screens"][0]["regions"][0]["elements"][0].__setitem__("kind", []),
+                "elements[0].kind: must be one of",
+            ),
+            (
+                "copy status",
+                lambda value: value["screens"][0]["regions"][0]["elements"][0].__setitem__("status", []),
+                "elements[0].status: must be one of",
+            ),
+            (
+                "action status",
+                lambda value: value["screens"][0]["regions"][0]["actions"][0].__setitem__("status", []),
+                "actions[0].status: must be one of",
+            ),
+            (
+                "freeze status",
+                lambda value: value["copyFreeze"].__setitem__("status", []),
+                "copyFreeze.status: must be one of",
+            ),
+            (
+                "screen status",
+                lambda value: value["screens"][0].__setitem__("copyStatus", []),
+                "copyStatus: must be one of",
+            ),
+        ):
+            data = wireframe_data()
+            mutate(data)
+            cases.append((label, data, expected))
+
+        for label, data, expected in cases:
+            with self.subTest(case=label):
+                joined = "\n".join(validate_html(render_html(data)))
+                self.assertIn(expected, joined)
 
     def test_alternate_state_requires_explicit_product_or_assistive_copy(self):
         data = wireframe_data()
