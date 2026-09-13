@@ -12,8 +12,8 @@ Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN sta
 Keep upstream ownership separate:
 
 - `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, including complete frontend and backend architecture and technology decisions.
-- `ui-design-builder` owns `docs/design/ui-design.md`, UI Design Intake, Copy Freeze before structural approval, approved `wireframes.html`, Style Integration with `frontend-design`, the Impeccable HiFi review, PRD-bound UI scores, Visual Approval, and the active HiFi target. `design-system-compiler`, with `frontend-design`, owns the design-system pair only when the UI design contract's Design System Need Gate is `required`.
-- This skill implements an approved Product Definition and Stack Decision Checkpoint plus approved `ui-design.md`, copy-frozen `wireframes.html`, and the active visual source when UI applies. It preserves exact static/action/state copy and approved dynamic source/order/format/count/length/fallback contracts. UI owner approval proves direction conformance, not representative-user usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents neither product, copy, stack, nor design decisions.
+- `ui-design-builder` owns `docs/design/ui-design.md`, UI Design Intake, pre-structure Copy Freeze, approved `wireframes.html`, Style Integration, Impeccable review, PRD-bound scores, Visual Approval, and the HiFi target. `design-system-compiler`, with `frontend-design`, owns the design-system pair only when the Design System Need Gate is `required`.
+- This skill implements approved product/stack sources, `ui-design.md`, copy-frozen `wireframes.html`, and the active visual source. It preserves approved copy and dynamic display contracts. UI owner approval proves direction conformance, not representative-user usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents neither product, copy, stack, nor design decisions.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
@@ -173,7 +173,7 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 Read `references/ui-implementation-contract.md` before UI implementation or review.
 
-- Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after approved Product Definition and UI design contracts, approved Copy Freeze and wireframes, approved HiFi target, and `Design System Need Gate: required`. It does not reopen direction.
+- Design-system compilation mode requires `design-system-compiler` and `frontend-design` after approved Product Definition, UI design, Copy Freeze, wireframes, HiFi target, and `Design System Need Gate: required`. It does not reopen direction.
 - UI implementation uses `frontend-design` in conformance mode against the approved UI source; it does not reopen Style Integration.
 - System-conformance mode obeys the frozen PRD UI Surface Contract, approved `ui-design.md`, `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the UI design gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser evidence, and tolerance in `ui-design.md`. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.

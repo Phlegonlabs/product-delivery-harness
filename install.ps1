@@ -1,4 +1,4 @@
-# Install the six Product Delivery Harness skills into a user skills directory.
+# Install the seven Product Delivery Harness skills into a user skills directory.
 # Any pre-existing copies are moved to one timestamped backup first - nothing is
 # overwritten or deleted. Re-running this script is the update path.
 param(
@@ -16,7 +16,8 @@ $skills = @(
     "ui-design-builder",
     "design-system-compiler",
     "code-security-review",
-    "product-activation"
+    "product-activation",
+    "seo-growth-review"
 )
 
 foreach ($skill in $skills) {

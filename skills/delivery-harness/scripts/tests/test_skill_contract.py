@@ -47,6 +47,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "design-system-compiler": "Design System Compiler",
             "code-security-review": "Code Security Review",
             "product-activation": "Product Activation",
+            "seo-growth-review": "SEO Growth Review",
         }
         for skill_id, display_name in current.items():
             with self.subTest(skill=skill_id):
@@ -74,6 +75,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 self.assertIn("`design-system-compiler`", readme)
                 self.assertIn("`code-security-review`", readme)
                 self.assertIn("`product-activation`", readme)
+                self.assertIn("`seo-growth-review`", readme)
 
     @unittest.skipIf(REPO_ROOT is None, "install migration requires a source checkout")
     def test_renamed_installs_have_a_recoverable_legacy_migration(self) -> None:
@@ -97,6 +99,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                     "design-system-compiler",
                     "code-security-review",
                     "product-activation",
+                    "seo-growth-review",
                 ):
                     self.assertIn(f"`{skill_id}`", content)
                 self.assertIn(
@@ -1521,6 +1524,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("skills/product-activation/scripts", content)
         self.assertIn(
             "unittest discover -s skills/product-activation/scripts/tests -v",
+            content,
+        )
+        self.assertIn("skills/seo-growth-review/scripts", content)
+        self.assertIn(
+            "unittest discover -s skills/seo-growth-review/scripts/tests -v",
             content,
         )
 

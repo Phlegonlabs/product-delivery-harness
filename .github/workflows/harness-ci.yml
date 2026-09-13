@@ -42,7 +42,7 @@ jobs:
 
       - name: Check for dead code with pyflakes
         run: |
-          python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+          python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts skills/seo-growth-review/scripts
 
       - name: Report docs weight delta
         run: python skills/delivery-harness/scripts/docs_weight.py
@@ -66,6 +66,9 @@ jobs:
 
       - name: Run product activation contract tests
         run: python -m unittest discover -s skills/product-activation/scripts/tests -v
+
+      - name: Run SEO growth review contract tests
+        run: python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 
       - name: Check diff whitespace
         run: |

@@ -17,7 +17,7 @@
 
 Skills repository for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, Pi, or any host that discovers a user skills directory.
 
-It is not a prompt collection. The skill suite separates product definition, visual design, engineering execution, and code-security review so each stage has one source of truth, a bounded handoff, and its own verification.
+It is not a prompt collection. The skill suite separates product definition, visual design, engineering execution, code-security review, activation, and post-release organic-growth review so each stage has one source of truth, a bounded handoff, and its own verification.
 
 > Define the product. Compile the design. Deliver verified software.
 
@@ -30,6 +30,7 @@ It is not a prompt collection. The skill suite separates product definition, vis
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A fixed integrated code candidate | `code-security-review` | A read-only, exact-SHA security review with validated source-to-sink findings and explicit coverage gaps |
 | A delivered release that needs external setup | `product-activation` | Exact authorized console actions, verified measurement sources, and target-by-target activation readiness |
+| A public production site that needs SEO or organic-growth analysis | `seo-growth-review` | A read-only technical and measurement review, evidence-ranked keyword/page opportunities, and routed follow-ups |
 
 Each bundled skill can be invoked on its own; the full pipeline is optional. Each mode still enforces its declared inputs and dependencies.
 
@@ -45,6 +46,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 - **Runtime bindings are explicit.** `lease-worker` derives the provider, driver, model, effort, and portable runtime axes from the selected directive, accepts `--task-thread-id` only for app tasks, accepts an existing exact target, and materializes a new exact target only from an active wildcard grant without widening authority.
 - **Capability is not permission.** A runtime may be able to push or clean up, but each action still needs exact authorization.
 - **Activation is read back.** External setup stays outside PLAN/RUN, binds approval to an exact action digest, and becomes verified only after independent read-back and behavior evidence.
+- **SEO growth is evidence-led.** Post-release SEO review stays read-only, separates Search Console visibility from GA4 on-site behavior, labels estimates and hypotheses, and routes every change to its owning workflow.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
 - **UI evidence proves layout, not pixels.** Runs pinned to harness 0.34.0 or later record a `layout_check` on every route-breakpoint-state evidence row from a real-browser geometry scan, every UI task classifies its impact (`none`/`style`/`structure`/`both`) before acceptance, accepted parity deviations land in a cited deviation ledger, and shipped motion traces to `ui-design.md`'s Motion and Media Intent. Runs pinned to 0.35.0 or later also machine-check the `deviation_ledger` and a per-mission `ui_impact_summary`.
 - **Completed runs fold away.** After promotion, `scripts/archive_run.py` moves the whole coordination set — PLAN, RUN, decisions, backlog, evidence, tasks view — into `docs/goal/archived/<timestamp>-<run-id>/` after a dry-run move list, never deletes, and the archival commit rides the same promotion path to `main`. The tasks view ends with a hand-maintained Update Log the renderer preserves verbatim: after a completed plan, every owner or agent update not already in the PRD is one dated row there, and the archived set references its PRD only by frozen hash — the PRD never enters the archive and stays the living reference.
@@ -63,6 +65,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 | `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 | `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
 | `product-activation` | Post-delivery setup for web, iOS, and browser-extension targets, including capability routing, exact external-action authorization, read-back, measurement sources, and outcome-review handoff | `docs/ACTIVATION.md` |
+| `seo-growth-review` | Read-only post-release technical SEO, measurement integrity, keyword research, organic-traffic diagnosis, and query-to-page opportunity prioritization | Inline review by default; optional dated report on explicit request |
 
 The delivery core makes one size decision before it invokes managed orchestration:
 
@@ -93,13 +96,15 @@ flowchart LR
   Candidate --> Main["Separately authorize fast-forward\nexact SHA to main"]
   Main --> Activate["product-activation\nExternal setup + read-back"]
   Activate --> Outcome["Verified measurement sources\nLater outcome review"]
+  Activate -.-> SEO["seo-growth-review\nOptional organic-growth review"]
+  SEO -.-> Outcome
 ```
 
-You can start at any stage. `product-definition-builder` stops at an approved Product Definition. `ui-design-builder` separately creates and approves wireframes and HiFi when requested. Harness implements only frozen approved product and UI sources; security review and activation keep their later boundaries.
+You can start at any stage. `product-definition-builder` stops at an approved Product Definition. `ui-design-builder` separately freezes copy and approves wireframes and HiFi when requested. Harness implements only frozen approved product and UI sources; security review and activation keep their later boundaries. `seo-growth-review` is an optional later read-only analysis and never reopens delivery or performs the changes it recommends.
 
 ### Full skill lifecycle
 
-The complete lifecycle across all six skills, with every gate and the cross-cutting mechanisms:
+The complete lifecycle across all seven skills, with every gate and the cross-cutting mechanisms:
 
 ```mermaid
 flowchart TB
@@ -194,6 +199,14 @@ flowchart TB
         profiles --> capability --> actions --> ready
     end
 
+    subgraph SEO["seo-growth-review — optional post-release review"]
+        direction TB
+        seo_sources["Production pages + verified sources<br/>Search Console / GA4 / estimates"]
+        seo_review["Technical SEO + measurement integrity<br/>query-to-page opportunities"]
+        seo_route["Prioritized routed follow-ups<br/>no direct mutation"]
+        seo_sources --> seo_review --> seo_route
+    end
+
     subgraph OUTCOME["Post-release outcome review"]
         outcome["outcome-review.md<br/>(owner-requested, post measurement window)"]
         verdict{{"Verdict: no_change | enhancement | incident"}}
@@ -216,6 +229,8 @@ flowchart TB
     gates2 --> handoff
     status --> profiles
     ready --> outcome
+    ready -.-> seo_sources
+    seo_route -.-> outcome
     verdict -.->|next enhancement request| interview
 ```
 
@@ -224,6 +239,8 @@ Product Definition Approval, UI Wireframe Approval, and the merge to `main` are 
 For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds it; Delivery Harness reconciles it against tracked environment declarations, CI, and auth/integration code before the push, then records the read-only deployment result afterward. Each independently released unit gets a lowercase surface name: production uses canonical `<product-slug>-<surface-suffix>` with no `-prod`, while development uses that exact name plus `-dev`. The normal suffixes are `web`, `api`, and `extension`; native artifacts and separately released admin, worker, job, agent, webhook, realtime, or CLI units use their own descriptive suffix. Provider and store names stay separate unless their artifacts actually differ. The record also lists exact secret and variable names, their preview and production placement, and external-console tasks such as auth callback URLs, but never stores secret values.
 
 After delivery, `product-activation` creates or reconciles `docs/ACTIVATION.md`, selects the applicable web, iOS, or browser-extension profiles, uses the safest available connector/API/CLI/Browser/Computer Use route, and performs only exact authorized actions. Capabilities and evidence bind to the exact target, environment, source SHA, and artifact/build identity; the newest matching result controls readiness. It records configuration separately from verification, never stores secret values, keeps unsupported hybrid targets outside its gate, and hands matching verified `MS-*` sources to the later outcome review.
+
+After activation, or whenever enough production evidence exists, `seo-growth-review` can run as an independent read-only pass. It audits current crawl and index behavior, checks measurement scope, distinguishes Search Console search visibility from GA4 on-site behavior, ranks keyword and page opportunities from observed, estimated, or hypothesis evidence, and routes external setup, product-contract changes, implementation, connector work, or later observation to the correct owner. It does not embed API clients or credentials, publish content, change external consoles, promise rankings, or require a dashboard.
 
 The loop closes at both ends. Research-first gates drafting; post-draft market research reconciles the candidate before stack and product approval. Metrics now carry baseline, target/guardrail, measurement window, source/method, and owner so the later outcome review has a real contract.
 
@@ -323,7 +340,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Fastest setup
 
-Clone the repository and run the installer. It moves any existing copies to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, copies the six Product Delivery Harness skills into `~/.agents/skills/`, and verifies each copied `SKILL.md`:
+Clone the repository and run the installer. It moves any existing copies to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, copies the seven Product Delivery Harness skills into `~/.agents/skills/`, and verifies each copied `SKILL.md`:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -341,18 +358,19 @@ cp -r product-delivery-harness/skills/delivery-harness \
       product-delivery-harness/skills/design-system-compiler \
       product-delivery-harness/skills/code-security-review \
       product-delivery-harness/skills/product-activation \
+      product-delivery-harness/skills/seo-growth-review \
       ~/.agents/skills/
 ```
 
-If the checkout has local `__pycache__` directories under `skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. The installer is also the updater: re-running it backs up the previous copies and replaces them. An update needs explicit install/update approval and no active skill-using session. Copy the six current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
+If the checkout has local `__pycache__` directories under `skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. The installer is also the updater: re-running it backs up the previous copies and replaces them. An update needs explicit install/update approval and no active skill-using session. Copy the seven current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
 
 When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler` — plus the new `product-activation` skill. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
-The six bundled skills are independently invocable, but cross-skill modes enforce dependencies. Product Definition's core checker joins PRD, architecture, and stack decisions. UI Design Builder validates `ui-design.md` and `wireframes.html`; Harness 0.37.0+ joins those approved UI sources before delivery. Design compilation, Delivery, and Activation require the applicable approved upstream inputs.
+The seven bundled skills are independently invocable, but cross-skill modes enforce dependencies. Product Definition's core checker joins PRD, architecture, and stack decisions. UI Design Builder validates Copy Freeze, `ui-design.md`, and `wireframes.html`; Harness 0.37.0+ joins those approved UI sources before delivery. Design compilation, Delivery, and Activation require the applicable approved upstream inputs. SEO Growth Review can use public evidence alone, but verified first-party conclusions consume matching Activation sources when they exist.
 
 ### Zero-to-one flow
 
-1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the six Product Delivery Harness skills, then use that host for the run.
+1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the seven Product Delivery Harness skills, then use that host for the run.
 2. Start a fresh host session, confirm the skill is visible, and invoke `delivery-harness`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
@@ -391,6 +409,10 @@ Use $delivery-harness to implement this plan and push the verified branch. I wil
 
 ```text
 The delivery is complete. Use $product-activation for the production release targets, configure only the exact external actions I approve, verify each result by read-back, and stop after recording activation readiness and the measurement-window handoff.
+```
+
+```text
+Use $seo-growth-review to audit this production website, reconcile Search Console visibility with GA4 on-site outcomes, prioritize evidence-backed keyword and page opportunities, and route every proposed change without modifying the site or external accounts.
 ```
 
 ```text
@@ -434,13 +456,14 @@ Edit only the canonical sources in `skills/`, then run the core verification sui
 ```bash
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts skills/seo-growth-review/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 python -m unittest discover -s skills/product-activation/scripts/tests -v
+python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 git diff --check
 ```
 
@@ -476,8 +499,7 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
-- **0.37.0** — UI design is now a separate approved skill boundary. `product-definition-builder` freezes product scope plus complete frontend/backend architecture and stack decisions, then stops. New `ui-design-builder` owns human UI/style/motion/media intake, `wireframes/4` typed image/motion placeholders, W1–W5 structural scoring, `frontend-design` Style Integration, connected HiFi HTML, Impeccable critique/audit, H1–H9 scoring, Visual Approval, conditional GSAP routing, optional exactly authorized Higgsfield MCP motion generation, and the Design System Need Gate. Schema-4 wireframes now freeze exact static, action, feedback, and alternate-state copy plus bounded dynamic display contracts before grading or structural approval; the copy owner, locale, and date are recorded in `ui-design.md`, and later wording changes reopen Product Definition, Copy Freeze, responsive review, and Wireframe Approval. Formal tokens compile only after visual approval, canonical UI artifacts live under `docs/design/`, and Harness 0.37.0+ requires a frozen approved `ui-design.md` for UI delivery while retaining legacy design paths for read compatibility. Product Definition's read-only analysis graph now uses the current host's native sibling-agent runner with the same role and parent-ownership contract across Codex, Claude Code, Pi, and generic hosts. Breaking skill-bundle change.
-
+- **0.37.0** — UI design is now a separate approved skill boundary. `product-definition-builder` freezes product scope plus complete frontend/backend architecture and stack decisions, then stops. New `ui-design-builder` owns human UI/style/motion/media intake, `wireframes/4` typed image/motion placeholders, W1–W5 structural scoring, `frontend-design` Style Integration, connected HiFi HTML, Impeccable critique/audit, H1–H9 scoring, Visual Approval, conditional GSAP routing, optional exactly authorized Higgsfield MCP motion generation, and the Design System Need Gate. Schema-4 wireframes now freeze exact static, action, feedback, and alternate-state copy plus bounded dynamic display contracts before grading or structural approval; the copy owner, locale, and date are recorded in `ui-design.md`, and later wording changes reopen Product Definition, Copy Freeze, responsive review, and Wireframe Approval. Formal tokens compile only after visual approval, canonical UI artifacts live under `docs/design/`, and Harness 0.37.0+ requires a frozen approved `ui-design.md` for UI delivery while retaining legacy design paths for read compatibility. Product Definition's read-only analysis graph now uses the current host's native sibling-agent runner with the same role and parent-ownership contract across Codex, Claude Code, Pi, and generic hosts. The seventh bundled skill, `seo-growth-review`, adds an optional read-only post-release pass over production crawl/index evidence, verified Search Console and GA4 sources when available, current Trends or Keyword Planner estimates, and user-provided exports. It keeps search visibility distinct from on-site behavior, labels claims as observed, estimated, or hypothesis, ranks query-to-page opportunities, and routes every follow-up without changing the site or external accounts. Breaking skill-bundle change.
 - **0.36.0** — Product-first decisions now have an approval spine. Post-draft market research reconciles the core candidate before a human Stack Decision Checkpoint and Product Definition Approval; UI wireframes start only from that approved revision, while headless products still require product approval. New technology choices are presented as coherent bundles and become executable only as `Required`, `Selected`, or `Approved`; `Recommended` and `Provisional` block Harness. Frontend separates language, package manager, component foundation such as shadcn/ui, and styling; mobile destinations are separate from native/cross-platform and framework decisions. PRDs add Data & Trust and AI/Automation gates, measurable metric ownership, structured assumptions/open questions, and enhancement-wide impact records. The new `check_product_package.py` validates the three core files and is reused by the Harness frozen join when the approval marker is present. Breaking skill-bundle change.
 - **0.35.5** — New `scripts/parity_capture.py`: the Final Visual Parity Loop becomes executable — it enumerates the route×breakpoint×state matrix from PLAN `ui_surfaces`, drives the agent-browser CLI to capture the design-reference render and the implemented page at the same viewport (`-target.png`/`-actual.png` pairs under `docs/goal/evidence/parity/`), runs a DOM geometry probe per app page (horizontal overflow plus visible overlap findings) for the `layout_check` attestation, and writes `manifest.json` plus a self-contained `parity-board.html` for the judgment; a small per-run route map supplies reference selectors and optional state triggers, the ready state captures without a trigger, and manual capture remains the no-CLI fallback. Production smoke gets its first content definition: UI-bearing candidates re-capture parity at the production URL into `docs/goal/evidence/production/` (promotion contract condition 7, deployment contract, seeded AGENTS.md), so a deploy that drifted from the design reference is a recorded finding instead of a post-deploy surprise.
 - **0.35.4** — Direct small work now commits with the structured subject too: the seeded `AGENTS.md` and `commit-convention.md` require `<type>(<scope>): <imperative summary>` for every commit outside a managed run — including plan-mode edits made in place without a branch — with trailers optional and a shipped example pair (`fix(dashboard): correct save-button copy`, `chore(deps): bump playwright to 1.49`). The subject is the record: small changes between runs leave a searchable, typed trail in git history.
