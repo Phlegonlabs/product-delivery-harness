@@ -10,14 +10,14 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.36.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.37.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
 
 Repositorio de skills para convertir una idea de producto o una solicitud de cambio en un flujo de entrega verificado con Codex, Claude Code, Pi o cualquier host que descubra un directorio de skills de usuario.
 
-No es una colección de prompts. La suite de skills separa la definición del producto, el diseño visual, la ejecución de ingeniería y la revisión de seguridad de código, para que cada etapa tenga una única fuente de verdad, una entrega con límites claros y su propia verificación.
+No es una colección de prompts. La suite de skills separa la definición del producto, el diseño visual, la ejecución de ingeniería, la revisión de seguridad de código, la activación y la revisión post-release de crecimiento orgánico, para que cada etapa tenga una única fuente de verdad, una entrega con límites claros y su propia verificación.
 
 > Define el producto. Compila el diseño. Entrega software verificado.
 
@@ -30,6 +30,7 @@ No es una colección de prompts. La suite de skills separa la definición del pr
 | Un cambio acotado en un repositorio existente | `delivery-harness` | Implementación directa para trabajo pequeño, o un flujo gestionado PLAN/RUN para trabajo grande |
 | Un candidato de código integrado y fijado | `code-security-review` | Una revisión de seguridad de solo lectura, sobre el SHA exacto, con hallazgos validados de source-to-sink y brechas de cobertura explícitas |
 | Un release entregado que necesita configuración externa | `product-activation` | Acciones de console autorizadas con exactitud, fuentes de medición verificadas y readiness de activación target por target |
+| Un sitio público en producción que necesita análisis SEO o de crecimiento orgánico | `seo-growth-review` | Una revisión técnica y de medición de solo lectura, oportunidades de keyword/página ordenadas por evidencia y follow-ups enrutados |
 
 Cada skill incluido se puede invocar por separado; el pipeline completo es opcional. Cada modo igual valida sus inputs y dependencias declaradas.
 
@@ -45,6 +46,7 @@ Cada skill incluido se puede invocar por separado; el pipeline completo es opcio
 - **Los runtime bindings son explícitos.** `lease-worker` deriva provider, driver, model, effort y ejes de runtime portables del directive seleccionado, acepta `--task-thread-id` solo para app tasks, acepta un target exacto existente y materializa un target exacto nuevo solo desde un wildcard grant activo, sin ampliar la autoridad.
 - **Tener capacidad no es tener permiso.** Un runtime puede poder hacer push o limpieza, pero cada acción sigue necesitando autorización exacta.
 - **La activación se lee de vuelta.** La configuración externa queda fuera de PLAN/RUN, liga la aprobación a un action digest exacto y solo se considera verified tras un read-back independiente y evidencia de comportamiento.
+- **El crecimiento SEO se apoya en evidencia.** La revisión SEO post-release queda en solo lectura, separa la visibilidad de Search Console del comportamiento on-site de GA4, etiqueta estimaciones e hipótesis y enruta cada cambio a su workflow dueño.
 - **La evidencia sigue al SHA.** Un commit nuevo invalida la evidencia previa de gates y UI del head anterior.
 - **La evidencia UI demuestra layout, no píxeles.** Los runs fijados a harness 0.34.0 o posterior registran un `layout_check` en cada fila de evidencia route-breakpoint-state desde un escaneo de geometría en navegador real; cada tarea de UI clasifica su impacto (`none`/`style`/`structure`/`both`) antes de la aceptación, las desviaciones de paridad aceptadas van a un deviation ledger con cita, y el motion enviado traza su decisión del Motion Need Gate del PRD. Los runs fijados a 0.35.0 o posterior también verifican por máquina el `deviation_ledger` y un `ui_impact_summary` por misión.
 - **Los runs completados se guardan.** Tras la promoción, `scripts/archive_run.py` mueve todo el conjunto de coordinación — PLAN, RUN, decisiones, backlog, evidencia, vista de tareas — a `docs/goal/archived/<timestamp>-<run-id>/` tras listar los movimientos en seco, nunca borra, y el commit de archivo sigue la misma ruta de promoción hacia `main`. La vista de tareas termina con un Update Log mantenido a mano que el renderer preserva literal: tras un plan completado, cada actualización del owner o de un agent que aún no esté en el PRD queda ahí como una fila datada, y el conjunto archivado referencia su PRD solo por hash congelado — el PRD nunca entra al archivo y sigue siendo la referencia viva.
@@ -62,6 +64,7 @@ Cada skill incluido se puede invocar por separado; el pipeline completo es opcio
 | `delivery-harness` | Size gate compartido, PLAN/RUN, autorización, verificación local e integración, más la referencia de adaptadores de runtime (`references/runtime-adapters.md`) que contiene un contrato compartido y una sección de provider por host (Codex, Claude Code, Pi o generic) | Trabajo directo o `PLAN.md` + `RUN.md` |
 | `code-security-review` | Revisión de seguridad de solo lectura tras la implementación y la integración unificada, preferentemente en un agente sibling fresco; el penetration testing activo y la remediación quedan fuera de este skill | Decisión de SHA exacto, cobertura de trust boundaries, hallazgos validados y tests de remediación |
 | `product-activation` | Configuración post-entrega para targets web, iOS y browser-extension, incluyendo capability routing, autorización exacta de acciones externas, read-back, fuentes de medición y handoff del outcome review | `docs/ACTIVATION.md` |
+| `seo-growth-review` | SEO técnico post-release de solo lectura, integridad de medición, keyword research, diagnóstico de tráfico orgánico y priorización de oportunidades query-to-page | Revisión inline por defecto; informe datado opcional con pedido explícito |
 
 El núcleo de entrega toma una decisión de tamaño antes de invocar la orquestación gestionada:
 
@@ -92,13 +95,15 @@ flowchart LR
   Candidate --> Main["Autorización separada de fast-forward\nSHA exacto a main"]
   Main --> Activate["product-activation\nconfiguración externa + read-back"]
   Activate --> Outcome["Fuentes de medición verificadas\noutcome review posterior"]
+  Activate -.-> SEO["seo-growth-review\nrevisión orgánica opcional"]
+  SEO -.-> Outcome
 ```
 
-Puedes empezar en cualquier etapa. `product-definition-builder` termina en una Product Definition aprobada para todo producto y, cuando hay UI, en `wireframes.html` aprobado. La fase visual opcional añade el contrato visual activo; Harness implementa solo el resultado congelado y aprobado, y security review y activation conservan sus límites posteriores.
+Puedes empezar en cualquier etapa. `product-definition-builder` termina en una Product Definition aprobada para todo producto y, cuando hay UI, en `wireframes.html` aprobado. La fase visual opcional añade el contrato visual activo; Harness implementa solo el resultado congelado y aprobado, y security review y activation conservan sus límites posteriores. `seo-growth-review` es un análisis posterior opcional y de solo lectura; nunca reabre Delivery ni ejecuta los cambios que recomienda.
 
 ### Ciclo de vida completo de los skills
 
-El ciclo de vida completo a través de los cinco skills, con cada gate y los mecanismos transversales:
+El ciclo de vida completo a través de los seis skills, con cada gate y los mecanismos transversales:
 
 ```mermaid
 flowchart TB
@@ -191,6 +196,14 @@ flowchart TB
         profiles --> capability --> actions --> ready
     end
 
+    subgraph SEO["seo-growth-review — revisión post-release opcional"]
+        direction TB
+        seo_sources["Páginas de producción + fuentes verificadas<br/>Search Console / GA4 / estimaciones"]
+        seo_review["SEO técnico + integridad de medición<br/>oportunidades query-to-page"]
+        seo_route["Follow-ups priorizados y enrutados<br/>sin mutación directa"]
+        seo_sources --> seo_review --> seo_route
+    end
+
     subgraph OUTCOME["Revisión de outcome post-release"]
         outcome["outcome-review.md<br/>(a pedido del owner, tras la ventana de medición)"]
         verdict{{"Veredicto: no_change | enhancement | incident"}}
@@ -214,6 +227,8 @@ flowchart TB
     gates2 --> handoff
     status --> profiles
     ready --> outcome
+    ready -.-> seo_sources
+    seo_route -.-> outcome
     verdict -.->|siguiente solicitud de enhancement| interview
 ```
 
@@ -222,6 +237,8 @@ Product Definition Approval, UI Wireframe Approval y el merge a `main` son gates
 Para cada release desplegable, `docs/DEPLOYMENT.md` es el handoff del operador. Product Definition lo siembra; Delivery Harness lo reconcilia contra las declaraciones de entorno registradas, el CI y el código de auth/integración antes del push, y luego registra el resultado de despliegue de solo lectura. Cada unidad publicada de forma independiente recibe un nombre de surface en minúsculas: producción usa el nombre canónico `<product-slug>-<surface-suffix>` sin `-prod`, y desarrollo usa ese mismo nombre más `-dev`. Los sufijos normales son `web`, `api` y `extension`; los artifacts nativos y las unidades independientes de admin, worker, jobs, agent, webhook, realtime o CLI usan un sufijo descriptivo propio. El provider y la tienda quedan separados salvo que sus artifacts sean realmente distintos. El registro también lista los nombres exactos de secretos y variables, su ubicación en preview y producción, y tareas de consolas externas como las URLs de callback de auth, pero nunca guarda valores de secretos.
 
 Después de la entrega, `product-activation` crea o reconcilia `docs/ACTIVATION.md`, selecciona los perfiles aplicables de web, iOS o browser-extension, usa la ruta más segura disponible entre connector/API/CLI/Browser/Computer Use y ejecuta solo acciones autorizadas de forma exacta. Las capabilities y la evidencia se ligan al target, entorno, SHA fuente e identidad de artifact/build exactos; el resultado coincidente más nuevo controla el readiness. Registra la configuración separada de la verificación, nunca guarda valores de secretos, mantiene los targets híbridos no soportados fuera de su gate y entrega las fuentes `MS-*` verificadas que coincidan a la revisión de outcome posterior.
+
+Después de la activación, o cuando ya exista evidencia suficiente de producción, `seo-growth-review` puede ejecutarse como una pasada independiente de solo lectura. Audita el comportamiento actual de crawl/index, comprueba el scope de medición, separa la visibilidad de búsqueda de Search Console del comportamiento on-site de GA4, prioriza oportunidades de keyword y página con evidencia observed, estimated o hypothesis, y enruta la configuración externa, el contrato de producto, la implementación, el connector o la observación posterior al owner correcto. No incluye clientes API ni credenciales, no publica contenido, no cambia consolas externas, no promete rankings y no exige dashboard.
 
 El bucle se cierra en ambos extremos. Research-first decide si redactar; el market research post-borrador reconcilia el candidate antes de aprobar stack y producto. Las métricas ahora incluyen baseline, target/guardrail, ventana, fuente/método y owner para que el outcome review tenga un contrato medible.
 
@@ -320,7 +337,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Configuración más rápida
 
-Clona el repositorio y ejecuta el instalador. Mueve cualquier copia existente a un solo backup con timestamp bajo `~/.agents/skill-backups/product-delivery-harness/`, copia los cinco skills de Product Delivery Harness en `~/.agents/skills/` y verifica cada `SKILL.md` copiado:
+Clona el repositorio y ejecuta el instalador. Mueve cualquier copia existente a un solo backup con timestamp bajo `~/.agents/skill-backups/product-delivery-harness/`, copia los seis skills de Product Delivery Harness en `~/.agents/skills/` y verifica cada `SKILL.md` copiado:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -337,18 +354,19 @@ cp -r product-delivery-harness/skills/delivery-harness \
       product-delivery-harness/skills/design-system-compiler \
       product-delivery-harness/skills/code-security-review \
       product-delivery-harness/skills/product-activation \
+      product-delivery-harness/skills/seo-growth-review \
       ~/.agents/skills/
 ```
 
-Si el checkout tiene directorios locales `__pycache__` bajo `skills/`, exclúyelos o bórralos de la copia — los hosts nunca necesitan el bytecode. En Windows, `Copy-Item -Recurse` hace lo mismo. El instalador es también el actualizador: volver a ejecutarlo respalda las copias anteriores y las reemplaza. Una actualización necesita aprobación explícita de install/update y ninguna sesión activa que use los skills. Copia los cinco directorios actuales, verifica que sus archivos coincidan con el checkout y arranca una sesión fresca del host. Restaura el backup si la verificación falla; nunca sobrescribas ni borres las copias anteriores.
+Si el checkout tiene directorios locales `__pycache__` bajo `skills/`, exclúyelos o bórralos de la copia — los hosts nunca necesitan el bytecode. En Windows, `Copy-Item -Recurse` hace lo mismo. El instalador es también el actualizador: volver a ejecutarlo respalda las copias anteriores y las reemplaza. Una actualización necesita aprobación explícita de install/update y ninguna sesión activa que use los skills. Copia los seis directorios actuales, verifica que sus archivos coincidan con el checkout y arranca una sesión fresca del host. Restaura el backup si la verificación falla; nunca sobrescribas ni borres las copias anteriores.
 
 Al actualizar desde 0.23 o anterior, archiva los directorios heredados bajo sus IDs originales (archive the legacy directories under their original IDs) en ese mismo backup. Luego instala sus reemplazos — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder` y `product-design-builder` → `design-system-compiler` — más el skill nuevo `product-activation`. Después de copiar, verifica que los tres IDs heredados ya no estén en `~/.agents/skills/`; si no, el host descubrirá skills duplicados con triggers solapados.
 
-Los cinco skills se pueden invocar por separado, pero los modos cross-skill validan dependencias. El checker core de Product Definition une PRD, arquitectura y stack; la validación de wireframes añade el checker UI. `design-system-compiler`, Delivery y Activation exigen primero Product Definition y Stack Checkpoint aprobados antes de consumir sus inputs posteriores.
+Los seis skills se pueden invocar por separado, pero los modos cross-skill validan dependencias. El checker core de Product Definition une PRD, arquitectura y stack; la validación de wireframes añade el checker UI. `design-system-compiler`, Delivery y Activation exigen primero Product Definition y Stack Checkpoint aprobados antes de consumir sus inputs posteriores. SEO Growth Review puede usar solo evidencia pública, pero las conclusiones first-party verificadas consumen fuentes de Activation coincidentes cuando existen.
 
 ### Flujo Zero-to-one
 
-1. Instala un host soportado (Codex, Claude Code, Pi o cualquier host que descubra `~/.agents/skills/`) y los cinco skills de Product Delivery Harness, y usa ese host para el run.
+1. Instala un host soportado (Codex, Claude Code, Pi o cualquier host que descubra `~/.agents/skills/`) y los seis skills de Product Delivery Harness, y usa ese host para el run.
 2. Arranca una sesión fresca del host, confirma que el skill es visible e invoca `delivery-harness`.
 3. Deja que el size gate elija trabajo directo o PLAN/RUN; no pre-crees workers para trabajo pequeño.
 4. Para un run grande, mantén un solo host activo a la vez y cierra/revisa cada wave antes de un handoff en el mismo repositorio.
@@ -387,6 +405,10 @@ Usa $delivery-harness para implementar este plan y hacer push de la branch verif
 
 ```text
 La entrega está completa. Usa $product-activation para los targets de release de producción, configura solo las acciones externas exactas que apruebo, verifica cada resultado por read-back, y detente después de registrar el readiness de activación y el handoff de la ventana de medición.
+```
+
+```text
+Usa $seo-growth-review para auditar este sitio en producción, reconciliar la visibilidad de Search Console con los resultados on-site de GA4, priorizar oportunidades de keyword y página basadas en evidencia y enrutar cada cambio propuesto sin modificar el sitio ni las cuentas externas.
 ```
 
 ```text
@@ -430,12 +452,13 @@ Edita solo las fuentes canónicas en `skills/` y luego ejecuta la suite de verif
 ```bash
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts skills/seo-growth-review/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 python -m unittest discover -s skills/product-activation/scripts/tests -v
+python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 git diff --check
 ```
 
@@ -471,6 +494,7 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
 
+- **0.37.0** — Añadió `seo-growth-review` como el sexto skill incluido. Es una pasada post-release opcional y de solo lectura sobre evidencia de crawl/index de producción, fuentes verificadas de Search Console y GA4 cuando existen, estimaciones actuales de Trends o Keyword Planner y exports proporcionados por el usuario. Mantiene separadas la visibilidad de búsqueda y el comportamiento on-site, etiqueta cada afirmación como observed, estimated o hypothesis, prioriza oportunidades query-to-page y enruta la configuración externa a Product Activation, los cambios de contrato a Product Definition, la implementación a Delivery, el acceso API faltante a un connector y los datos retrasados a observación posterior. No incluye cliente ni credencial de provider, no modifica el sitio ni sistemas externos, no promete rankings y no exige dashboard. Cambio breaking del skill-bundle.
 - **0.36.0** — Las decisiones product-first ganan una ruta de aprobación completa. El market research post-borrador reconcilia el candidate core antes del Stack Decision Checkpoint y Product Definition Approval humanos; los wireframes UI parten solo de esa revisión aprobada, y los productos headless siguen necesitando aprobación. Las opciones técnicas se presentan como bundles coherentes y solo `Required`, `Selected` o `Approved` son ejecutables; `Recommended` y `Provisional` bloquean Harness. Frontend separa lenguaje, package manager, component foundation como shadcn/ui y styling; los destinos móviles se separan de native/cross-platform y framework. El PRD añade gates de Data & Trust y AI/Automation, métricas con ownership, assumptions/open questions estructuradas e impacto completo de enhancements. El nuevo `check_product_package.py` valida los tres archivos core y el frozen join de Harness reutiliza el checker cuando existe el approval marker. Cambio breaking del skill-bundle.
 - **0.35.5** — Nuevo `scripts/parity_capture.py`: el Final Visual Parity Loop pasa a ser ejecutable — enumera la matriz route×breakpoint×state desde `ui_surfaces` del PLAN, conduce la CLI agent-browser para capturar el render de referencia y la página implementada al mismo viewport (pares `-target.png`/`-actual.png` bajo `docs/goal/evidence/parity/`), ejecuta una sonda de geometría DOM por página (overflow horizontal más solapamientos visibles) para la atestación `layout_check`, y escribe `manifest.json` más un `parity-board.html` autocontenido para el juicio; un pequeño route map por run aporta selectores de referencia y disparadores de estado opcionales, el estado ready se captura sin disparador, y la captura manual sigue siendo el fallback sin CLI. El production smoke recibe su primera definición de contenido: los candidatos con UI recapturan paridad contra la URL de producción en `docs/goal/evidence/production/` (condición 7 del contrato de promoción, contrato de despliegue, AGENTS.md sembrado), así un deploy que se desvió de la referencia queda como hallazgo registrado y no como sorpresa post-deploy.
 - **0.35.4** — El trabajo directo pequeño ahora también commitea con subject estructurado: el `AGENTS.md` sembrado y `commit-convention.md` exigen `<type>(<scope>): <imperative summary>` para todo commit fuera de un run gestionado — incluidas ediciones en plan-mode hechas in situ sin branch — con trailers opcionales y un par de ejemplos incluidos (`fix(dashboard): correct save-button copy`, `chore(deps): bump playwright to 1.49`). El subject es el registro: los cambios pequeños entre runs dejan un rastro tipado y buscable en la historia de git.

@@ -10,14 +10,14 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.36.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.37.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
 
 技能儲存庫，讓你用 Codex、Claude Code、Pi 或任何會探索使用者 skills 目錄的 host，把產品構想或變更需求轉化為經過驗證的交付流程。
 
-它不是提示詞集合。這套技能把產品定義、視覺設計、工程執行與程式安全審查拆開，讓每個階段都有單一真實來源、清楚的交接邊界，以及自己的驗證方式。
+它不是提示詞集合。這套技能把產品定義、視覺設計、工程執行、程式安全審查、啟用與 release 後自然流量 review 拆開，讓每個階段都有單一真實來源、清楚的交接邊界，以及自己的驗證方式。
 
 > 定義產品。編譯設計。交付已驗證的軟體。
 
@@ -30,8 +30,9 @@
 | 既有儲存庫中的明確變更 | `delivery-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 | 已固定並完成整合的程式候選 | `code-security-review` | 唯讀、綁定精確 SHA 的安全審查，包含經驗證的 source-to-sink 發現與明確的覆蓋缺口 |
 | 已交付、需要外部設定的 release | `product-activation` | 精確授權的 console 動作、已驗證的量測來源，以及逐 target 的 activation readiness |
+| 需要 SEO 或自然流量分析的 production 公開網站 | `seo-growth-review` | 唯讀技術與量測 review、按證據排序的關鍵詞／頁面機會，以及已路由的後續動作 |
 
-五個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
+六個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
 
 ## 核心保證
 
@@ -45,6 +46,7 @@
 - **Runtime binding 明確可驗證。** `lease-worker` 從選取器 directive 衍生 provider、driver、model、effort 與 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精確目標可直接沿用，新精確目標只能從已啟用的 wildcard 授權 materialize，不會擴大權限。
 - **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
 - **Activation 必須讀回驗證。** 外部設定留在 PLAN/RUN 之外，核准綁定精確 action digest，且只有獨立 read-back 與行為證據完成後才算 verified。
+- **SEO growth 必須以證據為準。** Release 後 SEO review 維持唯讀，分開 Search Console 可見度與 GA4 站內行為，明確標記估算與假設，並把每項變更交給正確 workflow。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
 - **UI 佐證證明版面，而不只是像素。** 固定到 harness 0.34.0 及之後的 RUN 會在每條 route-breakpoint-state 佐證行記錄來自真實瀏覽器幾何掃描的 `layout_check`；每個 UI 任務在驗收前分類其影響（`none`/`style`/`structure`/`both`），被接受的 parity 偏差連同引用記入 deviation ledger，上線 motion 必須追溯到 PRD Motion Need Gate 的決策。固定到 0.35.0 及之後的 RUN 還會機器校驗 `deviation_ledger` 與逐 mission 的 `ui_impact_summary`。
 - **完成的 run 會收檔。** 晉升之後，`scripts/archive_run.py` 在 dry-run 移動清單確認後，把整個協作集——PLAN、RUN、決策、backlog、證據、tasks 視圖——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不刪除，歸檔 commit 沿同一條晉升路徑落到 `main`。tasks 視圖結尾有一個 renderer 逐字保留的手寫 Update Log：plan 完成後，owner 或 agent 每一筆未進 PRD 的更新都以帶日期的一行記在那裡；歸檔集僅以凍結 hash 引用 PRD——PRD 永不進歸檔，始終是活引用。
@@ -62,6 +64,7 @@
 | `delivery-harness` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：一份共用契約，加上每個 host（Codex、Claude Code、Pi 或 generic）各一段 provider 段落 | 直接動手，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 實作與統一整合後的唯讀安全審查，優先由 fresh sibling agent 執行；主動滲透測試與修復不屬於本技能 | 精確 SHA 決策、trust-boundary 覆蓋、驗證後的發現與修復測試 |
 | `product-activation` | Web、iOS 與 browser-extension target 的交付後設定，包含 capability routing、精確外部動作授權、read-back、量測來源與 outcome-review 交接 | `docs/ACTIVATION.md` |
+| `seo-growth-review` | 唯讀的 release 後技術 SEO、量測完整性、關鍵詞研究、自然流量診斷與 query-to-page 機會排序 | 預設 inline review；明確要求時才保存日期化報告 |
 
 交付核心在啟動受管編排之前，會先做一個規模決策：
 
@@ -92,13 +95,15 @@ flowchart LR
   Candidate --> Main["另行授權 fast-forward\n精確 SHA 到 main"]
   Main --> Activate["product-activation\n外部設定 + read-back"]
   Activate --> Outcome["已驗證量測來源\n後續 outcome review"]
+  Activate -.-> SEO["seo-growth-review\n選用自然流量 review"]
+  SEO -.-> Outcome
 ```
 
-你可以從任何階段開始。`product-definition-builder` 對所有產品止於已核准的 Product Definition，UI 產品再止於已核准的 `wireframes.html`。選用視覺階段補上 active visual contract；Harness 只實作已凍結並核准的結果，security review 與 activation 維持後續邊界。
+你可以從任何階段開始。`product-definition-builder` 對所有產品止於已核准的 Product Definition，UI 產品再止於已核准的 `wireframes.html`。選用視覺階段補上 active visual contract；Harness 只實作已凍結並核准的結果，security review 與 activation 維持後續邊界。`seo-growth-review` 是更後面的選用唯讀分析，不會重開 Delivery，也不會直接執行它建議的變更。
 
 ### 完整技能生命週期
 
-五個 skill 的完整生命周期，包含每個閘門與橫切機制：
+六個 skill 的完整生命周期，包含每個閘門與橫切機制：
 
 ```mermaid
 flowchart TB
@@ -191,6 +196,14 @@ flowchart TB
         profiles --> capability --> actions --> ready
     end
 
+    subgraph SEO["seo-growth-review — 選用 release 後 review"]
+        direction TB
+        seo_sources["Production 頁面 + 已驗證來源<br/>Search Console / GA4 / estimates"]
+        seo_review["技術 SEO + 量測完整性<br/>query-to-page 機會"]
+        seo_route["按優先級路由 follow-up<br/>不直接修改"]
+        seo_sources --> seo_review --> seo_route
+    end
+
     subgraph OUTCOME["Release 後 outcome review"]
         outcome["outcome-review.md<br/>（owner 主動要求，量測窗口後）"]
         verdict{{"判定：no_change | enhancement | incident"}}
@@ -214,6 +227,8 @@ flowchart TB
     gates2 --> handoff
     status --> profiles
     ready --> outcome
+    ready -.-> seo_sources
+    seo_route -.-> outcome
     verdict -.->|下一次 enhancement 請求| interview
 ```
 
@@ -222,6 +237,8 @@ Product Definition Approval、UI Wireframe Approval 與合併到 `main` 是分�
 每個可部署版本都以 `docs/DEPLOYMENT.md` 作為操作交接文件。Product Definition 先建立骨架；Delivery Harness 在 push 前按已追蹤的環境宣告、CI 與 auth／integration 程式碼補實，部署後再以唯讀結果更新狀態。每個獨立發布單元使用一個小寫 surface 名稱：production 使用不帶 `-prod` 的標準 `<product-slug>-<surface-suffix>`，development 則在同一個名稱後加 `-dev`。常用後綴是 `web`、`api` 與 `extension`；原生 artifact，以及獨立發布的 admin、worker、job、agent、webhook、realtime 或 CLI 單元，使用各自有意義的後綴。除非 artifact 確實不同，否則 provider 與 store 名稱分開記錄。文件也會列出精確的 secret 與 variable 名稱、preview／production 放置位置，以及 auth callback URL 等外部 console 任務，但永遠不保存 secret 值。
 
 交付之後，`product-activation` 會建立或核對 `docs/ACTIVATION.md`、選擇適用的 web、iOS 或 browser-extension profiles，使用最安全可用的 connector/API/CLI/Browser/Computer Use 路線，而且只執行精確授權的動作。Capability 與 evidence 會綁定精確 target、environment、source SHA 和 artifact/build identity，並由最新的相符結果決定 readiness。它會分開記錄 configured 與 verified、不保存 secret 值、把 hybrid 產品中不支援的 target 留在 gate 之外，並把相符且已驗證的 `MS-*` 來源交給後續 outcome review。
+
+Activation 之後，或 production 證據已足夠時，`seo-growth-review` 可以獨立做一次唯讀 review。它檢查目前的 crawl/index 行為與量測範圍，分開 Search Console 的搜尋可見度和 GA4 的站內行為，按 observed、estimated 或 hypothesis 證據排序關鍵詞與頁面機會，再把外部設定、產品契約、實作、connector 或延後觀察交給正確 owner。它不內嵌 API client 或 credential、不發布內容、不改外部 console、不承諾排名，也不要求 dashboard。
 
 迴圈在兩端都閉合。Research-first 先把關是否起草；post-draft market research 會在 stack 與產品核准前對帳 candidate。Metrics 現在包含 baseline、target/guardrail、measurement window、source/method 與 owner，讓 outcome review 有可執行的量測契約。
 
@@ -321,7 +338,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安裝方式
 
-clone 儲存庫並執行安裝腳本。它會把現有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份，把五個 Product Delivery Harness skills 複製進 `~/.agents/skills/`，並驗證每個複製出來的 `SKILL.md`：
+clone 儲存庫並執行安裝腳本。它會把現有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份，把六個 Product Delivery Harness skills 複製進 `~/.agents/skills/`，並驗證每個複製出來的 `SKILL.md`：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -338,18 +355,19 @@ cp -r product-delivery-harness/skills/delivery-harness \
       product-delivery-harness/skills/design-system-compiler \
       product-delivery-harness/skills/code-security-review \
       product-delivery-harness/skills/product-activation \
+      product-delivery-harness/skills/seo-growth-review \
       ~/.agents/skills/
 ```
 
-如果 checkout 的 `skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。安裝腳本同時就是更新腳本：重跑一次會先備份舊副本再替換。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製五個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
+如果 checkout 的 `skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。安裝腳本同時就是更新腳本：重跑一次會先備份舊副本再替換。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製六個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
 
 從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到重複且觸發範圍重疊的 skills。
 
-五個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition 的 core checker 會 join PRD、architecture 與 stack decisions；wireframe 驗證再加 UI checker。`design-system-compiler`、Delivery 與 Activation 都要先確認 Product Definition 和 Stack Checkpoint 已核准，再讀取各自後續輸入。
+六個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition 的 core checker 會 join PRD、architecture 與 stack decisions；wireframe 驗證再加 UI checker。`design-system-compiler`、Delivery 與 Activation 都要先確認 Product Definition 和 Stack Checkpoint 已核准，再讀取各自後續輸入。SEO Growth Review 可只用公開證據；若要下已驗證的第一方結論，則使用相符的 Activation sources。
 
 ### Zero-to-one 流程（從零開始）
 
-1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與五個 Product Delivery Harness skills，並用該 host 執行這次交付。
+1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與六個 Product Delivery Harness skills，並用該 host 執行這次交付。
 2. 開啟新的 host session，確認技能可見，然後呼叫 `delivery-harness`。
 3. 讓規模閘決定直接工作或 PLAN/RUN；小型工作不要預先建立 worker。
 4. 大型執行一次只保留一個 active host，並在 same-repository handoff 前關閉與審查每個 wave。
@@ -388,6 +406,10 @@ Use $delivery-harness to implement this plan and push the verified branch. I wil
 
 ```text
 The delivery is complete. Use $product-activation for the production release targets, configure only the exact external actions I approve, verify each result by read-back, and stop after recording activation readiness and the measurement-window handoff.
+```
+
+```text
+Use $seo-growth-review to audit this production website, reconcile Search Console visibility with GA4 on-site outcomes, prioritize evidence-backed keyword and page opportunities, and route every proposed change without modifying the site or external accounts.
 ```
 
 ```text
@@ -431,12 +453,13 @@ install.sh / install.ps1                             一鍵安裝進 ~/.agents/s
 ```bash
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts skills/seo-growth-review/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 python -m unittest discover -s skills/product-activation/scripts/tests -v
+python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 git diff --check
 ```
 
@@ -472,6 +495,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
+- **0.37.0** — 新增 `seo-growth-review` 作為第六個內建 skill。它是選用、唯讀的 release 後 review：檢查 production crawl/index 證據、可用時採用已驗證的 Search Console 與 GA4 sources，並輔以目前 Trends、Keyword Planner estimates 或使用者提供的 exports。它分開搜尋可見度和站內行為，把結論標成 observed、estimated 或 hypothesis，排序 query-to-page 機會，再把外部設定交給 Product Activation、契約變更交給 Product Definition、實作交給 Delivery、API access 缺口交給 connector、延遲資料交給後續觀察。它不內嵌 provider client 或 credential、不修改網站或外部系統、不承諾排名，也不要求 dashboard。破壞性 skill-bundle 變更。
 - **0.36.0** — Product-first 決策加入完整核准主線。草稿後 market research 先對帳核心 candidate，再進人工 Stack Decision Checkpoint 與 Product Definition Approval；UI wireframe 只能從該核准 revision 開始，headless 產品仍須產品核准。技術選項以 coherent bundles 呈現，只有 `Required`、`Selected`、`Approved` 可實作；`Recommended` 與 `Provisional` 會阻擋 Harness。Frontend 分開 language、package manager、shadcn/ui 這類 component foundation 與 styling；mobile destination 與 native/cross-platform、framework 決策分離。PRD 新增 Data & Trust、AI/Automation gates、可量測 metric ownership、結構化 assumptions/open questions，以及涵蓋全契約的 enhancement impact record。新 `check_product_package.py` 驗證三份核心文件，Harness 在 approval marker 存在時沿用同一 checker。破壞性 skill-bundle 變更。
 - **0.35.5** — 新增 `scripts/parity_capture.py`：Final Visual Parity Loop 變為可執行——從 PLAN `ui_surfaces` 列舉 route×breakpoint×state 矩陣，驅動 agent-browser CLI 以同一 viewport 拍攝設計參考渲染與實作頁面（`docs/goal/evidence/parity/` 下的 `-target.png`/`-actual.png` 配對），每頁跑 DOM 幾何探針（水平溢位＋可見重疊）供 `layout_check` attestation 引用，並寫出 `manifest.json` 與自包含的 `parity-board.html` 供判定；每 run 一份小 route map 提供參考選擇器與可選狀態觸發，ready 狀態免觸發即可拍，無 CLI 時手動拍攝仍是後備。Production smoke 首次獲得內容定義：帶 UI 的候選用同一腳本對正式 URL 重拍 parity 到 `docs/goal/evidence/production/`（晉升合約第 7 條、部署合約、種子 AGENTS.md）——部署偏離設計參考從此是被記錄的 finding，而不是 deploy 後的驚喜。
 - **0.35.4** — 小型直接工作的 commit 現在也用結構化 subject：種子 `AGENTS.md` 與 `commit-convention.md` 要求 managed run 之外的每個 commit——包括 plan-mode 原地修改、不開分支——使用 `<type>(<scope>): <imperative summary>`，尾碼可選，並附範例（`fix(dashboard): correct save-button copy`、`chore(deps): bump playwright to 1.49`）。subject 即記錄：run 之間的小改動在 git 歷史裡留下可搜尋、帶類型的軌跡。

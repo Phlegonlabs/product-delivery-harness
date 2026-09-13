@@ -25,6 +25,7 @@ class InstallScriptTests(unittest.TestCase):
         "design-system-compiler",
         "code-security-review",
         "product-activation",
+        "seo-growth-review",
     )
 
     def setUp(self) -> None:
@@ -36,7 +37,7 @@ class InstallScriptTests(unittest.TestCase):
         self.addCleanup(self._home.cleanup)
         self.home = Path(self._home.name)
 
-    def test_installs_five_skills_and_backs_up_existing_copies(self) -> None:
+    def test_installs_six_skills_and_backs_up_existing_copies(self) -> None:
         installed = self.home / ".agents" / "skills"
         installed.mkdir(parents=True)
         legacy = installed / "delivery-harness"

@@ -59,7 +59,7 @@
 
 ## Update Local Skills
 
-- Every push that changes `skills/` is followed by the local skills update, in the same turn. Quiesce active skill-using sessions first. Move any existing `delivery-harness`, `product-definition-builder`, `design-system-compiler`, `product-activation`, `code-security-review`, `full-harness`, `prd-builder`, and `product-design-builder` directories to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the discovery root; never overwrite or delete them. Copy the five current repository skills into `~/.agents/skills/`, verify their files match canonical, verify the three legacy IDs are absent from that discovery directory, then restart the host. Restore the backup if verification fails. This step is mandatory after a push, never deferred to a later request.
+- Every push that changes `skills/` is followed by the local skills update, in the same turn. Quiesce active skill-using sessions first. Move any existing `delivery-harness`, `product-definition-builder`, `design-system-compiler`, `product-activation`, `seo-growth-review`, `code-security-review`, `full-harness`, `prd-builder`, and `product-design-builder` directories to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the discovery root; never overwrite or delete them. Copy the six current repository skills into `~/.agents/skills/`, verify their files match canonical, verify the three legacy IDs are absent from that discovery directory, then restart the host. Restore the backup if verification fails. This step is mandatory after a push, never deferred to a later request.
 - Per-runtime copies (Codex plugin, Claude plugin, Pi extension) stay retired. Do not install, update, or reinstall them.
 
 ## Required Verification
@@ -69,13 +69,14 @@ Edit only the canonical sources in `skills/`, then run all of this from the repo
 ```text
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts skills/seo-growth-review/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 python -m unittest discover -s skills/product-activation/scripts/tests -v
+python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 git diff --check
 ```
 
