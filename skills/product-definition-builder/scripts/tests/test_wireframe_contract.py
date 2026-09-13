@@ -17,9 +17,15 @@ prd_ui_contract = importlib.import_module("prd_ui_contract")
 
 def wireframe_data(**overrides):
     data = {
-        "schema": "wireframes/3",
+        "schema": "wireframes/4",
         "product": "Test Product",
         "approvalStatus": "approved",
+        "copyFreeze": {
+            "status": "approved",
+            "owner": "Product owner",
+            "locale": "en-US",
+            "approvedOn": "2026-09-12",
+        },
         "source": "PRD.md#UI-Surface-Contract",
         "viewports": [390, 768, 1200],
         "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
@@ -29,6 +35,7 @@ def wireframe_data(**overrides):
                 "name": "Home",
                 "route": "/home",
                 "goal": "Show the account dashboard",
+                "copyStatus": "approved",
                 "regions": [
                     {
                         "id": "R1",
@@ -36,8 +43,37 @@ def wireframe_data(**overrides):
                         "purpose": "Show the account balance",
                         "priority": "primary",
                         "span": 6,
-                        "elements": ["Balance card"],
-                        "actions": ["Refresh"],
+                        "elements": [
+                            {
+                                "kind": "static",
+                                "role": "heading",
+                                "text": "Available balance",
+                                "status": "approved",
+                                "source": "Owner-approved wireframe copy",
+                            },
+                            {
+                                "kind": "dynamic",
+                                "role": "account balance",
+                                "example": "$1,240.00",
+                                "status": "approved",
+                                "source": "Account balance display contract",
+                                "contract": {
+                                    "source": "account.available_balance",
+                                    "order": "single value",
+                                    "format": "localized currency",
+                                    "count": "one",
+                                    "length": "up to 18 characters",
+                                    "fallback": "Balance unavailable",
+                                },
+                            },
+                        ],
+                        "actions": [
+                            {
+                                "label": "Refresh balance",
+                                "status": "approved",
+                                "source": "Owner-approved wireframe copy",
+                            }
+                        ],
                     }
                 ],
                 "neverDrop": ["R1"],
@@ -71,7 +107,7 @@ def wireframe_data(**overrides):
                     {
                         "id": "ready",
                         "label": "Ready",
-                        "treatments": {"R1": "Show the balance"},
+                        "treatments": {},
                     }
                 ],
             }
@@ -79,13 +115,42 @@ def wireframe_data(**overrides):
         "flows": [
             {
                 "from": "UI-001",
-                "trigger": "Refresh",
+                "trigger": "Refresh balance",
                 "to": "Updated summary",
                 "presentation": "feedback",
+                "feedback": {
+                    "kind": "static",
+                    "role": "success status",
+                    "text": "Your balance is up to date.",
+                    "status": "approved",
+                    "source": "Owner-approved feedback copy",
+                },
             }
         ],
     }
     data.update(overrides)
+    return data
+
+
+def legacy_wireframe_data(schema):
+    data = wireframe_data()
+    data["schema"] = schema
+    data.pop("copyFreeze")
+    for flow in data.get("flows", []):
+        flow.pop("feedback", None)
+    for screen in data["screens"]:
+        screen.pop("copyStatus")
+        for region in screen["regions"]:
+            region["elements"] = [
+                item.get("text") or {"label": item["example"], "contract": item["contract"]}
+                for item in region["elements"]
+            ]
+            region["actions"] = [item["label"] for item in region["actions"]]
+        for screen_state in screen["states"]:
+            screen_state["treatments"] = {
+                region_id: treatment["layout"]
+                for region_id, treatment in screen_state["treatments"].items()
+            }
     return data
 
 
@@ -97,6 +162,9 @@ def render_html(data):
         '<nav id="page-list">All pages</nav>'
         '<div id="responsive-controls" data-responsive-target="390"></div>'
         '<div id="state-controls">textContent</div>'
+        '<dialog id="copy-inventory"></dialog>'
+        '<aside id="inspector"></aside>'
+        '<div class="product-copy">copyFreeze</div>'
         '<div data-layout-qa="pass"></div>'
         '<script>function runLayoutQa(){}</script>'
         "</body></html>"
@@ -107,6 +175,7 @@ def prd_markdown(
     route="/home",
     states="ready",
     responsive="viewports: 390, 768, 1200",
+    copy_status="approved",
     surface_id="UI-001",
 ):
     return (
@@ -117,6 +186,7 @@ def prd_markdown(
         f"- `route`: {route}\n"
         f"- `states`: {states}\n"
         f"- `responsive`: {responsive}\n"
+        f"- `copy`: {copy_status} — static copy is implementation-bound\n"
         "<!-- ui-surface-contract:end -->\n"
     )
 
@@ -331,6 +401,115 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         problems = validate_html(render_html(data), require_approved=True)
         self.assertTrue(any("must be 'approved'" in p for p in problems))
 
+    def test_copy_freeze_requires_approved_copy_and_an_approval_date(self):
+        data = wireframe_data()
+        data["screens"][0]["regions"][0]["elements"][0]["status"] = "draft"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must be 'approved' when copy is frozen", joined)
+
+        data = wireframe_data()
+        data["copyFreeze"]["approvedOn"] = "pending"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must be an ISO YYYY-MM-DD date", joined)
+
+        data = wireframe_data()
+        data["copyFreeze"]["locale"] = "English_US"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must be a BCP 47-style language tag", joined)
+
+        data = wireframe_data()
+        data["copyFreeze"]["status"] = "draft"
+        data["copyFreeze"]["approvedOn"] = "pending"
+        data["approvalStatus"] = "draft"
+        self.assertEqual([], validate_html(render_html(data)))
+        joined = "\n".join(
+            validate_html(render_html(data), require_approved=True)
+        )
+        self.assertIn("copyFreeze.status: must be 'approved'", joined)
+
+    def test_copy_freeze_gate_precedes_structural_approval(self):
+        data = wireframe_data()
+        data["approvalStatus"] = "draft"
+        self.assertEqual(
+            [],
+            validate_html(
+                render_html(data),
+                require_filled=True,
+                require_copy_approved=True,
+            ),
+        )
+        joined = "\n".join(
+            validate_html(render_html(data), require_approved=True)
+        )
+        self.assertIn("approvalStatus: must be 'approved'", joined)
+
+        data["copyFreeze"]["status"] = "draft"
+        data["copyFreeze"]["approvedOn"] = "pending"
+        joined = "\n".join(validate_html(render_html(data), require_copy_approved=True))
+        self.assertIn("copyFreeze.status: must be 'approved'", joined)
+
+        data["approvalStatus"] = "approved"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("before structural approvalStatus", joined)
+
+        legacy = legacy_wireframe_data("wireframes/3")
+        joined = "\n".join(
+            validate_html(render_html(legacy), require_copy_approved=True)
+        )
+        self.assertIn("must be 'wireframes/4' for the Copy Freeze Gate", joined)
+
+    def test_dynamic_copy_requires_a_complete_display_contract(self):
+        data = wireframe_data()
+        del data["screens"][0]["regions"][0]["elements"][1]["contract"][
+            "fallback"
+        ]
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("contract.fallback", joined)
+
+    def test_v4_rejects_unstructured_elements_actions_and_screen_copy_status(self):
+        data = wireframe_data()
+        data["screens"][0]["regions"][0]["elements"] = ["Untracked copy"]
+        data["screens"][0]["regions"][0]["actions"] = ["Refresh balance"]
+        data["screens"][0]["copyStatus"] = "draft"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("elements[0]: must be an object in wireframes/4", joined)
+        self.assertIn("actions[0]: must be an object in wireframes/4", joined)
+        self.assertIn("copyStatus: must be 'approved' when copy is frozen", joined)
+
+    def test_alternate_state_requires_explicit_product_or_assistive_copy(self):
+        data = wireframe_data()
+        data["screens"][0]["states"].append(
+            {
+                "id": "error",
+                "label": "Error",
+                "treatments": {
+                    "R1": {
+                        "layout": "Keep the balance visible and add recovery",
+                        "copy": [],
+                    }
+                },
+            }
+        )
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must include product or assistive copy", joined)
+
+        data["screens"][0]["states"][1]["treatments"]["R1"]["copy"] = [
+            {
+                "kind": "static",
+                "role": "error message",
+                "text": "We could not refresh your balance. Try again.",
+                "status": "approved",
+                "source": "Owner-approved error copy",
+            }
+        ]
+        self.assertEqual([], validate_html(render_html(data)))
+
+    def test_v4_requires_ready_as_the_baseline_state(self):
+        data = wireframe_data()
+        data["screens"][0]["states"][0]["id"] = "default"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must be 'ready' as the schema-4 baseline state", joined)
+
     def test_unfilled_placeholders_only_flagged_when_required(self):
         data = wireframe_data()
         data["screens"][0]["goal"] = "Show the <placeholder> value"
@@ -411,11 +590,14 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
                 self.assertIn(expected, joined)
 
     def test_legacy_v2_projection_remains_readable(self):
-        data = wireframe_data()
-        data["schema"] = "wireframes/2"
+        data = legacy_wireframe_data("wireframes/2")
         data["flows"][0].pop("presentation")
         data["flows"][0]["trigger"] = "Historical trigger without a visible action"
         data["screens"][0]["mediaIntent"] = "historically ignored extension data"
+        self.assertEqual([], validate_html(render_html(data)))
+
+    def test_legacy_v3_projection_remains_readable(self):
+        data = legacy_wireframe_data("wireframes/3")
         self.assertEqual([], validate_html(render_html(data)))
 
     def test_actions_and_flows_must_form_one_working_local_mapping(self):
@@ -427,7 +609,7 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         data = wireframe_data()
         data["flows"][0] = {
             "from": "UI-001",
-            "trigger": "Refresh",
+            "trigger": "Refresh balance",
             "to": "UI-999",
             "presentation": "overlay",
         }
@@ -448,6 +630,11 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         data["flows"][0]["trigger"] = "Unplaced action"
         joined = "\n".join(validate_html(render_html(data)))
         self.assertIn("must match exactly one visible region action", joined)
+
+        data = wireframe_data()
+        del data["flows"][0]["feedback"]
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("flows[0].feedback: must be an object", joined)
 
     def test_responsive_contract_requires_three_complete_web_targets(self):
         data = wireframe_data()
@@ -524,6 +711,26 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             problems = check_wireframe_html.validate(html_path, prd_path=prd_path)
             self.assertTrue(any("responsive set" in problem for problem in problems))
 
+    def test_prd_join_requires_and_matches_copy_status_for_v4(self):
+        with tempfile.TemporaryDirectory() as directory:
+            html_path = Path(directory) / "wireframes.html"
+            prd_path = Path(directory) / "PRD.md"
+            html_path.write_text(render_html(wireframe_data()), encoding="utf-8")
+            prd_path.write_text(prd_markdown(copy_status="draft"), encoding="utf-8")
+            problems = check_wireframe_html.validate(html_path, prd_path=prd_path)
+            self.assertTrue(any("copy status" in problem for problem in problems))
+
+            prd_path.write_text(
+                prd_markdown().replace(
+                    "- `copy`: approved — static copy is implementation-bound\n", ""
+                ),
+                encoding="utf-8",
+            )
+            problems = check_wireframe_html.validate(html_path, prd_path=prd_path)
+            self.assertTrue(
+                any("exactly one `copy` anchor" in problem for problem in problems)
+            )
+
     def test_native_size_classes_pass_with_complete_layouts(self):
         data = wireframe_data()
         del data["viewports"]
@@ -568,6 +775,7 @@ class PrdUiContractParserTests(unittest.TestCase):
         self.assertEqual(entries["UI-001"]["states"], ["ready"])
         self.assertEqual(entries["UI-001"]["responsiveKind"], "viewports")
         self.assertEqual(entries["UI-001"]["responsiveTargets"], ["390", "768", "1200"])
+        self.assertEqual(entries["UI-001"]["copyStatus"], "approved")
 
     def test_strict_parser_rejects_missing_or_incomplete_responsive_target(self):
         missing = prd_markdown().replace(

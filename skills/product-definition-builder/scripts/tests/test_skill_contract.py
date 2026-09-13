@@ -239,6 +239,7 @@ async function agent(_prompt, options) {
         self.assertIn("- `route`: [One literal route value", contract)
         self.assertIn("- `states`: [Comma-separated state IDs", contract)
         self.assertIn("- `responsive`: [Exactly one responsive set", contract)
+        self.assertIn("- `copy`: [draft / approved / revision_requested / blocked]", contract)
         self.assertIn("invariant machine anchors", contract)
         self.assertNotIn("wireframes.md", contract)
         self.assertIn("Wireframe Approval Gate", skill)
@@ -283,8 +284,9 @@ async function agent(_prompt, options) {
             '<script id="wireframe-data" type="application/json">', 1
         )[1].split("</script>", 1)[0]
         data = json.loads(payload)
-        self.assertEqual(data["schema"], "wireframes/3")
-        self.assertGreaterEqual(len(data["viewports"]), 2)
+        self.assertEqual(data["schema"], "wireframes/4")
+        self.assertGreaterEqual(len(data["viewports"]), 3)
+        self.assertEqual(data["copyFreeze"]["status"], "draft")
         self.assertEqual(
             set(data["canvasWidths"]), {str(value) for value in data["viewports"]}
         )
@@ -294,14 +296,18 @@ async function agent(_prompt, options) {
         self.assertIn("runLayoutQa", html_template)
         self.assertIn('id="state-controls"', html_template)
         self.assertIn('id="page-list"', html_template)
+        self.assertIn('id="copy-inventory"', html_template)
+        self.assertIn('id="inspector"', html_template)
+        self.assertIn("product-copy", html_template)
         self.assertIn("All pages", html_template)
         self.assertIn("Hero Section", html_template)
         self.assertIn("textContent", html_template)
         self.assertNotIn("https://", html_template)
         self.assertIn("wireframes_html_data_json", workflow)
-        self.assertIn("wireframes/3", workflow)
+        self.assertIn("wireframes/4", workflow)
         for screen in data["screens"]:
             self.assertTrue(screen["neverDrop"])
+            self.assertEqual(screen["copyStatus"], "draft")
             self.assertEqual(
                 set(screen["responsiveLayouts"]),
                 {str(value) for value in data["viewports"]},
@@ -642,13 +648,18 @@ async function agent(_prompt, options) {
             if flow["presentation"] in {"page", "overlay"}:
                 self.assertIn(flow["to"], screen_ids)
         visible_actions = {
-            (screen["id"], action)
+            (screen["id"], action["label"])
             for screen in data["screens"]
             for region in screen["regions"]
             for action in region["actions"]
         }
         flow_actions = {(flow["from"], flow["trigger"]) for flow in data["flows"]}
         self.assertEqual(visible_actions, flow_actions)
+        feedback_flows = [
+            flow for flow in data["flows"] if flow["presentation"] == "feedback"
+        ]
+        self.assertTrue(feedback_flows)
+        self.assertTrue(all(isinstance(flow.get("feedback"), dict) for flow in feedback_flows))
         self.assertTrue(any(screen.get("traces") for screen in data["screens"]))
         self.assertTrue(
             any(
@@ -663,7 +674,9 @@ async function agent(_prompt, options) {
             for region in screen["regions"]
             for item in region["elements"]
         ]
-        self.assertTrue(any(isinstance(item, dict) for item in elements))
+        self.assertTrue(all(isinstance(item, dict) for item in elements))
+        self.assertTrue(any(item["kind"] == "static" for item in elements))
+        self.assertTrue(any(item["kind"] == "dynamic" for item in elements))
         for marker in ("flow-panel", "display-contract", "flowTarget", "Traces"):
             self.assertIn(marker, html_template)
 
@@ -793,7 +806,7 @@ async function agent(_prompt, options) {
             contract,
         )
         self.assertIn(
-            "optional deferred `mediaIntent`, `UX-*` traces, and element display contracts",
+            "optional deferred `mediaIntent` and `UX-*` traces",
             contract,
         )
         self.assertIn(
@@ -810,7 +823,7 @@ async function agent(_prompt, options) {
         self.assertIn("valid `MR-*` evidence", skill)
         self.assertIn("Ask the human owner once for style preferences and visual references", skill)
         self.assertIn("produce one recommended product-specific direction by default", skill)
-        self.assertIn("Produce three comparable directions only when", skill)
+        self.assertIn("request three alternatives", skill)
         self.assertIn(
             "A direction may call itself market-supported only when valid `MR-*` evidence applies",
             skill,
@@ -2167,11 +2180,12 @@ async function agent(_prompt, options) {
 
         self.assertIn("## Reference Pass", guide)
         for marker in (
-            "two to four of the best-known live products",
-            "A fetched real page outranks any secondhand summary of it",
-            "design gallery such as Dribbble",
-            "A gallery shot ranks below a live mainstream product",
-            "structural pattern adopted or rejected",
+            "Inspect two to four useful sources in total",
+            "Match a source to the exact screen or flow",
+            "A single desktop screenshot cannot establish mobile reflow",
+            "Use a design gallery only as a supplemental composition source",
+            "stable `WREF-*` entry",
+            "Adopt / Adapt / Avoid",
             "They never create scope",
             "override the Builder UX Direction Decision",
             "UNVALIDATED",
@@ -2182,18 +2196,80 @@ async function agent(_prompt, options) {
             skill,
         )
         self.assertIn(
-            "fetch the structures of mainstream comparable sites", skill
+            "inspect two to four exact-screen or exact-flow sources", skill
         )
-        self.assertIn(
-            "record them in `PRD.md`'s `### Wireframe Approval` as "
-            "`Wireframe references consulted:`",
-            skill,
-        )
+        self.assertIn("record stable `WREF-*` evidence", skill)
+        self.assertIn("in `PRD.md`'s `### Wireframe Approval`", skill)
         self.assertIn("Wireframe references consulted:", contract)
         self.assertIn(
             "reason the Reference Pass was skipped",
             contract,
         )
+
+    def test_wireframe_v4_freezes_copy_and_separates_reviewer_notes(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+        template = self.read("assets/templates/WIREFRAMES.template.html")
+        checker = self.read("scripts/check_wireframe_html.py")
+
+        for content in (skill, guide, contract):
+            self.assertIn("Copy Freeze", content)
+            self.assertIn("implementation-bound", content)
+        for marker in (
+            "wireframes/4",
+            'id="copy-inventory"',
+            'id="inspector"',
+            "copyFreeze",
+            "copyStatus",
+            "product-copy",
+        ):
+            self.assertIn(marker, template)
+        for marker in (
+            "COPY_CONTRACT_FIELDS",
+            "must be 'approved' when copy is frozen",
+            "alternate state",
+            "copyFreeze.status",
+        ):
+            self.assertIn(marker, checker)
+
+    def test_copy_freeze_precedes_grading_and_wireframe_approval(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+        agent = self.read("agents/openai.yaml")
+        workflow = self.read("references/dynamic-workflow.md")
+        checker = self.read("scripts/check_wireframe_html.py")
+
+        self.assertLess(
+            guide.index("## Copy Freeze Gate"),
+            guide.index("## Wireframe Approval Gate"),
+        )
+        self.assertLess(
+            contract.index("### Copy Freeze"),
+            contract.index("### Wireframe Approval"),
+        )
+        self.assertIn("Only after that passes may UI grading", skill)
+        self.assertIn("--require-filled --require-copy-approved", skill)
+        self.assertIn("approvalStatus: draft", skill)
+        self.assertIn("before structural approvalStatus can be 'approved'", checker)
+        self.assertIn("--require-copy-approved", agent)
+        self.assertIn("Copy Freeze followed by structural approval", workflow)
+
+    def test_ui_design_pass_uses_a_reference_led_direction_checkpoint(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/ui-design-pass.md")
+        references = self.read(
+            "../design-system-compiler/references/design-reference-guide.md"
+        )
+        contract = self.read("references/output-contract.md")
+
+        for content in (skill, guide, references, contract):
+            self.assertIn("Direction Checkpoint", content)
+        self.assertIn("inspect two sources by default and at most three", references)
+        self.assertIn("complementary two-source reference set", skill)
+        self.assertIn("Only `approve` authorizes the full design-reference HTML", guide)
+        self.assertIn("preserves the approved Copy Freeze verbatim", guide)
 
     def test_enhancement_classifies_ui_impact_before_drafting(self) -> None:
         skill = self.read("SKILL.md")
@@ -2205,13 +2281,13 @@ async function agent(_prompt, options) {
             "classify the delta's UI impact explicitly with the owner", interview
         )
         self.assertIn(
-            "`none` (no UI change), `structure` (screens, regions, flows, or states "
-            "change), `style` (the visual direction or design system is affected), "
+            "`none` (no UI change), `structure` (screens, regions, flows, states, "
+            "wording, or dynamic display contracts change), `style` (the visual direction or design system is affected), "
             "or `both`",
             interview,
         )
         self.assertIn(
-            "Never assume `none` because the request reads backend- or data-side",
+            "Never assume `none` because the request reads backend-, data-, or copy-side",
             interview,
         )
         self.assertIn("## Enhancement Revisions", guide)
@@ -2359,7 +2435,7 @@ async function agent(_prompt, options) {
             "`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`",
             "Any such failure on required content is a `block`",
             "`W1 PRD conformance`",
-            "`W5 Structural slop`",
+            "`W5 Structural clarity and evidence`",
             "`H3 Interaction wiring`",
             "`H6 Media and motion fit`",
             "`H7 Creative distinction`",

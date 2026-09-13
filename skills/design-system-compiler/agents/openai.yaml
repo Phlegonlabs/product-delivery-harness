@@ -1,4 +1,4 @@
 interface:
   display_name: "Design System Compiler"
   short_description: "Create a frozen design-system contract"
-  default_prompt: "Use $design-system-compiler with $frontend-design only after an explicitly requested visual-design phase has produced an approved UI Design Handoff and PRD.md records Design System Need Gate: required. Compile that handoff plus approved wireframes.html into design-system.md and design-system.json without reopening Taste, concept generation, or preview selection by default."
+  default_prompt: "Use $design-system-compiler with $frontend-design only after an explicitly requested visual-design phase has produced an approved Direction Checkpoint and UI Design Handoff, the wireframe Copy Freeze is approved, and PRD.md records Design System Need Gate: required. Compile that handoff plus approved wireframes.html into design-system.md and design-system.json without rewriting copy or reopening Taste, concept generation, or preview selection by default."

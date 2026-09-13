@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.35.5"', package)
+        self.assertIn('"version": "0.36.0"', package)
         self.assertEqual(
-            "0.35.5",
+            "0.36.0",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -936,7 +936,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.35.5"', runbook)
+        self.assertIn('"required_harness_version": "0.36.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1131,6 +1131,25 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("`requiredContentOrder` renders, in that order", row)
         self.assertIn("those fields never drop", row)
         self.assertNotIn("and never-drop fields intact", row)
+
+    def test_wireframe_copy_freeze_is_binding_through_implementation(self) -> None:
+        core = self.read("SKILL.md")
+        implementation = self.read("references/ui-implementation-contract.md")
+        updates = self.read("references/design-input-updates.md")
+        verification = self.read("references/verification-gates.md")
+        trace = self.read("references/contract-and-traceability.md")
+
+        for content in (core, implementation, updates, verification, trace):
+            self.assertIn("Copy Freeze", content)
+        self.assertIn("Reuse exact static copy and action labels verbatim", implementation)
+        self.assertIn("never ship the representative example", implementation)
+        self.assertIn("Copy editing is not implementation polish", implementation)
+        self.assertIn("No frontend mission starts until", implementation)
+        self.assertIn("Copy Freeze decision and passing `--require-copy-approved` evidence precede", implementation)
+        self.assertIn("A combined or out-of-order record is not implementation-ready", implementation)
+        self.assertIn("counts as `structure`", updates)
+        self.assertIn("never frozen copy", verification)
+        self.assertIn("`route`, `states`, `responsive`, and `copy` anchor", trace)
 
 
 

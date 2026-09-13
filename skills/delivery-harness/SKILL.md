@@ -12,8 +12,8 @@ Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN sta
 Keep upstream ownership separate:
 
 - `product-definition-builder` owns `PRD.md`, approved `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
-- `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
-- This skill implements frozen inputs, including the Builder UX Direction and either the formal design-system pair or the approved page-faithful UI target recorded when the pair is `not_required`. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
+- `PRD.md` owns UI structure, behavior, copy status, the exact responsive set, and UI Design Handoff; `wireframes.html` projects pages, states, layouts, Copy Freeze, and browser status. `design-system-compiler`, with `frontend-design`, owns the pair only when the Design System Need Gate is `required`.
+- This skill implements those frozen sources, the Builder UX Direction, and the active visual mode. It invents no product direction, copy, or design source. Builder approval proves direction conformance, not usability; every must-have `UX-*` trace still needs objective evidence.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
@@ -173,9 +173,9 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 Read `references/ui-implementation-contract.md` before UI implementation or review.
 
-- Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after approved wireframes, an approved UI Design Handoff, and `Design System Need Gate: required`. It does not reopen Taste or concept generation by default.
+- Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after Copy Freeze, later Wireframe Approval, an approved UI Design Handoff, and `Design System Need Gate: required`. It does not reopen Taste or concept generation by default.
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser layout evidence, and tolerance in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
+- Both conformance modes require the PRD's Copy Freeze to precede Wireframe Approval, then obey that copy-frozen wireframe, exact responsive set, and declared platform minimum. System mode also obeys the validated pair. Target mode requires `not_required` and obeys the approved target's scope, states, browser evidence, and tolerance. Missing input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 - After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
 - These are bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind other skills to the design, implementation, and page-quality-verification slots, plus the code-security-verification slot; the same modes, sources, and gates apply.

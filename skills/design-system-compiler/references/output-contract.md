@@ -38,10 +38,11 @@ Keep it the sole structured authority for:
 - `### UI Design Handoff` records an approved immutable target, source hash, routes and states, the exact PRD/wireframe responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
 - `wireframes.html` has human approval recorded in `PRD.md`, and each `UI-*` page matches the PRD.
 - Each UI surface has one main purpose, one task-fit layout pattern, a real route or explicit `n/a`, and a density reason.
-- Every visible region has exact copy or a bounded display contract, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
+- Every visible region carries the approved Copy Freeze: exact static strings and action labels, complete dynamic source/order/format/count/length/fallback contracts with representative examples, alternate-state copy, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
 - Public surfaces have bounded SEO fields, correct heading order, and image alt-text contracts.
 - Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a` at every responsive target.
 - Scope, routes, actions, content responsibilities, wireframe structure, responsive rearrangement, and trace IDs stay fixed across visual directions.
+- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and wireframe copy delta and requires renewed Copy Freeze approval.
 
 If any item is missing, return a bounded PRD update. Do not invent it in the design system.
 
@@ -52,6 +53,7 @@ If any item is missing, return a bounded PRD update. Do not invent it in the des
 - The Taste applicability record contains a Design Read and dial settings when applicable, or a specific `n/a` reason.
 - The human owner approved one immutable UI target, or explicitly authorized a provisional assumption.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
+- The Direction Checkpoint records owner approval of the thesis, complementary reference-role map, representative composition, typography and density intent, interaction signature, responsive consequence, and avoid list before full HTML or token compilation.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.
 - Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set contains at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and wireframe exactly.
 - Every required PRD element maps to the final registry, and no unresolved page-local exception remains.

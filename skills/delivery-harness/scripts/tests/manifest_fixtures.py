@@ -44,9 +44,9 @@ def wireframes_html(
 
     Each screen dict carries the PLAN surface's ``id``, ``route``, and
     ``states``; the shell carries every reviewer marker and stays
-    self-contained. Pass ``schema="wireframes/3"`` with three viewports for
-    the current three-viewport web contract; the default stays at the
-    legacy wireframes/2 two-target shape.
+    self-contained. Pass ``schema="wireframes/4"`` with three viewports for
+    the current Copy Freeze contract; the default stays at the legacy
+    wireframes/2 two-target shape.
     """
 
     data_screens: list[dict[str, object]] = []
@@ -54,53 +54,88 @@ def wireframes_html(
         screen_id = str(screen["id"])
         region_id = f"{screen_id}-R1"
         states = [str(state) for state in (screen.get("states") or ["ready"])]
-        data_screens.append(
-            {
-                "id": screen_id,
-                "name": f"{screen_id} screen",
-                "route": screen["route"],
-                "goal": "fixture screen",
-                "regions": [
-                    {
-                        "id": region_id,
-                        "section": "Main",
-                        "purpose": "Primary content",
-                        "priority": "primary",
-                        "span": 12,
-                        "elements": ["Fixture element"],
-                        "actions": [],
-                    }
-                ],
-                "neverDrop": [region_id],
-                "responsiveLayouts": {
-                    str(viewport): {
-                        "order": [region_id],
-                        "hidden": [],
-                        "columns": 1 if index == 0 else 12,
-                        "spans": {region_id: 1 if index == 0 else 12},
-                        "reflow": (
-                            "Stack the fixture region"
-                            if index == 0
-                            else "Use the expanded fixture grid"
-                        ),
-                        "interaction": (
-                            "Use touch-sized controls"
-                            if index == 0
-                            else "Support pointer and keyboard input"
-                        ),
-                    }
-                    for index, viewport in enumerate(viewports)
-                },
-                "states": [
-                    {
-                        "id": state,
-                        "label": state,
-                        "treatments": {region_id: "unchanged"},
-                    }
-                    for state in states
-                ],
-            }
-        )
+        data_screen = {
+            "id": screen_id,
+            "name": f"{screen_id} screen",
+            "route": screen["route"],
+            "goal": "fixture screen",
+            "regions": [
+                {
+                    "id": region_id,
+                    "section": "Main",
+                    "purpose": "Primary content",
+                    "priority": "primary",
+                    "span": 12,
+                    "elements": ["Fixture element"],
+                    "actions": [],
+                }
+            ],
+            "neverDrop": [region_id],
+            "responsiveLayouts": {
+                str(viewport): {
+                    "order": [region_id],
+                    "hidden": [],
+                    "columns": 1 if index == 0 else 12,
+                    "spans": {region_id: 1 if index == 0 else 12},
+                    "reflow": (
+                        "Stack the fixture region"
+                        if index == 0
+                        else "Use the expanded fixture grid"
+                    ),
+                    "interaction": (
+                        "Use touch-sized controls"
+                        if index == 0
+                        else "Support pointer and keyboard input"
+                    ),
+                }
+                for index, viewport in enumerate(viewports)
+            },
+            "states": [
+                {
+                    "id": state,
+                    "label": state,
+                    "treatments": {region_id: "unchanged"},
+                }
+                for state in states
+            ],
+        }
+        if schema == "wireframes/4":
+            data_screen["copyStatus"] = "approved"
+            data_screen["regions"][0]["elements"] = [
+                {
+                    "kind": "static",
+                    "role": "body",
+                    "text": "Fixture element",
+                    "status": "approved",
+                    "source": "Fixture copy decision",
+                }
+            ]
+            data_screen["states"] = [
+                {
+                    "id": state,
+                    "label": state,
+                    "treatments": (
+                        {}
+                        if index == 0
+                        else {
+                            region_id: {
+                                "layout": "Show the alternate fixture state",
+                                "copy": [
+                                    {
+                                        "kind": "static",
+                                        "role": "status",
+                                        "text": f"Fixture {state} state",
+                                        "status": "approved",
+                                        "source": "Fixture copy decision",
+                                    }
+                                ],
+                            }
+                        }
+                    ),
+                }
+                for index, state in enumerate(states)
+            ]
+        data_screens.append(data_screen)
     data = {
         "schema": schema,
         "product": product,
@@ -110,6 +145,20 @@ def wireframes_html(
         "canvasWidths": {str(viewport): viewport for viewport in viewports},
         "screens": data_screens,
     }
+    if schema == "wireframes/4":
+        data["copyFreeze"] = {
+            "status": "approved",
+            "owner": "Fixture owner",
+            "locale": "en-US",
+            "approvedOn": "2026-09-12",
+        }
+    copy_shell = (
+        '<dialog id="copy-inventory"></dialog>\n'
+        '<aside id="inspector"></aside>\n'
+        '<div class="product-copy">copyFreeze</div>\n'
+        if schema == "wireframes/4"
+        else ""
+    )
     return (
         "<!doctype html>\n"
         '<html lang="en">\n'
@@ -118,7 +167,8 @@ def wireframes_html(
         '<nav id="page-list" aria-label="All pages"></nav>\n'
         '<div id="responsive-controls" data-responsive-target="390"></div>\n'
         '<div id="state-controls"></div>\n'
-        '<div data-layout-qa="pass"></div>\n'
+        + copy_shell
+        + '<div data-layout-qa="pass"></div>\n'
         "<h2>All pages</h2>\n"
         "<main></main>\n"
         "<script>\n"

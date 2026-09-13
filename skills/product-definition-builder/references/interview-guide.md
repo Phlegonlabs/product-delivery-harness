@@ -59,9 +59,9 @@ Ask the unresolved parts of these short prompts:
 - Walk through the most important workflows: what starts each one, the key steps, and the successful end state.
 - What data does each workflow use or change, and which systems, APIs, files, messages, payments, or databases connect to it?
 - Which business rules, approvals, calculations, limits, audit needs, or forbidden outcomes govern the workflows?
-- Which actions need confirmation, progress feedback, undo, recovery, or human intervention, and which screens or notifications support them?
+- Which actions need confirmation or recovery, and which UI wording is already approved? Name the copy owner, primary locale, and whether I may draft the rest.
 
-Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, business rules, compliance boundaries, UI states, content responsibilities, and confirmation/recovery expectations. Leave database category, auth strategy, validation depth, and Builder UX closed dimensions for `AskUserQuestion`.
+Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, business rules, compliance boundaries, UI states, content responsibilities, confirmation/recovery expectations, copy owner, primary locale, approved static and action copy, alternate-state messages, dynamic content contracts, and permission to draft unresolved copy. Leave database category, auth strategy, validation depth, and Builder UX closed dimensions for `AskUserQuestion`.
 
 ### Segment 3 — Delivery, success, and risk
 
@@ -123,7 +123,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
    - Do not ask the user to choose from a fixed catalog of design-reference visual styles in this discovery interview. Record known brand references, visual constraints, product-specific goals, and disliked patterns. After the PRD UI surface contract and wireframes are approved and the market-research gap pass is available, the direct UI Design Pass asks what style the owner wants, waits for the answer, checks `design-taste-frontend` applicability, and produces one recommended product-specific direction by default. It produces three comparable directions only when the owner asks for alternatives or a recorded conflict needs comparison. That later gate is a separate decision phase.
    - Are there known design references or brand constraints?
-   - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
+   - Which headings, body copy, labels, CTAs, legal text, assistive announcements, and loading/empty/error/permission/success/recovery messages already have approved wording? Who is the human copy owner, what BCP 47 primary locale is authoritative, and may the agent draft the rest for approval? For every dynamic value, capture its source, order, format, count, length, and exact fallback rather than treating a sample as final copy.
    - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action? Use the answer to classify each key surface as `required`, `recommended`, `not_required`, or `blocked` in the Motion Need Gate.
    - For a landing page, what single message and primary action belong in the first viewport, and which details can be deferred?
    - Which regions require an image, product media, video, or animation, and what should each help the user understand or do?
@@ -166,7 +166,7 @@ Discovery is complete enough to draft when the agent can state:
 - The monetization model and both the Monetization Infrastructure Gate and Partner Channel Gate, including explicit `not_required` reasons; when applicable, the pricing/offer rules, purchase surfaces, entitlement owner, merchant-of-record/tax owner, partner motion, attribution, commission, payout, and reseller responsibilities needed to recommend current providers.
 - The UI screens or interaction points that need a canonical PRD surface entry.
 - A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, motion direction and decision authority, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
-- Approved or draft exact wording and bounded display responsibilities for visible regions, or permission to derive them.
+- The human copy owner, primary locale, approved or draft exact static/action/alternate-state wording, complete dynamic source/order/format/count/length/fallback contracts, and explicit permission to draft unresolved copy for the Copy Freeze gate.
 - Known brand references, visual hard limits, disliked patterns, and product-specific visual goals, with design-reference preference discovery explicitly deferred to the direct UI Design Pass after the PRD UI surface contract and wireframes are approved.
 - A Motion Need Gate for every key UI surface: `required`, `recommended`, `not_required`, or `blocked`, with purpose, trigger, decision source, and reduced-motion fallback; when the owner delegates the recommendation, the AI records why without expanding scope or authorizing a generation provider.
 - The success metrics and acceptance criteria.
@@ -179,7 +179,7 @@ If any item is missing and the user did not authorize assumptions, ask follow-up
 
 When `docs/product/PRD.md` (or another document clearly describing the same product) already exists, this run enhances it instead of starting fresh. Read the existing package in full first, then run a delta interview:
 
-- First, classify the delta's UI impact explicitly with the owner: `none` (no UI change), `structure` (screens, regions, flows, or states change), `style` (the visual direction or design system is affected), or `both`. Never assume `none` because the request reads backend- or data-side — most enhancements are design-side. Record the classification; it drives the wireframe revision and style-review rules in `wireframe-guide.md`'s Enhancement Revisions.
+- First, classify the delta's UI impact explicitly with the owner: `none` (no UI change), `structure` (screens, regions, flows, states, wording, or dynamic display contracts change), `style` (the visual direction or design system is affected), or `both`. Never assume `none` because the request reads backend-, data-, or copy-side — most enhancements are design-side. Record the classification; it drives the wireframe revision, Copy Freeze renewal, and style-review rules in `wireframe-guide.md`'s Enhancement Revisions.
 - Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
 - Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
 - Preserve existing `TEST-*` IDs for unchanged obligations. Add a new TEST ID only when the delta creates an uncovered obligation; do not renumber or replace existing tests during cleanup.

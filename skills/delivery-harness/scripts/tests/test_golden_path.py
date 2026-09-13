@@ -90,6 +90,7 @@ class GoldenPathTests(unittest.TestCase):
                 "- `route`: /home\n"
                 "- `states`: ready\n"
                 "- `responsive`: viewports: 390, 768, 1200\n"
+                "- `copy`: approved — static copy is implementation-bound\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -97,7 +98,7 @@ class GoldenPathTests(unittest.TestCase):
             wireframes_path.write_text(
                 wireframes_html(
                     [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
-                    schema="wireframes/3",
+                    schema="wireframes/4",
                     viewports=(390, 768, 1200),
                 ),
                 encoding="utf-8",

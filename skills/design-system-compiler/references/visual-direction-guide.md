@@ -18,7 +18,8 @@ Select the same one or two representative PRD surfaces for every direction and c
 
 - the selected `UI-*` surface and region IDs;
 - the approved wireframe's region order, grouping, element inventory, state coverage, and responsive rearrangement;
-- each surface's purpose, layout pattern, density, exact copy or display contracts, actions, states, and responsive constraints;
+- each surface's purpose, layout pattern, density, actions, states, and responsive constraints;
+- the approved Copy Freeze owner, locale, date, exact static strings, action labels, alternate-state copy, and dynamic display contracts;
 - the Builder UX Direction Decision, known brand constraints, and product-specific visual goals;
 - relevant sourced or reported `MR-*` findings and their source IDs; and
 - an instruction that scope, routes, content responsibilities, interaction behavior, and trace IDs are frozen.
@@ -43,7 +44,7 @@ Base each recommendation on the Visual Preference Brief, valid Market Design Evi
 
 Do not call a direction market-supported when prior market research was skipped, blocked, missing, `UNVALIDATED`, or irrelevant. `MR-*` and `S-*` market evidence and `REF-*` visual evidence are separate lanes.
 
-The three directions use the same frozen PRD and approved wireframe structure and states. Run `../../product-definition-builder/references/ui-design-pass.md`'s connected interactive HTML route for the full direction set before asking the human owner to `Select`, `Reject`, `Mix`, or `Check This`. Image and motion positions remain deferred-generation placeholders. A revision produces a complete versioned set of exactly three directions, not an appended fourth. In an owner-requested lightweight direction pass, each set contains one direction instead of three.
+The three directions use the same frozen PRD, approved wireframe structure and states, and Copy Freeze. Present the full direction set through `design-reference-guide.md`'s Direction Checkpoint before building connected HTML. The human owner may `Select`, `Reject`, `Mix`, or `Check This`; only a selected direction with confirmed principles proceeds through `../../product-definition-builder/references/ui-design-pass.md`'s connected interactive HTML route. Image and motion positions remain deferred-generation placeholders. A revision produces a complete versioned set of exactly three directions, not an appended fourth. In an owner-requested lightweight direction pass, each set contains one direction instead of three.
 
 For an explicit direction-reopen request, `design-system-compiler` must load `impeccable`, `frontend-design`, and the design method selected by the PRD UI Design Handoff. Load `design-taste-frontend` only where its recorded applicability allows it. If a required skill is unavailable, stop; do not use a fallback design path. The connected HTML remains non-canonical until the human owner approves it and `product-definition-builder` records it in the UI Design Handoff. Deferred media or motion prompts explore intent only; this pass does not invoke a generator, add product scope, or silently change the canonical PRD or wireframe contract.
 

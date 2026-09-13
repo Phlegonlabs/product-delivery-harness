@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 import math
 import re
@@ -38,12 +39,17 @@ REMOTE_CSS_STRING_RE = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
+LOCALE_RE = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 VALID_APPROVAL_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 VALID_PRIORITIES = {"primary", "secondary", "quiet"}
 VALID_FLOW_PRESENTATIONS = {"page", "overlay", "feedback"}
 VALID_MEDIA_TREATMENTS = {"motion-led", "imagery-led", "motion + imagery"}
-WIREFRAME_SCHEMA = "wireframes/3"
-LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2"}
+VALID_COPY_ITEM_STATUSES = {"draft", "approved"}
+VALID_COPY_KINDS = {"static", "dynamic"}
+COPY_CONTRACT_FIELDS = ("source", "order", "format", "count", "length", "fallback")
+WIREFRAME_SCHEMA = "wireframes/4"
+INTERACTIVE_WIREFRAME_SCHEMAS = {"wireframes/3", WIREFRAME_SCHEMA}
+LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2", "wireframes/3"}
 
 
 def _strip_css_comments(css: str) -> str:
@@ -259,6 +265,16 @@ def _nonempty(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _iso_date(value: Any) -> bool:
+    if not _nonempty(value):
+        return False
+    try:
+        date.fromisoformat(value.strip())
+    except ValueError:
+        return False
+    return True
+
+
 def _string_list(value: Any) -> bool:
     return isinstance(value, list) and all(_nonempty(item) for item in value)
 
@@ -276,6 +292,116 @@ def _display_element(value: Any) -> bool:
         and bool(contract)
         and all(_nonempty(key) and _nonempty(item) for key, item in contract.items())
     )
+
+
+def _validate_copy_item(
+    value: Any,
+    path: str,
+    problems: list[str],
+    *,
+    require_approved: bool,
+) -> None:
+    if not isinstance(value, dict):
+        _add(problems, path, "must be an object in wireframes/4")
+        return
+
+    kind = value.get("kind")
+    if kind not in VALID_COPY_KINDS:
+        _add(problems, f"{path}.kind", f"must be one of {sorted(VALID_COPY_KINDS)}")
+    for key in ("role", "source"):
+        if not _nonempty(value.get(key)):
+            _add(problems, f"{path}.{key}", "must be a non-empty string")
+
+    status = value.get("status")
+    if status not in VALID_COPY_ITEM_STATUSES:
+        _add(
+            problems,
+            f"{path}.status",
+            f"must be one of {sorted(VALID_COPY_ITEM_STATUSES)}",
+        )
+    elif require_approved and status != "approved":
+        _add(problems, f"{path}.status", "must be 'approved' when copy is frozen")
+
+    if kind == "static":
+        if not _nonempty(value.get("text")):
+            _add(problems, f"{path}.text", "must be exact non-empty product copy")
+    elif kind == "dynamic":
+        if not _nonempty(value.get("example")):
+            _add(
+                problems,
+                f"{path}.example",
+                "must be a non-empty representative value",
+            )
+        contract = value.get("contract")
+        if not isinstance(contract, dict):
+            _add(problems, f"{path}.contract", "must be an object")
+        else:
+            for key in COPY_CONTRACT_FIELDS:
+                if not _nonempty(contract.get(key)):
+                    _add(
+                        problems,
+                        f"{path}.contract.{key}",
+                        "must be a non-empty string",
+                    )
+
+
+def _validate_action(
+    value: Any,
+    path: str,
+    problems: list[str],
+    *,
+    require_approved: bool,
+) -> str | None:
+    if not isinstance(value, dict):
+        _add(problems, path, "must be an object in wireframes/4")
+        return None
+    for key in ("label", "source"):
+        if not _nonempty(value.get(key)):
+            _add(problems, f"{path}.{key}", "must be a non-empty string")
+    status = value.get("status")
+    if status not in VALID_COPY_ITEM_STATUSES:
+        _add(
+            problems,
+            f"{path}.status",
+            f"must be one of {sorted(VALID_COPY_ITEM_STATUSES)}",
+        )
+    elif require_approved and status != "approved":
+        _add(problems, f"{path}.status", "must be 'approved' when copy is frozen")
+    label = value.get("label")
+    return label if _nonempty(label) else None
+
+
+def _validate_copy_freeze(data: dict[str, Any], problems: list[str]) -> bool:
+    value = data.get("copyFreeze")
+    path = "wireframe-data.copyFreeze"
+    if not isinstance(value, dict):
+        _add(problems, path, "must be an object in wireframes/4")
+        return False
+    status = value.get("status")
+    if status not in VALID_APPROVAL_STATUSES:
+        _add(
+            problems,
+            f"{path}.status",
+            f"must be one of {sorted(VALID_APPROVAL_STATUSES)}",
+        )
+    for key in ("owner", "locale", "approvedOn"):
+        if not _nonempty(value.get(key)):
+            _add(problems, f"{path}.{key}", "must be a non-empty string")
+    locale = value.get("locale")
+    if (
+        _nonempty(locale)
+        and PLACEHOLDER_RE.search(locale) is None
+        and LOCALE_RE.fullmatch(locale.strip()) is None
+    ):
+        _add(problems, f"{path}.locale", "must be a BCP 47-style language tag")
+    approved_on = value.get("approvedOn")
+    if status == "approved" and not _iso_date(approved_on):
+        _add(
+            problems,
+            f"{path}.approvedOn",
+            "must be an ISO YYYY-MM-DD date when copy is approved",
+        )
+    return status == "approved"
 
 
 def _add(problems: list[str], path: str, message: str) -> None:
@@ -315,9 +441,9 @@ def _validate_responsive_data(
     has_size_classes = "sizeClasses" in data
     viewports = data.get("viewports")
     size_classes = data.get("sizeClasses")
-    # wireframes/3 carries the three-viewport web floor; legacy wireframes/2
+    # Interactive schemas carry the three-viewport web floor; wireframes/2
     # files stay readable with their historical two-target sets.
-    web_floor = 3 if data.get("schema") == WIREFRAME_SCHEMA else 2
+    web_floor = 3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2
     floor_words = {2: "two", 3: "three"}
     valid_viewports = (
         isinstance(viewports, list)
@@ -403,13 +529,15 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         return ["wireframe-data: must be a JSON object"]
 
     schema = data.get("schema")
-    if schema not in LEGACY_WIREFRAME_SCHEMAS | {WIREFRAME_SCHEMA}:
+    supported_schemas = LEGACY_WIREFRAME_SCHEMAS | {WIREFRAME_SCHEMA}
+    if schema not in supported_schemas:
         _add(
             problems,
             "wireframe-data.schema",
-            f"must be one of {sorted(LEGACY_WIREFRAME_SCHEMAS | {WIREFRAME_SCHEMA})}",
+            f"must be one of {sorted(supported_schemas)}",
         )
-    interactive_contract = schema == WIREFRAME_SCHEMA
+    interactive_contract = schema in INTERACTIVE_WIREFRAME_SCHEMAS
+    copy_contract = schema == WIREFRAME_SCHEMA
 
     for key in ("product", "approvalStatus", "source"):
         if not _nonempty(data.get(key)):
@@ -428,6 +556,8 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             "wireframe-data.source",
             "must be 'PRD.md#UI-Surface-Contract'",
         )
+
+    copy_is_frozen = _validate_copy_freeze(data, problems) if copy_contract else False
 
     responsive_targets = _validate_responsive_data(data, problems)
 
@@ -454,6 +584,20 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         for key in ("name", "route", "goal"):
             if not _nonempty(screen.get(key)):
                 _add(problems, f"{path}.{key}", "must be a non-empty string")
+        if copy_contract:
+            copy_status = screen.get("copyStatus")
+            if copy_status not in VALID_APPROVAL_STATUSES:
+                _add(
+                    problems,
+                    f"{path}.copyStatus",
+                    f"must be one of {sorted(VALID_APPROVAL_STATUSES)}",
+                )
+            elif copy_is_frozen and copy_status != "approved":
+                _add(
+                    problems,
+                    f"{path}.copyStatus",
+                    "must be 'approved' when copy is frozen",
+                )
         if "traces" in screen and not _string_list(screen["traces"]):
             _add(problems, f"{path}.traces", "must be a string list when present")
         if interactive_contract and "mediaIntent" in screen:
@@ -490,21 +634,42 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             if not isinstance(span, int) or isinstance(span, bool) or not 1 <= span <= 12:
                 _add(problems, f"{region_path}.span", "must be an integer from 1 to 12")
             elements = region.get("elements")
-            if (
-                not isinstance(elements, list)
-                or not elements
-                or not all(_display_element(item) for item in elements)
-            ):
+            if not isinstance(elements, list) or not elements:
+                _add(problems, f"{region_path}.elements", "must be a non-empty list")
+            elif copy_contract:
+                for element_index, item in enumerate(elements):
+                    _validate_copy_item(
+                        item,
+                        f"{region_path}.elements[{element_index}]",
+                        problems,
+                        require_approved=copy_is_frozen,
+                    )
+            elif not all(_display_element(item) for item in elements):
                 _add(
                     problems,
                     f"{region_path}.elements",
                     "must be a non-empty list of strings or {label, contract} objects",
                 )
             actions = region.get("actions")
-            if not isinstance(actions, list) or not all(_nonempty(item) for item in actions):
+            action_labels: list[str] = []
+            if not isinstance(actions, list):
+                _add(problems, f"{region_path}.actions", "must be a list")
+            elif copy_contract:
+                for action_index, item in enumerate(actions):
+                    label = _validate_action(
+                        item,
+                        f"{region_path}.actions[{action_index}]",
+                        problems,
+                        require_approved=copy_is_frozen,
+                    )
+                    if label is not None:
+                        action_labels.append(label)
+            elif not all(_nonempty(item) for item in actions):
                 _add(problems, f"{region_path}.actions", "must be a string list")
-            elif _nonempty(screen_id):
-                actions_by_screen.setdefault(screen_id, []).extend(actions)
+            else:
+                action_labels = actions
+            if _nonempty(screen_id):
+                actions_by_screen.setdefault(screen_id, []).extend(action_labels)
             if "traces" in region and not _string_list(region["traces"]):
                 _add(problems, f"{region_path}.traces", "must be a string list when present")
             if interactive_contract and "mediaIntent" in region:
@@ -630,6 +795,16 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         if not isinstance(states, list) or not states:
             _add(problems, f"{path}.states", "must be a non-empty list")
             continue
+        if (
+            copy_contract
+            and isinstance(states[0], dict)
+            and states[0].get("id") != "ready"
+        ):
+            _add(
+                problems,
+                f"{path}.states[0].id",
+                "must be 'ready' as the schema-4 baseline state",
+            )
         seen_states: set[str] = set()
         for state_index, screen_state in enumerate(states):
             state_path = f"{path}.states[{state_index}]"
@@ -656,13 +831,48 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                         f"{state_path}.treatments",
                         "references unknown region IDs: " + ", ".join(unknown),
                     )
+                state_copy_count = 0
                 for region_id, treatment in treatments.items():
-                    if not _nonempty(treatment):
+                    treatment_path = f"{state_path}.treatments.{region_id}"
+                    if not copy_contract:
+                        if not _nonempty(treatment):
+                            _add(problems, treatment_path, "must be a non-empty string")
+                        continue
+                    if not isinstance(treatment, dict):
                         _add(
                             problems,
-                            f"{state_path}.treatments.{region_id}",
-                            "must be a non-empty string",
+                            treatment_path,
+                            "must be an object in wireframes/4",
                         )
+                        continue
+                    if not _nonempty(treatment.get("layout")):
+                        _add(
+                            problems,
+                            f"{treatment_path}.layout",
+                            "must be a non-empty reviewer-only layout description",
+                        )
+                    treatment_copy = treatment.get("copy")
+                    if not isinstance(treatment_copy, list):
+                        _add(
+                            problems,
+                            f"{treatment_path}.copy",
+                            "must be a list",
+                        )
+                        continue
+                    state_copy_count += len(treatment_copy)
+                    for copy_index, item in enumerate(treatment_copy):
+                        _validate_copy_item(
+                            item,
+                            f"{treatment_path}.copy[{copy_index}]",
+                            problems,
+                            require_approved=copy_is_frozen,
+                        )
+                if copy_contract and state_index > 0 and state_copy_count == 0:
+                    _add(
+                        problems,
+                        f"{state_path}.treatments",
+                        "must include product or assistive copy for every alternate state",
+                    )
 
     flows = data.get("flows")
     flow_keys: list[tuple[str, str]] = []
@@ -704,6 +914,13 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                         problems,
                         f"{flow_path}.to",
                         f"{presentation} must target a known screen ID",
+                    )
+                if copy_contract and presentation == "feedback":
+                    _validate_copy_item(
+                        flow.get("feedback"),
+                        f"{flow_path}.feedback",
+                        problems,
+                        require_approved=copy_is_frozen,
                     )
                 if interactive_contract and _nonempty(origin) and _nonempty(trigger):
                     flow_keys.append((origin, trigger))
@@ -747,6 +964,7 @@ def validate(
     html_path: Path,
     *,
     require_filled: bool = False,
+    require_copy_approved: bool = False,
     require_approved: bool = False,
     prd_path: Path | None = None,
 ) -> list[str]:
@@ -785,7 +1003,7 @@ def validate(
             prd_text = prd_path.read_text(encoding="utf-8")
         except OSError as exc:
             return [f"{prd_path}: cannot read PRD: {exc}"]
-        web_floor = 3 if data.get("schema") == WIREFRAME_SCHEMA else 2
+        web_floor = 3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2
         problems.extend(
             validate_prd_wireframe_data(prd_text, data, web_floor=web_floor)
         )
@@ -803,6 +1021,20 @@ def validate(
         if required not in html:
             _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
 
+    if data.get("schema") == WIREFRAME_SCHEMA:
+        for required in (
+            'id="copy-inventory"',
+            'id="inspector"',
+            "product-copy",
+            "copyFreeze",
+        ):
+            if required not in html:
+                _add(
+                    problems,
+                    str(html_path),
+                    f"missing wireframes/4 reviewer marker {required!r}",
+                )
+
     if parser.link_tags:
         _add(problems, str(html_path), "must not contain <link> resources")
     external_resources = parser.external_resources + parser.external_css_resources
@@ -817,6 +1049,23 @@ def validate(
 
     if require_approved and data.get("approvalStatus") != "approved":
         _add(problems, "wireframe-data.approvalStatus", "must be 'approved'")
+    schema = data.get("schema")
+    copy_status = (data.get("copyFreeze") or {}).get("status")
+    if require_copy_approved and schema != WIREFRAME_SCHEMA:
+        _add(
+            problems,
+            "wireframe-data.schema",
+            "must be 'wireframes/4' for the Copy Freeze Gate",
+        )
+    if schema == WIREFRAME_SCHEMA and copy_status != "approved":
+        if data.get("approvalStatus") == "approved":
+            _add(
+                problems,
+                "wireframe-data.copyFreeze.status",
+                "must be 'approved' before structural approvalStatus can be 'approved'",
+            )
+        elif require_copy_approved or require_approved:
+            _add(problems, "wireframe-data.copyFreeze.status", "must be 'approved'")
 
     return problems
 
@@ -826,6 +1075,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--html", required=True, type=Path)
     parser.add_argument("--prd", type=Path, help="cross-check the PRD UI-* surface contract")
     parser.add_argument("--require-filled", action="store_true")
+    parser.add_argument(
+        "--require-copy-approved",
+        action="store_true",
+        help="require a schema-4 Copy Freeze before structural approval",
+    )
     parser.add_argument("--require-approved", action="store_true")
     return parser.parse_args(argv)
 
@@ -835,6 +1089,7 @@ def main(argv: list[str] | None = None) -> int:
     problems = validate(
         args.html,
         require_filled=args.require_filled,
+        require_copy_approved=args.require_copy_approved,
         require_approved=args.require_approved,
         prd_path=args.prd,
     )

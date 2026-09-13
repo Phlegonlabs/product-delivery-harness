@@ -7,15 +7,23 @@
   <style>
     :root {
       color-scheme: light;
-      --paper: #f4f3ef;
+      --paper: #f3f5f3;
       --panel: #ffffff;
-      --ink: #20211f;
-      --muted: #686a65;
-      --line: #b8bab4;
-      --line-strong: #74776f;
-      --mark: #e6e4dc;
-      --focus: #1f5f55;
-      --sidebar: 19rem;
+      --panel-subtle: #eef1ee;
+      --ink: #171b18;
+      --muted: #667069;
+      --line: #d6dbd7;
+      --line-strong: #9da69f;
+      --mark: #e8ece9;
+      --accent: #245b47;
+      --accent-soft: #e2eee8;
+      --focus: #245b47;
+      --success: #25643f;
+      --danger: #a53a35;
+      --sidebar: 18rem;
+      --radius: 14px;
+      --radius-small: 9px;
+      --shadow: 0 18px 48px rgb(19 28 22 / 10%);
     }
 
     * { box-sizing: border-box; }
@@ -25,12 +33,14 @@
       min-height: 100vh;
       background: var(--paper);
       color: var(--ink);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 14px;
-      line-height: 1.45;
+      line-height: 1.5;
     }
 
     button { font: inherit; }
+
+    ::selection { background: var(--accent-soft); color: var(--ink); }
 
     button:focus-visible {
       outline: 3px solid color-mix(in srgb, var(--focus) 35%, transparent);
@@ -48,54 +58,59 @@
       top: 0;
       height: 100vh;
       overflow: auto;
-      padding: 24px 18px;
+      padding: 28px 20px;
       border-right: 1px solid var(--line);
-      background: #e9e8e2;
+      background: #f9faf9;
     }
 
     .eyebrow,
     .meta-label,
     .section-kind {
       color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
     }
 
     h1 {
       margin: 8px 0 6px;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 28px;
-      line-height: 1.05;
+      font-size: 24px;
+      line-height: 1.12;
+      letter-spacing: -0.025em;
     }
 
     .sidebar-meta {
-      margin: 0 0 24px;
+      margin: 0 0 22px;
       color: var(--muted);
+      font-size: 12px;
     }
 
     .page-list {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
 
     .page-button {
       width: 100%;
-      padding: 11px 12px;
+      padding: 12px;
       border: 1px solid transparent;
       background: transparent;
       color: var(--ink);
+      border-radius: var(--radius-small);
       text-align: left;
       cursor: pointer;
     }
 
-    .page-button:hover { border-color: var(--line); }
+    .page-button:hover { border-color: var(--line); background: var(--panel-subtle); }
 
     .page-button[aria-current="page"] {
-      border-color: var(--line-strong);
-      background: var(--panel);
+      border-color: #c8d9d0;
+      background: var(--accent-soft);
     }
+
+    .page-button[aria-current="page"] span { color: #405249; }
 
     .page-button strong,
     .page-button span { display: block; }
@@ -103,6 +118,7 @@
     .page-button span {
       margin-top: 3px;
       color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 12px;
     }
 
@@ -116,12 +132,12 @@
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      min-height: 64px;
-      padding: 12px 24px;
+      gap: 16px;
+      min-height: 68px;
+      padding: 12px 28px;
       border-bottom: 1px solid var(--line);
-      background: color-mix(in srgb, var(--paper) 94%, transparent);
-      backdrop-filter: blur(10px);
+      background: rgb(249 250 249 / 96%);
+      backdrop-filter: blur(14px);
     }
 
     .control-group {
@@ -130,36 +146,52 @@
       gap: 6px;
     }
 
+    .toolbar-cluster {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
     .control {
-      min-height: 36px;
-      padding: 7px 11px;
+      min-height: 38px;
+      padding: 8px 12px;
       border: 1px solid var(--line);
       background: var(--panel);
       color: var(--ink);
+      border-radius: var(--radius-small);
       cursor: pointer;
     }
 
+    .control:hover { border-color: var(--line-strong); }
+
     .control[aria-pressed="true"] {
-      border-color: var(--ink);
-      background: var(--ink);
+      border-color: var(--accent);
+      background: var(--accent);
       color: #fff;
     }
 
-    .content { padding: 32px; }
+    .content { padding: 38px 32px 64px; }
 
     .screen-header {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.55fr);
-      gap: 24px;
-      max-width: 1120px;
-      margin: 0 auto 24px;
+      gap: 28px;
+      max-width: 1200px;
+      margin: 0 auto 28px;
     }
 
     .screen-header h2 {
       margin: 4px 0 8px;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(28px, 4vw, 46px);
-      line-height: 1;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.03;
+      letter-spacing: -0.04em;
     }
 
     .screen-header p { margin: 0; color: var(--muted); }
@@ -169,17 +201,21 @@
       grid-template-columns: auto 1fr;
       align-content: start;
       gap: 6px 12px;
-      padding: 14px;
+      padding: 16px;
       border: 1px solid var(--line);
-      background: var(--mark);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 8px 24px rgb(19 28 22 / 6%);
     }
 
     .canvas-shell {
-      width: min(100%, 1120px);
+      width: min(100%, 1200px);
       margin: 0 auto;
-      padding: 18px;
-      border: 1px solid var(--line-strong);
-      background: #d7d7d1;
+      padding: 16px;
+      border: 1px solid #cbd1cc;
+      border-radius: calc(var(--radius) + 4px);
+      background: #e3e7e4;
+      box-shadow: var(--shadow);
       transition: width 160ms ease;
     }
 
@@ -188,8 +224,9 @@
       grid-template-columns: repeat(12, minmax(0, 1fr));
       gap: 12px;
       min-height: 620px;
-      padding: 12px;
-      border: 1px solid var(--line-strong);
+      padding: 14px;
+      border: 1px solid #bfc6c0;
+      border-radius: var(--radius);
       background: var(--panel);
     }
 
@@ -197,79 +234,155 @@
       grid-column: span var(--span, 12);
       min-width: 0;
       min-height: var(--height, 110px);
-      padding: 14px;
-      border: 1px dashed var(--line-strong);
-      background: repeating-linear-gradient(
-        -45deg,
-        #fff,
-        #fff 10px,
-        #faf9f6 10px,
-        #faf9f6 20px
-      );
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      background: #fbfcfb;
       overflow-wrap: anywhere;
     }
+
+    .region[data-priority="primary"] { border-color: #9eaaa2; background: #fff; }
+    .region[data-priority="quiet"] { background: var(--panel-subtle); }
 
     .region-head {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
       gap: 12px;
-      padding-bottom: 9px;
+      padding-bottom: 10px;
       border-bottom: 1px solid var(--line);
     }
 
-    .region h3 { margin: 0; font-size: 15px; }
+    .region h3 { margin: 2px 0 0; font-size: 13px; letter-spacing: -0.01em; }
 
     .priority {
       flex: 0 0 auto;
-      padding: 2px 6px;
+      padding: 3px 7px;
       border: 1px solid var(--line);
-      background: var(--mark);
+      border-radius: 999px;
+      background: var(--panel-subtle);
       color: var(--muted);
-      font-size: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
       white-space: nowrap;
       text-transform: uppercase;
     }
 
-    .annotation { margin-top: 10px; }
-    .annotation p { margin: 4px 0 10px; }
-    .annotation ul { margin: 4px 0 10px; padding-left: 18px; }
-    .annotation-off .annotation { display: none; }
+    .product-copy {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      padding-top: 14px;
+    }
+
+    .copy-item {
+      max-width: 68ch;
+      color: var(--ink);
+    }
+
+    .copy-item[data-copy-kind="dynamic"] {
+      width: fit-content;
+      padding: 7px 9px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 7px;
+      background: var(--panel-subtle);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .copy-item[data-copy-category="display"] {
+      max-width: 22ch;
+      font-size: clamp(20px, 2.2vw, 32px);
+      font-weight: 720;
+      line-height: 1.12;
+      letter-spacing: -0.035em;
+    }
+
+    .copy-item[data-copy-category="section-heading"] {
+      max-width: 30ch;
+      font-size: 22px;
+      font-weight: 720;
+      line-height: 1.2;
+      letter-spacing: -0.025em;
+    }
+
+    .copy-item[data-copy-category="item-heading"] {
+      max-width: 36ch;
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .copy-item[data-copy-role*="body"],
+    .copy-item[data-copy-role*="support"] { color: #48514b; line-height: 1.65; }
+
+    .copy-item[data-copy-role*="label"],
+    .copy-item[data-copy-role*="eyebrow"] {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .copy-item[data-copy-role*="metric"],
+    .copy-item[data-copy-role*="balance"],
+    .copy-item[data-copy-role*="amount"] {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
 
     .state-note {
       margin-top: 12px;
-      padding: 8px 10px;
-      border-left: 3px solid var(--line-strong);
-      background: var(--mark);
+      padding: 10px 12px;
+      border: 1px solid #c9d8d0;
+      border-radius: var(--radius-small);
+      background: var(--accent-soft);
+      color: #254c3d;
+    }
+
+    .media-placeholder {
+      display: grid;
+      place-items: center;
+      min-height: 88px;
+      margin-top: 12px;
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-small);
+      background: var(--panel-subtle);
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
     }
 
     .layout-qa {
-      max-width: 1120px;
-      margin: 12px auto 0;
-      padding: 10px 12px;
+      max-width: 1200px;
+      margin: 14px auto 0;
+      padding: 11px 13px;
       border: 1px solid var(--line);
+      border-radius: var(--radius-small);
       background: var(--panel);
+      color: var(--muted);
     }
 
-    .layout-qa[data-layout-qa="pass"] { border-left: 4px solid #276749; }
-    .layout-qa[data-layout-qa="fail"] { border-left: 4px solid #9b2c2c; }
+    .layout-qa[data-layout-qa="pass"] { border-color: #a7c8b4; color: var(--success); }
+    .layout-qa[data-layout-qa="fail"] { border-color: #d5aaa7; color: var(--danger); }
 
     .display-contract {
       display: grid;
       gap: 2px;
       margin-top: 4px;
-      padding: 6px 8px;
-      border-left: 3px solid var(--line);
-      background: var(--mark);
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      background: var(--panel-subtle);
       color: var(--muted);
       font-size: 12px;
     }
 
     .flow-panel {
-      max-width: 1120px;
+      max-width: 1200px;
       margin: 24px auto 0;
-      padding: 14px;
+      padding: 18px;
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--panel);
     }
 
@@ -277,24 +390,37 @@
 
     .flow-list {
       display: grid;
-      gap: 4px;
+      gap: 8px;
       margin: 0;
-      padding-left: 18px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .flow-list li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 10px;
+      border-radius: var(--radius-small);
+      background: var(--panel-subtle);
     }
 
     .flow-direction {
       padding: 1px 5px;
       border: 1px solid var(--line);
-      background: var(--mark);
+      border-radius: 999px;
+      background: var(--panel);
       color: var(--muted);
-      font-size: 10px;
+      font-size: 11px;
       text-transform: uppercase;
     }
 
     .flow-target {
       padding: 1px 5px;
       border: 1px solid var(--line);
-      background: var(--mark);
+      border-radius: 6px;
+      background: var(--panel);
       color: var(--ink);
       font: inherit;
       font-size: 12px;
@@ -306,21 +432,25 @@
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin: 6px 0 10px;
+      margin: 2px 0 0;
     }
 
     .action-button {
-      padding: 6px 9px;
-      border: 1px solid var(--line-strong);
-      background: var(--panel);
-      color: var(--ink);
+      min-height: 38px;
+      padding: 8px 12px;
+      border: 1px solid #222824;
+      border-radius: var(--radius-small);
+      background: #222824;
+      color: #fff;
       cursor: pointer;
     }
+
+    .action-button:hover { background: #111411; }
 
     .action-feedback {
       min-height: 1.5em;
       margin: 4px 0 10px;
-      color: var(--muted);
+      color: var(--success);
       font-size: 12px;
     }
 
@@ -328,9 +458,11 @@
       width: min(96vw, 1120px);
       max-height: 88vh;
       padding: 0;
-      border: 1px solid var(--line-strong);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--panel);
       color: var(--ink);
+      box-shadow: var(--shadow);
       overflow: auto;
     }
 
@@ -345,18 +477,20 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
       gap: 18px;
-      max-width: 1320px;
+      max-width: 1280px;
       margin: 0 auto;
     }
 
     .overview-card {
-      padding: 14px;
+      padding: 18px;
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--panel);
+      box-shadow: 0 8px 22px rgb(19 28 22 / 5%);
       cursor: pointer;
     }
 
-    .overview-card:hover { border-color: var(--ink); }
+    .overview-card:hover { border-color: var(--line-strong); transform: translateY(-1px); }
 
     .overview-card h2 { margin: 5px 0 3px; font-size: 18px; }
     .overview-card p { margin: 0 0 12px; color: var(--muted); }
@@ -365,18 +499,21 @@
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
       gap: 5px;
-      padding: 7px;
-      border: 1px solid var(--line-strong);
-      background: #f7f6f2;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      background: var(--panel-subtle);
     }
 
     .mini-region {
       grid-column: span var(--span, 12);
       min-height: 44px;
       padding: 5px;
-      border: 1px dashed var(--line-strong);
+      border: 1px solid #bdc5bf;
+      border-radius: 5px;
+      background: #fff;
       color: var(--muted);
-      font-size: 9px;
+      font-size: 10px;
       overflow: hidden;
     }
 
@@ -385,8 +522,115 @@
       margin: 80px auto;
       padding: 24px;
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       background: var(--panel);
     }
+
+    .review-trigger {
+      min-height: 32px;
+      padding: 5px 8px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .review-trigger:hover { border-color: var(--line-strong); color: var(--ink); }
+
+    .inspector-backdrop {
+      position: fixed;
+      inset: 68px 0 0;
+      z-index: 9;
+      border: 0;
+      background: rgb(18 24 20 / 18%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms ease;
+    }
+
+    .inspector-backdrop[data-open="true"] { opacity: 1; pointer-events: auto; }
+
+    .inspector {
+      position: fixed;
+      top: 68px;
+      right: 0;
+      bottom: 0;
+      z-index: 10;
+      width: min(390px, 100vw);
+      padding: 24px;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: -18px 0 48px rgb(19 28 22 / 12%);
+      overflow: auto;
+      transform: translateX(100%);
+      transition: transform 180ms ease;
+    }
+
+    .inspector[data-open="true"] { transform: translateX(0); }
+
+    .inspector-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .inspector h2 { margin: 2px 0 0; font-size: 22px; letter-spacing: -0.025em; }
+    .inspector h3 { margin: 22px 0 8px; font-size: 14px; }
+    .inspector p { color: var(--muted); }
+    .inspector ul { margin: 8px 0; padding-left: 18px; }
+
+    .inspector-card {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      background: var(--panel-subtle);
+    }
+
+    .copy-status {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .copy-dialog {
+      width: min(92vw, 880px);
+      max-height: 86vh;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      color: var(--ink);
+      box-shadow: var(--shadow);
+    }
+
+    .copy-dialog::backdrop { background: rgb(18 24 20 / 42%); }
+    .copy-dialog-body { padding: 24px; }
+    .copy-dialog-head { display: flex; justify-content: space-between; gap: 16px; }
+    .copy-dialog h2 { margin: 0; font-size: 26px; letter-spacing: -0.035em; }
+    .copy-dialog-head p { margin: 5px 0 0; color: var(--muted); }
+    .copy-inventory-list { display: grid; gap: 10px; margin-top: 20px; }
+
+    .copy-record {
+      display: grid;
+      grid-template-columns: minmax(9rem, .35fr) minmax(0, 1fr);
+      gap: 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+    }
+
+    .copy-record p { margin: 4px 0 0; }
+    .copy-record code { font-size: 11px; color: var(--muted); }
 
     .noscript {
       margin: 20px;
@@ -402,10 +646,13 @@
       .toolbar { position: static; }
       .content { padding: 20px 12px; }
       .screen-header { grid-template-columns: 1fr; }
+      .inspector { top: 0; }
+      .inspector-backdrop { inset: 0; }
+      .copy-record { grid-template-columns: 1fr; }
     }
 
     @media print {
-      .sidebar, .toolbar { display: none; }
+      .sidebar, .toolbar, .inspector, .inspector-backdrop, .copy-dialog { display: none; }
       .app { display: block; }
       .content { padding: 0; }
       .canvas-shell { width: 100%; border: 0; padding: 0; }
@@ -417,27 +664,67 @@
   <noscript><p class="noscript">Enable JavaScript to use the page, viewport, and state controls in this local wireframe file.</p></noscript>
   <div class="app">
     <aside class="sidebar" aria-label="Wireframe pages">
-      <div class="eyebrow">Structural wireframe</div>
       <h1 id="product-name">Wireframes</h1>
       <p class="sidebar-meta" id="contract-meta"></p>
+      <p class="sidebar-meta" id="copy-meta"></p>
       <nav class="page-list" id="page-list"></nav>
     </aside>
 
     <main class="main">
-      <div class="toolbar" aria-label="Wireframe controls">
-        <div class="control-group" id="responsive-controls" aria-label="Responsive targets"></div>
-        <div class="control-group" id="state-controls" aria-label="Screen states"></div>
-        <button class="control" id="annotation-toggle" type="button" aria-pressed="true">Section notes</button>
+      <div class="toolbar" role="toolbar" aria-label="Wireframe controls">
+        <div class="toolbar-cluster">
+          <span class="toolbar-label">Canvas</span>
+          <div class="control-group" id="responsive-controls" role="group" aria-label="Responsive targets"></div>
+        </div>
+        <div class="toolbar-cluster">
+          <span class="toolbar-label">State</span>
+          <div class="control-group" id="state-controls" role="group" aria-label="Screen states"></div>
+        </div>
+        <div class="toolbar-cluster">
+          <button class="control" id="copy-inventory-button" type="button">Copy inventory</button>
+          <button class="control" id="annotation-toggle" type="button" aria-pressed="false">Review notes</button>
+        </div>
       </div>
       <div class="content" id="content" tabindex="-1"></div>
     </main>
   </div>
 
+  <button class="inspector-backdrop" id="inspector-backdrop" type="button" aria-label="Close review notes" hidden></button>
+  <aside class="inspector" id="inspector" aria-label="Reviewer-only structure notes" aria-hidden="true" inert>
+    <div class="inspector-head">
+      <div>
+        <h2 id="inspector-title">Structure notes</h2>
+        <span class="copy-status">Reviewer only</span>
+      </div>
+      <button class="control" id="inspector-close" type="button">Close</button>
+    </div>
+    <div id="inspector-content"></div>
+  </aside>
+
+  <dialog class="copy-dialog" id="copy-inventory" aria-labelledby="copy-inventory-title">
+    <div class="copy-dialog-body">
+      <div class="copy-dialog-head">
+        <div>
+          <h2 id="copy-inventory-title">Copy inventory</h2>
+          <p>Implementation-bound content</p>
+        </div>
+        <button class="control" id="copy-inventory-close" type="button">Close</button>
+      </div>
+      <div class="copy-inventory-list" id="copy-inventory-list"></div>
+    </div>
+  </dialog>
+
   <script id="wireframe-data" type="application/json">
   {
-    "schema": "wireframes/3",
+    "schema": "wireframes/4",
     "product": "<Product Name>",
     "approvalStatus": "draft",
+    "copyFreeze": {
+      "status": "draft",
+      "owner": "<Human copy owner>",
+      "locale": "<Primary BCP 47 locale>",
+      "approvedOn": "<YYYY-MM-DD or pending>"
+    },
     "source": "PRD.md#UI-Surface-Contract",
     "viewports": [390, 768, 1200],
     "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
@@ -447,6 +734,7 @@
         "name": "<Landing Page>",
         "route": "/",
         "goal": "<Primary user goal>",
+        "copyStatus": "draft",
         "traces": ["UX-001"],
         "mediaIntent": {"treatment": "motion-led", "draftPrompt": "<Draft page-level motion prompt>", "source": "<Recorded owner decision that settled the treatment>", "generationStatus": "deferred"},
         "regions": [
@@ -457,8 +745,13 @@
             "priority": "primary",
             "span": 12,
             "height": 72,
-            "elements": ["<Logo or product name>", "<Primary navigation>", "<Primary action>"],
-            "actions": ["<Primary navigation>"]
+            "elements": [
+              {"kind": "static", "role": "brand", "text": "<Exact product name>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "navigation label", "text": "<Exact navigation label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ],
+            "actions": [
+              {"label": "<Exact navigation action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ]
           },
           {
             "id": "hero-content",
@@ -467,8 +760,14 @@
             "priority": "primary",
             "span": 7,
             "height": 250,
-            "elements": ["<Eyebrow>", "<Headline display contract>", "<Supporting copy>", "<Primary CTA>"],
-            "actions": ["<Primary CTA>"],
+            "elements": [
+              {"kind": "static", "role": "context label", "text": "<Exact context label>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "heading", "text": "<Exact headline>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "supporting body", "text": "<Exact supporting copy>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ],
+            "actions": [
+              {"label": "<Exact primary CTA label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ],
             "traces": ["UX-002"]
           },
           {
@@ -479,7 +778,21 @@
             "span": 5,
             "height": 250,
             "elements": [
-              {"label": "<Media placeholder and content responsibility>", "contract": {"source": "<Copy or data source>", "count": "<Maximum items>"}}
+              {
+                "kind": "dynamic",
+                "role": "supporting proof",
+                "example": "<Representative supporting proof>",
+                "status": "draft",
+                "source": "<Approved dynamic-content decision>",
+                "contract": {
+                  "source": "<Copy or data source>",
+                  "order": "<Display order>",
+                  "format": "<Display format>",
+                  "count": "<Minimum and maximum items>",
+                  "length": "<Per-item length limit>",
+                  "fallback": "<Exact empty or unavailable fallback>"
+                }
+              }
             ],
             "actions": [],
             "mediaIntent": {"treatment": "imagery-led", "draftPrompt": "<Draft image prompt for this hero media position>", "source": "<Recorded owner decision that settled the treatment>", "generationStatus": "deferred"}
@@ -491,8 +804,16 @@
             "priority": "secondary",
             "span": 12,
             "height": 210,
-            "elements": ["<Feature 1>", "<Feature 2>", "<Feature 3>"],
-            "actions": ["<Optional detail action>"]
+            "elements": [
+              {"kind": "static", "role": "section heading", "text": "<Exact feature-section heading>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "feature heading", "text": "<Exact feature 1 heading>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "feature body", "text": "<Exact feature 1 explanation>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "feature heading", "text": "<Exact feature 2 heading>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "feature body", "text": "<Exact feature 2 explanation>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ],
+            "actions": [
+              {"label": "<Exact feature-detail action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ]
           },
           {
             "id": "closing-cta",
@@ -501,8 +822,12 @@
             "priority": "primary",
             "span": 12,
             "height": 130,
-            "elements": ["<CTA message>", "<Primary action>"],
-            "actions": ["<Primary action>"]
+            "elements": [
+              {"kind": "static", "role": "heading", "text": "<Exact closing message>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ],
+            "actions": [
+              {"label": "<Exact closing action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ]
           }
         ],
         "neverDrop": ["global-header", "hero-content", "closing-cta"],
@@ -538,15 +863,29 @@
             "id": "loading",
             "label": "Loading",
             "treatments": {
-              "hero-support": "<Layout-preserving skeleton; announce loading>",
-              "feature-grid": "<Three placeholder rows preserve the section height>"
+              "hero-support": {
+                "layout": "<Layout-preserving skeleton rule>",
+                "copy": [
+                  {"kind": "static", "role": "assistive status", "text": "<Exact loading announcement>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+                ]
+              },
+              "feature-grid": {
+                "layout": "<Placeholder rows preserve the section height>",
+                "copy": []
+              }
             }
           },
           {
             "id": "error",
             "label": "Error",
             "treatments": {
-              "feature-grid": "<Inline error message with retry action; hero remains available>"
+              "feature-grid": {
+                "layout": "<Keep the hero available and place recovery inline>",
+                "copy": [
+                  {"kind": "static", "role": "error message", "text": "<Exact error message>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+                  {"kind": "static", "role": "recovery guidance", "text": "<Exact recovery guidance>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+                ]
+              }
             }
           }
         ]
@@ -556,6 +895,7 @@
         "name": "<Product Workspace>",
         "route": "/app",
         "goal": "<Complete the product's main task>",
+        "copyStatus": "draft",
         "regions": [
           {
             "id": "app-header",
@@ -564,8 +904,13 @@
             "priority": "primary",
             "span": 12,
             "height": 72,
-            "elements": ["<Breadcrumb or title>", "<Global action>", "<Account control>"],
-            "actions": ["<Global action>"]
+            "elements": [
+              {"kind": "static", "role": "page title", "text": "<Exact workspace title>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "account label", "text": "<Exact account-control label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ],
+            "actions": [
+              {"label": "<Exact global action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ]
           },
           {
             "id": "task-controls",
@@ -574,8 +919,14 @@
             "priority": "primary",
             "span": 4,
             "height": 430,
-            "elements": ["<Input group>", "<Validation message location>", "<Submit action>"],
-            "actions": ["<Submit>"]
+            "elements": [
+              {"kind": "static", "role": "form heading", "text": "<Exact task heading>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "field label", "text": "<Exact input label>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {"kind": "static", "role": "field guidance", "text": "<Exact field guidance>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ],
+            "actions": [
+              {"label": "<Exact submit label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ]
           },
           {
             "id": "primary-workspace",
@@ -584,8 +935,27 @@
             "priority": "primary",
             "span": 8,
             "height": 430,
-            "elements": ["<Result summary>", "<Primary content region>", "<Contextual actions>"],
-            "actions": ["<Contextual action>"]
+            "elements": [
+              {"kind": "static", "role": "result heading", "text": "<Exact result heading>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+              {
+                "kind": "dynamic",
+                "role": "primary result",
+                "example": "<Representative primary result>",
+                "status": "draft",
+                "source": "<Approved dynamic-content decision>",
+                "contract": {
+                  "source": "<Result data source>",
+                  "order": "<Result ordering rule>",
+                  "format": "<Result display format>",
+                  "count": "<Minimum and maximum result count>",
+                  "length": "<Result length limit>",
+                  "fallback": "<Exact empty or unavailable fallback>"
+                }
+              }
+            ],
+            "actions": [
+              {"label": "<Exact contextual action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+            ]
           }
         ],
         "neverDrop": ["app-header", "task-controls", "primary-workspace"],
@@ -621,27 +991,39 @@
             "id": "empty",
             "label": "Empty",
             "treatments": {
-              "primary-workspace": "<Explain what appears here and point back to the primary input>"
+              "primary-workspace": {
+                "layout": "<Preserve context and point back to the primary input>",
+                "copy": [
+                  {"kind": "static", "role": "empty-state heading", "text": "<Exact empty-state heading>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+                  {"kind": "static", "role": "empty-state guidance", "text": "<Exact empty-state guidance>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+                ]
+              }
             }
           },
           {
             "id": "permission-denied",
             "label": "Permission denied",
             "treatments": {
-              "primary-workspace": "<Preserve context; explain access requirement and recovery>"
+              "primary-workspace": {
+                "layout": "<Preserve context and place access recovery inline>",
+                "copy": [
+                  {"kind": "static", "role": "permission heading", "text": "<Exact permission-denied heading>", "status": "draft", "source": "<Owner or PRD copy decision>"},
+                  {"kind": "static", "role": "permission recovery", "text": "<Exact access-recovery guidance>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+                ]
+              }
             }
           }
         ]
       }
     ],
     "flows": [
-      {"from": "UI-001", "trigger": "<Primary navigation>", "to": "UI-002", "presentation": "page"},
-      {"from": "UI-001", "trigger": "<Primary CTA>", "to": "UI-002", "presentation": "page"},
-      {"from": "UI-001", "trigger": "<Optional detail action>", "to": "UI-002", "presentation": "overlay"},
-      {"from": "UI-001", "trigger": "<Primary action>", "to": "UI-002", "presentation": "page"},
-      {"from": "UI-002", "trigger": "<Global action>", "to": "<External destination>", "presentation": "feedback"},
-      {"from": "UI-002", "trigger": "<Submit>", "to": "<Submission result>", "presentation": "feedback"},
-      {"from": "UI-002", "trigger": "<Contextual action>", "to": "UI-001", "presentation": "overlay"}
+      {"from": "UI-001", "trigger": "<Exact navigation action label>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-001", "trigger": "<Exact primary CTA label>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-001", "trigger": "<Exact feature-detail action label>", "to": "UI-002", "presentation": "overlay"},
+      {"from": "UI-001", "trigger": "<Exact closing action label>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-002", "trigger": "<Exact global action label>", "to": "<External destination>", "presentation": "feedback", "feedback": {"kind": "static", "role": "status message", "text": "<Exact global-action feedback>", "status": "draft", "source": "<Owner or PRD copy decision>"}},
+      {"from": "UI-002", "trigger": "<Exact submit label>", "to": "<Submission result>", "presentation": "feedback", "feedback": {"kind": "static", "role": "success message", "text": "<Exact submission feedback>", "status": "draft", "source": "<Owner or PRD copy decision>"}},
+      {"from": "UI-002", "trigger": "<Exact contextual action label>", "to": "UI-001", "presentation": "overlay"}
     ]
   }
   </script>
@@ -657,7 +1039,8 @@
         page: location.hash.slice(1) || "overview",
         responsiveTarget: responsiveTargets[responsiveTargets.length - 1],
         screenState: "ready",
-        annotations: true
+        inspectorOpen: false,
+        selectedRegion: null
       };
 
       const pageList = document.getElementById("page-list");
@@ -665,10 +1048,23 @@
       const responsiveControls = document.getElementById("responsive-controls");
       const stateControls = document.getElementById("state-controls");
       const annotationToggle = document.getElementById("annotation-toggle");
+      const inspector = document.getElementById("inspector");
+      const inspectorBackdrop = document.getElementById("inspector-backdrop");
+      const inspectorClose = document.getElementById("inspector-close");
+      const inspectorTitle = document.getElementById("inspector-title");
+      const inspectorContent = document.getElementById("inspector-content");
+      const copyInventoryButton = document.getElementById("copy-inventory-button");
+      const copyInventory = document.getElementById("copy-inventory");
+      const copyInventoryClose = document.getElementById("copy-inventory-close");
+      const copyInventoryList = document.getElementById("copy-inventory-list");
+      let inspectorReturnFocus = annotationToggle;
 
       document.getElementById("product-name").textContent = data.product;
       document.getElementById("contract-meta").textContent =
         `${data.approvalStatus} · ${data.source}`;
+      document.getElementById("copy-meta").textContent = data.copyFreeze
+        ? `Copy ${data.copyFreeze.status} · ${data.copyFreeze.locale} · ${data.copyFreeze.owner}`
+        : "Legacy copy contract";
 
       const element = (tag, className, text) => {
         const node = document.createElement(tag);
@@ -683,6 +1079,8 @@
         state.page = page;
         const screen = currentScreen();
         state.screenState = screen?.states?.[0]?.id || "ready";
+        state.selectedRegion = null;
+        state.inspectorOpen = false;
         location.hash = page;
         render();
         content.focus({preventScroll: true});
@@ -722,27 +1120,62 @@
         parent.append(list);
       };
 
+      const copyText = (value) => {
+        if (typeof value === "string") return value;
+        if (value?.kind === "static") return value.text;
+        if (value?.kind === "dynamic") return value.example;
+        return value?.label || "";
+      };
+
+      const copyRole = (value) =>
+        typeof value === "string" ? "legacy copy" : value?.role || "dynamic content";
+
+      const copyCategory = (value) => {
+        const role = copyRole(value).toLowerCase();
+        if (role.includes("section heading")) return "section-heading";
+        if (role.includes("feature heading") || role.includes("item heading")) {
+          return "item-heading";
+        }
+        if (role.includes("heading") || role.includes("title")) return "display";
+        return "body";
+      };
+
+      const actionLabel = (value) =>
+        typeof value === "string" ? value : value?.label || "";
+
       const appendElements = (parent, values) => {
         if (!values?.length) return;
-        parent.append(element("div", "meta-label", "Elements"));
-        const list = element("ul");
+        parent.append(element("h3", "", "Product copy"));
         values.forEach((value) => {
-          const item = element("li");
-          if (typeof value === "string") {
-            item.textContent = value;
-          } else {
-            item.append(element("span", "", value.label));
+          const card = element("div", "inspector-card");
+          card.append(
+            element("div", "meta-label", copyRole(value)),
+            element("p", "", copyText(value))
+          );
+          if (typeof value === "object") {
+            card.append(
+              element("span", "copy-status", value.status || "legacy"),
+              element("p", "", `Source: ${value.source || "legacy contract"}`)
+            );
             if (value.contract && typeof value.contract === "object") {
               const contract = element("div", "display-contract");
               Object.entries(value.contract).forEach(([key, text]) => {
                 contract.append(element("div", "", `${key}: ${text}`));
               });
-              item.append(contract);
+              card.append(contract);
             }
           }
-          list.append(item);
+          parent.append(card);
         });
-        parent.append(list);
+      };
+
+      const renderCopyItem = (value) => {
+        const node = element("div", "copy-item", copyText(value));
+        const role = copyRole(value).toLowerCase();
+        node.dataset.copyRole = role;
+        node.dataset.copyKind = value?.kind || (value?.contract ? "dynamic" : "static");
+        node.dataset.copyCategory = copyCategory(value);
+        return node;
       };
 
       const flowTarget = (target) => {
@@ -770,11 +1203,12 @@
         const title = element("h2", "", `${target.id} · ${target.name}`);
         title.id = titleId;
         dialog.setAttribute("aria-labelledby", titleId);
-        body.append(element("div", "eyebrow", "Overlay preview"), title, element("p", "", target.goal));
+        body.append(title, element("div", "eyebrow", "Overlay preview"), element("p", "", target.goal));
         const targetLayout = target.responsiveLayouts[state.responsiveTarget];
         const targetState = target.states[0];
         const hidden = new Set(targetLayout.hidden);
         const overlayCanvas = element("div", "wireframe");
+        overlayCanvas.setAttribute("role", "group");
         overlayCanvas.style.gridTemplateColumns = `repeat(${targetLayout.columns}, minmax(0, 1fr))`;
         overlayCanvas.setAttribute(
           "aria-label",
@@ -782,7 +1216,7 @@
         );
         regionOrder(target)
           .filter((region) => !hidden.has(region.id))
-          .forEach((region) => overlayCanvas.append(renderRegion(target.id, region, targetState, targetLayout)));
+          .forEach((region) => overlayCanvas.append(renderRegion(target.id, region, targetState, targetLayout, false)));
         body.append(overlayCanvas);
         const actions = element("div", "flow-dialog-actions");
         const openPage = element("button", "action-button", "Open full page");
@@ -812,58 +1246,235 @@
         } else if (flow.presentation === "overlay") {
           openFlowDialog(flow);
         } else {
-          feedback.textContent = `Result: ${flow.to}`;
+          feedback.textContent = flow.feedback ? copyText(flow.feedback) : `Result: ${flow.to}`;
         }
       };
 
       const appendActions = (parent, screenId, actions) => {
         if (!actions?.length) return;
-        parent.append(element("div", "meta-label", "Actions"));
         const actionList = element("div", "action-list");
         const feedback = element("div", "action-feedback");
         feedback.setAttribute("role", "status");
-        actions.forEach((label) => {
+        actions.forEach((action) => {
+          const label = actionLabel(action);
           const flow = outgoingFlow(screenId, label);
           const button = element("button", "action-button", label);
           button.type = "button";
           button.dataset.flowTrigger = label;
-          button.addEventListener("click", () => runFlow(flow, feedback));
+          button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            runFlow(flow, feedback);
+          });
           actionList.append(button);
         });
         parent.append(actionList, feedback);
       };
 
-      const renderRegion = (screenId, region, activeState, layout) => {
+      const renderRegion = (screenId, region, activeState, layout, allowReview = true) => {
         const node = element("section", "region");
         node.dataset.region = region.id;
+        node.dataset.priority = region.priority || "secondary";
         node.style.setProperty("--span", String(layout.spans[region.id]));
         node.style.setProperty("--height", `${region.height || 110}px`);
 
         const head = element("div", "region-head");
         const title = element("div");
         title.append(element("div", "section-kind", region.id), element("h3", "", region.section));
-        head.append(title, element("span", "priority", region.priority || "secondary"));
+        const headActions = element("div", "toolbar-cluster");
+        headActions.append(element("span", "priority", region.priority || "secondary"));
+        if (allowReview) {
+          const review = element("button", "review-trigger", "Review details");
+          review.type = "button";
+          review.addEventListener("click", () => openRegionInspector(screenId, region.id));
+          headActions.append(review);
+        }
+        head.append(title, headActions);
         node.append(head);
 
-        const notes = element("div", "annotation");
-        notes.append(element("div", "meta-label", "Purpose"), element("p", "", region.purpose));
-        appendElements(notes, region.elements);
-        appendActions(notes, screenId, region.actions);
-        appendList(notes, "Traces", region.traces);
+        const productCopy = element("div", "product-copy");
+        region.elements.forEach((value) => productCopy.append(renderCopyItem(value)));
+        appendActions(productCopy, screenId, region.actions);
         if (region.mediaIntent) {
-          notes.append(element("div", "meta-label", "Media intent"));
-          notes.append(
-            element(
-              "p",
-              "",
-              `${region.mediaIntent.treatment} · ${region.mediaIntent.generationStatus}: ${region.mediaIntent.draftPrompt} · source: ${region.mediaIntent.source}`
-            )
+          productCopy.append(
+            element("div", "media-placeholder", `Deferred ${region.mediaIntent.treatment} position`)
           );
         }
         const treatment = activeState?.treatments?.[region.id];
-        if (treatment) notes.append(element("div", "state-note", `${activeState.label}: ${treatment}`));
-        node.append(notes);
+        if (treatment) {
+          const stateNote = element("div", "state-note");
+          const treatmentCopy = typeof treatment === "string" ? [] : treatment.copy || [];
+          if (treatmentCopy.length) {
+            treatmentCopy.forEach((value) => stateNote.append(renderCopyItem(value)));
+          } else if (typeof treatment === "string") {
+            stateNote.append(element("div", "", `${activeState.label}: ${treatment}`));
+          }
+          productCopy.append(stateNote);
+        }
+        node.append(productCopy);
         return node;
+      };
+
+      const setInspectorOpen = (open) => {
+        const wasOpen = state.inspectorOpen;
+        if (open && !wasOpen) inspectorReturnFocus = document.activeElement;
+        state.inspectorOpen = open;
+        inspector.dataset.open = String(open);
+        inspectorBackdrop.dataset.open = String(open);
+        inspectorBackdrop.hidden = !open;
+        inspector.setAttribute("aria-hidden", String(!open));
+        inspector.inert = !open;
+        annotationToggle.setAttribute("aria-pressed", String(open));
+        if (open) {
+          inspectorClose.focus({preventScroll: true});
+        } else if (wasOpen && inspectorReturnFocus?.focus) {
+          inspectorReturnFocus.focus({preventScroll: true});
+        }
+      };
+
+      const renderInspector = () => {
+        inspectorContent.replaceChildren();
+        const screen = currentScreen();
+        if (!screen) {
+          inspectorTitle.textContent = "Structure notes";
+          inspectorContent.append(
+            element(
+              "p",
+              "",
+              "Open a page, then select Review details on a region. This panel is reviewer-only and never becomes product copy."
+            )
+          );
+          return;
+        }
+
+        const layout = activeLayout(screen);
+        const region = screen.regions.find((item) => item.id === state.selectedRegion);
+        if (!region) {
+          inspectorTitle.textContent = `${screen.id} structure`;
+          inspectorContent.append(
+            element("div", "meta-label", "Reviewer only"),
+            element("p", "", screen.goal),
+            element("span", "copy-status", `Copy ${screen.copyStatus || "legacy"}`),
+            element("h3", "", "Responsive rule"),
+            element("p", "", layout.reflow),
+            element("p", "", layout.interaction)
+          );
+          appendList(inspectorContent, "Traces", screen.traces);
+          return;
+        }
+
+        inspectorTitle.textContent = region.section;
+        inspectorContent.append(
+          element("div", "meta-label", `${screen.id} · ${region.id}`),
+          element("p", "", region.purpose),
+          element("span", "copy-status", `${region.priority || "secondary"} priority`),
+          element("h3", "", "Current layout"),
+          element(
+            "p",
+            "",
+            `${state.responsiveTarget}: span ${layout.spans[region.id]} of ${layout.columns}`
+          )
+        );
+        appendElements(inspectorContent, region.elements);
+        if (region.actions?.length) {
+          inspectorContent.append(element("h3", "", "Action copy"));
+          region.actions.forEach((action) => {
+            const card = element("div", "inspector-card");
+            card.append(
+              element("p", "", actionLabel(action)),
+              element("span", "copy-status", action.status || "legacy"),
+              element("p", "", `Source: ${action.source || "legacy contract"}`)
+            );
+            inspectorContent.append(card);
+          });
+        }
+        appendList(inspectorContent, "Traces", region.traces);
+        const activeState = screen.states.find((item) => item.id === state.screenState);
+        const treatment = activeState?.treatments?.[region.id];
+        if (treatment) {
+          inspectorContent.append(
+            element("h3", "", `${activeState.label} treatment`),
+            element("p", "", typeof treatment === "string" ? treatment : treatment.layout)
+          );
+          if (typeof treatment === "object") appendElements(inspectorContent, treatment.copy);
+        }
+        if (region.mediaIntent) {
+          inspectorContent.append(
+            element("h3", "", "Deferred media intent"),
+            element(
+              "p",
+              "",
+              `${region.mediaIntent.treatment}: ${region.mediaIntent.draftPrompt}`
+            ),
+            element("p", "", `Source: ${region.mediaIntent.source}`)
+          );
+        }
+      };
+
+      const openRegionInspector = (screenId, regionId) => {
+        if (state.page !== screenId) return;
+        state.selectedRegion = regionId;
+        renderInspector();
+        setInspectorOpen(true);
+      };
+
+      const copyRecords = () => {
+        const records = [];
+        data.screens.forEach((screen) => {
+          screen.regions.forEach((region) => {
+            region.elements.forEach((value) => {
+              records.push({scope: `${screen.id} · ${region.id}`, value});
+            });
+            region.actions.forEach((action) => {
+              records.push({
+                scope: `${screen.id} · ${region.id} · action`,
+                value: typeof action === "string"
+                  ? action
+                  : {...action, kind: "static", role: "action", text: action.label}
+              });
+            });
+          });
+          screen.states.forEach((screenState) => {
+            Object.entries(screenState.treatments || {}).forEach(([regionId, treatment]) => {
+              if (typeof treatment !== "object") return;
+              (treatment.copy || []).forEach((value) => {
+                records.push({scope: `${screen.id} · ${regionId} · ${screenState.id}`, value});
+              });
+            });
+          });
+        });
+        (data.flows || [])
+          .filter((flow) => flow.presentation === "feedback" && flow.feedback)
+          .forEach((flow) => {
+            records.push({scope: `${flow.from} · ${flow.trigger} · feedback`, value: flow.feedback});
+          });
+        return records;
+      };
+
+      const renderCopyInventory = () => {
+        copyInventoryList.replaceChildren();
+        copyRecords().forEach(({scope, value}) => {
+          const record = element("article", "copy-record");
+          const identity = element("div");
+          identity.append(
+            element("code", "", scope),
+            element("p", "", copyRole(value)),
+            element("span", "copy-status", value?.status || "legacy")
+          );
+          const detail = element("div");
+          detail.append(
+            element("p", "", copyText(value)),
+            element("p", "", `Source: ${value?.source || "legacy contract"}`)
+          );
+          if (value?.contract) {
+            const contract = element("div", "display-contract");
+            Object.entries(value.contract).forEach(([key, text]) => {
+              contract.append(element("div", "", `${key}: ${text}`));
+            });
+            detail.append(contract);
+          }
+          record.append(identity, detail);
+          copyInventoryList.append(record);
+        });
       };
 
       const renderStateControls = (screen) => {
@@ -920,12 +1531,47 @@
             }
           }
           const horizontalOverflow = canvas.scrollWidth > canvas.clientWidth + 1;
+          const contentBoundaryViolations = [];
+          const clippedContent = [];
+          canvas.querySelectorAll(".copy-item, .action-button").forEach((item) => {
+            const region = item.closest("[data-region]");
+            if (!region) return;
+            const itemBounds = item.getBoundingClientRect();
+            const regionBounds = region.getBoundingClientRect();
+            if (
+              itemBounds.left < regionBounds.left - 1 ||
+              itemBounds.right > regionBounds.right + 1 ||
+              itemBounds.top < regionBounds.top - 1 ||
+              itemBounds.bottom > regionBounds.bottom + 1
+            ) {
+              contentBoundaryViolations.push(
+                `${region.dataset.region}/${item.dataset.copyRole || item.dataset.flowTrigger || "control"}`
+              );
+            }
+            const style = getComputedStyle(item);
+            const clipsX = ["hidden", "clip"].includes(style.overflowX);
+            const clipsY = ["hidden", "clip"].includes(style.overflowY);
+            if (
+              (clipsX && item.scrollWidth > item.clientWidth + 1) ||
+              (clipsY && item.scrollHeight > item.clientHeight + 1)
+            ) {
+              clippedContent.push(
+                `${region.dataset.region}/${item.dataset.copyRole || item.dataset.flowTrigger || "control"}`
+              );
+            }
+          });
           const expectedCanvasWidth = Number(data.canvasWidths[state.responsiveTarget]);
           const actualCanvasWidth = shell.getBoundingClientRect().width;
           const canvasWidthMismatch = Math.abs(actualCanvasWidth - expectedCanvasWidth) > 1;
           const failures = [
             ...(collisions.length ? [`overlap: ${collisions.join(", ")}`] : []),
             ...(horizontalOverflow ? ["horizontal overflow"] : []),
+            ...(contentBoundaryViolations.length
+              ? [`copy/control boundary: ${contentBoundaryViolations.join(", ")}`]
+              : []),
+            ...(clippedContent.length
+              ? [`clipped copy/control: ${clippedContent.join(", ")}`]
+              : []),
             ...(canvasWidthMismatch
               ? [`review canvas ${actualCanvasWidth}px, expected ${expectedCanvasWidth}px`]
               : [])
@@ -934,11 +1580,18 @@
           panel.setAttribute("data-layout-qa", status);
           panel.textContent = failures.length
             ? `Layout QA failed — ${failures.join("; ")}`
-            : "Layout QA passed — no region overlap or unintended horizontal overflow";
+            : "Layout QA passed — no overlap, overflow, or clipped product copy";
           window.wireframeQaResults ||= {};
           window.wireframeQaResults[
             `${screen.id}|${state.responsiveTarget}|${state.screenState}`
-          ] = {status, collisions, horizontalOverflow, canvasWidthMismatch};
+          ] = {
+            status,
+            collisions,
+            horizontalOverflow,
+            contentBoundaryViolations,
+            clippedContent,
+            canvasWidthMismatch
+          };
         });
       };
 
@@ -975,15 +1628,16 @@
         const header = element("header", "screen-header");
         const summary = element("div");
         summary.append(
-          element("div", "eyebrow", `${screen.id} · ${screen.route}`),
           element("h2", "", screen.name),
+          element("div", "eyebrow", `${screen.id} · ${screen.route}`),
           element("p", "", screen.goal)
         );
         const metadata = element("div", "metadata");
         const rows = [
           [responsiveKind === "viewports" ? "Viewport" : "Size class", state.responsiveTarget],
           ["State", state.screenState],
-          ["Sections", String(screen.regions.length)]
+          ["Sections", String(screen.regions.length)],
+          ["Copy", screen.copyStatus || "legacy"]
         ];
         if (screen.traces?.length) rows.push(["Traces", screen.traces.join(", ")]);
         if (screen.mediaIntent) {
@@ -999,9 +1653,10 @@
         header.append(summary, metadata);
 
         const layout = activeLayout(screen);
-        const shell = element("div", `canvas-shell ${state.annotations ? "" : "annotation-off"}`.trim());
+        const shell = element("div", "canvas-shell");
         shell.style.width = `min(100%, ${data.canvasWidths[state.responsiveTarget]}px)`;
         const canvas = element("div", "wireframe");
+        canvas.setAttribute("role", "group");
         canvas.style.gridTemplateColumns = `repeat(${layout.columns}, minmax(0, 1fr))`;
         canvas.setAttribute("aria-label", `${screen.name}, ${state.responsiveTarget}, ${state.screenState}`);
         const activeState = screen.states.find((item) => item.id === state.screenState) || screen.states[0];
@@ -1018,6 +1673,7 @@
         runLayoutQa(canvas, shell, responsiveNotes, screen);
         const flows = renderScreenFlows(screen);
         if (flows) content.append(flows);
+        if (state.inspectorOpen) renderInspector();
       };
 
       const renderOverviewFlows = () => {
@@ -1048,9 +1704,10 @@
           card.setAttribute("role", "button");
           card.setAttribute("aria-label", `Open ${screen.id} ${screen.name}`);
           card.append(
-            element("div", "eyebrow", `${screen.id} · ${screen.route}`),
             element("h2", "", screen.name),
-            element("p", "", screen.goal)
+            element("div", "eyebrow", `${screen.id} · ${screen.route}`),
+            element("p", "", screen.goal),
+            element("span", "copy-status", `Copy ${screen.copyStatus || "legacy"}`)
           );
           const mini = element("div", "mini-layout");
           screen.regions.forEach((region) => {
@@ -1084,16 +1741,31 @@
       };
 
       annotationToggle.addEventListener("click", () => {
-        state.annotations = !state.annotations;
-        annotationToggle.setAttribute("aria-pressed", String(state.annotations));
-        const screen = currentScreen();
-        if (screen) renderScreen(screen);
+        state.selectedRegion = null;
+        renderInspector();
+        setInspectorOpen(!state.inspectorOpen);
+      });
+
+      inspectorClose.addEventListener("click", () => setInspectorOpen(false));
+      inspectorBackdrop.addEventListener("click", () => setInspectorOpen(false));
+      copyInventoryButton.addEventListener("click", () => {
+        renderCopyInventory();
+        copyInventory.showModal();
+      });
+      copyInventoryClose.addEventListener("click", () => copyInventory.close());
+      copyInventory.addEventListener("click", (event) => {
+        if (event.target === copyInventory) copyInventory.close();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && state.inspectorOpen) setInspectorOpen(false);
       });
 
       window.addEventListener("hashchange", () => {
         state.page = location.hash.slice(1) || "overview";
         const screen = currentScreen();
         state.screenState = screen?.states?.[0]?.id || "ready";
+        state.selectedRegion = null;
+        setInspectorOpen(false);
         render();
       });
 

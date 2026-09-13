@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.35.5-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.36.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -25,8 +25,8 @@
 
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
 | --- | --- | --- |
-| 一个产品想法 | `product-definition-builder` | 需求、覆盖每个 UI surface 与 state 的响应式 `wireframes/2` 审查文件、浏览器布局 QA、架构、技术栈决策、发布目标、测试义务，以及带来源的市场调研 |
-| 已批准线框图、需要视觉设计的包 | `product-definition-builder` UI Design Pass；gate 判定为 required 时再进入 `design-system-compiler` + `frontend-design` | 一份相互连通、自包含的设计参考 HTML reference，左侧栏列出所有页面，包含完整 CSS、可点击流程和直接进入已登录 UI 的模拟登录；需要时再加有约束力的设计系统契约 |
+| 一个产品想法 | `product-definition-builder` | 需求、覆盖每个 UI surface 与 state 的精致结构审查工作台 `wireframes/4`、已批准且可直接沿用的产品文案、浏览器布局 QA、架构、技术栈决策、发布目标、测试义务，以及带来源的市场调研 |
+| 已批准线框图、需要视觉设计的包 | `product-definition-builder` UI Design Pass；gate 判定为 required 时再进入 `design-system-compiler` + `frontend-design` | 先通过 reference-led Direction Checkpoint，再产出一份连通、自包含、保留冻结文案、包含完整 CSS 与可点击流程的设计参考 HTML；需要时再加有约束力的设计系统契约 |
 | 现有仓库中的明确变更 | `delivery-harness` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 已固定并完成集成的代码候选 | `code-security-review` | 只读、绑定精确 SHA 的安全审查，包含经验证的 source-to-sink 发现与明确的覆盖缺口 |
 | 已交付、需要外部设置的 release | `product-activation` | 精确授权的 console 动作、已验证的量测来源，以及逐 target 的 activation readiness |
@@ -37,8 +37,8 @@
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
-- **产品定义止于人工关卡。** UI 产品以一份响应式 `wireframes.html` 收尾；每个 surface、target、state 和可见 PRD 动作都必须能在本地运行并通过浏览器布局检查，owner 才能批准。Web 套件宣告至少三个递增的 responsive viewport；原生／桌面沿用平台自身的 size class。Checker 会验证 page、overlay、feedback flow 以及延后生成的 `mediaIntent` handoff。UI 评分只执行一个完整诊断 wave：默认一位 lead grader；只有 owner 要求或已记录的高影响风险才可增加最多两位检查范围不重叠的 specialist。Parent 先合并所有发现，再由单一 owner 完成一批修正与一次重验；第二次仍失败就回到 PRD，或要求 owner 批准结构性策略，不得展开无上限 round。分数描述视觉质量；明确的契约、行为、布局、state、motion 和 accessibility 义务仍是硬门槛。
-- **视觉目标是可交互的响应式 HTML。** 被要求的视觉阶段会产出一份连通的设计参考 HTML reference；每个可见控件都能换页、切换 state、打开已记录的 overlay 或显示 feedback。PRD Motion Need Gate 会把每个关键 surface 标记为 `required`、`recommended`、`not_required` 或 `blocked`；owner 可以自行选择，也可以接受 AI 建议，但会改变 scope 或需要生成服务的 motion 仍由人决定。必要的 functional UI motion 可以在 reference 内以本地方式运行，并提供等价的 reduced-motion 路径。生成式 image 和 motion 位置保留为静态 placeholder，附专属 prompt 与 `generationStatus: deferred`；只有后续获得明确授权的 MCP 阶段才会调用生成工具。Technical Hard Gate 会拒绝 runtime error、意外请求、无法到达的 state、重复事件效果和必要 motion 失效。设计参考人工关卡要求总分至少 90，`H2` 排版、`H4` responsive 和 `H8` accessibility 也都至少 90；非关键的 60–79 分是 advisory，不会触发追分 round。批准的 references 保留在 `docs/design/ui-references/`，被取代的组合归档而非删除。
+- **产品定义止于有顺序的人工关卡。** UI 产品以一份响应式 `wireframes/4` 审查工作台收尾。中性 canvas 显示真实产品文案与代表性动态数据；用途、priority、trace 和 responsive 规则放在独立 reviewer inspector。Copy Freeze 记录文案 owner、主要 locale、静态／动作／alternate-state 精确文字，以及完整动态 source/order/format/count/length/fallback 契约。先在结构 status 仍为 draft 时批准文案；之后才用同一批文字执行 UI grading、完整浏览器布局检查和 Wireframe Approval。Checker 保留旧 `wireframes/2`、`/3` 的读取兼容性，并拒绝 Copy Freeze 之前的结构批准。结构 Reference Pass 以精确 screen／flow 的 `WREF-*` 证据为主，gallery 只能补充第一方真实流程。
+- **视觉目标是可交互的响应式 HTML。** 被要求的视觉阶段先把一个产品专属方向提交 Direction Checkpoint；默认由两个用途互补的已检查 reference 支持，最多再加一个确实不同的来源。只有 owner 批准后才建立完整设计参考 HTML。Reference 必须逐字保留 Copy Freeze；每个可见控件都能换页、切换 state、打开已记录 overlay 或显示 feedback。PRD Motion Need Gate 会把每个关键 surface 标记为 `required`、`recommended`、`not_required` 或 `blocked`；必要 functional UI motion 可在本地运行并提供等价 reduced-motion 路径，生成式 image／motion 则保持 deferred。Technical Hard Gate 会拒绝 runtime error、意外请求、无法到达的 state、重复事件、copy drift 和必要 motion 失效。设计参考人工关卡要求总分至少 90，`H2`、`H4`、`H8` 也都至少 90；批准的 reference 保留在 `docs/design/ui-references/`，被取代的组合归档而非删除。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **每个 graph attempt 都可持久追踪。** 非 mission 节点先保留 attempt，在 RUN lock 外执行检查或外部动作，再记录 outcome 与证据；中断的非 runtime attempt 也通过同一结果路径记录为 `blocked`。本地 verifier 只能在 dirty-status 检查中忽略 tracked RUN；路径必须解析在 checkout 内，且执行与结果记录期间都会保护其精确字节和文件身份。
 - **Runtime binding 明确可验证。** `lease-worker` 从选择器 directive 派生 provider、driver、model、effort 和 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精确目标可直接沿用，新精确目标只能从已启用的 wildcard 授权 materialize，不会扩大权限。
@@ -56,7 +56,7 @@
 
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
-| `product-definition-builder` | 产品探索、起草前的 research-first 评估与 Research Gate、需求、Builder UX Direction 输入、带浏览器 QA 和基于 PRD 的条件式 multi-agent 评分的可交互响应式 wireframe、架构、技术栈决策、发布目标、测试义务、负责对账的草稿后市场调研补缺、使用可交互设计参考 HTML 且延后 media 与 motion 生成的可选 UI Design Pass，以及部署后的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 产品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
+| `product-definition-builder` | 产品探索、起草前 research-first 评估与 Research Gate、需求、Builder UX Direction 输入、`WREF-*` 结构证据、带 Copy Freeze 与浏览器 QA 的可交互响应式 wireframe、架构、技术栈决策、发布目标、测试义务、草稿后市场调研补缺、可选的 reference-led Direction Checkpoint 与交互设计参考 HTML，以及部署后的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 产品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
 | `design-system-compiler` | 将已批准的 UI Design Handoff 编译成冻结的设计系统契约，包含完全一致的已批准响应式集合与布局安全规则。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `design-system.md`、`design-system.json` |
 | `delivery-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：一份共享契约，加上每个宿主（Codex、Claude Code、Pi 或 generic）各一段 provider 章节 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 实现与统一集成后的只读安全审查，优先由 fresh sibling agent 执行；主动渗透测试与修复不属于本技能 | 精确 SHA 决策、trust-boundary 覆盖、验证后的发现与修复测试 |
@@ -76,8 +76,9 @@
 ```mermaid
 flowchart LR
   Idea["产品想法或变更请求"] --> PRD["product-definition-builder\n产品与技术定义"]
-  PRD --> Wireframe["wireframes/3 HTML\n响应式结构矩阵"]
-  Wireframe --> Gate{"Wireframe Approval Gate\n人类 owner"}
+  PRD --> Wireframe["wireframes/4 HTML\n结构 + Copy Freeze"]
+  Wireframe --> CopyGate{"Copy Freeze Gate\n文案 owner"}
+  CopyGate --> Gate{"Wireframe Approval Gate\n产品／设计 owner"}
   Gate -->|"批准且要求视觉设计"| Design["UI Design Pass\n需要时进入 design-system-compiler"]
   Gate -->|"批准、不进入视觉阶段"| Harness["delivery-harness\n共享交付核心"]
   Design -->|"批准的全页面 HTML reference 或设计系统契约"| Harness
@@ -91,7 +92,7 @@ flowchart LR
   Activate --> Outcome["已验证量测来源\n后续 outcome review"]
 ```
 
-你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于批准的 `wireframes.html`；可选的 UI Design Pass 与 `design-system-compiler` 定义视觉契约——pass 会在 `docs/design/ui-references/<run-id>/` 留下一份批准的自包含设计参考 HTML reference，左侧栏列出所有页面，包含完整 CSS、可点击流程与 deferred media/motion handoff；Harness 实现已冻结的结果；`code-security-review` 审查统一候选而不修改它；`product-activation` 则在不重开 delivery RUN 的情况下设置并验证已交付 release。
+你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于已完成结构批准与 Copy Freeze 的 `wireframes.html`；可选 UI Design Pass 与 `design-system-compiler` 在 Direction Checkpoint 后定义视觉契约——pass 会在 `docs/design/ui-references/<run-id>/` 留下一份逐字保留冻结文案、列出所有页面、包含完整 CSS、可点击流程与 deferred media/motion handoff 的自包含设计参考 HTML；Harness 不改写文案地实现冻结结果；`code-security-review` 审查统一候选而不修改它；`product-activation` 则在不重开 delivery RUN 的情况下设置并验证已交付 release。
 
 ### 完整技能生命周期
 
@@ -105,11 +106,12 @@ flowchart TB
         direction TB
         interview[结构化访谈<br/>3 段 free-text + AskUserQuestion]
         pkg["核心套件起草<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
-        wf["wireframes.html<br/>单一互动式线框档（UI 产品）"]
-        wgate{{"Wireframe Approval Gate<br/>（人工核准 = 完整停点）"}}
+        wf["wireframes/4 HTML<br/>结构 + 可直接沿用文案"]
+        cgate{{"Copy Freeze Gate<br/>（先批准文字）"}}
+        wgate{{"Wireframe Approval Gate<br/>（再批准结构）"}}
         ra["research-first 评估<br/>research-assessment.md（可跳过）"]
         rgate{{"Research Gate<br/>go | clarify | stop"}}
-        interview --> ra --> rgate --> pkg --> wf --> wgate
+        interview --> ra --> rgate --> pkg --> wf --> cgate --> wgate
         mr["market-research.md<br/>（gap pass，可跳过）"]
         ra -.-> mr
         pkg -.-> mr
@@ -213,7 +215,7 @@ flowchart TB
     verdict -.->|下一次 enhancement 请求| interview
 ```
 
-Wireframe Approval 与合并到 `main` 仍是人工闸门。Delivery 执行循环留在 PLAN/RUN 内；交付后 Activation 只在 RUN 关闭后开始，并使用自己精确的外部动作授权。
+Copy Freeze、Wireframe Approval 与合并到 `main` 仍是人工闸门。Delivery 执行循环留在 PLAN/RUN 内；交付后 Activation 只在 RUN 关闭后开始，并使用自己精确的外部动作授权。
 
 每个可部署版本都以 `docs/DEPLOYMENT.md` 作为操作交接文档。Product Definition 先建立骨架；Delivery Harness 在 push 前根据已跟踪的环境声明、CI 和 auth／integration 代码补全，部署后再用只读结果更新状态。每个独立发布单元使用一个小写 surface 名称：production 使用不带 `-prod` 的标准 `<product-slug>-<surface-suffix>`，development 则在同一个名称后加 `-dev`。常用后缀是 `web`、`api` 和 `extension`；原生 artifact，以及独立发布的 admin、worker、job、agent、webhook、realtime 或 CLI 单元，使用各自有意义的后缀。除非 artifact 确实不同，否则 provider 和 store 名称分开记录。文档也会列出准确的 secret 与 variable 名称、preview／production 放置位置，以及 auth callback URL 等外部 console 任务，但永远不保存 secret 值。
 
@@ -355,15 +357,15 @@ cp -r product-delivery-harness/skills/delivery-harness \
 Codex 接受下面的 `$skill-name` 形式。在 Claude Code 或其他宿主中，直接按名称请求技能，例如 `product-definition-builder`。在 Pi 中，可以使用自动发现的项目技能，或通过 `--skill` 传入技能目录，然后按名称请求 `delivery-harness`。
 
 ```text
-Use $product-definition-builder to turn this idea into a PRD, responsive wireframes for every page, target, and state, browser layout QA, architecture, stack decisions, release targets, and test obligations.
+使用 $product-definition-builder，把这个构想整理成 PRD 与覆盖每页、每个 target 和 state 的 wireframes/4 审查工作台；写出精确 UI 文案与 alternate-state 消息、定义动态内容契约、取得 Copy Freeze 批准，再完成浏览器布局 QA、架构、技术栈决策、发布目标和测试义务。
 ```
 
 ```text
-Use $product-definition-builder to review every page-target-state in the staged wireframes.html, confirm no unintended overlap or overflow in a real browser, and record the Wireframe Approval decision before visual or implementation work.
+使用 $product-definition-builder 先从 staged wireframes.html 的 Copy Inventory 批准 Copy Freeze，并保持结构 status 为 draft；之后才在真实浏览器审查每个 page-target-state，并在视觉或实现前记录 Wireframe Approval。
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every page and approved state in one self-contained design-reference HTML with complete CSS, a left sidebar listing all pages, clickable flows, and mock login that jumps directly to the authenticated UI. Browser-check the full responsive/state matrix and retain the approved file under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
+Wireframes 与 Copy Freeze 已批准；使用 $product-definition-builder 的 UI Design Pass 继续视觉设计。先建立用途互补且已检查的 reference set 并取得 Direction Checkpoint 批准，再把所有 in-scope 页面与 state 放入一份含完整 CSS、左侧栏、冻结文案与可点击流程的自包含 design-reference HTML。Auth preview 记为 n/a，完成 responsive/state 浏览器检查，并把批准文件保留在 docs/design/ui-references/；只有 Design System Need Gate 为 required 时才调用 $design-system-compiler。
 ```
 
 ```text
@@ -468,6 +470,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
+- **0.36.0** — Wireframe 现在同时冻结结构与文字。新建或结构性修改的 UI 包使用 `wireframes/4`：静态文字、action label 和 alternate-state message 会直接约束实现；动态值带真实示例与 source/order/format/count/length/fallback 契约；每个 PRD `UI-*` entry 都有 machine-readable `copy` anchor；Copy Freeze 记录 owner、主要 locale、批准日期与状态。Checker 会阻挡已批准文件中的 draft copy，同时保留未修改 `wireframes/2`、`/3` 的读取兼容性。HTML template 改为中性审查工作台：产品文案在 canvas，reviewer-only 详情在 inspector，另有完整 Copy Inventory。结构研究改以精确 screen／flow 的稳定 `WREF-*` 证据为主；UI Design Pass 会在完整 design-reference HTML 前要求用途互补的 reference set 与人工 Direction Checkpoint。Delivery 必须逐字保留冻结文案，任何改字或动态契约变更都要回到 schema-4 copy delta 并重新批准。这是 breaking skill-bundle 变更。
 - **0.35.5** — 新增 `scripts/parity_capture.py`：Final Visual Parity Loop 变为可执行——从 PLAN `ui_surfaces` 列举 route×breakpoint×state 矩阵，驱动 agent-browser CLI 以同一 viewport 拍摄设计参考渲染与实现页面（`docs/goal/evidence/parity/` 下的 `-target.png`/`-actual.png` 配对），每页跑 DOM 几何探针（水平溢位＋可见重叠）供 `layout_check` attestation 引用，并写出 `manifest.json` 与自包含的 `parity-board.html` 供判定；每 run 一份小 route map 提供参考选择器与可选状态触发，ready 状态免触发即可拍，无 CLI 时手动拍摄仍是后备。Production smoke 首次获得内容定义：带 UI 的候选用同一脚本对生产 URL 重拍 parity 到 `docs/goal/evidence/production/`（晋升合约第 7 条、部署合约、种子 AGENTS.md）——部署偏离设计参考从此是被记录的 finding，而不是 deploy 后的惊喜。
 - **0.35.4** — 小型直接工作的 commit 现在也用结构化 subject：种子 `AGENTS.md` 与 `commit-convention.md` 要求 managed run 之外的每个 commit——包括 plan-mode 原地修改、不开分支——使用 `<type>(<scope>): <imperative summary>`，尾码可选，并附示例（`fix(dashboard): correct save-button copy`、`chore(deps): bump playwright to 1.49`）。subject 即记录：run 之间的小改动在 git 历史里留下可搜索、带类型的轨迹。
 - **0.35.3** — 新增 `scripts/docs_weight.py`：只读的复杂度棘轮报告——统计每个 skill 的 SKILL.md 与 references 的规范字数，对照最近的 `v*` tag 输出逐档、逐 skill 与总计的增减。它在 CI 与 Required Verification 套件中运行，让文档增长在每个 release 可见；只报告、不拦截。

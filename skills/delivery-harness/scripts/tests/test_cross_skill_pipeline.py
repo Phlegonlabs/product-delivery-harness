@@ -146,7 +146,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "delivery-harness/references/contract-and-traceability.md"
         )
 
-        self.assertIn("`` `responsive` `` field names are invariant", prd)
+        self.assertIn(
+            "`` `responsive` ``, and `` `copy` `` field names are invariant", prd
+        )
         self.assertIn("at least three ascending `viewports: 390, 768, 1200` for web", prd)
         self.assertIn("exactly one responsive verification set", design)
         self.assertIn("copied exactly from the approved PRD and wireframe", design)
@@ -265,13 +267,14 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "delivery-harness/references/ui-implementation-contract.md"
         )
 
-        self.assertIn("single approved structural projection", prd)
+        self.assertIn("single approved structural and Copy Freeze projection", prd)
         self.assertIn("`wireframes.html`", prd)
         self.assertIn("approved UI Design Handoff", design)
         self.assertIn("approved `wireframes.html`", design)
         self.assertIn("never invokes the provider", preview)
         self.assertIn("matching approved page in `wireframes.html`", ui_contract)
         self.assertIn("never overrides `PRD.md`", ui_contract)
+        self.assertIn("implementation-bound", ui_contract)
         self.assertIn("UI Preview Gate outputs", ui_contract)
 
     def test_approved_html_references_carry_from_design_skills_to_harness_pages(self) -> None:

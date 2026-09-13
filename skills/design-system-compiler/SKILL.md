@@ -31,7 +31,7 @@ Do not reload `design-taste-frontend` or `impeccable` merely to compile the pair
 Read the current sources in full before drafting:
 
 - `PRD.md`, including its UI surface contract, Builder UX Direction Decision, Motion Need Gate, approved `### UI Design Handoff`, and `Design System Need Gate: required` decision;
-- approved `wireframes.html`, including its matching `UI-*` page, complete viewport or size-class set, state, region, per-target layout, and passing browser overlap/overflow review, plus `PRD.md`'s `### Wireframe Approval` record;
+- approved `wireframes.html`, including its matching `UI-*` page, complete viewport or size-class set, state, region, per-target layout, exact static and action copy, alternate-state copy, dynamic display contracts, Copy Freeze, and passing browser overlap/overflow review, plus `PRD.md`'s `### Wireframe Approval` record;
 - `architecture.md` and `stack-decisions.md` when they constrain platform, rendering, accessibility, performance, or component sources;
 - existing `design-system.md` and `design-system.json` for an enhancement or delta; and
 - the immutable approved UI target and any confirmed `REF-*` / `RP-*` evidence named by the handoff.
@@ -48,7 +48,7 @@ Product scope, route, structure, content, action, flow, state, wireframe, or app
 
 1. Confirm that `PRD.md` says `Design System Need Gate: required`. If it says `not_required` or `blocked`, stop; this skill should not have been invoked.
 2. Pass the Compilation Skills Gate.
-3. Verify that the PRD UI surface contract, approved Wireframe Approval, approved UI Design Handoff, immutable UI target, and approved `wireframes.html` are complete and consistent. If not, return a bounded update to `product-definition-builder` and wait.
+3. Verify that the PRD UI surface contract, approved Wireframe Approval and Copy Freeze, approved Direction Checkpoint and UI Design Handoff, immutable UI target, and approved `wireframes.html` are complete and consistent. If not, return a bounded update to `product-definition-builder` and wait.
 4. Read `references/design-system-guide.md`. Use `frontend-design` to translate only the approved visual consequences, real controls, repeated compositions, states, responsive needs, and Motion Need Gate into the smallest complete implementation contract. Register motion variants only for `required` or approved `recommended` rows; a `not_required` row gets no decorative variant, and a `blocked` row returns upstream.
 5. Build `design-system.json`, write the short rationale in `design-system.md`, and reconcile names, required content order, the exact PRD/wireframe responsive set, per-target rules, states, browser-matrix evidence, and target provenance against the PRD and wireframes.
 6. Run the validation commands and the final checklist in `references/output-contract.md`.
@@ -70,6 +70,7 @@ Also confirm:
 - the Design System Need Gate is `required` and names its owner and reason;
 - every PRD UI surface has an addressable route or an explicit `n/a` reason;
 - every UI surface maps to an approved `wireframes.html` page with matching regions, states, responsive set, and per-target order, visibility, spans, reflow, and interaction rules;
+- every UI surface's `copy` status matches the approved wireframe Copy Freeze, and visual compilation preserves exact static strings, action labels, alternate-state copy, and dynamic display contracts verbatim;
 - the approved UI target, Taste applicability record, visual approval, scope, hash, exact responsive coverage, passing browser-matrix evidence, and tolerance are present in the UI Design Handoff;
 - every surface covers the final state matrix or records `<state>: n/a - <reason>` in `PRD.md`;
 - every required UI element maps to a registered primitive or product component;

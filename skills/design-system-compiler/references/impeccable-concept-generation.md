@@ -14,7 +14,7 @@ Use this bridge only inside an owner-requested Visual Direction Gate. It adapts 
 
 Before generation, freeze:
 
-- the staged PRD, approved wireframes, architecture, stack decisions, and Builder UX Direction;
+- the staged PRD, approved wireframes and Copy Freeze, architecture, stack decisions, and Builder UX Direction;
 - approved scope, routes, representative screens, actions, content responsibilities, states, traces, accessibility, platform, and performance constraints;
 - the PRD UI surface contract and Market Design Evidence Brief;
 - the Visual Preference Brief, avoid list, and confirmed `RP-*` principles from supplied or repository-discovered references.
@@ -63,6 +63,7 @@ For each normalized direction, add to the existing direction anatomy:
 - how the idea reaches the other shipped surfaces without changing their structure;
 - honest risk; and
 - the inspected `REF-*` evidence and proposed `RP-*` consequences required by `design-reference-guide.md`.
+- one coherent reference-role map and avoid list; do not splice unrelated sources into the concept.
 
 A concept catalog, cultural example, or Impeccable challenger is not visual evidence by itself. Every presented direction still needs its own inspected current public `REF-*` source.
 
@@ -72,6 +73,6 @@ A concept catalog, cultural example, or Impeccable challenger is not visual evid
 - Map an owner request for more restraint, familiarity, or convention to a `safer` register.
 - Map an owner request for more contrast, novelty, or commitment to a `bolder` register.
 - `Mix` may combine named disciplines from multiple directions, but returns one consolidated direction for explicit review.
-- Do not fix token values, primitives, components, or motion variants before the owner selects a direction and confirms its `RP-*` principles.
+- Do not fix token values, primitives, components, or motion variants before the owner passes the Direction Checkpoint, selects a direction, and confirms its `RP-*` principles. Never rewrite the approved Copy Freeze during concept generation.
 
 Keep rejected candidates, generation notes, and challenger verdicts outside the published package. The selected `VD-*` provenance and its frozen implementation consequences are the only results that enter `design-system.md` and `design-system.json`.

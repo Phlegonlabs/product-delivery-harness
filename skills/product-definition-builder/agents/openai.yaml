@@ -20,24 +20,34 @@ interface:
     preference is not usability proof. Freeze product scope, routes, content
     responsibilities, actions, states, trace IDs, brand constraints,
     accessibility, platform, and performance limits as design inputs. For a
-    UI-bearing product, project every UI-* entry into one self-contained
-    structural wireframes.html. Put all pages in that HTML with an overview,
-    page switcher, expanded/compact and state controls, and visible
-    section-purpose labels. Make every visible PRD action work locally by
+    UI-bearing product, inspect exact comparable screens or flows and record
+    stable WREF-* structural evidence before projecting every UI-* entry into one self-contained
+    structural wireframes/4 HTML. Put all pages in that HTML with an overview,
+    page switcher, responsive and state controls, implementation-bound static
+    copy, realistic dynamic examples with complete display contracts, a copy
+    inventory, and a reviewer-only inspector. Record one copy anchor per UI-*
+    entry plus a Copy Freeze owner, primary locale, approval date, exact action
+    labels, feedback messages, and alternate-state copy. Make every visible PRD action work locally by
     switching pages, opening an accessible overlay, or showing feedback. After
-    the first draft, bind the HTML to the exact PRD revision or hash. When the
+    the first draft, show the copy inventory to the copy owner, revise it, record
+    an approved PRD Copy Freeze, keep structural approvalStatus draft, and pass
+    check_wireframe_html.py with --require-filled --require-copy-approved. Only
+    then bind the HTML to the exact PRD revision or hash and begin grading. When the
     host has multi-agent browser capability and dispatch is explicitly
     authorized, run one complete diagnostic wave with one lead grader by
     default and at most two justified non-overlapping specialists. Consolidate
     every finding before one repair batch and one re-review; if that re-review
     still blocks, stop instead of opening another round. When capability is
-    unavailable, record the skip and continue. Review that
-    file in the Wireframe Approval Gate with the human owner and record the
-    result in PRD.md. Treat approval as a complete stopping point. Only when the owner explicitly continues into
+    unavailable, record the skip and continue. Browser-check the full matrix,
+    review the same copy-frozen file in the Wireframe Approval Gate, record the
+    later structural decision in PRD.md, and pass --require-approved. Treat both
+    ordered gates as a complete stopping point. Only when the owner explicitly continues into
     visual design, run the UI Design Pass: load $design-taste-frontend, record
     applicable, partially_applicable, or n/a, and use $frontend-design for
-    excluded product surfaces. Produce one recommended direction by default,
-    create one connected interactive design-reference HTML, and omit login,
+    excluded product surfaces. Produce one recommended direction by default
+    from a complementary two-source reference set, pass a human Direction
+    Checkpoint before coding, preserve frozen copy verbatim, create one
+    connected interactive design-reference HTML, and omit login,
     registration, recovery, and authentication-error preview scenes while
     retaining production auth requirements in the PRD. Required functional UI
     motion may run locally with an equivalent reduced-motion path. Keep

@@ -69,7 +69,19 @@ Extract only what the evidence supports:
 - responsive behavior only from multi-viewport or inspectable implementation evidence; and
 - accessibility risks and evidence limitations.
 
-Do not copy a logo, brand identity, illustration, photography, exact copy, HTML/CSS, source asset, exact screen structure, or distinctive composition. `image-to-code` and `url-to-code` are separate implementation or cloning workflows; never invoke them automatically from this extraction flow.
+Do not copy a reference source's logo, brand identity, illustration, photography, wording, HTML/CSS, source asset, exact screen structure, or distinctive composition. This does not permit rewriting the product's own approved Copy Freeze, which remains verbatim input. `image-to-code` and `url-to-code` are separate implementation or cloning workflows; never invoke them automatically from this extraction flow.
+
+## Reference Set Quality
+
+A useful reference set assigns each source one job. It does not collect several attractive screens and average them together.
+
+- For `product-definition-builder`'s default one-direction UI Design Pass, inspect two sources by default and at most three: a primary composition/navigation/hierarchy source, a typography/density/material source, and only when needed a third source for a directly observed interaction, responsive, or motion mechanic.
+- For a compared direction set, inspect one primary source per direction. Add a second only when it proves a different mechanic that the primary source cannot establish.
+- Prefer current first-party product pages, official design systems, and first-party case studies. A gallery source is supplemental and never outranks an inspectable working product flow.
+- Reject redundant sources that demonstrate the same mechanic. Record the role of each retained `REF-*`, the `RP-*` principle it supports, and what remains `not observable`.
+- Record an explicit avoid list for each direction. An avoid item may come from an inspected anti-reference or from a known category default, but label the latter as a design hypothesis rather than visual evidence.
+
+The reference set supports a product-specific thesis. It is not permission to splice one source's header, another source's cards, and a third source's palette into a collage with no governing logic.
 
 ## Principle Confirmation
 
@@ -103,6 +115,7 @@ Modern/contemporary is an evidence-backed quality lane, not a fixed style name o
 
 ## Selection And Revision Loop
 
+- Before building a full connected design-reference HTML, run the owning flow's Direction Checkpoint. Present the `VD-*` thesis, product differentiator, reference-role map, representative composition, typography and density intent, color/material logic, signature interaction, responsive consequence, and avoid list. A default one-direction pass uses `approve`, `revision_requested`, or `compare alternatives`. A compared set uses `Select`, `Mix`, `Reject`, or `Check This`; selecting one direction and confirming its principles counts as checkpoint approval. Only an approved or selected direction opens the full HTML build.
 - `Select`: select one direction and explicitly confirm or edit its proposed `RP-*` items.
 - `Mix`: name parts of multiple directions, produce one consolidated direction for review, then wait for explicit selection and principle confirmation.
 - `Reject`: when some directions are rejected, record why and keep the remaining directions selectable. If the owner requests replacements, ask what should change and present a complete versioned set of exactly three rather than appending candidates. If all are rejected, ask what did not fit, update the Visual Preference Brief and avoid list, inspect new references, and produce a new set of exactly three.

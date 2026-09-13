@@ -53,6 +53,19 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("wireframes.html", lifecycle)
         self.assertIn("outside `docs/product/`", lifecycle)
 
+    def test_compilation_preserves_copy_freeze_and_direction_checkpoint(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        directions = self.read("references/visual-direction-guide.md")
+        references = self.read("references/design-reference-guide.md")
+
+        for content in (skill, contract, directions):
+            self.assertIn("Copy Freeze", content)
+        for content in (contract, directions, references):
+            self.assertIn("Direction Checkpoint", content)
+        self.assertIn("wording change returns to `product-definition-builder`", contract)
+        self.assertIn("two sources by default and at most three", references)
+
     def test_human_owner_controls_assumptions_before_drafting(self) -> None:
         skill = self.read("SKILL.md")
         directions = self.read("references/visual-direction-guide.md")
