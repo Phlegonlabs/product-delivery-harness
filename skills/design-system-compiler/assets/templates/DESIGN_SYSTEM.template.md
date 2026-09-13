@@ -10,7 +10,7 @@ This design system is the frontend implementation contract. It contains only the
 
 Artifact: `docs/design/design-system.json`
 
-`design-system.json` is the sole structured authority for token names, source paths, primitives, closed variant sets, product-component contracts, responsive verification, motion variants, and states. This Markdown file keeps the short human rationale and generated contract view.
+`design-system.json` is the sole structured authority for source bindings, token names, source paths, primitives, closed variant sets, product-component contracts, responsive verification, motion variants, and states. This Markdown file keeps the short human rationale and generated contract view.
 
 The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`. Verify with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.
 
@@ -18,10 +18,10 @@ The two files publish together. Edit structured fields in JSON, then run `script
 
 | Source | Path / URL | Role |
 |---|---|---|
-| PRD | <path> | product scope and requirements |
-| PRD UI Surface Contract | <path and section> | product-owned routes, content responsibilities, actions, states, flows, and responsive obligations |
-| Approved wireframe | <wireframes.html path and ui-design.md approval record> | structural all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
-| Approved UI design contract | <ui-design.md path/hash, direction ID, target path/hash, scope, tolerance, and Design System Need Gate> | approved visual input and pair requirement |
+| PRD | JSON `sourceBindings.prd`: current path and SHA-256 | product scope and requirements |
+| PRD UI Surface Contract | JSON `sourceBindings.prd` section | product-owned routes, content responsibilities, actions, states, flows, and responsive obligations |
+| Approved wireframe | JSON `sourceBindings.wireframe`: current path and SHA-256 | structural all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
+| Approved UI design contract | JSON `sourceBindings.uiDesign` and `sourceBindings.hifi`: current path and SHA-256; direction ID, scope, tolerance, and Design System Need Gate | approved visual input and pair requirement |
 | Style Integration and HiFi evidence | <frontend-design direction, Impeccable critique/audit, H1-H9 result, target manifest and approval> | frozen UI treatment and direction-review evidence |
 
 ## Selected Visual Direction

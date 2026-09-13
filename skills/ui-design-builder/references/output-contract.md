@@ -20,11 +20,11 @@ Use these exact headings:
 
 Product: [name]
 
-PRD source: [path plus revision or SHA-256]
+PRD source: [repo-relative path @ sha256:<lowercase sha256>]
 
-Architecture source: [path plus revision or SHA-256]
+Architecture source: [repo-relative path @ sha256:<lowercase sha256>]
 
-Stack source: [path plus revision or SHA-256]
+Stack source: [repo-relative path @ sha256:<lowercase sha256>]
 
 Product Definition Approval: approved — [owner and date]
 
@@ -46,13 +46,13 @@ Motion direction: [not_required / functional_only / expressive] — [owner or ac
 
 | Intent ID | UI scope / region | Treatment | Purpose and trigger | Static / reduced-motion fallback | Generation route | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| MM-001 | [UI-* / region] | [none / image / motion / image + motion] | [purpose and trigger] | [fallback] | [none / existing asset / CSS-WAAPI / GSAP / Higgsfield MCP / other owner-approved] | [approved / deferred / blocked] |
+| MM-001 | [UI-* / region] | [none / image / motion / image + motion] | [purpose and trigger] | [fallback] | [none / existing asset / CSS-WAAPI / GSAP / Higgsfield MCP / other owner-approved] | [approved / deferred] |
 
 ## Wireframe Approval
 
-Wireframe: [path plus SHA-256]
+Wireframe: [repo-relative path @ sha256:<lowercase sha256>]
 
-Frozen PRD basis: [path plus revision or SHA-256]
+Frozen PRD basis: [repo-relative path @ sha256:<lowercase sha256>]
 
 Copy Freeze: [approved / revision_requested / blocked]
 
@@ -62,11 +62,11 @@ Copy locale: [primary BCP 47 locale]
 
 Copy approved on: [YYYY-MM-DD]
 
-Responsive browser check: [matrix and result]
+Responsive browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[complete matrix]
 
 Wireframe references consulted: [sources and structural pattern adopted/rejected, or skip reason]
 
-UI grading: [W1-W5, overall, findings, repair/re-review history or authorized capability record]
+UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[W1-W5, overall, findings, repair/re-review history]
 
 Wireframe score: [0-100]
 
@@ -94,15 +94,17 @@ Direction decided on: [YYYY-MM-DD]
 
 Candidate theme: [color, typography, spacing, shape, iconography, imagery, and motion rules used in the HiFi reference; not yet a frozen design-system pair]
 
-Connected HiFi reference: [path plus SHA-256, routes, states, responsive scope]
+Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>, routes, states, responsive scope]
 
 ## HiFi Review
 
-Impeccable critique: [target, method, score, P0-P3 findings, evidence]
+Impeccable critique: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[target, method, score, P0-P3 findings]
 
-Impeccable audit: [target, score, accessibility/responsive/performance findings, evidence]
+Impeccable audit: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[target, score, accessibility/responsive/performance findings]
 
-UI grading: [H1-H9, overall, H2/H4/H8 thresholds, advisories, defect ledger, repair/re-review history]
+UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[H1-H9, overall, H2/H4/H8 thresholds, advisories, defect ledger, repair/re-review history]
+
+HiFi browser check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]; scope=[complete page, state, and target matrix]
 
 HiFi score: [0-100]
 
@@ -124,7 +126,7 @@ Decision owner: [human owner]
 
 Decided on: [YYYY-MM-DD]
 
-Approved target: [immutable path/version, SHA-256, routes/states, responsive scope, tolerance, allowed deviations]
+Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=<routes, states, responsive set, tolerance, and allowed deviations>]
 
 ## Design System Need Gate
 
@@ -132,9 +134,15 @@ Decision: [required / not_required / blocked]
 
 Decision owner: [human owner]
 
+Decided on: [YYYY-MM-DD]
+
 Reason: [product-specific reason]
 
-Replacement visual contract when not_required: [approved target plus ui-design.md, wireframes.html, and PRD]
+Replacement visual contract when not_required: target=[path @ sha256:hash]; ui-design=[path @ sha256:hash]; wireframe=[path @ sha256:hash]; prd=[path @ sha256:hash]
+
+Compiled design system pair: [markdown path @ sha256:<lowercase sha256> and json path @ sha256:<lowercase sha256>]
+
+Use `Compiled design system pair` only for `required` and the replacement field only for `not_required`. `blocked` cannot pass publication.
 ```
 
 Impeccable's heuristic scores and audit scores are diagnostic. Only the `W1`–`W5` and `H1`–`H9` rows use the thresholds in `ui-grading-rubric.md` to decide readiness.

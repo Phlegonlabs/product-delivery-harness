@@ -21,9 +21,9 @@ class UiDesignBuilderSkillContractTests(unittest.TestCase):
     def test_human_intake_precedes_wireframe_and_style(self):
         skill = self.read("SKILL.md")
         intake = skill.index("Run the **UI Design Intake Gate**")
-        wireframe = skill.index("Use `frontend-design` in structural mode")
+        wireframe = skill.index("Use `frontend-design` as the frontend-authoring resource")
         style = skill.index("Run **Style Integration** with `frontend-design`")
-        review = skill.index("Run the **Impeccable HiFi Review")
+        review = skill.index("Run the **Impeccable Quality Review")
         self.assertLess(intake, wireframe)
         self.assertLess(wireframe, style)
         self.assertLess(style, review)

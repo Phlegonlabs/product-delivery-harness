@@ -1,9 +1,19 @@
 {
-  "schema": "design-system/1",
+  "schema": "design-system/2",
   "product": "<product name>",
   "platform": "<web | ios | android | flutter | react-native | macos | windows | desktop>",
   "stylingMechanism": "<utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme>",
   "enforcement": "<blocking | advisory>",
+
+  "$comment:sourceBindings": "Every binding names one current repo-relative input and its lowercase SHA-256. The pair checker resolves each path and hash under --repo-root.",
+  "sourceBindings": {
+    "prd": { "path": "<docs/product/PRD.md>", "sha256": "<lowercase sha256>" },
+    "architecture": { "path": "<docs/product/architecture.md>", "sha256": "<lowercase sha256>" },
+    "stack": { "path": "<docs/product/stack-decisions.md>", "sha256": "<lowercase sha256>" },
+    "uiDesign": { "path": "<docs/design/ui-design.md>", "sha256": "<lowercase sha256>" },
+    "wireframe": { "path": "<docs/design/wireframes.html>", "sha256": "<lowercase sha256>" },
+    "hifi": { "path": "<approved HiFi target>", "sha256": "<lowercase sha256>" }
+  },
 
   "$comment:minimal": "Keep only tokens, primitives, product components, motion variants, states, and responsive entries required by the PRD UI surface contract. Remove unused examples before publication.",
   "$comment:sources": "tokenSources are the only paths where a raw color, dimension, or motion value may appear. primitiveSources are the paths whose job is defining control and surface selectors, so page-local-control-style is not reported for them. Both are matched as path suffixes against each checked file.",

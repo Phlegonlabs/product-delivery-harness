@@ -15,12 +15,22 @@ import argparse
 import json
 import math
 import os
+import hashlib
 import re
 import stat
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+PRODUCT_BUILDER_SCRIPTS = (
+    Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
+)
+if str(PRODUCT_BUILDER_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(PRODUCT_BUILDER_SCRIPTS))
+
+from markdown_contract import active_text, exact_marker_lines  # noqa: E402
+
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED DESIGN SYSTEM CONTRACT -->"
 END_MARKER = "<!-- END GENERATED DESIGN SYSTEM CONTRACT -->"
@@ -30,6 +40,7 @@ CONTRACT_FIELDS = (
     "platform",
     "stylingMechanism",
     "enforcement",
+    "sourceBindings",
     "tokenSources",
     "primitiveSources",
     "viewports",
@@ -55,6 +66,18 @@ DS_TOKEN_RE = re.compile(
 DS_LIKE_TOKEN_RE = re.compile(
     r"(?<![A-Za-z0-9_-])DS-[A-Za-z0-9_-]+(?![A-Za-z0-9_-])"
 )
+SOURCE_BINDING_KEYS = (
+    "prd",
+    "architecture",
+    "stack",
+    "uiDesign",
+    "wireframe",
+    "hifi",
+)
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+VALID_PLATFORMS = {"web", "ios", "android", "flutter", "react-native", "macos", "windows", "desktop"}
+VALID_STYLING_MECHANISMS = {"utility CSS", "CSS-in-JS", "CSS modules", "plain CSS", "platform theme"}
+VALID_ENFORCEMENT = {"blocking", "advisory"}
 
 
 class ConcurrentModificationError(RuntimeError):
@@ -96,24 +119,29 @@ def _generated_contract_match(
     *,
     allow_absent: bool,
 ) -> re.Match[str] | None:
-    begin_count = markdown_text.count(BEGIN_MARKER)
-    end_count = markdown_text.count(END_MARKER)
-    if begin_count == 0 and end_count == 0 and allow_absent:
+    begin_lines = exact_marker_lines(markdown_text, BEGIN_MARKER)
+    end_lines = exact_marker_lines(markdown_text, END_MARKER)
+    if not begin_lines and not end_lines and allow_absent:
         return None
-    if begin_count != 1 or end_count != 1:
+    if len(begin_lines) != 1 or len(end_lines) != 1:
         raise ValueError(
             "design-system.md must contain exactly one matched generated "
             "design-system contract marker pair"
         )
 
-    begin_at = markdown_text.find(BEGIN_MARKER)
-    end_at = markdown_text.find(END_MARKER)
+    line_offsets = [0]
+    for match in re.finditer(r"\n", markdown_text):
+        line_offsets.append(match.end())
+    begin_line = begin_lines[0]
+    end_line = end_lines[0]
+    begin_at = markdown_text.find(BEGIN_MARKER, line_offsets[begin_line - 1])
+    end_at = markdown_text.find(END_MARKER, line_offsets[end_line - 1])
     if begin_at >= end_at:
         raise ValueError(
             "design-system.md generated contract begin marker must precede its end marker"
         )
 
-    match = GENERATED_BLOCK_RE.search(markdown_text)
+    match = GENERATED_BLOCK_RE.search(markdown_text, begin_at, end_at + len(END_MARKER))
     if (
         match is None
         or match.start() != begin_at
@@ -201,11 +229,23 @@ def _string_list(problems: list[str], path: str, value: Any, *, nonempty: bool) 
         problems.append(f"design-system.json {path} must be a {qualifier}list of strings")
 
 
+def _repo_relative(value: str) -> bool:
+    return not (
+        not value
+        or value.startswith(("/", "\\"))
+        or (len(value) > 1 and value[1] == ":")
+        or any(part == ".." for part in Path(value).parts)
+    )
+
+
 def validate_registry(registry: dict[str, Any]) -> list[str]:
     """Validate the structured fields the pair checker promises to mirror."""
     problems: list[str] = []
-    if registry.get("schema") != "design-system/1":
-        problems.append("design-system.json schema must be 'design-system/1'")
+    schema = registry.get("schema")
+    if schema not in {"design-system/1", "design-system/2"}:
+        problems.append(
+            "design-system.json schema must be 'design-system/1' or 'design-system/2'"
+        )
 
     product = registry.get("product")
     if not isinstance(product, str) or not product.strip():
@@ -250,15 +290,37 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
     platform = registry.get("platform")
     if not isinstance(platform, str) or not platform.strip():
         problems.append("design-system.json platform must be a non-empty string")
+    elif not (platform.startswith("<") and platform.endswith(">")) and platform not in VALID_PLATFORMS:
+        problems.append(
+            "design-system.json platform must be one of: "
+            + ", ".join(sorted(VALID_PLATFORMS))
+        )
     elif not (platform.startswith("<") and platform.endswith(">")):
         if has_viewports and platform != "web":
             problems.append(
                 "design-system.json viewports require platform 'web'"
             )
-        if has_size_classes and platform == "web":
-            problems.append(
-                "design-system.json platform 'web' requires viewports, not sizeClasses"
-            )
+            if has_size_classes and platform == "web":
+                problems.append(
+                    "design-system.json platform 'web' requires viewports, not sizeClasses"
+                )
+
+    styling = registry.get("stylingMechanism")
+    if not isinstance(styling, str) or not styling.strip():
+        problems.append("design-system.json stylingMechanism must be a non-empty string")
+    elif not (styling.startswith("<") and styling.endswith(">")) and styling not in VALID_STYLING_MECHANISMS:
+        problems.append(
+            "design-system.json stylingMechanism must be one of: "
+            + ", ".join(sorted(VALID_STYLING_MECHANISMS))
+        )
+    enforcement = registry.get("enforcement")
+    if not isinstance(enforcement, str) or not enforcement.strip():
+        problems.append("design-system.json enforcement must be a non-empty string")
+    elif not (enforcement.startswith("<") and enforcement.endswith(">")) and enforcement not in VALID_ENFORCEMENT:
+        problems.append(
+            "design-system.json enforcement must be one of: "
+            + ", ".join(sorted(VALID_ENFORCEMENT))
+        )
 
     for key in ("tokens", "primitives"):
         if not isinstance(registry.get(key), dict):
@@ -278,6 +340,68 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
     _string_list(problems, "stateMatrix", registry.get("stateMatrix"), nonempty=True)
     _string_list(problems, "tokenSources", registry.get("tokenSources"), nonempty=True)
     _string_list(problems, "primitiveSources", registry.get("primitiveSources"), nonempty=False)
+
+    if schema == "design-system/2":
+        bindings = registry.get("sourceBindings")
+        if not isinstance(bindings, dict):
+            problems.append(
+                "design-system.json sourceBindings must be an object with prd, "
+                "architecture, stack, uiDesign, wireframe, and hifi"
+            )
+        else:
+            expected = set(SOURCE_BINDING_KEYS)
+            missing = sorted(expected - set(bindings))
+            extra = sorted(set(bindings) - expected)
+            if missing:
+                problems.append(
+                    "design-system.json sourceBindings is missing: " + ", ".join(missing)
+                )
+            if extra:
+                problems.append(
+                    "design-system.json sourceBindings names unexpected keys: "
+                    + ", ".join(extra)
+                )
+            for key in SOURCE_BINDING_KEYS:
+                binding = bindings.get(key)
+                path_name = f"sourceBindings.{key}"
+                if not isinstance(binding, dict):
+                    problems.append(f"design-system.json {path_name} must be an object")
+                    continue
+                path = binding.get("path")
+                digest = binding.get("sha256")
+                if not isinstance(path, str) or not _repo_relative(path):
+                    problems.append(
+                        f"design-system.json {path_name}.path must be a repo-relative path"
+                    )
+                if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+                    problems.append(
+                        f"design-system.json {path_name}.sha256 must be lowercase hex"
+                    )
+            paths = [
+                bindings[key].get("path")
+                for key in SOURCE_BINDING_KEYS
+                if isinstance(bindings.get(key), dict)
+            ]
+            if len(paths) != len(set(paths)):
+                problems.append("design-system.json sourceBindings paths must be distinct")
+            semantic_suffixes = {
+                "prd": "prd.md",
+                "architecture": "architecture.md",
+                "stack": "stack-decisions.md",
+                "uiDesign": "ui-design.md",
+                "wireframe": "wireframes.html",
+            }
+            for key, suffix in semantic_suffixes.items():
+                binding = bindings.get(key)
+                path = binding.get("path") if isinstance(binding, dict) else None
+                if isinstance(path, str) and not path.casefold().endswith(suffix.casefold()):
+                    problems.append(
+                        f"design-system.json sourceBindings.{key}.path must identify {suffix}"
+                    )
+            hifi = bindings.get("hifi")
+            hifi_path = hifi.get("path") if isinstance(hifi, dict) else None
+            if isinstance(hifi_path, str) and hifi_path.casefold().endswith("wireframes.html"):
+                problems.append("design-system.json sourceBindings.hifi.path must be a distinct HiFi target")
 
     primitives = registry.get("primitives")
     seen_ds_ids: set[str] = set()
@@ -415,14 +539,76 @@ def _diff(expected: Any, actual: Any, path: str, problems: list[str]) -> None:
         )
 
 
+SOURCE_REF_RE = re.compile(
+    r"^\s*(?P<label>PRD source|Architecture source|Stack source|Wireframe|"
+    r"Connected HiFi reference|Approved target):\s*"
+    r"(?P<path>[A-Za-z0-9._/-]+) @ sha256:(?P<sha256>[0-9a-f]{64})(?:;\s*scope=.*)?\s*$",
+    re.MULTILINE,
+)
+
+
+def _ui_identity_bindings(
+    bindings: dict[str, Any], *, repo_root: Path, problems: list[str]
+) -> None:
+    """Cross-check pair source bindings against the UI contract they name."""
+
+    ui_binding = bindings.get("uiDesign")
+    if not isinstance(ui_binding, dict):
+        return
+    ui_path = ui_binding.get("path")
+    if not isinstance(ui_path, str) or not _repo_relative(ui_path):
+        return
+    candidate = (repo_root / ui_path).resolve()
+    if not candidate.is_file():
+        return
+    try:
+        text = active_text(candidate.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError) as exc:
+        problems.append(f"design-system.json sourceBindings.uiDesign cannot be read: {exc}")
+        return
+    refs: dict[str, tuple[str, str]] = {}
+    for match in SOURCE_REF_RE.finditer(text):
+        refs[match.group("label")] = (match.group("path"), match.group("sha256"))
+    mapping = {
+        "prd": "PRD source",
+        "architecture": "Architecture source",
+        "stack": "Stack source",
+        "wireframe": "Wireframe",
+        "hifi": "Connected HiFi reference",
+    }
+    approved_match = re.search(
+        r"^Approved target:\s*([A-Za-z0-9._/-]+) @ sha256:([0-9a-f]{64});\s*scope=.*$",
+        text,
+        re.MULTILINE,
+    )
+    if approved_match:
+        refs["Approved target"] = (approved_match.group(1), approved_match.group(2))
+    for key, label in mapping.items():
+        binding = bindings.get(key)
+        expected = refs.get(label)
+        if label == "Connected HiFi reference" and "Approved target" in refs:
+            expected = refs["Approved target"]
+        if not isinstance(binding, dict) or expected is None:
+            continue
+        if binding.get("path") != expected[0] or binding.get("sha256") != expected[1]:
+            problems.append(
+                f"design-system.json sourceBindings.{key} does not match {label} in ui-design.md"
+            )
+
+
 def compare(
     markdown_text: str,
     registry: dict[str, Any],
     *,
     require_filled: bool = False,
+    repo_root: Path | None = None,
 ) -> list[str]:
     problems = validate_registry(registry)
     if require_filled:
+        if registry.get("schema") != "design-system/2":
+            problems.append(
+                "current publication requires design-system/2; design-system/1 is inspection-only"
+            )
         problems.extend(unfilled_placeholders(registry))
     generated, parse_problems = _extract_generated_contract(markdown_text)
     problems.extend(parse_problems)
@@ -433,7 +619,44 @@ def compare(
             "generated contract",
             problems,
         )
-    # Every DS-* id the Markdown names — prose, tables, or generated block —
+    if registry.get("schema") == "design-system/2" and repo_root is None:
+        problems.append("design-system.json source bindings require repo_root")
+    elif registry.get("schema") == "design-system/2" and repo_root is not None:
+        root = repo_root.resolve()
+        bindings = registry.get("sourceBindings")
+        if isinstance(bindings, dict):
+            for key in SOURCE_BINDING_KEYS:
+                binding = bindings.get(key)
+                if not isinstance(binding, dict):
+                    continue
+                path = binding.get("path")
+                digest = binding.get("sha256")
+                if not isinstance(path, str) or not _repo_relative(path):
+                    continue
+                candidate = (root / path).resolve()
+                try:
+                    candidate.relative_to(root)
+                except ValueError:
+                    problems.append(
+                        f"design-system.json sourceBindings.{key} path escapes repo_root"
+                    )
+                    continue
+                if not candidate.is_file():
+                    problems.append(
+                        f"design-system.json sourceBindings.{key} path does not exist: {path}"
+                    )
+                elif (
+                    not isinstance(digest, str)
+                    or hashlib.sha256(candidate.read_bytes()).hexdigest() != digest
+                ):
+                    problems.append(
+                        f"design-system.json sourceBindings.{key} sha256 does not "
+                        f"match current bytes: {path}"
+                    )
+            if isinstance(bindings, dict):
+                _ui_identity_bindings(bindings, repo_root=root, problems=problems)
+
+    # Every DS-* id active Markdown names — prose or tables, never fences or
     # must resolve to a registered id: a product component dsId, a primitive
     # dsId, or a signatureRules entry. The Markdown never mints ids.
     components = registry.get("productComponents")
@@ -458,7 +681,7 @@ def compare(
     unregistered = sorted(
         {
             token
-            for token in DS_TOKEN_RE.findall(markdown_text)
+            for token in DS_TOKEN_RE.findall(active_text(markdown_text))
             if token not in registered
         }
     )
@@ -469,7 +692,7 @@ def compare(
         )
     malformed = sorted(
         token
-        for token in set(DS_LIKE_TOKEN_RE.findall(markdown_text))
+        for token in set(DS_LIKE_TOKEN_RE.findall(active_text(markdown_text)))
         if DS_RULE_ID_RE.fullmatch(token) is None
     )
     if malformed:
@@ -492,6 +715,11 @@ def main(argv: list[str] | None = None) -> int:
         "--require-filled",
         action="store_true",
         help="reject template placeholder keys and string values",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="repository root used to resolve and hash design-system/2 source bindings",
     )
     args = parser.parse_args(argv)
 
@@ -525,6 +753,7 @@ def main(argv: list[str] | None = None) -> int:
         markdown_text,
         registry,
         require_filled=args.require_filled,
+        repo_root=args.repo_root,
     )
     for problem in problems:
         print(f"FAIL {problem}")

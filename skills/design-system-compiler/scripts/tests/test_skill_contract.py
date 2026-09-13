@@ -59,7 +59,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("stop compilation and invoke `../ui-design-builder/SKILL.md`", skill)
         self.assertIn("no longer owns visual-direction exploration", route)
         self.assertIn("frontend-design` as the single design author", retired)
-        self.assertIn("Impeccable runs afterward in evaluate mode", retired)
+        self.assertIn("Impeccable runs afterward for critique and audit", retired)
 
     def test_motion_variants_follow_ui_design_intent(self) -> None:
         skill = self.read("SKILL.md")
@@ -91,7 +91,9 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("Every required PRD element maps to the final registry", contract)
         self.assertIn("Approved UI design contract", template_md)
         self.assertIn("Style Integration and HiFi evidence", template_md)
-        self.assertIn('"schema": "design-system/1"', template_json)
+        self.assertIn('"schema": "design-system/2"', template_json)
+        self.assertIn('"sourceBindings"', template_json)
+        self.assertIn('"hifi"', template_json)
         self.assertIn('"requiredContentOrder"', template_json)
 
     def test_templates_and_checker_commands_belong_to_this_skill(self) -> None:

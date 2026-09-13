@@ -21,7 +21,7 @@ Stage one run under `docs/design/.ui-staging/<run-id>/`. New canonical publish l
 - `docs/design/ui-references/<run-id>/index.html` when retention is approved; and
 - `docs/design/design-system.md` plus `docs/design/design-system.json` when required.
 
-The approved Product Definition remains under `docs/product/` and is never moved into UI staging.
+The approved Product Definition is already published and remains under `docs/product/`; it is never moved into UI staging. Before publication, run `../scripts/check_ui_design_contract.py --repo-root <repository-root> --ui-design <staged ui-design.md> --prd <approved PRD.md> --wireframes <staged wireframes.html> --hifi <connected HiFi target> --require-filled --require-wireframe-approved --require-visual-approved`. When the Design System Need Gate is `required`, add `--design-system-markdown <staged design-system.md> --design-system-registry <staged design-system.json>` and stage the approved `design-system/2` pair in that same publication set. Do not publish a partial UI stage.
 
 ## Publish And Archive
 
@@ -29,4 +29,4 @@ Show the exact source, destination, overwrite, and archive paths before publicat
 
 When an approved artifact supersedes a current UI artifact, archive the old file or complete pair under `docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/` and update every live pointer. Move; never delete. Do not move a legacy `docs/product/` UI artifact merely to normalize its location without exact owner approval. New work may publish alongside a legacy artifact only when `ui-design.md` explicitly names which one is authoritative and the legacy one is marked superseded.
 
-The design-system pair publishes and archives atomically. A `not_required` decision does not silently remove an existing pair; explicitly retain or retire it with owner approval.
+The design-system pair publishes and archives atomically. Legacy `design-system/1` files remain inspection-only and never grant new approval authority. A `not_required` decision does not silently remove an existing pair; explicitly retain or retire it with owner approval.

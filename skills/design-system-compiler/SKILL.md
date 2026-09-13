@@ -19,10 +19,10 @@ This skill is optional. Invoke it only when Product Definition Approval and the 
 Before creating or revising a formal pair:
 
 1. Confirm that the installed skill with exact frontmatter name `frontend-design` is available.
-2. Load it with `design-system-compiler` in contract-compilation mode. It translates the approved direction into a coherent token, primitive, component, motion, responsive, and state system; it does not choose a new direction.
+2. Use `frontend-design` only for approved visual-direction and frontend-authoring judgment. Design System Compiler performs the compilation itself into a coherent token, primitive, component, motion, responsive, and state system; it does not ask `frontend-design` to compile or conform the pair.
 3. If `frontend-design` cannot be loaded, stop. Do not draft, revise, or validate the pair through a fallback path.
 
-For a Harness design-source mission, `required_skills` must contain `design-system-compiler` and `frontend-design`. This is distinct from Harness UI implementation conformance mode, which obeys frozen sources and does not revise them.
+For a Harness design-source mission, `required_skills` must contain `design-system-compiler` and `frontend-design`. `design-system-compiler` owns contract compilation; Harness implementation owns later conformance to those frozen sources.
 
 Do not run Impeccable or another design pass merely to compile the pair. Their approved consequences are already frozen in `ui-design.md`. A request to reopen layout, style, motion, media, or visual direction returns to `ui-design-builder`; a product or stack change returns to `product-definition-builder`.
 
@@ -50,9 +50,9 @@ Product scope, route, content, action, flow, state, responsive, architecture, or
 1. Run the sibling `product-definition-builder/scripts/check_product_package.py --require-filled --require-approved` over PRD, architecture, and stack decisions. Stop on a missing or stale Product Definition/Stack approval.
 2. Confirm that `ui-design.md` says `Design System Need Gate: required`; otherwise stop.
 3. Pass the Compilation Skills Gate.
-4. Verify the PRD UI Surface Contract, `ui-design.md`, approved wireframe, HiFi target, component foundation, and styling approach are complete and consistent. A visual direction that needs another stack returns upstream.
+4. Verify that `ui-design-builder/scripts/check_ui_design_contract.py --repo-root <repository-root> --ui-design docs/design/ui-design.md --prd docs/product/PRD.md --wireframes docs/design/wireframes.html --hifi <approved HiFi target> --design-system-markdown docs/design/design-system.md --design-system-registry docs/design/design-system.json --require-filled --require-wireframe-approved --require-visual-approved` passes. Verify the PRD UI Surface Contract, `ui-design.md`, approved wireframes/4 with approved Copy Freeze, HiFi target, component foundation, and styling approach are complete and consistent. A visual direction that needs another stack returns upstream.
 5. Read `references/design-system-guide.md` and compile only approved visual consequences with `frontend-design`. Register motion variants only for approved `functional_only` or `expressive` intents that use deterministic UI motion; `not_required` gets no decorative variant, and a blocked intent returns upstream. Generated provider assets remain media sources rather than motion variants. Every variant records reduced-motion behavior.
-6. Build and validate the pair against the PRD, `ui-design.md`, wireframes, and approved technology constraints.
+6. Build a `design-system/2` pair whose JSON `sourceBindings` names the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target with their current SHA-256 values. Validate the pair against the approved technology constraints.
 7. Run the validation commands and final checklist, then stage and publish both files together through the existing artifact lifecycle.
 
 ## Validation
@@ -60,8 +60,8 @@ Product scope, route, content, action, flow, state, responsive, architecture, or
 Run these from the repository root:
 
 ```text
-python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write
-python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled
+python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --write
+python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --require-filled
 python skills/design-system-compiler/scripts/check_color_contrast.py <the arguments required by the staged design system>
 python skills/design-system-compiler/scripts/check_type_scale.py <the arguments required by the staged design system>
 python skills/product-definition-builder/scripts/check_product_package.py --prd <PRD.md> --architecture <architecture.md> --stack-decisions <stack-decisions.md> --require-filled --require-approved
@@ -69,7 +69,8 @@ python skills/product-definition-builder/scripts/check_product_package.py --prd 
 
 Also confirm:
 
-- `ui-design.md` records the Design System Need Gate as `required` with its owner and reason;
+- `ui-design.md` records the Design System Need Gate as `required` with its owner and exact decision date; the pair remains absent until the Product Definition is published and all UI inputs and this compiled pair stage together;
+- `design-system.json` is `design-system/2` and binds every listed source to its current bytes; a legacy `design-system/1` pair is inspection-only and cannot authorize a new approval;
 - Product Definition Approval and the Stack Decision Checkpoint are approved, with no `Recommended` or `Provisional` executable layer;
 - every PRD UI surface has an addressable route or an explicit `n/a` reason;
 - every UI surface maps to an approved `wireframes.html` page with matching regions, states, responsive set, and per-target order, visibility, spans, reflow, and interaction rules;

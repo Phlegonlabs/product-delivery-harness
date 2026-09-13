@@ -22,7 +22,7 @@ For every marquee or media-bearing screen region, record one treatment:
 | `motion` | Labeled poster/frame with trigger, purpose, duration intent, and reduced-motion fallback | CSS/WAAPI, GSAP, or an explicitly authorized generation provider |
 | `image + motion` | Labeled static base plus motion layer and fallback | Approved image route plus approved motion route |
 
-The wireframe contains no final asset and invokes no provider. Its `mediaIntent` record uses `treatment`, `purpose`, `trigger`, `draftPrompt`, `source`, `reducedMotionFallback`, `generationRoute`, and `generationStatus: deferred`.
+The wireframe contains no final asset and invokes no provider. Its `mediaIntent` record uses a stable `id` equal to its `MM-*` row plus `treatment`, `purpose`, `trigger`, `draftPrompt`, `source`, `reducedMotionFallback`, `generationRoute`, and `generationStatus: deferred`.
 
 ## Implementation Routing After Wireframe Approval
 

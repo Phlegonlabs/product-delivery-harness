@@ -5,7 +5,7 @@ Publish these files only when `docs/design/ui-design.md` records `Design System 
 - `docs/design/design-system.md`
 - `docs/design/design-system.json`
 
-The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved HiFi target; approved `wireframes.html` provides the structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together.
+The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved HiFi target; approved `wireframes/4` provides the structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. New approval authority belongs to `design-system/2`; `design-system/1` remains inspection-only and is rejected by the publication checker.
 
 ## `design-system.md`
 
@@ -23,6 +23,7 @@ Include only:
 Keep it the sole structured authority for:
 
 - platform, styling mechanism, enforcement mode, token sources, and primitive sources;
+- `sourceBindings` for current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target bytes;
 - exactly one responsive verification set, copied exactly from the approved PRD and wireframe: at least three ascending web `viewports` or at least two native/desktop `sizeClasses`;
 - only the tokens the product uses;
 - four primitive layers with closed variant sets;
@@ -48,7 +49,7 @@ If product behavior or stack is missing, return a bounded Product Definition upd
 
 ## Final Quality Check
 
-- `frontend-design` was loaded with `design-system-compiler` in contract-compilation mode.
+- The approved `frontend-design` direction is recorded in `ui-design.md`; the compiler owns pair generation and validation.
 - `frontend-design` and Impeccable were not rerun during normal compilation; their approved consequences are read from `ui-design.md`.
 - The Style Integration record names `frontend-design`, the selected direction, and its candidate theme rules.
 - The human owner approved one immutable UI target, or explicitly authorized a provisional assumption.

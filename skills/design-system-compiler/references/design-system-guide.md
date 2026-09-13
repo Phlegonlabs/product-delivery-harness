@@ -9,7 +9,7 @@ The design system exists so frontend implementation can follow one set of tokens
 1. Confirm that `docs/design/ui-design.md` records `Design System Need Gate: required`, then load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
 2. Confirm that the PRD UI Surface Contract is complete and frozen and that `docs/design/ui-design.md` records approved Wireframe and Visual decisions for the complete responsive browser matrix and immutable target.
 3. Consume the selected direction, Style Integration rules, Impeccable review evidence, H1-H9 result, and human approval from `ui-design.md`. Do not rerun `frontend-design`, Impeccable, direction generation, or the HiFi review during normal compilation.
-4. Use `frontend-design` in contract-compilation mode to translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target.
+4. Translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target. `frontend-design` supplies the approved direction; it is not a compiler mode.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
 6. Reconcile the final token, primitive, and product-component names against every required PRD UI element and state. An unresolved page-local exception blocks publication.
 
@@ -17,9 +17,11 @@ Publish the Markdown and JSON together.
 
 ## Contract Boundary
 
-`design-system.json` is the sole structured authority. It contains only what implementation and validation need:
+`design-system.json` is the sole structured authority. New approval pairs use `design-system/2`; its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
 
-- token and primitive source paths;
+Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`.
+
+- current source bindings plus token and primitive source paths;
 - the responsive verification set;
 - tokens the product actually uses;
 - primitives with closed variant sets;

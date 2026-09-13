@@ -1,6 +1,6 @@
 # Style Integration And HiFi Pass
 
-Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval and human Wireframe Approval. It turns the approved structural wireframe into a human-approved visual target. `frontend-design` is the single design author. `impeccable` and rubric graders are read-only reviewers.
+Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval and human Wireframe Approval. It turns the approved structural wireframe into a human-approved visual target. `frontend-design` is the single design author. `impeccable` and rubric graders provide review evidence; they do not publish or approve the target.
 
 ## Frozen Inputs
 
@@ -58,12 +58,12 @@ Produce one self-contained design-reference HTML containing every in-scope `UI-*
 
 The file calls no live backend, credential, identity provider, or unapproved generation provider. Login, registration, recovery, and authentication-error preview scenes may be marked `n/a` for this visual review without removing their production requirements. Native chrome may use a labeled HTML placeholder.
 
-## Impeccable HiFi Review And PRD-Bound Grading
+## Impeccable Quality Review And PRD-Bound Grading
 
 Before human visual approval:
 
 1. Freeze the PRD, `ui-design.md`, wireframe, and HiFi candidate paths and SHA-256 values.
-2. Run `impeccable critique` and `impeccable audit` in evaluate mode against the exact connected candidate. Follow Impeccable's own capability and subagent-authorization rules. Its Nielsen, detector, accessibility, responsive, performance, theming, and implementation-integrity scores are diagnostic evidence.
+2. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects and is not a read-only publication gate. Its Nielsen, detector, accessibility, responsive, performance, theming, and implementation-integrity scores are diagnostic evidence; the record uses exact `PASS` verdicts after the human gate standard is met.
 3. Run `ui-grading-rubric.md`'s Technical Hard Gate and complete `H1`–`H9` scoring. These scores, not Impeccable's native totals, decide readiness.
 4. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
 5. Let `frontend-design` make one repair batch. Then re-run both Impeccable evaluate commands and the complete rubric once on the new SHA-256.
@@ -72,7 +72,7 @@ The candidate is ready for the human gate only when overall `H1`–`H9` is at le
 
 ## Browser And Human Visual Approval
 
-Render every page-target-state and overlay in a real browser. Reject broken navigation, dead controls, unexpected requests, console errors, unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify keyboard paths, focus management, target sizes, long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
+Render every page-target-state and overlay in a real browser and record the verdict as exact `PASS`. Reject broken navigation, dead controls, unexpected requests, console errors, unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify keyboard paths, focus management, target sizes, long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
 
 Present only a passing candidate. Record the human decision as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. Approval proves visual-direction conformance, not representative-user usability or production readiness.
 

@@ -16,6 +16,16 @@ if str(SCRIPTS_ROOT) not in sys.path:
 import check_design_system_pair as checker  # noqa: E402
 
 
+SOURCE_BINDINGS = {
+    "prd": ("docs/product/PRD.md", b"prd"),
+    "architecture": ("docs/product/architecture.md", b"architecture"),
+    "stack": ("docs/product/stack-decisions.md", b"stack"),
+    "uiDesign": ("docs/design/ui-design.md", b"ui design"),
+    "wireframe": ("docs/design/wireframes.html", b"wireframes"),
+    "hifi": ("docs/design/ui-references/run-1/index.html", b"hifi"),
+}
+
+
 def registry(**overrides: object) -> dict:
     base = {
         "schema": "design-system/1",
@@ -87,6 +97,23 @@ Composes `Stack`.
 | `ready` | Yes |
 | `loading` | Yes |
 """ + checker.generated_contract_block(registry())
+
+
+def prepare_source_bindings(data: dict, root: Path) -> dict:
+    """Make a schema-2 fixture whose binding files match their hashes."""
+    if data.get("schema") != "design-system/2":
+        return data
+    bindings = {}
+    for key, (path, content) in SOURCE_BINDINGS.items():
+        target = root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        bindings[key] = {
+            "path": path,
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }
+    data["sourceBindings"] = bindings
+    return data
 
 REAL_TABLE_SHAPE_WITH_STALE_GENERATED_CONTRACT = """
 # Design System
@@ -199,9 +226,18 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         data: dict,
         *,
         require_filled: bool = False,
+        prepare_bindings: bool = True,
     ) -> tuple[int, list[str]]:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            for path, content in SOURCE_BINDINGS.values():
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            if prepare_bindings:
+                prepare_source_bindings(data, root)
+                if data.get("schema") == "design-system/2":
+                    markdown = checker.replace_generated_contract(markdown, data)
             md = root / "design-system.md"
             js = root / "design-system.json"
             md.write_text(markdown, encoding="utf-8")
@@ -210,8 +246,16 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 markdown,
                 data,
                 require_filled=require_filled,
+                repo_root=root,
             )
-            argv = ["--markdown", str(md), "--registry", str(js)]
+            argv = [
+                "--markdown",
+                str(md),
+                "--registry",
+                str(js),
+                "--repo-root",
+                str(root),
+            ]
             if require_filled:
                 argv.append("--require-filled")
             code = checker.main(argv)
@@ -357,14 +401,16 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         )
         self.assertNotIn(checker.BEGIN_MARKER, template)
 
-        markdown = checker.replace_generated_contract(template, data)
-        self.assertEqual([], checker.compare(markdown, data))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            prepare_source_bindings(data, root)
+            markdown = checker.replace_generated_contract(template, data)
+            self.assertEqual([], checker.compare(markdown, data, repo_root=root))
         self.assertEqual(markdown, checker.replace_generated_contract(markdown, data))
 
         drifted = dict(data)
         drifted["product"] = "Different Product"
-        problems = checker.compare(markdown, drifted)
-
+        problems = checker.compare(markdown, drifted, repo_root=root)
         self.assertTrue(
             any(
                 "generated contract.product differs" in problem
@@ -373,6 +419,131 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             ),
             problems,
         )
+
+    def test_schema_two_web_pair_passes_with_current_sources(self):
+        data = registry(schema="design-system/2")
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        code, problems = self.run_pair(markdown, data)
+
+        self.assertEqual([], problems)
+        self.assertEqual(0, code)
+
+    def test_schema_two_native_pair_passes_with_size_classes(self):
+        data = registry(schema="design-system/2")
+        del data["viewports"]
+        data["platform"] = "ios"
+        data["sizeClasses"] = ["compact", "regular"]
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        code, problems = self.run_pair(markdown, data)
+
+        self.assertEqual([], problems)
+        self.assertEqual(0, code)
+
+    def test_schema_two_requires_every_source_binding_and_current_bytes(self):
+        base = registry(schema="design-system/2")
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, base)
+        _, problems = self.run_pair(
+            markdown, base, prepare_bindings=False
+        )
+        self.assertTrue(any("sourceBindings must be an object" in item for item in problems))
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+            if key != "stack"
+        }
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(any("sourceBindings is missing: stack" in item for item in problems))
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+            if key != "hifi"
+        }
+        data["sourceBindings"]["extra"] = {"path": "docs/extra.md", "sha256": "0" * 64}
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(any("unexpected keys: extra" in item for item in problems))
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+        }
+        data["sourceBindings"]["prd"]["sha256"] = "0" * 64
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(
+            any("sourceBindings.prd sha256 does not match" in item for item in problems)
+        )
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+        }
+        data["sourceBindings"]["wireframe"]["path"] = "../outside.html"
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(
+            any("sourceBindings.wireframe.path must be a repo-relative path" in item)
+            for item in problems
+        )
+
+    def test_current_publication_rejects_schema_one(self):
+        data = registry()
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, require_filled=True)
+        self.assertTrue(any("current publication requires design-system/2" in item for item in problems))
+
+    def test_schema_two_rejects_invalid_enums_and_duplicate_semantic_paths(self):
+        data = registry(schema="design-system/2")
+        data["platform"] = "browser"
+        data["stylingMechanism"] = "magic"
+        data["enforcement"] = "maybe"
+        data["sourceBindings"] = {
+            key: {"path": "docs/product/PRD.md", "sha256": "0" * 64}
+            for key in checker.SOURCE_BINDING_KEYS
+        }
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        joined = "\n".join(problems)
+        self.assertIn("platform must be one of", joined)
+        self.assertIn("stylingMechanism must be one of", joined)
+        self.assertIn("enforcement must be one of", joined)
+        self.assertIn("sourceBindings paths must be distinct", joined)
+
+    def test_generated_markers_inside_fence_are_not_authoritative(self):
+        data = registry()
+        markdown = "```text\n" + checker.generated_contract_block(data) + "\n```\n"
+        _, problems = self.run_pair(markdown, data)
+        self.assertTrue(any("exactly one matched generated" in item for item in problems))
+
+    def test_fenced_and_commented_ds_ids_are_not_active_authority(self):
+        markdown = (
+            MATCHING_MARKDOWN
+            + "\n<!-- DS-FAKE-001 -->\n\n```text\nDS-FAKE-002\n```\n"
+        )
+        data = registry()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            prepare_source_bindings(data, root)
+            self.assertEqual([], checker.compare(markdown, data, repo_root=root))
+
+    def test_legacy_schema_one_is_inspection_only(self):
+        markdown = MATCHING_MARKDOWN
+        data = registry()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            js = root / "design-system.json"
+            md.write_text(markdown, encoding="utf-8")
+            js.write_text(json.dumps(data), encoding="utf-8")
+            self.assertEqual(0, checker.main(["--markdown", str(md), "--registry", str(js)]))
+            self.assertEqual([], checker.compare(markdown, data))
 
     def test_missing_or_blank_json_product_fails_validation(self) -> None:
         for invalid in (None, "", "   ", 42):
@@ -794,12 +965,14 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 registry_data: dict[str, object],
                 *,
                 require_filled: bool = False,
+                repo_root: Path | None = None,
             ) -> list[str]:
                 md.write_bytes(concurrent_edit)
                 return original_compare(
                     markdown_text,
                     registry_data,
                     require_filled=require_filled,
+                    repo_root=repo_root,
                 )
 
             checker.compare = compare_with_concurrent_edit

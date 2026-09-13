@@ -10,12 +10,12 @@ A missing or contradictory product obligation returns to `product-definition-bui
 
 ## Capability And Authorization
 
-- First observe whether the host can dispatch fresh read-only agents that can open the local HTML in a real browser. Capability does not grant permission.
-- When that capability is unavailable, skip only the multi-agent stage and record `UI grading: skipped — multi-agent capability unavailable` with the frozen PRD and artifact identities. Continue the static checker, browser matrix check, and human gate. Do not label a parent-only review as multi-agent grading.
+- First observe whether the host can dispatch the required grading agents that can open the local HTML in a real browser. Capability does not grant permission.
+- If the required grading capability or explicit authorization is unavailable, the grading gate is blocked. Record the frozen PRD and artifact identities plus the missing capability; do not convert the result into a PASS or continue to human approval.
 - When the capability is available, require explicit delegation authorization for this grading stage or the matching current RUN `spawn_subagents` grant before dispatch. If authorization is missing, do not spawn; pause the grading stage for the owner rather than treating capability as permission.
 - Run one complete diagnostic wave before any repair. Default to one fresh lead grader that walks the complete in-scope `UI-* × responsive target × non-n/a state` matrix and must return every finding it can establish, not stop at the first block.
 - Add at most two fresh specialist sibling graders only when the owner requests independent review or a recorded high-impact risk justifies separate accessibility, localization/state, or visual lenses. Give specialists non-overlapping lenses over the same frozen inputs. All dispatched graders finish the same diagnostic wave before the parent begins repair; they do not share notes or open later waves to look for more examples.
-- Graders are read-only and advisory: they never edit files, mint trace IDs, contact the owner, or approve the artifact.
+- Graders return evidence only: they do not publish, mint trace IDs, contact the owner, or approve the artifact.
 
 ## Scores
 
