@@ -243,6 +243,14 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         problems = validate_html(unclosed)
         self.assertTrue(any("exactly one wireframe-data" in p for p in problems))
 
+    def test_duplicate_non_na_routes_are_rejected(self):
+        data = wireframe_data()
+        second = json.loads(json.dumps(data["screens"][0]))
+        second["id"] = "UI-002"
+        data["screens"].append(second)
+        problems = validate_html(render_html(data), require_approved=True)
+        self.assertTrue(any("duplicates non-n/a route" in problem for problem in problems))
+
     def test_duplicate_script_id_or_type_attributes_are_rejected_in_both_orders(self):
         data = wireframe_data()
         marker = '<script id="wireframe-data" type="application/json">'
@@ -1152,6 +1160,18 @@ class PrdUiContractParserTests(unittest.TestCase):
             any("exactly one matched" in error for error in errors)
         )
         self.assertEqual({}, entries)
+
+    def test_duplicate_non_na_prd_routes_are_rejected(self):
+        text = prd_markdown()[:-1].replace(
+            "<!-- ui-surface-contract:end -->",
+            "### UI-002 — Settings\n\n"
+            "- `route`: /home\n"
+            "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 768, 1200\n"
+            "<!-- ui-surface-contract:end -->",
+        )
+        _, errors = prd_ui_contract.parse_prd_ui_contract(text)
+        self.assertTrue(any("duplicate non-n/a route" in error for error in errors))
 
     def test_heading_outside_boundary_is_rejected(self):
         text = prd_markdown() + (

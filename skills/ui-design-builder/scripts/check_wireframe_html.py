@@ -930,6 +930,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         return problems
 
     seen_screens: set[str] = set()
+    seen_routes: dict[str, str] = {}
     actions_by_screen: dict[str, list[str]] = {}
     for screen_index, screen in enumerate(screens):
         path = f"wireframe-data.screens[{screen_index}]"
@@ -947,6 +948,13 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         for key in ("name", "route", "goal"):
             if not _nonempty(screen.get(key)):
                 _add(problems, f"{path}.{key}", "must be a non-empty string")
+        route = screen.get("route")
+        if isinstance(route, str) and route.strip().casefold() not in {"n/a", "na"}:
+            previous_route = seen_routes.get(route)
+            if previous_route is not None:
+                _add(problems, f"{path}.route", f"duplicates non-n/a route {route!r} used by {previous_route}")
+            else:
+                seen_routes[route] = str(screen_id)
         if copy_contract:
             copy_status = screen.get("copyStatus")
             if (

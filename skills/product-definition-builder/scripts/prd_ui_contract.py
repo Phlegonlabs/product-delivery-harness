@@ -369,6 +369,18 @@ def parse_prd_ui_contract(
             errors.append(
                 "prd: every UI surface must use the same ordered responsive set"
             )
+    route_owners: dict[str, str] = {}
+    for surface_id, entry in entries.items():
+        route = entry.get("routes", [None])[0] if entry.get("routes") else None
+        if not isinstance(route, str) or route.casefold() in {"n/a", "na"}:
+            continue
+        previous = route_owners.get(route)
+        if previous is not None:
+            errors.append(
+                f"prd: duplicate non-n/a route {route!r} is used by {previous} and {surface_id}"
+            )
+        else:
+            route_owners[route] = surface_id
     return entries, errors
 
 

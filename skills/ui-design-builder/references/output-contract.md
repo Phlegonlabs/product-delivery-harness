@@ -120,7 +120,7 @@ HiFi lowest dimension: [0-100]
 
 HiFi blocks or disputes: [none / named blocks or disputes]
 
-Each PASS evidence file is a `ui-evidence/2` human-attested JSON receipt with exactly `schema`, `check`, `result`, `reviewedArtifact`, `receipt`, `attestation`, and `owner`. `check` is platform-specific (for example `wireframe-browser`, `wireframe-browser-grading`, `wireframe-extension`, `wireframe-native`, `wireframe-desktop`, and corresponding HiFi checks); `reviewedArtifact` carries the exact current path and SHA-256; `receipt` carries a closed tool/method, exact surfaces/states/targets matrix, PASS result rows, a transcript/output artifact path+hash, and a past timezone-aware `executedAt`; and `owner` names a human. The receipt is an attestation record, not an automatic approval—human Visual Approval remains required.
+Each PASS evidence file is a `ui-evidence/2` human-attested JSON receipt with exactly `schema`, `check`, `result`, `reviewedArtifact`, `receipt`, `attestation`, and `owner`. `check` is platform-specific (for example `wireframe-browser`, `wireframe-browser-grading`, `wireframe-extension`, `wireframe-native`, `wireframe-desktop`, and corresponding HiFi checks); `reviewedArtifact` carries the exact current path and SHA-256; `receipt.matrix` is `{ "cases": [{"surface":"UI-*","state":"...","target":"..."}] }` derived per surface state × responsive target, `receipt.results` repeats those exact cases with `result: PASS`, and `receipt` carries a closed tool/method, a transcript/output artifact path+hash, and a past timezone-aware `executedAt`; `owner` names a human. The receipt is an attestation record, not an automatic approval—human Visual Approval remains required.
 
 ## Visual Approval
 

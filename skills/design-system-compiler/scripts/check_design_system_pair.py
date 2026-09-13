@@ -580,6 +580,12 @@ def _ui_identity_bindings(
         if require_contract:
             problems.append("design-system.json sourceBindings.uiDesign must point to a complete UI Design Contract")
         return
+    gate_match = re.search(r"^## Design System Need Gate\s*$([\s\S]*?)(?=^##\s+|\Z)", text, re.MULTILINE)
+    decisions = re.findall(r"^\s*Decision:\s*(.+?)\s*$", gate_match.group(1) if gate_match else "", re.MULTILINE | re.IGNORECASE)
+    if len(decisions) != 1 or decisions[0].strip().casefold() != "required":
+        problems.append("design-system.json sourceBindings.uiDesign requires an active Design System Need Gate Decision: required")
+    if gate_match and re.search(r"^\s*Replacement visual contract when_not_required\s*:", gate_match.group(1), re.MULTILINE | re.IGNORECASE):
+        problems.append("design-system.json sourceBindings.uiDesign must not contain a not_required replacement for a required pair")
     refs: dict[str, list[tuple[str, str]]] = {}
     for match in SOURCE_REF_RE.finditer(text):
         refs.setdefault(match.group("label"), []).append(

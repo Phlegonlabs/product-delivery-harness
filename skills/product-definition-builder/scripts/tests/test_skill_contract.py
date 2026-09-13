@@ -752,7 +752,7 @@ async function agent(_prompt, options) {
             "generationStatus: deferred",
             self.read_ui("references/wireframe-guide.md"),
         )
-        self.assertIn("## Impeccable HiFi Review And PRD-Bound Grading", guide)
+        self.assertIn("## Impeccable Quality Review And PRD-Bound Grading", guide)
         self.assertIn("Render every page-target-state", guide)
         self.assertIn("Design System Need Gate", guide)
 
@@ -2261,7 +2261,7 @@ async function agent(_prompt, options) {
         for marker in (
             "exact PRD and `ui-design.md` paths",
             "Capability does not grant permission",
-            "multi-agent capability unavailable",
+            "grading gate is blocked",
             "matching current RUN `spawn_subagents` grant",
             "one complete diagnostic wave",
             "Default to one fresh lead grader",
@@ -2392,7 +2392,7 @@ new Function(scripts.at(-1)[1]);
         self.assertIn("Run `impeccable critique` and `impeccable audit`", guide)
         self.assertLess(
             guide.index("## Frontend Design Style Integration"),
-            guide.index("## Impeccable HiFi Review"),
+            guide.index("## Impeccable Quality Review"),
         )
 
     def test_product_definition_approval_precedes_ui_design_builder(self) -> None:

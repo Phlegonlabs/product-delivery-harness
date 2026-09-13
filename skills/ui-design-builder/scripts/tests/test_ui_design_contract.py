@@ -6,6 +6,8 @@ import json
 import sys
 import unittest
 import tempfile
+from types import SimpleNamespace
+from unittest import mock
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1]
@@ -102,7 +104,7 @@ Decision: not_required
 Decision owner: Product owner
 Decided on: 2026-09-13
 Reason: One surface with a binding all-screens target
-Replacement visual contract when not_required: target=docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; ui-design=docs/design/ui-design.md @ sha256:{U_HASH}; wireframe=docs/design/wireframes.html @ sha256:{D_HASH}; prd=docs/product/PRD.md @ sha256:{A_HASH}
+Replacement visual contract when_not_required: target=docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; ui-design=docs/design/ui-design.md @ sha256:{U_HASH}; wireframe=docs/design/wireframes.html @ sha256:{D_HASH}; prd=docs/product/PRD.md @ sha256:{A_HASH}
 """
 
 def wireframe_html(data: object) -> str:
@@ -113,7 +115,124 @@ def wireframe_html(data: object) -> str:
     )
 
 
+def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, Path, Path, Path, Path | None]:
+    product = root / "docs/product/PRD.md"
+    architecture = root / "docs/product/architecture.md"
+    stack = root / "docs/product/stack-decisions.md"
+    wireframe = root / "docs/design/wireframes.html"
+    hifi = root / "docs/design/ui-references/run-1/index.html"
+    ui_design = root / "docs/design/ui-design.md"
+    for path, content in (
+        (product, "prd"),
+        (architecture, "architecture"),
+        (stack, "stack"),
+        (wireframe, "wireframe"),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    hifi.parent.mkdir(parents=True, exist_ok=True)
+    manifest = json.dumps({
+        "schema": "ui-hifi/1",
+        "surfaces": [{
+            "id": "UI-001",
+            "route": "/home",
+            "states": ["ready"],
+            "responsive": {"kind": "viewports", "targets": [390, 768, 1200]},
+            "navigation": ["home"],
+            "controls": ["refresh"],
+        }],
+    })
+    hifi.write_text(
+        '<html><body><nav>Pages</nav><main data-ui-surface="UI-001" data-state="ready"><h1>HiFi review surface with meaningful content</h1></main><span data-responsive-target="390"></span><span data-responsive-target="768"></span><span data-responsive-target="1200"></span>'
+        '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
+        encoding="utf-8",
+    )
+    ui = contract()
+    replacements = {
+        A_HASH: hashlib.sha256(product.read_bytes()).hexdigest(),
+        B_HASH: hashlib.sha256(architecture.read_bytes()).hexdigest(),
+        C_HASH: hashlib.sha256(stack.read_bytes()).hexdigest(),
+        D_HASH: hashlib.sha256(wireframe.read_bytes()).hexdigest(),
+        E_HASH: hashlib.sha256(hifi.read_bytes()).hexdigest(),
+    }
+    for old, new in replacements.items():
+        ui = ui.replace(old, new)
+    pair_markdown = pair_registry = None
+    if required:
+        pair_markdown = root / "docs/design/design-system.md"
+        pair_registry = root / "docs/design/design-system.json"
+        pair_markdown.write_text("# Pair\n", encoding="utf-8")
+        pair_registry.write_text("{}", encoding="utf-8")
+        ui = ui.replace("Decision: not_required", "Decision: required")
+        ui = ui.replace(
+            "Replacement visual contract when_not_required: target=docs/design/ui-references/run-1/index.html @ sha256:" + replacements[E_HASH] + "; ui-design=docs/design/ui-design.md @ sha256:" + U_HASH + "; wireframe=docs/design/wireframes.html @ sha256:" + replacements[D_HASH] + "; prd=docs/product/PRD.md @ sha256:" + replacements[A_HASH],
+            "Compiled design system pair: docs/design/design-system.md @ sha256:" + hashlib.sha256(pair_markdown.read_bytes()).hexdigest() + " and docs/design/design-system.json @ sha256:" + hashlib.sha256(pair_registry.read_bytes()).hexdigest(),
+        )
+    ui_design.write_text(ui, encoding="utf-8")
+    if not required:
+        digest = checker.canonical_ui_approval_sha256(ui_design.read_text(encoding="utf-8"))
+        ui = ui.replace(U_HASH, digest)
+        ui_design.write_text(ui, encoding="utf-8")
+    return product, architecture, stack, wireframe, hifi, (pair_markdown, pair_registry) if required else None
+
+
 class UiDesignContractTests(unittest.TestCase):
+    def test_full_validate_not_required_publication_round_trip(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, architecture, stack, wireframe, hifi, _ = materialize_publication(root, required=False)
+            ui_design = root / "docs/design/ui-design.md"
+            import check_product_package
+
+            with (
+                mock.patch.object(check_product_package, "validate", return_value=[]),
+                mock.patch.object(checker.check_wireframe_html, "validate", return_value=[]),
+                mock.patch.object(checker, "_validate_target_scope_join"),
+                mock.patch.object(checker, "_resolve_evidence"),
+                mock.patch.object(checker, "parse_release_targets", return_value=(SimpleNamespace(explicit_none_reason=None, targets=()), [])),
+            ):
+                problems = checker.validate(
+                    ui_design,
+                    repo_root=root,
+                    prd_path=product,
+                    wireframes_path=wireframe,
+                    hifi_path=hifi,
+                    require_filled=True,
+                    require_wireframe_approved=True,
+                    require_visual_approved=True,
+                )
+            self.assertEqual([], problems)
+
+    def test_full_validate_required_publication_round_trip(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, architecture, stack, wireframe, hifi, pair = materialize_publication(root, required=True)
+            ui_design = root / "docs/design/ui-design.md"
+            import check_product_package
+            import check_design_system_pair
+
+            with (
+                mock.patch.object(check_product_package, "validate", return_value=[]),
+                mock.patch.object(checker.check_wireframe_html, "validate", return_value=[]),
+                mock.patch.object(checker, "_validate_target_scope_join"),
+                mock.patch.object(checker, "_resolve_evidence"),
+                mock.patch.object(checker, "parse_release_targets", return_value=(SimpleNamespace(explicit_none_reason=None, targets=()), [])),
+                mock.patch.object(check_design_system_pair, "compare", return_value=[]),
+            ):
+                problems = checker.validate(
+                    ui_design,
+                    repo_root=root,
+                    prd_path=product,
+                    wireframes_path=wireframe,
+                    hifi_path=hifi,
+                    design_system_markdown_path=pair[0],
+                    design_system_registry_path=pair[1],
+                    require_filled=True,
+                    require_wireframe_approved=True,
+                    require_visual_approved=True,
+                )
+            self.assertEqual([], problems)
+
     def test_complete_visual_contract_passes(self):
         self.assertEqual(
             [],
@@ -219,8 +338,8 @@ class UiDesignContractTests(unittest.TestCase):
 
     def test_not_required_replacement_is_structured_and_exact(self):
         candidate = contract().replace(
-            "Replacement visual contract when not_required: target=docs/design/ui-references/run-1/index.html @ sha256:" + E_HASH,
-            "Replacement visual contract when not_required: approved target, ui-design.md, wireframes.html, PRD.md",
+            "Replacement visual contract when_not_required: target=docs/design/ui-references/run-1/index.html @ sha256:" + E_HASH,
+            "Replacement visual contract when_not_required: approved target, ui-design.md, wireframes.html, PRD.md",
         )
         problems = checker.validate_text(candidate, require_visual_approved=True)
         self.assertTrue(any("must contain exactly target, ui-design, wireframe, and prd" in item for item in problems))
@@ -238,8 +357,15 @@ class UiDesignContractTests(unittest.TestCase):
             root = Path(temp)
             artifact = root / "wireframes.html"
             artifact.write_text("wireframe", encoding="utf-8")
-            output = root / "output.txt"
-            output.write_text("PASS output", encoding="utf-8")
+            output = root / "output.json"
+            output_json = {
+                "schema": "ui-output/1",
+                "check": "wireframe-browser",
+                "subject": {"path": "wireframes.html", "sha256": hashlib.sha256(b"wireframe").hexdigest()},
+                "matrix": {"cases": [{"surface": "UI-001", "state": "ready", "target": "390"}]},
+                "results": [{"surface": "UI-001", "state": "ready", "target": "390", "result": "PASS"}],
+            }
+            output.write_text(json.dumps(output_json), encoding="utf-8")
             evidence = {
                 "schema": "ui-evidence/2",
                 "check": "wireframe-browser",
@@ -251,11 +377,11 @@ class UiDesignContractTests(unittest.TestCase):
                 "receipt": {
                     "tool": "playwright",
                     "method": "browser-matrix",
-                    "matrix": {"surfaces": ["UI-001"], "states": ["ready"], "targets": ["390"]},
-                    "results": [{"case": "UI-001/ready/390", "result": "PASS"}],
+                    "matrix": {"cases": [{"surface": "UI-001", "state": "ready", "target": "390"}]},
+                    "results": [{"surface": "UI-001", "state": "ready", "target": "390", "result": "PASS"}],
                     "outputArtifact": {
-                        "path": "output.txt",
-                        "sha256": hashlib.sha256(b"PASS output").hexdigest(),
+                        "path": "output.json",
+                        "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
                     },
                     "executedAt": "2020-01-01T00:00:00Z",
                 },
@@ -287,12 +413,27 @@ class UiDesignContractTests(unittest.TestCase):
     def test_hifi_surface_rejects_external_and_network_surfaces(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "hifi.html"
-            path.write_text("<html><body><nav>Pages</nav><main><h1>HiFi review surface</h1></main></body></html>", encoding="utf-8")
+            manifest = json.dumps({
+                "schema": "ui-hifi/1",
+                "surfaces": [{
+                    "id": "UI-001",
+                    "route": "/home",
+                    "states": ["ready"],
+                    "responsive": {"kind": "viewports", "targets": [390]},
+                    "navigation": ["home"],
+                    "controls": ["refresh"],
+                }],
+            })
+            path.write_text(
+                '<html><body><nav>Pages</nav><main data-ui-surface="UI-001"><h1>HiFi review surface</h1></main>'
+                '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
+                encoding="utf-8",
+            )
             problems: list[str] = []
             checker._validate_hifi_surface(path, problems)
             self.assertEqual([], problems)
             path.write_text(
-                '<base href="https://example.test/"><script>fetch("https://example.test")</script>',
+                '<html><body><main data-ui-surface="UI-001">Unsafe HiFi</main><base href="https://example.test/"><script id="ui-hifi-manifest" type="application/json">'+manifest+'</script><script>fetch("https://example.test")</script></body></html>',
                 encoding="utf-8",
             )
             problems = []
@@ -341,7 +482,9 @@ class UiDesignContractTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            self.assertIsNone(checker._join_motion_intents({"MM-001": region_intent}, path, problems=[]))
+            region_problems: list[str] = []
+            checker._join_motion_intents({"MM-001": region_intent}, path, problems=region_problems)
+            self.assertEqual([], region_problems)
 
             path.write_text(
                 wireframe_html(
