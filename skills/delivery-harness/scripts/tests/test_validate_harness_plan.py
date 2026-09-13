@@ -1357,6 +1357,11 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
         }
         breakpoints = [str(value) for value in viewports]
         plan["ui_surfaces"] = [dict(HOME_SURFACE, breakpoints=breakpoints)]
+        copy_anchor = (
+            "- `copy`: approved — static copy is implementation-bound\n"
+            if len(viewports) >= 3
+            else ""
+        )
         prd_text = (
             "<!-- ui-surface-contract:start -->\n"
             "## UI Surface Contract\n\n"
@@ -1364,6 +1369,7 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
             "- `route`: /home\n"
             "- `states`: ready\n"
             f"- `responsive`: viewports: {', '.join(breakpoints)}\n"
+            f"{copy_anchor}"
             "<!-- ui-surface-contract:end -->\n"
         )
         wireframes = wireframes_html(
