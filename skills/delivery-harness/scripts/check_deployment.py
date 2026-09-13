@@ -45,6 +45,7 @@ BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects"
 ABSENT_VALUES = {"", "-", "n/a"}
 IDENTITY_ABSENT_VALUES = {"", "-"}
 HANDOFF_STATUSES = {"pending", "configured", "verified", "n/a"}
+ENVIRONMENT_STATUSES = {"PASS", "FAIL", "BLOCKED", "UNVALIDATED"}
 SECRET_HEADERS = (
     "name",
     "kind",
@@ -406,15 +407,31 @@ def check_deployment_text(text: str) -> list[str]:
             continue
         if not row["url"]:
             findings.append(f"Environment Status: {environment} is checked but has no URL")
+        status = row["status"].strip()
         if row["checked"]:
             for column in ("expected", "deployed"):
                 if not FULL_SHA_RE.match(row[column]):
                     findings.append(
                         f"Environment Status: {environment} {column} must be a full lowercase SHA once checked"
                     )
-            if not row["status"]:
+            if not status:
                 findings.append(
                     f"Environment Status: {environment} is checked but has no status"
+                )
+        if status:
+            if status not in ENVIRONMENT_STATUSES:
+                findings.append(
+                    f"Environment Status: {environment} has invalid status {status!r}; "
+                    "expected one of PASS, FAIL, BLOCKED, or UNVALIDATED"
+                )
+            elif not row["checked"]:
+                findings.append(
+                    f"Environment Status: {environment} status {status!r} requires a Checked value"
+                )
+            elif status == "PASS" and row["expected"] != row["deployed"]:
+                findings.append(
+                    f"Environment Status: {environment} PASS requires Expected head "
+                    "and Deployed SHA to be identical"
                 )
     resource_sections = sections.get("## Resource Isolation", [])
     resource_text = "\n".join(resource_sections[0]) if resource_sections else ""

@@ -182,6 +182,43 @@ class DeploymentRecordTests(unittest.TestCase):
         self.assertIn("must be a full lowercase SHA once checked", joined)
         self.assertIn("checked but has no status", joined)
 
+    def test_a_pass_with_mismatched_expected_and_deployed_shas_fails(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            f'| development | https://abc.example.pages.dev | {"a" * 40} | {"a" * 40} | 2026-09-03 | PASS |',
+            f'| development | https://abc.example.pages.dev | {"a" * 40} | {"b" * 40} | 2026-09-03 | PASS |',
+            1,
+        )
+
+        findings = "\n".join(check_deployment.check_deployment_text(deployment))
+
+        self.assertIn(
+            "PASS requires Expected head and Deployed SHA to be identical", findings
+        )
+
+    def test_environment_status_uses_a_closed_vocabulary(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| development | https://abc.example.pages.dev | "
+            f'{"a" * 40} | {"a" * 40} | 2026-09-03 | PASS |',
+            "| development | https://abc.example.pages.dev | "
+            f'{"a" * 40} | {"a" * 40} | 2026-09-03 | verified |',
+            1,
+        )
+
+        findings = "\n".join(check_deployment.check_deployment_text(deployment))
+
+        self.assertIn("has invalid status 'verified'", findings)
+
+    def test_a_status_without_a_checked_value_fails(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| production | | | | | |",
+            f'| production | https://example.com | {"a" * 40} | {"a" * 40} | | PASS |',
+            1,
+        )
+
+        findings = "\n".join(check_deployment.check_deployment_text(deployment))
+
+        self.assertIn("status 'PASS' requires a Checked value", findings)
+
     def test_missing_handoff_sections_fail(self) -> None:
         findings = check_deployment.check_deployment_text(BAD_DEPLOYMENT)
         joined = "\n".join(findings)
