@@ -247,6 +247,8 @@ def release_target(
     )
     return f"""### Release Target: {target_id}
 - Surface: {surface}
+- Surface class: {'hosted_web' if surface == 'web-app' else 'hosted_api' if surface == 'public-api' else 'other_nonpublic'}
+- Public discoverability: {'yes' if surface == 'web-app' else 'no'}
 - Surface suffix: {suffix}
 - Release name: {release_name}
 - Provider: {provider}
@@ -847,6 +849,28 @@ class ProductPackageCheckerTests(unittest.TestCase):
 
     def test_normal_deployable_release_targets_pass(self) -> None:
         self.assertEqual([], self.validate(architecture=release_architecture()))
+
+    def test_release_target_typed_surface_and_discoverability_are_closed(self) -> None:
+        architecture = release_architecture().replace(
+            "- Surface class: hosted_web", "- Surface class: guessed_web"
+        )
+        findings = self.validate(architecture=architecture)
+        self.assertTrue(any("invalid Surface class" in item for item in findings))
+        architecture = release_architecture().replace(
+            "- Public discoverability: yes", "- Public discoverability: maybe"
+        )
+        findings = self.validate(architecture=architecture)
+        self.assertTrue(any("invalid Public discoverability" in item for item in findings))
+
+    def test_release_target_pairs_keep_typed_class_and_discoverability(self) -> None:
+        architecture = release_architecture()
+        marker = "- Surface class: hosted_web\n- Public discoverability: yes"
+        first, second = architecture.split(marker, 1)
+        architecture = first + marker + second.replace(marker, "- Surface class: hosted_api\n- Public discoverability: no", 1)
+        findings = self.validate(architecture=architecture)
+        joined = "\n".join(findings)
+        self.assertIn("same Surface class", joined)
+        self.assertIn("same Public discoverability", joined)
 
     def test_empty_architecture_sections_cannot_pass(self) -> None:
         body = []

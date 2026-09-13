@@ -18,7 +18,7 @@ Apply to every activation run:
 
 ## Web
 
-Apply when a release target is a public website, web app, hosted API, or browser frontend.
+Apply when a release target is a public website, web app, or browser frontend. A separately released backend uses `API / Backend`; do not treat a browser origin or web analytics property as API scope.
 
 ### Public Web Baseline
 
@@ -88,6 +88,87 @@ Apply when a release target is a native or cross-platform iOS app.
 - Regional or regulated capabilities: Apple Pay, HealthKit, iCloud/CloudKit, app groups, background modes, medical declarations, trader status, regional licenses, tax, or banking only when the product and distribution require them.
 
 Use current [App Store Connect workflow](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-workflow/), [privacy manifest files](https://developer.apple.com/documentation/bundleresources/privacy-manifest-files), [App Privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy), [User Privacy and Data Use](https://developer.apple.com/app-store/user-privacy-and-data-use/), and [TestFlight](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview) before acting.
+
+## API / Backend
+
+Apply when an `api`, `worker`, `webhook`, `jobs`, or another independently released backend target exists. API targets are not web targets even when the same product also has a browser frontend.
+
+### API Baseline
+
+- Release identity: API release target, environment or namespace, deployment unit, API version, exact route scope, source SHA, artifact/build identity, and rollback owner.
+- Access: authentication mode, tenant or service identity, audience and issuer, token lifetime, required scopes, rate and concurrency limits, and least-privilege service accounts.
+- Contract: representative request and response evidence, error behavior, deprecation/version policy, OpenAPI or equivalent contract, backward-compatibility rule, and consumer ownership.
+- Operations: logs with request and tenant identifiers but no secret or payload oversharing, distributed tracing, latency and error metrics, alerts, quotas, capacity, and cost ownership.
+- Security: origin restriction where applicable, input validation, authorization checks, secret placement, audit events, abuse controls, and vulnerability disclosure route.
+
+Keep API measurement separate from browser analytics. API adoption uses server logs, platform metrics, business events, or another bounded query scoped to the API target; a GA4 page-view stream cannot prove API behavior.
+
+### API Overlays
+
+- `api-webhooks`: provider/event contract, signatures, replay windows, idempotency, retries, dead-letter handling, endpoint ownership, and consumer confirmation.
+- `api-background-jobs`: trigger and schedule, heartbeat, timeout, concurrency, retry, replay, poison-message handling, and alert ownership.
+- `api-data-export`: purpose, requester authorization, scope, format, retention, delivery route, rate limit, and deletion handling.
+- `api-partner-access`: partner identity, scopes, quota, key or credential rotation, audit, support route, and termination path.
+
+## Android
+
+Apply when a release target is a native or cross-platform Android app.
+
+### Required Baseline
+
+- Google Play developer account, agreements, roles, explicit package/application ID, signing key or Play App Signing decision, version code, AAB/APK, mapping-file ownership, and recovery owner.
+- Play store record, localized metadata, screenshots, category/content rating, data safety, target API level, device categories, review notes, demo access, release mode, and install/upgrade smoke.
+- Play tracks: internal, closed, open, and production as selected; staged rollout percentage, halt path, promotion gates, and exact current track.
+- Product-event and crash sources keyed to the Android app ID and version; preserve mapping files and verify symbolication. Keep Play Console install statistics separate from in-app behavioral analytics.
+- Permission minimization and denial flows, foreground/background constraints, offline/network failure, deep links, app-link verification, and server compatibility with older app versions.
+
+### Conditional Android Overlays
+
+- FCM: project, sender ID, notification channel, token lifecycle, opt-in, priority, background behavior, and test-message read-back.
+- Android App Links: `assetlinks.json` for every exact host, SHA-256 verification, intent filters, and fresh-install route test.
+- Billing: Play Billing library version, product IDs and offer metadata, sandbox/license-testing purchases, entitlement source, server verification, Real-Time Developer Notifications, refunds, and upgrade/downgrade behavior.
+- Attribution: Play Install Referrer or another selected limited-purpose path, consent, campaign taxonomy, and privacy-threshold caveats. Do not replace this with generic web pixel measurement.
+
+Use current [Play Console](https://support.google.com/googleplay/android-developer), [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756), [Android App Links](https://developer.android.com/training/app-links), and [Play Billing](https://developer.android.com/google/play/billing) documentation before acting.
+
+## Desktop
+
+Apply separately to `macos` and `windows` targets. Do not collapse them into one desktop profile when their artifact, signing, distribution, or update contracts differ.
+
+### macOS
+
+- Apple Developer team, Developer ID Application certificate, notarization ticket, hardened runtime and entitlement decisions, universal architecture, bundle ID, version, and exact DMG/PKG artifact identity.
+- Distribution channel: direct download, update feed, TestFlight, or another named channel; install/upgrade/uninstall smoke, Gatekeeper proof, quarantine behavior, and recovery owner.
+- Crash and product-event sources keyed to build identity; symbol retention, consent, privacy declaration, and offline behavior.
+- System integration permissions, keychain access, extension boundaries, network entitlements, and cleanup behavior.
+
+### Windows
+
+- Code-signing certificate or trusted-signing policy, MSIX or signed-installer identity, publisher, architecture, version, and exact artifact hash.
+- Microsoft Store, winget, direct download, or another exact channel; submission/review state, audience visibility, install/upgrade/uninstall smoke, SmartScreen evidence, and recovery owner.
+- Crash and product-event sources keyed to build identity; symbol retention, consent, telemetry policy, and offline behavior.
+- System integration permissions, service or scheduled-task boundaries, registry/file cleanup, device guard, and update behavior.
+
+Native desktop availability is installability or downloadable artifact identity plus the release smoke check; a marketing-site URL check cannot substitute. Use current [Developer ID](https://developer.apple.com/developer-id/), [notarizing macOS software](https://developer.apple.com/help/account/reference/notary-service/), [Windows MSIX](https://learn.microsoft.com/windows/msix/), and [code signing](https://learn.microsoft.com/windows/security/threat-protection/code-signing/) documentation before acting.
+
+## Responsibility Separation
+
+Use these responsibilities across profiles; never merge them into one vendor label:
+
+| Responsibility | Activation question |
+| --- | --- |
+| Billing / store commerce | Who owns products, prices, offers, charges, renewals, and billing support? |
+| Entitlement | What source grants, restores, revokes, or expires access? |
+| Paywall / checkout | Which exact surface presents the offer and completes purchase? |
+| Merchant of record / tax | Who invoices, remits tax, handles fraud/chargebacks, and processes refunds? |
+| Attribution | Which bounded signal connects acquisition or partner activity to a product event? |
+| Commission / payout | What reversal, settlement, and payment operations exist? |
+| Reseller operations | Who owns deal registration, provisioning, delegated administration, support, and termination? |
+| Analytics | Which exact property, stream, log query, or event source measures behavior? |
+| Security | Which identity, scope, secret, audit, abuse, and disclosure controls apply? |
+| Email | Which domain, template, bounce/complaint, preference, and alert path applies? |
+| Monitoring | Which logs, traces, metrics, alerts, on-call route, and status communication apply? |
+| Store / distribution | Which exact channel, review/promotion path, artifact, audience, and installability check applies? |
 
 ## Browser Extension
 

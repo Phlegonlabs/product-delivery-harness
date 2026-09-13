@@ -116,6 +116,8 @@ for (const [index, surface] of workflowArgs.deployable_surfaces.entries()) {
 const releaseTargetFields = [
   "id",
   "surface",
+  "surface_class",
+  "public_discoverability",
   "surface_suffix",
   "release_name",
   "provider",
@@ -137,10 +139,21 @@ for (const [index, target] of workflowArgs.release_targets.entries()) {
   if (!target || typeof target !== "object" || Array.isArray(target)) {
     throw new Error(`product-definition-builder-graph requires args.release_targets[${index}] as an object`);
   }
+  const surfaceClasses = new Set([
+    "hosted_web", "hosted_api", "browser_extension", "ios", "android",
+    "macos", "windows", "worker", "job", "webhook", "realtime", "cli",
+    "agent", "other_nonpublic",
+  ]);
   for (const field of releaseTargetFields) {
     if (typeof target[field] !== "string" || !target[field].trim()) {
       throw new Error(`product-definition-builder-graph requires non-empty args.release_targets[${index}].${field}`);
     }
+  }
+  if (!surfaceClasses.has(target.surface_class)) {
+    throw new Error(`product-definition-builder-graph release target ${target.id} has invalid surface_class`);
+  }
+  if (!['yes', 'no'].includes(target.public_discoverability)) {
+    throw new Error(`product-definition-builder-graph release target ${target.id} has invalid public_discoverability`);
   }
   if (!["development", "production"].includes(target.stage)) {
     throw new Error(`product-definition-builder-graph requires args.release_targets[${index}].stage development or production`);
@@ -371,7 +384,7 @@ const lanes = rawLanes.map((result, index) => (
 phase("Synthesize");
 const draft = await agent(
   "You are the synthesis role in a Product Definition org graph. Reconcile role results into candidate Markdown for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. Include the exact Data and Trust and AI and Automation gates, measurable Metrics contract, structured Assumptions and Open Questions, UI Design Handoff Status, Product Definition Decisions section, and both machine marker pairs. Product Definition Approval and Stack Decision Checkpoint remain blocked in this candidate; a workflow cannot approve them. Keep every new technology proposal Recommended and present coherent frontend, backend/data/auth, mobile/desktop, AI/automation, deployment, and commercial bundles plus alternatives. For UI products, finish the UI Surface Contract but do not create wireframe data, choose layout/style/motion/media, or claim any UI approval; those belong to a later ui-design-builder run. " +
-    "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral release-target blocks for every expected surface, preserve each supplied surface_suffix and release_name, and name the exact branch or ref. Production has the canonical surface name without -prod; development has that exact name plus -dev. Keep surface separate from provider. Use the exact candidate run branch/ref for the internally tested development release and main for production after same-SHA fast-forward, recording the shared remote-main base rule and separate promotion authorization/read-back. Do not treat upload/submission as availability or force native distribution into the hosted environment table; native recovery may require a signed forward-fix. " +
+    "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral release-target blocks for every expected surface, preserve each supplied surface_suffix and release_name plus the typed surface_class and public_discoverability fields, and name the exact branch or ref. Production has the canonical surface name without -prod; development has that exact name plus -dev. Keep surface separate from provider. Use the exact candidate run branch/ref for the internally tested development release and main for production after same-SHA fast-forward, recording the shared remote-main base rule and separate promotion authorization/read-back. Do not treat upload/submission as availability or force native distribution into the hosted environment table; native recovery may require a signed forward-fix. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer, except the mandated hosted environment contract in architecture.md, whose columns are all release-critical. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
   { label: "prd:synthesis", phase: "Synthesize", schema: draftSchema },

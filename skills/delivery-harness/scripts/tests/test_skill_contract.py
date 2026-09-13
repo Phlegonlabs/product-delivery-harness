@@ -764,7 +764,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Resource Isolation", deployment_template)
         self.assertIn("## Release Unit Names", deployment_template)
         self.assertIn(
-            "| Surface | Surface suffix | Production release name | Development release name | Provider / channel |",
+            "| Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |",
             deployment_template,
         )
         self.assertIn("never adds `-prod`", deployment_template)

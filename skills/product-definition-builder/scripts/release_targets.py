@@ -22,6 +22,8 @@ PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|<[^>]+>|\b(?:tbd|todo|placeholder)\b", 
 
 FIELDS = (
     "Surface",
+    "Surface class",
+    "Public discoverability",
     "Surface suffix",
     "Release name",
     "Provider",
@@ -35,6 +37,25 @@ FIELDS = (
     "Rollout",
     "Rollback / forward-fix",
 )
+
+SURFACE_CLASSES = {
+    "hosted_web",
+    "hosted_api",
+    "browser_extension",
+    "ios",
+    "android",
+    "macos",
+    "windows",
+    "worker",
+    "job",
+    "webhook",
+    "realtime",
+    "cli",
+    "agent",
+    "other_nonpublic",
+}
+DISCOVERABILITY_VALUES = {"yes", "no"}
+NO_INDEPENDENT_ARTIFACT = "no independent artifact"
 
 DESCRIPTIVE_FIELDS = {
     "source policy",
@@ -50,6 +71,8 @@ DESCRIPTIVE_FIELDS = {
 class ReleaseTarget:
     target_id: str
     surface: str
+    surface_class: str
+    public_discoverability: str
     surface_suffix: str
     release_name: str
     provider: str
@@ -72,6 +95,14 @@ class ReleaseTargetContract:
 
     def by_id(self) -> dict[str, ReleaseTarget]:
         return {target.target_id: target for target in self.targets}
+
+
+def allows_no_independent_artifact(target: ReleaseTarget) -> bool:
+    return target.artifact_kind.strip().casefold() == NO_INDEPENDENT_ARTIFACT
+
+
+def is_public_web_target(target: ReleaseTarget) -> bool:
+    return target.surface_class == "hosted_web" and target.public_discoverability == "yes"
 
 
 def _meaningful(value: str, *, minimum: int = 8) -> bool:
@@ -208,6 +239,8 @@ def parse_release_targets(
             )
 
         surface = fields["surface"]
+        surface_class = fields["surface class"].casefold()
+        public_discoverability = fields["public discoverability"].casefold()
         suffix = fields["surface suffix"]
         release_name = fields["release name"]
         provider = fields["provider"]
@@ -217,6 +250,18 @@ def parse_release_targets(
         if not KEBAB_RE.fullmatch(surface):
             findings.append(
                 f"architecture: release target {target_id!r} has invalid surface {surface!r}"
+            )
+        if surface_class not in SURFACE_CLASSES:
+            findings.append(
+                f"architecture: release target {target_id!r} has invalid Surface class {fields['surface class']!r}"
+            )
+        if public_discoverability not in DISCOVERABILITY_VALUES:
+            findings.append(
+                f"architecture: release target {target_id!r} has invalid Public discoverability {fields['public discoverability']!r}"
+            )
+        elif public_discoverability == "yes" and surface_class != "hosted_web":
+            findings.append(
+                f"architecture: release target {target_id!r} Public discoverability=yes requires Surface class hosted_web"
             )
         if expected and surface not in expected:
             findings.append(
@@ -297,6 +342,8 @@ def parse_release_targets(
             ReleaseTarget(
                 target_id=target_id,
                 surface=surface,
+                surface_class=surface_class,
+                public_discoverability=public_discoverability,
                 surface_suffix=suffix,
                 release_name=release_name,
                 provider=provider,
@@ -356,6 +403,14 @@ def parse_release_targets(
             findings.append(
                 f"architecture: surface {surface!r} development and production "
                 "targets must use the same surface suffix"
+            )
+        if development.surface_class != production.surface_class:
+            findings.append(
+                f"architecture: surface {surface!r} development and production targets must use the same Surface class"
+            )
+        if development.public_discoverability != production.public_discoverability:
+            findings.append(
+                f"architecture: surface {surface!r} development and production targets must use the same Public discoverability value"
             )
         if production.release_name.endswith("-prod"):
             findings.append(

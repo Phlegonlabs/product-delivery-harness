@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only structural and readiness checks for docs/ACTIVATION.md."""
+"""Read-only architecture-bound structural and readiness checks for ACTIVATION.md."""
 
 from __future__ import annotations
 
@@ -9,8 +9,28 @@ import json
 import re
 import sys
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
+from collections import Counter
 from pathlib import Path
+
+SIBLING_SCRIPTS_ROOT = Path(__file__).resolve().parents[2]
+PRODUCT_DEFINITION_SCRIPTS = (
+    SIBLING_SCRIPTS_ROOT / "product-definition-builder" / "scripts"
+)
+DELIVERY_SCRIPTS = SIBLING_SCRIPTS_ROOT / "delivery-harness" / "scripts"
+for sibling_scripts in (PRODUCT_DEFINITION_SCRIPTS, DELIVERY_SCRIPTS):
+    if str(sibling_scripts) not in sys.path:
+        sys.path.insert(0, str(sibling_scripts))
+
+from check_deployment import (  # noqa: E402
+    parse_release_target_status,
+    release_target_status_duplicates,
+)
+from markdown_contract import active_markdown_lines, active_text, is_human_owner  # noqa: E402
+from release_targets import (  # noqa: E402
+    allows_no_independent_artifact,
+    parse_release_targets,
+)
 
 
 TASK_START = "<!-- activation-task-contract:start -->"
@@ -26,6 +46,10 @@ EVIDENCE_ID_RE = re.compile(r"^EVID-[0-9]{3}$")
 CAPABILITY_ID_RE = re.compile(r"^CAP-[0-9]{3}$")
 BLOCKER_ID_RE = re.compile(r"^BLOCK-[0-9]{3}$")
 ARTIFACT_ID_RE = re.compile(r"^(?:n/a|[A-Za-z0-9][A-Za-z0-9._:+-]*)$")
+NO_INDEPENDENT_ARTIFACT_VALUES = {
+    "no independent artifact",
+    "no-independent-artifact",
+}
 TASK_HEADING_RE = re.compile(r"^###\s+(ACT-[0-9]{3})\s+[—-]\s+(.+?)\s*$")
 FIELD_RE = re.compile(r"^- ([A-Za-z][A-Za-z /-]*):\s*(.*)$")
 PLACEHOLDER_RE = re.compile(r"<[^>\n]+>|\bTBD\b", re.IGNORECASE)
@@ -71,8 +95,11 @@ TABLE_HEADERS = {
     ),
     "## Outcome Coverage": (
         "signal",
-        "definition / target",
-        "window",
+        "definition / obligation",
+        "baseline",
+        "target / guardrail",
+        "measurement window",
+        "expected signal",
         "release targets",
         "source id",
         "status",
@@ -82,6 +109,7 @@ TABLE_HEADERS = {
         "target",
         "environment",
         "retrieval",
+        "source role",
         "route / capability",
         "release bindings",
         "owner",
@@ -106,10 +134,14 @@ TABLE_HEADERS = {
     ),
     "## Target Readiness": (
         "release target",
+        "stage",
+        "provider / channel",
         "source sha",
         "artifact / build identity",
+        "availability state",
         "status",
         "checked",
+        "n/a reason",
         "blockers",
     ),
     "## Open Blockers": (
@@ -155,9 +187,19 @@ ROUTES = {"connector", "api", "cli", "browser", "computer_use", "manual", "unsel
 CAPABILITY_STATUSES = {"available", "unavailable", "unobserved", "human_only"}
 SUPPORTS = {"read", "write", "readback"}
 SOURCE_STATUSES = {"planned", "available", "verified", "blocked", "superseded", "n/a"}
+SOURCE_ROLES = {
+    "search_console",
+    "ga4",
+    "production_page",
+    "google_trends",
+    "keyword_planner",
+    "public_serp",
+    "first_party",
+}
 TASK_STATUSES = {"pending", "ready", "configured", "verified", "uncertain", "blocked", "stale", "n/a"}
 RECORD_STATUSES = {"seeded", "preparation", "active", "handoff_ready", "blocked", "n/a"}
-READINESS_STATUSES = {"preparation", "pending", "ready", "blocked"}
+READINESS_STATUSES = {"preparation", "pending", "ready", "blocked", "n/a"}
+TARGET_AVAILABILITY_STATES = {"deployed", "installable", "downloadable", "unavailable", "pending", "n/a"}
 EVIDENCE_KINDS = {"write", "readback", "behavior", "capability", "manual"}
 EVIDENCE_RESULTS = {"PASS", "FAIL", "BLOCKED", "UNCERTAIN"}
 AUTHORIZATIONS = {"not_required", "pending", "approved", "consumed", "denied", "expired", "handoff_complete", "prohibited"}
@@ -191,8 +233,12 @@ def _placeholder(value: str) -> bool:
     return bool(PLACEHOLDER_RE.search(value))
 
 
+def _human(value: str) -> bool:
+    return is_human_owner(value)
+
+
 def _section(text: str, heading: str) -> list[str] | None:
-    lines = text.splitlines()
+    lines = active_text(text).splitlines()
     try:
         start = next(index for index, line in enumerate(lines) if line.strip() == heading)
     except StopIteration:
@@ -202,6 +248,16 @@ def _section(text: str, heading: str) -> list[str] | None:
         len(lines),
     )
     return lines[start + 1 : end]
+
+
+def _duplicate_sections(text: str, headings: tuple[str, ...]) -> list[str]:
+    active_lines = active_text(text).splitlines()
+    findings: list[str] = []
+    for heading in headings:
+        count = sum(line.strip() == heading for line in active_lines)
+        if count > 1:
+            findings.append(f"duplicate required section {heading}")
+    return findings
 
 
 def _cells(line: str) -> list[str]:
@@ -255,7 +311,9 @@ def _normal(value: str) -> str:
 
 
 def _n_a_with_reason(value: str) -> bool:
-    return bool(re.fullmatch(r"n/a\s*(?::|-)\s*\S.*", value.strip(), re.IGNORECASE))
+    return bool(
+        re.fullmatch(r"n/a\s*(?::|-|—|–)\s*\S.*", value.strip(), re.IGNORECASE)
+    )
 
 
 def _timestamp(value: str) -> datetime | None:
@@ -268,9 +326,18 @@ def _timestamp(value: str) -> datetime | None:
     return parsed if parsed.tzinfo is not None else None
 
 
-def action_digest(task_id: str, task: dict[str, str]) -> str:
+def _not_future(value: datetime | None) -> bool:
+    return value is not None and value <= datetime.now(timezone.utc)
+
+
+def action_digest(
+    task_id: str,
+    task: dict[str, str],
+    capability_scopes: dict[str, str] | None = None,
+) -> str:
+    scopes = capability_scopes or {}
     payload = {
-        "schema": "activation-action/1",
+        "schema": "activation-action/2",
         "task_id": _normal(task_id),
         "source_refs": sorted(_normal(item) for item in _parse_list(task["Source refs"])),
         "release_bindings": sorted(_normal(item) for item in _parse_list(task["Release bindings"])),
@@ -286,6 +353,15 @@ def action_digest(task_id: str, task: dict[str, str]) -> str:
         "confirmation": _normal(task["Confirmation"]),
         "execution_route": _normal(task["Execution route"]),
         "execution_capability": _normal(task["Execution capability"]),
+        "execution_capability_scope": _normal(
+            scopes.get(task["Execution capability"], "")
+        ),
+        "readback_route": _normal(task["Read-back route"]),
+        "readback_capability": _normal(task["Read-back capability"]),
+        "readback_capability_scope": _normal(
+            scopes.get(task["Read-back capability"], "")
+        ),
+        "verification": _normal(task["Verification"]),
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -293,10 +369,16 @@ def action_digest(task_id: str, task: dict[str, str]) -> str:
 
 def _tasks(text: str) -> tuple[dict[str, dict[str, str]], dict[str, str], list[str]]:
     findings: list[str] = []
-    if text.count(TASK_START) != 1 or text.count(TASK_END) != 1:
+    active = "\n".join(
+        line
+        for _, line in active_markdown_lines(
+            text, machine_markers=(TASK_START, TASK_END)
+        )
+    )
+    if active.count(TASK_START) != 1 or active.count(TASK_END) != 1:
         return {}, {}, ["Activation Tasks: expected one matched task-contract boundary pair"]
-    body = text.split(TASK_START, 1)[1].split(TASK_END, 1)[0]
-    before, after_start = text.split(TASK_START, 1)
+    body = active.split(TASK_START, 1)[1].split(TASK_END, 1)[0]
+    before, after_start = active.split(TASK_START, 1)
     _inside, after = after_start.split(TASK_END, 1)
     for line in (before + "\n" + after).splitlines():
         heading = TASK_HEADING_RE.match(line.strip())
@@ -370,24 +452,93 @@ def _validate_tables(text: str, require_filled: bool) -> tuple[dict[str, list[li
     return parsed, findings
 
 
-def _validate_profiles(rows: list[list[str]]) -> list[str]:
+KNOWN_PROFILES = {
+    "core",
+    "web",
+    "web-auth",
+    "forms-leads",
+    "transactional-email",
+    "payments",
+    "cms-content",
+    "localization",
+    "uploads-media",
+    "pwa",
+    "search",
+    "background-jobs",
+    "feature-flags",
+    "paid-acquisition",
+    "app-extension-linking",
+    "regulated-or-ha",
+    "ios",
+    "android",
+    "api / backend",
+    "api-webhooks",
+    "api-background-jobs",
+    "api-data-export",
+    "api-partner-access",
+    "macos",
+    "windows",
+    "browser extension",
+}
+
+
+def _surface_profiles(architecture_targets: dict[str, object]) -> set[str]:
+    profiles = {"core"}
+    for target in architecture_targets.values():
+        surface_class = str(getattr(target, "surface_class", "")).casefold()
+        if surface_class == "ios":
+            profiles.add("ios")
+        elif surface_class == "android":
+            profiles.add("android")
+        elif surface_class == "macos":
+            profiles.add("macos")
+        elif surface_class == "windows":
+            profiles.add("windows")
+        elif surface_class == "browser_extension":
+            profiles.add("browser extension")
+        elif surface_class in {"hosted_api", "worker", "job", "webhook", "realtime"}:
+            profiles.add("api / backend")
+        elif surface_class == "hosted_web":
+            profiles.add("web")
+    return profiles
+
+
+def _validate_profiles(
+    rows: list[list[str]],
+    architecture_targets: dict[str, object] | None = None,
+    require_filled: bool = False,
+) -> list[str]:
     findings: list[str] = []
     if not rows:
         return ["Applied Profiles: at least the core profile is required"]
     seen: set[str] = set()
     for profile, applies, reason, owner in rows:
+        if not require_filled and any(_placeholder(value) for value in (profile, applies, reason, owner)):
+            continue
         if _placeholder(profile) or _placeholder(applies):
             continue
         key = profile.lower()
         if key in seen:
             findings.append(f"Applied Profiles: duplicate profile {profile}")
         seen.add(key)
+        if key not in KNOWN_PROFILES:
+            findings.append(f"Applied Profiles: unknown profile {profile}")
         if applies.lower() not in {"yes", "no"}:
             findings.append(f"Applied Profiles: {profile} applies must be yes or no")
-        if not reason or not owner:
+        if reason.strip().casefold() in ABSENT or not _human(owner):
             findings.append(f"Applied Profiles: {profile} needs a reason and owner")
     if rows and not any(row[0].lower() == "core" and row[1].lower() == "yes" for row in rows):
         findings.append("Applied Profiles: core must apply")
+    if architecture_targets:
+        actual = {row[0].casefold() for row in rows if len(row) >= 2 and row[1].casefold() == "yes"}
+        required = _surface_profiles(architecture_targets)
+        for profile in sorted(required - actual):
+            findings.append(
+                f"Applied Profiles: architecture release targets require profile {profile!r}"
+            )
+        for profile in sorted(actual - required):
+            if profile not in KNOWN_PROFILES:
+                findings.append(f"Applied Profiles: profile {profile!r} is not in the closed catalog")
     return findings
 
 
@@ -448,6 +599,10 @@ def _validate_capabilities(rows: list[list[str]]) -> tuple[dict[str, dict[str, o
             findings.append(
                 f"Capability Observations: {observation_id} needs an RFC3339 checked time"
             )
+        elif checked_at is not None and not _not_future(checked_at):
+            findings.append(
+                f"Capability Observations: {observation_id} checked time cannot be in the future"
+            )
         capabilities[observation_id] = {
             "status": status,
             "supports": support_set,
@@ -502,6 +657,8 @@ def _validate_evidence(rows: list[list[str]]) -> tuple[dict[str, dict[str, objec
         checked_at = _timestamp(checked)
         if checked_at is None:
             findings.append(f"Verification Evidence: {evidence_id} needs an RFC3339 checked time")
+        elif not _not_future(checked_at):
+            findings.append(f"Verification Evidence: {evidence_id} checked time cannot be in the future")
         evidence[evidence_id] = {
             "item_id": item_id,
             "kind": kind,
@@ -528,6 +685,7 @@ def _validate_sources(
         target,
         environment,
         retrieval,
+        source_role,
         route_capability,
         release_bindings,
         owner,
@@ -543,6 +701,10 @@ def _validate_sources(
         if target.lower() in ABSENT or environment.lower() in ABSENT or retrieval.lower() in ABSENT:
             findings.append(
                 f"Measurement Sources: {source_id} needs exact target, environment, and bounded retrieval"
+            )
+        if source_role not in SOURCE_ROLES and not _placeholder(source_role):
+            findings.append(
+                f"Measurement Sources: {source_id} has invalid source role {source_role!r}"
             )
         route_parts = [part.strip() for part in route_capability.split(";")]
         route = route_parts[0] if route_parts else ""
@@ -581,8 +743,12 @@ def _validate_sources(
             findings.append(
                 f"Measurement Sources: {source_id} needs at least one exact release binding"
             )
-        if status in {"available", "verified"} and owner.lower() in ABSENT:
-            findings.append(f"Measurement Sources: {source_id} needs an owner")
+        if owner.strip().casefold() not in ABSENT and (
+            require_filled or not _placeholder(owner)
+        ) and not _human(owner):
+            findings.append(f"Measurement Sources: {source_id} owner must name a human")
+        elif status in {"available", "verified"} and not _human(owner):
+            findings.append(f"Measurement Sources: {source_id} needs a human owner")
         ids = _parse_list(evidence_ids)
         for evidence_id in ids:
             if evidence_id not in evidence:
@@ -657,6 +823,7 @@ def _validate_sources(
             "target": target,
             "environment": environment,
             "retrieval": retrieval,
+            "source_role": source_role,
             "route": route,
             "capability_id": capability_id,
             "bindings": bindings,
@@ -773,6 +940,8 @@ def _task_findings(
     authorization = task["Authorization"]
     status = task["Status"]
     updated_at = _timestamp(task["Updated"])
+    if updated_at is not None and not _not_future(updated_at):
+        findings.append(f"{task_id}: Updated cannot be in the future")
     verification_is_na = _n_a_with_reason(task["Verification"])
     risk_tags = set(_parse_list(task["Risk tags"].lower()))
     if operation not in OPERATIONS:
@@ -929,7 +1098,11 @@ def _task_findings(
         if re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]*", name) is None:
             findings.append(f"{task_id}: secret name {name!r} is not a value-free configuration name")
 
-    computed = action_digest(task_id, task)
+    capability_scopes = {
+        capability_id: str(observation["target_scope"])
+        for capability_id, observation in capabilities.items()
+    }
+    computed = action_digest(task_id, task, capability_scopes)
     recorded = task["Action digest"]
     authorized = task["Authorized digest"]
     if recorded != "pending" and (not SHA256_RE.fullmatch(recorded) or recorded != computed):
@@ -1125,9 +1298,23 @@ def _prd_signals(prd_text: str) -> tuple[set[str], list[str]]:
     if metrics_header != legacy_metrics and metrics_header != approved_metrics:
         findings.append("PRD: Metrics table is missing or has unexpected columns")
     else:
+        metric_names: list[str] = []
         for row in metrics:
             if len(row) >= len(metrics_header) and row[0]:
-                signals.add(row[0])
+                metric_names.append(row[0])
+                if metrics_header == approved_metrics:
+                    if any(row[index].lower() in ABSENT for index in (2, 3, 4)):
+                        findings.append(
+                            f"PRD: metric {row[0]} needs a concrete baseline, target / guardrail, and measurement window"
+                        )
+                    if not _human(row[6]):
+                        findings.append(f"PRD: metric {row[0]} owner must name a human")
+        duplicates = sorted(
+            name for name, count in Counter(metric_names).items() if count > 1
+        )
+        if duplicates:
+            findings.append("PRD: duplicate metric(s) " + ", ".join(duplicates))
+        signals.update(metric_names)
     tests_header, tests = _table(prd_text, "## Test Obligations")
     expected_tests = ["test id", "obligation", "test type", "required", "upstream trace ids", "expected signal"]
     if tests_header[:6] != expected_tests:
@@ -1136,7 +1323,90 @@ def _prd_signals(prd_text: str) -> tuple[set[str], list[str]]:
         for row in tests:
             if len(row) >= 6 and row[3].lower() == "yes":
                 signals.add(row[0])
+                if row[5].lower() in ABSENT:
+                    findings.append(
+                        f"PRD: required test {row[0]} needs a concrete expected signal"
+                    )
     return signals, findings
+
+
+def _prd_signal_details(prd_text: str) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Return the structured PRD contract that Outcome Coverage must repeat exactly."""
+
+    details: dict[str, dict[str, str]] = {}
+    findings: list[str] = []
+    metrics_header, metrics = _table(prd_text, "## Metrics")
+    if metrics_header == ["metric", "definition", "target"]:
+        for row in metrics:
+            if len(row) != 3:
+                continue
+            name, definition, target = row
+            details[name] = {
+                "definition": definition,
+                "baseline": "none recorded",
+                "target": target,
+                "window": "n/a — PRD legacy metric table omits a separate measurement window",
+                "expected": "n/a — metric row",
+            }
+    elif metrics_header == [
+        "metric",
+        "definition",
+        "baseline",
+        "target / guardrail",
+        "measurement window",
+        "source / method",
+        "owner",
+    ]:
+        for row in metrics:
+            if len(row) != 7:
+                continue
+            name, definition, baseline, target, window, _source, _owner = row
+            details[name] = {
+                "definition": definition,
+                "baseline": baseline,
+                "target": target,
+                "window": window,
+                "expected": "n/a — metric row",
+            }
+    else:
+        findings.append("PRD: Metrics table is missing or has unexpected columns")
+    test_header, tests = _table(prd_text, "## Test Obligations")
+    expected_tests = [
+        "test id",
+        "obligation",
+        "test type",
+        "required",
+        "upstream trace ids",
+        "expected signal",
+    ]
+    if test_header[:6] != expected_tests:
+        findings.append("PRD: Test Obligations table is missing or has unexpected columns")
+    else:
+        for row in tests:
+            if len(row) < 6 or row[3].casefold() != "yes":
+                continue
+            test_id, obligation, test_type, _required, _trace, expected_signal = row[:6]
+            details[test_id] = {
+                "definition": obligation,
+                "baseline": "none recorded",
+                "target": "n/a — required test has no numeric target",
+                "window": f"{test_type} test",
+                "expected": expected_signal,
+            }
+    return details, findings
+
+
+def _expected_availability(target: object) -> str:
+    surface_class = str(getattr(target, "surface_class", "")).casefold()
+    if surface_class in {"ios", "android", "browser_extension"}:
+        return "installable"
+    if surface_class in {"macos", "windows"}:
+        return "downloadable"
+    return "deployed"
+
+
+def _artifact_allows_na(target: object | None) -> bool:
+    return bool(target is not None and allows_no_independent_artifact(target))
 
 
 def _validate_blockers(
@@ -1154,10 +1424,12 @@ def _validate_blockers(
         target_set = set(_parse_list(targets))
         if status not in BLOCKER_STATUSES:
             findings.append(f"Open Blockers: {blocker_id} has invalid status {status!r}")
+        if owner.strip().casefold() not in ABSENT and not _placeholder(owner) and not _human(owner):
+            findings.append(f"Open Blockers: {blocker_id} owner must name a human")
         if status == "open" and (
             not target_set
             or kind.lower() in ABSENT
-            or owner.lower() in ABSENT
+            or not _human(owner)
             or next_step.lower() in ABSENT
         ):
             findings.append(
@@ -1184,6 +1456,8 @@ def check_activation_text(
     text: str,
     *,
     prd_text: str | None = None,
+    architecture_text: str | None = None,
+    deployment_text: str | None = None,
     require_filled: bool = False,
     require_verified_sources: bool = False,
     require_ready: tuple[str, ...] = (),
@@ -1192,10 +1466,31 @@ def check_activation_text(
     findings: list[str] = []
     if require_verified_sources and prd_text is None:
         findings.append("PRD: verified-source handoff requires the current PRD")
+    if require_verified_sources and architecture_text is None:
+        findings.append("architecture: verified-source handoff requires architecture.md")
+    if require_verified_sources and deployment_text is None:
+        findings.append("deployment: verified-source handoff requires DEPLOYMENT.md")
+    architecture_targets = {}
+    deployment_targets: dict[str, dict[str, str]] = {}
+    if architecture_text is not None:
+        contract, architecture_findings = parse_release_targets(architecture_text)
+        findings.extend(architecture_findings)
+        architecture_targets = contract.by_id()
+    if deployment_text is not None:
+        deployment_targets = parse_release_target_status(deployment_text)
+        for target_id in sorted(release_target_status_duplicates(deployment_text)):
+            findings.append(
+                f"deployment: duplicate Release Target Status row {target_id}"
+            )
+        if architecture_text is not None and not deployment_targets:
+            findings.append(
+                "deployment: Release Target Status table is missing or has unexpected columns"
+            )
     for heading in REQUIRED_SECTIONS:
         if _section(text, heading) is None:
             findings.append(f"missing required section {heading}")
-    if text.count("# Product Activation") != 1:
+    findings.extend(_duplicate_sections(text, REQUIRED_SECTIONS))
+    if active_text(text).count("# Product Activation") != 1:
         findings.append("expected one # Product Activation title")
     for pattern, label in (
         (PRIVATE_KEY_RE, "private key"),
@@ -1216,8 +1511,11 @@ def check_activation_text(
         findings.extend(_value_findings("Record", list(record.values()), require_filled))
         for name in ("Updated", "Measurement window starts"):
             value = record.get(name, "")
-            if value.lower() not in ABSENT and not _placeholder(value) and _timestamp(value) is None:
+            parsed_timestamp = _timestamp(value)
+            if value.lower() not in ABSENT and not _placeholder(value) and parsed_timestamp is None:
                 findings.append(f"Record: {name} must be an RFC3339 timestamp")
+            elif parsed_timestamp is not None and not _not_future(parsed_timestamp):
+                findings.append(f"Record: {name} cannot be in the future")
         if require_filled:
             for name in (
                 "Product",
@@ -1228,10 +1526,16 @@ def check_activation_text(
             ):
                 if record.get(name, "").lower() in ABSENT:
                     findings.append(f"Record: filled record needs {name}")
+            if not _human(record.get("Activation owner", "")):
+                findings.append("Record: Activation owner must name a human")
 
     tables, table_findings = _validate_tables(text, require_filled)
     findings.extend(table_findings)
-    findings.extend(_validate_profiles(tables.get("## Applied Profiles", [])))
+    findings.extend(
+        _validate_profiles(
+            tables.get("## Applied Profiles", []), architecture_targets, require_filled
+        )
+    )
     capabilities, capability_findings = _validate_capabilities(
         tables.get("## Capability Observations", [])
     )
@@ -1242,6 +1546,21 @@ def check_activation_text(
         tables.get("## Measurement Sources", []), capabilities, evidence, require_filled
     )
     findings.extend(source_findings)
+    for source_id, source in sources.items():
+        for target, binding in source["bindings"].items():
+            architecture_target = architecture_targets.get(target)
+            if binding["artifact"].casefold() == "n/a" and not _artifact_allows_na(
+                architecture_target
+            ):
+                findings.append(
+                    f"Measurement Sources: {source_id} artifact n/a is allowed only for an architecture target with Artifact kind no independent artifact"
+                )
+            if binding["artifact"].casefold() != "n/a" and _artifact_allows_na(
+                architecture_target
+            ):
+                findings.append(
+                    f"Measurement Sources: {source_id} architecture target {target} requires artifact n/a"
+                )
     blockers, blocker_findings = _validate_blockers(
         tables.get("## Open Blockers", []), require_filled
     )
@@ -1251,10 +1570,15 @@ def check_activation_text(
     for item_id, owner, step, expected, status in tables.get("## Manual Handoff", []):
         if status not in HANDOFF_STATUSES and not _placeholder(status):
             findings.append(f"Manual Handoff: {item_id} has invalid status {status!r}")
+        if owner.strip().casefold() not in ABSENT and not _placeholder(owner) and not _human(owner):
+            findings.append(f"Manual Handoff: {item_id} owner must name a human")
         if item_id in manual:
             findings.append(f"Manual Handoff: duplicate item {item_id}")
         manual[item_id] = status
-        if require_filled and any(_placeholder(value) for value in (owner, step, expected)):
+        if require_filled and (
+            any(_placeholder(value) for value in (owner, step, expected))
+            or (status == "completed" and not _human(owner))
+        ):
             findings.append(f"Manual Handoff: {item_id} has unresolved fields")
 
     tasks, titles, task_parse_findings = _tasks(text)
@@ -1274,6 +1598,20 @@ def check_activation_text(
         )
         task_bindings[task_id] = bindings
         findings.extend(task_findings)
+        for target, binding in bindings.items():
+            architecture_target = architecture_targets.get(target)
+            if binding["artifact"].casefold() == "n/a" and not _artifact_allows_na(
+                architecture_target
+            ):
+                findings.append(
+                    f"{task_id}: artifact n/a is allowed only for an architecture target with Artifact kind no independent artifact"
+                )
+            if binding["artifact"].casefold() != "n/a" and _artifact_allows_na(
+                architecture_target
+            ):
+                findings.append(
+                    f"{task_id}: architecture target {target} requires artifact n/a"
+                )
     findings.extend(_cycle_findings(tasks))
 
     for evidence_id, item in evidence.items():
@@ -1298,7 +1636,17 @@ def check_activation_text(
 
     coverage_rows = tables.get("## Outcome Coverage", [])
     coverage: dict[str, dict[str, object]] = {}
-    for signal, definition, window, targets, source_id, status in coverage_rows:
+    for (
+        signal,
+        definition,
+        baseline,
+        target_guardrail,
+        measurement_window,
+        expected_signal,
+        targets,
+        source_id,
+        status,
+    ) in coverage_rows:
         if _placeholder(signal):
             continue
         if signal in coverage:
@@ -1313,8 +1661,11 @@ def check_activation_text(
             findings.append(f"Outcome Coverage: verified signal {signal} needs a verified source")
         if require_filled and status != "n/a":
             for name, value in (
-                ("Definition / target", definition),
-                ("Window", window),
+                ("Definition / obligation", definition),
+                ("Baseline", baseline),
+                ("Target / guardrail", target_guardrail),
+                ("Measurement window", measurement_window),
+                ("Expected signal", expected_signal),
                 ("Release targets", targets),
                 ("Source ID", source_id),
             ):
@@ -1324,7 +1675,10 @@ def check_activation_text(
             findings.append(f"Outcome Coverage: source {source_id} does not cover every target for {signal}")
         coverage[signal] = {
             "definition": definition,
-            "window": window,
+            "baseline": baseline,
+            "target": target_guardrail,
+            "window": measurement_window,
+            "expected": expected_signal,
             "targets": set(_parse_list(targets)),
             "source_id": source_id,
             "status": status,
@@ -1337,6 +1691,23 @@ def check_activation_text(
             findings.append(f"Outcome Coverage: missing PRD signal {signal}")
         for signal in sorted(actual - expected):
             findings.append(f"Outcome Coverage: unknown PRD signal {signal}")
+        details, detail_findings = _prd_signal_details(prd_text)
+        findings.extend(detail_findings)
+        for signal, item in coverage.items():
+            expected_detail = details.get(signal)
+            if expected_detail is None:
+                continue
+            for field, label in (
+                ("definition", "definition / obligation"),
+                ("baseline", "baseline"),
+                ("target", "target / guardrail"),
+                ("window", "measurement window"),
+                ("expected", "expected signal"),
+            ):
+                if item[field] != expected_detail[field]:
+                    findings.append(
+                        f"Outcome Coverage: {signal} {label} must exactly match PRD"
+                    )
 
     active_targets: set[str] = set()
     for bindings in task_bindings.values():
@@ -1355,6 +1726,34 @@ def check_activation_text(
             for target in item["targets"]
             if target.lower() not in ABSENT and not _placeholder(target)
         )
+    readiness_rows = tables.get("## Target Readiness", [])
+    if architecture_targets:
+        for target in sorted(active_targets - set(architecture_targets)):
+            findings.append(
+                f"Activation target {target} is not defined by architecture.md"
+            )
+        readiness_target_ids = {
+            row[0]
+            for row in readiness_rows
+            if len(row) == len(TABLE_HEADERS["## Target Readiness"])
+            and row[0].lower() not in ABSENT
+            and not _placeholder(row[0])
+        }
+        for target in sorted(set(architecture_targets) - readiness_target_ids):
+            findings.append(
+                f"Target Readiness: architecture target {target} needs a readiness or concrete n/a row"
+            )
+        if require_verified_sources:
+            target_rows = {
+                row[0]: row
+                for row in readiness_rows
+                if len(row) == len(TABLE_HEADERS["## Target Readiness"])
+            }
+            for target in sorted(set(architecture_targets) & set(target_rows)):
+                if target_rows[target][6] not in {"ready", "n/a"}:
+                    findings.append(
+                        f"Target Readiness: verified handoff target {target} must be ready or n/a"
+                    )
 
     open_blockers = {
         blocker_id: item for blocker_id, item in blockers.items() if item["status"] == "open"
@@ -1366,16 +1765,119 @@ def check_activation_text(
                 f"Open Blockers: {blocker_id} names unknown active target {target}"
             )
 
-    readiness: dict[str, dict[str, str]] = {}
-    for target, source_sha, artifact, status, checked, blocker_refs in tables.get(
-        "## Target Readiness", []
-    ):
+    readiness: dict[str, dict[str, object]] = {}
+    active_targets.update(
+        row[0]
+        for row in readiness_rows
+        if len(row) == len(TABLE_HEADERS["## Target Readiness"])
+        and row[6].lower() != "n/a"
+        and row[0].lower() not in ABSENT
+        and not _placeholder(row[0])
+    )
+    for (
+        target,
+        stage,
+        provider,
+        source_sha,
+        artifact,
+        availability,
+        status,
+        checked,
+        na_reason,
+        blocker_refs,
+    ) in readiness_rows:
         if _placeholder(target):
             continue
         if target in readiness:
             findings.append(f"Target Readiness: duplicate release target {target}")
         if status not in READINESS_STATUSES:
             findings.append(f"Target Readiness: {target} has invalid status {status!r}")
+        architecture_target = architecture_targets.get(target)
+        if architecture_text is not None and architecture_target is None:
+            findings.append(
+                f"Target Readiness: {target} is not an architecture release target"
+            )
+        if availability not in TARGET_AVAILABILITY_STATES:
+            findings.append(
+                f"Target Readiness: {target} has invalid availability state {availability!r}"
+            )
+        if status == "n/a" and not _n_a_with_reason(na_reason):
+            findings.append(
+                f"Target Readiness: n/a target {target} needs a concrete reason"
+            )
+        if status == "n/a" and architecture_target is not None and target in active_targets:
+            findings.append(
+                f"Target Readiness: active target {target} cannot be n/a"
+            )
+        if status != "n/a" and na_reason.lower() not in {"", "none", "n/a"}:
+            findings.append(
+                f"Target Readiness: active target {target} must not use an n/a reason"
+            )
+        if architecture_target is not None:
+            if stage != architecture_target.stage:
+                findings.append(
+                    f"Target Readiness: {target} stage must be {architecture_target.stage!r}"
+                )
+            expected_provider_channel = (
+                f"{architecture_target.provider};{architecture_target.channel}"
+            )
+            if provider.casefold() != expected_provider_channel.casefold():
+                findings.append(
+                    f"Target Readiness: {target} provider/channel must be "
+                    f"{expected_provider_channel!r}"
+                )
+            expected_availability = _expected_availability(architecture_target)
+            if status == "ready" and availability != expected_availability:
+                findings.append(
+                    f"Target Readiness: ready target {target} availability must be "
+                    f"{expected_availability!r}"
+                )
+            if artifact.casefold() == "n/a" and not _artifact_allows_na(architecture_target):
+                findings.append(
+                    f"Target Readiness: {target} may use artifact n/a only when architecture Artifact kind is no independent artifact"
+                )
+            if (
+                artifact.casefold() not in {"", "pending", "n/a"}
+                and _artifact_allows_na(architecture_target)
+            ):
+                findings.append(
+                    f"Target Readiness: {target} must use artifact n/a because architecture Artifact kind is no independent artifact"
+                )
+        deployment = deployment_targets.get(target)
+        if deployment_text is not None and deployment is None:
+            findings.append(
+                f"Target Readiness: deployment is missing release target {target}"
+            )
+        elif deployment is not None:
+            if architecture_target is not None:
+                if deployment["stage"] != architecture_target.stage:
+                    findings.append(
+                        f"Target Readiness: {target} deployment stage differs from architecture"
+                    )
+                expected_provider_channel = (
+                    f"{architecture_target.provider};{architecture_target.channel}"
+                )
+                if deployment["provider / channel"].casefold() != expected_provider_channel.casefold():
+                    findings.append(
+                        f"Target Readiness: {target} deployment provider/channel differs from architecture"
+                    )
+            if source_sha not in {"pending"} and (
+                source_sha != deployment["expected sha"]
+                or source_sha != deployment["deployed sha"]
+            ):
+                findings.append(
+                    f"Target Readiness: {target} source SHA differs from the deployment row"
+                )
+            if artifact not in {"pending"} and artifact != deployment[
+                "artifact / build identity"
+            ]:
+                findings.append(
+                    f"Target Readiness: {target} artifact differs from the deployment row"
+                )
+            if status == "ready" and deployment["status"] != "PASS":
+                findings.append(
+                    f"Target Readiness: ready target {target} requires deployment PASS"
+                )
         readiness[target] = {
             "source_sha": source_sha,
             "artifact": artifact,
@@ -1383,8 +1885,9 @@ def check_activation_text(
             "status": status,
             "checked": checked,
             "blockers": blocker_refs,
+            "availability": availability,
         }
-        if require_filled and (
+        if require_filled and status != "n/a" and (
             not SHA_RE.fullmatch(source_sha)
             or not ARTIFACT_ID_RE.fullmatch(artifact)
             or artifact == "pending"
@@ -1397,6 +1900,10 @@ def check_activation_text(
         if checked.lower() not in ABSENT and not _placeholder(checked) and checked_at is None:
             findings.append(
                 f"Target Readiness: {target} Checked must be an RFC3339 timestamp"
+            )
+        elif checked_at is not None and not _not_future(checked_at):
+            findings.append(
+                f"Target Readiness: {target} Checked cannot be in the future"
             )
         for blocker_id in listed_blockers:
             if blocker_id not in blockers:
@@ -1414,6 +1921,14 @@ def check_activation_text(
             if not ARTIFACT_ID_RE.fullmatch(artifact) or artifact == "pending":
                 findings.append(
                     f"Target Readiness: ready target {target} needs an exact artifact or build identity"
+                )
+            elif artifact.casefold() == "n/a" and not _artifact_allows_na(architecture_target):
+                findings.append(
+                    f"Target Readiness: ready target {target} may use n/a artifact only when architecture Artifact kind is no independent artifact"
+                )
+            elif artifact.casefold() != "n/a" and _artifact_allows_na(architecture_target):
+                findings.append(
+                    f"Target Readiness: {target} must use exact artifact n/a because architecture Artifact kind is no independent artifact"
                 )
             if checked_at is None or listed_blockers:
                 findings.append(f"Target Readiness: ready target {target} needs checked time and no blockers")
@@ -1469,6 +1984,8 @@ def check_activation_text(
         if require_filled or record.get("Status") == "handoff_ready":
             findings.append(f"Target Readiness: missing active target {target}")
     for target in sorted(set(readiness) - active_targets):
+        if readiness[target]["status"] == "n/a":
+            continue
         findings.append(f"Target Readiness: {target} is not in the active activation scope")
 
     if require_verified_sources:
@@ -1491,9 +2008,9 @@ def check_activation_text(
         elif row["status"] != "ready":
             findings.append(f"Target Readiness: required target {target} is not ready")
     if record.get("Status") == "handoff_ready" and readiness and any(
-        row["status"] != "ready" for row in readiness.values()
+        row["status"] not in {"ready", "n/a"} for row in readiness.values()
     ):
-        findings.append("Record: handoff_ready requires every listed target to be ready")
+        findings.append("Record: handoff_ready requires every active target to be ready")
     if record.get("Status") == "handoff_ready" and not active_targets:
         findings.append("Record: handoff_ready requires at least one active release target")
     if record.get("Status") == "handoff_ready" and open_blockers:
@@ -1505,6 +2022,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--activation", type=Path, default=Path("docs/ACTIVATION.md"))
     parser.add_argument("--prd", type=Path)
+    parser.add_argument("--architecture", type=Path)
+    parser.add_argument("--deployment", type=Path)
     parser.add_argument("--require-filled", action="store_true")
     parser.add_argument("--require-verified-sources", action="store_true")
     parser.add_argument("--require-ready", action="append", default=[])
@@ -1513,24 +2032,58 @@ def main(argv: list[str] | None = None) -> int:
     if args.require_verified_sources and args.prd is None:
         print("--require-verified-sources requires --prd", file=sys.stderr)
         return 2
+    if args.require_verified_sources and args.architecture is None:
+        print("--require-verified-sources requires --architecture", file=sys.stderr)
+        return 2
+    if args.require_verified_sources and args.deployment is None:
+        print("--require-verified-sources requires --deployment", file=sys.stderr)
+        return 2
     if not args.activation.is_file():
         print(f"activation record not found: {args.activation}", file=sys.stderr)
         return 2
     if args.prd is not None and not args.prd.is_file():
         print(f"PRD not found: {args.prd}", file=sys.stderr)
         return 2
+    if args.architecture is not None and not args.architecture.is_file():
+        print(f"architecture record not found: {args.architecture}", file=sys.stderr)
+        return 2
+    if args.deployment is not None and not args.deployment.is_file():
+        print(f"deployment record not found: {args.deployment}", file=sys.stderr)
+        return 2
     text = args.activation.read_text(encoding="utf-8")
     prd_text = args.prd.read_text(encoding="utf-8") if args.prd is not None else None
+    architecture_text = (
+        args.architecture.read_text(encoding="utf-8")
+        if args.architecture is not None
+        else None
+    )
+    deployment_text = (
+        args.deployment.read_text(encoding="utf-8")
+        if args.deployment is not None
+        else None
+    )
     tasks, _titles, parse_findings = _tasks(text)
     if args.show_action_digests:
+        tables, _table_findings = _validate_tables(text, False)
+        capabilities, _capability_findings = _validate_capabilities(
+            tables.get("## Capability Observations", [])
+        )
+        capability_scopes = {
+            capability_id: str(observation["target_scope"])
+            for capability_id, observation in capabilities.items()
+        }
         for task_id in sorted(tasks):
             if set(TASK_FIELDS) <= set(tasks[task_id]):
-                print(f"{task_id} {action_digest(task_id, tasks[task_id])}")
+                print(
+                    f"{task_id} {action_digest(task_id, tasks[task_id], capability_scopes)}"
+                )
         if parse_findings:
             return 1
     findings = check_activation_text(
         text,
         prd_text=prd_text,
+        architecture_text=architecture_text,
+        deployment_text=deployment_text,
         require_filled=args.require_filled,
         require_verified_sources=args.require_verified_sources,
         require_ready=tuple(args.require_ready),

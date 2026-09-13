@@ -20,6 +20,55 @@ SHA = "a" * 40
 ARTIFACT = "web-build-1"
 BINDING = f"web-prod@{SHA}#{ARTIFACT}"
 TARGET = "google_analytics/account-1/property-2/stream-3"
+ARCHITECTURE = """# Architecture
+
+## Release Targets
+
+Expected deployable surfaces: web-app
+
+### Release Target: web-dev
+- Surface: web-app
+- Surface class: hosted_web
+- Public discoverability: yes
+- Surface suffix: web
+- Release name: fixture-web-dev
+- Provider: Cloudflare
+- Stage: development
+- Source policy: stage=development; ref=run.integration.branch; sha=run.integration.integration_head_sha
+- Artifact kind: static development bundle
+- Signing requirement: not required
+- Exact channel / track: fixture-development-route
+- Submission / promotion / review / manual approval path: candidate checks and owner approval
+- Availability signal: route answers the smoke check
+- Rollout: all development testers
+- Rollback / forward-fix: deploy the prior development bundle
+
+### Release Target: web-prod
+- Surface: web-app
+- Surface class: hosted_web
+- Public discoverability: yes
+- Surface suffix: web
+- Release name: fixture-web
+- Provider: Cloudflare
+- Stage: production
+- Source policy: stage=production; ref=refs/heads/main; sha=promotion.verified_main_sha
+- Artifact kind: static production bundle
+- Signing requirement: not required
+- Exact channel / track: fixture-production-route
+- Submission / promotion / review / manual approval path: candidate checks, main promotion, owner approval
+- Availability signal: route answers the smoke check
+- Rollout: all users after smoke passes
+- Rollback / forward-fix: deploy the prior bundle or corrected forward-fix
+"""
+DEPLOYMENT = f"""# Deployment
+
+## Release Target Status
+
+| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| web-dev | web-app | development | Cloudflare;fixture-development-route | pending | pending | pending | pending | pending | pending | pending |
+| web-prod | web-app | production | Cloudflare;fixture-production-route | https://example.com | {SHA} | {SHA} | {ARTIFACT} | production route answered the smoke check | 2026-09-07T18:04:00Z | PASS |
+"""
 
 VALID_PRD = """# PRD: Example
 
@@ -80,7 +129,11 @@ def task_fields(
         "Blocker / N/A reason": "none",
         "Updated": "2026-09-07T18:00:00Z",
     }
-    digest = check_activation.action_digest(task_id, fields)
+    digest = check_activation.action_digest(
+        task_id,
+        fields,
+        {"CAP-001": TARGET, "CAP-002": TARGET},
+    )
     fields["Action digest"] = digest
     fields["Authorized digest"] = digest
     return fields
@@ -90,6 +143,14 @@ def task_block(task_id: str, fields: dict[str, str], title: str = "Create produc
     lines = [f"### {task_id} — {title}", ""]
     lines.extend(f"- {name}: {fields[name]}" for name in check_activation.TASK_FIELDS)
     return "\n".join(lines)
+
+
+def current_digest(task_id: str, fields: dict[str, str]) -> str:
+    return check_activation.action_digest(
+        task_id,
+        fields,
+        {"CAP-001": TARGET, "CAP-002": TARGET},
+    )
 
 
 def valid_record(*, task_blocks: list[str] | None = None) -> str:
@@ -145,15 +206,15 @@ def valid_record(*, task_blocks: list[str] | None = None) -> str:
 | CAP-002 | manual | human_only | read, write, readback | {TARGET} | production | 2026-09-07T17:55:00Z | owner present |
 
 ## Outcome Coverage
-| Signal | Definition / target | Window | Release targets | Source ID | Status |
-| --- | --- | --- | --- | --- | --- |
-| Activation rate | Users completing setup; 70% target | 14 days | web-prod | MS-001 | verified |
-| TEST-001 | One verified setup event | release smoke | web-prod | MS-001 | verified |
+| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source ID | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Activation rate | Users completing setup | none recorded | 70% in 14 days | n/a — PRD legacy metric table omits a separate measurement window | n/a — metric row | web-prod | MS-001 | verified |
+| TEST-001 | Setup succeeds | none recorded | n/a — required test has no numeric target | operational test | One verified setup event | web-prod | MS-001 | verified |
 
 ## Measurement Sources
-| MS ID | Target | Environment | Retrieval | Route / capability | Release bindings | Owner | Status | Evidence IDs |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MS-001 | {TARGET} | production | GA4 Realtime setup event query | browser;CAP-001 | {BINDING} | analytics owner | verified | EVID-004 |
+| MS ID | Target | Environment | Retrieval | Source role | Route / capability | Release bindings | Owner | Status | Evidence IDs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MS-001 | {TARGET} | production | GA4 Realtime setup event query | ga4 | browser;CAP-001 | {BINDING} | analytics owner | verified | EVID-004 |
 
 ## Activation Tasks
 <!-- activation-task-contract:start -->
@@ -174,9 +235,10 @@ def valid_record(*, task_blocks: list[str] | None = None) -> str:
 | ACT-001 | n/a | n/a | n/a | n/a |
 
 ## Target Readiness
-| Release target | Source SHA | Artifact / build identity | Status | Checked | Blockers |
-| --- | --- | --- | --- | --- | --- |
-| web-prod | {SHA} | {ARTIFACT} | ready | 2026-09-07T18:03:00Z | none |
+| Release target | Stage | Provider / channel | Source SHA | Artifact / build identity | Availability state | Status | Checked | N/A reason | Blockers |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| web-dev | development | Cloudflare;fixture-development-route | pending | pending | n/a | n/a | n/a | n/a — development candidate is not an activation target | none |
+| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed | ready | 2026-09-07T18:03:00Z | none | none |
 
 ## Open Blockers
 | Blocker ID | Release targets | Kind | Owner | Next step | Status | Notes |
@@ -205,10 +267,94 @@ class ActivationCheckerTests(unittest.TestCase):
         findings = check_activation.check_activation_text(
             valid_record(),
             prd_text=VALID_PRD,
+            architecture_text=ARCHITECTURE,
+            deployment_text=DEPLOYMENT,
             require_verified_sources=True,
             require_ready=("web-prod",),
         )
         self.assertEqual([], findings)
+
+    def test_release_authority_rejects_invented_and_missing_targets(self) -> None:
+        invented = valid_record().replace(BINDING, BINDING.replace("web-prod", "other-prod"))
+        invented_findings = "\n".join(
+            check_activation.check_activation_text(
+                invented,
+                prd_text=VALID_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                require_verified_sources=True,
+            )
+        )
+        self.assertIn("Activation target other-prod is not defined by architecture.md", invented_findings)
+        self.assertIn("Target Readiness: missing active target other-prod", invented_findings)
+
+        missing = valid_record().replace(
+            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed | ready | 2026-09-07T18:03:00Z | none | none |\n",
+            "",
+        )
+        missing_findings = "\n".join(
+            check_activation.check_activation_text(
+                missing,
+                prd_text=VALID_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                require_verified_sources=True,
+            )
+        )
+        self.assertIn(
+            "Target Readiness: architecture target web-prod needs a readiness or concrete n/a row",
+            missing_findings,
+        )
+
+    def test_release_join_rejects_invented_stage_provider_or_deployment_identity(self) -> None:
+        stage = valid_record().replace(
+            "| web-prod | production | Cloudflare;fixture-production-route |",
+            "| web-prod | development | Cloudflare;fixture-production-route |",
+        )
+        provider = valid_record().replace(
+            "| web-prod | production | Cloudflare;fixture-production-route |",
+            "| web-prod | production | Vercel;fixture-production-route |",
+        )
+        artifact = valid_record().replace(
+            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} |",
+            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | other-build |",
+        )
+        for label, record in (("stage", stage), ("provider", provider), ("artifact", artifact)):
+            with self.subTest(label):
+                findings = "\n".join(
+                    check_activation.check_activation_text(
+                        record,
+                        prd_text=VALID_PRD,
+                        architecture_text=ARCHITECTURE,
+                        deployment_text=DEPLOYMENT,
+                        require_verified_sources=True,
+                    )
+                )
+                self.assertIn("Target Readiness: web-prod", findings)
+
+    def test_duplicate_required_sections_and_prd_metrics_are_rejected(self) -> None:
+        duplicated_section = valid_record() + "\n## Measurement Sources\n| not | a | table |\n"
+        self.assertIn(
+            "duplicate required section ## Measurement Sources",
+            "\n".join(check_activation.check_activation_text(duplicated_section)),
+        )
+
+        duplicated_metric = VALID_PRD.replace(
+            "| Activation rate | Users completing setup | 70% in 14 days |",
+            "| Activation rate | Users completing setup | 70% in 14 days |\n"
+            "| Activation rate | Duplicate metric | 60% in 14 days |",
+        )
+        _signals, findings = check_activation._prd_signals(duplicated_metric)
+        self.assertIn("PRD: duplicate metric(s) Activation rate", findings)
+
+    def test_capability_scope_change_makes_action_digest_and_evidence_stale(self) -> None:
+        stale = valid_record().replace(
+            f"| CAP-001 | browser | available | read, write, readback | {TARGET} |",
+            "| CAP-001 | browser | available | read, write, readback | google_analytics/another-account |",
+        )
+        findings = "\n".join(check_activation.check_activation_text(stale))
+        self.assertIn("ACT-001: Action digest does not match the current action", findings)
+        self.assertIn("ACT-001: evidence EVID-001 has a stale action digest", findings)
 
     def test_verified_source_mode_implies_filled_validation(self) -> None:
         record = valid_record().replace("- Product: Example", "- Product: <fill>")
@@ -216,15 +362,19 @@ class ActivationCheckerTests(unittest.TestCase):
             "unresolved placeholder",
             "\n".join(
                 check_activation.check_activation_text(
-                    record, prd_text=VALID_PRD, require_verified_sources=True
+                    record,
+                    prd_text=VALID_PRD,
+                    architecture_text=ARCHITECTURE,
+                    deployment_text=DEPLOYMENT,
+                    require_verified_sources=True,
                 )
             ),
         )
 
     def test_outcome_source_must_cover_the_same_release_target(self) -> None:
         record = valid_record().replace(
-            f"| MS-001 | {TARGET} | production | GA4 Realtime setup event query | browser;CAP-001 | {BINDING} |",
-            f"| MS-001 | {TARGET} | production | GA4 Realtime setup event query | browser;CAP-001 | other-prod@{SHA}#{ARTIFACT} |",
+            f"| MS-001 | {TARGET} | production | GA4 Realtime setup event query | ga4 | browser;CAP-001 | {BINDING} |",
+            f"| MS-001 | {TARGET} | production | GA4 Realtime setup event query | ga4 | browser;CAP-001 | other-prod@{SHA}#{ARTIFACT} |",
         )
         self.assertIn(
             "does not cover every target",
@@ -233,14 +383,54 @@ class ActivationCheckerTests(unittest.TestCase):
 
     def test_prd_coverage_rejects_missing_and_unknown_signals(self) -> None:
         missing = valid_record().replace(
-            "| TEST-001 | One verified setup event | release smoke | web-prod | MS-001 | verified |\n",
-            "| UNKNOWN | Other | release smoke | web-prod | MS-001 | verified |\n",
+            "| TEST-001 | Setup succeeds | none recorded | n/a — required test has no numeric target | operational test | One verified setup event | web-prod | MS-001 | verified |\n",
+            "| UNKNOWN | Other | none recorded | n/a — required test has no numeric target | operational test | Other | web-prod | MS-001 | verified |\n",
         )
         joined = "\n".join(
             check_activation.check_activation_text(missing, prd_text=VALID_PRD)
         )
         self.assertIn("missing PRD signal TEST-001", joined)
         self.assertIn("unknown PRD signal UNKNOWN", joined)
+
+    def test_source_role_is_closed_and_coverage_joins_exact_prd_fields(self) -> None:
+        invalid_role = valid_record().replace(
+            "| GA4 Realtime setup event query | ga4 | browser;CAP-001 |",
+            "| GA4 Realtime setup event query | other | browser;CAP-001 |",
+        )
+        self.assertIn(
+            "invalid source role",
+            "\n".join(check_activation.check_activation_text(invalid_role)),
+        )
+        invalid_definition = valid_record().replace(
+            "| Activation rate | Users completing setup | none recorded |",
+            "| Activation rate | Different definition | none recorded |",
+        )
+        self.assertIn(
+            "definition / obligation must exactly match PRD",
+            "\n".join(
+                check_activation.check_activation_text(
+                    invalid_definition, prd_text=VALID_PRD
+                )
+            ),
+        )
+
+    def test_active_target_cannot_use_na_readiness(self) -> None:
+        record = valid_record().replace(
+            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed | ready | 2026-09-07T18:03:00Z | none | none |",
+            "| web-prod | production | Cloudflare;fixture-production-route | pending | pending | deployed | n/a | pending | n/a — blocked activation scope | none |",
+        )
+        self.assertIn(
+            "active target web-prod cannot be n/a",
+            "\n".join(
+                check_activation.check_activation_text(
+                    record,
+                    prd_text=VALID_PRD,
+                    architecture_text=ARCHITECTURE,
+                    deployment_text=DEPLOYMENT,
+                    require_verified_sources=True,
+                )
+            ),
+        )
 
     def test_action_digest_detects_target_drift(self) -> None:
         stale = valid_record().replace(
@@ -257,7 +447,7 @@ class ActivationCheckerTests(unittest.TestCase):
         first = task_fields(depends_on="ACT-002")
         second = task_fields("ACT-002", depends_on="ACT-001")
         second["Authorization source"] = "owner approved ACT-002 on 2026-09-07"
-        second_digest = check_activation.action_digest("ACT-002", second)
+        second_digest = current_digest("ACT-002", second)
         second["Action digest"] = second_digest
         second["Authorized digest"] = second_digest
         record = valid_record(
@@ -286,7 +476,7 @@ class ActivationCheckerTests(unittest.TestCase):
         fields["Execution route"] = "manual"
         fields["Execution capability"] = "CAP-002"
         fields["Authorization"] = "handoff_complete"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         record = valid_record(task_blocks=[task_block("ACT-001", fields)]).replace(
@@ -375,7 +565,7 @@ class ActivationCheckerTests(unittest.TestCase):
     def test_capability_must_match_the_exact_environment(self) -> None:
         fields = task_fields()
         fields["Environment"] = "live"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         joined = "\n".join(
@@ -393,7 +583,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 fields["Environment"] = environment
                 fields["Risk"] = "standard"
                 fields["Confirmation"] = "exact_preapproval"
-                digest = check_activation.action_digest("ACT-001", fields)
+                digest = current_digest("ACT-001", fields)
                 fields["Action digest"] = digest
                 fields["Authorized digest"] = digest
                 joined = "\n".join(
@@ -407,7 +597,7 @@ class ActivationCheckerTests(unittest.TestCase):
         fields = task_fields()
         fields["Environment"] = "preview"
         fields["Target"] = "cloudflare/account-1/zone-2/dns/record-3"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         self.assertIn(
@@ -428,7 +618,9 @@ class ActivationCheckerTests(unittest.TestCase):
         fields["Confirmation"] = "read_only"
         fields["Authorization"] = "not_required"
         fields["Authorization source"] = "none"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = check_activation.action_digest(
+            "ACT-001", fields, {"CAP-001": dns_target, "CAP-002": dns_target}
+        )
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         record = valid_record(task_blocks=[task_block("ACT-001", fields)]).replace(
@@ -445,7 +637,7 @@ class ActivationCheckerTests(unittest.TestCase):
         fields["Environment"] = "preview"
         fields["Risk"] = "standard"
         fields["Confirmation"] = "exact_preapproval"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         joined = "\n".join(
@@ -462,7 +654,7 @@ class ActivationCheckerTests(unittest.TestCase):
         fields["Execution capability"] = "CAP-002"
         fields["Risk"] = "standard"
         fields["Confirmation"] = "exact_preapproval"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         self.assertIn(
@@ -507,7 +699,11 @@ class ActivationCheckerTests(unittest.TestCase):
         )
         joined = "\n".join(
             check_activation.check_activation_text(
-                record, prd_text=VALID_PRD, require_verified_sources=True
+                record,
+                prd_text=VALID_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                require_verified_sources=True,
             )
         )
         self.assertIn("needs distinct PASS readback evidence", joined)
@@ -534,7 +730,11 @@ class ActivationCheckerTests(unittest.TestCase):
         )
         joined = "\n".join(
             check_activation.check_activation_text(
-                record, prd_text=VALID_PRD, require_verified_sources=True
+                record,
+                prd_text=VALID_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                require_verified_sources=True,
             )
         )
         self.assertIn("verified source MS-001 needs PASS evidence", joined)
@@ -543,7 +743,7 @@ class ActivationCheckerTests(unittest.TestCase):
     def test_bare_verification_na_is_not_a_reason(self) -> None:
         fields = task_fields(evidence_ids="EVID-001, EVID-002")
         fields["Verification"] = "n/a"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         self.assertIn(
@@ -559,27 +759,31 @@ class ActivationCheckerTests(unittest.TestCase):
         fields = task_fields()
         fields["Precondition"] = "pending"
         fields["Desired state"] = "pending"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         record = valid_record(task_blocks=[task_block("ACT-001", fields)]).replace(
-            "| Users completing setup; 70% target | 14 days |",
-            "| pending | pending |",
+            "| Users completing setup | none recorded | 70% in 14 days | n/a — PRD legacy metric table omits a separate measurement window |",
+            "| pending | pending | pending | pending |",
         )
         joined = "\n".join(
             check_activation.check_activation_text(
-                record, prd_text=VALID_PRD, require_verified_sources=True
+                record,
+                prd_text=VALID_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                require_verified_sources=True,
             )
         )
         self.assertIn("filled task needs Precondition", joined)
         self.assertIn("filled task needs Desired state", joined)
-        self.assertIn("Outcome Coverage: Activation rate needs Definition / target", joined)
-        self.assertIn("Outcome Coverage: Activation rate needs Window", joined)
+        self.assertIn("Outcome Coverage: Activation rate needs Definition / obligation", joined)
+        self.assertIn("Outcome Coverage: Activation rate needs Measurement window", joined)
 
     def test_handoff_ready_requires_every_active_target(self) -> None:
         fields = task_fields()
         fields["Release bindings"] = f"{BINDING}, other-prod@{SHA}#other-build"
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         joined = "\n".join(
@@ -623,14 +827,14 @@ class ActivationCheckerTests(unittest.TestCase):
         ios_binding = f"web-prod@{SHA}#appstore-build-123"
         fields = task_fields()
         fields["Release bindings"] = ios_binding
-        digest = check_activation.action_digest("ACT-001", fields)
+        digest = current_digest("ACT-001", fields)
         fields["Action digest"] = digest
         fields["Authorized digest"] = digest
         ios = valid_record(task_blocks=[task_block("ACT-001", fields)]).replace(
             BINDING, ios_binding
         ).replace(
-            f"| web-prod | {SHA} | {ARTIFACT} |",
-            f"| web-prod | {SHA} | appstore-build-123 |",
+            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed |",
+            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | appstore-build-123 | deployed |",
         )
         self.assertEqual([], check_activation.check_activation_text(ios, prd_text=VALID_PRD))
         malformed = valid_record().replace(BINDING, f"web-prod@pending#{ARTIFACT}", 1)
@@ -651,6 +855,20 @@ class ActivationCheckerTests(unittest.TestCase):
         )
         self.assertNotEqual(
             base_digest, check_activation.action_digest("ACT-001", capability_changed)
+        )
+
+    def test_action_digest_changes_with_readback_and_behavior_fields(self) -> None:
+        base = task_fields()
+        base_digest = check_activation.action_digest("ACT-001", base)
+        readback_changed = dict(base)
+        readback_changed["Read-back route"] = "api"
+        behavior_changed = dict(base)
+        behavior_changed["Verification"] = "A different behavior-level signal"
+        self.assertNotEqual(base_digest, check_activation.action_digest("ACT-001", readback_changed))
+        self.assertNotEqual(base_digest, check_activation.action_digest("ACT-001", behavior_changed))
+        self.assertNotEqual(
+            check_activation.action_digest("ACT-001", readback_changed),
+            check_activation.action_digest("ACT-001", behavior_changed),
         )
 
     def test_verified_source_gate_requires_prd(self) -> None:

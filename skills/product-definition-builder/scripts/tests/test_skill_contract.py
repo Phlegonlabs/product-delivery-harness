@@ -119,6 +119,13 @@ async function agent(_prompt, options) {
         return {
             "id": target_id,
             "surface": surface,
+            "surface_class": {
+                "web-app": "hosted_web",
+                "public-api": "hosted_api",
+                "ios-app": "ios",
+                "browser-extension": "browser_extension",
+            }.get(surface, "other_nonpublic"),
+            "public_discoverability": "yes" if surface == "web-app" else "no",
             "surface_suffix": suffixes.get(surface, surface),
             "release_name": release_name
             or (f"{canonical_name}-dev" if stage == "development" else canonical_name),
@@ -1214,6 +1221,8 @@ async function agent(_prompt, options) {
         self.assertIn("## Release Targets", contract)
         for field in (
             "stable target ID",
+            "Surface class",
+            "Public discoverability",
             "Surface suffix",
             "Release name",
             "development",

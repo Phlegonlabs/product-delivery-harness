@@ -237,6 +237,8 @@ FUNCTIONAL_REQUIREMENTS_HEADER = (
 
 RELEASE_TARGET_FIELDS = (
     "Surface",
+    "Surface class",
+    "Public discoverability",
     "Surface suffix",
     "Release name",
     "Provider",
@@ -250,6 +252,23 @@ RELEASE_TARGET_FIELDS = (
     "Rollout",
     "Rollback / forward-fix",
 )
+SURFACE_CLASSES = {
+    "hosted_web",
+    "hosted_api",
+    "browser_extension",
+    "ios",
+    "android",
+    "macos",
+    "windows",
+    "worker",
+    "job",
+    "webhook",
+    "realtime",
+    "cli",
+    "agent",
+    "other_nonpublic",
+}
+PUBLIC_DISCOVERABILITY = {"yes", "no"}
 
 RELEASE_TARGET_START = "### Release Target:"
 EXPECTED_SURFACES_PREFIX = "Expected deployable surfaces:"
@@ -1217,7 +1236,8 @@ def _validate_release_targets_legacy(
         invalid_values = [
             field
             for field in RELEASE_TARGET_FIELDS
-            if field != "Stage" and not _meaningful(fields[field.casefold()])
+            if field not in {"Stage", "Surface class", "Public discoverability"}
+            and not _meaningful(fields[field.casefold()])
         ]
         if invalid_values:
             problems.append(
@@ -1226,6 +1246,8 @@ def _validate_release_targets_legacy(
             )
 
         surface = fields["surface"]
+        surface_class = fields["surface class"].casefold()
+        discoverability = fields["public discoverability"].casefold()
         suffix = fields["surface suffix"]
         release_name = fields["release name"]
         stage = fields["stage"].casefold()
@@ -1233,6 +1255,18 @@ def _validate_release_targets_legacy(
             problems.append(
                 f"architecture: release target {target_id!r} names unexpected "
                 f"surface {surface!r}"
+            )
+        if surface_class not in SURFACE_CLASSES:
+            problems.append(
+                f"architecture: release target {target_id!r} has invalid Surface class {fields['surface class']!r}"
+            )
+        if discoverability not in PUBLIC_DISCOVERABILITY:
+            problems.append(
+                f"architecture: release target {target_id!r} has invalid Public discoverability {fields['public discoverability']!r}"
+            )
+        if discoverability == "yes" and surface_class != "hosted_web":
+            problems.append(
+                f"architecture: release target {target_id!r} Public discoverability=yes requires Surface class hosted_web"
             )
         if explicit_none is not None:
             problems.append(
@@ -1307,6 +1341,14 @@ def _validate_release_targets_legacy(
         development_name = development[1]["release name"]
         production_name = production[1]["release name"]
         suffix = production[1]["surface suffix"]
+        if development[1]["surface class"].casefold() != production[1]["surface class"].casefold():
+            problems.append(
+                f"architecture: surface {surface!r} development and production targets must use the same Surface class"
+            )
+        if development[1]["public discoverability"].casefold() != production[1]["public discoverability"].casefold():
+            problems.append(
+                f"architecture: surface {surface!r} development and production targets must use the same Public discoverability value"
+            )
         canonical = production_name.removesuffix("-prod")
         if production_name.endswith("-prod"):
             problems.append(

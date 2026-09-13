@@ -12,7 +12,7 @@ This contract covers the owner-approved product, architecture, technology stack,
 
 It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass runs before Stack Decision and Product Definition approval so its findings cannot silently stale an accepted package. When the user declined it, no web tool was available, confidential context prevented a safe query, or the role returned blocked, the package records that state explicitly. See `market-research-guide.md`.
 
-For a product with a web, iOS, or browser-extension release target, it also creates a one-time operational seed at `docs/ACTIVATION.md` from the sibling `product-activation` template when that path is absent. The seed maps release targets, every PRD metric, and every required `TEST-*` signal, but it contains no external authorization, account guess, secret value, or claim that a source is verified. An existing Activation record is owned by `product-activation` and is preserved byte-for-byte during product enhancement.
+For a product with any deployable web, API/backend, mobile, desktop, or browser-extension release target, it also creates a one-time operational seed at `docs/ACTIVATION.md` from the sibling `product-activation` template when that path is absent. The seed maps release targets, every PRD metric, and every required `TEST-*` signal, but it contains no external authorization, account guess, secret value, or claim that a source is verified. An existing Activation record is owned by `product-activation` and is preserved byte-for-byte during product enhancement.
 
 It specifies what each UI surface must show and do. It does not decide how the surface is composed or styled and creates no HTML reviewer.
 
@@ -396,15 +396,15 @@ The gate itself is recorded in `PRD.md`'s `### Research Gate`; this file holds t
 
 ## `docs/ACTIVATION.md`
 
-Create this operational seed only for a package with a web, iOS, or browser-extension release target and only when the final path does not already exist. In short, `product-definition-builder` creates it only when absent. Resolve the template and checker from the sibling `product-activation` skill. If that sibling is unavailable, publish the core product package without an Activation file and report the missing optional handoff; do not invent a local substitute template.
+Create this operational seed only for a package with a deployable release target and only when the final path does not already exist. In short, `product-definition-builder` creates it only when absent. Resolve the template and checker from the sibling `product-activation` skill. If that sibling is unavailable, publish the core product package without an Activation file and report the missing optional handoff; do not invent a local substitute template.
 
 The seed must:
 
 - retain the template's exact headings, table headers, task boundary comments, and English machine anchors;
 - fill the product name and every known owner;
 - select `core` plus every known surface profile, recording rejected expected profiles as `n/a` with a reason;
-- list only the stable web, iOS, and browser-extension release target IDs from `architecture.md` without inventing a SHA or deployed identity; exclude Android, desktop, API-only, and other targets even when the package is hybrid;
-- add exactly one Outcome Coverage row for every `## Metrics` metric and every `TEST-*` row marked `Required: Yes`, scoped to that supported Activation target subset;
+- list every stable release-target ID from `architecture.md`, including API/backend, Android, macOS, Windows, and other hybrid targets, without inventing a SHA or deployed identity; record a concrete Activation `n/a` disposition for a target that provably has no operational activation scope;
+- add exactly one Outcome Coverage row for every `## Metrics` metric and every `TEST-*` row marked `Required: Yes`, repeating the exact structured definition/obligation, baseline, target/guardrail, measurement window, and expected-signal values, scoped to that supported Activation target subset;
 - leave implementation-owned actions, routes, accounts, queries, release bindings, sources, evidence, authorization, and readiness visibly pending;
 - contain secret names only and no secret values; and
 - pass `product-activation/scripts/check_activation.py --activation <staged path> --prd <staged PRD.md>` before publication.
@@ -415,45 +415,52 @@ Publish a new seed flat at `docs/ACTIVATION.md` in the same approved move as the
 
 Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal.
 
-Use this structure:
+Use `assets/templates/OUTCOME_REVIEW.template.md` and validate it with `scripts/check_outcome_review.py`. One review binds one exact production architecture target:
 
 ```markdown
 # Outcome Review: [Product Name]
 
-## Deployed
-Deployed SHA: [full Git SHA]
-Release reference: [run branch head / release tag — where this SHA came from]
-Deployed on: [YYYY-MM-DD]
-Targets: [each architecture.md release target this deployment reached, or the subset it covered]
-Activation record: [docs/ACTIVATION.md / not present / n/a]
-Activation source status: [verified / incomplete / legacy-unavailable / n/a]
-Activation sources: [matching verified MS-* IDs, or explicit reason none apply]
+## Record
+Schema: outcome-review/1
+Product, human outcome owner, production release target, full Release SHA, exact artifact/build identity, exact Deployment identity and checked time, Deployment PASS, `docs/ACTIVATION.md`, lowercase SHA-256 of the current Activation bytes, real Reviewed date, and closed verdict.
+
+## Activation Sources
+Every matching verified `MS-*` source and only those sources. Each row repeats the exact target@SHA#artifact binding, human owner, verification time, and non-secret evidence.
 
 ## Measurements
-| Metric | Baseline | Target | Window | Actual | Source |
-| --- | --- | --- | --- | --- | --- |
-| [PRD `## Metrics` metric or `TEST-*` expected signal] | [pre-deploy value or "none recorded"] | [the recorded target] | [measurement window] | [measured value or "pending"] | [how the number was produced: analytics, log query, manual count] |
+| Signal | Baseline | Target | Window start | Window end | Actual | Source ID |
+| --- | --- | --- | --- | --- | --- | --- |
+| [PRD `## Metrics` metric or `TEST-*` expected signal] | [pre-deploy value or "none recorded"] | [the recorded target] | [YYYY-MM-DD] | [YYYY-MM-DD] | [measured value] | [MS-*] |
 
 ## Feedback
-[Observed post-deployment facts: usage, friction, failures, owner remarks. Facts with sources, not wishes.]
+| Fact | Source ID | Observed |
+| --- | --- | --- |
+| [Post-deployment fact] | [MS-*] | [bounded non-secret observation] |
+
+## Incident Response
+| Incident | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| [none, or the incident] | [containment or n/a] | [human or n/a] | [PRD Risks routing or n/a] | [PRD Open Questions routing or n/a] | [MS-* or n/a] |
 
 ## Verdict
 Verdict: [no_change / enhancement / incident] — [one-line reason]
-[Routing: `enhancement` findings become the next enhancement request's input; `incident` findings enter the next run's `PRD.md` `## Risks` and `## Open Questions`; `no_change` schedules nothing.]
 
 ## Open Follow-ups
 | Follow-up | Route |
 | --- | --- |
-| [Item] | [enhancement request / open question / risk] |
+| [Item or none] | [enhancement request / open question / risk / none] |
 ```
 
 Rules:
 
-- Record actual against target for every `PRD.md` `## Metrics` metric and every `TEST-*` expected signal the deployment was supposed to move; an empty Measurements table means the review is not done.
-- The measurement window is real elapsed time after deployment. A review written at deploy time with "pending" actuals is a stub, not a verdict.
-- When `docs/ACTIVATION.md` exists, run its checker with `--prd docs/product/PRD.md --require-verified-sources` and `--require-ready <target-id>` for each reviewed target in its supported active target set. Use only verified `MS-*` sources bound to the same target, deployed SHA, and artifact/build identity. Record Activation as `n/a` for a reviewed Android, desktop, API-only, or other target outside that set; do not pull an unsupported hybrid target into the gate. A configured, blocked, stale, or mismatched source cannot support an actual or verdict.
-- A missing Activation record remains allowed for a legacy or non-applicable product, but the review records that state explicitly and does not imply that an unverified analytics or operational source is trustworthy.
+- Run `python skills/product-definition-builder/scripts/check_outcome_review.py --outcome docs/product/outcome-review.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md`.
+- Record actual against target for every `PRD.md` `## Metrics` metric and every required `TEST-*` expected signal; baseline, target/expected signal, and (when present) numeric measurement-window duration must exactly join the PRD row. An empty or duplicate Measurements table means the review is not done.
+- The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
+- The review cannot mix targets or releases and is production-only. It joins the production architecture target, current Deployment PASS identity, Activation SHA-256, and only verified `MS-*` sources whose exact target, deployed SHA, artifact/build identity, human owner, Activation evidence IDs, and latest PASS evidence timestamp match.
+- An incident requires typed containment, a human owner, and explicit concrete routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
 - The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
+
+Legacy outcome prose may be read as context, but it cannot authorize a verdict under this contract. A legacy `Activation source status:` line or old `| Metric | Baseline | Target | Window | Actual | Source |` table does not satisfy the current release binding; recreate the record in the schema above and let the checker apply Activation's `--require-verified-sources` gate before any verdict is routed.
 
 ## `architecture.md`
 
@@ -535,6 +542,8 @@ Expected deployable surfaces: [stable surface IDs, for example `web-app`, `publi
 
 ### Release Target: [stable-target-id]
 - Surface: [Stable expected surface ID]
+- Surface class: [hosted_web / hosted_api / browser_extension / ios / android / macos / windows / worker / job / webhook / realtime / cli / agent / other_nonpublic]
+- Public discoverability: [yes / no]
 - Surface suffix: [Lowercase kebab-case suffix for this independently released unit]
 - Release name: [Production `<product-slug>-<surface-suffix>` or that exact name plus `-dev` for development]
 - Provider: [Stage-specific hosting, store, or distribution provider]
@@ -810,7 +819,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing product decision records. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
-- `## Metrics` records baseline, target or guardrail, measurement window, source/method, and owner for every success measure. Guardrails are separate metric rows when they need separate ownership or evidence.
+- `## Metrics` records baseline, target or guardrail, measurement window, source/method, and owner for every success measure; metric names are unique. Guardrails are separate metric rows when they need separate ownership or evidence.
 - `## Assumptions` and `## Open Questions` use their structured owner/decision tables. No unresolved Open Questions row marked `Blocks approval: Yes` remains when Product Definition Approval is approved; the approval record explicitly accepts any open non-blocking row or assumption.
 - Every PRD records a Data and Trust Gate and an AI and Automation Gate as `required`, `not_required`, or `blocked` with a reason and human owner. An approved package has neither gate blocked. Required gates are carried into architecture, stack decisions where technology is involved, UI surfaces, and `TEST-*` obligations.
 - Every `PRD.md` records both the Monetization Infrastructure Gate and Partner Channel Gate with `required`, `not_required`, or `blocked` plus a reason. Commercial products record the monetization model, pricing/offer rules, purchase surfaces, entitlement source, and merchant-of-record/tax owner. Products with outside distribution record affiliate, referral, reseller, or hybrid motion plus attribution, commission/discount, reversal, payout, customer ownership, provisioning, support, termination, and fraud rules as applicable.

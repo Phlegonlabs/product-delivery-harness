@@ -8,6 +8,64 @@ import re
 
 ActiveLine = tuple[int, str]
 
+NON_HUMAN_OWNER_TOKENS = {
+    "ai",
+    "automation",
+    "system",
+    "agent",
+    "bot",
+    "model",
+    "assistant",
+    "codex",
+    "claude",
+    "machine",
+}
+GENERIC_IDENTITY_TOKENS = {
+    "same",
+    "test",
+    "abcd",
+    "x",
+    "none",
+    "unknown",
+    "works",
+    "done",
+    "placeholder",
+}
+
+
+def is_human_owner(value: str) -> bool:
+    """Return whether an owner cell names a human rather than automation."""
+
+    normalized = value.strip().casefold()
+    if not normalized or normalized in {"none", "n/a", "pending", "unknown"}:
+        return False
+    if re.search(r"<[^>]+>|\b(?:tbd|todo|placeholder)\b", normalized):
+        return False
+    tokens = set(re.findall(r"[a-z0-9]+", normalized))
+    return not (tokens & NON_HUMAN_OWNER_TOKENS)
+
+
+def is_substantive_identity(value: str, *, allow_na_reason: bool = False) -> bool:
+    """Validate a non-secret endpoint, store channel, or artifact identity."""
+
+    normalized = value.strip().casefold()
+    if not normalized or normalized in {"pending", "none", "unknown"}:
+        return False
+    if re.search(r"<[^>]+>|\b(?:tbd|todo|placeholder)\b", normalized):
+        return False
+    if normalized.startswith("n/a"):
+        if not allow_na_reason:
+            return False
+        match = re.fullmatch(r"n/a\s*(?:—|-|:)\s*(.+)", normalized, re.I)
+        if match is None:
+            return False
+        reason = match.group(1).strip()
+        return len(reason) >= 8 and reason not in GENERIC_IDENTITY_TOKENS
+    if normalized in GENERIC_IDENTITY_TOKENS or len(normalized) < 5:
+        return False
+    return True
+
+
 _FENCE_RE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})")
 _FENCE_CLOSE_RE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})[ \t]*$")
 _HTML_BLOCK_TAGS = {

@@ -142,6 +142,22 @@ Return the result inline unless the user asks to save it.
 
 Keep the executive result short. Put supporting rows below the decision, not before it. If the user asks for a saved report, use a dated path, preserve prior reports, follow repository document-governance rules, and show the exact write path before creating it.
 
+## Saved Lifecycle Public-Release Review
+
+An inline standalone audit is still the default and writes no file. When the owner explicitly asks for a lifecycle public-release review that survives later product changes, save it once at `docs/seo/reviews/YYYY-MM-DD-<slug>.md`; never overwrite an earlier issue.
+
+The saved lifecycle artifact is strict evidence, not a convenience copy:
+
+- use `assets/templates/SEO_REVIEW.template.md`;
+- record the mode (`baseline`, `growth_review`, or `traffic_drop`) and `Review type: lifecycle_public_release`;
+- bind one architecture production target, full source SHA, exact artifact/build identity, deployment identity and checked time, production domain, data cutoff, and human review owner;
+- bind the lowercase SHA-256 of the exact current `docs/ACTIVATION.md`;
+- list every verified `MS-*` source whose exact target, SHA, and artifact match, and no other source as verified evidence;
+- keep Search Console, GA4, production-page, demand, and first-party evidence roles separate; and
+- run `scripts/check_seo_review.py --review <path> --prd <PRD> --architecture <architecture> --deployment <DEPLOYMENT> --activation <ACTIVATION> --repo-root <repository-root> --require-lifecycle`.
+
+A URL, ranking, or analytics property alone does not identify the release. A stale Activation hash, mismatched deployment SHA/artifact, wrong domain, or non-matching source is a blocker before interpretation.
+
 ## Review Completion
 
 A complete review:

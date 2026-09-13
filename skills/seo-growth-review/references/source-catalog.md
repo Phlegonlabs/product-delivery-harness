@@ -2,6 +2,8 @@
 
 Use the smallest set of sources that can answer the question. A source name or available UI does not prove access to the intended property. Record the exact non-secret scope, date range, retrieval time, route, and relevant limitations for every source used.
 
+In a saved lifecycle public-release review, a source is verified evidence only when Activation marks the matching `MS-*` source verified for the same production target, source SHA, and artifact/build identity. Search Console, GA4, page crawls, demand estimates, and first-party language remain separate source roles; do not let one property or URL imply the others.
+
 Before using a provider field, report, quota, API, or console path, fetch its current official documentation. The links below are starting authorities, not remembered execution instructions.
 
 ## Source Roles

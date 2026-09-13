@@ -59,6 +59,19 @@ class SeoGrowthReviewSkillContractTests(unittest.TestCase):
         self.assertIn('display_name: "SEO Growth Review"', metadata)
         self.assertIn("$seo-growth-review", metadata)
 
+    def test_saved_lifecycle_review_is_separate_from_inline_audit(self) -> None:
+        skill = self.read("SKILL.md")
+        method = self.read("references/review-method.md")
+        catalog = self.read("references/source-catalog.md")
+        template = self.read("assets/templates/SEO_REVIEW.template.md")
+
+        self.assertIn("A standalone inline audit remains valid", skill)
+        self.assertIn("docs/seo/reviews/YYYY-MM-DD-<slug>.md", skill)
+        self.assertIn("check_seo_review.py --require-lifecycle", skill)
+        self.assertIn("## Saved Lifecycle Public-Release Review", method)
+        self.assertIn("Activation sha256", template)
+        self.assertIn("only when Activation marks the matching `MS-*` source", catalog)
+
 
 if __name__ == "__main__":
     unittest.main()
