@@ -66,6 +66,18 @@ class UiDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("wireframes/3", checker)
         self.assertIn("Higgsfield MCP", template)
 
+    def test_copy_freeze_precedes_structural_approval(self):
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        guide = self.read("references/wireframe-guide.md")
+        self.assertLess(
+            skill.index("Run the **Copy Freeze Gate**"),
+            skill.index("Obtain explicit human Wireframe Approval"),
+        )
+        for marker in ("Copy Freeze:", "Copy owner:", "Copy locale:", "Copy approved on:"):
+            self.assertIn(marker, contract)
+        self.assertIn("--require-copy-approved", guide)
+
     def test_output_contract_keeps_tokens_after_visual_approval(self):
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")

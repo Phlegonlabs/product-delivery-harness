@@ -39,7 +39,7 @@
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
 - **先批准 Product Definition，再进入 UI 设计。** 每个产品都由 owner 批准 scope、可量测需求、完整 frontend/backend 架构、release targets、trust/AI/commercial gates、assumptions 与 stack。UI 产品只有在明确要求后才进入 `ui-design-builder`。
 - **建议不等于实现权威。** 每个适用领域先给出两到三组 coherent stack。新选择获批后标记 `Approved`，现有选择是 `Selected`，硬限制是 `Required`；`Recommended` 和 `Provisional` 会阻止 delivery。Frontend 分开记录 language、package manager、framework、UI runtime、shadcn/ui 这类 component foundation、styling、build、routing/data 与 tests。
-- **UI 设计有独立批准主线。** `ui-design-builder` 先询问 UI、style、motion，以及各区域使用 image 还是 motion，再开始画面。`frontend-design` 是 wireframe 与 HiFi 的单一作者；wireframe 先走 W1–W5 与人工结构批准，Style Integration 再产出连通 HiFi。Impeccable 执行 `critique` + `audit`，H1–H9 保持正式门槛：总分 90+、H2/H4/H8 各 90+、每项 60+，且无 block/dispute。简单 UI motion 使用 CSS/WAAPI；GSAP skills 按需调用；Higgsfield MCP 只在精确授权下生成动画。Design tokens 只在 Visual Approval 后编译。
+- **UI 设计有独立批准主线。** `ui-design-builder` 先询问 UI、style、motion，以及各区域使用 image 还是 motion，再开始画面。`frontend-design` 是 wireframe 与 HiFi 的单一作者；schema 4 wireframe 先由人工 copy owner 冻结产品精确文案与有界动态显示契约，再走 W1–W5 与结构批准，Style Integration 随后产出连通 HiFi。Impeccable 执行 `critique` + `audit`，H1–H9 保持正式门槛：总分 90+、H2/H4/H8 各 90+、每项 60+，且无 block/dispute。简单 UI motion 使用 CSS/WAAPI；GSAP skills 按需调用；Higgsfield MCP 只在精确授权下生成动画。Design tokens 只在 Visual Approval 后编译。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **每个 graph attempt 都可持久追踪。** 非 mission 节点先保留 attempt，在 RUN lock 外执行检查或外部动作，再记录 outcome 与证据；中断的非 runtime attempt 也通过同一结果路径记录为 `blocked`。本地 verifier 只能在 dirty-status 检查中忽略 tracked RUN；路径必须解析在 checkout 内，且执行与结果记录期间都会保护其精确字节和文件身份。
 - **Runtime binding 明确可验证。** `lease-worker` 从选择器 directive 派生 provider、driver、model、effort 和 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精确目标可直接沿用，新精确目标只能从已启用的 wildcard 授权 materialize，不会扩大权限。
@@ -121,13 +121,14 @@ flowchart TB
         direction TB
         intake{{"UI Design Intake<br/>style + motion + media；等待 owner"}}
         wf["frontend-design 结构模式<br/>wireframes/4"]
+        cgate{{"Copy Freeze<br/>先由文案 owner 批准"}}
         wgate{{"Wireframe Approval<br/>W1–W5 + 人工 owner"}}
         style["frontend-design<br/>Style Integration + HiFi target"]
         review["Impeccable critique + audit<br/>H1–H9 评分"]
         vgate{{"Human Visual Approval"}}
         dgate{{"Design System Need Gate"}}
         pair["design-system-compiler<br/>design-system.md + design-system.json"]
-        intake --> wf --> wgate --> style --> review --> vgate --> dgate
+        intake --> wf --> cgate --> wgate --> style --> review --> vgate --> dgate
         dgate -->|required| pair
         dgate -->|not_required| target[核准的 page-faithful target]
     end
@@ -475,7 +476,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
-- **0.37.0** — UI 设计正式拆成独立批准边界。`product-definition-builder` 确定产品 scope、完整 frontend/backend 架构与 stack 后即停止；新 `ui-design-builder` 负责人工 UI/style/motion/media intake、`wireframes/4` typed image/motion placeholders、W1–W5 结构评分、`frontend-design` Style Integration、连通 HiFi HTML、Impeccable critique/audit、H1–H9 评分、Visual Approval、条件式 GSAP 路由、精确授权的 Higgsfield MCP 生成动画，以及 Design System Need Gate。正式 tokens 只在视觉批准后编译；canonical UI 产物改放 `docs/design/`，Harness 0.37.0+ 对 UI delivery 强制 join 已批准 `ui-design.md`，旧设计路径保持读取兼容。Product Definition 的只读分析图改用当前宿主的原生 sibling-agent runner；Codex、Claude Code、Pi 与 generic host 共用同一份角色与父级 ownership 契约。破坏性 skill-bundle 变更。
+- **0.37.0** — UI 设计正式拆成独立批准边界。`product-definition-builder` 确定产品 scope、完整 frontend/backend 架构与 stack 后即停止；新 `ui-design-builder` 负责人工 UI/style/motion/media intake、`wireframes/4` typed image/motion placeholders、W1–W5 结构评分、`frontend-design` Style Integration、连通 HiFi HTML、Impeccable critique/audit、H1–H9 评分、Visual Approval、条件式 GSAP 路由、精确授权的 Higgsfield MCP 生成动画，以及 Design System Need Gate。Schema 4 wireframe 会在评分或结构批准前冻结静态、动作、feedback、备用状态文案与有界动态显示契约；`ui-design.md` 记录文案 owner、locale 与日期，后续文字变更会重新打开 Product Definition、Copy Freeze、响应式检查和 Wireframe Approval。正式 tokens 只在视觉批准后编译；canonical UI 产物改放 `docs/design/`，Harness 0.37.0+ 对 UI delivery 强制 join 已批准 `ui-design.md`，旧设计路径保持读取兼容。Product Definition 的只读分析图改用当前宿主的原生 sibling-agent runner；Codex、Claude Code、Pi 与 generic host 共用同一份角色与父级 ownership 契约。破坏性 skill-bundle 变更。
 
 - **0.36.0** — Product-first 决策加入完整批准主线。草稿后 market research 先对账核心 candidate，再进入人工 Stack Decision Checkpoint 与 Product Definition Approval；UI wireframe 只能从该批准 revision 开始，headless 产品仍需产品批准。技术选项按 coherent bundles 呈现，只有 `Required`、`Selected`、`Approved` 可以实现；`Recommended` 和 `Provisional` 会阻止 Harness。Frontend 分开 language、package manager、shadcn/ui 这类 component foundation 与 styling；mobile destination 与 native/cross-platform、framework 决策分离。PRD 新增 Data & Trust、AI/Automation gates、可量测 metric ownership、结构化 assumptions/open questions，以及覆盖全契约的 enhancement impact record。新的 `check_product_package.py` 验证三份核心文件，Harness 在 approval marker 存在时复用同一 checker。破坏性 skill-bundle 变更。
 - **0.35.5** — 新增 `scripts/parity_capture.py`：Final Visual Parity Loop 变为可执行——从 PLAN `ui_surfaces` 列举 route×breakpoint×state 矩阵，驱动 agent-browser CLI 以同一 viewport 拍摄设计参考渲染与实现页面（`docs/goal/evidence/parity/` 下的 `-target.png`/`-actual.png` 配对），每页跑 DOM 几何探针（水平溢位＋可见重叠）供 `layout_check` attestation 引用，并写出 `manifest.json` 与自包含的 `parity-board.html` 供判定；每 run 一份小 route map 提供参考选择器与可选状态触发，ready 状态免触发即可拍，无 CLI 时手动拍摄仍是后备。Production smoke 首次获得内容定义：带 UI 的候选用同一脚本对生产 URL 重拍 parity 到 `docs/goal/evidence/production/`（晋升合约第 7 条、部署合约、种子 AGENTS.md）——部署偏离设计参考从此是被记录的 finding，而不是 deploy 后的惊喜。

@@ -128,7 +128,7 @@ Record every applicable quality category as a measurable `PRD-*` requirement, or
 
 Omit this section only when the product has no shipped UI surface. Define one entry per addressable screen or bounded UI surface. This is the canonical product source for what each surface must support; `ui-design-builder` later decides its layout and visual structure.
 
-The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, `` `states` ``, and `` `responsive` `` field names are invariant machine anchors. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it, and each entry contains exactly one of each anchor. Keep them unchanged when the surrounding PRD is written in another language. Each entry has exactly one literal route; use a separate `UI-*` entry when another addressable route needs the same presentation.
+The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, `` `states` ``, `` `responsive` ``, and `` `copy` `` field names are invariant machine anchors. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it, and each entry contains exactly one of each anchor. Keep them unchanged when the surrounding PRD is written in another language. Each entry has exactly one literal route; use a separate `UI-*` entry when another addressable route needs the same presentation.
 
 ### UI-001 — [Surface name]
 
@@ -138,6 +138,7 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 - Actions and transitions: [Primary, secondary, destructive, navigation, success, and failure paths]
 - `states`: [Comma-separated state IDs. Record an inapplicable state as `<state>:n/a — <reason>` so the PLAN join can preserve the decision]
 - `responsive`: [Exactly one responsive set: at least three ascending `viewports: 390, 768, 1200` for web, or at least two `sizeClasses: compact, regular` for native/desktop. Every UI-* entry in one package uses the same set]
+- `copy`: [draft / approved / revision_requested / blocked] — [Static strings are implementation-bound after Copy Freeze; dynamic values follow their approved source/order/format/count/length/fallback contracts]
 - Responsive obligations: [Content/actions that never drop, required interaction modes, long-content behavior, and overlay focus/dismissal requirements; layout order, grid, spans, and reflow remain UI-design decisions]
 - Accessibility: [Focus, labels, announcements, heading order, and alt text as applicable]
 - SEO metadata: [Per-route `<title>` and meta description; canonical URL or `n/a — <reason>`; Open Graph/social, robots, and structured-data decisions as applicable or `n/a — <reason>`]
@@ -145,7 +146,7 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 
 <!-- ui-surface-contract:end -->
 
-Every route maps to exactly one `UI-*` entry. Every required content responsibility states what it displays, where the content comes from, what the user should understand or do, and any format, count, or length constraint. Do not invent layout regions in Product Definition.
+Every route maps to exactly one `UI-*` entry. Every required content responsibility states what it displays, where the content comes from, what the user should understand or do, and any source, order, format, count, length, or fallback constraint. The `` `copy` `` status is a product-owned input to the later wireframe Copy Freeze; `ui-design-builder` may stage exact wording but returns any changed responsibility or display contract for renewed Product Definition Approval. Do not invent layout regions in Product Definition.
 
 SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description, written for that page's actual content, plus the applicable extras or an explicit `n/a — <reason>`. Site-level SEO obligations — indexing strategy, sitemap and robots policy, canonical policy, default structured data — are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement.
 

@@ -239,6 +239,10 @@ def validate_text(
             (
                 "Wireframe",
                 "Frozen PRD basis",
+                "Copy Freeze",
+                "Copy owner",
+                "Copy locale",
+                "Copy approved on",
                 "Responsive browser check",
                 "UI grading",
                 "Wireframe score",
@@ -254,6 +258,16 @@ def validate_text(
         )
         if require_wireframe_approved and values.get("Decision", "").casefold() != "approved":
             _add(problems, "Wireframe Approval Decision must be approved")
+        if require_wireframe_approved and values.get("Copy Freeze", "").casefold() != "approved":
+            _add(problems, "Wireframe Approval Copy Freeze must be approved")
+        if require_wireframe_approved and not _human_owner(values.get("Copy owner")):
+            _add(problems, "Wireframe Approval Copy owner must be human")
+        if require_wireframe_approved and not check_wireframe_html.LOCALE_RE.fullmatch(
+            values.get("Copy locale", "").strip()
+        ):
+            _add(problems, "Wireframe Approval Copy locale must be a BCP 47 locale")
+        if require_wireframe_approved and not _date(values.get("Copy approved on")):
+            _add(problems, "Wireframe Approval Copy approved on must use YYYY-MM-DD")
         if require_wireframe_approved and not _human_owner(values.get("Decision owner")):
             _add(problems, "Wireframe Approval Decision owner must be human")
         if require_wireframe_approved and not _date(values.get("Decided on")):

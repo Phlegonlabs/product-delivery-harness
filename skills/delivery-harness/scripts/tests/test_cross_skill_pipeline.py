@@ -60,6 +60,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("wireframe overall score", rubric)
         self.assertIn("design-reference overall score", rubric)
         self.assertIn("`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`", rubric)
+        self.assertIn("## Copy Freeze Gate", wireframe)
+        self.assertIn("--require-copy-approved", wireframe)
 
     def test_motion_and_media_routes_are_typed_and_authorized(self) -> None:
         route = self.read("ui-design-builder/references/motion-and-media-routing.md")
@@ -105,13 +107,18 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("## System-Conformance Mode", implementation)
         self.assertIn("## Target-Conformance Mode", implementation)
         self.assertIn("load `frontend-design` in conformance mode", implementation)
+        self.assertIn("approved and copy-frozen page", implementation)
+        self.assertIn("never frozen copy", self.read("delivery-harness/references/verification-gates.md"))
 
     def test_responsive_set_stays_equal_across_product_design_and_harness(self) -> None:
         prd = self.read("product-definition-builder/references/output-contract.md")
         design = self.read("design-system-compiler/references/output-contract.md")
         harness = self.read("delivery-harness/references/contract-and-traceability.md")
 
-        self.assertIn("`` `responsive` `` field names are invariant", prd)
+        self.assertIn(
+            "`` `responsive` ``, and `` `copy` `` field names are invariant",
+            prd,
+        )
         self.assertIn("at least three ascending `viewports: 390, 768, 1200` for web", prd)
         self.assertIn("exactly one responsive verification set", design)
         self.assertIn("PRD's `UI-*` surface contract agree exactly", harness)

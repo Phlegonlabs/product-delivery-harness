@@ -24,6 +24,11 @@ RESPONSIVE_RE = re.compile(
     r"^\s*-\s*`responsive`\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
+COPY_RE = re.compile(
+    r"^\s*-\s*`copy`\s*:\s*(.+)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+VALID_COPY_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 MACHINE_BLOCK_RE = re.compile(
     r"<!--\s*ui-surface-contract:start\s*-->([\s\S]*?)"
     r"<!--\s*ui-surface-contract:end\s*-->",
@@ -57,6 +62,11 @@ def _state(value: str) -> str:
     if separator and marker.strip().casefold().startswith("n/a"):
         return f"{name.strip()}:n/a"
     return state
+
+
+def _copy_status(value: str) -> str:
+    status = re.split(r"\s+(?:—|-)\s+", value.strip(), maxsplit=1)[0]
+    return status.strip().strip("`").casefold()
 
 
 def _responsive(
@@ -108,6 +118,7 @@ def parse_prd_ui_contract(
     text: str,
     *,
     require_responsive: bool = False,
+    require_copy: bool = False,
     web_floor: int = 2,
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
     blocks = list(MACHINE_BLOCK_RE.finditer(text))
@@ -163,6 +174,7 @@ def parse_prd_ui_contract(
         route_matches = list(ROUTE_RE.finditer(surface_block))
         states_matches = list(STATES_RE.finditer(surface_block))
         responsive_matches = list(RESPONSIVE_RE.finditer(surface_block))
+        copy_matches = list(COPY_RE.finditer(surface_block))
         routes = _values(route_matches[0].group(1)) if len(route_matches) == 1 else []
         states = (
             [_state(item) for item in _values(states_matches[0].group(1))]
@@ -201,11 +213,25 @@ def parse_prd_ui_contract(
                 f"prd: UI surface {surface_id} requires exactly one `responsive` "
                 f"anchor; found {len(responsive_matches)}"
             )
+        copy_status: str | None = None
+        if len(copy_matches) == 1:
+            copy_status = _copy_status(copy_matches[0].group(1))
+            if copy_status not in VALID_COPY_STATUSES:
+                errors.append(
+                    f"prd: UI surface {surface_id} `copy` must start with one of "
+                    f"{sorted(VALID_COPY_STATUSES)}"
+                )
+        elif require_copy or copy_matches:
+            errors.append(
+                f"prd: UI surface {surface_id} requires exactly one `copy` "
+                f"anchor; found {len(copy_matches)}"
+            )
         entries[surface_id] = {
             "routes": routes,
             "states": states,
             "responsiveKind": responsive_kind,
             "responsiveTargets": responsive_targets,
+            "copyStatus": copy_status,
         }
     if require_responsive:
         responsive_sets = {
@@ -247,8 +273,12 @@ def _screen_states(screen: dict[str, Any]) -> set[str]:
 def validate_prd_wireframe_data(
     text: str, data: dict[str, Any], *, web_floor: int = 2
 ) -> list[str]:
+    copy_contract = data.get("schema") == "wireframes/4"
     prd_surfaces, errors = parse_prd_ui_contract(
-        text, require_responsive=True, web_floor=web_floor
+        text,
+        require_responsive=True,
+        require_copy=copy_contract,
+        web_floor=web_floor,
     )
     screens, screen_errors = _screens(data)
     errors.extend(screen_errors)
@@ -277,6 +307,14 @@ def validate_prd_wireframe_data(
             errors.append(
                 f"wireframes: screen {surface_id} states {sorted(wireframe_states)} "
                 f"differ from the PRD states {sorted(prd_states)}"
+            )
+        if copy_contract and prd_surfaces[surface_id]["copyStatus"] != screen.get(
+            "copyStatus"
+        ):
+            errors.append(
+                f"wireframes: screen {surface_id} copy status "
+                f"{screen.get('copyStatus')!r} differs from the PRD copy status "
+                f"{prd_surfaces[surface_id]['copyStatus']!r}"
             )
         has_viewports = isinstance(data.get("viewports"), list)
         has_size_classes = isinstance(data.get("sizeClasses"), list)

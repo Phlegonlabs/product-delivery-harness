@@ -151,6 +151,7 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
 - `route`: /home
 - `states`: ready
 - `responsive`: viewports: 390, 768, 1200
+- `copy`: approved — static copy is implementation-bound
 <!-- ui-surface-contract:end -->
 """
 
@@ -235,6 +236,10 @@ Motion direction: not_required — Owner
 ## Wireframe Approval
 Wireframe: docs/design/wireframes.html @ fixture
 Frozen PRD basis: docs/product/PRD.md @ fixture
+Copy Freeze: approved
+Copy owner: Owner
+Copy locale: en-US
+Copy approved on: 2026-09-13
 Responsive browser check: passed synthetic matrix
 UI grading: W1-W5 overall 90 with no block
 Wireframe score: 90

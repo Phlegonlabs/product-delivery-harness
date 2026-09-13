@@ -42,6 +42,10 @@ Motion direction: functional_only — Product owner
 
 Wireframe: docs/design/wireframes.html @ 0123
 Frozen PRD basis: docs/product/PRD.md @ abc
+Copy Freeze: approved
+Copy owner: Product owner
+Copy locale: en-US
+Copy approved on: 2026-09-13
 Responsive browser check: passed complete matrix
 UI grading: W1 90 W2 90 W3 90 W4 90 W5 90 overall 90
 Wireframe score: 90
@@ -115,6 +119,22 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertIn("Wireframe Approval Decision must be approved", joined)
         self.assertIn("Decision owner must be human", joined)
         self.assertIn("must use YYYY-MM-DD", joined)
+
+    def test_wireframe_approval_requires_copy_freeze_first(self):
+        candidate = (
+            contract()
+            .replace("Copy Freeze: approved", "Copy Freeze: draft")
+            .replace("Copy owner: Product owner", "Copy owner: AI")
+            .replace("Copy locale: en-US", "Copy locale: not a locale")
+            .replace("Copy approved on: 2026-09-13", "Copy approved on: later")
+        )
+        joined = "\n".join(
+            checker.validate_text(candidate, require_wireframe_approved=True)
+        )
+        self.assertIn("Copy Freeze must be approved", joined)
+        self.assertIn("Copy owner must be human", joined)
+        self.assertIn("Copy locale must be a BCP 47 locale", joined)
+        self.assertIn("Copy approved on must use YYYY-MM-DD", joined)
 
     def test_visual_contract_requires_frontend_design_and_impeccable(self):
         candidate = contract(author="design-taste-frontend").replace(

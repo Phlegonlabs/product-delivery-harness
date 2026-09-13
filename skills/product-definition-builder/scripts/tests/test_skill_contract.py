@@ -643,7 +643,7 @@ async function agent(_prompt, options) {
             if flow["presentation"] in {"page", "overlay"}:
                 self.assertIn(flow["to"], screen_ids)
         visible_actions = {
-            (screen["id"], action)
+            (screen["id"], action["label"])
             for screen in data["screens"]
             for region in screen["regions"]
             for action in region["actions"]
@@ -2108,11 +2108,13 @@ async function agent(_prompt, options) {
 
         self.assertIn("## Reference Pass", guide)
         for marker in (
-            "two to four of the best-known live products",
-            "A fetched real page outranks any secondhand summary of it",
-            "design gallery such as Dribbble",
-            "A gallery shot ranks below a live mainstream product",
-            "structural pattern adopted or rejected",
+            "Inspect two to four useful sources in total",
+            "A real reachable flow outranks a marketing screenshot",
+            "design gallery only as a supplemental composition source",
+            "Never let an isolated gallery image outrank a working product flow",
+            "stable `WREF-*` entry",
+            "exact screen or flow",
+            "Adopt / Adapt / Avoid",
             "They never create scope",
             "override the approved UI Design Intake",
             "UNVALIDATED",
@@ -2262,7 +2264,7 @@ async function agent(_prompt, options) {
             "`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`",
             "Any such failure on required content is a `block`",
             "`W1 PRD conformance`",
-            "`W5 Structural slop`",
+            "`W5 Structural clarity and evidence`",
             "`H3 Interaction wiring`",
             "`H6 Media and motion fit`",
             "`H7 Creative distinction`",

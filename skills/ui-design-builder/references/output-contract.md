@@ -54,6 +54,14 @@ Wireframe: [path plus SHA-256]
 
 Frozen PRD basis: [path plus revision or SHA-256]
 
+Copy Freeze: [approved / revision_requested / blocked]
+
+Copy owner: [human owner]
+
+Copy locale: [primary BCP 47 locale]
+
+Copy approved on: [YYYY-MM-DD]
+
 Responsive browser check: [matrix and result]
 
 Wireframe references consulted: [sources and structural pattern adopted/rejected, or skip reason]
