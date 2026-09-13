@@ -139,6 +139,17 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertIn("Direction decision is not approved", joined)
         self.assertIn("Direction decision owner must be human", joined)
 
+    def test_duplicate_approval_fields_are_rejected(self):
+        candidate = contract().replace(
+            "Decision: approved\nDecision owner: Product owner\nDecided on: 2026-09-13\nApproved target:",
+            "Decision: approved\nDecision: revision_requested\n"
+            "Decision owner: Product owner\nDecided on: 2026-09-13\nApproved target:",
+        )
+        joined = "\n".join(
+            checker.validate_text(candidate, require_visual_approved=True)
+        )
+        self.assertIn("Visual Approval has duplicate 'Decision' fields", joined)
+
     def test_motion_treatment_is_closed(self):
         candidate = contract().replace("| motion |", "| cinematic |")
         joined = "\n".join(checker.validate_text(candidate, require_filled=True))

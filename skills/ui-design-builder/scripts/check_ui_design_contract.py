@@ -47,13 +47,20 @@ def _section(text: str, heading: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _field_values(section: str, name: str) -> list[str]:
+    return [
+        match.group(1).strip()
+        for match in re.finditer(
+            rf"^\s*{re.escape(name)}\s*:\s*(.+?)\s*$",
+            section,
+            re.IGNORECASE | re.MULTILINE,
+        )
+    ]
+
+
 def _field(section: str, name: str) -> str | None:
-    match = re.search(
-        rf"^\s*{re.escape(name)}\s*:\s*(.+?)\s*$",
-        section,
-        re.IGNORECASE | re.MULTILINE,
-    )
-    return match.group(1).strip() if match else None
+    values = _field_values(section, name)
+    return values[0] if values else None
 
 
 def _filled(value: str | None) -> bool:
@@ -77,10 +84,13 @@ def _require_fields(
 ) -> dict[str, str]:
     values: dict[str, str] = {}
     for name in names:
-        value = _field(section, name)
-        if value is None:
+        field_values = _field_values(section, name)
+        if not field_values:
             _add(problems, f"{label} is missing {name!r}")
             continue
+        if len(field_values) != 1:
+            _add(problems, f"{label} has duplicate {name!r} fields")
+        value = field_values[0]
         values[name] = value
         if require_filled and not _filled(value):
             _add(problems, f"{label} field {name!r} is not filled")
