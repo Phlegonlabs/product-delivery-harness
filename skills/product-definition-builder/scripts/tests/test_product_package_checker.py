@@ -336,6 +336,27 @@ class ProductPackageCheckerTests(unittest.TestCase):
             )
         )
 
+        for opening, closing in (
+            ("<![CDATA[", "]]>") ,
+            ("<?xml version='1.0'", "?>"),
+            ("<textarea>", "</textarea>"),
+            ("<x-widget>", "</x-widget>"),
+        ):
+            with self.subTest(raw_block=opening):
+                wrapped = valid_prd().replace(
+                    "<!-- product-definition-approval:start -->",
+                    opening + "\n<!-- product-definition-approval:start -->",
+                ).replace(
+                    "<!-- product-definition-approval:end -->",
+                    "<!-- product-definition-approval:end -->\n" + closing,
+                )
+                self.assertTrue(
+                    any(
+                        "active exact standalone product-definition approval" in item
+                        for item in self.validate(prd=wrapped)
+                    )
+                )
+
         commented_ui = (
             valid_prd().replace(
                 "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",

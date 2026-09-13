@@ -17,7 +17,11 @@ _RAW_HTML_TAGS = {
     "header", "html", "iframe", "legend", "li", "main", "menu", "nav",
     "noframes", "ol", "optgroup", "option", "p", "pre", "script", "search",
     "section", "style", "summary", "table", "tbody", "td", "template", "tfoot",
-    "th", "thead", "title", "tr", "ul",
+    "th", "thead", "textarea", "title", "tr", "ul",
+}
+_VOID_HTML_TAGS = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr",
 }
 _RAW_HTML_OPEN_RE = re.compile(
     r"^[ ]{0,3}<([A-Za-z][A-Za-z0-9-]*)(?:\s|>|$)", re.IGNORECASE
@@ -39,17 +43,38 @@ def active_markdown_lines(
     in_comment = False
     in_outer_comment = False
     html_block_tag: str | None = None
+    html_block_terminator: str | None = None
 
     for number, line in enumerate(text.splitlines(), start=1):
+        if fence is None and html_block_terminator is not None:
+            if html_block_terminator in line:
+                html_block_terminator = None
+            continue
         if fence is None and html_block_tag is not None:
             if re.search(rf"</{re.escape(html_block_tag)}\s*>", line, re.IGNORECASE):
                 html_block_tag = None
             continue
         if fence is None:
+            stripped_html = line.lstrip(" ") if len(line) - len(line.lstrip(" ")) <= 3 else ""
+            raw_pair = None
+            if stripped_html.startswith("<?"):
+                raw_pair = ("<?", "?>")
+            elif stripped_html.startswith("<![CDATA["):
+                raw_pair = ("<![CDATA[", "]]>")
+            elif re.match(r"<![A-Z]", stripped_html):
+                raw_pair = ("<!", ">")
+            if raw_pair is not None:
+                if raw_pair[1] not in stripped_html[len(raw_pair[0]) :]:
+                    html_block_terminator = raw_pair[1]
+                continue
             html_open = _RAW_HTML_OPEN_RE.match(line)
-            if html_open and html_open.group(1).casefold() in _RAW_HTML_TAGS:
+            if html_open:
                 tag = html_open.group(1).casefold()
-                if re.search(rf"</{re.escape(tag)}\s*>", line, re.IGNORECASE) is None:
+                if (
+                    tag not in _VOID_HTML_TAGS
+                    and not line.rstrip().endswith("/>")
+                    and re.search(rf"</{re.escape(tag)}\s*>", line, re.IGNORECASE) is None
+                ):
                     html_block_tag = tag
                 continue
         # Contract anchors and tables are top-level Markdown. Four-space and
