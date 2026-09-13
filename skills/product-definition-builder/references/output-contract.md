@@ -87,6 +87,8 @@ Include this section only in enhancement mode.
 | Monetization / partner | [unchanged / changed] | [Gate/IDs or none] | [Artifacts and gates or none] |
 | Release / operations | [unchanged / changed] | [Targets or none] | [Artifacts and gates or none] |
 
+Changed rows use area-specific refreshes. Product behavior reopens `PRD.md` and Product Definition Approval. UI `structure`/`both` reopens `wireframes.html`, `ui-design.md`, Copy Freeze, Wireframe Approval, and Visual Approval; `style` reopens `ui-design.md` and Visual Approval. Data/integration changes reopen `PRD.md`, `architecture.md`, and Product Definition Approval. Architecture/stack changes reopen `architecture.md`, `stack-decisions.md`, Stack Decision Checkpoint, and Product Definition Approval. Trust/AI and monetization/partner changes reopen all three core package files plus both approval gates. Release/operations changes reopen `architecture.md`, `DEPLOYMENT.md`, Product Definition Approval, and the deployment checker. Naming unrelated artifacts or generic approval words does not satisfy the row.
+
 ## Problem Statement
 [Current pain, trigger, and why now.]
 
@@ -146,7 +148,7 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 
 <!-- ui-surface-contract:end -->
 
-Every route maps to exactly one `UI-*` entry. Every required content responsibility states what it displays, where the content comes from, what the user should understand or do, and any source, order, format, count, length, or fallback constraint. The `` `copy` `` status is a product-owned input to the later wireframe Copy Freeze; `ui-design-builder` may stage exact wording but returns any changed responsibility or display contract for renewed Product Definition Approval. Do not invent layout regions in Product Definition.
+Every route maps to exactly one `UI-*` entry. Every required content responsibility states what it displays, where the content comes from, what the user should understand or do, and any source, order, format, count, length, or fallback constraint. The `` `copy` `` status records the PRD's copy responsibility: `draft` means ui-design-builder may propose and approve exact wording during Copy Freeze; `approved` means that responsibility and its display contract are already product-approved. `revision_requested` and `blocked` stop UI work. A schema-4 wireframe approval may advance a PRD `draft` responsibility to approved exact wireframe copy without rewriting the PRD status to the wireframe status; `ui-design-builder` owns that final Copy Freeze approval and returns any changed responsibility or display contract for renewed Product Definition Approval. Do not invent layout regions in Product Definition.
 
 SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description, written for that page's actual content, plus the applicable extras or an explicit `n/a — <reason>`. Site-level SEO obligations — indexing strategy, sitemap and robots policy, canonical policy, default structured data — are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement.
 
@@ -172,6 +174,8 @@ When `required`, record the product decisions before selecting vendors:
 | Human and administrative access | [Roles, approval, masking, audit] | [Owner/evidence] | [TEST-*] |
 | Incident and residual risk | [Detection, response owner, accepted residual risk] | [Owner/evidence] | [TEST-*] |
 
+Each Data and Trust row has a stable test trace in order: `TRUST-CLASSIFICATION`, `TRUST-RESIDENCY`, `TRUST-RETENTION`, `TRUST-CONSENT`, `TRUST-ACCESS`, and `TRUST-INCIDENT`. At least one Required-Yes `TEST-*` named by the row includes that exact token in its Test Obligations upstream trace cell.
+
 ## AI and Automation
 AI and Automation Gate: [required / not_required / blocked] — [reason], decided by [human owner]
 
@@ -186,6 +190,8 @@ When `required`, record:
 | Cost, latency, and observability | [Budgets, usage metrics, alerts] | [Owner/evidence] | [TEST-*] |
 | Fallback, shutoff, and incident path | [Degraded path, cancellation, disable switch, response owner] | [Owner/evidence] | [TEST-*] |
 | Injection and output validation | [Untrusted-input isolation, schema/policy checks, invalid-output handling] | [Owner/evidence] | [TEST-*] |
+
+Each AI row has a stable test trace in order: `AI-CAPABILITY`, `AI-CONTEXT`, `AI-SIDE-EFFECTS`, `AI-EVALUATION`, `AI-OPERATIONS`, `AI-FALLBACK`, and `AI-VALIDATION`. At least one Required-Yes `TEST-*` named by the row includes that exact token in its Test Obligations upstream trace cell.
 
 ## Business Rules
 - [Rules, thresholds, approvals, calculations]
@@ -275,7 +281,7 @@ The owner receives one concise package review: product scope and non-goals; Must
 
 ### Downstream UI Design
 
-For a UI-bearing product, Product Definition ends after the approved core package is published. A later explicit `ui-design-builder` run consumes that exact revision and owns `docs/design/ui-design.md`, `docs/design/wireframes.html`, retained HiFi references, UI grading, visual approval, and the Design System Need Gate. Those artifacts never become approved merely because this PRD exists.
+For a UI-bearing product, Product Definition ends after the approved core package is published. A later explicit `ui-design-builder` run consumes that exact revision and owns `docs/design/ui-design.md`, `docs/design/wireframes.html`, retained HiFi references, Copy Freeze, UI grading, visual approval, and the Design System Need Gate. Those artifacts never become approved merely because this PRD exists. PRD `draft` or `approved` copy responsibility tells whether UI work may proceed; it does not by itself approve final on-screen copy.
 
 If UI design exposes a missing route, action, state, responsive obligation, content responsibility, architecture decision, or stack constraint, return the gap to this skill, revise the affected core artifact, and obtain Product Definition Approval on a new revision before UI work resumes.
 
@@ -455,6 +461,8 @@ Use this structure:
 
 Keep the required level-two headings below in English when surrounding prose is translated; they are core-package checker anchors.
 
+Architecture Summary, Product Archetype, System Context, Component Architecture, Workflow and Data Flow, Auth/Permissions/Security, Deployment and Operations, Observability, Scaling/Reliability, Technical Risks/Tradeoffs, and Architecture Trace Index are mandatory and cannot be replaced with `not_required`. Frontend, Backend, Data Model, API/Interface, Data and Trust, AI/Automation, Integrations, and Monetization/Partner architecture may use exactly `not_required — <concrete reason>` only when the corresponding product surface or approved gate is genuinely not applicable. A `required` PRD gate always forbids `not_required` in its architecture section.
+
 ```markdown
 # Architecture: [Product Name]
 
@@ -521,7 +529,7 @@ State that both hosted targets use one repository and one codebase. Do not reuse
 ## Release Targets
 Use this provider-neutral section for every deployable web, API, mobile, desktop, or browser-extension surface, including hosted targets already summarized in the environment table above. First record the complete expected deployable-surface inventory using stable surface IDs. Then record one block per exact destination and give it a stable target ID, explicit lowercase kebab-case surface suffix, and lowercase kebab-case release name. The production release name is the canonical `<product-slug>-<surface-suffix>` name and never ends in `-prod`; development uses that exact name plus `-dev`; one release name cannot belong to multiple surface IDs. Use the surface suffix guidance in `architecture-playbook.md` for web, API, extension, native, and independently released supporting units. Every expected surface needs at least one `development` target and one `production` target; a package that omits an expected surface is incomplete. Keep the stable `surface` identity separate from `provider`, because one surface may use different providers by stage. Keep surface and target IDs stable across revisions; retire rather than reuse an ID when its meaning changes.
 
-This section is product documentation for the human or CI release process that runs after the engineering harness pushes its branch. The harness does not consume or enforce any field in it.
+This section is authoritative product documentation for the human or CI release process. The Product Definition checker and downstream Deployment, Activation, Outcome, and SEO joins consume its stable target identities.
 
 Expected deployable surfaces: [stable surface IDs, for example `web-app`, `public-api`, `ios-app`]
 
@@ -531,7 +539,7 @@ Expected deployable surfaces: [stable surface IDs, for example `web-app`, `publi
 - Release name: [Production `<product-slug>-<surface-suffix>` or that exact name plus `-dev` for development]
 - Provider: [Stage-specific hosting, store, or distribution provider]
 - Stage: [development / production]
-- Source policy: [exact candidate run branch/ref for the internally tested development release and `main` for production after same-SHA fast-forward, or another exact branch/ref rule including a required signed tag, stated explicitly]
+- Source policy: [`stage=development; ref=run.integration.branch; sha=run.integration.integration_head_sha` for development, or `stage=production; ref=refs/heads/main; sha=promotion.verified_main_sha` for production]
 - Artifact kind: [Static bundle, container, serverless bundle, API service, IPA, AAB, signed DMG/PKG, MSIX, signed installer, or another exact artifact]
 - Signing requirement: [Not required, or exact certificate/signing/notarization requirement and owner]
 - Exact channel / track: [Named environment, URL, TestFlight group, Play track, App Store, update feed, direct-download channel, or another exact destination]
@@ -566,7 +574,7 @@ Coverage matrix. Fill it last and read it only when checking that a requirement 
 
 Every decision in this file uses the same shape: drivers, coherent bundles presented to the owner, then resolved layers with status and authority/evidence on every row. The shared `Alternatives Considered` and `Unresolved Decision Protocol` tables cover all decisions.
 
-Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation; `Recommended` is evidence-backed advice not yet accepted and is non-executable; `Provisional` is a leading choice pending named evidence. Only `Required`, `Selected`, and `Approved` are executable. A section may mix statuses. `Authority / evidence` cites the source that justifies the row. Authority is not another status label, and recommendation text alone is not approval.
+Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation; `Recommended` is evidence-backed advice not yet accepted and is non-executable; `Provisional` is a leading choice pending named evidence. Only `Required`, `Selected`, and `Approved` are executable. A section may mix statuses. `Authority / evidence` cites the source that justifies the row. A `Selected` row uses `repository:<repo-relative-path>@<40-character-commit-SHA>` when the path is bound to a real Git revision, or `repository:<repo-relative-path>@sha256:<64-character-current-content-hash>` for current non-Git evidence; the checker resolves the path and revision/hash under `--repo-root`. Authority is not another status label, and recommendation text alone is not approval.
 
 Use this structure:
 
@@ -798,7 +806,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 ### Completeness
 
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory. Their Product Definition Approval and Stack Decision Checkpoint are both `approved`, and `check_product_package.py --require-filled --require-approved` passes before publication. The staged operational documents follow their existing applicability rules. UI-bearing packages record a pending `ui-design-builder` handoff; headless packages record `not_required` without skipping Product Definition Approval.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory. Their Product Definition Approval and Stack Decision Checkpoint are both `approved`, and `check_product_package.py --repo-root <repository-root> --require-filled --require-approved` passes before publication. The staged operational documents follow their existing applicability rules. UI-bearing packages record a pending `ui-design-builder` handoff; headless packages record `not_required` without skipping Product Definition Approval.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing product decision records. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
@@ -835,7 +843,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
 - Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
 - When the read-only agent work graph was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Agent output is treated as a candidate; the parent still owns staging and publication.
-- Run `python skills/product-definition-builder/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --require-filled --require-approved` before publication. It validates core headings, Must/NFR-to-TEST coverage, metrics, decision tables, both approval markers, executable stack statuses, and blocked trust/AI/commercial gates.
+- Run `python skills/product-definition-builder/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` before publication. It validates substantive core sections, complete UI surfaces, Must/NFR-to-TEST coverage, gate-area traces, release-target identity, metrics, decision tables, both approval markers, executable stack statuses, live `Selected` evidence, and blocked trust/AI/commercial gates.
 
 ### Publication
 

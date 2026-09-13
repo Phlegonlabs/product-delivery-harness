@@ -45,7 +45,7 @@ In the Publication Authorization Gate, label this path explicitly as "existing u
   - `docs/product/outcome-review.md` after a deployed release's outcome review
   - `docs/product/implementation-plan.md` when requested
 - Publish a create-once operational seed to `docs/ACTIVATION.md` only when the output contract says it applies and that final path is absent. Never use this workflow to refresh an existing Activation record.
-- `ui-design-builder` owns every `docs/design/` artifact and its separate publication and archival gate. Product Definition only records whether that later phase is pending or not required.
+- `ui-design-builder` owns every `docs/design/` artifact, Copy Freeze, and their separate publication and archival gate. A PRD `` `copy` `` anchor records only product-owned copy responsibility; schema-4 wireframe approval may advance a PRD draft responsibility to approved wireframe copy without a circular PRD rewrite. `revision_requested` or `blocked` PRD copy stops UI work. Product Definition only records whether the later design phase is pending or not required.
 - Never publish PRD artifacts at the repository root or flat in `docs/` by default. They belong in `docs/product/`. The seeded operational documents `docs/DEPLOYMENT.md` and `docs/DOCUMENTS.md` publish flat under `docs/` and refresh in place. `docs/ACTIVATION.md` also lives flat under `docs/`, but Product Definition creates it only when absent; `product-activation` owns every later refresh. None of these operational documents is archived with the product package. The PRD seed records known secret and variable names plus external-console work without values; `delivery-harness` reconciles that deployment handoff before a deployable push, and `product-activation` reconciles post-delivery actions and measurement sources.
 - Never use `docs/product/archived/` as an input or output location for the current package.
 
@@ -80,7 +80,7 @@ Record the candidate paths before creating staged artifacts. Do not archive or o
 1. Create a run-specific staging directory under `docs/product/.prd-staging/` — unless Detect Enhancement Mode found a staged package for this product and the user chose to resume it, in which case reuse that directory instead of opening a second one.
 2. Write the core Markdown candidate there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` and the create-once `ACTIVATION.md` seed when applicable. Do not prepare UI wireframe data.
 3. Complete market reconciliation, Stack Decision Checkpoint, and Product Definition Approval. A substantive approved-content revision reopens approval.
-4. Run `python <product-definition-builder-root>/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --require-filled --require-approved`.
+4. Run `python <product-definition-builder-root>/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`.
 5. Run the output-contract quality checklist against the complete staged files.
 6. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
 
@@ -90,7 +90,7 @@ Product Definition Approval accepts the package's content; it does not authorize
 
 ## Archive and Publish
 
-After the entire staged package has an approved Product Definition decision, any applicable Wireframe Approval, passing checkers, and an authorized exact mutation list:
+After the entire staged package has an approved Product Definition decision, passing core-package checkers, and an authorized exact mutation list:
 
 1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>/`.
 2. Move only the previously inventoried superseded documents into that directory. Preserve recognizable filenames; when basenames collide, include the original parent directory or a numeric suffix.

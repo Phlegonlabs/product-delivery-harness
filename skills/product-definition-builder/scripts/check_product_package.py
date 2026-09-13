@@ -4,12 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
 import re
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
 
+from markdown_contract import active_markdown_lines, active_text, active_machine_block
 from prd_ui_contract import parse_prd_ui_contract
+from release_targets import parse_release_targets
 
 
 PRODUCT_APPROVAL_START = "<!-- product-definition-approval:start -->"
@@ -56,6 +61,8 @@ REQUIRED_ARCHITECTURE_HEADINGS = (
     "## Product Archetype",
     "## System Context",
     "## Component Architecture",
+    "## Frontend Architecture",
+    "## Backend Architecture",
     "## Data Model",
     "## API and Interface Contracts",
     "## Workflow and Data Flow",
@@ -63,7 +70,9 @@ REQUIRED_ARCHITECTURE_HEADINGS = (
     "## Data and Trust Architecture",
     "## AI and Automation Architecture",
     "## Integrations",
+    "## Monetization and Partner Channel Architecture",
     "## Deployment and Operations",
+    "## Release Targets",
     "## Observability",
     "## Scaling and Reliability",
     "## Technical Risks and Tradeoffs",
@@ -226,6 +235,25 @@ FUNCTIONAL_REQUIREMENTS_HEADER = (
     "acceptance criteria",
 )
 
+RELEASE_TARGET_FIELDS = (
+    "Surface",
+    "Surface suffix",
+    "Release name",
+    "Provider",
+    "Stage",
+    "Source policy",
+    "Artifact kind",
+    "Signing requirement",
+    "Exact channel / track",
+    "Submission / promotion / review / manual approval path",
+    "Availability signal",
+    "Rollout",
+    "Rollback / forward-fix",
+)
+
+RELEASE_TARGET_START = "### Release Target:"
+EXPECTED_SURFACES_PREFIX = "Expected deployable surfaces:"
+
 NFR_HEADER = (
     "id",
     "quality attribute",
@@ -244,18 +272,205 @@ TEST_OBLIGATIONS_HEADER = (
     "expected signal",
 )
 
+GATE_DECISION_HEADER = ("area", "decision", "owner / evidence", "test ids")
+DATA_TRUST_AREAS = {
+    "classification and ownership",
+    "residency and vendor processing",
+    "retention, deletion, and export",
+    "consent and policy basis",
+    "human and administrative access",
+    "incident and residual risk",
+}
+AI_AUTOMATION_AREAS = {
+    "capability and provider boundary",
+    "input, context, and retention",
+    "tool and side-effect permissions",
+    "evaluation and prohibited outcomes",
+    "cost, latency, and observability",
+    "fallback, shutoff, and incident path",
+    "injection and output validation",
+}
+GATE_AREA_TRACES = {
+    "Data and Trust Gate": {
+        "classification and ownership": "TRUST-CLASSIFICATION",
+        "residency and vendor processing": "TRUST-RESIDENCY",
+        "retention, deletion, and export": "TRUST-RETENTION",
+        "consent and policy basis": "TRUST-CONSENT",
+        "human and administrative access": "TRUST-ACCESS",
+        "incident and residual risk": "TRUST-INCIDENT",
+    },
+    "AI and Automation Gate": {
+        "capability and provider boundary": "AI-CAPABILITY",
+        "input, context, and retention": "AI-CONTEXT",
+        "tool and side-effect permissions": "AI-SIDE-EFFECTS",
+        "evaluation and prohibited outcomes": "AI-EVALUATION",
+        "cost, latency, and observability": "AI-OPERATIONS",
+        "fallback, shutoff, and incident path": "AI-FALLBACK",
+        "injection and output validation": "AI-VALIDATION",
+    },
+}
+ARCHITECTURE_TABLE_HEADERS = {
+    "## Component Architecture": (
+        "arch id",
+        "component",
+        "responsibility",
+        "upstream trace ids",
+        "notes",
+    ),
+    "## Data Model": ("entity", "key fields", "relationships", "notes"),
+    "## API and Interface Contracts": (
+        "arch id",
+        "interface",
+        "method or trigger",
+        "input",
+        "output",
+        "errors",
+        "test ids",
+    ),
+    "## Integrations": (
+        "system",
+        "purpose",
+        "data exchanged",
+        "auth / scopes",
+        "contract / limits",
+        "failure / recovery",
+        "owner",
+    ),
+    "## Technical Risks and Tradeoffs": (
+        "decision",
+        "options considered",
+        "recommendation",
+        "reason",
+    ),
+    "## Architecture Trace Index": (
+        "arch id",
+        "contract or decision",
+        "upstream prd / ux ids",
+        "downstream ui / test ids",
+    ),
+}
+OPTIONAL_ARCHITECTURE_SECTIONS = {
+    "## Frontend Architecture",
+    "## Backend Architecture",
+    "## Data Model",
+    "## API and Interface Contracts",
+    "## Data and Trust Architecture",
+    "## AI and Automation Architecture",
+    "## Integrations",
+    "## Monetization and Partner Channel Architecture",
+}
+STACK_SELECTED_EVIDENCE_RE = re.compile(
+    r"\brepository:(?P<path>(?!/)(?![A-Za-z]:)(?![^@]*\.\.)"
+    r"[A-Za-z0-9._/-]+)@(?P<revision>[0-9a-f]{40}|sha256:[0-9a-f]{64})\b"
+)
+ENHANCEMENT_ARTIFACT_RE = re.compile(
+    r"\b(?:PRD|architecture|stack-decisions|wireframes|ui-design|design-system|"
+    r"DEPLOYMENT|ACTIVATION|OUTCOME_REVIEW|SEO_REVIEW)\.(?:md|json|html)\b",
+    re.IGNORECASE,
+)
+ENHANCEMENT_REFRESH_REQUIREMENTS = {
+    "product scope / behavior": (
+        {"prd.md"},
+        {"product definition approval"},
+    ),
+    "data / integrations": (
+        {"prd.md", "architecture.md"},
+        {"product definition approval"},
+    ),
+    "architecture / stack": (
+        {"architecture.md", "stack-decisions.md"},
+        {"stack decision checkpoint", "product definition approval"},
+    ),
+    "data trust / ai": (
+        {"prd.md", "architecture.md", "stack-decisions.md"},
+        {"product definition approval", "stack decision checkpoint"},
+    ),
+    "monetization / partner": (
+        {"prd.md", "architecture.md", "stack-decisions.md"},
+        {"product definition approval", "stack decision checkpoint"},
+    ),
+    "release / operations": (
+        {"architecture.md", "deployment.md"},
+        {"product definition approval", "deployment checker"},
+    ),
+}
+AT_A_GLANCE_HEADER = ("", "")
+AT_A_GLANCE_ROWS = {
+    "what it is",
+    "primary user",
+    "why now",
+    "success looks like",
+    "biggest risk",
+}
+PERSONAS_HEADER = ("persona", "need", "key workflow", "success signal")
+UX_REQUIREMENTS_HEADER = (
+    "id",
+    "user / task",
+    "requirement",
+    "success and failure signal",
+    "evidence status",
+)
+RISKS_HEADER = ("risk", "impact", "mitigation")
+
 
 def _add(problems: list[str], path: str, message: str) -> None:
     problems.append(f"{path}: {message}")
 
 
 def _has_heading(text: str, heading: str) -> bool:
-    return re.search(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE) is not None
+    return (
+        re.search(
+            rf"^{re.escape(heading)}\s*$",
+            active_text(text),
+            re.MULTILINE,
+        )
+        is not None
+    )
+
+
+def _is_kebab(value: str) -> bool:
+    return re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value) is not None
+
+
+def _meaningful(value: str, *, minimum: int = 10) -> bool:
+    stripped = value.strip()
+    if len(stripped) < minimum or _placeholder_cell(stripped):
+        return False
+    lowered = stripped.casefold().strip(" .")
+    return lowered not in {
+        "n/a",
+        "none",
+        "same",
+        "works",
+        "yes",
+        "done",
+        "as described",
+        "see above",
+    }
+
+
+def _real_date(value: str) -> bool:
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _contains_non_human_owner(value: str) -> bool:
+    return bool(
+        re.search(
+            r"(?<!\w)(?:ai|agent|assistant|automation|automated|model|"
+            r"bot|claude|codex|system|machine)(?!\w)",
+            value.casefold(),
+        )
+    )
 
 
 def _validate_heading_sequence(
     text: str, headings: tuple[str, ...], *, path: str, problems: list[str]
 ) -> None:
+    text = active_text(text)
     positions: list[int] = []
     for heading in headings:
         matches = list(re.finditer(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE))
@@ -278,23 +493,16 @@ def _extract_machine_block(
     label: str,
     problems: list[str],
 ) -> str | None:
-    start_count = text.count(start)
-    end_count = text.count(end)
-    if start_count != 1 or end_count != 1:
+    block, error = active_machine_block(text, start, end)
+    if error is not None:
+        _add(problems, path, f"has {error} {label} marker content")
+        return None
+    if block is None:
         _add(
             problems,
             path,
-            f"must contain exactly one matched {label} marker pair",
+            f"must contain exactly one active exact standalone {label} marker pair",
         )
-        return None
-    start_index = text.index(start) + len(start)
-    end_index = text.index(end)
-    if end_index <= start_index:
-        _add(problems, path, f"has an invalid {label} marker order")
-        return None
-    block = text[start_index:end_index].strip()
-    if not block:
-        _add(problems, path, f"has an empty {label} block")
         return None
     return block
 
@@ -331,15 +539,12 @@ def _require_fields(
             continue
         if not value:
             _add(problems, path, f"field {name!r} must not be empty")
-        if require_filled and (
-            (value.startswith("[") and value.endswith("]"))
-            or "<placeholder" in value.casefold()
-            or value.casefold() in {"tbd", "todo"}
-        ):
+        if require_filled and _placeholder_cell(value):
             _add(problems, path, f"field {name!r} contains an unfilled placeholder")
 
 
 def _section(text: str, heading: str) -> str | None:
+    text = active_text(text)
     match = re.search(
         rf"^{re.escape(heading)}\s*$([\s\S]*?)(?=^##\s+|\Z)",
         text,
@@ -349,6 +554,7 @@ def _section(text: str, heading: str) -> str | None:
 
 
 def _subsection(text: str, heading: str) -> str | None:
+    text = active_text(text)
     match = re.search(
         rf"^{re.escape(heading)}\s*$([\s\S]*?)(?=^###\s+|^##\s+|\Z)",
         text,
@@ -370,10 +576,13 @@ def _is_separator_row(cells: tuple[str, ...]) -> bool:
 
 def _placeholder_cell(cell: str) -> bool:
     stripped = cell.strip()
-    return (
+    if not stripped:
+        return False
+    return bool(
         (stripped.startswith("[") and stripped.endswith("]"))
         or "<placeholder" in stripped.casefold()
-        or stripped.casefold() in {"tbd", "todo"}
+        or re.search(r"<[^>\s]+>", stripped)
+        or re.search(r"\b(?:tbd|tbc|todo|placeholder)\b", stripped, re.IGNORECASE)
     )
 
 
@@ -399,7 +608,7 @@ def _validate_table_rows(
 def _find_table(
     text: str, expected_header: tuple[str, ...]
 ) -> list[tuple[str, ...]] | None:
-    lines = text.splitlines()
+    lines = active_text(text).splitlines()
     expected = tuple(cell.casefold() for cell in expected_header)
     for index, line in enumerate(lines):
         cells = _table_cells(line)
@@ -417,6 +626,235 @@ def _find_table(
             rows.append(candidate_cells)
         return rows
     return None
+
+
+def _explicit_absence_reason(value: str) -> str | None:
+    match = re.fullmatch(
+        r"\s*(?:not_required|n/a|none)\s*(?:—|-)\s*(.+?)\s*",
+        value,
+        re.IGNORECASE | re.DOTALL,
+    )
+    return match.group(1).strip() if match else None
+
+
+def _validate_architecture_sections(
+    architecture_text: str, *, problems: list[str]
+) -> None:
+    for heading in REQUIRED_ARCHITECTURE_HEADINGS:
+        if heading == "## Release Targets":
+            continue
+        section = _section(architecture_text, heading)
+        if section is None:
+            continue
+        reason = _explicit_absence_reason(section)
+        if reason is not None:
+            if heading not in OPTIONAL_ARCHITECTURE_SECTIONS:
+                _add(
+                    problems,
+                    "architecture",
+                    f"{heading} is mandatory and cannot be not_required",
+                )
+            elif not _meaningful(reason, minimum=15):
+                _add(
+                    problems,
+                    "architecture",
+                    f"{heading} not_required reason is not concrete",
+                )
+            continue
+        expected_header = ARCHITECTURE_TABLE_HEADERS.get(heading)
+        if expected_header is not None:
+            rows = _find_table(section, expected_header)
+            if rows is None or not rows:
+                _add(
+                    problems,
+                    "architecture",
+                    f"{heading} requires a populated canonical table or an explicit "
+                    "not_required reason",
+                )
+                continue
+            _validate_table_rows(
+                rows,
+                len(expected_header),
+                label=heading.removeprefix("## "),
+                require_filled=True,
+                problems=problems,
+                path="architecture",
+            )
+            continue
+        if not _meaningful(section, minimum=25):
+            _add(
+                problems,
+                "architecture",
+                f"{heading} requires substantive implementation content or an "
+                "explicit not_required reason",
+            )
+
+
+def _validate_prd_core_sections(
+    prd_text: str,
+    *,
+    has_ui: bool,
+    problems: list[str],
+) -> None:
+    at_a_glance = _section(prd_text, "## At a Glance")
+    glance_rows = _find_table(at_a_glance or "", AT_A_GLANCE_HEADER)
+    if glance_rows is None:
+        _add(problems, "prd", "At a Glance must use the canonical two-column table")
+    else:
+        _validate_table_rows(
+            glance_rows,
+            2,
+            label="At a Glance",
+            require_filled=True,
+            problems=problems,
+        )
+        label_values = [row[0].casefold() for row in glance_rows if len(row) == 2]
+        labels = set(label_values)
+        if (
+            len(glance_rows) != len(AT_A_GLANCE_ROWS)
+            or len(label_values) != len(set(label_values))
+            or labels != AT_A_GLANCE_ROWS
+        ):
+            _add(problems, "prd", "At a Glance must use exactly its five canonical rows")
+        for row in glance_rows:
+            if len(row) == 2 and not _meaningful(row[1], minimum=8):
+                _add(problems, "prd", f"At a Glance row {row[0]!r} is not meaningful")
+
+    for heading, minimum in (
+        ("## Problem Statement", 20),
+        ("## Data and Integration Requirements", 15),
+        ("## Business Rules", 15),
+    ):
+        section = _section(prd_text, heading)
+        reason = _explicit_absence_reason(section or "")
+        if not _meaningful(section or "", minimum=minimum) and not (
+            reason is not None and _meaningful(reason, minimum=12)
+        ):
+            _add(problems, "prd", f"{heading} requires substantive product content")
+
+    for heading in ("## Goals", "## Non-Goals"):
+        section = _section(prd_text, heading) or ""
+        bullets = re.findall(r"^\s*-\s+(.+?)\s*$", section, re.MULTILINE)
+        if not bullets or any(not _meaningful(item, minimum=6) for item in bullets):
+            _add(problems, "prd", f"{heading} requires at least one meaningful bullet")
+
+    personas = _section(prd_text, "## Users and Personas") or ""
+    persona_rows = _find_table(personas, PERSONAS_HEADER)
+    if persona_rows is None or not persona_rows:
+        _add(problems, "prd", "Users and Personas requires a populated canonical table")
+    else:
+        _validate_table_rows(
+            persona_rows,
+            len(PERSONAS_HEADER),
+            label="Users and Personas",
+            require_filled=True,
+            problems=problems,
+        )
+
+    journeys = _section(prd_text, "## User Journeys") or ""
+    if re.search(r"^###\s+Journey\s+\d+:", journeys, re.MULTILINE) is None or len(
+        re.findall(r"^\s*\d+\.\s+\S", journeys, re.MULTILINE)
+    ) < 2:
+        _add(problems, "prd", "User Journeys requires a named journey with at least two steps")
+
+    ux = _section(prd_text, "## UX Requirements") or ""
+    ux_rows = _find_table(ux, UX_REQUIREMENTS_HEADER)
+    ux_absence = _explicit_absence_reason(ux)
+    if has_ui:
+        if ux_rows is None or not ux_rows:
+            _add(problems, "prd", "UI-bearing products require populated UX Requirements")
+        else:
+            _validate_table_rows(
+                ux_rows,
+                len(UX_REQUIREMENTS_HEADER),
+                label="UX Requirements",
+                require_filled=True,
+                problems=problems,
+            )
+    elif not (ux_absence is not None and _meaningful(ux_absence, minimum=12)):
+        _add(problems, "prd", "headless UX Requirements needs not_required with a reason")
+
+    risks = _section(prd_text, "## Risks") or ""
+    risk_rows = _find_table(risks, RISKS_HEADER)
+    if risk_rows is None or not risk_rows:
+        _add(problems, "prd", "Risks requires a populated canonical table")
+    else:
+        _validate_table_rows(
+            risk_rows,
+            len(RISKS_HEADER),
+            label="Risks",
+            require_filled=True,
+            problems=problems,
+        )
+
+
+def _validate_gate_decisions(
+    section: str,
+    *,
+    label: str,
+    expected_areas: set[str],
+    known_required_tests: set[str],
+    required_test_upstreams: dict[str, set[str]],
+    problems: list[str],
+) -> None:
+    rows = _find_table(section, GATE_DECISION_HEADER)
+    if rows is None:
+        _add(problems, "prd", f"required {label} must use its canonical decision table")
+        return
+    _validate_table_rows(
+        rows,
+        len(GATE_DECISION_HEADER),
+        label=label,
+        require_filled=True,
+        problems=problems,
+    )
+    seen: set[str] = set()
+    for row in rows:
+        if len(row) != len(GATE_DECISION_HEADER):
+            continue
+        area = row[0].casefold()
+        if area in seen:
+            _add(problems, "prd", f"{label} has duplicate area {row[0]!r}")
+        seen.add(area)
+        if not _meaningful(row[1], minimum=12):
+            _add(problems, "prd", f"{label} area {row[0]!r} needs a concrete decision")
+        if not _meaningful(row[2], minimum=4) or _contains_non_human_owner(row[2]):
+            _add(
+                problems,
+                "prd",
+                f"{label} area {row[0]!r} needs human-owned evidence",
+            )
+        test_ids = _ids(row[3], "TEST")
+        if not test_ids:
+            _add(problems, "prd", f"{label} area {row[0]!r} names no TEST ID")
+        for test_id in sorted(test_ids - known_required_tests):
+            _add(
+                problems,
+                "prd",
+                f"{label} area {row[0]!r} references non-required or unknown {test_id}",
+            )
+        expected_trace = GATE_AREA_TRACES[label].get(area)
+        if expected_trace is not None and not any(
+            expected_trace in required_test_upstreams.get(test_id, set())
+            for test_id in test_ids
+        ):
+            _add(
+                problems,
+                "prd",
+                f"{label} area {row[0]!r} requires a Required Yes test whose "
+                f"upstream traces include {expected_trace}",
+            )
+    missing = sorted(expected_areas - seen)
+    extra = sorted(seen - expected_areas)
+    if missing or extra:
+        _add(
+            problems,
+            "prd",
+            f"required {label} must use exactly its canonical areas; missing: "
+            + (", ".join(missing) or "none")
+            + "; extra: "
+            + (", ".join(extra) or "none"),
+        )
 
 
 def _stack_areas(value: str) -> set[str]:
@@ -446,7 +884,101 @@ def _invalid_human_owner(value: str) -> bool:
         or _placeholder_cell(value)
         or normalized in {"none", "unknown", "n/a"}
         or normalized in NON_HUMAN_OWNERS
+        or _contains_non_human_owner(value)
     )
+
+
+def _hash_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    if path.is_file():
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    for candidate in sorted(item for item in path.rglob("*") if item.is_file()):
+        relative = candidate.relative_to(path).as_posix().encode("utf-8")
+        content = candidate.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def _verify_selected_evidence(
+    evidence: str,
+    *,
+    repo_root: Path | None,
+    label: str,
+    problems: list[str],
+) -> None:
+    match = STACK_SELECTED_EVIDENCE_RE.search(evidence)
+    if match is None:
+        _add(
+            problems,
+            "stack-decisions",
+            f"Selected layer {label!r} must cite "
+            "repository:<path>@<40-sha or sha256:64> evidence",
+        )
+        return
+    if repo_root is None:
+        _add(
+            problems,
+            "stack-decisions",
+            f"Selected layer {label!r} repository evidence cannot be verified "
+            "without repo_root",
+        )
+        return
+    root = repo_root.resolve()
+    relative = match.group("path")
+    candidate = (root / relative).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        _add(problems, "stack-decisions", f"Selected layer {label!r} path escapes repo_root")
+        return
+    if not candidate.exists():
+        _add(
+            problems,
+            "stack-decisions",
+            f"Selected layer {label!r} repository path does not exist: {relative}",
+        )
+        return
+    revision = match.group("revision")
+    if revision.startswith("sha256:"):
+        expected = revision.removeprefix("sha256:")
+        actual = _hash_path(candidate)
+        if actual != expected:
+            _add(
+                problems,
+                "stack-decisions",
+                f"Selected layer {label!r} repository sha256 does not match {relative}",
+            )
+        return
+    try:
+        commit = subprocess.run(
+            ["git", "cat-file", "-e", f"{revision}^{{commit}}"],
+            cwd=root,
+            capture_output=True,
+            timeout=10,
+        )
+        blob = subprocess.run(
+            ["git", "cat-file", "-e", f"{revision}:{relative}"],
+            cwd=root,
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _add(
+            problems,
+            "stack-decisions",
+            f"Selected layer {label!r} repository revision cannot be verified: {exc}",
+        )
+        return
+    if commit.returncode != 0 or blob.returncode != 0:
+        _add(
+            problems,
+            "stack-decisions",
+            f"Selected layer {label!r} repository revision/path is not real: "
+            f"{revision}:{relative}",
+        )
 
 
 def _validate_stack_tables(
@@ -455,11 +987,23 @@ def _validate_stack_tables(
     require_filled: bool,
     require_approved: bool,
     required_areas: set[str],
+    repo_root: Path | None,
     problems: list[str],
 ) -> set[str]:
     approved_areas: set[str] = set()
     present_areas: set[str] = set()
+    active_stack = active_text(stack_text)
     for section_name, required_layers in STACK_SECTION_LAYERS.items():
+        heading = f"## {section_name}"
+        heading_count = len(
+            re.findall(rf"^{re.escape(heading)}\s*$", active_stack, re.MULTILINE)
+        )
+        if heading_count > 1:
+            _add(
+                problems,
+                "stack-decisions",
+                f"duplicate technology decision section {section_name!r}",
+            )
         section = _section(stack_text, f"## {section_name}")
         if section is None:
             continue
@@ -524,6 +1068,13 @@ def _validate_stack_tables(
                     "stack-decisions",
                     f"layer {cells[0]!r} remains {cells[2]!r}; owner approval is required",
                 )
+            if status == "selected":
+                _verify_selected_evidence(
+                    cells[3],
+                    repo_root=repo_root,
+                    label=cells[0],
+                    problems=problems,
+                )
         missing_layers = sorted(set(required_layers) - seen_layers)
         if missing_layers:
             _add(
@@ -541,6 +1092,7 @@ def _validate_stack_tables(
 
 
 def _gate_record(text: str, label: str) -> tuple[str, str, str] | None:
+    text = active_text(text)
     match = re.search(
         rf"^{re.escape(label)}:\s*(required|not_required|blocked)\s+—\s+"
         rf"(.+),\s*decided by\s+(.+?)\s*$",
@@ -553,6 +1105,7 @@ def _gate_record(text: str, label: str) -> tuple[str, str, str] | None:
 
 
 def _research_gate(text: str) -> tuple[str, str] | None:
+    text = active_text(text)
     match = re.search(
         r"^Research Gate:\s*(go|clarify|stop|skipped)\b(.*?)$",
         text,
@@ -563,11 +1116,239 @@ def _research_gate(text: str) -> tuple[str, str] | None:
     return match.group(1).casefold(), match.group(2).strip()
 
 
+def _validate_release_targets_legacy(
+    architecture_text: str, *, problems: list[str]
+) -> None:
+    active = active_markdown_lines(architecture_text)
+    inventory_lines = [
+        line
+        for _, line in active
+        if line.strip().startswith(EXPECTED_SURFACES_PREFIX)
+    ]
+    if len(inventory_lines) != 1:
+        problems.append(
+            "architecture: Release Targets must contain exactly one "
+            "expected deployable-surface inventory"
+        )
+        return
+
+    inventory = inventory_lines[0][len(EXPECTED_SURFACES_PREFIX) :].strip()
+    explicit_none = re.match(r"^none\s*(?:—|-)\s*(.+)$", inventory, re.I)
+    expected: set[str] = set()
+    if explicit_none is not None:
+        if not _meaningful(explicit_none.group(1), minimum=15):
+            problems.append(
+                "architecture: explicit none deployable-surface inventory "
+                "requires a concrete reason"
+            )
+    else:
+        expected = {
+            value.strip()
+            for value in inventory.split(",")
+            if value.strip()
+        }
+        if not expected:
+            problems.append("architecture: expected surface inventory is empty")
+        invalid_surfaces = sorted(
+            surface for surface in expected if not _is_kebab(surface)
+        )
+        if invalid_surfaces:
+            problems.append(
+                "architecture: expected surfaces use lowercase kebab-case IDs: "
+                + ", ".join(invalid_surfaces)
+            )
+
+    starts = [
+        index
+        for index, (_, line) in enumerate(active)
+        if line.strip().startswith(RELEASE_TARGET_START)
+    ]
+    targets: list[tuple[str, str, dict[str, str]]] = []
+    seen_target_ids: set[str] = set()
+    for target_index, start in enumerate(starts):
+        _, start_line = active[start]
+        target_id = start_line.split(":", 1)[1].strip()
+        if not _is_kebab(target_id):
+            problems.append(
+                f"architecture: invalid release-target ID {target_id!r}"
+            )
+        if target_id in seen_target_ids:
+            problems.append(
+                f"architecture: duplicate release-target ID {target_id!r}"
+            )
+        seen_target_ids.add(target_id)
+        end = (
+            starts[target_index + 1]
+            if target_index + 1 < len(starts)
+            else len(active)
+        )
+        fields: dict[str, str] = {}
+        field_keys: list[str] = []
+        for _, line in active[start + 1 : end]:
+            match = re.match(r"^\s*-\s*([^:\n]+):\s*(.*?)\s*$", line)
+            if match:
+                key = match.group(1).strip().casefold()
+                fields[key] = match.group(2).strip()
+                field_keys.append(key)
+        duplicates = sorted(
+            key for key, count in Counter(field_keys).items() if count > 1
+        )
+        if duplicates:
+            problems.append(
+                f"architecture: release target {target_id!r} has duplicate fields: "
+                + ", ".join(duplicates)
+            )
+        missing_fields = [
+            field
+            for field in RELEASE_TARGET_FIELDS
+            if field.casefold() not in fields
+        ]
+        if missing_fields:
+            problems.append(
+                f"architecture: release target {target_id!r} is missing fields: "
+                + ", ".join(missing_fields)
+            )
+            continue
+        if any(not fields[field.casefold()] for field in RELEASE_TARGET_FIELDS):
+            problems.append(
+                f"architecture: release target {target_id!r} has an empty field"
+            )
+            continue
+        invalid_values = [
+            field
+            for field in RELEASE_TARGET_FIELDS
+            if field != "Stage" and not _meaningful(fields[field.casefold()])
+        ]
+        if invalid_values:
+            problems.append(
+                f"architecture: release target {target_id!r} has meaningless "
+                "fields: " + ", ".join(invalid_values)
+            )
+
+        surface = fields["surface"]
+        suffix = fields["surface suffix"]
+        release_name = fields["release name"]
+        stage = fields["stage"].casefold()
+        if surface not in expected and explicit_none is None:
+            problems.append(
+                f"architecture: release target {target_id!r} names unexpected "
+                f"surface {surface!r}"
+            )
+        if explicit_none is not None:
+            problems.append(
+                f"architecture: none deployable-surface inventory has target "
+                f"{target_id!r}"
+            )
+        if not _is_kebab(suffix):
+            problems.append(
+                f"architecture: release target {target_id!r} surface suffix "
+                f"{suffix!r} is not lowercase kebab-case"
+            )
+        if not _is_kebab(release_name):
+            problems.append(
+                f"architecture: release target {target_id!r} release name "
+                f"{release_name!r} is not lowercase kebab-case"
+            )
+        if stage not in {"development", "production"}:
+            problems.append(
+                f"architecture: release target {target_id!r} has invalid stage "
+                f"{fields['stage']!r}"
+            )
+        availability = fields["availability signal"].casefold()
+        if "smoke" not in availability:
+            problems.append(
+                f"architecture: release target {target_id!r} availability must "
+                "name its smoke or acceptance check"
+            )
+        targets.append((target_id, stage, fields))
+
+    if expected and not targets:
+        problems.append(
+            "architecture: every expected deployable surface requires release targets"
+        )
+        return
+
+    release_name_owners: dict[str, str] = {}
+    by_surface_stage: dict[tuple[str, str], tuple[str, dict[str, str]]] = {}
+    for target_id, stage, fields in targets:
+        surface = fields["surface"]
+        pair = (surface, stage)
+        if pair in by_surface_stage:
+            problems.append(
+                f"architecture: surface {surface!r} has duplicate {stage} targets"
+            )
+        by_surface_stage[pair] = (target_id, fields)
+        release_name = fields["release name"]
+        owner = release_name_owners.setdefault(release_name, surface)
+        if owner != surface:
+            problems.append(
+                f"architecture: release name {release_name!r} is reused by "
+                f"{surface!r} and {owner!r}"
+            )
+
+    for surface in sorted(expected):
+        missing_stages = [
+            stage
+            for stage in ("development", "production")
+            if (surface, stage) not in by_surface_stage
+        ]
+        if missing_stages:
+            problems.append(
+                f"architecture: expected surface {surface!r} is missing "
+                + " and ".join(missing_stages)
+                + " release targets"
+            )
+
+    for surface in sorted(set(fields["surface"] for _, _, fields in targets)):
+        development = by_surface_stage.get((surface, "development"))
+        production = by_surface_stage.get((surface, "production"))
+        if development is None or production is None:
+            continue
+        development_name = development[1]["release name"]
+        production_name = production[1]["release name"]
+        suffix = production[1]["surface suffix"]
+        canonical = production_name.removesuffix("-prod")
+        if production_name.endswith("-prod"):
+            problems.append(
+                f"architecture: production release {production_name!r} must not "
+                "end in -prod"
+            )
+        if not canonical.endswith(f"-{suffix}") or (
+            development_name != f"{canonical}-dev"
+        ):
+            problems.append(
+                f"architecture: surface {surface!r} release names are not a "
+                f"canonical {suffix!r} development/production pair"
+            )
+
+
+def _validate_release_targets(
+    architecture_text: str, *, problems: list[str]
+) -> None:
+    _, findings = parse_release_targets(architecture_text)
+    problems.extend(findings)
+
+
 def _ids(cell: str, prefix: str) -> set[str]:
     return {
         match.group(0).upper()
         for match in re.finditer(rf"\b{re.escape(prefix)}-[A-Z0-9-]+\b", cell, re.I)
     }
+
+
+def _architecture_ids(architecture_text: str) -> set[str]:
+    ids: set[str] = set()
+    for heading, header in (
+        ("## Component Architecture", ARCHITECTURE_TABLE_HEADERS["## Component Architecture"]),
+        ("## API and Interface Contracts", ARCHITECTURE_TABLE_HEADERS["## API and Interface Contracts"]),
+        ("## Architecture Trace Index", ARCHITECTURE_TABLE_HEADERS["## Architecture Trace Index"]),
+    ):
+        section = _section(architecture_text, heading)
+        rows = _find_table(section or "", header)
+        for row in rows or []:
+            if row:
+                ids.update(_ids(row[0], "ARCH"))
+    return ids
 
 
 def validate_texts(
@@ -577,6 +1358,7 @@ def validate_texts(
     *,
     require_filled: bool = False,
     require_approved: bool = False,
+    repo_root: Path | None = None,
 ) -> list[str]:
     """Validate already-decoded core product-package texts."""
 
@@ -591,23 +1373,42 @@ def validate_texts(
         path="architecture",
         problems=problems,
     )
-    if not re.search(r"^#\s+PRD(?::|\s*$)", prd_text, re.MULTILINE):
+    if not re.search(r"^#\s+PRD(?::|\s*$)", active_text(prd_text), re.MULTILINE):
         _add(problems, "prd", "missing PRD title")
-    if not re.search(r"^#\s+Architecture(?::|\s*$)", architecture_text, re.MULTILINE):
+    if not re.search(
+        r"^#\s+Architecture(?::|\s*$)", active_text(architecture_text), re.MULTILINE
+    ):
         _add(problems, "architecture", "missing Architecture title")
-    if not re.search(r"^#\s+Stack Decisions(?::|\s*$)", stack_text, re.MULTILINE):
+    if not re.search(
+        r"^#\s+Stack Decisions(?::|\s*$)", active_text(stack_text), re.MULTILINE
+    ):
         _add(problems, "stack-decisions", "missing Stack Decisions title")
 
     ui_surfaces, ui_contract_errors = parse_prd_ui_contract(
-        prd_text, require_responsive=True, web_floor=3
+        prd_text,
+        require_responsive=True,
+        require_copy=True,
+        require_complete=True,
+        web_floor=3,
     )
     problems.extend(ui_contract_errors)
+    if require_filled:
+        _validate_prd_core_sections(
+            prd_text, has_ui=bool(ui_surfaces), problems=problems
+        )
     required_stack_areas: set[str] = set()
     for surface in ui_surfaces.values():
         if surface.get("responsiveKind") == "viewports":
             required_stack_areas.add("frontend")
         elif surface.get("responsiveKind") == "sizeClasses":
             required_stack_areas.add("mobile or desktop")
+
+    _validate_release_targets(
+        architecture_text,
+        problems=problems,
+    )
+    if require_filled:
+        _validate_architecture_sections(architecture_text, problems=problems)
 
     functional = _section(prd_text, "## Functional Requirements")
     functional_rows = (
@@ -626,6 +1427,28 @@ def validate_texts(
             require_filled=require_filled,
             problems=problems,
         )
+        if require_filled and not functional_rows:
+            _add(
+                problems,
+                "prd",
+                "Functional Requirements must contain at least one requirement",
+            )
+            _add(
+                problems,
+                "prd",
+                "Functional Requirements has no meaningful requirement and "
+                "acceptance criteria",
+            )
+        for row in functional_rows:
+            if len(row) != len(FUNCTIONAL_REQUIREMENTS_HEADER):
+                continue
+            if not _meaningful(row[1]) or not _meaningful(row[3], minimum=15):
+                _add(
+                    problems,
+                    "prd",
+                    f"{row[0]} needs a meaningful requirement and observable "
+                    "acceptance criteria",
+                )
 
     nfr = _section(prd_text, "## Non-Functional Requirements")
     nfr_rows = _find_table(nfr, NFR_HEADER) if nfr is not None else None
@@ -656,14 +1479,27 @@ def validate_texts(
             require_filled=require_filled,
             problems=problems,
         )
+    if require_filled and not nfr_rows:
+        _add(
+            problems,
+            "prd",
+            "Non-Functional Requirements must contain at least one measurable "
+            "row or a reasoned N/A row",
+        )
+    if require_filled and not test_rows:
+        _add(problems, "prd", "Test Obligations must contain at least one test")
 
     required_coverage: set[str] = set()
     known_test_ids: set[str] = set()
+    known_required_test_ids: set[str] = set()
+    required_test_upstreams: dict[str, set[str]] = {}
     for row in test_rows:
         if len(row) != len(TEST_OBLIGATIONS_HEADER):
             continue
         test_ids = _ids(row[0], "TEST")
-        if len(test_ids) != 1:
+        if len(test_ids) != 1 or not re.fullmatch(
+            r"TEST-[A-Z0-9-]+", row[0], re.IGNORECASE
+        ):
             _add(problems, "prd", f"invalid Test Obligations ID {row[0]!r}")
             continue
         test_id = next(iter(test_ids))
@@ -674,10 +1510,23 @@ def validate_texts(
         if required not in {"yes", "no"}:
             _add(problems, "prd", f"{test_id} Required must be Yes or No")
         if required == "yes":
+            known_required_test_ids.add(test_id)
+            required_test_upstreams[test_id] = {
+                match.group(0).upper()
+                for match in re.finditer(
+                    r"\b(?:PRD|TRUST|AI)-[A-Z0-9-]+\b", row[4], re.IGNORECASE
+                )
+            }
             upstream = _ids(row[4], "PRD")
             if not upstream:
                 _add(problems, "prd", f"{test_id} names no upstream PRD ID")
             required_coverage.update(upstream)
+        if not _meaningful(row[1], minimum=8):
+            _add(problems, "prd", f"{test_id} needs a concrete test obligation")
+        if not _meaningful(row[2], minimum=3):
+            _add(problems, "prd", f"{test_id} needs a concrete test type")
+        if not _meaningful(row[5], minimum=8):
+            _add(problems, "prd", f"{test_id} needs an observable expected signal")
 
     requirement_ids: set[str] = set()
     must_ids: set[str] = set()
@@ -685,21 +1534,38 @@ def validate_texts(
         if len(row) != len(FUNCTIONAL_REQUIREMENTS_HEADER):
             continue
         prd_ids = _ids(row[0], "PRD")
-        if len(prd_ids) != 1:
+        if len(prd_ids) != 1 or not re.fullmatch(
+            r"PRD-[A-Z0-9-]+", row[0], re.IGNORECASE
+        ):
             _add(problems, "prd", f"invalid Functional Requirement ID {row[0]!r}")
             continue
         requirement_id = next(iter(prd_ids))
         if requirement_id in requirement_ids:
             _add(problems, "prd", f"duplicate requirement ID {requirement_id}")
         requirement_ids.add(requirement_id)
-        if row[2].casefold() == "must":
+        priority = row[2].casefold()
+        if priority not in {"must", "should", "could"}:
+            _add(
+                problems,
+                "prd",
+                f"{requirement_id} Priority must be Must, Should, or Could",
+            )
+        if priority == "must":
             must_ids.add(requirement_id)
+    if require_filled and not must_ids:
+        _add(problems, "prd", "Functional Requirements must include at least one Must")
     applicable_nfr_ids: set[str] = set()
     for row in nfr_rows:
-        if len(row) != len(NFR_HEADER) or row[0].casefold() == "n/a":
+        if len(row) != len(NFR_HEADER):
+            continue
+        if row[0].casefold() == "n/a":
+            if not _meaningful(" ".join(row[1:]), minimum=20):
+                _add(problems, "prd", "N/A NFR row needs a concrete applicability reason")
             continue
         prd_ids = _ids(row[0], "PRD")
-        if len(prd_ids) != 1:
+        if len(prd_ids) != 1 or not re.fullmatch(
+            r"PRD-[A-Z0-9-]+", row[0], re.IGNORECASE
+        ):
             _add(problems, "prd", f"invalid Non-Functional Requirement ID {row[0]!r}")
             continue
         requirement_id = next(iter(prd_ids))
@@ -712,12 +1578,58 @@ def validate_texts(
             _add(problems, "prd", f"{requirement_id} names no TEST ID")
         for test_id in declared_tests - known_test_ids:
             _add(problems, "prd", f"{requirement_id} references unknown {test_id}")
+        if any(
+            not _meaningful(value, minimum=minimum)
+            for value, minimum in zip(row[1:5], (4, 8, 4, 2))
+        ):
+            _add(
+                problems,
+                "prd",
+                f"{requirement_id} must define a measurable quality requirement",
+            )
+    for row in test_rows:
+        if len(row) != len(TEST_OBLIGATIONS_HEADER):
+            continue
+        for unknown in sorted(_ids(row[4], "PRD") - requirement_ids):
+            _add(problems, "prd", f"{row[0]} references unknown upstream {unknown}")
     for requirement_id in sorted((must_ids | applicable_nfr_ids) - required_coverage):
         _add(
             problems,
             "prd",
             f"{requirement_id} has no required Test Obligations coverage",
         )
+    if require_filled and not any(
+        len(row) == len(TEST_OBLIGATIONS_HEADER) and row[3].casefold() == "yes"
+        for row in test_rows
+    ):
+        _add(problems, "prd", "Test Obligations must include at least one Required Yes test")
+
+    ux_section = _section(prd_text, "## UX Requirements") or ""
+    ux_rows = _find_table(ux_section, UX_REQUIREMENTS_HEADER) or []
+    ux_ids = {
+        next(iter(found))
+        for row in ux_rows
+        if row
+        for found in [_ids(row[0], "UX")]
+        if len(found) == 1
+    }
+    architecture_ids = _architecture_ids(architecture_text)
+    trace_authorities = {
+        "PRD": requirement_ids,
+        "UX": ux_ids,
+        "ARCH": architecture_ids,
+        "TEST": known_test_ids,
+    }
+    for surface_id, surface in ui_surfaces.items():
+        fields = surface.get("contractFields")
+        trace_value = fields.get("Trace IDs", "") if isinstance(fields, dict) else ""
+        for prefix, known_ids in trace_authorities.items():
+            for unknown in sorted(_ids(trace_value, prefix) - known_ids):
+                _add(
+                    problems,
+                    "prd",
+                    f"UI surface {surface_id} Trace IDs reference unknown {unknown}",
+                )
 
     metrics = _section(prd_text, "## Metrics")
     if metrics is not None:
@@ -734,6 +1646,24 @@ def validate_texts(
                 require_filled=require_filled,
                 problems=problems,
             )
+            seen_metrics: set[str] = set()
+            for row in metric_rows:
+                if len(row) != len(METRICS_HEADER):
+                    continue
+                metric = row[0].casefold()
+                if metric in seen_metrics:
+                    _add(problems, "prd", f"duplicate metric {row[0]!r}")
+                seen_metrics.add(metric)
+                if _invalid_human_owner(row[6]):
+                    _add(problems, "prd", f"metric {row[0]!r} must name a human owner")
+                if not _meaningful(row[1], minimum=8) or not _meaningful(
+                    row[5], minimum=4
+                ):
+                    _add(
+                        problems,
+                        "prd",
+                        f"metric {row[0]!r} needs a concrete definition and source",
+                    )
 
     assumptions = _section(prd_text, "## Assumptions")
     if assumptions is not None:
@@ -748,6 +1678,27 @@ def validate_texts(
                 require_filled=require_filled,
                 problems=problems,
             )
+            for row in assumption_rows:
+                if len(row) != len(ASSUMPTIONS_HEADER):
+                    continue
+                if row[4] and not _real_date(row[4]):
+                    _add(
+                        problems,
+                        "prd",
+                        f"assumption {row[0]!r} decision date must be a real date",
+                    )
+                if _invalid_human_owner(row[3]):
+                    _add(
+                        problems,
+                        "prd",
+                        f"assumption {row[0]!r} must name a human owner",
+                    )
+                if row[5].casefold() not in {"open", "accepted", "validated", "rejected"}:
+                    _add(
+                        problems,
+                        "prd",
+                        f"assumption {row[0]!r} has invalid status {row[5]!r}",
+                    )
 
     open_questions = _section(prd_text, "## Open Questions")
     if open_questions is not None:
@@ -762,6 +1713,43 @@ def validate_texts(
                 require_filled=require_filled,
                 problems=problems,
             )
+            for row in rows:
+                if len(row) != len(OPEN_QUESTIONS_HEADER):
+                    continue
+                if row[3] and not _real_date(row[3]):
+                    _add(
+                        problems,
+                        "prd",
+                        f"open question {row[0]!r} deadline must be a real date",
+                    )
+                if _invalid_human_owner(row[2]):
+                    _add(
+                        problems,
+                        "prd",
+                        f"open question {row[0]!r} must name a human owner",
+                    )
+                blocks = row[4].casefold()
+                if blocks not in {"yes", "no"}:
+                    _add(
+                        problems,
+                        "prd",
+                        f"open question {row[0]!r} Blocks approval must be Yes or No",
+                    )
+                status = row[5].strip()
+                closed_match = re.fullmatch(
+                    r"(?:resolved|closed|n/a)\s*(?:—|-)\s*(.+)",
+                    status,
+                    re.IGNORECASE,
+                )
+                if status.casefold() != "open" and (
+                    closed_match is None
+                    or not _meaningful(closed_match.group(1), minimum=6)
+                ):
+                    _add(
+                        problems,
+                        "prd",
+                        f"open question {row[0]!r} has invalid status/resolution",
+                    )
         if rows is not None and require_approved:
             for row in rows:
                 if len(row) < len(OPEN_QUESTIONS_HEADER):
@@ -769,15 +1757,21 @@ def validate_texts(
                     continue
                 blocks = row[4].casefold()
                 status = row[5].casefold()
-                if blocks == "yes" and not status.startswith(
-                    ("resolved", "closed", "n/a")
-                ):
+                closed = bool(
+                    re.fullmatch(
+                        r"(?:resolved|closed|n/a)\s*(?:—|-)\s*.+",
+                        status,
+                        re.IGNORECASE,
+                    )
+                )
+                if blocks == "yes" and not closed:
                     _add(
                         problems,
                         "prd",
                         f"blocking open question remains unresolved: {row[0]!r}",
                     )
 
+    rows_by_decision: dict[str, tuple[str, ...]] = {}
     commercial = _section(prd_text, "## Monetization and Partner Channels")
     if commercial is not None:
         commercial_rows = _find_table(commercial, COMMERCIAL_DECISIONS_HEADER)
@@ -795,11 +1789,59 @@ def validate_texts(
                 require_filled=require_filled,
                 problems=problems,
             )
-            rows_by_decision = {
-                row[0].casefold(): row
-                for row in commercial_rows
-                if len(row) == len(COMMERCIAL_DECISIONS_HEADER)
+            seen_decisions: set[str] = set()
+            rows_by_decision: dict[str, tuple[str, ...]] = {}
+            for row in commercial_rows:
+                if len(row) != len(COMMERCIAL_DECISIONS_HEADER):
+                    continue
+                decision = row[0].casefold()
+                if decision in seen_decisions:
+                    _add(
+                        problems,
+                        "prd",
+                        f"duplicate commercial decision row {row[0]!r}",
+                    )
+                seen_decisions.add(decision)
+                rows_by_decision[decision] = row
+                status = row[3].casefold()
+                if status not in {
+                    "selected",
+                    "approved",
+                    "recommended",
+                    "provisional",
+                    "assumed",
+                }:
+                    _add(problems, "prd", f"{row[0]} has invalid status {row[3]!r}")
+                if require_approved and status not in {"selected", "approved"}:
+                    _add(
+                        problems,
+                        "prd",
+                        f"{row[0]} remains {row[3]!r}; owner approval is required",
+                    )
+            if require_filled and not commercial_rows:
+                _add(problems, "prd", "Monetization and Partner Channels must contain rows")
+            required_commercial_rows = {
+                "monetization model",
+                "monetization infrastructure gate",
+                "pricing and offer",
+                "purchase and entitlement",
+                "merchant of record / tax owner",
+                "partner channel gate",
+                "partner motion",
+                "partner economics and operations",
             }
+            if seen_decisions != required_commercial_rows:
+                missing_commercial = sorted(required_commercial_rows - seen_decisions)
+                extra_commercial = sorted(seen_decisions - required_commercial_rows)
+                _add(
+                    problems,
+                    "prd",
+                    "Monetization and Partner Channels must use exactly the canonical "
+                    "decision rows; missing: "
+                    + (", ".join(missing_commercial) or "none")
+                    + "; extra: "
+                    + (", ".join(extra_commercial) or "none"),
+                )
             for gate_name in (
                 "monetization infrastructure gate",
                 "partner channel gate",
@@ -809,7 +1851,6 @@ def validate_texts(
                     _add(problems, "prd", f"missing {gate_name.title()} row")
                     continue
                 selection = row[1].casefold()
-                status = row[3].casefold()
                 if selection not in {"required", "not_required", "blocked"}:
                     _add(
                         problems,
@@ -818,14 +1859,120 @@ def validate_texts(
                     )
                 if require_approved and selection == "blocked":
                     _add(problems, "prd", f"{row[0]} is blocked")
-                if require_approved and status not in {"selected", "approved"}:
+                if selection == "required":
+                    required_stack_areas.add("commercial")
+
+            monetization_required = (
+                rows_by_decision.get("monetization infrastructure gate", ("", ""))[1]
+                .casefold()
+                == "required"
+            )
+            partner_required = (
+                rows_by_decision.get("partner channel gate", ("", ""))[1]
+                .casefold()
+                == "required"
+            )
+            dependent_rows = set()
+            if monetization_required:
+                dependent_rows.update(
+                    {
+                        "monetization model",
+                        "pricing and offer",
+                        "purchase and entitlement",
+                        "merchant of record / tax owner",
+                    }
+                )
+            if partner_required:
+                dependent_rows.update(
+                    {"partner motion", "partner economics and operations"}
+                )
+            for decision in sorted(dependent_rows):
+                row = rows_by_decision.get(decision)
+                if row is None:
+                    continue
+                selection = row[1].casefold().strip()
+                if selection in {"none", "n/a", "not_required", "undecided"}:
                     _add(
                         problems,
                         "prd",
-                        f"{row[0]} remains {row[3]!r}; owner approval is required",
+                        f"required commercial gate is incompatible with {row[0]} "
+                        f"selection {row[1]!r}",
                     )
-                if selection == "required":
-                    required_stack_areas.add("commercial")
+                if not _meaningful(row[1], minimum=4) or not _meaningful(
+                    row[2], minimum=8
+                ):
+                    _add(
+                        problems,
+                        "prd",
+                        f"required commercial row {row[0]} needs a concrete selection "
+                        "and rationale",
+                    )
+                trace_tests = _ids(row[4], "TEST")
+                if not trace_tests or not trace_tests.issubset(known_required_test_ids):
+                    _add(
+                        problems,
+                        "prd",
+                        f"required commercial row {row[0]} must trace to Required Yes "
+                        "TEST IDs",
+                    )
+
+    commercial_gate_required = any(
+        gate_name in rows_by_decision
+        and rows_by_decision[gate_name][1].casefold() == "required"
+        for gate_name in (
+            "monetization infrastructure gate",
+            "partner channel gate",
+        )
+    )
+    if commercial_gate_required:
+        commercial_architecture = _section(
+            architecture_text, "## Monetization and Partner Channel Architecture"
+        )
+        if commercial_architecture is None or not _meaningful(
+            commercial_architecture, minimum=25
+        ):
+            _add(
+                problems,
+                "architecture",
+                "required commercial gate needs concrete monetization or partner "
+                "architecture obligations",
+            )
+        if commercial_architecture is not None and _explicit_absence_reason(
+            commercial_architecture
+        ) is not None:
+            _add(
+                problems,
+                "architecture",
+                "required commercial gate cannot mark its architecture not_required",
+            )
+        required_commercial_terms = [
+            ("purchase", "billing", "payment"),
+            ("entitlement",),
+            ("refund", "chargeback"),
+            ("reconciliation",),
+        ]
+        if rows_by_decision.get("partner channel gate", ("", ""))[1].casefold() == "required":
+            required_commercial_terms.extend(
+                [("attribution",), ("commission", "payout"), ("provision",), ("termination",)]
+            )
+        normalized_architecture = (commercial_architecture or "").casefold()
+        if any(
+            not any(term in normalized_architecture for term in alternatives)
+            for alternatives in required_commercial_terms
+        ):
+            _add(
+                problems,
+                "architecture",
+                "required commercial gate architecture is missing purchase, entitlement, "
+                "recovery, reconciliation, or partner-operation obligations",
+            )
+        if not ui_surfaces:
+            _add(
+                problems,
+                "prd",
+                "required commercial gate must define the affected customer, partner, "
+                "or administration UI surfaces",
+            )
 
     # Product Definition owns the UI surface contract but not UI direction,
     # wireframes, motion/media treatment, or visual approval. Require an
@@ -833,22 +1980,32 @@ def validate_texts(
     # prerequisite for Product Definition Approval.
     ui_handoff = _section(prd_text, "## UI Design Handoff Status")
     if ui_handoff is not None:
-        status_match = re.search(
+        status_matches = list(re.finditer(
             r"^UI design:\s*(.+?)\s*$", ui_handoff, re.IGNORECASE | re.MULTILINE
-        )
-        owner_match = re.search(
+        ))
+        owner_matches = list(re.finditer(
             r"^UI decision owner:\s*(.+?)\s*$",
             ui_handoff,
             re.IGNORECASE | re.MULTILINE,
-        )
+        ))
+        status_match = status_matches[0] if len(status_matches) == 1 else None
+        owner_match = owner_matches[0] if len(owner_matches) == 1 else None
         status = status_match.group(1).strip() if status_match else ""
         owner = owner_match.group(1).strip() if owner_match else ""
-        if not status_match:
-            _add(problems, "prd", "UI Design Handoff Status is missing UI design")
-        if not owner_match:
-            _add(problems, "prd", "UI Design Handoff Status is missing UI decision owner")
+        if len(status_matches) != 1:
+            _add(
+                problems,
+                "prd",
+                "UI Design Handoff Status requires exactly one UI design line",
+            )
+        if len(owner_matches) != 1:
+            _add(
+                problems,
+                "prd",
+                "UI Design Handoff Status requires exactly one UI decision owner line",
+            )
         if ui_surfaces:
-            if require_filled and not status.casefold().startswith(
+            if require_filled and status.casefold() != (
                 "pending explicit ui-design-builder request"
             ):
                 _add(
@@ -859,14 +2016,33 @@ def validate_texts(
             if require_filled and _invalid_human_owner(owner):
                 _add(problems, "prd", "UI decision owner must name a human owner")
         else:
-            if require_filled and not status.casefold().startswith("not_required"):
+            headless_status = re.fullmatch(
+                r"not_required\s*(?:—|-)\s*(.+)", status, re.IGNORECASE
+            )
+            if require_filled and headless_status is None:
                 _add(problems, "prd", "headless package must record UI design not_required")
-            if require_filled and status.casefold().startswith("not_required"):
-                reason = status[len("not_required") :].strip(" —-:")
-                if not reason or _placeholder_cell(reason):
+            if require_filled and headless_status is not None:
+                reason = headless_status.group(1).strip()
+                if not _meaningful(reason, minimum=10):
                     _add(problems, "prd", "headless UI design status needs a concrete reason")
+    gate_records: dict[str, tuple[str, str, str]] = {}
     for gate_label in ("Data and Trust Gate", "AI and Automation Gate"):
-        gate_record = _gate_record(prd_text, gate_label)
+        gate_line_count = len(
+            re.findall(
+                rf"^{re.escape(gate_label)}:\s*.*$",
+                active_text(prd_text),
+                re.IGNORECASE | re.MULTILINE,
+            )
+        )
+        gate_record = _gate_record(prd_text, gate_label) if gate_line_count == 1 else None
+        if gate_line_count != 1:
+            _add(
+                problems,
+                "prd",
+                f"{gate_label} requires exactly one active status line",
+            )
+        if gate_record is not None:
+            gate_records[gate_label] = gate_record
         if gate_record is None:
             _add(
                 problems,
@@ -875,14 +2051,106 @@ def validate_texts(
             )
             continue
         gate, reason, owner = gate_record
-        if require_filled and (_placeholder_cell(reason) or _invalid_human_owner(owner)):
+        if require_filled and (
+            not _meaningful(reason, minimum=12) or _invalid_human_owner(owner)
+        ):
             _add(problems, "prd", f"{gate_label} has an unfilled reason or owner")
         if require_approved and gate == "blocked":
             _add(problems, "prd", f"{gate_label} is blocked")
+        if gate_label == "Data and Trust Gate" and gate == "required":
+            required_stack_areas.add("backend or data")
         if gate_label == "AI and Automation Gate" and gate == "required":
             required_stack_areas.add("ai or automation")
 
+    required_gate_details = (
+        (
+            "Data and Trust Gate",
+            "## Data and Trust",
+            DATA_TRUST_AREAS,
+            "## Data and Trust Architecture",
+            (
+                ("classification", "ownership", "source of truth"),
+                ("residency", "region", "vendor"),
+                ("encryption", "access", "audit"),
+                ("retention", "deletion", "export"),
+                ("consent", "policy"),
+                ("backup", "recovery"),
+                ("incident",),
+            ),
+        ),
+        (
+            "AI and Automation Gate",
+            "## AI and Automation",
+            AI_AUTOMATION_AREAS,
+            "## AI and Automation Architecture",
+            (
+                ("model", "provider", "version"),
+                ("context", "retrieval"),
+                ("prompt", "tool", "approval"),
+                ("evaluation", "validation"),
+                ("cost", "latency"),
+                ("observability",),
+                ("fallback", "shutoff"),
+                ("incident",),
+            ),
+        ),
+    )
+    for (
+        gate_label,
+        prd_heading,
+        expected_areas,
+        architecture_heading,
+        architecture_term_groups,
+    ) in required_gate_details:
+        record = gate_records.get(gate_label)
+        if record is None or record[0] != "required":
+            continue
+        prd_gate_section = _section(prd_text, prd_heading)
+        if prd_gate_section is not None:
+            _validate_gate_decisions(
+                prd_gate_section,
+                label=gate_label,
+                expected_areas=expected_areas,
+                known_required_tests=known_required_test_ids,
+                required_test_upstreams=required_test_upstreams,
+                problems=problems,
+            )
+        section = _section(architecture_text, architecture_heading)
+        if section is None or not _meaningful(section, minimum=25):
+            _add(
+                problems,
+                "architecture",
+                f"required {gate_label} needs concrete architecture obligations",
+            )
+        if section is not None and _explicit_absence_reason(section) is not None:
+            _add(
+                problems,
+                "architecture",
+                f"required {gate_label} cannot mark its architecture not_required",
+            )
+        normalized_section = (section or "").casefold()
+        if any(
+            not any(term in normalized_section for term in alternatives)
+            for alternatives in architecture_term_groups
+        ):
+            _add(
+                problems,
+                "architecture",
+                f"required {gate_label} architecture is missing one or more mandatory "
+                "trust or automation controls",
+            )
+
     research_gate = _research_gate(prd_text)
+    research_gate_count = len(
+        re.findall(
+            r"^Research Gate:\s*.*$",
+            active_text(prd_text),
+            re.IGNORECASE | re.MULTILINE,
+        )
+    )
+    if research_gate_count != 1:
+        research_gate = None
+        _add(problems, "prd", "Research Gate requires exactly one active decision line")
     if research_gate is None:
         _add(problems, "prd", "missing Research Gate decision")
     else:
@@ -901,6 +2169,17 @@ def validate_texts(
             or _invalid_human_owner(research_owner.group(1))
         ):
             _add(problems, "prd", "Research Gate must name its human decision owner")
+        assessed_dates = re.findall(
+            r"\bassessed\s+(\d{4}-\d{2}-\d{2})\b",
+            research_detail,
+            re.IGNORECASE,
+        )
+        if require_filled and (
+            len(assessed_dates) != 1 or not _real_date(assessed_dates[0])
+        ):
+            _add(problems, "prd", "Research Gate must name one real assessed YYYY-MM-DD date")
+        if require_filled and not _meaningful(research_detail, minimum=20):
+            _add(problems, "prd", "Research Gate must record concrete assessment evidence")
         if research_status == "skipped" and (
             not research_detail
             or (require_filled and "[" in research_detail and "]" in research_detail)
@@ -946,24 +2225,46 @@ def validate_texts(
         if require_filled and _invalid_human_owner(owner):
             _add(problems, "prd approval", "Decision owner must name a human owner")
         decided_on = product_fields.get("decided on", "")
-        if decided_on and re.fullmatch(r"\d{4}-\d{2}-\d{2}", decided_on) is None:
-            _add(problems, "prd approval", "Decided on must use YYYY-MM-DD")
-        approved_artifacts = product_fields.get("approved artifacts", "").casefold()
-        for filename in ("prd.md", "architecture.md", "stack-decisions.md"):
-            if approved_artifacts and filename not in approved_artifacts:
-                _add(problems, "prd approval", f"Approved artifacts must include {filename}")
+        if decided_on and not _real_date(decided_on):
+            _add(problems, "prd approval", "Decided on must be a real YYYY-MM-DD date")
+        approved_artifacts = [
+            value.strip().casefold()
+            for value in product_fields.get("approved artifacts", "").split(",")
+            if value.strip()
+        ]
+        required_artifacts = ["prd.md", "architecture.md", "stack-decisions.md"]
+        if approved_artifacts and approved_artifacts != required_artifacts:
+            _add(
+                problems,
+                "prd approval",
+                "Approved artifacts must be exactly, once and in order: "
+                "PRD.md, architecture.md, stack-decisions.md",
+            )
         checkpoint = product_fields.get("stack decision checkpoint", "").casefold()
         if require_approved and checkpoint != "approved":
             _add(problems, "prd approval", "Stack Decision Checkpoint must be approved")
         reconciliation = product_fields.get(
             "market research reconciliation", ""
         ).casefold()
-        if reconciliation and not reconciliation.startswith(("completed", "skipped", "blocked")):
+        reconciliation_state = re.match(r"^(completed|skipped|blocked)\b", reconciliation)
+        if reconciliation and reconciliation_state is None:
             _add(problems, "prd approval", "invalid market research reconciliation")
+        elif reconciliation_state is not None and reconciliation_state.group(1) in {
+            "skipped",
+            "blocked",
+        }:
+            reason = reconciliation[reconciliation_state.end() :].strip(" —-:")
+            if require_filled and (not reason or _placeholder_cell(reason)):
+                _add(
+                    problems,
+                    "prd approval",
+                    f"{reconciliation_state.group(1)} market research reconciliation "
+                    "requires a concrete reason",
+                )
         if require_approved and reconciliation.startswith("blocked"):
             _add(problems, "prd approval", "market research reconciliation is blocked")
         blockers = product_fields.get("blocking items", "").casefold()
-        if require_approved and blockers and not blockers.startswith(("none", "n/a")):
+        if require_approved and blockers not in {"none", "n/a"}:
             _add(problems, "prd approval", "Blocking items must be none")
         mode = product_fields.get("package mode", "").casefold()
         if mode and mode not in {"new", "enhancement"}:
@@ -993,11 +2294,88 @@ def validate_texts(
                     require_filled=require_filled,
                     problems=problems,
                 )
-                present = {
-                    row[0].casefold()
-                    for row in impact_rows
-                    if len(row) == len(ENHANCEMENT_IMPACT_HEADER)
-                }
+                seen_areas: set[str] = set()
+                for row in impact_rows:
+                    if len(row) != len(ENHANCEMENT_IMPACT_HEADER):
+                        continue
+                    area = row[0].casefold()
+                    if area in seen_areas:
+                        _add(
+                            problems,
+                            "prd",
+                            f"Enhancement Impact Record has duplicate area {row[0]!r}",
+                        )
+                    seen_areas.add(area)
+                    impact = row[1].casefold()
+                    if area == "ui structure / style":
+                        valid_impacts = {"none", "structure", "style", "both"}
+                    else:
+                        valid_impacts = {"unchanged", "changed"}
+                    if impact not in valid_impacts:
+                        _add(
+                            problems,
+                            "prd",
+                            f"{row[0]} has invalid enhancement impact {row[1]!r}",
+                        )
+                    changed = impact in {"changed", "structure", "style", "both"}
+                    if changed:
+                        if not (
+                            re.search(
+                                r"\b(?:PRD|UX|UI|ARCH|TEST|MR|RA)-[A-Z0-9-]+\b",
+                                row[2],
+                                re.IGNORECASE,
+                            )
+                            or re.search(r"\bdecision:\s*\S", row[2], re.IGNORECASE)
+                        ):
+                            _add(
+                                problems,
+                                "prd",
+                                f"changed enhancement row {row[0]} must name structured "
+                                "affected IDs or decision:<name> entries",
+                            )
+                        refresh = row[3].casefold()
+                        invalid_refresh = (
+                            not _meaningful(row[3])
+                            or refresh in {"none", "n/a"}
+                            or refresh.startswith(("none ", "none —", "none-", "n/a "))
+                            or ENHANCEMENT_ARTIFACT_RE.search(row[3]) is None
+                        )
+                        required_artifacts: set[str]
+                        required_gates: set[str]
+                        if area == "ui structure / style":
+                            if impact == "style":
+                                required_artifacts = {"ui-design.md"}
+                                required_gates = {"visual approval"}
+                            else:
+                                required_artifacts = {"wireframes.html", "ui-design.md"}
+                                required_gates = {
+                                    "copy freeze",
+                                    "wireframe approval",
+                                    "visual approval",
+                                }
+                        else:
+                            required_artifacts, required_gates = (
+                                ENHANCEMENT_REFRESH_REQUIREMENTS.get(area, (set(), set()))
+                            )
+                        missing_refresh_artifacts = sorted(
+                            artifact
+                            for artifact in required_artifacts
+                            if artifact not in refresh
+                        )
+                        missing_refresh_gates = sorted(
+                            gate for gate in required_gates if gate not in refresh
+                        )
+                        if invalid_refresh or missing_refresh_artifacts or missing_refresh_gates:
+                            _add(
+                                problems,
+                                "prd",
+                                f"changed enhancement row {row[0]} must record a non-none "
+                                "area-specific refresh; missing artifacts: "
+                                + (", ".join(missing_refresh_artifacts) or "none")
+                                + "; missing gates: "
+                                + (", ".join(missing_refresh_gates) or "none"),
+                            )
+                present = seen_areas
                 missing = sorted(REQUIRED_ENHANCEMENT_AREAS - present)
                 if missing:
                     _add(
@@ -1042,10 +2420,10 @@ def validate_texts(
         if require_filled and _invalid_human_owner(owner):
             _add(problems, "stack checkpoint", "Decision owner must name a human owner")
         decided_on = stack_fields.get("decided on", "")
-        if decided_on and re.fullmatch(r"\d{4}-\d{2}-\d{2}", decided_on) is None:
-            _add(problems, "stack checkpoint", "Decided on must use YYYY-MM-DD")
+        if decided_on and not _real_date(decided_on):
+            _add(problems, "stack checkpoint", "Decided on must be a real YYYY-MM-DD date")
         open_areas = stack_fields.get("open areas", "").casefold()
-        if require_approved and open_areas and not open_areas.startswith(("none", "n/a")):
+        if require_approved and open_areas not in {"none", "n/a"}:
             _add(problems, "stack checkpoint", "Open areas must be none")
         required_stack_areas.update(
             _stack_areas(stack_fields.get("approved areas", ""))
@@ -1056,6 +2434,7 @@ def validate_texts(
         require_filled=require_filled,
         require_approved=require_approved,
         required_areas=required_stack_areas,
+        repo_root=repo_root,
         problems=problems,
     )
     option_rows = _find_table(stack_text, STACK_OPTIONS_HEADER)
@@ -1132,6 +2511,7 @@ def validate(
     *,
     require_filled: bool = False,
     require_approved: bool = False,
+    repo_root: Path | None = None,
 ) -> list[str]:
     """Read and validate the three canonical core package files."""
 
@@ -1151,6 +2531,7 @@ def validate(
         texts[2],
         require_filled=require_filled,
         require_approved=require_approved,
+        repo_root=repo_root,
     )
 
 
@@ -1161,6 +2542,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--stack-decisions", required=True, type=Path)
     parser.add_argument("--require-filled", action="store_true")
     parser.add_argument("--require-approved", action="store_true")
+    parser.add_argument("--repo-root", type=Path)
     return parser.parse_args(argv)
 
 
@@ -1172,6 +2554,7 @@ def main(argv: list[str] | None = None) -> int:
         args.stack_decisions,
         require_filled=args.require_filled,
         require_approved=args.require_approved,
+        repo_root=args.repo_root,
     )
     if problems:
         for problem in problems:

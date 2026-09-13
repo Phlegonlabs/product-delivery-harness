@@ -834,7 +834,10 @@ async function agent(_prompt, options) {
         self.assertIn("same verified candidate SHA", contract)
         self.assertIn("both initial delivery and enhancements start from observed remote `main`", skill)
         self.assertIn("candidate run branch/SHA", architecture)
-        self.assertIn("Source policy: [exact candidate run branch/ref", contract)
+        self.assertIn(
+            "Source policy: [`stage=development; ref=run.integration.branch; ",
+            contract,
+        )
         self.assertIn("main-only branch model", agent)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
@@ -1463,10 +1466,11 @@ async function agent(_prompt, options) {
                 "merged_main",
             ):
                 self.assertNotIn(retired, content)
-        for content in (interview, architecture, contract, workflow):
+        for content in (interview, architecture, workflow):
             self.assertIn("branch or ref", content)
-        for content in (interview, architecture, contract):
+        for content in (interview, architecture):
             self.assertIn("signed tag", content.lower())
+        self.assertIn("promotion.verified_main_sha", contract)
 
     def test_migration_order_drops_plan_v5_field_mapping(self) -> None:
         architecture = self.read("references/architecture-playbook.md")
@@ -2408,6 +2412,31 @@ new Function(scripts.at(-1)[1]);
         self.assertIn("including headless products", skill)
         self.assertIn("only after the core Product Definition package passes", wireframe)
         self.assertIn("only after `product-definition-builder`", ui_skill)
+
+    def test_copy_freeze_ownership_does_not_require_a_circular_prd_rewrite(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        for content in (skill, contract, lifecycle):
+            self.assertIn("Copy Freeze", content)
+        self.assertIn(
+            "schema-4 wireframe approval may advance a PRD `draft` responsibility "
+            "to approved exact wireframe copy",
+            contract,
+        )
+        self.assertIn(
+            "schema-4 wireframe approval may advance a PRD draft responsibility",
+            lifecycle,
+        )
+        self.assertIn(
+            "PRD `revision_requested` or `blocked` copy stops UI work",
+            skill,
+        )
+        self.assertNotIn(
+            "any applicable Wireframe Approval, passing checkers",
+            lifecycle,
+        )
 
     def test_stack_checkpoint_separates_and_approves_implementation_layers(self) -> None:
         skill = self.read("SKILL.md")

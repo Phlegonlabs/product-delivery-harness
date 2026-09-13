@@ -8,6 +8,7 @@ import math
 import re
 from typing import Any
 
+from markdown_contract import active_markdown_lines, exact_marker_lines
 
 UI_HEADING_RE = re.compile(
     r"^###\s+(UI-[A-Z0-9]+(?:-[A-Z0-9]+)*)\b.*$", re.MULTILINE
@@ -28,15 +29,35 @@ COPY_RE = re.compile(
     r"^\s*-\s*`copy`\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
+COMPLETE_FIELD_PATTERNS = {
+    "Main purpose": re.compile(
+        r"^\s*-\s*Main purpose\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE
+    ),
+    "Content responsibilities": re.compile(
+        r"^\s*-\s*Content responsibilities\s*:\s*(.+)$",
+        re.IGNORECASE | re.MULTILINE,
+    ),
+    "Actions and transitions": re.compile(
+        r"^\s*-\s*Actions and transitions\s*:\s*(.+)$",
+        re.IGNORECASE | re.MULTILINE,
+    ),
+    "Responsive obligations": re.compile(
+        r"^\s*-\s*Responsive obligations\s*:\s*(.+)$",
+        re.IGNORECASE | re.MULTILINE,
+    ),
+    "Accessibility": re.compile(
+        r"^\s*-\s*Accessibility\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE
+    ),
+    "SEO metadata": re.compile(
+        r"^\s*-\s*SEO metadata\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE
+    ),
+    "Trace IDs": re.compile(
+        r"^\s*-\s*Trace IDs\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE
+    ),
+}
 VALID_COPY_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
-MACHINE_BLOCK_RE = re.compile(
-    r"<!--\s*ui-surface-contract:start\s*-->([\s\S]*?)"
-    r"<!--\s*ui-surface-contract:end\s*-->",
-    re.IGNORECASE,
-)
-ENGLISH_SECTION_RE = re.compile(
-    r"^##\s+UI Surface Contract\s*$([\s\S]*?)(?=^##\s|\Z)", re.MULTILINE
-)
+UI_START_MARKER = "<!-- ui-surface-contract:start -->"
+UI_END_MARKER = "<!-- ui-surface-contract:end -->"
 
 
 def _values(value: str) -> list[str]:
@@ -64,9 +85,26 @@ def _state(value: str) -> str:
     return state
 
 
+def _duplicate_values(values: list[str]) -> list[str]:
+    counts: dict[str, int] = {}
+    for value in values:
+        counts[value.casefold()] = counts.get(value.casefold(), 0) + 1
+    return sorted(
+        value for value, count in counts.items() if count > 1
+    )
+
+
 def _copy_status(value: str) -> str:
     status = re.split(r"\s+(?:—|-)\s+", value.strip(), maxsplit=1)[0]
     return status.strip().strip("`").casefold()
+
+
+def _meaningful(value: str, minimum: int) -> bool:
+    stripped = value.strip()
+    return (
+        len(stripped) >= minimum
+        and not re.search(r"\[[^\]]+\]|<[^>]+>|\b(?:tbd|todo)\b", stripped, re.I)
+    )
 
 
 def _responsive(
@@ -119,40 +157,50 @@ def parse_prd_ui_contract(
     *,
     require_responsive: bool = False,
     require_copy: bool = False,
+    require_complete: bool = False,
     web_floor: int = 2,
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    blocks = list(MACHINE_BLOCK_RE.finditer(text))
-    start_count = len(
-        re.findall(r"<!--\s*ui-surface-contract:start\s*-->", text, re.I)
-    )
-    end_count = len(
-        re.findall(r"<!--\s*ui-surface-contract:end\s*-->", text, re.I)
-    )
-    legacy_block = ENGLISH_SECTION_RE.search(text)
-    has_ui_entry = UI_HEADING_RE.search(text) is not None
-    if not blocks and not (start_count or end_count or has_ui_entry):
-        return {}, []
+    active = active_markdown_lines(text)
+    start_lines = exact_marker_lines(text, UI_START_MARKER)
+    end_lines = exact_marker_lines(text, UI_END_MARKER)
+    start_count = len(start_lines)
+    end_count = len(end_lines)
+    has_ui_entry = UI_HEADING_RE.search("\n".join(line for _, line in active)) is not None
+    if not (start_count or end_count or has_ui_entry):
+        ui_pending = re.search(
+            r"^UI design:\s*pending explicit ui-design-builder request",
+            "\n".join(line for _, line in active),
+            re.IGNORECASE | re.MULTILINE,
+        )
+        if not ui_pending:
+            return {}, []
     errors: list[str] = []
-    if len(blocks) != 1 or start_count != 1 or end_count != 1:
+    if start_count != 1 or end_count != 1:
         errors.append(
             "prd: UI surface contract requires exactly one matched "
             "ui-surface-contract boundary pair"
         )
-    if blocks:
-        body = blocks[0].group(1)
-    elif legacy_block is not None:
-        body = legacy_block.group(1)
-    else:
-        body = text
-    all_headings = list(UI_HEADING_RE.finditer(text))
-    if len(blocks) == 1:
-        body_start = blocks[0].start(1)
-        body_end = blocks[0].end(1)
+    body = ""
+    headings_in_boundary = 0
+    if start_count == 1 and end_count == 1:
+        start_line = start_lines[0]
+        end_line = end_lines[0]
+        body = "\n".join(
+            line for number, line in active if start_line < number < end_line
+        )
+        heading_lines = {
+            number
+            for number, line in active
+            if start_line < number < end_line
+            and UI_HEADING_RE.match(line)
+        }
+        headings_in_boundary = len(heading_lines)
         outside_ids = sorted(
             {
-                heading.group(1)
-                for heading in all_headings
-                if not body_start <= heading.start() < body_end
+                UI_HEADING_RE.match(line).group(1)
+                for number, line in active
+                if (number <= start_line or number >= end_line)
+                and UI_HEADING_RE.match(line)
             }
         )
         if outside_ids:
@@ -161,7 +209,7 @@ def parse_prd_ui_contract(
                 + ", ".join(outside_ids)
             )
     headings = list(UI_HEADING_RE.finditer(body))
-    if blocks and not headings:
+    if start_count == 1 and end_count == 1 and headings_in_boundary == 0:
         errors.append("prd: ui-surface-contract boundary contains no UI surface entries")
     entries: dict[str, dict[str, Any]] = {}
     for index, heading in enumerate(headings):
@@ -175,12 +223,22 @@ def parse_prd_ui_contract(
         states_matches = list(STATES_RE.finditer(surface_block))
         responsive_matches = list(RESPONSIVE_RE.finditer(surface_block))
         copy_matches = list(COPY_RE.finditer(surface_block))
+        complete_matches = {
+            label: list(pattern.finditer(surface_block))
+            for label, pattern in COMPLETE_FIELD_PATTERNS.items()
+        }
         routes = _values(route_matches[0].group(1)) if len(route_matches) == 1 else []
-        states = (
-            [_state(item) for item in _values(states_matches[0].group(1))]
+        raw_states = (
+            _values(states_matches[0].group(1))
             if len(states_matches) == 1
             else []
         )
+        states = (
+            [_state(item) for item in raw_states]
+            if len(states_matches) == 1
+            else []
+        )
+        duplicate_states = _duplicate_values(states)
         if len(route_matches) != 1:
             errors.append(
                 f"prd: UI surface {surface_id} requires exactly one `route` anchor; "
@@ -191,6 +249,14 @@ def parse_prd_ui_contract(
                 f"prd: UI surface {surface_id} requires exactly one route value; "
                 f"found {len(routes)}"
             )
+        if require_complete and re.fullmatch(
+            rf"###\s+{re.escape(surface_id)}\s+(?:—|-)\s+\S.*",
+            heading.group(0),
+            re.IGNORECASE,
+        ) is None:
+            errors.append(
+                f"prd: UI surface {surface_id} heading must include a meaningful name"
+            )
         if len(states_matches) != 1:
             errors.append(
                 f"prd: UI surface {surface_id} requires exactly one `states` anchor; "
@@ -198,6 +264,11 @@ def parse_prd_ui_contract(
             )
         if not states:
             errors.append(f"prd: UI surface {surface_id} has no states value")
+        if duplicate_states:
+            errors.append(
+                f"prd: UI surface {surface_id} has duplicate states: "
+                + ", ".join(duplicate_states)
+            )
         responsive_kind: str | None = None
         responsive_targets: list[str] = []
         if len(responsive_matches) == 1:
@@ -226,12 +297,64 @@ def parse_prd_ui_contract(
                 f"prd: UI surface {surface_id} requires exactly one `copy` "
                 f"anchor; found {len(copy_matches)}"
             )
+        complete_values: dict[str, str] = {}
+        if require_complete:
+            for label, matches in complete_matches.items():
+                if len(matches) != 1:
+                    errors.append(
+                        f"prd: UI surface {surface_id} requires exactly one {label!r} "
+                        f"field; found {len(matches)}"
+                    )
+                    continue
+                complete_values[label] = matches[0].group(1).strip()
+            minimums = {
+                "Main purpose": 12,
+                "Content responsibilities": 30,
+                "Actions and transitions": 20,
+                "Responsive obligations": 25,
+                "Accessibility": 15,
+                "SEO metadata": 15,
+            }
+            for label, minimum in minimums.items():
+                value = complete_values.get(label)
+                if value is not None and not _meaningful(value, minimum):
+                    errors.append(
+                        f"prd: UI surface {surface_id} {label!r} is not implementation-ready"
+                    )
+            content = complete_values.get("Content responsibilities", "").casefold()
+            if content and not all(
+                term in content
+                for term in ("source", "order", "format", "count", "length", "fallback")
+            ):
+                errors.append(
+                    f"prd: UI surface {surface_id} Content responsibilities must name "
+                    "source/order/format/count/length/fallback bounds"
+                )
+            actions = complete_values.get("Actions and transitions", "").casefold()
+            if actions and not ("success" in actions and "failure" in actions):
+                errors.append(
+                    f"prd: UI surface {surface_id} Actions and transitions must name "
+                    "success and failure behavior"
+                )
+            responsive_value = complete_values.get("Responsive obligations", "").casefold()
+            if responsive_value and "never drop" not in responsive_value:
+                errors.append(
+                    f"prd: UI surface {surface_id} Responsive obligations must name "
+                    "never-drop content/actions"
+                )
+            trace_value = complete_values.get("Trace IDs", "")
+            for prefix in ("PRD", "UX", "ARCH", "TEST"):
+                if re.search(rf"\b{prefix}-[A-Z0-9-]+\b", trace_value, re.I) is None:
+                    errors.append(
+                        f"prd: UI surface {surface_id} Trace IDs must include {prefix}-*"
+                    )
         entries[surface_id] = {
             "routes": routes,
             "states": states,
             "responsiveKind": responsive_kind,
             "responsiveTargets": responsive_targets,
             "copyStatus": copy_status,
+            "contractFields": complete_values,
         }
     if require_responsive:
         responsive_sets = {
@@ -308,14 +431,24 @@ def validate_prd_wireframe_data(
                 f"wireframes: screen {surface_id} states {sorted(wireframe_states)} "
                 f"differ from the PRD states {sorted(prd_states)}"
             )
-        if copy_contract and prd_surfaces[surface_id]["copyStatus"] != screen.get(
-            "copyStatus"
-        ):
-            errors.append(
-                f"wireframes: screen {surface_id} copy status "
-                f"{screen.get('copyStatus')!r} differs from the PRD copy status "
-                f"{prd_surfaces[surface_id]['copyStatus']!r}"
+        if copy_contract:
+            prd_status = prd_surfaces[surface_id]["copyStatus"]
+            wireframe_status = screen.get("copyStatus")
+            copy_advances_from_draft = (
+                prd_status == "draft"
+                and wireframe_status == "approved"
             )
+            if prd_status in {"revision_requested", "blocked"}:
+                errors.append(
+                    f"wireframes: screen {surface_id} cannot proceed while the PRD "
+                    f"copy status is {prd_status!r}"
+                )
+            elif not copy_advances_from_draft and prd_status != wireframe_status:
+                errors.append(
+                    f"wireframes: screen {surface_id} copy status "
+                    f"{screen.get('copyStatus')!r} differs from the PRD copy status "
+                    f"{prd_surfaces[surface_id]['copyStatus']!r}"
+                )
         has_viewports = isinstance(data.get("viewports"), list)
         has_size_classes = isinstance(data.get("sizeClasses"), list)
         if has_viewports == has_size_classes:
