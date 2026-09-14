@@ -140,6 +140,115 @@ def _read_git_artifact_blob(
 
 UI_TARGET_COMPARISON_BASELINES = {"html_target", "design_system"}
 UI_TARGET_COMPARISON_VERDICTS = {"pass", "deviation"}
+UI_EVIDENCE_REQUIRED_VERSION = (0, 38, 0)
+UI_CAPTURE_MODES = {
+    "hosted-browser",
+    "browser-extension",
+    "native",
+    "desktop",
+}
+UI_CAPTURE_METHODS = {
+    "hosted-browser": {"browser"},
+    "browser-extension": {"browser-extension"},
+    "native": {"native-ui-test", "manual-native"},
+    "desktop": {"desktop-ui-test", "manual-desktop"},
+}
+
+
+def _strict_ui_evidence_required(run: dict[str, Any]) -> bool:
+    """Whether the current RUN requires platform-bound v0.38 evidence.
+
+    Older RUN-v11 files remain readable for recovery.  The stricter capture
+    and immutable baseline contract is activated only by an explicit version
+    pin, so a legacy archive operation cannot be made invalid merely by
+    importing this module.
+    """
+
+    return run.get("schema_version") == 11 and version_at_least(
+        run_required_harness_version(run), UI_EVIDENCE_REQUIRED_VERSION
+    )
+
+
+def _valid_source_path(value: Any) -> bool:
+    """Accept only repository-relative POSIX source paths."""
+
+    if not _nonempty_string(value) or "\\" in value or value.startswith("/"):
+        return False
+    if re.match(r"^[A-Za-z]:", value):
+        return False
+    parts = value.split("/")
+    return all(part not in {"", ".", ".."} for part in parts)
+
+
+def _source_rows(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(plan, dict) or not isinstance(plan.get("sources"), list):
+        return []
+    return [row for row in plan["sources"] if isinstance(row, dict)]
+
+
+def _source_identity(row: dict[str, Any]) -> dict[str, str] | None:
+    """Convert a frozen PLAN source row to the evidence identity shape."""
+
+    path = row.get("location")
+    digest = row.get("content_sha256")
+    if not _valid_source_path(path) or not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
+        return None
+    return {"path": path, "sha256": digest}
+
+
+def _expected_authority_sources(
+    plan: dict[str, Any] | None, baseline: str
+) -> list[dict[str, str]] | None:
+    """Resolve the exact frozen visual authority rows for a baseline.
+
+    Harness 0.38 freezes the approved target as an explicit ``approved ui
+    target`` PLAN source.  A required design system uses the two pair rows in
+    semantic order (Markdown first, then JSON); it never accepts an arbitrary
+    contract-check key.
+    """
+
+    rows = _source_rows(plan)
+    if not rows:
+        return None
+    if baseline == "html_target":
+        matches = [row for row in rows if row.get("kind") == "approved ui target"]
+        if len(matches) != 1:
+            return []
+        identity = _source_identity(matches[0])
+        return [identity] if identity is not None else []
+    if baseline == "design_system":
+        markdown = [
+            row
+            for row in rows
+            if row.get("kind") in {"design system markdown", "design system"}
+        ]
+        registry = [
+            row
+            for row in rows
+            if row.get("kind") in {"design system machine", "design system json"}
+        ]
+        if len(markdown) != 1 or len(registry) != 1:
+            return []
+        identities = [_source_identity(markdown[0]), _source_identity(registry[0])]
+        return [identity for identity in identities if identity is not None] \
+            if all(identity is not None for identity in identities) else []
+    return None
+
+
+def _surface_for_evidence(
+    plan: dict[str, Any] | None, item: dict[str, Any]
+) -> dict[str, Any] | None:
+    if not isinstance(plan, dict) or not isinstance(plan.get("ui_surfaces"), list):
+        return None
+    surface_id = item.get("surface_id")
+    return next(
+        (
+            surface
+            for surface in plan["ui_surfaces"]
+            if isinstance(surface, dict) and surface.get("id") == surface_id
+        ),
+        None,
+    )
 
 UI_LAYOUT_CHECK_PREFIXES = ("fail", "manual", "n/a")
 UI_LAYOUT_CHECK_REQUIRED_VERSION = (0, 34, 0)
@@ -304,7 +413,14 @@ def validate_deviation_ledger(run: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _validate_target_comparison(errors: list[str], path: str, item: dict[str, Any]) -> None:
+def _validate_target_comparison(
+    errors: list[str],
+    path: str,
+    item: dict[str, Any],
+    *,
+    plan: dict[str, Any] | None = None,
+    run: dict[str, Any] | None = None,
+) -> None:
     """Check one RUN-v11 ui_evidence row's Final Visual Parity Loop record.
 
     Every v11 row must state what it was compared against (an approved HTML
@@ -318,8 +434,20 @@ def _validate_target_comparison(errors: list[str], path: str, item: dict[str, An
     if not isinstance(comparison, dict):
         _add(errors, comparison_path, "must be an object")
         return
+    strict = _strict_ui_evidence_required(run or {})
+    if strict:
+        required_keys = {
+            "baseline",
+            "authority_sources",
+            "baseline_artifact",
+            "baseline_artifact_sha256",
+            "verdict",
+            "differences",
+        }
+        if not _keys(errors, comparison_path, comparison, required_keys):
+            return
     baseline = comparison.get("baseline")
-    if baseline not in UI_TARGET_COMPARISON_BASELINES:
+    if not isinstance(baseline, str) or baseline not in UI_TARGET_COMPARISON_BASELINES:
         _add(
             errors,
             f"{comparison_path}.baseline",
@@ -327,7 +455,7 @@ def _validate_target_comparison(errors: list[str], path: str, item: dict[str, An
         )
         return
     baseline_artifact = comparison.get("baseline_artifact")
-    if baseline == "html_target":
+    if strict or baseline == "html_target":
         if not _valid_ui_artifact_path(baseline_artifact):
             _add(
                 errors,
@@ -340,8 +468,76 @@ def _validate_target_comparison(errors: list[str], path: str, item: dict[str, An
             f"{comparison_path}.baseline_artifact",
             "must be a non-empty contract-check evidence key",
         )
+    if strict:
+        baseline_digest = comparison.get("baseline_artifact_sha256")
+        if not isinstance(baseline_digest, str) or not SHA256_RE.fullmatch(
+            baseline_digest
+        ):
+            _add(
+                errors,
+                f"{comparison_path}.baseline_artifact_sha256",
+                "must be a lowercase SHA-256",
+            )
+        authority = comparison.get("authority_sources")
+        if not isinstance(authority, list) or not authority:
+            _add(
+                errors,
+                f"{comparison_path}.authority_sources",
+                "must be a non-empty list of exact frozen source identities",
+            )
+        else:
+            seen_paths: set[str] = set()
+            for index, source in enumerate(authority):
+                source_path = f"{comparison_path}.authority_sources[{index}]"
+                if not _keys(errors, source_path, source, {"path", "sha256"}):
+                    continue
+                if not _valid_source_path(source.get("path")):
+                    _add(
+                        errors,
+                        f"{source_path}.path",
+                        "must be a repository-relative POSIX path",
+                    )
+                source_sha256 = source.get("sha256")
+                if not isinstance(source_sha256, str) or not SHA256_RE.fullmatch(
+                    source_sha256
+                ):
+                    _add(
+                        errors,
+                        f"{source_path}.sha256",
+                        "must be a lowercase SHA-256",
+                    )
+                source_location = source.get("path")
+                if isinstance(source_location, str):
+                    if source_location in seen_paths:
+                        _add(errors, source_path, "duplicates an earlier authority source")
+                    seen_paths.add(source_location)
+            expected = _expected_authority_sources(plan, baseline)
+            if expected is not None and authority != expected:
+                _add(
+                    errors,
+                    f"{comparison_path}.authority_sources",
+                    "must exactly match the frozen PLAN authority source identities",
+                )
+        surface = _surface_for_evidence(plan, item)
+        if surface is not None:
+            capture_mode = surface.get("capture_mode")
+            if not isinstance(capture_mode, str) or capture_mode not in UI_CAPTURE_MODES:
+                _add(
+                    errors,
+                    f"plan.ui_surfaces[{item.get('surface_id')}].capture_mode",
+                    "must be one of browser-extension|desktop|hosted-browser|native",
+                )
+            elif baseline in UI_TARGET_COMPARISON_BASELINES:
+                has_ds_pair = bool(_expected_authority_sources(plan, "design_system"))
+                expected_baseline = "design_system" if has_ds_pair else "html_target"
+                if baseline != expected_baseline:
+                    _add(
+                        errors,
+                        f"{comparison_path}.baseline",
+                        f"must be {expected_baseline} for the frozen Design System Need gate",
+                    )
     verdict = comparison.get("verdict")
-    if verdict not in UI_TARGET_COMPARISON_VERDICTS:
+    if not isinstance(verdict, str) or verdict not in UI_TARGET_COMPARISON_VERDICTS:
         _add(
             errors,
             f"{comparison_path}.verdict",
@@ -394,6 +590,9 @@ def _validate_ui_evidence(
         "head_sha",
         "status",
     }
+    strict = _strict_ui_evidence_required(run)
+    if strict:
+        evidence_keys = evidence_keys | {"capture_method", "target_comparison"}
     layout_required = _layout_check_required(run)
     if layout_required:
         evidence_keys = evidence_keys | {"layout_check"}
@@ -410,6 +609,8 @@ def _validate_ui_evidence(
         optional_keys = (
             ("target_comparison",) if run.get("schema_version") == 11 else ()
         )
+        if strict:
+            optional_keys = tuple(key for key in optional_keys if key != "target_comparison")
         if not layout_required:
             optional_keys = tuple(optional_keys) + ("layout_check",)
         if not _keys(errors, path, item, evidence_keys, optional_keys):
@@ -466,7 +667,24 @@ def _validate_ui_evidence(
                 "RUN-v10/v11 UI evidence requires a recorded accepted Git commit/ref in head_sha",
             )
         if run.get("schema_version") == 11:
-            _validate_target_comparison(errors, path, item)
+            _validate_target_comparison(errors, path, item, plan=plan, run=run)
+        if strict:
+            surface = _surface_for_evidence(plan, item)
+            capture_mode = surface.get("capture_mode") if surface else None
+            capture_method = item.get("capture_method")
+            if capture_mode not in UI_CAPTURE_MODES:
+                _add(
+                    errors,
+                    f"{path}.capture_method",
+                    "cannot be validated because the PLAN capture_mode is missing or invalid",
+                )
+            elif not isinstance(capture_method, str) or capture_method not in UI_CAPTURE_METHODS[capture_mode]:
+                expected = "|".join(sorted(UI_CAPTURE_METHODS[capture_mode]))
+                _add(
+                    errors,
+                    f"{path}.capture_method",
+                    f"must be {expected} for PLAN capture_mode {capture_mode}",
+                )
         _validate_layout_check(errors, path, item, required=layout_required)
         if (
             layout_required
@@ -754,15 +972,26 @@ def validate_ui_surface_design_registry(
 
 
 def validate_ui_evidence_files(
-    run: dict[str, Any], repo_root: str | Path
+    plan_or_run: dict[str, Any],
+    run_or_repo_root: dict[str, Any] | str | Path,
+    repo_root: str | Path | None = None,
 ) -> list[str]:
     """Verify screenshot bytes and hashes for RUN-v9/v10/v11.
 
     RUN-v9 retains its historical working-tree binding. RUN-v11 reads the
     artifact blob from each row's accepted ``head_sha`` first, then decodes and
     hashes those immutable bytes; a working-tree-only or mutated screenshot is
-    never accepted for the current evidence contract.
+    never accepted for the current evidence contract.  The preferred v0.38
+    signature is ``(plan, run, repo_root)``.  ``(run, repo_root)`` remains
+    accepted for archive/recovery callers and retains legacy shape checks.
     """
+
+    if repo_root is None:
+        run = plan_or_run
+        root_arg = run_or_repo_root
+    else:
+        run = run_or_repo_root if isinstance(run_or_repo_root, dict) else {}
+        root_arg = repo_root
 
     schema_version = run.get("schema_version")
     if schema_version not in {9, 10, 11} or not isinstance(
@@ -770,7 +999,12 @@ def validate_ui_evidence_files(
     ):
         return []
     errors: list[str] = []
-    root = Path(repo_root).resolve()
+    root = Path(root_arg).resolve()
+    # File validation remains strict even for legacy callers that cannot pass
+    # the PLAN (archive_run/older closeout paths).  The PLAN-aware schema join
+    # separately proves that the authority list is the exact frozen source
+    # identity; this pass still verifies every listed blob and digest.
+    strict = _strict_ui_evidence_required(run)
     for index, item in enumerate(run["ui_evidence"]):
         if not isinstance(item, dict) or not _valid_ui_artifact_path(
             item.get("artifact_path")
@@ -815,6 +1049,12 @@ def validate_ui_evidence_files(
         if not artifact_bytes:
             _add(errors, path, "must not be empty")
             continue
+        if strict:
+            artifact_digest = item.get("artifact_sha256")
+            if not isinstance(artifact_digest, str) or not SHA256_RE.fullmatch(
+                artifact_digest
+            ):
+                _add(errors, path, "artifact_sha256 must be a lowercase SHA-256")
         if image_error := _ui_image_decode_error(artifact_bytes, item["artifact_path"]):
             _add(errors, path, image_error)
         elif _nonempty_string(item.get("artifact_sha256")):
@@ -829,8 +1069,8 @@ def validate_ui_evidence_files(
         if (
             schema_version == 11
             and isinstance(comparison, dict)
-            and comparison.get("baseline") == "html_target"
             and _valid_ui_artifact_path(comparison.get("baseline_artifact"))
+            and (strict or comparison.get("baseline") == "html_target")
         ):
             baseline_path = (
                 f"run.ui_evidence[{index}].target_comparison.baseline_artifact"
@@ -851,6 +1091,48 @@ def validate_ui_evidence_files(
                 baseline_bytes, comparison["baseline_artifact"]
             ):
                 _add(errors, baseline_path, baseline_error)
+            elif strict:
+                baseline_digest = comparison.get("baseline_artifact_sha256")
+                actual_baseline_digest = hashlib.sha256(baseline_bytes).hexdigest()
+                if baseline_digest != actual_baseline_digest:
+                    _add(
+                        errors,
+                        baseline_path,
+                        "sha256 does not match baseline_artifact_sha256",
+                    )
+
+        if strict and isinstance(comparison, dict):
+            authority = comparison.get("authority_sources")
+            if isinstance(authority, list):
+                for authority_index, source in enumerate(authority):
+                    source_path = (
+                        f"run.ui_evidence[{index}].target_comparison."
+                        f"authority_sources[{authority_index}]"
+                    )
+                    if not isinstance(source, dict):
+                        continue
+                    authority_location = source.get("path")
+                    authority_digest = source.get("sha256")
+                    if not _valid_source_path(authority_location):
+                        continue
+                    authority_bytes, reason = _read_git_artifact_blob(
+                        root, head_sha, authority_location
+                    )
+                    if authority_bytes is None:
+                        _add(
+                            errors,
+                            source_path,
+                            f"does not exist in accepted Git commit/ref {head_sha!r}: "
+                            f"{reason or 'git show could not read the blob'}",
+                        )
+                        continue
+                    actual_authority_digest = hashlib.sha256(authority_bytes).hexdigest()
+                    if authority_digest != actual_authority_digest:
+                        _add(
+                            errors,
+                            source_path,
+                            "sha256 does not match authority source bytes",
+                        )
     return sorted(set(errors))
 
 

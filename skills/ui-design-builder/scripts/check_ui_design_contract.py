@@ -116,12 +116,22 @@ RECEIPT_METHODS = {
     "rubric-grading",
     "impeccable-critique",
     "impeccable-audit",
+    "sandboxed-offline-browser",
 }
+HIFI_SURFACE_RECEIPT_METHOD = "sandboxed-offline-browser"
 
 
 def _receipt_contract(check: str | None) -> tuple[set[str], str] | None:
     if check is None:
         return None
+    if check in {"hifi-browser", "hifi-extension", "hifi-native", "hifi-desktop"}:
+        tool_by_check = {
+            "hifi-browser": {"playwright", "chrome-devtools"},
+            "hifi-extension": {"playwright-extension"},
+            "hifi-native": {"xcode-simulator", "android-emulator"},
+            "hifi-desktop": {"desktop-browser"},
+        }
+        return tool_by_check[check], HIFI_SURFACE_RECEIPT_METHOD
     if check.endswith("-browser"):
         return {"playwright", "chrome-devtools"}, "browser-matrix"
     if check.endswith("-extension"):
@@ -270,6 +280,123 @@ def _replacement_parts(value: str | None, problems: list[str]) -> dict[str, str]
             "target, ui-design, wireframe, and prd path/hash entries",
         )
     return parts
+
+
+def _source_identity(value: str | None) -> dict[str, str] | None:
+    """Return one parsed source identity without performing filesystem I/O.
+
+    Harness and the design-system compiler need the exact identities already
+    recorded by this contract.  Keeping this parser here avoids each consumer
+    re-implementing regular expressions (and accidentally accepting a subtly
+    different path or digest).
+    """
+
+    match = SOURCE_RE.fullmatch((value or "").strip()) if value else None
+    if match is None:
+        return None
+    return {"path": match.group("path"), "sha256": match.group("sha256")}
+
+
+def parse_ui_contract_view(text: str) -> tuple[dict[str, Any], list[str]]:
+    """Return the read-only authority view consumed by downstream joins.
+
+    This intentionally parses only values that are already part of the UI
+    contract.  It does not approve, resolve, or mutate anything; callers still
+    run :func:`validate` for the full publication gate.  The returned view is
+    stable across consumers and includes source identities, the approved target
+    and typed capture scope, the Design System Need Gate decision, pair or
+    replacement linkage, and the canonical approval digest.
+    """
+
+    active = active_text(text)
+    source_section = _section(active, "## Source Product Definition") or ""
+    wireframe_section = _section(active, "## Wireframe Approval") or ""
+    style_section = _section(active, "## Style Integration") or ""
+    visual_section = _section(active, "## Visual Approval") or ""
+    gate_section = _section(active, "## Design System Need Gate") or ""
+
+    sources = {
+        "prd": _source_identity(_field(source_section, "PRD source")),
+        "architecture": _source_identity(
+            _field(source_section, "Architecture source")
+        ),
+        "stack": _source_identity(_field(source_section, "Stack source")),
+        "wireframe": _source_identity(_field(wireframe_section, "Wireframe")),
+        "frozen_prd": _source_identity(
+            _field(wireframe_section, "Frozen PRD basis")
+        ),
+        "hifi": _source_identity(
+            _field(style_section, "Connected HiFi reference")
+        ),
+    }
+
+    target_raw = _field(visual_section, "Approved target")
+    target_match = TARGET_SOURCE_RE.fullmatch((target_raw or "").strip()) if target_raw else None
+    parse_problems: list[str] = []
+    target_scope = _target_scope(target_raw, "Approved target", parse_problems)
+    approved_target = None
+    if target_match is not None:
+        approved_target = {
+            "path": target_match.group("path"),
+            "sha256": target_match.group("sha256"),
+            "raw": target_raw,
+            "scope": target_scope,
+            "captureMode": target_match.group("captureMode"),
+        }
+
+    gate_decision = (_field(gate_section, "Decision") or "").strip().casefold()
+    compiled_values = _field_values(gate_section, "Compiled design system pair")
+    replacement_values = _field_values(
+        gate_section, "Replacement visual contract when_not_required"
+    ) or _field_values(gate_section, "Replacement visual contract when not_required")
+    pair = None
+    if compiled_values:
+        pair_match = PAIR_RE.fullmatch(compiled_values[0].strip())
+        if pair_match is not None:
+            pair = {
+                "markdown": {
+                    "path": pair_match.group("markdown"),
+                    "sha256": pair_match.group("markdown_sha256"),
+                },
+                "registry": {
+                    "path": pair_match.group("registry"),
+                    "sha256": pair_match.group("registry_sha256"),
+                },
+            }
+    replacement = _replacement_parts(
+        replacement_values[0] if replacement_values else None, parse_problems
+    ) if replacement_values else {}
+
+    view: dict[str, Any] = {
+        "source_identities": sources,
+        # Short aliases keep the exported view ergonomic while the longer
+        # names remain the canonical serialized shape.
+        "sources": sources,
+        "approved_target": approved_target,
+        "target_scope": target_scope,
+        "capture_mode": (
+            target_scope.get("captureMode")
+            if isinstance(target_scope, dict)
+            else None
+        ),
+        "gate": {
+            "decision": gate_decision or None,
+            "pair": pair,
+            "replacement": replacement,
+        },
+        "gate_decision": gate_decision or None,
+        "design_system_pair": pair,
+        "replacement": replacement,
+        "canonical_ui_digest": canonical_ui_approval_sha256(text),
+    }
+    return view, parse_problems
+
+
+# Public aliases for downstream skills that describe the result as a contract
+# view rather than a parser. They intentionally point to the same read-only
+# implementation so consumers cannot drift into separate regex grammars.
+parse_ui_contract = parse_ui_contract_view
+ui_contract_view = parse_ui_contract_view
 
 
 def _score(value: str | None) -> int | None:
@@ -607,6 +734,18 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
     parser = check_wireframe_html.ResourceParser()
     parser.feed(html)
     parser.close()
+    for finding in parser.csp_document_errors:
+        _add(problems, finding)
+    if len(parser.content_security_policies) != 1:
+        _add(
+            problems,
+            "Connected HiFi reference must contain exactly one canonical restrictive CSP meta",
+        )
+    else:
+        for finding in check_wireframe_html.validate_hifi_csp_policy(
+            parser.content_security_policies[0]
+        ):
+            _add(problems, finding)
     if parser.duplicate_attributes:
         _add(problems, "Connected HiFi reference has duplicate HTML attributes")
     if parser.link_tags:
@@ -995,8 +1134,30 @@ def _resolve_evidence(
                         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
                             _add(problems, f"{label} evidence receipt.outputArtifact must be JSON: {exc}")
                         else:
-                            if not isinstance(output_json, dict) or set(output_json) != {"schema", "check", "subject", "matrix", "results"}:
-                                _add(problems, f"{label} output artifact must use the ui-output/1 schema")
+                            offline = receipt.get("method") == HIFI_SURFACE_RECEIPT_METHOD
+                            expected_output_keys = {
+                                "schema",
+                                "check",
+                                "subject",
+                                "matrix",
+                                "results",
+                                "sandbox",
+                                "console",
+                                "network",
+                                "navigation",
+                            } if offline else {
+                                "schema",
+                                "check",
+                                "subject",
+                                "matrix",
+                                "results",
+                            }
+                            if not isinstance(output_json, dict) or set(output_json) != expected_output_keys:
+                                _add(
+                                    problems,
+                                    f"{label} output artifact must use the "
+                                    + ("sandboxed offline ui-output/1 transcript schema" if offline else "ui-output/1 schema"),
+                                )
                             elif (
                                 output_json.get("schema") != "ui-output/1"
                                 or output_json.get("check") != evidence.get("check")
@@ -1005,6 +1166,9 @@ def _resolve_evidence(
                                 or output_json.get("results") != receipt.get("results")
                             ):
                                 _add(problems, f"{label} output artifact does not exactly match its receipt")
+                            elif offline:
+                                for finding in _offline_transcript_findings(output_json):
+                                    _add(problems, finding)
         timestamp = receipt.get("executedAt")
         try:
             parsed_time = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
@@ -1036,7 +1200,42 @@ def _evidence_check(label: str, capture_mode: str | None) -> str | None:
         if label == "HiFi UI grading":
             return f"hifi-{suffix}-grading"
         return f"hifi-{suffix}-impeccable-{'critique' if 'critique' in label.casefold() else 'audit'}"
-    return EVIDENCE_CHECKS.get(label)
+
+
+def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
+    """Validate the retained sandbox transcript without claiming JS analysis."""
+
+    findings: list[str] = []
+    expected_sandbox = {
+        "network": "disabled",
+        "topNavigation": "blocked",
+        "popups": "blocked",
+        "forms": "blocked",
+    }
+    if output.get("sandbox") != expected_sandbox:
+        findings.append(
+            "HiFi offline output artifact sandbox must record disabled network, "
+            "blocked top navigation/popups/forms"
+        )
+    console = output.get("console")
+    network = output.get("network")
+    navigation = output.get("navigation")
+    if not isinstance(console, list) or not isinstance(network, list) or not isinstance(navigation, list):
+        findings.append("HiFi offline output artifact must contain console, network, and navigation transcript arrays")
+        return findings
+    for event in console:
+        if isinstance(event, dict):
+            level = str(event.get("level", "")).casefold()
+            message = str(event.get("message", ""))
+            if level in {"error", "exception", "uncaught"} or re.search(r"\b(?:error|exception|uncaught)\b", message, re.I):
+                findings.append("HiFi offline transcript contains a console error")
+        elif re.search(r"\b(?:error|exception|uncaught)\b", str(event), re.I):
+            findings.append("HiFi offline transcript contains a console error")
+    if network:
+        findings.append("HiFi offline transcript recorded a network request")
+    if navigation:
+        findings.append("HiFi offline transcript recorded a navigation or popup attempt")
+    return sorted(set(findings))
 
 
 def _resolve_target_source(

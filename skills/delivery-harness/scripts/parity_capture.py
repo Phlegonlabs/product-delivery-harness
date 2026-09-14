@@ -39,6 +39,45 @@ VIEWPORT_HEIGHT = 1000
 GEOMETRY_PROBE_LIMIT = 400
 OVERLAP_REPORT_LIMIT = 10
 
+
+def _capture_mode_errors(plan: dict[str, Any]) -> list[str]:
+    """Refuse URL parity for extension, native, and desktop surfaces.
+
+    ``parity_capture`` is intentionally a hosted-browser helper.  The other
+    modes still require real platform screenshots, but those are collected by
+    extension automation or native/desktop UI-test tooling and must never be
+    approximated with a ``--base-url`` browser capture.
+    """
+
+    errors: list[str] = []
+    modes: set[str] = set()
+    for index, surface in enumerate(plan.get("ui_surfaces") or []):
+        if not isinstance(surface, dict) or "capture_mode" not in surface:
+            continue  # pre-0.38 plans retain the hosted-browser behavior
+        mode = surface.get("capture_mode")
+        if not isinstance(mode, str) or mode not in {
+            "hosted-browser",
+            "browser-extension",
+            "native",
+            "desktop",
+        }:
+            errors.append(
+                f"PLAN ui_surfaces[{index}].capture_mode is invalid: {mode!r}"
+            )
+            continue
+        modes.add(mode)
+        if mode != "hosted-browser":
+            errors.append(
+                f"capture mode {mode!r} is not supported by parity_capture; "
+                "use extension/native/desktop platform tooling and manual captures"
+            )
+    if len(modes) > 1 and not errors:
+        errors.append(
+            "parity_capture requires one hosted-browser capture mode; mixed UI "
+            "platforms must be captured by their platform-specific tooling"
+        )
+    return errors
+
 GEOMETRY_PROBE_JS = """
 (() => {
   const describe = (el) => {
@@ -350,6 +389,12 @@ def capture(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    mode_errors = _capture_mode_errors(plan)
+    if mode_errors:
+        for problem in mode_errors:
+            print(f"error: {problem}", file=sys.stderr)
+        return 1
+
     all_combos = _matrix(plan, None)
     combos = _matrix(plan, args.only)
     if not combos:
@@ -368,6 +413,14 @@ def capture(args: argparse.Namespace) -> int:
     if version.returncode != 0:
         print(
             f"error: agent-browser not runnable: {version.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if not args.base_url:
+        print(
+            "error: --base-url is required for hosted-browser parity capture; "
+            "native, desktop, and browser-extension modes never use URL parity",
             file=sys.stderr,
         )
         return 1
@@ -477,6 +530,7 @@ def capture(args: argparse.Namespace) -> int:
         "gating_eligible": not partial and not errors,
         "session": session,
         "reference": args.reference.as_posix(),
+        "capture_mode": "hosted-browser",
         "base_url": base_url,
         "viewport_height": args.height or VIEWPORT_HEIGHT,
         "full_page": args.full_page,
@@ -521,7 +575,7 @@ def main(argv: list[str] | None = None) -> int:
         help="approved design-reference HTML path",
     )
     parser.add_argument(
-        "--base-url", required=True, help="implemented app origin, e.g. http://localhost:3000"
+        "--base-url", help="implemented app origin for hosted-browser parity, e.g. http://localhost:3000"
     )
     parser.add_argument(
         "--route-map", type=Path, help="JSON mapping routes to reference selectors and state triggers"

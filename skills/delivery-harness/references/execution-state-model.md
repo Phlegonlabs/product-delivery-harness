@@ -99,7 +99,7 @@ Verifier declarations are data, not shell prose. Each verifier records at least 
 
 A worker-supplied hash is only a claim, even when it is 64 lowercase hexadecimal characters. The parent retains each `verifier_runtime.py` result, including verifier ID, immutable context, key document, exact head, status, exit result, and execution key. Worker-result validation recomputes the key from the retained key document and requires the reported verifier ID, status, and evidence key to match that parent-retained result exactly. Missing, forged, stale-context, wrong-head, or mismatched results fail closed.
 
-When the CLI is given `--repo-root`, current PLAN-v6 local sources are resolved inside that root and checked against their frozen bytes; a supplied `source_revision` is read from that immutable Git revision. URLs are not fetched and need an immutable revision or a local frozen snapshot. For RUN-v11 UI evidence, the verifier reads the artifact blob from the recorded accepted Git commit/ref, decodes those bytes, and only then compares `artifact_sha256`; RUN-v9 retains working-tree compatibility.
+When the CLI is given `--repo-root`, local sources resolve inside that root. Harness 0.38 joined Product/UI/Design sources require exact canonical kind/path plus `content_sha256`; current bytes must match, and a supplied full-SHA `source_revision` blob must equal those same bytes. URLs are never fetched as joined authority. RUN-v11 UI evidence reads artifact, baseline, and visual-authority blobs from the accepted Git commit before decoding and comparing hashes; RUN-v9 retains working-tree compatibility.
 
 Derived artifacts must bind all three values:
 
@@ -206,7 +206,7 @@ Record each such modification as its own mission: open it through a plan revisio
 
 A mid-run modification is not done when the edit lands; it is done when it is recorded in RUN and visible in the tasks view. `docs/tasks.md` ends the run listing every modification the run made — nothing stays only in the working tree or only in the conversation.
 
-After the run completes and before its coordination set is archived, every owner-requested or agent-side update that is not already reflected in `docs/product/PRD.md` is appended as one dated row — who, what, why — to the `docs/tasks.md` Update Log, the hand-maintained section fenced by `update-log` markers that `render_tasks_view.py` preserves verbatim and never rewrites. A product-affecting update additionally follows the project's keep-product-contracts-current rule into the PRD in the same change. The Update Log archives with its run; the PRD stays the persistent product record. Post-delivery activation runs after promotion and before archival, so the parent can record activation findings as dated Update Log rows while `docs/tasks.md` is still live.
+Before the completed coordination set is archived, append every owner or agent update not already reflected in `docs/product/PRD.md` to the preserved `docs/tasks.md` Update Log. Product-affecting changes also update the PRD in the same change. Archive candidate A then freezes that log with the RUN; the PRD remains the persistent product record. Activation, outcome review, and SEO happen only after A reaches `main` and production is verified, so their findings belong to their own operational records or a later enhancement, never a reopened archived RUN.
 
 ## Typed Graph State
 
@@ -255,11 +255,11 @@ delete_branches
 
 `invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization.
 
-The ordinary execution loop uses only the applicable local entries: `invoke_external_runtime`, the selected worker/worktree actions, `create_local_branches`, `create_local_commits`, and `integrate_locally`. An instruction such as "implement", "build", "fix", or "refactor" records its source under those covered local keys and never implies `push`. A separate explicit remote instruction such as "push" or "publish" must authorize `push` for exactly one resolved integration branch and the current integration head. The outer v10 `app_threads` app-task route excludes `spawn_subagents` because app-task workers never delegate. Parent-dispatched direct sibling workers and reviewers, including agents launched by the Claude workflow driver, retain their top-level `spawn_subagents` requirement. RUN v6-v9 nested policies retain their legacy wildcard-compatible validation behavior but are not a template for new execution. All 12 ledger keys remain present; `archive_worker_tasks`, `remove_worktrees`, `delete_branches`, and any push outside the resolved branch remain independent gates.
+The ordinary execution loop uses only the applicable local entries. The outer v10 `app_threads` app-task route excludes `spawn_subagents` because app-task workers never delegate. Parent-dispatched direct sibling workers and reviewers retain their own launch authorization. "Implement", "build", "fix", or "refactor" never implies a remote action. Harness 0.38 keeps RUN `push` false; after A exists, a new exact instruction is captured in the checkout-external request instead of the archived RUN. Older pinned RUNs keep their historical push path only for recovery. All 12 keys remain for schema compatibility.
 
 For a large `sequential_parent` route, leave `spawn_subagents`, `create_user_owned_tasks`, and `create_app_managed_worktrees` unauthorized and unused. The route's parent-owned worktree/branch/commit/integration actions still require their own matching grants. The binding itself is defined once above.
 
-The current v10 push guard requires explicit remote intent, one exact target equal to the resolved `integration.branch`, and `authorized_head_sha` equal to the current `integration.integration_head_sha`. Literal `main` remains a fail-safe refusal. When optional `observed.git.default_branch` is available, its resolved branch is refused too; when that identity is unknown, the current push fails closed while unrelated local actions remain usable. Legacy RUN validation keeps its historical behavior.
+For explicitly pinned pre-0.38 RUN-v11 recovery only, the legacy push guard requires explicit remote intent, one exact integration-branch target, and the current integration head. Harness 0.38 rejects that path before any side effect. Its post-archive protocol instead binds C, A, the archive, run branch, configured remote, pre-state, action-time source, attempt nonce, and fresh read-back in external immutable artifacts. Neither path can target `main` or `development`.
 
 Each `authorizations` entry has this minimum shape:
 
@@ -307,18 +307,18 @@ Before each action, check its entry again and compare it with observed state. A 
 
 ## Landing State
 
-Schema v10 requires a `landing` object with exactly four keys:
+RUN v11 keeps the four-key `landing` shape for compatibility:
 
 ```text
-mode: local_only | integration_push
+mode: local_only
 remote
 pushed_head_sha
 continuity: { status, branch_ref, head_sha, reason }
 ```
 
-A run starts and normally ends in `local_only`: the verified local integration head is recorded without touching the remote. An explicit remote outcome may move it to `integration_push`; the verified integration head is then pushed to the run's own branch, and the run is complete at that push. `pushed_head_sha` must equal `integration.integration_head_sha` — a later local commit would otherwise leave the run claiming a head the remote never received — and the push needs the exact branch/head authorization above. Either way, every mission worktree still passes its exact-head pre-integration review.
+A Harness 0.38 RUN starts and ends `local_only` at candidate C. `pushed_head_sha` stays null, the RUN push authorization stays false, and the graph has no push lifecycle node. The complete archived RUN remains bound to C; writing later candidate A into it would change A and create a self-reference. Explicitly pinned pre-0.38 RUN-v11 files retain the historical `integration_push` shape for recovery only.
 
-RUN landing still ends at local completion or its own run-branch push. After RUN close, `branch-promotion-contract.md` governs complete candidate verification and separately authorized exact-SHA fast-forward promotion to `main`. No RUN grant authorizes the default branch; the retired `development` name remains forbidden as a run target.
+After RUN close, `archive_run.py` writes closed `ARCHIVE_RECEIPT.json` plus a required immutable checkout-external anchor from validated pre-move bytes, then moves coordination. An authorized bookkeeping commit creates A. `push_archived_candidate.py` requires that same anchor, verifies the archived PLAN/RUN and exact C-to-A change, then uses separate external request/attempt/receipt artifacts for run-branch publication. Candidate gates and exact-A `main` promotion follow.
 
 `integration.branch` is the only branch field in RUN. Every push target is built from it, so there is no head/base pair to keep in sync. The optional `observed.git.default_branch` fact is only a push safety observation; it is not required for local execution.
 

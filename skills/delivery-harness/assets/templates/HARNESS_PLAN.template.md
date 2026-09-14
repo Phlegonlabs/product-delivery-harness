@@ -16,13 +16,35 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
       {
         "id": "SRC-001",
         "kind": "prd",
-        "location": "<repo-relative path or URL>",
+        "location": "docs/product/PRD.md",
         "owner": "<human or team>",
         "status": "frozen",
         "content_sha256": null,
         "source_revision": "0000000000000000000000000000000000000000",
         "staged_revision": null,
-        "notes": "<role or concise notes>"
+        "notes": "approved product authority"
+      },
+      {
+        "id": "SRC-002",
+        "kind": "architecture",
+        "location": "docs/product/architecture.md",
+        "owner": "<human or team>",
+        "status": "frozen",
+        "content_sha256": null,
+        "source_revision": "0000000000000000000000000000000000000000",
+        "staged_revision": null,
+        "notes": "approved architecture authority"
+      },
+      {
+        "id": "SRC-003",
+        "kind": "stack decisions",
+        "location": "docs/product/stack-decisions.md",
+        "owner": "<human or team>",
+        "status": "frozen",
+        "content_sha256": null,
+        "source_revision": "0000000000000000000000000000000000000000",
+        "staged_revision": null,
+        "notes": "approved stack authority"
       }
     ],
     "traces": [
@@ -360,7 +382,7 @@ The single-mission example deliberately leaves `batch_verifiers` empty: a one-mi
 
 For each `runtime_worker` node, Plan Mode may leave `preferred_provider` null and list every supported host (`codex`, `claude_code`, `pi`, and `generic`) under `allowed_providers`; provider-specific launch options remain under `provider_options`. The selected runtime adapter remains host-native and separate from the selector's `execution_route`. A large route with no usable agent capability uses `sequential_parent`: the PLAN mission stays `executor: runtime_worker`, while RUN records a parent-owned binding with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation.
 
-Every PLAN-v6 source binds the published input with `content_sha256`, `source_revision`, or both. Contract joins use immutable bytes and require `content_sha256`. When a frozen PRD contains Product Definition Approval, PLAN also freezes `architecture.md` and `stack-decisions.md`. Harness 0.37.0+ UI delivery additionally freezes approved `ui-design.md` and `wireframes.html`; the sibling checkers validate the complete product and UI joins, and a required design-system Markdown/JSON pair remains atomic. URLs are never fetched, so an external source needs an immutable revision or local snapshot. `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, update its hash/revision, clear `staged_revision`, then increment PLAN revision and digest.
+Harness 0.38 always freezes the three exact rows shown above with current `content_sha256`; if `source_revision` is present, that full-SHA Git blob and current bytes must both match. Contract joins consume those immutable bytes. UI work adds exact `ui design`, `wireframe`, and `approved ui target` rows at their canonical `docs/design/` paths. A `required` Design System Need gate adds exact `design system` and `design system json` rows; `not_required` adds neither and permits no `DS-*` trace. Every UI surface records `capture_mode: hosted-browser | browser-extension | native | desktop`. URLs are never fetched or joined as authority. A `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, clear staging, and increment PLAN revision/digest.
 
 Every executable verifier declaration uses the explicit container policy shown above. Replace the example image reference with a locally observed immutable RepoDigest before readiness; zero or fabricated template digests are rejected. External, network, browser, and mutable-environment checks use an external-wait, lifecycle, or browser route instead of a local candidate subprocess. Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. Equivalent opted-in task and worker commands on the same immutable inputs reuse one execution even though their verifier IDs differ.
 
@@ -368,7 +390,7 @@ Before readiness, apply `references/execution-task-decomposition.md`'s Mission C
 
 Plan one runtime reviewer per applicable surface, set `max_attempts` to at most 2, and add same-surface fan-out only for an explicit user request or a recorded high-impact risk. Every new code-delivery plan includes one integration-stage `security` review covering all missions and loads the skill bound to `code_security_verification`; it always runs fresh on the unified candidate and cannot use the byte-identical-tree skip. Group repair findings by root-cause failure family, freeze the family's acceptance matrix before another write, and carry consumed review attempts across PLAN revisions in the owner-decision source, mission stop conditions, and reviewer packet. A replan does not grant a fresh review budget. After exhaustion, only an explicit owner decision naming the structural strategy, failure-family matrix, and exact additional allowance may create one successor review node; set its `max_attempts` to that allowance, never the default two. For broad implementation plans, prefer Codex `gpt-5.6-terra` with `high` reasoning, while routine deterministic `backend_code` and `security` review uses `gpt-5.6-terra` with `medium`; provider-specific options remain per-node and the selected runtime adapter remains authoritative. A plan may set a non-null `preferred_provider` only when an explicit host preference is part of the plan; otherwise keep it null so the same canonical graph routes on every supported host. Provider examples may repeat delegated `"model": "sonnet"` and `"model": "gpt-5.6-sol"` for each matching node. Pi keeps model null but may bind per-node effort; generic keeps both values null. Stronger models remain reserved for the parent's own coordination and planning. Raise the unified-head review to `xhigh` only when its gate warrants it; it is the final synthesis, so do not add another same-scope review on an unchanged SHA.
 
-For UI work, load `references/ui-implementation-contract.md`. Design-system compilation is owned by `design-system-compiler` after approved Product Definition and UI design contracts, wireframes, HiFi review, and `Design System Need Gate: required`. UI implementation uses the owner-bound frontend-authoring skill under the Harness conformance contract; never claim the external skill defines a compilation or conformance mode. UI intake and Style Integration are not implementation work. Select exactly one active visual route: a required validated pair or a `not_required` approved page-faithful target. A missing active-source entry is a design-input delta, not a local exception. Run broad regression and browser/UI checks after exact-SHA review and repair converge.
+For UI work, load `references/ui-implementation-contract.md`. Freeze the approved UI contract, wireframes/4, HiFi target, capture mode, and exactly one visual route. `design-system-compiler` owns a required schema-2 pair; otherwise use the exact `not_required` replacement. UI implementation uses the owner-bound frontend-authoring skill under Harness conformance. A missing source is a design-input delta. Run platform-correct evidence after exact-SHA review and repair converge.
 
 Use immutable flat task IDs such as `M1/T01`. Each task has a structured acceptance row exactly `{test_id, trace_ids, criterion}` and a verifier. Task dependencies are same-mission only; cross-mission ordering belongs in typed graph dependency edges. Scope entries are POSIX repository-relative paths or terminal `/**` subtrees. Workers never edit PLAN/RUN or frozen contract sources.
 

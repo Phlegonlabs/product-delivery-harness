@@ -71,7 +71,10 @@ def _requires_repo_root(plan: dict, *, include_paths: bool = False) -> bool:
 
 
 def validate_design_system_pair(
-    markdown_path: str, registry_path: str
+    markdown_path: str,
+    registry_path: str,
+    *,
+    repo_root: str | Path | None = None,
 ) -> list[str]:
     try:
         markdown_text = Path(markdown_path).read_text(encoding="utf-8")
@@ -83,7 +86,9 @@ def validate_design_system_pair(
         return [f"design-system.json: cannot read {registry_path}: {exc}"]
     if not isinstance(registry, dict):
         return [f"design-system.json: {registry_path} must contain a JSON object"]
-    return compare_design_system_pair(markdown_text, registry)
+    return compare_design_system_pair(
+        markdown_text, registry, repo_root=repo_root
+    )
 
 
 def _frozen_sources(
@@ -341,7 +346,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.design_system and args.design_system_markdown:
             errors.extend(
                 validate_design_system_pair(
-                    args.design_system_markdown, args.design_system
+                    args.design_system_markdown,
+                    args.design_system,
+                    repo_root=args.repo_root,
                 )
             )
         if run is not None:
@@ -351,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             repo_root = args.repo_root or "."
-            run_errors.extend(validate_ui_evidence_files(run, repo_root))
+            run_errors.extend(validate_ui_evidence_files(plan, run, repo_root))
             run_errors.extend(validate_integration_head_against_git(run, repo_root))
     except (OSError, ManifestError) as exc:
         sys.stdout.write(

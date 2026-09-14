@@ -360,6 +360,204 @@ class TargetComparisonSchemaTests(unittest.TestCase):
         )
 
 
+class StrictPlatformEvidenceSchemaTests(unittest.TestCase):
+    @staticmethod
+    def plan(*, capture_mode: str = "hosted-browser", with_pair: bool = False) -> dict[str, object]:
+        sources: list[dict[str, object]] = [
+            {
+                "id": "SRC-HIFI",
+                "kind": "approved ui target",
+                "location": "docs/design/ui-references/run-1/index.html",
+                "content_sha256": "c" * 64,
+            }
+        ]
+        if with_pair:
+            sources.extend(
+                [
+                    {
+                        "id": "SRC-DS-MD",
+                        "kind": "design system",
+                        "location": "docs/design/design-system.md",
+                        "content_sha256": "d" * 64,
+                    },
+                    {
+                        "id": "SRC-DS-JSON",
+                        "kind": "design system json",
+                        "location": "docs/design/design-system.json",
+                        "content_sha256": "e" * 64,
+                    },
+                ]
+            )
+        return {
+            "sources": sources,
+            "ui_surfaces": [
+                {
+                    "id": "home",
+                    "route": "/home",
+                    "breakpoints": ["mobile-390"],
+                    "states": ["ready"],
+                    "evidence_gate": "required",
+                    "capture_mode": capture_mode,
+                }
+            ],
+        }
+
+    @staticmethod
+    def row(
+        *,
+        capture_method: str = "browser",
+        baseline: str = "html_target",
+        authority_sources: list[dict[str, str]] | None = None,
+        baseline_artifact: str = "docs/goal/evidence/parity-baseline.png",
+        baseline_artifact_sha256: str = "b" * 64,
+    ) -> dict[str, object]:
+        if authority_sources is None:
+            authority_sources = [
+                {
+                    "path": "docs/design/ui-references/run-1/index.html",
+                    "sha256": "c" * 64,
+                }
+            ]
+        return {
+            "surface_id": "home",
+            "route": "/home",
+            "breakpoint": "mobile-390",
+            "state": "ready",
+            "artifact_path": "docs/goal/evidence/home.png",
+            "artifact_sha256": "a" * 64,
+            "head_sha": "f" * 40,
+            "status": "PASS",
+            "capture_method": capture_method,
+            "layout_check": "pass",
+            "target_comparison": {
+                "baseline": baseline,
+                "authority_sources": authority_sources,
+                "baseline_artifact": baseline_artifact,
+                "baseline_artifact_sha256": baseline_artifact_sha256,
+                "verdict": "pass",
+                "differences": [],
+            },
+        }
+
+    def validate(
+        self,
+        plan: dict[str, object],
+        item: dict[str, object],
+    ) -> list[str]:
+        run: dict[str, object] = {
+            "schema_version": 11,
+            "ui_evidence": [item],
+            "integration": {"integration_head_sha": "f" * 40},
+            "runtime_capabilities": {
+                "runtime_adapter": {
+                    "version_gate": {"required_harness_version": "0.38.0"}
+                }
+            },
+        }
+        errors: list[str] = []
+        subject._validate_ui_evidence(errors, plan, run)
+        return errors
+
+    def test_capture_method_is_bound_to_plan_mode(self) -> None:
+        errors = self.validate(
+            self.plan(), self.row(capture_method="native-ui-test")
+        )
+        self.assertTrue(any("capture_method" in error for error in errors), errors)
+
+    def test_extension_and_native_methods_are_platform_specific(self) -> None:
+        for mode, method in (
+            ("browser-extension", "browser-extension"),
+            ("native", "manual-native"),
+            ("desktop", "desktop-ui-test"),
+        ):
+            with self.subTest(mode=mode):
+                self.assertEqual(
+                    [], self.validate(self.plan(capture_mode=mode), self.row(capture_method=method))
+                )
+
+    def test_authority_sources_must_match_the_frozen_target_row(self) -> None:
+        errors = self.validate(
+            self.plan(),
+            self.row(
+                authority_sources=[
+                    {
+                        "path": "docs/design/ui-references/run-1/index.html",
+                        "sha256": "9" * 64,
+                    }
+                ]
+            ),
+        )
+        self.assertTrue(any("authority_sources" in error for error in errors), errors)
+
+    def test_design_system_baseline_cannot_use_an_arbitrary_evidence_key(self) -> None:
+        errors = self.validate(
+            self.plan(with_pair=True),
+            self.row(
+                baseline="design_system",
+                authority_sources=[
+                    {"path": "docs/design/design-system.md", "sha256": "d" * 64},
+                    {"path": "docs/design/design-system.json", "sha256": "e" * 64},
+                ],
+                baseline_artifact="check_ui_contract:clean-run",
+            ),
+        )
+        self.assertTrue(any("baseline_artifact" in error for error in errors), errors)
+
+    def test_baseline_hash_is_required(self) -> None:
+        item = self.row()
+        comparison = item["target_comparison"]
+        assert isinstance(comparison, dict)
+        comparison.pop("baseline_artifact_sha256")
+        errors = self.validate(self.plan(), item)
+        self.assertTrue(any("baseline_artifact_sha256" in error for error in errors), errors)
+
+    def test_malformed_nested_values_fail_as_validation_errors_not_type_errors(self) -> None:
+        malformed_values: tuple[object, ...] = (None, [], {}, 1)
+        for field in ("baseline", "verdict", "baseline_artifact", "baseline_artifact_sha256", "capture_method"):
+            for value in malformed_values:
+                with self.subTest(field=field, value=repr(value)):
+                    item = self.row()
+                    if field == "capture_method":
+                        item[field] = value
+                    else:
+                        comparison = item["target_comparison"]
+                        assert isinstance(comparison, dict)
+                        comparison[field] = value
+                    try:
+                        errors = self.validate(self.plan(), item)
+                    except (TypeError, AttributeError, KeyError) as exc:
+                        self.fail(f"malformed {field} raised {exc!r}")
+                    self.assertTrue(errors, (field, value, errors))
+
+    def test_malformed_authority_containers_and_nested_fields_fail_closed(self) -> None:
+        for container in (None, {}, "authority", 1):
+            with self.subTest(container=repr(container)):
+                item = self.row()
+                comparison = item["target_comparison"]
+                assert isinstance(comparison, dict)
+                comparison["authority_sources"] = container
+                try:
+                    errors = self.validate(self.plan(), item)
+                except (TypeError, AttributeError, KeyError) as exc:
+                    self.fail(f"malformed authority container raised {exc!r}")
+                self.assertTrue(errors, (container, errors))
+
+        for field in ("path", "sha256"):
+            for value in (None, [], {}, 1):
+                with self.subTest(field=field, value=repr(value)):
+                    item = self.row()
+                    comparison = item["target_comparison"]
+                    assert isinstance(comparison, dict)
+                    authority = comparison["authority_sources"]
+                    assert isinstance(authority, list)
+                    authority[0][field] = value
+                    try:
+                        errors = self.validate(self.plan(), item)
+                    except (TypeError, AttributeError, KeyError) as exc:
+                        self.fail(f"malformed authority {field} raised {exc!r}")
+                    self.assertTrue(errors, (field, value, errors))
+
+
 class LayoutCheckSchemaTests(unittest.TestCase):
     @staticmethod
     def row(layout_check: object = ...) -> dict[str, object]:
@@ -673,6 +871,93 @@ class TargetComparisonArtifactTests(unittest.TestCase):
                 ),
                 errors,
             )
+
+    def test_v038_reads_actual_baseline_and_authority_from_accepted_blob(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.git(root, "init")
+            self.git(root, "config", "user.name", "Harness Test")
+            self.git(root, "config", "user.email", "harness@example.invalid")
+            self.git(root, "config", "core.autocrlf", "false")
+            actual_bytes = io.BytesIO()
+            Image.new("RGB", (3, 2), "blue").save(actual_bytes, format="PNG")
+            actual = write_artifact(root, "strict-actual.png", actual_bytes.getvalue())
+            baseline_bytes = io.BytesIO()
+            Image.new("RGB", (3, 2), "red").save(baseline_bytes, format="PNG")
+            baseline = write_artifact(root, "strict-baseline.png", baseline_bytes.getvalue())
+            authority = root / "docs" / "design" / "ui-references" / "run-1" / "index.html"
+            authority.parent.mkdir(parents=True, exist_ok=True)
+            authority.write_bytes(b"<html><body>approved</body></html>\n")
+            self.git(root, "add", "docs")
+            self.git(root, "commit", "-m", "strict accepted evidence")
+            accepted_sha = self.git(root, "rev-parse", "HEAD")
+
+            plan = StrictPlatformEvidenceSchemaTests.plan()
+            plan["sources"][0]["content_sha256"] = hashlib.sha256(authority.read_bytes()).hexdigest()
+            item = StrictPlatformEvidenceSchemaTests.row(
+                baseline_artifact=baseline.relative_to(root).as_posix(),
+                baseline_artifact_sha256=hashlib.sha256(baseline_bytes.getvalue()).hexdigest(),
+            )
+            item["target_comparison"]["authority_sources"][0]["sha256"] = hashlib.sha256(authority.read_bytes()).hexdigest()
+            item["artifact_path"] = actual.relative_to(root).as_posix()
+            item["artifact_sha256"] = hashlib.sha256(actual_bytes.getvalue()).hexdigest()
+            item["head_sha"] = accepted_sha
+            run: dict[str, object] = {
+                "schema_version": 11,
+                "ui_evidence": [item],
+                "runtime_capabilities": {
+                    "runtime_adapter": {
+                        "version_gate": {"required_harness_version": "0.38.0"}
+                    }
+                },
+            }
+            self.assertEqual([], subject.validate_ui_evidence_files(plan, run, root))
+
+            # Mutating all three working-tree files cannot replace the accepted
+            # commit's evidence bytes.
+            actual.write_bytes(b"mutated")
+            baseline.write_bytes(b"mutated")
+            authority.write_text("<html>mutated</html>\n", encoding="utf-8")
+            self.assertEqual([], subject.validate_ui_evidence_files(plan, run, root))
+
+    def test_v038_rejects_stale_authority_hash_and_non_image_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.git(root, "init")
+            self.git(root, "config", "user.name", "Harness Test")
+            self.git(root, "config", "user.email", "harness@example.invalid")
+            self.git(root, "config", "core.autocrlf", "false")
+            actual_bytes = io.BytesIO()
+            Image.new("RGB", (3, 2), "blue").save(actual_bytes, format="PNG")
+            actual = write_artifact(root, "strict-actual.png", actual_bytes.getvalue())
+            baseline = write_artifact(root, "strict-baseline.png", b"not an image")
+            authority = root / "docs" / "design" / "ui-references" / "run-1" / "index.html"
+            authority.parent.mkdir(parents=True, exist_ok=True)
+            authority.write_bytes(b"<html><body>approved</body></html>\n")
+            self.git(root, "add", "docs")
+            self.git(root, "commit", "-m", "strict invalid evidence")
+            accepted_sha = self.git(root, "rev-parse", "HEAD")
+            plan = StrictPlatformEvidenceSchemaTests.plan()
+            plan["sources"][0]["content_sha256"] = "9" * 64
+            item = StrictPlatformEvidenceSchemaTests.row(
+                baseline_artifact=baseline.relative_to(root).as_posix(),
+                baseline_artifact_sha256="a" * 64,
+            )
+            item["artifact_path"] = actual.relative_to(root).as_posix()
+            item["artifact_sha256"] = hashlib.sha256(actual_bytes.getvalue()).hexdigest()
+            item["head_sha"] = accepted_sha
+            run: dict[str, object] = {
+                "schema_version": 11,
+                "ui_evidence": [item],
+                "runtime_capabilities": {
+                    "runtime_adapter": {
+                        "version_gate": {"required_harness_version": "0.38.0"}
+                    }
+                },
+            }
+            errors = subject.validate_ui_evidence_files(plan, run, root)
+            self.assertTrue(any("authority source bytes" in error for error in errors), errors)
+            self.assertTrue(any("cannot be decoded" in error for error in errors), errors)
 
 
 class IntegrationHeadGitCrossCheckTests(unittest.TestCase):

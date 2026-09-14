@@ -51,7 +51,8 @@ Project size: small | large
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
 Host adapter: none | codex | claude_code | pi | generic
-Landing: local_only | integration_push
+RUN landing: local_only
+Post-archive publication: none | exact candidate branch
 Upstream inputs: present | missing | needs owner decision
 Gitignore impact: none | update | needs owner decision
 ```
@@ -70,7 +71,7 @@ These rules apply to both routes:
 
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
 - Preserve all 12 managed action keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, and `delete_branches`.
-- Execution intent covers only applicable local setup, branch, commit, and integration actions. It does not authorize `push`. A RUN push needs explicit remote intent for its own integration branch and exact head; later `main` promotion requires separate action-time authorization.
+- Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38 RUNs stay `local_only` with `push` false. Publishing A to the run branch and promoting A to `main` are separate post-RUN actions with separate authorization.
 - This workflow is main-only. Never implement directly on the default branch, and never use the retired `development` name as a run or release branch. Promote only through `references/branch-promotion-contract.md`; never force-push. If no exact run-branch name exists, ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers never delegate, edit PLAN/RUN, integrate, push, or clean up.
@@ -190,7 +191,7 @@ If the user pauses or cancels a managed run, apply the durable control transitio
 
 ### 2. Plan Large Work
 
-Freeze only approved inputs needed by the graph: Product Definition revision, Stack Decision Checkpoint, source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. When a PRD carries the Product Definition approval marker, the frozen join runs the sibling core-package checker over PRD, architecture, and stack decisions. Use the existing bounded review-repair graph and owner-attempt rules. A generic instruction to continue does not grant another attempt.
+Freeze only approved inputs needed by the graph: Product Definition revision, Stack Decision Checkpoint, source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. Harness 0.38 requires one canonical frozen PRD, architecture, and stack source for every plan and always runs the full sibling Product package checker with `--repo-root`; UI plans also require the approved UI, wireframe, HiFi target, and conditional design-system authority. Use the bounded review-repair graph and owner-attempt rules. A generic instruction to continue grants no new attempt.
 
 ### 3. Pass Plan Readiness
 
@@ -200,7 +201,7 @@ Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate
 
 ### 4. Execute And Integrate
 
-Select only after the runtime version gate. `lease-worker` copies selector-derived runtime/portable bindings, validates compatibility flags, accepts `--task-thread-id` only for `app_task`, accepts existing exact targets, and materializes new exact targets only from active wildcard grants without widening authority. Record missions with `record-worker-result` under the RUN lock; use `reject-worker-result` for stale candidates and `validate_result.py` for preflight. For non-mission nodes, reserve with `reserve-node-attempt`, execute outside the lock, then finish with `record-node-result` and evidence. Persist `reserve-review-dispatch` before launch, finish with `record-review-attempt`, review exact heads, integrate serially, and close-wave.
+After the runtime version gate, run `record-observation --repo-root <root>` so the selector and `accept-wave` can bind the pinned sandbox runtime, image RepoDigest, host, PLAN revision, and digest. `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector-derived bindings and materializes new exact targets only from active wildcard grants. Record mission and non-mission results through their guarded transitions, review exact heads, integrate serially, and close the wave.
 
 ### 5. Verify Local-First
 
@@ -218,6 +219,6 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 ### 6. Complete
 
-New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an authorized exact-head push to the run branch. After RUN close, apply `references/branch-promotion-contract.md`: initial delivery and later enhancements both start from the observed remote `main`, pass every candidate and applicable non-production-environment gate on the exact run-branch SHA, then fast-forward that SHA to `main` under separate authorization and read-back. Deployment, cleanup, and activation keep their own gates; after promotion, archive the run with `scripts/archive_run.py` (`contract-and-traceability.md`).
+Harness 0.38 RUNs close `local_only` at C after every gate and exact-SHA security review passes. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back a failed step; commit only the repository bookkeeping as A and reverify it. A current RUN never pushes. Under a new exact instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, and receipt outside the checkout, pushes only A without force, and reads it back. Candidate gates and separately authorized exact-A `main` promotion follow.
 
-`product-activation` follows required promotion and deployment verification; RUN grants no authority.
+`product-activation`, outcome review, and SEO follow required promotion and production verification; no RUN grant authorizes them.

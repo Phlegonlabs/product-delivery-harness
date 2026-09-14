@@ -1,6 +1,6 @@
 # Wireframe Guide
 
-Use this guide only after the core Product Definition package passes `product-definition-builder/scripts/check_product_package.py --require-approved` and records `Product Definition Approval: approved`. `ui-design-builder` owns one wireframe deliverable for every UI-bearing product: `docs/design/wireframes.html`.
+Use this guide only after the core Product Definition package passes `python skills/product-definition-builder/scripts/check_product_package.py --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` from the repository root and records `Product Definition Approval: approved`. `ui-design-builder` owns one wireframe deliverable for every UI-bearing product: `docs/design/wireframes.html`.
 
 ## Ownership
 

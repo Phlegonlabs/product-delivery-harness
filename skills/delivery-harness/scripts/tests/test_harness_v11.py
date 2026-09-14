@@ -18,25 +18,30 @@ from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = TESTS_DIR.parent
+UI_TESTS_DIR = Path(__file__).resolve().parents[3] / "ui-design-builder" / "scripts" / "tests"
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+if str(UI_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(UI_TESTS_DIR))
 
 import harness_transition  # noqa: E402
-import new_run  # noqa: E402
 from harness_core import load_run, plan_digest  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
 from harness_ui_evidence import validate_integration_head_against_git  # noqa: E402
-from manifest_fixtures import manifest_markdown, wireframes_html  # noqa: E402
+from manifest_fixtures import manifest_markdown  # noqa: E402
 from render_review_packet import render_packet  # noqa: E402
 from select_ready_nodes import select_ready_nodes  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from test_select_ready_nodes import current_preintegration_review_state  # noqa: E402
+from test_wireframe_contract import render_html, wireframe_data  # noqa: E402
 from verifier_runtime import execution_key_from_document  # noqa: E402
 
+while str(UI_TESTS_DIR) in sys.path:
+    sys.path.remove(str(UI_TESTS_DIR))
 
-PLAN_TEMPLATE = SCRIPTS_DIR.parent / "assets" / "templates" / "HARNESS_PLAN.template.md"
+
 
 
 class HarnessV11Tests(unittest.TestCase):
@@ -396,29 +401,47 @@ class HarnessV11Tests(unittest.TestCase):
             )
 
     def test_transition_command_pauses_generated_run(self) -> None:
+        # Intentionally legacy: this test covers the pause transition command,
+        # not current 0.38 source readiness. Keep the old pin explicit.
         with tempfile.TemporaryDirectory() as temp:
+            plan = valid_plan()
+            for mission in plan.get("missions", []):
+                mission["write_scope"] = ["docs/README.md"]
+                for task in mission.get("tasks", []):
+                    task["write_scope"] = ["docs/README.md"]
+            plan["security_review"] = {
+                "status": "not_applicable",
+                "skill_slot": "code_security_verification",
+                "reason": "documentation-only transition fixture with no implementation candidate",
+            }
+            run = valid_run(plan)
+            run["runtime_capabilities"]["runtime_adapter"]["version_gate"][
+                "required_harness_version"
+            ] = "0.37.0"
+            run["integration"]["branch"] = "refs/heads/test-run"
+            run["landing"]["continuity"] = {
+                "status": "planned",
+                "branch_ref": "refs/heads/test-run",
+                "head_sha": None,
+                "reason": "legacy transition fixture",
+            }
+            run["plan"]["digest_sha256"] = plan_digest(plan)
+            plan_path = Path(temp) / "PLAN.md"
             run_path = Path(temp) / "RUN.md"
-            self.assertEqual(
-                0,
-                new_run.main(
-                    [
-                        "--plan",
-                        str(PLAN_TEMPLATE),
-                        "--run-id",
-                        "RUN-transition-test",
-                        "--branch",
-                        "refs/heads/test-run",
-                        "--out",
-                        str(run_path),
-                    ]
-                ),
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            run_path.write_text(
+                manifest_markdown("## Harness Run State", "harness_run", run),
+                encoding="utf-8",
             )
             self.assertEqual(
                 0,
                 harness_transition.main(
                     [
                         "--plan",
-                        str(PLAN_TEMPLATE),
+                        str(plan_path),
                         "--run",
                         str(run_path),
                         "pause",
@@ -667,29 +690,47 @@ class HarnessV11Tests(unittest.TestCase):
         )
 
     def test_transition_command_cancels_generated_run(self) -> None:
+        # Intentionally legacy: this test covers the cancel transition command,
+        # not current 0.38 source readiness. Keep the old pin explicit.
         with tempfile.TemporaryDirectory() as temp:
+            plan = valid_plan()
+            for mission in plan.get("missions", []):
+                mission["write_scope"] = ["docs/README.md"]
+                for task in mission.get("tasks", []):
+                    task["write_scope"] = ["docs/README.md"]
+            plan["security_review"] = {
+                "status": "not_applicable",
+                "skill_slot": "code_security_verification",
+                "reason": "documentation-only transition fixture with no implementation candidate",
+            }
+            run = valid_run(plan)
+            run["runtime_capabilities"]["runtime_adapter"]["version_gate"][
+                "required_harness_version"
+            ] = "0.37.0"
+            run["integration"]["branch"] = "refs/heads/test-run"
+            run["landing"]["continuity"] = {
+                "status": "planned",
+                "branch_ref": "refs/heads/test-run",
+                "head_sha": None,
+                "reason": "legacy transition fixture",
+            }
+            run["plan"]["digest_sha256"] = plan_digest(plan)
+            plan_path = Path(temp) / "PLAN.md"
             run_path = Path(temp) / "RUN.md"
-            self.assertEqual(
-                0,
-                new_run.main(
-                    [
-                        "--plan",
-                        str(PLAN_TEMPLATE),
-                        "--run-id",
-                        "RUN-cancel-test",
-                        "--branch",
-                        "refs/heads/test-run",
-                        "--out",
-                        str(run_path),
-                    ]
-                ),
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            run_path.write_text(
+                manifest_markdown("## Harness Run State", "harness_run", run),
+                encoding="utf-8",
             )
             self.assertEqual(
                 0,
                 harness_transition.main(
                     [
                         "--plan",
-                        str(PLAN_TEMPLATE),
+                        str(plan_path),
                         "--run",
                         str(run_path),
                         "cancel",
@@ -706,7 +747,7 @@ class HarnessV11Tests(unittest.TestCase):
         plan["ui_surfaces"][0].update(
             {
                 "route": "/review",
-                "breakpoints": ["390", "1200"],
+                "breakpoints": ["390", "768", "1200"],
                 "states": ["ready"],
             }
         )
@@ -718,15 +759,16 @@ class HarnessV11Tests(unittest.TestCase):
             "### UI-001 — Review\n\n"
             "- `route`: /review\n"
             "- `states`: ready\n"
-            "- `responsive`: viewports: 390, 1200\n"
+            "- `responsive`: viewports: 390, 768, 1200\n"
+            "- `copy`: approved — static copy is implementation-bound\n"
             "<!-- ui-surface-contract:end -->\n",
             encoding="utf-8",
         )
         wireframes = root / "docs" / "goal" / "wireframes.html"
+        wireframe_data_value = wireframe_data()
+        wireframe_data_value["screens"][0]["route"] = "/review"
         wireframes.write_text(
-            wireframes_html(
-                [{"id": "UI-001", "route": "/review", "states": ["ready"]}]
-            ),
+            render_html(wireframe_data_value),
             encoding="utf-8",
         )
         plan["sources"] = [
@@ -792,6 +834,42 @@ class HarnessV11Tests(unittest.TestCase):
             ["git", *arguments], cwd=root, check=True, capture_output=True, text=True
         )
 
+    def _bind_cli_fixture_to_git(self, root: Path, run_path: Path) -> None:
+        """Bind the legacy review fixture to the real temporary checkout head."""
+
+        run = load_run(run_path)
+        branch = subprocess.check_output(
+            ["git", "branch", "--show-current"], cwd=root, text=True
+        ).strip()
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=root, text=True
+        ).strip()
+        run["integration"].update(
+            {
+                "branch": f"refs/heads/{branch}",
+                "batch_base_sha": head,
+                "integration_head_sha": head,
+            }
+        )
+        run["observed"]["git"].update(
+            {
+                "parent_branch": f"refs/heads/{branch}",
+                "parent_head_sha": head,
+                "parent_worktree_path": str(root),
+                "parent_dirty": False,
+            }
+        )
+        run["landing"]["continuity"] = {
+            "status": "planned",
+            "branch_ref": f"refs/heads/{branch}",
+            "head_sha": None,
+            "reason": "review fixture",
+        }
+        run_path.write_text(
+            manifest_markdown("## Harness Run State", "harness_run", run),
+            encoding="utf-8",
+        )
+
     def _acquire_review_lock(self, plan_path: Path, run_path: Path) -> None:
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(
@@ -836,6 +914,7 @@ class HarnessV11Tests(unittest.TestCase):
             self._git(root, "init", "-q")
             self._git(root, "config", "user.email", "test@example.com")
             self._git(root, "config", "user.name", "Harness Test")
+            self._git(root, "checkout", "-b", "test-run")
             plan_path, run_path = self._write_review_cli_fixture(root)
             self._git(
                 root,
@@ -846,6 +925,7 @@ class HarnessV11Tests(unittest.TestCase):
                 "RUN.md",
             )
             self._git(root, "commit", "-qm", "fixture")
+            self._bind_cli_fixture_to_git(root, run_path)
             self._acquire_review_lock(plan_path, run_path)
             before = run_path.read_text(encoding="utf-8")
 
@@ -902,7 +982,18 @@ class HarnessV11Tests(unittest.TestCase):
             self._git(root, "init", "-q")
             self._git(root, "config", "user.email", "test@example.com")
             self._git(root, "config", "user.name", "Harness Test")
+            self._git(root, "checkout", "-b", "test-run")
             plan_path, run_path = self._write_review_cli_fixture(root)
+            self._git(
+                root,
+                "add",
+                "docs/goal/PRD.md",
+                "docs/goal/wireframes.html",
+                "PLAN.md",
+                "RUN.md",
+            )
+            self._git(root, "commit", "-qm", "fixture")
+            self._bind_cli_fixture_to_git(root, run_path)
             self._acquire_review_lock(plan_path, run_path)
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(

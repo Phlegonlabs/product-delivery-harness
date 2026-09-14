@@ -71,7 +71,7 @@ The parent/coordinator exclusively owns:
 - non-runtime node reservations/results and lifecycle evidence receipts;
 - branch/worktree creation when authorized;
 - worker-result validation, integration order, conflict handling, and E2E verification;
-- push and manual cleanup actions when separately authorized.
+- post-archive candidate publication and manual cleanup actions when separately authorized.
 
 A worker owns one mission lease only:
 
@@ -256,10 +256,10 @@ Push, task archival, worktree removal, and branch deletion are independent autho
 
 - Integrate only exact-head review-passing worker results serially into the exact resolved integration branch. Worker branches and worktrees do not push.
 - Review the final diff locally and rerun final gates before pushing. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
-- Local-only RUN completion remains the default. `integration_push` pushes only the verified run branch under its exact RUN grant. After RUN close, `branch-promotion-contract.md` completes candidate verification and separately fast-forwards the exact SHA to `main`.
-- `integration.branch` is the only branch field in RUN. It names the exact non-protected run branch cut from the observed remote `main` base. Refuse a RUN `push` without explicit remote intent, exact branch/head grant, or known default identity; also refuse when the target or integration branch is the retired `development` name or the default branch, retaining literal `main` as a fail-safe.
+- Harness 0.38 RUNs complete `local_only` at C and cannot reserve or execute a RUN push. Archival writes a receipt-bound immutable anchor outside the checkout. After committing A, publish it to `integration.branch` only through `push_archived_candidate.py` with that same anchor, a new authorization, and external request/attempt/receipt. Pre-0.38 RUNs retain the old path only for recovery.
+- `integration.branch` names the exact non-protected run branch cut from observed remote `main`. The archive-candidate protocol derives that branch and C from the archived RUN, verifies a clean direct C-to-A archive commit, refuses `main` and `development`, checks the configured remote pre-state, pushes without force, and reads back exact A.
 - Start later PRD, UI, and feature enhancements from a fresh run branch cut from the current observed remote `main` head after the prior promotion state is resolved. Never implement directly on `main` or recreate `development`.
-- Every `main` promotion requires a new action-time authorization naming the remote branch and exact SHA. Never reuse the RUN grant, force-push, or continue after remote drift, failed ancestry, non-fast-forward state, or candidate-test failure.
+- Every `main` promotion requires another action-time authorization naming the remote branch and exact A. Neither the archived RUN nor the run-branch receipt authorizes it. Never force-push or continue after remote drift, failed ancestry, non-fast-forward state, or candidate-test failure.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
 - Delete only the exact recorded, fully integrated branch when `delete_branches` is true, unless `run.integration.retention == "persistent"`, in which case the branch is preserved rather than deleted.

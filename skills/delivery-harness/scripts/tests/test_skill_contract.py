@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.37.0"', package)
+        self.assertIn('"version": "0.38.0"', package)
         self.assertEqual(
-            "0.37.0",
+            "0.38.0",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -733,7 +733,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "exact remote `main` SHA before tagging",
             "fast-forward to that exact SHA",
             "Every fetch, branch creation, ref update, merge, push, external test, and branch deletion",
-            "never inherits or reuses a RUN push grant",
+            "The archived RUN grants nothing",
+            "request, pre-side-effect attempt, and receipt outside the checkout",
             "exact verified candidate at remote `main`",
         ):
             self.assertIn(phrase, promotion)
@@ -742,7 +743,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Deployment", project_agents)
         self.assertIn("deployment-contract.md", project_agents)
         self.assertIn("branch-promotion-contract.md", project_agents)
-        self.assertIn("fast-forward that SHA to `main`", project_agents)
+        self.assertIn("fast-forward exact A to `main`", project_agents)
         self.assertIn("Protected resources preview must never bind", project_agents)
         self.assertIn(
             "runtime adapter reference (Claude Code section)", project_claude
@@ -798,7 +799,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
         self.assertIn("render `docs/tasks.md`", skill)
-        self.assertIn("`product-activation` follows required promotion and deployment verification; RUN grants no authority", skill)
+        self.assertIn("no RUN grant authorizes them", skill)
         self.assertIn("## Post-Delivery Activation", project_agents)
         self.assertIn("Capability never grants permission", project_agents)
         if REPO_ROOT is not None:
@@ -940,7 +941,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.37.0"', runbook)
+        self.assertIn('"required_harness_version": "0.38.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1077,11 +1078,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn("default to `local_only`", skill)
-        self.assertIn("integration_push", runbook)
-        self.assertIn("landing.pushed_head_sha", runbook)
-        self.assertIn("separate remote intent", runbook)
-        self.assertIn('New RUN files start at `mode: "local_only"`', runbook)
+        self.assertIn("RUNs close `local_only`", skill)
+        self.assertIn("`integration_push` remains legacy recovery state only", runbook)
+        self.assertIn("`pushed_head_sha` stays null", runbook)
+        self.assertIn("checkout-external immutable artifacts", runbook)
+        self.assertIn("Harness 0.38 RUNs start and finish `local_only`", runbook)
 
 
 
@@ -1420,7 +1421,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("<e2e-command>", project_agents)
         self.assertNotIn("(List protected files here", project_agents)
         self.assertNotIn("current v10", project_agents)
-        self.assertIn("The RUN push guard", project_agents)
+        self.assertIn("immutable external request/attempt/receipt", project_agents)
         self.assertIn("@AGENTS.md", project_claude)
         self.assertIn("## Claude Code Runtime Boundary", project_claude)
         self.assertIn("Direct Claude Code work follows `AGENTS.md`", project_claude)

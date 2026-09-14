@@ -25,7 +25,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `REFINEMENT_BACKLOG.md` | `docs/goal/` | run closeout (when needed) | harness parent | deferred refinement items | |
 | `docs/goal/evidence/` | `docs/goal/evidence/` | verification | workers + parent | evidence artifacts (SHA-256 bound) | |
 | `docs/{product,design}/archived/` | `docs/*/archived/` | supersede | product-definition-builder / design pass | archived prior documents (move, never delete) | |
-| `docs/goal/archived/` | `docs/goal/archived/` | run closeout | harness parent | archived completed run coordination sets (move, never delete) | |
+| `docs/goal/archived/` | `docs/goal/archived/` | run closeout | harness parent | moved coordination set plus closed `ARCHIVE_RECEIPT.json` (never delete) | |
 
 Notes:
 
@@ -33,4 +33,5 @@ Notes:
 - `PLAN.md` and `RUN.md` exist only for the managed route; small direct work creates none of the run documents.
 - `tasks.md` is a rendered view: never edit it to change state — change RUN and re-render; its Update Log section is the one hand-maintained part, preserved verbatim by the renderer.
 - The PRD family and the run family never mix: a run references its PRD only through the frozen content hash in PLAN's sources, nothing under `docs/product/` ever enters `docs/goal/archived/`, and the PRD stays published as the living reference for later enhancement runs.
+- Harness 0.38 archival also creates one immutable `ARCHIVE_ANCHOR` at the exact absolute path supplied outside the checkout. It is not a repository document; `ARCHIVE_RECEIPT.json` records its identity, and archive-candidate publication requires the same file.
 - Evidence artifacts bind to exact SHAs with lowercase SHA-256 records; they are the only accepted proof for UI and verification gates.

@@ -1,6 +1,6 @@
 # Deployment Contract
 
-Use this reference when a delivery will be deployed, when verifying a deployed environment, or when moving a project between deploy platforms. The Harness RUN still ends locally or at its own run-branch push. `branch-promotion-contract.md` then controls the separately authorized exact-SHA promotion to `main`; this contract maps the candidate branch/SHA and production branch to environments and verifies what the platform serves.
+Use this reference when a delivery will be deployed, verified, or moved between platforms. Harness 0.38 RUNs end local-only at C. After archive-only A is separately published to its run branch, `branch-promotion-contract.md` controls candidate verification and the separately authorized exact-A promotion to `main`; this contract maps those SHAs to environments and verifies what the platform serves.
 
 ## Model
 
@@ -64,7 +64,7 @@ Verify the candidate environment before promotion when it applies, then verify p
 
 1. The expected environment URL resolves — the isolated non-production URL for the exact candidate SHA, then the production URL for the promoted `main` head.
 2. The deployed commit equals the expected head, read from the platform API/CLI, store/build API, response headers, or signed installer metadata, and recorded bound to that SHA. A mismatch or a stale build is a finding for the user or a new mission, never a redeploy order.
-3. For a UI-bearing candidate, the production check re-captures parity against the approved design reference at the production URL (`scripts/parity_capture.py --out docs/goal/evidence/production`) and records the pairs and board as production evidence; a visual mismatch is a finding, never a silent acceptance.
+3. For a hosted-browser UI candidate, the production check may re-capture parity against the approved design reference at the production URL (`scripts/parity_capture.py --out docs/goal/evidence/production`) and records the pairs and board as production evidence; a visual mismatch is a finding, never a silent acceptance. Browser-extension, native, and desktop targets do not have URL parity: use their installed extension/device/app UI-test or labeled manual capture mechanism and bind the result to the exact artifact/build and Git SHA.
 4. Verify required human configuration through non-secret evidence: platform metadata that exposes names but not values, plus behavior-level checks such as a completed auth redirect or integration smoke. Never print or retrieve a secret value. Keep an unverified requirement `pending` even when the build itself succeeded.
 5. Record evidence with the exact target, stage/provider/channel, environment or channel, URL or artifact/build identity, deployed SHA, expected SHA, availability proof, check time, and check command — the same evidence discipline as any other gate. Hosted web/API targets prove route or API smoke. Native `ios`, `android`, `macos`, and `windows` targets prove install/download or exact artifact/build identity plus their smoke; URL parity is not native availability. Reconcile the Required Secrets and Variables and External Console Setup statuses with what was actually verified. `scripts/check_deployment.py --deployment <path>` structurally validates the legacy record read-only; `scripts/check_deployment.py --deployment <path> --architecture docs/product/architecture.md` also validates the exact per-target architecture join without ever running the recorded command.
 6. Report the observed non-production or production URL with its exact SHA and every remaining human action. When the build has not finished or the URL cannot be observed, leave the record pending; never construct or guess a URL.
@@ -73,7 +73,7 @@ Writing the observed result into the tracked deployment record does not authoriz
 
 ## Product Activation Handoff
 
-Deployment and activation are separate. The RUN closes at its local or run-branch-push boundary; branch promotion and deployment verification follow under their own authorizations. The sibling `product-activation` skill then owns any explicitly requested external setup and `docs/ACTIVATION.md`; it never reopens or edits PLAN/RUN.
+Deployment and activation are separate. The RUN closes local-only; archive-candidate publication, `main` promotion, and deployment verification follow under separate action-time authorization. The sibling `product-activation` skill then owns explicitly requested external setup and `docs/ACTIVATION.md`; it never reopens the archived PLAN/RUN.
 
 After RUN close, provide one bounded handoff when the product has deployable surfaces:
 

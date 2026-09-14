@@ -293,7 +293,7 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         archived = self.archived_dir()
         self.assertEqual(
-            {"PLAN.md", "RUN.md", "DECISIONS.md", "evidence", "tasks.md"},
+            {"PLAN.md", "RUN.md", "DECISIONS.md", "evidence", "tasks.md", "ARCHIVE_RECEIPT.json"},
             {entry.name for entry in archived.iterdir()},
         )
         self.assertEqual(

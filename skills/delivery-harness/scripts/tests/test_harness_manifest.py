@@ -30,6 +30,7 @@ from harness_manifest import (  # noqa: E402
     route_runtime_driver,
     scope_overlap,
     topological_levels,
+    validate_current_plan_run,
     validate_plan,
     validate_run,
     validate_ui_evidence_files,
@@ -285,7 +286,7 @@ class PlanValidationTests(unittest.TestCase):
                     "frontend-design",
                 ]
                 if staging_scope.endswith("/**"):
-                    mission["required_skills"].append("product-definition-builder")
+                    mission["required_skills"].append("ui-design-builder")
                 self.assertEqual(validate_plan(plan), [])
 
         plan = valid_plan()
@@ -354,7 +355,7 @@ class PlanValidationTests(unittest.TestCase):
         ]
         self.assertEqual(validate_plan(plan), [])
 
-    def test_wireframe_source_write_scope_requires_product_definition_builder(self) -> None:
+    def test_wireframe_source_write_scope_requires_ui_design_builder(self) -> None:
         for wireframe_scope in (
             "docs/product/wireframes.html",
             "docs/product/.prd-staging/run-001/wireframes.html",
@@ -365,13 +366,13 @@ class PlanValidationTests(unittest.TestCase):
                 mission["write_scope"].append(wireframe_scope)
 
                 self.assert_error_contains(
-                    plan, "wireframe-source write scope must include 'product-definition-builder'"
+                    plan, "wireframe-source write scope must include 'ui-design-builder'"
                 )
 
-                mission["required_skills"] = ["product-definition-builder"]
+                mission["required_skills"] = ["ui-design-builder"]
                 self.assertEqual(validate_plan(plan), [])
 
-    def test_registered_custom_wireframe_source_requires_product_definition_builder(self) -> None:
+    def test_registered_custom_wireframe_source_requires_ui_design_builder(self) -> None:
         plan = valid_plan()
         plan["sources"].append(
             {
@@ -390,10 +391,10 @@ class PlanValidationTests(unittest.TestCase):
         mission["write_scope"].append("specs/custom/**")
 
         self.assert_error_contains(
-            plan, "wireframe-source write scope must include 'product-definition-builder'"
+            plan, "wireframe-source write scope must include 'ui-design-builder'"
         )
 
-        mission["required_skills"] = ["product-definition-builder"]
+        mission["required_skills"] = ["ui-design-builder"]
         self.assertEqual(validate_plan(plan), [])
 
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:
@@ -949,6 +950,36 @@ class RunValidationTests(unittest.TestCase):
             "cannot target retired development",
         )
 
+    def test_archive_first_v11_forces_local_landing_and_no_push_grant(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"]["required_harness_version"] = "0.38.0"
+        run["landing"]["mode"] = "integration_push"
+        run["authorizations"]["push"] = {
+            "authorized": True,
+            "source": "user: push archive candidate",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/codex/test"],
+            },
+            "expires_when": "run_complete",
+        }
+        errors = validate_run(plan, run)
+        self.assertTrue(any("archive-first RUN-v11 must remain local_only" in error for error in errors), errors)
+        self.assertTrue(any("must keep push authorization false" in error for error in errors), errors)
+
+    def test_archive_first_missing_version_pin_cannot_authorize_push(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"].pop("required_harness_version")
+        run["authorizations"]["push"]["authorized"] = True
+        errors = validate_run(plan, run)
+        self.assertTrue(any("missing or malformed required_harness_version" in error for error in errors), errors)
+
 
     def test_integration_retention_accepts_known_values_only(self) -> None:
         plan = valid_plan()
@@ -1444,6 +1475,26 @@ class RunValidationTests(unittest.TestCase):
             any("breakpoints" in error for error in validate_plan(plan))
         )
 
+    def test_ui_surface_capture_mode_is_closed_but_legacy_optional(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["mobile", "desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        self.assertFalse(validate_plan(plan))
+        plan["ui_surfaces"][0]["capture_mode"] = "unsupported"
+        self.assertTrue(
+            any("capture_mode" in error for error in validate_plan(plan))
+        )
+        plan["ui_surfaces"][0]["capture_mode"] = "browser-extension"
+        self.assertFalse(validate_plan(plan))
+
     def test_complete_run_requires_ready_sources(self) -> None:
         plan = valid_plan()
         plan["sources"][0]["status"] = "missing"
@@ -1694,6 +1745,101 @@ class RunValidationTests(unittest.TestCase):
                     for error in validate_ui_evidence_files(run, root)
                 )
             )
+
+    def test_current_pair_validation_reads_immutable_ui_blobs_before_transition(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["390", "1200"],
+                "states": ["ready"],
+                "evidence_gate": "required",
+                "capture_mode": "hosted-browser",
+            }
+        ]
+        run = valid_run(plan)
+        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+        gate["required_harness_version"] = "0.38.0"
+        gate["harness_version"] = "0.38.0"
+        run["ui_evidence"] = [
+            {
+                "surface_id": "dashboard",
+                "route": "/dashboard",
+                "breakpoint": "390",
+                "state": "ready",
+                "artifact_path": "docs/goal/evidence/dashboard.png",
+                "artifact_sha256": "a" * 64,
+                "head_sha": SHA_A,
+                "status": "PASS",
+                "capture_method": "browser",
+                "layout_check": "pass",
+                "target_comparison": {
+                    "baseline": "html_target",
+                    "authority_sources": [
+                        {
+                            "path": "docs/design/ui-references/run-1/index.html",
+                            "sha256": "b" * 64,
+                        }
+                    ],
+                    "baseline_artifact": "docs/goal/evidence/dashboard-target.png",
+                    "baseline_artifact_sha256": "c" * 64,
+                    "verdict": "pass",
+                    "differences": [],
+                },
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "harness@example.invalid"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            actual = io.BytesIO()
+            Image.new("RGB", (2, 2), "white").save(actual, format="PNG")
+            actual_path = root / "docs" / "goal" / "evidence" / "dashboard.png"
+            actual_path.parent.mkdir(parents=True, exist_ok=True)
+            actual_path.write_bytes(actual.getvalue())
+            run["ui_evidence"][0]["artifact_sha256"] = hashlib.sha256(actual.getvalue()).hexdigest()
+            subprocess.run(["git", "add", "README.md", "docs"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "base"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            accepted_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            run["integration"]["integration_head_sha"] = accepted_sha
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
+            run["plan"]["digest_sha256"] = plan_digest(plan)
+            errors = validate_current_plan_run(plan, run, repo_root=root)
+
+        self.assertTrue(
+            any(
+                "target_comparison.baseline_artifact" in error
+                and "accepted Git commit" in error
+                for error in errors
+            ),
+            errors,
+        )
 
 
 

@@ -40,9 +40,9 @@ from manifest_fixtures import (  # noqa: E402
     git,
     init_repo,
     manifest_markdown,
-    wireframes_html,
 )
-from test_harness_manifest import valid_plan  # noqa: E402
+import test_harness_strict_authority as strict_authority_fixtures  # noqa: E402
+from test_graph_orchestration import add_security_review  # noqa: E402
 from test_validate_node_result import running_result  # noqa: E402
 
 
@@ -289,77 +289,38 @@ class GoldenPathTests(unittest.TestCase):
             root = Path(directory)
             init_repo(root, "README.md")
 
-            product = root / "docs" / "product"
-            product.mkdir(parents=True)
-            design = root / "docs" / "design"
-            design.mkdir(parents=True)
-            prd_path = product / "PRD.md"
-            prd_path.write_text(approved_prd(), encoding="utf-8")
-            wireframes_path = design / "wireframes.html"
-            wireframes_path.write_text(
-                wireframes_html(
-                    [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
-                    schema="wireframes/4",
-                    viewports=(390, 768, 1200),
-                ),
-                encoding="utf-8",
+            plan, _seed_run, paths = (
+                strict_authority_fixtures.StrictAuthorityJoinTests._ui_fixture(
+                    root, required=True
+                )
             )
-            architecture_path = product / "architecture.md"
-            architecture_path.write_text(approved_architecture(), encoding="utf-8")
-            stack_path = product / "stack-decisions.md"
-            stack_path.write_text(approved_stack(), encoding="utf-8")
-            ui_design_path = design / "ui-design.md"
-            ui_design_path.write_text(approved_ui_design(), encoding="utf-8")
-
-            plan = valid_plan()
+            prd_path = paths["prd"]
+            wireframes_path = paths["wireframe"]
+            design_markdown_path = paths["design_markdown"]
+            design_json_path = paths["design_json"]
             plan["security_review"] = {
-                "status": "not_applicable",
+                "status": "required",
                 "skill_slot": "code_security_verification",
-                "reason": "documentation-only synthetic contract fixture has no implementation candidate",
+                "reason": None,
             }
+            add_security_review(plan)
+            for trace in plan["traces"]:
+                if not trace["id"].startswith("DS-"):
+                    trace["source_ids"] = ["SRC-PRD"]
             for mission in plan.get("missions", []):
                 mission["write_scope"] = ["docs/README.md"]
+                if "DS-LAY-001" not in mission["trace_ids"]:
+                    mission["trace_ids"].append("DS-LAY-001")
                 for task in mission.get("tasks", []):
                     task["write_scope"] = ["docs/README.md"]
-            plan["ui_surfaces"] = [
-                {
-                    "id": "UI-001",
-                    "trace_ids": ["REQ-001"],
-                    "route": "/home",
-                    "breakpoints": ["390", "768", "1200"],
-                    "states": ["ready"],
-                    "evidence_gate": "required",
-                }
-            ]
-            plan["sources"] = [
-                frozen_source(
-                    "SRC-001", "prd", "docs/product/PRD.md", prd_path
-                ),
-                frozen_source(
-                    "SRC-002",
-                    "architecture",
-                    "docs/product/architecture.md",
-                    architecture_path,
-                ),
-                frozen_source(
-                    "SRC-STACK",
-                    "stack decisions",
-                    "docs/product/stack-decisions.md",
-                    stack_path,
-                ),
-                frozen_source(
-                    "SRC-WIREFRAMES",
-                    "wireframe",
-                    "docs/design/wireframes.html",
-                    wireframes_path,
-                ),
-                frozen_source(
-                    "SRC-UI-DESIGN",
-                    "ui design contract",
-                    "docs/design/ui-design.md",
-                    ui_design_path,
-                ),
-            ]
+                    if "DS-LAY-001" not in task["trace_ids"]:
+                        task["trace_ids"].append("DS-LAY-001")
+                    for acceptance in task.get("acceptance_matrix", []):
+                        if "DS-LAY-001" not in acceptance["trace_ids"]:
+                            acceptance["trace_ids"].append("DS-LAY-001")
+            for node in plan["graph"]["nodes"]:
+                if isinstance(node.get("review"), dict):
+                    node["review"]["scope"] = ["docs/README.md"]
             git(root, "add", "docs")
             git(root, "commit", "-qm", "freeze product package")
             head = git(root, "rev-parse", "HEAD")
@@ -401,6 +362,10 @@ class GoldenPathTests(unittest.TestCase):
                 str(prd_path),
                 "--wireframes",
                 str(wireframes_path),
+                "--design-system-markdown",
+                str(design_markdown_path),
+                "--design-system",
+                str(design_json_path),
             )
             self.assertEqual(
                 0,
@@ -414,11 +379,11 @@ class GoldenPathTests(unittest.TestCase):
             missing_ui_design["sources"] = [
                 source
                 for source in missing_ui_design["sources"]
-                if source["id"] != "SRC-UI-DESIGN"
+                if source["id"] != "SRC-UI"
             ]
             self.assertTrue(
                 any(
-                    "requires exactly one frozen ui-design.md source" in error
+                    "requires exactly one frozen ui-design source" in error
                     for error in validate_frozen_contract_joins(
                         missing_ui_design, root, run=run
                     )

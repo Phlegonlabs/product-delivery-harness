@@ -56,6 +56,12 @@ Required deterministic functional UI motion may run locally in the HiFi HTML wit
 
 Produce one self-contained design-reference HTML containing every in-scope `UI-*` screen, responsive target, and non-`n/a` state. It includes complete CSS, a left review sidebar, screen/state switching, and the product actions needed to traverse every approved flow. Each visible control navigates, changes a declared state, opens the documented overlay, or shows recorded feedback. There are no dead controls or isolated stills.
 
+The HTML contains exactly one canonical restrictive CSP meta:
+
+`default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`
+
+This closed policy is a deterministic boundary; it is not a claim that regex can prove arbitrary JavaScript safe.
+
 The file calls no live backend, credential, identity provider, or unapproved generation provider. Login, registration, recovery, and authentication-error preview scenes may be marked `n/a` for this visual review without removing their production requirements. Native chrome may use a labeled HTML placeholder.
 
 ## Impeccable Quality Review And PRD-Bound Grading
@@ -72,7 +78,7 @@ The candidate is ready for the human gate only when overall `H1`–`H9` is at le
 
 ## Browser And Human Visual Approval
 
-Render every page-target-state and overlay in a real browser and record the verdict as exact `PASS`. Reject broken navigation, dead controls, unexpected requests, console errors, unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify keyboard paths, focus management, target sizes, long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
+Render every page-target-state and overlay in a real browser inside a closed offline sandbox and record the verdict as exact `PASS`. HiFi surface evidence uses method `sandboxed-offline-browser` and retains a `ui-output/1` console+network/navigation transcript with network disabled and top navigation, popups, and forms blocked. Any request, navigation/popup/form attempt, or console error fails. Reject broken navigation, dead controls, unexpected requests, console errors, unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify keyboard paths, focus management, target sizes, long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
 
 Present only a passing candidate. Record the human decision as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. Approval proves visual-direction conformance, not representative-user usability or production readiness.
 

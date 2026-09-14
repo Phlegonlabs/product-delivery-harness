@@ -20,7 +20,7 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Browser journey | yes / no | planned | | |
 | UI Design Intake conformance | yes / no | planned | | |
 | Usability / task success | yes / no | planned | | |
-| Responsive layout safety | yes / no | planned | <viewport captures + browser geometry/reviewer evidence per entry> | every required breakpoint or size-class × state renders with no unintended overlap, clipping, occlusion, or horizontal overflow; intentional overlays match their recorded stacking, focus, safe-area, and dismissal behavior |
+| Responsive / device layout safety | yes / no | planned | <hosted-browser viewport, extension context, native device, or desktop UI-test/manual capture per entry> | every required breakpoint or size-class/device × state renders with no unintended overlap, clipping, occlusion, or horizontal overflow; intentional overlays match their recorded stacking, focus, safe-area, and dismissal behavior; do not claim URL parity for browser-extension, native, or desktop targets |
 | Console / network | yes / no | planned | | |
 | Accessibility | yes / no | planned | | |
 | Visual design comparison | yes / no | planned | | |

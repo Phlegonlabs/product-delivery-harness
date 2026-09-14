@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.37.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.38.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -38,22 +38,22 @@
 
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
 - **大型工作明確記錄。** PLAN v6 定義 typed graph；RUN v11 記錄授權、嘗試與佐證。
-- **先核准 Product Definition，再進 UI 設計。** 每個產品都要由 owner 核准 scope、可量測需求、完整 frontend/backend 架構、release targets、trust/AI/commercial gates、assumptions 與 stack。UI 產品只有在明確要求後才進 `ui-design-builder`。
+- **先核准 Product Definition，再進 UI 設計。** 每個產品都要由 owner 核准 scope、可量測需求、完整 frontend/backend 架構、typed release targets、trust/AI/commercial gates、assumptions 與 stack。UI 產品只有在明確要求後才進 `ui-design-builder`。
 - **建議不等於實作權威。** 每個適用領域先提供兩到三組 coherent stack。新選擇經核准後標記 `Approved`，既有選擇是 `Selected`，硬限制是 `Required`；`Recommended` 與 `Provisional` 會阻擋 delivery。Frontend 會分開 language、package manager、framework、UI runtime、shadcn/ui 這類 component foundation、styling、build、routing/data 與 tests。
-- **UI 設計有獨立核准主線。** `ui-design-builder` 會先詢問 UI、style、motion，以及各區域要用 image 或 motion，再開始畫面。`frontend-design` 是 wireframe 與 HiFi 的單一作者；schema 4 wireframe 先由人工 copy owner 凍結產品精確文案與有界動態顯示契約，再走 W1–W5 與結構核准，Style Integration 隨後產出連通 HiFi。Impeccable 執行 `critique` + `audit`，H1–H9 維持正式門檻：總分 90+、H2/H4/H8 各 90+、每項 60+，且無 block/dispute。簡單 UI motion 使用 CSS/WAAPI；GSAP skills 依需求選用；Higgsfield MCP 只在精確授權下生成動畫。Design tokens 只在 Visual Approval 後編譯。
+- **UI 設計有獨立核准主線。** `ui-design-builder` 先完成 UI/style/motion/media intake。Schema 4 wireframe 在結構核准前凍結精確文案與有界動態顯示契約；HiFi target 必須帶逐 surface 的 route、state、responsive、capture scope、restrictive CSP，以及保留 console/network/navigation output 的人工簽認 sandboxed-offline browser receipt。Agent 只能起草或驗證，不能代替 owner 寫入 attestation 或 approval。Design tokens 只在 Visual Approval 後、且 Design System Need Gate 為 `required` 時編譯。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
-- **每個 graph attempt 都可持久追蹤。** 非 mission 節點先保留 attempt，在 RUN lock 外執行檢查或外部動作，再記錄 outcome 與佐證；中斷的非 runtime attempt 也透過同一條結果路徑記為 `blocked`。本機 verifier 只能在 dirty-status 檢查中忽略 tracked RUN；路徑必須解析在 checkout 內，且執行與結果記錄期間都會保護其精確位元組與檔案身分。
+- **每個 graph attempt 都可追蹤，candidate code 一律隔離。** 非 mission 節點先 reserve，再在 RUN lock 外執行並記錄結果。PLAN v6 的每個本機 verifier 都使用精確 pin 的 Docker/Podman image、唯讀 Git archive、關閉網路、唯讀 rootfs、非 root user 與有界資源；Plan Readiness 先探測 runtime 與本機 RepoDigest。會碰遠端、browser 或 network 的檢查改走外部 route，不落回 host subprocess。
 - **Runtime binding 明確可驗證。** `lease-worker` 從選取器 directive 衍生 provider、driver、model、effort 與 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精確目標可直接沿用，新精確目標只能從已啟用的 wildcard 授權 materialize，不會擴大權限。
 - **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
-- **Activation 必須讀回驗證。** 外部設定留在 PLAN/RUN 之外，核准綁定精確 action digest，且只有獨立 read-back 與行為證據完成後才算 verified。
-- **SEO growth 必須以證據為準。** Release 後 SEO review 維持唯讀，分開 Search Console 可見度與 GA4 站內行為，明確標記估算與假設，並把每項變更交給正確 workflow。
+- **Activation 必須讀回驗證。** 外部設定留在 PLAN/RUN 之外，核准綁定精確 action digest 與 typed release target；Deployment、Activation、Outcome 與 SEO 共用同一組 SHA、artifact、provider/channel、endpoint 與量測身分。
+- **SEO growth 必須以證據為準。** 保存的 lifecycle SEO review 只接受精確、公開、可索引的 hosted-web production target，並把每個第一方來源綁回 Activation evidence；Search Console 與 GA4 仍分開解讀。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
 - **UI 佐證證明版面，而不只是像素。** 固定到 harness 0.34.0 及之後的 RUN 會在每條 route-breakpoint-state 佐證行記錄真實瀏覽器幾何掃描的 `layout_check`；每個 UI 任務在驗收前分類影響（`none`/`style`/`structure`/`both`），被接受的 parity 偏差連同引用記入 deviation ledger，上線 motion 必須追溯 `ui-design.md` 的 Motion and Media Intent。固定到 0.35.0 及之後的 RUN 還會機器校驗 `deviation_ledger` 與逐 mission 的 `ui_impact_summary`。
-- **完成的 run 會收檔。** 晉升之後，`scripts/archive_run.py` 在 dry-run 移動清單確認後，把整個協作集——PLAN、RUN、決策、backlog、證據、tasks 視圖——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不刪除，歸檔 commit 沿同一條晉升路徑落到 `main`。tasks 視圖結尾有一個 renderer 逐字保留的手寫 Update Log：plan 完成後，owner 或 agent 每一筆未進 PRD 的更新都以帶日期的一行記在那裡；歸檔集僅以凍結 hash 引用 PRD——PRD 永不進歸檔，始終是活引用。
-- **Parity 靠實拍，不靠記憶。** `scripts/parity_capture.py` 驅動 agent-browser CLI，為 PLAN 的每個 route×breakpoint×state 用同一 viewport 拍攝已核准的設計參考 HTML 與實作頁面，逐頁探測 DOM 幾何，並產生逐項判定的 parity board；生產驗證會對部署 URL 重跑一遍。
+- **完成的 run 會在晉升前收檔。** `archive_run.py` 重驗 C、目前 `main`、evidence 與 move list，寫出關閉的 `ARCHIVE_RECEIPT.json` 以及必要的 checkout 外部 immutable anchor，才搬移協作集；失敗會 rollback。Archive-only A 必須先對該 anchor 重驗，之後才取得另行授權的 publication。Product Definition 仍留在正式位置。
+- **Parity 靠實拍，不靠記憶。** hosted-browser surface 使用 `scripts/parity_capture.py`，為 PLAN 的每個 route×viewport×state 用同一 viewport 拍攝設計參考 HTML 與實作頁面；extension、native 與 desktop app 使用各自的平台工具或標記清楚的人工 capture，不能拿 hosted URL 代替。每一列都綁定 accepted Git blob、authority path/hash、baseline image/hash、capture method 與 layout result；生產驗證會對部署 URL 重跑一遍。
 - **讀規則是強制的。** 種子化的專案 `AGENTS.md` 要求：受管工作前必讀已安裝的 `delivery-harness` SKILL.md，影響產品的直接工作前必讀受影響的 PRD 段落；跳過即 blocking review finding。
-- **程式安全是全新的最終審查。** 每個新的受管 PLAN 都要明確標記 required，或說明非程式交付為何 not applicable。Required review 會在 broad final validation 前，讓 `code-security-review` 涵蓋統一整合 SHA 上的每個 mission；其宣告 scope 必須包含每個 mission 的完整 write scope。它會驗證 agent 的結構化結果，並且不能沿用相同 tree 的早期佐證。Security PASS 不得有 exclusions，且至少一個 tool 或人工審查必須記為 `passed` 或 `findings`。Required node 不得跳過或被 supersede；reserve 與 completion 會重查 live Git。精確的 interruption receipt 只能在後續 current reviewer 提供 structured PASS 後作為歷史保留。
-- **Promotion 一律 main-only。** RUN 仍預設在本機完成，也只能選擇性推送自己的 run branch。第一次交付與後續 enhancement 都從觀察到的 remote `main` 開始；RUN 關閉後，精確 candidate 必須通過所有本機與隔離 preview environment gate，才能另行授權 fast-forward 到 `main`。
+- **程式安全是全新的最終審查。** 所有 code PLAN 都必須執行 `code-security-review`；`not_applicable` 只允許窄範圍的純文件工作。實際 candidate path 必須落在 mission/security scope，且永遠不能帶入 parent coordination files。專案要求的 security commands 是 graph 排序的 container verifiers；review 前會核對 exact current-head execution key。PASS 必須綁 exact SHA、完整 coverage、零 exclusion，且不可沿用舊結果。
+- **Promotion 一律 main-only。** 初次交付與 enhancement 都從觀察到的 remote `main` 開始。Harness 0.38 RUN 在 C 以 local-only 關閉，不能由 RUN push。A 的授權 publication 必須同時帶 pre-archive external anchor 與 immutable request/attempt/receipt；candidate gates 通過後，再另行授權與 read-back，把未變更的 A fast-forward 到 `main`。
 
 ## 包含的內容
 
@@ -91,7 +91,9 @@ flowchart LR
   Harness --> Runtime["單一 host 轉接器\nCodex、Claude Code 或 Pi"]
   Runtime --> Security["code-security-review\n全新統一 exact-SHA 審查"]
   Security --> Evidence["完整最終測試與 UI 佐證"]
-  Evidence --> Push["選擇性推送精確 run branch\nRUN 關閉"]
+  Evidence --> Close["RUN 在精確 integration head 關閉"]
+  Close --> Archive["在 run branch 歸檔協作狀態\ncommit + 重驗 archive-only candidate"]
+  Archive --> Push["checkout 外部 request/attempt/receipt\n精確 candidate publication"]
   Push --> Candidate["驗證精確 candidate SHA\n本機 + 隔離 preview gates"]
   Candidate --> Main["另行授權 fast-forward\n精確 SHA 到 main"]
   Main --> Activate["product-activation\n外部設定 + read-back"]
@@ -180,14 +182,15 @@ flowchart TB
 
     subgraph DEPLOY["部署（git-connected 平台）"]
         direction TB
-        handoff["更新 docs/DEPLOYMENT.md<br/>（secret 名稱 + 外部 console 任務）"]
-        push["授權 push<br/>run 分支"]
+        handoff["更新 docs/DEPLOYMENT.md<br/>（typed targets + secret 名稱 + console 任務）"]
+        archive["關閉 RUN、歸檔協作狀態<br/>commit + 重驗 candidate"]
+        push["checkout 外部 request/attempt/receipt<br/>精確 run-branch candidate publication"]
         preview["Preview 自動部署<br/>（平台按 push 建置）"]
-        merge([使用者合併到 main])
+        merge([另行授權 exact-SHA<br/>fast-forward 到 main])
         prod["Production 部署<br/>（平台從 main 建置）"]
         check["部署後驗證（唯讀）<br/>check_deployment.py"]
         status["核對 deployment 紀錄<br/>（狀態 + 尚待人工處理項目）"]
-        handoff --> push --> preview --> merge --> prod --> check --> status
+        handoff --> archive --> push --> preview --> merge --> prod --> check --> status
     end
 
     subgraph ACTIVATE["product-activation — 交付後啟用"]
@@ -236,11 +239,11 @@ flowchart TB
 
 Product Definition Approval、UI Wireframe Approval 與合併到 `main` 是分開的人工閘門。Publication authorization 也獨立存在；接受產品內容不代表授權覆寫或移動檔案。
 
-每個可部署版本都以 `docs/DEPLOYMENT.md` 作為操作交接文件。Product Definition 先建立骨架；Delivery Harness 在 push 前按已追蹤的環境宣告、CI 與 auth／integration 程式碼補實，部署後再以唯讀結果更新狀態。每個獨立發布單元使用一個小寫 surface 名稱：production 使用不帶 `-prod` 的標準 `<product-slug>-<surface-suffix>`，development 則在同一個名稱後加 `-dev`。常用後綴是 `web`、`api` 與 `extension`；原生 artifact，以及獨立發布的 admin、worker、job、agent、webhook、realtime 或 CLI 單元，使用各自有意義的後綴。除非 artifact 確實不同，否則 provider 與 store 名稱分開記錄。文件也會列出精確的 secret 與 variable 名稱、preview／production 放置位置，以及 auth callback URL 等外部 console 任務，但永遠不保存 secret 值。
+每個可部署版本都以 `docs/DEPLOYMENT.md` 作為操作交接文件。Product Definition 先定義 typed `Surface class` 與 `Public discoverability`；Delivery Harness 再把每個 development/production target 精確 join 到 provider/channel、endpoint 或 typed native disposition、Expected/Deployed SHA、artifact identity、availability evidence 與 checked time。Production 使用不帶 `-prod` 的 `<product-slug>-<surface-suffix>`，development 加 `-dev`。文件只記 secret/variable 名稱與外部 console 任務，永遠不保存 secret 值。
 
-交付之後，`product-activation` 會建立或核對 `docs/ACTIVATION.md`、選擇適用的 web、iOS 或 browser-extension profiles，使用最安全可用的 connector/API/CLI/Browser/Computer Use 路線，而且只執行精確授權的動作。Capability 與 evidence 會綁定精確 target、environment、source SHA 和 artifact/build identity，並由最新的相符結果決定 readiness。它會分開記錄 configured 與 verified、不保存 secret 值、把 hybrid 產品中不支援的 target 留在 gate 之外，並把相符且已驗證的 `MS-*` 來源交給後續 outcome review。
+Production deployment 之後，`product-activation` 會從 typed release targets 衍生 profiles，只透過最安全可用路線執行精確授權的動作。Capability、read-back、behavior evidence、measurement sources 與 readiness 都綁定 target、environment、SHA、artifact、provider/channel 和 action digest。後續 strict Outcome Review 會逐字重複 PRD metric 或 TEST definition、baseline、target、window、production release 與相符的 verified `MS-*` evidence。
 
-Activation 之後，或 production 證據已足夠時，`seo-growth-review` 可以獨立做一次唯讀 review。它檢查目前的 crawl/index 行為與量測範圍，分開 Search Console 的搜尋可見度和 GA4 的站內行為，按 observed、estimated 或 hypothesis 證據排序關鍵詞與頁面機會，再把外部設定、產品契約、實作、connector 或延後觀察交給正確 owner。它不內嵌 API client 或 credential、不發布內容、不改外部 console、不承諾排名，也不要求 dashboard。
+Activation 之後，`seo-growth-review` 可對 typed public hosted-web production target 做獨立唯讀 review。Dated report 必須對齊 Review date、deployment hostname、exact release、Activation hash、verified source roles、data cutoff 與 PASS integrity checks；它不修改網站或外部帳戶。
 
 迴圈在兩端都閉合。Research-first 先把關是否起草；post-draft market research 會在 stack 與產品核准前對帳 candidate。Metrics 現在包含 baseline、target/guardrail、measurement window、source/method 與 owner，讓 outcome review 有可執行的量測契約。
 
@@ -259,9 +262,9 @@ Harness 是圍繞明確的邊界所打造的：
 3. 當任務大到需要時，先規劃相依關係，再開始實作。
 4. 只有在至少兩個安全寫入 mission 實際被選中、工作彼此獨立且隔離，並且每個動作都經過明確授權時，才使用平行 worker；受管循序路線仍要證明隔離 writer、scope/head 與 review gates。
 5. 驗證任務結果與整合，執行全新的統一 code-security 審查，再驗證相關 UI 流程與最終 diff。單一 mission 不會憑空增加跨 mission batch gate。
-6. RUN 預設以驗證過的本機佐證結束；run-branch push 需要精確授權。RUN 關閉後，完成 exact candidate 與適用的隔離 preview environment 驗證，再另行授權把該 SHA fast-forward 到 `main`，並 read-back 與驗證 production。
+6. Harness 0.38 RUN 在 C 以 local-only 結束，RUN 不會 push。完成 archive-only A 並重驗後，任何 run-branch publication 都要使用新的 action-time instruction 與 checkout 外部 request/attempt/receipt；驗證 A 後，才可另行授權把它 fast-forward 到 `main` 並 read-back、驗證 production。
 
-對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、移除 worktree 或刪除分支。RUN-v11 的推送還需要明確的遠端意圖、唯一的整合分支目標與目前 head 授權；若預設分支身分未知，推送會安全失敗，但不會阻止無關的本機執行。
+對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、移除 worktree 或刪除分支。Harness 0.38 會讓 RUN push 保持 false；archive protocol 從 archive 推導 C 與 branch，驗證精確 C→A relocation 以及 remote pre-state，並透過不可變的 checkout 外部 request/attempt/receipt 完成 publication。Legacy pinned run 只保留舊流程供 recovery。
 
 wave 接受前，Harness 會重新檢查觀測到的非預設整合分支及乾淨產品樹，把 batch 綁到該精確 head，重跑 selector，並且只接受完整的目前 frontier。clean-tree gate 只排除 transition 必然更新的那個精確 tracked RUN 檔案；其他任何變更仍會阻斷。整合分支位於 linked worktree 時，該 checkout 會正確記錄為 parent，Git 的乾淨主要 checkout 則保留為已識別的同層項目。持久 run lock 負責 dispatch；短期作業系統鎖會序列化每一次 RUN 的讀取、驗證與寫入交易。凍結的 PRD、wireframe 與 design-system source 會在獨立驗證和 transition 寫入路徑中按位元組 hash 綁定；即使 PLAN 聲稱 UI surface 為空，凍結的 PRD 仍會被解析。每個結構化 PRD surface 只擁有一個 literal route；帶 UI 的翻譯 PRD 只能有一對語言無關的邊界標記，並且每個條目各有一個 `route` 與 `states` 錨點；各產物的 ID、route 與 state 必須完全一致。design-system 的 Markdown 與 JSON 各有獨立 source row，其 generated contract 與 compiler namespace 必須一致；每個 PLAN `DS-*` trace 也必須在同一個全域唯一的 JSON 註冊表中解析。product-definition-builder 會按問題工具實際的每次容量分批詢問所有適用的封閉決策；沒有 Codex 專屬的呼叫次數目標，也不會為了配合 host 次數而丟掉問題。
 
@@ -285,9 +288,10 @@ flowchart TB
   Rereview --> Security
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
-  Local --> Remote{"explicit remote outcome and exact push grant?"}
+  Local --> ArchiveCandidate["Managed：archive C 並 commit A<br/>Direct：保留 fixed commit"]
+  ArchiveCandidate --> Remote{"exact candidate publication authorized?"}
   Remote -->|no| Done["Stop with verified local evidence"]
-  Remote -->|yes| Push["Push the run's own branch<br/>RUN ends here"]
+  Remote -->|yes| Push["External request/attempt/receipt<br/>publish exact candidate branch"]
   Push --> Candidate["驗證精確 candidate<br/>本機 + 隔離 preview gates"]
   Candidate --> Main["另行取得 exact-SHA 授權<br/>fast-forward 到 main"]
   Main --> Prod["Production read-back<br/>and smoke"]
@@ -355,16 +359,23 @@ cd product-delivery-harness
 
 從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到重複且觸發範圍重疊的 skills。
 
-七個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition core checker 會 join PRD、architecture 與 stack；UI Design Builder 驗證 Copy Freeze、`ui-design.md` 與 `wireframes.html`，Harness 0.37.0+ 在 UI delivery 前 join 這些來源。Design compilation、Delivery 與 Activation 仍要求適用的上游核准。SEO Growth Review 可只用公開證據；若要下已驗證的第一方結論，則使用相符的 Activation sources。
+七個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition、UI Design、Design System、Activation 與 Harness 都會在 delivery 前，以 exact PRD、architecture、stack 與 repository root 無條件執行同一套 full Product checker；UI Design 另外 join Copy Freeze、schema-4 wireframe、structured HiFi/CSP/offline evidence 與選用的 schema-2 pair。Deployment、Activation、Outcome 與保存的 SEO lifecycle report 共用同一 production identity。
 
 新專案的 Skill Bindings 會刻意保持 unresolved，直到 session 觀察本機候選且 owner 確認每個 slot 的唯一 skill。Pin 涵蓋完整 skill tree，不只 `SKILL.md`。`check_external_skill_dependencies.py` 會驗證已知 external tree 與允許用途。Pinned `frontend-design` 只提供 visual direction 與 frontend authoring；conformance 與 compilation contract 由 Harness 自己負責。Impeccable 絕不是預設的唯讀 Harness reviewer；使用其 pinned workflow 前，必須另外授權 subagents、browser/server、snapshot 寫入與可能的 binary download。
 
 ### Zero-to-one 流程（從零開始）
 
-1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與七個 Product Delivery Harness skills，並用該 host 執行這次交付。
-2. 開啟新的 host session，確認技能可見，然後呼叫 `delivery-harness`。
-3. 讓規模閘決定直接工作或 PLAN/RUN；小型工作不要預先建立 worker。
-4. 大型執行一次只保留一個 active host，並在 same-repository handoff 前關閉與審查每個 wave。
+1. 安裝一個受支援的 host 與七個 skills。Installer 會鎖住目的地、備份 managed IDs、只複製 Git-tracked files，並逐 byte 驗證；完成後重啟 host。
+2. 先用 `product-definition-builder` 完成 discovery/research、candidate reconciliation、coherent stack、typed release targets、tests、Stack Decision Checkpoint 與人工 Product Definition Approval。
+3. UI 產品進 `ui-design-builder`：human intake、Copy Freeze、schema-4 wireframe 驗證與核准、Style Integration、structured HiFi、human-attested receipts、H1–H9 review 與 Visual Approval。
+4. Design System Need Gate 為 `required` 時才用 `design-system-compiler` 產生 schema-2 pair；`not_required` 則保留 approved target replacement，且不得有 pair。
+5. 再呼叫 `delivery-harness`。Size gate 讓單一小改動維持 direct；大型工作才建立 PLAN-v6/RUN-v11。每個會改狀態的動作都要精確授權。
+6. Managed launch 前先通過 frozen source joins 並執行 `record-observation --repo-root <root>`；`--probe-sandboxes` 只作診斷。Mission 使用隔離 worktree；所有 candidate commands 在 pinned container 內執行，只整合 scope 內 commits。
+7. 完成 exact-head mission reviews、graph-ordered security checks、全新的 unified `code-security-review`、broad regression gates 與 platform-correct UI evidence。
+8. 關閉 RUN；以目前 `main` 證據 dry-run/apply `archive_run.py`，指定絕對路徑的 external `--anchor-out`，把 move 與 `ARCHIVE_RECEIPT.json` commit 為 A，並依 anchor 重驗。
+9. 另行授權，以同一個 `--archive-anchor` 加上 checkout 外部 request/attempt/receipt publication A，驗證 non-production，再把 exact A fast-forward 到 `main` 並驗證 production。
+10. 執行 `product-activation`：精確外部動作、獨立 read-back、behavior evidence、readiness 與 verified measurement sources。
+11. Measurement window 結束後執行 strict Outcome Review；public hosted-web production target 可再選用 `seo-growth-review`。
 
 ## 常見提示詞
 
@@ -400,6 +411,14 @@ Use $delivery-harness to implement this plan and push the verified branch. I wil
 
 ```text
 The delivery is complete. Use $product-activation for the production release targets, configure only the exact external actions I approve, verify each result by read-back, and stop after recording activation readiness and the measurement-window handoff.
+```
+
+```text
+The RUN is complete on its non-default branch. Use $delivery-harness to dry-run and archive the completed coordination set on that same branch, verify the archive-only candidate, and stop before any push or main promotion.
+```
+
+```text
+The production measurement window has closed. Use $product-definition-builder to validate the Outcome Review against the exact PRD metrics, TEST signals, deployment, Activation hash, and verified MS sources.
 ```
 
 ```text
@@ -490,6 +509,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
+- **0.38.0** — 完整加固 zero-to-one 契約。Product Definition 嚴格處理 active CommonMark authority、完整 product/architecture/stack joins、typed release class/discoverability、repository evidence，以及 Deployment/Activation/Outcome/SEO 的 exact release identity。UI Design Builder 新增 schema-4 canonical shell、structured HiFi scope、`ui-hifi/1`、restrictive CSP、sandboxed-offline 人工 receipt、platform-correct capture，以及 required/not-required publication tests；Design System publication 固定為 schema 2 與六個精確 source bindings。PLAN-v6 candidate commands 只能在 wave acceptance 前已觀察的 pinned、non-root、networkless、read-only Docker/Podman sandbox 執行。Push、security、parity、deployment、archive 與 installer 全部 fail closed；RUN 在 C local-only 關閉，archive receipt 與 external anchor 先保護 exact A，再由同一 `--archive-anchor` 搭配 immutable request/attempt/receipt 進行 optional publication，最後另行 promotion 到 `main`。破壞性 skill-bundle 變更。
 - **0.37.0** — UI 設計正式拆成獨立核准邊界。`product-definition-builder` 定案產品 scope、完整 frontend/backend 架構與 stack 後即停止；新 `ui-design-builder` 負責人工 UI/style/motion/media intake、`wireframes/4` typed image/motion placeholders、W1–W5 結構評分、`frontend-design` Style Integration、連通 HiFi HTML、Impeccable critique/audit、H1–H9 評分、Visual Approval、條件式 GSAP 路由、精確授權的 Higgsfield MCP 生成動畫，以及 Design System Need Gate。Schema 4 wireframe 會在評分或結構核准前凍結靜態、動作、feedback、替代狀態文案與有界動態顯示契約；`ui-design.md` 記錄文案 owner、locale 與日期，後續文字變更會重新開啟 Product Definition、Copy Freeze、響應式檢查和 Wireframe Approval。正式 tokens 只在視覺核准後編譯；canonical UI 產物改放 `docs/design/`，Harness 0.37.0+ 對 UI delivery 強制 join 已核准 `ui-design.md`，舊設計路徑維持讀取相容。Product Definition 的唯讀分析圖改用目前 host 的原生 sibling-agent runner；Codex、Claude Code、Pi 與 generic host 共用同一份角色與 parent-ownership 契約。第七個內建 skill `seo-growth-review` 新增選用唯讀的 release 後 review，使用 production crawl/index、Search Console、GA4 與目前估算，分開搜尋可見度和站內行為、標示證據強度、排序 query-to-page 機會，並在不修改網站或外部帳戶的前提下路由 follow-up。破壞性 skill-bundle 變更。
 - **0.36.0** — Product-first 決策加入完整核准主線。草稿後 market research 先對帳核心 candidate，再進人工 Stack Decision Checkpoint 與 Product Definition Approval；UI wireframe 只能從該核准 revision 開始，headless 產品仍須產品核准。技術選項以 coherent bundles 呈現，只有 `Required`、`Selected`、`Approved` 可實作；`Recommended` 與 `Provisional` 會阻擋 Harness。Frontend 分開 language、package manager、shadcn/ui 這類 component foundation 與 styling；mobile destination 與 native/cross-platform、framework 決策分離。PRD 新增 Data & Trust、AI/Automation gates、可量測 metric ownership、結構化 assumptions/open questions，以及涵蓋全契約的 enhancement impact record。新 `check_product_package.py` 驗證三份核心文件，Harness 在 approval marker 存在時沿用同一 checker。破壞性 skill-bundle 變更。
 - **0.35.5** — 新增 `scripts/parity_capture.py`：Final Visual Parity Loop 變為可執行——從 PLAN `ui_surfaces` 列舉 route×breakpoint×state 矩陣，驅動 agent-browser CLI 以同一 viewport 拍攝設計參考渲染與實作頁面（`docs/goal/evidence/parity/` 下的 `-target.png`/`-actual.png` 配對），每頁跑 DOM 幾何探針（水平溢位＋可見重疊）供 `layout_check` attestation 引用，並寫出 `manifest.json` 與自包含的 `parity-board.html` 供判定；每 run 一份小 route map 提供參考選擇器與可選狀態觸發，ready 狀態免觸發即可拍，無 CLI 時手動拍攝仍是後備。Production smoke 首次獲得內容定義：帶 UI 的候選用同一腳本對正式 URL 重拍 parity 到 `docs/goal/evidence/production/`（晉升合約第 7 條、部署合約、種子 AGENTS.md）——部署偏離設計參考從此是被記錄的 finding，而不是 deploy 後的驚喜。

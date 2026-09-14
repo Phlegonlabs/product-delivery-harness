@@ -77,6 +77,12 @@ RESOURCE_ATTRIBUTES = {
     "poster",
     "data",
     "xlink:href",
+    "action",
+    "formaction",
+    "ping",
+    "cite",
+    "background",
+    "manifest",
 }
 SAFE_DATA_IMAGE_TAGS = {"img", "input", "object", "picture", "source"}
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
@@ -101,6 +107,61 @@ NON_HUMAN_OWNERS = {
 WIREFRAME_SCHEMA = "wireframes/4"
 INTERACTIVE_WIREFRAME_SCHEMAS = {"wireframes/3", WIREFRAME_SCHEMA}
 LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2", "wireframes/3"}
+
+# Connected HiFi references are rendered as a local, offline review target.
+# Keep this policy closed and deterministic: a publication either carries this
+# exact directive set or it is rejected.  The browser receipt separately proves
+# that the sandbox observed no request, navigation, popup, form submission, or
+# console error; this static policy is not a claim that regex can prove arbitrary
+# JavaScript safety.
+HIFI_CSP_DIRECTIVES = (
+    ("default-src", ("'none'",)),
+    ("base-uri", ("'none'",)),
+    ("connect-src", ("'none'",)),
+    ("form-action", ("'none'",)),
+    ("frame-src", ("'none'",)),
+    ("object-src", ("'none'",)),
+    ("navigate-to", ("'none'",)),
+    ("img-src", ("data:",)),
+    ("media-src", ("data:",)),
+    ("font-src", ("data:",)),
+    ("style-src", ("'unsafe-inline'",)),
+    ("script-src", ("'unsafe-inline'",)),
+)
+REQUIRED_HIFI_CSP = "; ".join(
+    f"{directive} {' '.join(tokens)}" for directive, tokens in HIFI_CSP_DIRECTIVES
+)
+HIFI_CSP_DIRECTIVE_MAP = dict(HIFI_CSP_DIRECTIVES)
+
+
+def validate_hifi_csp_policy(value: str) -> list[str]:
+    """Return deterministic findings for the closed HiFi CSP policy."""
+
+    if not isinstance(value, str) or not value.strip():
+        return ["HiFi CSP policy is missing"]
+    directives: dict[str, tuple[str, ...]] = {}
+    for raw_directive in value.split(";"):
+        parts = raw_directive.strip().split()
+        if not parts:
+            return ["HiFi CSP policy contains an empty directive"]
+        name = parts[0].casefold()
+        if name not in HIFI_CSP_DIRECTIVE_MAP:
+            return [f"HiFi CSP policy contains unknown directive {name!r}"]
+        if name in directives:
+            return [f"HiFi CSP policy duplicates directive {name!r}"]
+        directives[name] = tuple(parts[1:])
+    expected = dict(HIFI_CSP_DIRECTIVES)
+    if value.strip() != REQUIRED_HIFI_CSP:
+        return [
+            "HiFi CSP policy must exactly equal the required offline policy: "
+            + REQUIRED_HIFI_CSP
+        ]
+    if tuple(directives) != tuple(expected):
+        return ["HiFi CSP policy directives must use the canonical closed order"]
+    for name, tokens in expected.items():
+        if directives.get(name) != tokens:
+            return [f"HiFi CSP policy directive {name!r} is weakened or malformed"]
+    return []
 
 
 def _normalize_url(value: str) -> str:
@@ -331,6 +392,37 @@ class ResourceParser(HTMLParser):
         self._in_script = False
         self._script_is_executable = False
         self.link_tags = 0
+        self.content_security_policies: list[str] = []
+        self.csp_document_errors: list[str] = []
+        self.head_depth = 0
+        self.body_depth = 0
+        self.body_started = False
+        self._document_order = 0
+        self._first_csp_blocking_order: int | None = None
+
+    @staticmethod
+    def _csp_blocking_element(
+        tag_name: str, values: dict[str, str | None]
+    ) -> bool:
+        if tag_name in {
+            "script",
+            "style",
+            "link",
+            "img",
+            "audio",
+            "video",
+            "source",
+            "track",
+            "iframe",
+            "object",
+            "embed",
+            "form",
+        }:
+            return True
+        return any(
+            name.casefold() in RESOURCE_ATTRIBUTES or name.casefold() == "style"
+            for name in values
+        )
 
     @staticmethod
     def _is_executable_script(script_type: str | None) -> bool:
@@ -402,6 +494,8 @@ class ResourceParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
+        self._document_order += 1
+        order = self._document_order
         if self._inert_depth:
             if tag_name == "template":
                 self._inert_depth += 1
@@ -419,6 +513,29 @@ class ResourceParser(HTMLParser):
                 self.duplicate_attributes.append(f"{tag_name}[{lowered_name}]")
             seen_attributes.add(lowered_name)
         values = dict(attrs)
+        if tag_name == "head":
+            self.head_depth += 1
+        elif tag_name == "body":
+            self.body_depth += 1
+            self.body_started = True
+        is_csp_meta = (
+            tag_name == "meta"
+            and values.get("http-equiv", "").strip().casefold()
+            == "content-security-policy"
+        )
+        if is_csp_meta:
+            if self.head_depth != 1:
+                self.csp_document_errors.append("CSP meta must be inside <head>")
+            if self.body_started:
+                self.csp_document_errors.append("CSP meta must appear before <body>")
+            if self._first_csp_blocking_order is not None:
+                self.csp_document_errors.append(
+                    "CSP meta must appear before every script, style, link, or resource-bearing element"
+                )
+        elif self._first_csp_blocking_order is None and self._csp_blocking_element(
+            tag_name, values
+        ):
+            self._first_csp_blocking_order = order
         self.active_attribute_names.update(name.lower() for name in values)
         for name in values:
             if re.fullmatch(r"on[a-z0-9_-]+", name, re.IGNORECASE):
@@ -434,6 +551,8 @@ class ResourceParser(HTMLParser):
 
         if tag_name == "link":
             self.link_tags += 1
+        if is_csp_meta:
+            self.content_security_policies.append(values.get("content", "") or "")
         if tag_name == "script":
             script_id = values.get("id")
             script_type = values.get("type")
@@ -467,10 +586,26 @@ class ResourceParser(HTMLParser):
         if inline_style:
             self._css_chunks.append(inline_style)
 
-        for name in ("src", "href", "xlink:href", "poster", "action", "formaction"):
+        for name in (
+            "src",
+            "href",
+            "xlink:href",
+            "poster",
+            "action",
+            "formaction",
+            "cite",
+            "background",
+            "manifest",
+        ):
             value = values.get(name)
             if isinstance(value, str):
                 self._record_url(tag_name, name.lower(), value)
+
+        ping = values.get("ping")
+        if isinstance(ping, str):
+            for target in re.split(r"\s+", ping.strip()):
+                if target:
+                    self._record_url(tag_name, "ping", target)
 
         if tag_name == "object":
             value = values.get("data")
@@ -503,6 +638,10 @@ class ResourceParser(HTMLParser):
             if tag_name == "template":
                 self._inert_depth -= 1
             return
+        if tag_name == "head" and self.head_depth:
+            self.head_depth -= 1
+        elif tag_name == "body" and self.body_depth:
+            self.body_depth -= 1
         if tag_name == "script":
             if self._data_block is not None:
                 self.data_blocks.append("".join(self._data_block))

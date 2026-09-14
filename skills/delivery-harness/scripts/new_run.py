@@ -418,6 +418,16 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=args.repo_root,
             require_repo_root=_requires_repo_root(plan),
         )
+        # RUN generation is a local-only authoring step.  Harness 0.38's
+        # immutable authority join is a readiness/execution gate; when the
+        # caller has not supplied a target checkout, retain the generated
+        # draft and let the parent validate it with --repo-root before launch.
+        if args.repo_root is None:
+            run_errors = [
+                error
+                for error in run_errors
+                if "requires --repo-root for the Harness 0.38 authority join" not in error
+            ]
     except (ManifestError, OSError) as exc:
         print(f"cannot generate run: {exc}", file=sys.stderr)
         return 2

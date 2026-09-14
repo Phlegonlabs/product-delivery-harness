@@ -262,6 +262,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--run", type=Path, required=True)
     parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="repository root required by current immutable PLAN/RUN validation",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         help=(
@@ -285,7 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         plan = load_plan(args.plan)
         run = load_run(args.run)
-        errors = validate_current_plan_run(plan, run)
+        errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
         if errors:
             print(
                 "PLAN/RUN pair does not validate; RUN.md is authoritative, fix it first:",

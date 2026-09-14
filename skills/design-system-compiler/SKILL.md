@@ -47,7 +47,7 @@ Product scope, route, content, action, flow, state, responsive, architecture, or
 
 ## Workflow
 
-1. Run the sibling `product-definition-builder/scripts/check_product_package.py --require-filled --require-approved` over PRD, architecture, and stack decisions. Stop on a missing or stale Product Definition/Stack approval.
+1. From the repository root, run `python skills/product-definition-builder/scripts/check_product_package.py --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`. Stop on a missing or stale Product Definition/Stack approval.
 2. Confirm that `ui-design.md` says `Design System Need Gate: required`; otherwise stop.
 3. Pass the Compilation Skills Gate.
 4. Verify that `ui-design-builder/scripts/check_ui_design_contract.py --repo-root <repository-root> --ui-design docs/design/ui-design.md --prd docs/product/PRD.md --wireframes docs/design/wireframes.html --hifi <approved HiFi target> --design-system-markdown docs/design/design-system.md --design-system-registry docs/design/design-system.json --require-filled --require-wireframe-approved --require-visual-approved` passes. Verify the PRD UI Surface Contract, `ui-design.md`, approved wireframes/4 with approved Copy Freeze, HiFi target, component foundation, and styling approach are complete and consistent. A visual direction that needs another stack returns upstream.
@@ -64,7 +64,7 @@ python skills/design-system-compiler/scripts/check_design_system_pair.py --markd
 python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --require-filled
 python skills/design-system-compiler/scripts/check_color_contrast.py <the arguments required by the staged design system>
 python skills/design-system-compiler/scripts/check_type_scale.py <the arguments required by the staged design system>
-python skills/product-definition-builder/scripts/check_product_package.py --prd <PRD.md> --architecture <architecture.md> --stack-decisions <stack-decisions.md> --require-filled --require-approved
+python skills/product-definition-builder/scripts/check_product_package.py --prd <PRD.md> --architecture <architecture.md> --stack-decisions <stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved
 ```
 
 Also confirm:

@@ -36,7 +36,7 @@ An absent product package is a `contract_gap`. An absent release identity or amb
 
 ## Workflow
 
-1. Validate product, release, and deployment inputs. When the PRD carries the Product Definition approval marker, run the sibling `product-definition-builder/scripts/check_product_package.py --require-filled --require-approved` over PRD, architecture, and stack decisions. Run `delivery-harness/scripts/check_deployment.py` when applicable. Treat deployment checks as evidence, not activation proof.
+1. Validate product, release, and deployment inputs. From the repository root, always run `python skills/product-definition-builder/scripts/check_product_package.py --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`. An absent package is a `contract_gap`. Run `delivery-harness/scripts/check_deployment.py` when applicable. Treat deployment checks as evidence, not activation proof.
 2. Read `references/activation-contract.md` completely.
 3. Read `references/profile-catalog.md` completely, then select `core` plus only the surface and feature overlays supported by the PRD, architecture, implementation, and owner decisions. Record every rejected overlay as `n/a` with a reason instead of silently omitting an expected surface.
 4. If no live activation record exists, start from `assets/templates/ACTIVATION.template.md`. Preserve the stable metric names, `TEST-*` IDs, release target IDs, and existing configuration names. Do not invent an account, query, callback, event, channel, or key name.

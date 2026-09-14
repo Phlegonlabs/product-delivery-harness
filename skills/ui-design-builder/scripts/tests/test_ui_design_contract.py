@@ -161,7 +161,9 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
         }],
     })
     hifi.write_text(
-        '<html><body><main data-ui-surface="UI-001" data-ui-route="/home"><nav data-navigation-id="home">Pages</nav><h1>HiFi review surface with meaningful content</h1><button data-control-id="refresh">Refresh</button><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
+        '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="'
+        + checker.check_wireframe_html.REQUIRED_HIFI_CSP
+        + '"></head><body><main data-ui-surface="UI-001" data-ui-route="/home"><nav data-navigation-id="home">Pages</nav><h1>HiFi review surface with meaningful content</h1><button data-control-id="refresh">Refresh</button><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
         '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
         encoding="utf-8",
     )
@@ -201,10 +203,24 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
             "matrix": {"cases": evidence_cases},
             "results": [dict(case, result="PASS") for case in evidence_cases],
         }
+        if check_name == "hifi-browser":
+            output.update(
+                {
+                    "sandbox": {
+                        "network": "disabled",
+                        "topNavigation": "blocked",
+                        "popups": "blocked",
+                        "forms": "blocked",
+                    },
+                    "console": [],
+                    "network": [],
+                    "navigation": [],
+                }
+            )
         output_path.write_text(json.dumps(output), encoding="utf-8")
         receipt = {
             "tool": "rubric-grader" if check_name.endswith("grading") else "impeccable" if "impeccable" in check_name else "playwright",
-            "method": "rubric-grading" if check_name.endswith("grading") else "impeccable-critique" if "critique" in check_name else "impeccable-audit" if "audit" in check_name else "browser-matrix",
+            "method": "rubric-grading" if check_name.endswith("grading") else "impeccable-critique" if "critique" in check_name else "impeccable-audit" if "audit" in check_name else "sandboxed-offline-browser" if check_name == "hifi-browser" else "browser-matrix",
             "matrix": {"cases": evidence_cases},
             "results": [dict(case, result="PASS") for case in evidence_cases],
             "outputArtifact": {"path": output_path.relative_to(root).as_posix(), "sha256": hashlib.sha256(output_path.read_bytes()).hexdigest()},
@@ -267,6 +283,24 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
 
 
 class UiDesignContractTests(unittest.TestCase):
+    def test_shared_contract_view_exposes_authority_without_filesystem_io(self):
+        view, problems = checker.parse_ui_contract_view(contract())
+
+        self.assertEqual([], problems)
+        self.assertEqual(
+            "docs/product/PRD.md",
+            view["source_identities"]["prd"]["path"],
+        )
+        self.assertEqual("hosted-browser", view["capture_mode"])
+        self.assertEqual("not_required", view["gate_decision"])
+        self.assertEqual(
+            "docs/design/ui-references/run-1/index.html",
+            view["approved_target"]["path"],
+        )
+        self.assertEqual(view["sources"], view["source_identities"])
+        self.assertEqual(view["replacement"], view["gate"]["replacement"])
+        self.assertRegex(view["canonical_ui_digest"], r"^[0-9a-f]{64}$")
+
     def test_full_validate_not_required_publication_round_trip(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -495,7 +529,9 @@ class UiDesignContractTests(unittest.TestCase):
                 }],
             })
             path.write_text(
-                '<html><body><nav>Pages</nav><main data-ui-surface="UI-001"><h1>HiFi review surface</h1></main>'
+                '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="'
+                + checker.check_wireframe_html.REQUIRED_HIFI_CSP
+                + '"></head><body><nav>Pages</nav><main data-ui-surface="UI-001"><h1>HiFi review surface</h1></main>'
                 '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
                 encoding="utf-8",
             )
@@ -503,7 +539,9 @@ class UiDesignContractTests(unittest.TestCase):
             checker._validate_hifi_surface(path, problems)
             self.assertEqual([], problems)
             path.write_text(
-                '<html><body><main data-ui-surface="UI-001">Unsafe HiFi</main><base href="https://example.test/"><script id="ui-hifi-manifest" type="application/json">'+manifest+'</script><script>fetch("https://example.test")</script></body></html>',
+                '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="'
+                + checker.check_wireframe_html.REQUIRED_HIFI_CSP
+                + '"></head><body><main data-ui-surface="UI-001">Unsafe HiFi</main><base href="https://example.test/"><script id="ui-hifi-manifest" type="application/json">'+manifest+'</script><script>fetch("https://example.test")</script></body></html>',
                 encoding="utf-8",
             )
             problems = []
@@ -521,7 +559,9 @@ class UiDesignContractTests(unittest.TestCase):
                 ],
             })
             path.write_text(
-                '<html><body><div data-state="ready" data-responsive-target="390">global spoof</div>'
+                '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="'
+                + checker.check_wireframe_html.REQUIRED_HIFI_CSP
+                + '"></head><body><div data-state="ready" data-responsive-target="390">global spoof</div>'
                 '<main data-ui-surface="UI-001" data-ui-route="/home" data-navigation-id="home" data-control-id="refresh">Surface one content</main>'
                 '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
                 encoding="utf-8",
@@ -536,6 +576,93 @@ class UiDesignContractTests(unittest.TestCase):
             problems: list[str] = []
             checker._validate_hifi_surface(path, problems, scope)
             self.assertTrue(any("UI-002" in item for item in problems))
+
+    def test_hifi_requires_closed_csp_and_offline_safe_url_attributes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "hifi.html"
+            manifest = json.dumps({
+                "schema": "ui-hifi/1",
+                "surfaces": [{
+                    "id": "UI-001",
+                    "route": "/home",
+                    "states": ["ready"],
+                    "responsive": {"kind": "viewports", "targets": [390]},
+                    "navigation": ["home"],
+                    "controls": ["refresh"],
+                }],
+            })
+
+            def render(head: str, body: str) -> None:
+                path.write_text(
+                    "<!doctype html><html><head>" + head + "</head><body>"
+                    + body
+                    + '<script id="ui-hifi-manifest" type="application/json">'
+                    + manifest
+                    + "</script></body></html>",
+                    encoding="utf-8",
+                )
+
+            valid_meta = (
+                '<meta http-equiv="Content-Security-Policy" content="'
+                + checker.check_wireframe_html.REQUIRED_HIFI_CSP
+                + '">'
+            )
+            render("", '<main data-ui-surface="UI-001"><h1>Missing CSP</h1></main>')
+            problems: list[str] = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertTrue(any("exactly one canonical restrictive CSP" in item for item in problems))
+
+            weakened = checker.check_wireframe_html.REQUIRED_HIFI_CSP.replace(
+                "connect-src 'none'", "connect-src https://example.test"
+            )
+            render(
+                '<meta http-equiv="Content-Security-Policy" content="' + weakened + '">',
+                '<main data-ui-surface="UI-001"><h1>Weakened CSP</h1></main>',
+            )
+            problems = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertTrue(any("weakened or malformed" in item or "exactly equal" in item for item in problems))
+
+            render(
+                valid_meta + valid_meta,
+                '<main data-ui-surface="UI-001"><h1>Duplicate CSP</h1></main>',
+            )
+            problems = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertTrue(any("exactly one canonical restrictive CSP" in item for item in problems))
+
+            render(
+                valid_meta,
+                '<main data-ui-surface="UI-001"><h1>Ping and computed call</h1>'
+                '<a href="#ok" ping="https://example.test/ping">Local</a>'
+                '<script>globalThis[String.fromCharCode(102,101,116,99,104)]("https://example.test")</script>'
+                "</main>",
+            )
+            problems = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertTrue(any("external resources" in item and "ping" in item for item in problems))
+
+            render(
+                "",
+                '<main data-ui-surface="UI-001"><h1>Computed call without CSP</h1>'
+                '<script>globalThis[String.fromCharCode(102,101,116,99,104)]("https://example.test")</script>'
+                "</main>",
+            )
+            problems = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertTrue(any("canonical restrictive CSP" in item for item in problems))
+
+            render(
+                '<script>globalThis[String.fromCharCode(102,101,116,99,104)]("https://example.test")</script>'
+                + valid_meta,
+                '<main data-ui-surface="UI-001"><h1>Late CSP after computed network call</h1></main>',
+            )
+            problems = []
+            checker._validate_hifi_surface(path, problems)
+            self.assertTrue(
+                any("before every script" in item for item in problems),
+                problems,
+            )
 
     def test_motion_join_rejects_missing_duplicate_and_mismatch(self):
         intent = {

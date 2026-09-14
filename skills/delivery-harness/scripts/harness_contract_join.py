@@ -38,6 +38,7 @@ DESIGN_SYSTEM_MARKDOWN_SOURCE_KINDS = {
     "design system",
     "design system markdown",
 }
+APPROVED_UI_TARGET_SOURCE_KINDS = {"approved ui target"}
 JOINED_CONTRACT_FILENAMES = {
     "prd.md",
     "architecture.md",
@@ -112,6 +113,79 @@ def frozen_sources(
     return matches
 
 
+def _strict_source_rows(
+    plan: dict[str, Any], key: str
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Find one exact current source family for the 0.38 authority join.
+
+    Matching both the declared kind and the canonical path family is
+    intentional: a row with a right-looking filename but a wrong kind (or the
+    reverse) is a contradictory source, not a second way to name the same
+    contract.
+    """
+
+    spec = _STRICT_SOURCE_SPECS[key]
+    rows: list[dict[str, Any]] = []
+    errors: list[str] = []
+    sources = plan.get("sources")
+    if not isinstance(sources, list):
+        return rows, errors
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        location = source.get("location")
+        kind = normalized_kind(source.get("kind"))
+        if not isinstance(location, str):
+            continue
+        normalized = location.replace("\\", "/").strip()
+        filename = normalized.rsplit("/", 1)[-1]
+        canonical = str(spec["canonical"])
+        if key == "approved-target":
+            suffix = normalized[len(canonical) :] if normalized.startswith(canonical) else ""
+            family_match = (
+                normalized.startswith(canonical)
+                and suffix.count("/") == 1
+                and suffix.split("/", 1)[0]
+                and filename == spec["filename"]
+            )
+        else:
+            family_match = normalized == canonical
+        kind_match = kind == spec["kind"]
+        if not (family_match or kind_match):
+            continue
+        rows.append(source)
+        if kind != spec["kind"]:
+            errors.append(
+                f"plan.sources: {key} source must use canonical kind "
+                f"{spec['kind']!r}"
+            )
+        if not family_match:
+            errors.append(
+                f"plan.sources: {key} source location must be a canonical "
+                f"{canonical} path"
+            )
+        if source.get("status") not in FROZEN_SOURCE_STATUSES:
+            errors.append(
+                f"plan.sources: {key} source must be frozen or delta_accepted"
+            )
+    if len(rows) > 1:
+        errors.append(
+            f"plan.sources: {key} requires exactly one frozen current source; "
+            f"found {len(rows)}"
+        )
+    return rows, sorted(set(errors))
+
+
+def _strict_source_inventory(plan: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    inventory: dict[str, list[dict[str, Any]]] = {}
+    errors: list[str] = []
+    for key in _STRICT_SOURCE_SPECS:
+        rows, row_errors = _strict_source_rows(plan, key)
+        inventory[key] = rows
+        errors.extend(row_errors)
+    return inventory, sorted(set(errors))
+
+
 def contract_values(value: str) -> list[str]:
     stripped = value.strip()
     try:
@@ -175,6 +249,62 @@ def normalized_responsive(
 
 WEB_VIEWPORT_FLOOR_VERSION = (0, 34, 0)
 UI_DESIGN_CONTRACT_REQUIRED_VERSION = (0, 37, 0)
+STRICT_UI_AUTHORITY_VERSION = (0, 38, 0)
+
+
+_STRICT_SOURCE_SPECS: dict[str, dict[str, Any]] = {
+    "prd": {
+        "kind": "prd",
+        "filename": "prd.md",
+        "canonical": "docs/product/PRD.md",
+    },
+    "architecture": {
+        "kind": "architecture",
+        "filename": "architecture.md",
+        "canonical": "docs/product/architecture.md",
+    },
+    "stack": {
+        "kind": "stack decisions",
+        "filename": "stack-decisions.md",
+        "canonical": "docs/product/stack-decisions.md",
+    },
+    "ui-design": {
+        "kind": "ui design",
+        "filename": "ui-design.md",
+        "canonical": "docs/design/ui-design.md",
+    },
+    "wireframes": {
+        "kind": "wireframe",
+        "filename": "wireframes.html",
+        "canonical": "docs/design/wireframes.html",
+    },
+    "approved-target": {
+        "kind": "approved ui target",
+        "filename": "index.html",
+        "canonical": "docs/design/ui-references/",
+    },
+    "design-system.md": {
+        "kind": "design system",
+        "filename": "design-system.md",
+        "canonical": "docs/design/design-system.md",
+    },
+    "design-system.json": {
+        "kind": "design system json",
+        "filename": "design-system.json",
+        "canonical": "docs/design/design-system.json",
+    },
+}
+
+
+def strict_ui_authority_required(run: dict[str, Any] | None) -> bool:
+    """Return whether the paired RUN opts into the 0.38 authority join."""
+
+    return bool(
+        isinstance(run, dict)
+        and version_at_least(
+            run_required_harness_version(run), STRICT_UI_AUTHORITY_VERSION
+        )
+    )
 
 
 def web_viewport_floor_required(run: dict[str, Any] | None) -> bool:
@@ -635,7 +765,11 @@ def required_design_system_source_errors(plan: dict[str, Any]) -> list[str]:
 
 
 def _resolve_source_bytes(
-    source: dict[str, Any], repo_root: str | Path, *, label: str
+    source: dict[str, Any],
+    repo_root: str | Path,
+    *,
+    label: str,
+    strict: bool = False,
 ) -> tuple[bytes | None, list[str]]:
     expected_hash = source.get("content_sha256")
     if not isinstance(expected_hash, str) or SHA256_RE.fullmatch(expected_hash) is None:
@@ -655,12 +789,33 @@ def _resolve_source_bytes(
             f"plan.sources: frozen {label} join requires a repository-relative POSIX path"
         ]
     root = Path(repo_root).resolve()
-    source_path = (root / location).resolve()
+    source_candidate = root / location
+    source_path = source_candidate.resolve()
     try:
         relative = source_path.relative_to(root).as_posix()
     except ValueError:
         return None, [f"plan.sources: frozen {label} path resolves outside --repo-root"]
+    # A frozen authority must be a real file below the root, not a symlink
+    # whose target can change independently of the recorded path.
+    if strict:
+        cursor = root
+        for component in PureWindowsPath(location.replace("/", "\\")).parts:
+            if component in {".", ""}:
+                continue
+            cursor = cursor / component
+            if cursor.is_symlink():
+                return None, [
+                    f"plan.sources: frozen {label} path must not traverse a symlink"
+                ]
     revision = source.get("source_revision")
+    current_contents: bytes | None = None
+    if strict:
+        if not source_path.is_file():
+            return None, [f"plan.sources: cannot read frozen {label} source"]
+        try:
+            current_contents = source_path.read_bytes()
+        except OSError as exc:
+            return None, [f"plan.sources: cannot read frozen {label} source ({exc})"]
     if isinstance(revision, str) and revision:
         if FULL_SHA_RE.fullmatch(revision) is None:
             return None, [
@@ -677,11 +832,19 @@ def _resolve_source_bytes(
                 f"plan.sources: cannot read frozen {label} bytes at {revision}:{relative}"
             ]
         contents = result.stdout
+        if strict and current_contents != contents:
+            return None, [
+                f"plan.sources: frozen {label} current bytes differ from "
+                f"source_revision {revision}"
+            ]
     else:
-        try:
-            contents = source_path.read_bytes()
-        except OSError as exc:
-            return None, [f"plan.sources: cannot read frozen {label} source ({exc})"]
+        if current_contents is not None:
+            contents = current_contents
+        else:
+            try:
+                contents = source_path.read_bytes()
+            except OSError as exc:
+                return None, [f"plan.sources: cannot read frozen {label} source ({exc})"]
     actual_hash = hashlib.sha256(contents).hexdigest()
     if actual_hash != expected_hash:
         return None, [
@@ -694,6 +857,8 @@ def _resolve_source_bytes(
 _FULL_WIREFRAME_CHECKERS: dict[Path, Any] = {}
 _FULL_UI_DESIGN_CHECKERS: dict[Path, Any] = {}
 _FULL_PRODUCT_PACKAGE_CHECKERS: dict[Path, Any] = {}
+_FULL_DESIGN_SYSTEM_CHECKERS: dict[Path, Any] = {}
+_UI_CONTRACT_VIEWS: dict[Path, Any] = {}
 
 
 def sibling_builder_scripts_dir() -> Path:
@@ -771,6 +936,46 @@ def _load_full_product_package_checker(sibling_scripts: Path) -> Any:
     return checker
 
 
+def _load_ui_contract_view(sibling_scripts: Path) -> Any:
+    key = sibling_scripts
+    if key in _UI_CONTRACT_VIEWS:
+        return _UI_CONTRACT_VIEWS[key]
+    parser: Any = None
+    if (key / "check_ui_design_contract.py").is_file():
+        sys.path.insert(0, str(key))
+        try:
+            import check_ui_design_contract as checker_module
+        finally:
+            try:
+                sys.path.remove(str(key))
+            except ValueError:
+                pass
+        parser = checker_module.parse_ui_contract_view
+    _UI_CONTRACT_VIEWS[key] = parser
+    return parser
+
+
+def _load_full_design_system_checker(sibling_scripts: Path) -> Any:
+    """Import the design-system compiler's canonical pair checker once."""
+
+    key = sibling_scripts
+    if key in _FULL_DESIGN_SYSTEM_CHECKERS:
+        return _FULL_DESIGN_SYSTEM_CHECKERS[key]
+    checker: Any = None
+    if (key / "check_design_system_pair.py").is_file():
+        sys.path.insert(0, str(key))
+        try:
+            import check_design_system_pair as checker_module
+        finally:
+            try:
+                sys.path.remove(str(key))
+            except ValueError:
+                pass
+        checker = checker_module.compare
+    _FULL_DESIGN_SYSTEM_CHECKERS[key] = checker
+    return checker
+
+
 def full_wireframe_checker_errors(
     wireframe_bytes: bytes,
     prd_bytes: bytes | None = None,
@@ -788,7 +993,13 @@ def full_wireframe_checker_errors(
     """
 
     scripts = sibling_scripts or sibling_ui_design_scripts_dir()
-    validate_wireframes = _load_full_wireframe_checker(scripts)
+    try:
+        validate_wireframes = _load_full_wireframe_checker(scripts)
+    except Exception as exc:
+        return [
+            "wireframes: canonical checker loader failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
     if validate_wireframes is None:
         return [
             "wireframes: the full wireframe checker is unavailable — install "
@@ -802,12 +1013,18 @@ def full_wireframe_checker_errors(
         if prd_bytes is not None:
             prd_path = Path(directory) / "PRD.md"
             prd_path.write_bytes(prd_bytes)
-        problems = validate_wireframes(
-            html_path,
-            require_filled=True,
-            require_approved=True,
-            prd_path=prd_path,
-        )
+        try:
+            problems = validate_wireframes(
+                html_path,
+                require_filled=True,
+                require_approved=True,
+                prd_path=prd_path,
+            )
+        except Exception as exc:
+            return [
+                "wireframes: canonical checker failed safely: "
+                f"{type(exc).__name__}: {exc}"
+            ]
     rewritten: list[str] = []
     for problem in problems:
         problem = problem.replace(f"{html_path}: ", "wireframes: ")
@@ -842,14 +1059,20 @@ def full_ui_design_checker_errors(
         ui_design_path.write_bytes(ui_design_bytes)
         wireframes_path.write_bytes(wireframe_bytes)
         prd_path.write_bytes(prd_bytes)
-        return validate_ui_design(
-            ui_design_path,
-            prd_path=prd_path,
-            wireframes_path=wireframes_path,
-            require_filled=True,
-            require_wireframe_approved=True,
-            require_visual_approved=True,
-        )
+        try:
+            return validate_ui_design(
+                ui_design_path,
+                prd_path=prd_path,
+                wireframes_path=wireframes_path,
+                require_filled=True,
+                require_wireframe_approved=True,
+                require_visual_approved=True,
+            )
+        except Exception as exc:
+            return [
+                "ui-design: canonical checker failed safely: "
+                f"{type(exc).__name__}: {exc}"
+            ]
 
 
 def full_product_package_checker_errors(
@@ -863,7 +1086,13 @@ def full_product_package_checker_errors(
     """Run Product Definition's approval checker on frozen core-package bytes."""
 
     scripts = sibling_scripts or sibling_builder_scripts_dir()
-    validate_package = _load_full_product_package_checker(scripts)
+    try:
+        validate_package = _load_full_product_package_checker(scripts)
+    except Exception as exc:
+        return [
+            "product package: canonical checker loader failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
     if validate_package is None:
         return [
             "product package: the full Product Definition checker is unavailable — "
@@ -882,12 +1111,338 @@ def full_product_package_checker_errors(
     }
     if repo_root is not None and "repo_root" in inspect.signature(validate_package).parameters:
         kwargs["repo_root"] = Path(repo_root)
-    return validate_package(
-        prd_text,
-        architecture_text,
-        stack_text,
-        **kwargs,
+    try:
+        return validate_package(
+            prd_text,
+            architecture_text,
+            stack_text,
+            **kwargs,
+        )
+    except Exception as exc:
+        return [
+            "product package: canonical checker failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
+
+
+def full_ui_design_checker_errors_at_paths(
+    ui_design_path: Path,
+    *,
+    repo_root: Path,
+    prd_path: Path,
+    wireframes_path: Path,
+    hifi_path: Path,
+    design_system_markdown_path: Path | None = None,
+    design_system_registry_path: Path | None = None,
+    sibling_scripts: Path | None = None,
+) -> list[str]:
+    """Run the canonical UI checker against the actual repository paths."""
+
+    scripts = sibling_scripts or sibling_ui_design_scripts_dir()
+    try:
+        validate_ui_design = _load_full_ui_design_checker(scripts)
+    except Exception as exc:
+        return [
+            "ui-design: canonical checker loader failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
+    if validate_ui_design is None:
+        return [
+            "ui-design: the full UI design checker is unavailable — install "
+            "ui-design-builder next to delivery-harness "
+            f"(missing {scripts / 'check_ui_design_contract.py'})"
+        ]
+    try:
+        return validate_ui_design(
+            ui_design_path,
+            repo_root=repo_root,
+            prd_path=prd_path,
+            wireframes_path=wireframes_path,
+            hifi_path=hifi_path,
+            design_system_markdown_path=design_system_markdown_path,
+            design_system_registry_path=design_system_registry_path,
+            require_filled=True,
+            require_wireframe_approved=True,
+            require_visual_approved=True,
+        )
+    except Exception as exc:
+        return [
+            "ui-design: canonical checker failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
+
+
+def full_design_system_checker_errors_at_paths(
+    markdown_path: Path,
+    registry_path: Path,
+    *,
+    repo_root: Path,
+    sibling_scripts: Path | None = None,
+) -> list[str]:
+    """Run the compiler's canonical design-system pair checker on real files."""
+
+    scripts = sibling_scripts or (
+        Path(__file__).resolve().parents[2] / "design-system-compiler" / "scripts"
     )
+    try:
+        compare = _load_full_design_system_checker(scripts)
+    except Exception as exc:
+        return [
+            "design-system: canonical checker loader failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
+    if compare is None:
+        return [
+            "design-system: the canonical pair checker is unavailable — install "
+            "design-system-compiler next to delivery-harness "
+            f"(missing {scripts / 'check_design_system_pair.py'})"
+        ]
+    try:
+        markdown_text = markdown_path.read_text(encoding="utf-8")
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return [f"design-system: cannot read canonical pair ({exc})"]
+    if not isinstance(registry, dict):
+        return ["design-system: design-system.json must contain an object"]
+    try:
+        return compare(
+            markdown_text,
+            registry,
+            require_filled=True,
+            repo_root=repo_root,
+        )
+    except Exception as exc:
+        return [
+            "design-system: canonical checker failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
+
+
+def _strict_ui_surface_errors(
+    plan: dict[str, Any], view: dict[str, Any]
+) -> list[str]:
+    """Join PLAN UI surfaces to the parser's single approved-target view."""
+
+    errors: list[str] = []
+    scope = view.get("target_scope")
+    if not isinstance(scope, dict):
+        return ["ui-design: approved target scope is missing"]
+    target_surfaces = {
+        item.get("id"): item
+        for item in scope.get("surfaces", [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    plan_surfaces = _plan_surfaces(plan)
+    if set(target_surfaces) != set(plan_surfaces):
+        errors.append("ui-design: approved target surfaces must exactly match PLAN ui_surfaces")
+    responsive = scope.get("responsive")
+    target_kind = responsive.get("kind") if isinstance(responsive, dict) else None
+    target_values = responsive.get("targets") if isinstance(responsive, dict) else []
+    target_values = [str(item) for item in target_values] if isinstance(target_values, list) else []
+    capture_mode = view.get("capture_mode")
+    if capture_mode not in {"hosted-browser", "browser-extension", "native", "desktop"}:
+        errors.append("ui-design: approved target captureMode is missing or invalid")
+    expected_kind = "sizeClasses" if capture_mode in {"native", "desktop"} else "viewports"
+    if target_kind != expected_kind:
+        errors.append("ui-design: approved target responsive kind does not match captureMode")
+    for surface_id in sorted(set(target_surfaces) & set(plan_surfaces)):
+        target = target_surfaces[surface_id]
+        plan_surface = plan_surfaces[surface_id]
+        if plan_surface.get("route") != target.get("route"):
+            errors.append(f"plan.ui_surfaces: surface {surface_id} route differs from approved target")
+        target_states = {
+            normalized_state(item) for item in target.get("states", []) if isinstance(item, str)
+        }
+        plan_states = {
+            normalized_state(item) for item in plan_surface.get("states", []) if isinstance(item, str)
+        }
+        if plan_states != target_states:
+            errors.append(f"plan.ui_surfaces: surface {surface_id} states differ from approved target")
+        breakpoints = [str(item).strip() for item in plan_surface.get("breakpoints", []) if isinstance(item, str)]
+        if target_kind == "viewports":
+            if len(breakpoints) != len(target_values) or any(
+                not any(breakpoint_matches_viewport(item, target) for item in breakpoints)
+                for target in target_values
+            ):
+                errors.append(f"plan.ui_surfaces: surface {surface_id} breakpoints differ from approved target")
+        elif set(breakpoints) != set(target_values) or len(breakpoints) != len(target_values):
+            errors.append(f"plan.ui_surfaces: surface {surface_id} size classes differ from approved target")
+        capture = plan_surface.get("capture_mode")
+        if capture != capture_mode:
+            errors.append(
+                f"plan.ui_surfaces: surface {surface_id} capture_mode must equal approved target captureMode"
+            )
+    return sorted(set(errors))
+
+
+def _validate_strict_frozen_contract_joins(
+    plan: dict[str, Any], repo_root: str | Path, *, run: dict[str, Any]
+) -> list[str]:
+    """Enforce the 0.38 source authority and UI/design-system XOR contract."""
+
+    inventory, errors = _strict_source_inventory(plan)
+    has_ui = bool(plan.get("ui_surfaces"))
+    required_keys = {"prd", "architecture", "stack"}
+    if has_ui:
+        required_keys.update({"ui-design", "wireframes", "approved-target"})
+    for key in sorted(required_keys):
+        rows = inventory[key]
+        if len(rows) != 1:
+            errors.append(
+                f"plan.sources: Harness 0.38+ requires exactly one frozen {key} source"
+            )
+    if not has_ui:
+        for key in ("ui-design", "wireframes", "approved-target", "design-system.md", "design-system.json"):
+            if inventory[key]:
+                errors.append(f"plan.sources: headless PLAN must not freeze {key} source")
+
+    resolved: dict[str, bytes] = {}
+    paths: dict[str, Path] = {}
+    root = Path(repo_root).resolve()
+    labels = {
+        "prd": "PRD",
+        "architecture": "architecture",
+        "stack": "stack-decisions",
+        "ui-design": "ui-design",
+        "wireframes": "wireframes",
+        "approved-target": "approved UI target",
+        "design-system.md": "design-system.md",
+        "design-system.json": "design-system.json",
+    }
+    for key, rows in inventory.items():
+        if len(rows) != 1 or key not in required_keys and key not in {"design-system.md", "design-system.json"}:
+            continue
+        if not rows:
+            continue
+        contents, source_errors = _resolve_source_bytes(
+            rows[0], root, label=labels[key], strict=True
+        )
+        errors.extend(source_errors)
+        if contents is not None:
+            resolved[key] = contents
+            paths[key] = root / str(rows[0]["location"])
+
+    if not all(key in resolved for key in ("prd", "architecture", "stack")):
+        return sorted(set(errors))
+    try:
+        prd_text = resolved["prd"].decode("utf-8")
+        resolved["architecture"].decode("utf-8")
+        resolved["stack"].decode("utf-8")
+    except UnicodeDecodeError as exc:
+        errors.append(f"product package: core artifact is not valid UTF-8 ({exc})")
+        return sorted(set(errors))
+
+    errors.extend(validate_plan_prd_text(plan, prd_text))
+    errors.extend(
+        full_product_package_checker_errors(
+            resolved["prd"], resolved["architecture"], resolved["stack"], repo_root=root
+        )
+    )
+    if not has_ui:
+        return sorted(set(errors))
+
+    if not all(key in resolved for key in ("ui-design", "wireframes", "approved-target")):
+        return sorted(set(errors))
+    parser = _load_ui_contract_view(sibling_ui_design_scripts_dir())
+    if parser is None:
+        errors.append("ui-design: shared UI contract parser is unavailable")
+        return sorted(set(errors))
+    try:
+        ui_text = resolved["ui-design"].decode("utf-8")
+        try:
+            view, parser_errors = parser(ui_text)
+        except Exception as exc:
+            errors.append(
+                "ui-design: shared contract parser failed safely: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            return sorted(set(errors))
+    except UnicodeDecodeError as exc:
+        errors.append(f"ui-design: is not valid UTF-8 ({exc})")
+        return sorted(set(errors))
+    errors.extend(parser_errors)
+    errors.extend(_strict_ui_surface_errors(plan, view))
+
+    source_identity_map = view.get("source_identities") if isinstance(view, dict) else None
+    for view_key, source_key in (
+        ("prd", "prd"),
+        ("architecture", "architecture"),
+        ("stack", "stack"),
+        ("wireframe", "wireframes"),
+    ):
+        identity = source_identity_map.get(view_key) if isinstance(source_identity_map, dict) else None
+        row = inventory[source_key][0]
+        if not isinstance(identity, dict) or identity.get("path") != row.get("location") or identity.get("sha256") != row.get("content_sha256"):
+            errors.append(
+                f"ui-design: {view_key} source identity must exactly match the frozen PLAN source"
+            )
+    frozen_prd = source_identity_map.get("frozen_prd") if isinstance(source_identity_map, dict) else None
+    if isinstance(frozen_prd, dict) and (
+        frozen_prd.get("path") != inventory["prd"][0].get("location")
+        or frozen_prd.get("sha256") != inventory["prd"][0].get("content_sha256")
+    ):
+        errors.append("ui-design: Frozen PRD basis must exactly match the frozen PLAN PRD source")
+
+    target = view.get("approved_target") if isinstance(view, dict) else None
+    target_row = inventory["approved-target"][0]
+    if not isinstance(target, dict):
+        errors.append("ui-design: approved target identity is missing")
+    else:
+        if target.get("path") != target_row.get("location") or target.get("sha256") != target_row.get("content_sha256"):
+            errors.append("plan.sources: approved UI target source does not match ui-design Approved target")
+    errors.extend(
+        full_ui_design_checker_errors_at_paths(
+            paths["ui-design"],
+            repo_root=root,
+            prd_path=paths["prd"],
+            wireframes_path=paths["wireframes"],
+            hifi_path=paths["approved-target"],
+            design_system_markdown_path=paths.get("design-system.md"),
+            design_system_registry_path=paths.get("design-system.json"),
+        )
+    )
+
+    gate = view.get("gate") if isinstance(view, dict) else None
+    decision = gate.get("decision") if isinstance(gate, dict) else None
+    ds_rows_present = bool(inventory["design-system.md"] or inventory["design-system.json"])
+    ds_trace_present = any(
+        isinstance(trace, dict)
+        and isinstance(trace.get("id"), str)
+        and trace["id"].startswith("DS-")
+        for trace in (plan.get("traces") or [])
+    )
+    if decision == "required":
+        if len(inventory["design-system.md"]) != 1 or len(inventory["design-system.json"]) != 1:
+            errors.append("plan.sources: required Design System Need Gate needs exactly one design-system.md and design-system.json")
+        elif paths.get("design-system.md") and paths.get("design-system.json"):
+            errors.extend(
+                full_design_system_checker_errors_at_paths(
+                    paths["design-system.md"], paths["design-system.json"], repo_root=root
+                )
+            )
+            try:
+                registry = json.loads(
+                    paths["design-system.json"].read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                errors.append(f"design-system: cannot read registry for PLAN join: {exc}")
+            else:
+                try:
+                    errors.extend(validate_ui_surface_design_registry(plan, registry))
+                except Exception as exc:
+                    errors.append(
+                        "design-system: PLAN registry join failed safely: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+    elif decision == "not_required":
+        if ds_rows_present or ds_trace_present:
+            errors.append("plan.sources: not_required Design System Need Gate must have no design-system rows or DS traces")
+        replacement = gate.get("replacement") if isinstance(gate, dict) else None
+        if not isinstance(replacement, dict) or set(replacement) != {"target", "ui-design", "wireframe", "prd"}:
+            errors.append("ui-design: not_required Design System Need Gate replacement must name the exact visual contract")
+    else:
+        errors.append("ui-design: Design System Need Gate must be required or not_required")
+    return sorted(set(errors))
 
 
 def validate_frozen_contract_joins(
@@ -906,6 +1461,8 @@ def validate_frozen_contract_joins(
 
     if plan.get("schema_version") != 6:
         return []
+    if strict_ui_authority_required(run):
+        return _validate_strict_frozen_contract_joins(plan, repo_root, run=run)
     errors = required_contract_source_errors(plan)
     has_ui = bool(plan.get("ui_surfaces"))
     prd_sources = frozen_sources(
@@ -1052,7 +1609,13 @@ def validate_frozen_contract_joins(
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             errors.append(f"design_system: is not valid JSON ({exc})")
         else:
-            errors.extend(validate_ui_surface_design_registry(plan, registry))
+            try:
+                errors.extend(validate_ui_surface_design_registry(plan, registry))
+            except Exception as exc:
+                errors.append(
+                    "design_system: PLAN registry join failed safely: "
+                    f"{type(exc).__name__}: {exc}"
+                )
             if viewports_floor and isinstance(registry, dict):
                 errors.extend(registry_web_viewport_floor_errors(registry))
     if isinstance(registry, dict) and "design-system.md" in resolved:
@@ -1061,5 +1624,11 @@ def validate_frozen_contract_joins(
         except UnicodeDecodeError as exc:
             errors.append(f"design-system.md: is not valid UTF-8 ({exc})")
         else:
-            errors.extend(compare_design_system_pair(markdown_text, registry))
+            try:
+                errors.extend(compare_design_system_pair(markdown_text, registry))
+            except Exception as exc:
+                errors.append(
+                    "design_system: canonical pair adapter failed safely: "
+                    f"{type(exc).__name__}: {exc}"
+                )
     return sorted(set(errors))

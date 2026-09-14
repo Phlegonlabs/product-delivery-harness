@@ -547,14 +547,6 @@ def _diff(expected: Any, actual: Any, path: str, problems: list[str]) -> None:
         )
 
 
-SOURCE_REF_RE = re.compile(
-    r"^\s*(?P<label>PRD source|Architecture source|Stack source|Wireframe|"
-    r"Connected HiFi reference|Approved target):\s*"
-    r"(?P<path>[A-Za-z0-9._/-]+) @ sha256:(?P<sha256>[0-9a-f]{64})(?:;\s*scope=.*)?\s*$",
-    re.MULTILINE,
-)
-
-
 def _ui_identity_bindings(
     bindings: dict[str, Any], *, repo_root: Path, problems: list[str], require_contract: bool = False
 ) -> None:
@@ -580,51 +572,45 @@ def _ui_identity_bindings(
         if require_contract:
             problems.append("design-system.json sourceBindings.uiDesign must point to a complete UI Design Contract")
         return
-    gate_match = re.search(r"^## Design System Need Gate\s*$([\s\S]*?)(?=^##\s+|\Z)", text, re.MULTILINE)
-    decisions = re.findall(r"^\s*Decision:\s*(.+?)\s*$", gate_match.group(1) if gate_match else "", re.MULTILINE | re.IGNORECASE)
-    if len(decisions) != 1 or decisions[0].strip().casefold() != "required":
+    try:
+        ui_checker = __import__("check_ui_design_contract")
+        view, view_problems = ui_checker.parse_ui_contract_view(text)
+    except (ImportError, AttributeError) as exc:
+        problems.append(f"design-system.json cannot parse the shared UI contract view: {exc}")
+        return
+    problems.extend(f"ui-design: {item}" for item in view_problems)
+    gate = view.get("gate") if isinstance(view, dict) else None
+    decision = gate.get("decision") if isinstance(gate, dict) else None
+    if decision != "required":
         problems.append("design-system.json sourceBindings.uiDesign requires an active Design System Need Gate Decision: required")
-    if gate_match and re.search(r"^\s*Replacement visual contract when_not_required\s*:", gate_match.group(1), re.MULTILINE | re.IGNORECASE):
+    if isinstance(gate, dict) and gate.get("replacement"):
         problems.append("design-system.json sourceBindings.uiDesign must not contain a not_required replacement for a required pair")
-    refs: dict[str, list[tuple[str, str]]] = {}
-    for match in SOURCE_REF_RE.finditer(text):
-        refs.setdefault(match.group("label"), []).append(
-            (match.group("path"), match.group("sha256"))
-        )
+    identities = view.get("source_identities") if isinstance(view, dict) else {}
     mapping = {
-        "prd": "PRD source",
-        "architecture": "Architecture source",
-        "stack": "Stack source",
-        "wireframe": "Wireframe",
-        "hifi": "Connected HiFi reference",
+        "prd": "prd",
+        "architecture": "architecture",
+        "stack": "stack",
+        "wireframe": "wireframe",
     }
-    approved_match = re.search(
-        r"^Approved target:\s*([A-Za-z0-9._/-]+) @ sha256:([0-9a-f]{64});\s*scope=.*$",
-        text,
-        re.MULTILINE,
-    )
-    if approved_match and not refs.get("Approved target"):
-        refs.setdefault("Approved target", []).append(
-            (approved_match.group(1), approved_match.group(2))
-        )
-    for key, label in mapping.items():
+    for key, view_key in mapping.items():
         binding = bindings.get(key)
-        expected_values = refs.get(label, [])
-        if label == "Connected HiFi reference" and refs.get("Approved target"):
-            expected_values = refs["Approved target"]
         if not isinstance(binding, dict):
             problems.append(f"design-system.json sourceBindings.{key} is missing or not an object")
             continue
-        if len(expected_values) != 1:
-            problems.append(
-                f"design-system.json sourceBindings.{key} requires exactly one active {label} identity"
-            )
+        expected = identities.get(view_key) if isinstance(identities, dict) else None
+        if not isinstance(expected, dict):
+            problems.append(f"design-system.json sourceBindings.{key} requires exactly one active UI source identity")
             continue
-        expected = expected_values[0]
-        if binding.get("path") != expected[0] or binding.get("sha256") != expected[1]:
+        if binding.get("path") != expected.get("path") or binding.get("sha256") != expected.get("sha256"):
             problems.append(
-                f"design-system.json sourceBindings.{key} does not match {label} in ui-design.md"
+                f"design-system.json sourceBindings.{key} does not match {view_key} in ui-design.md"
             )
+    hifi_binding = bindings.get("hifi")
+    target = view.get("approved_target") if isinstance(view, dict) else None
+    if not isinstance(hifi_binding, dict):
+        problems.append("design-system.json sourceBindings.hifi is missing or not an object")
+    elif not isinstance(target, dict) or hifi_binding.get("path") != target.get("path") or hifi_binding.get("sha256") != target.get("sha256"):
+        problems.append("design-system.json sourceBindings.hifi does not match Approved target in ui-design.md")
 
     # A current pair cannot silently accept a UI markdown file that only looks
     # like a source manifest. Run the exact UI checker when its contract is

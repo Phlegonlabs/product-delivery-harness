@@ -12,7 +12,7 @@ Artifact: `docs/design/design-system.json`
 
 `design-system.json` is the sole structured authority for source bindings, token names, source paths, primitives, closed variant sets, product-component contracts, responsive verification, motion variants, and states. This Markdown file keeps the short human rationale and generated contract view.
 
-The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`. Verify with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.
+The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. Verify with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.
 
 ## Source Inputs
 

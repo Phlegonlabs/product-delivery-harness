@@ -9,26 +9,42 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
 TESTS_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = TESTS_DIR.parent
+UI_TESTS_DIR = Path(__file__).resolve().parents[3] / "ui-design-builder" / "scripts" / "tests"
+PDB_TESTS_DIR = Path(__file__).resolve().parents[3] / "product-definition-builder" / "scripts" / "tests"
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+if str(UI_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(UI_TESTS_DIR))
+if str(PDB_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(PDB_TESTS_DIR))
 
 from harness_manifest import plan_digest  # noqa: E402
 from harness_design_contract import generated_contract_block  # noqa: E402
 from harness_contract_join import (  # noqa: E402
+    full_design_system_checker_errors_at_paths,
     full_product_package_checker_errors,
+    full_ui_design_checker_errors,
     full_wireframe_checker_errors,
     validate_frozen_contract_joins,
     validate_plan_prd_text,
 )
+from validate_harness_plan import _viewport_floor_errors  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from manifest_fixtures import manifest_markdown, wireframes_html  # noqa: E402
+from test_wireframe_contract import render_html, wireframe_data  # noqa: E402
+from test_product_package_checker import release_architecture, valid_prd, valid_stack  # noqa: E402
+
+for candidate in (UI_TESTS_DIR, PDB_TESTS_DIR):
+    while str(candidate) in sys.path:
+        sys.path.remove(str(candidate))
 
 
 HOME_SURFACE = {
@@ -517,14 +533,12 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "id": "UI-001",
                 "trace_ids": ["REQ-001"],
                 "route": "/home",
-                "breakpoints": ["390", "1200"],
+                "breakpoints": ["390", "768", "1200"],
                 "states": ["ready"],
                 "evidence_gate": "required",
             }
         ]
-        wireframes = wireframes_html(
-            [{"id": "UI-001", "route": "/home", "states": ["ready"]}]
-        )
+        wireframes = render_html(wireframe_data())
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             prd_path = self.bind_prd(
@@ -535,7 +549,8 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
+                "- `copy`: approved — static copy is implementation-bound\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             wireframes_path = root / "wireframes.html"
@@ -590,11 +605,14 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 ),
                 payload["errors"],
             )
-            plan["ui_surfaces"][0]["breakpoints"] = ["390", "1200"]
+            plan["ui_surfaces"][0]["breakpoints"] = ["390", "768", "1200"]
 
-            drifted = wireframes_html(
-                [{"id": "UI-001", "route": "/dashboard", "states": ["ready", "empty"]}]
+            drifted_data = wireframe_data()
+            drifted_data["screens"][0]["route"] = "/dashboard"
+            drifted_data["screens"][0]["states"].append(
+                {"id": "empty", "label": "Empty", "treatments": {}}
             )
+            drifted = render_html(drifted_data)
             wireframes_path.write_text(drifted, encoding="utf-8")
             plan["sources"][-1]["content_sha256"] = hashlib.sha256(
                 wireframes_path.read_bytes()
@@ -665,16 +683,15 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         reduced PLAN join: reviewer shell, self-containment, and approved
         status are enforced on the frozen bytes."""
 
-        valid = wireframes_html(
-            [{"id": "UI-001", "route": "/home", "states": ["ready"]}]
-        ).encode("utf-8")
+        valid = render_html(wireframe_data()).encode("utf-8")
         prd = (
             "<!-- ui-surface-contract:start -->\n"
             "## UI Surface Contract\n\n"
             "### UI-001 — Home\n\n"
             "- `route`: /home\n"
             "- `states`: ready\n"
-            "- `responsive`: viewports: 390, 1200\n"
+            "- `responsive`: viewports: 390, 768, 1200\n"
+            "- `copy`: approved — static copy is implementation-bound\n"
             "<!-- ui-surface-contract:end -->\n"
         ).encode("utf-8")
         self.assertEqual([], full_wireframe_checker_errors(valid, prd))
@@ -714,7 +731,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertIn("must be 'approved'", joined)
 
         external = valid.replace(
-            b"<main></main>", b'<main><img src="https://example.invalid/x.png"></main>'
+            b"</body>", b'<img src="https://example.invalid/x.png"></body>'
         )
         joined = " ".join(full_wireframe_checker_errors(external, prd))
         self.assertIn("must not load external resources", joined)
@@ -730,14 +747,14 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertIn("full wireframe checker is unavailable", missing[0])
 
     def test_approved_product_package_runs_the_full_builder_checker(self) -> None:
-        prd = self.approved_prd().encode("utf-8")
-        architecture = self.approved_architecture().encode("utf-8")
-        stack = self.approved_stack().encode("utf-8")
+        prd = valid_prd().encode("utf-8")
+        architecture = release_architecture().encode("utf-8")
+        stack = valid_stack().encode("utf-8")
         self.assertEqual(
             [], full_product_package_checker_errors(prd, architecture, stack)
         )
 
-        recommended = stack.replace(b"| Framework | React | Approved |", b"| Framework | React | Recommended |")
+        recommended = stack.replace(b"| Framework | React Router | Approved |", b"| Framework | React Router | Recommended |")
         errors = full_product_package_checker_errors(prd, architecture, recommended)
         self.assertTrue(any("owner approval is required" in error for error in errors))
 
@@ -750,23 +767,56 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertEqual(1, len(missing))
         self.assertIn("Product Definition checker is unavailable", missing[0])
 
+    def test_sibling_checker_runtime_errors_become_deterministic_findings(self) -> None:
+        def explode(*_args: object, **_kwargs: object) -> list[str]:
+            raise RuntimeError("fixture checker exploded")
+
+        with patch(
+            "harness_contract_join._load_full_product_package_checker",
+            return_value=explode,
+        ):
+            product_errors = full_product_package_checker_errors(b"prd", b"arch", b"stack")
+        self.assertTrue(any("failed safely" in error and "RuntimeError" in error for error in product_errors))
+
+        with patch(
+            "harness_contract_join._load_full_ui_design_checker",
+            return_value=explode,
+        ):
+            ui_errors = full_ui_design_checker_errors(b"ui", b"wireframe", b"prd")
+        self.assertTrue(any("failed safely" in error and "RuntimeError" in error for error in ui_errors))
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            markdown = root / "design-system.md"
+            registry = root / "design-system.json"
+            markdown.write_text("# Design System\n", encoding="utf-8")
+            registry.write_text("{}", encoding="utf-8")
+            with patch(
+                "harness_contract_join._load_full_design_system_checker",
+                return_value=explode,
+            ):
+                design_errors = full_design_system_checker_errors_at_paths(
+                    markdown, registry, repo_root=root
+                )
+        self.assertTrue(any("failed safely" in error and "RuntimeError" in error for error in design_errors))
+
     def test_approval_marker_requires_and_joins_frozen_core_package(self) -> None:
         plan = valid_plan()
         plan["ui_surfaces"] = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            prd_path = self.bind_prd(plan, root, self.approved_prd())
+            prd_path = self.bind_prd(plan, root, valid_prd())
             architecture_source = next(
                 source for source in plan["sources"] if source["kind"] == "architecture"
             )
             architecture_path = root / architecture_source["location"]
             architecture_path.parent.mkdir(parents=True, exist_ok=True)
-            architecture_path.write_text(self.approved_architecture(), encoding="utf-8")
+            architecture_path.write_text(release_architecture(), encoding="utf-8")
             architecture_source["content_sha256"] = hashlib.sha256(
                 architecture_path.read_bytes()
             ).hexdigest()
             stack_path = root / "docs/product/stack-decisions.md"
-            stack_path.write_text(self.approved_stack(), encoding="utf-8")
+            stack_path.write_text(valid_stack(), encoding="utf-8")
             plan["sources"].append(
                 {
                     "id": "SRC-STACK",
@@ -1459,11 +1509,11 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
             f"{copy_anchor}"
             "<!-- ui-surface-contract:end -->\n"
         )
-        wireframes = wireframes_html(
-            [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
-            schema="wireframes/4" if len(viewports) >= 3 else "wireframes/2",
-            viewports=tuple(viewports),
-        )
+        # Current approved joins require the canonical wireframes/4 reviewer
+        # shell. The 2-target case is intentionally kept as a legacy-floor
+        # negative (the PRD/registry still carry only two targets), while the
+        # passing case uses the canonical three-target publication fixture.
+        wireframes = render_html(wireframe_data())
         registry = self.web_floor_registry(viewports)
         run = valid_run(plan)
         adapter = run["runtime_capabilities"]["runtime_adapter"]
@@ -1594,9 +1644,34 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
         self.assertEqual("PASS", payload["status"])
 
     def test_ungated_run_keeps_the_two_viewport_floor(self) -> None:
-        payload = self.run_gated_pair_cli([390, 1200], gate=None)
-
-        self.assertEqual("PASS", payload["status"], payload["errors"])
+        plan = valid_plan()
+        ungated = valid_run(plan)
+        ungated["runtime_capabilities"]["runtime_adapter"].pop("version_gate")
+        gated = valid_run(plan)
+        gated["runtime_capabilities"]["runtime_adapter"]["version_gate"][
+            "required_harness_version"
+        ] = "0.35.0"
+        with tempfile.TemporaryDirectory() as directory:
+            registry_path = Path(directory) / "design-system.json"
+            registry_path.write_text(
+                json.dumps(self.web_floor_registry([390, 1200])),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                [],
+                _viewport_floor_errors(
+                    ungated, prd_path=None, design_system_path=str(registry_path)
+                ),
+            )
+            self.assertEqual(
+                [
+                    "design_system: web responsive set needs at least three "
+                    "ascending viewports (harness 0.34.0+)"
+                ],
+                _viewport_floor_errors(
+                    gated, prd_path=None, design_system_path=str(registry_path)
+                ),
+            )
 
     def test_frozen_joins_carry_the_viewport_floor_only_for_gated_runs(self) -> None:
         plan = valid_plan()

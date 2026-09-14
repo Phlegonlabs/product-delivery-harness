@@ -352,6 +352,61 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertIn("reference HTML not found", stderr.getvalue())
 
+    def test_browser_extension_capture_refuses_hosted_url_parity(self) -> None:
+        self.plan.write_text(
+            plan_markdown(
+                [
+                    {
+                        "id": "UI-EXT",
+                        "trace_ids": ["REQ-001"],
+                        "route": "/popup",
+                        "breakpoints": ["390", "768"],
+                        "states": ["ready"],
+                        "evidence_gate": "required",
+                        "capture_mode": "browser-extension",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code, _ = self.run_main()
+        self.assertEqual(1, code)
+        self.assertIn("not supported by parity_capture", stderr.getvalue())
+        self.assertIn("browser-extension", stderr.getvalue())
+        self.assertFalse(self.out.exists())
+
+    def test_native_capture_refuses_even_without_a_base_url(self) -> None:
+        self.plan.write_text(
+            plan_markdown(
+                [
+                    {
+                        "id": "UI-NATIVE",
+                        "trace_ids": ["REQ-001"],
+                        "route": "/home",
+                        "breakpoints": ["compact", "regular"],
+                        "states": ["ready"],
+                        "evidence_gate": "required",
+                        "capture_mode": "native",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = parity_capture.main(
+                [
+                    "--plan", str(self.plan),
+                    "--reference", str(self.reference),
+                    "--out", str(self.out),
+                ]
+            )
+        self.assertEqual(1, code)
+        self.assertIn("native", stderr.getvalue())
+        self.assertNotIn("--base-url is required", stderr.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

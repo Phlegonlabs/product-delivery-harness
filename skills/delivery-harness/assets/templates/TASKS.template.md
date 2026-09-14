@@ -5,7 +5,7 @@
 Optional non-canonical human view of the run, normally written to `docs/tasks.md` (see the Project Size Gate in `SKILL.md` and the File Size Limit in the project `AGENTS.md`). Render it from the canonical pair instead of hand-writing it:
 
 ```text
-python <skill>/scripts/render_tasks_view.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --out docs/tasks.md
+python <skill>/scripts/render_tasks_view.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <repository-root> --out docs/tasks.md
 ```
 
 The view groups one section per mission, newest mission first — M1 sits at the bottom, later plan revisions surface at the top — under a progress header (missions integrated, tasks recorded, current frontier), with each mission's tasks listed as `task | objective | depends on | phase | verifier | attempts | commit`.

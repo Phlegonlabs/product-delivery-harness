@@ -139,12 +139,26 @@ class CrossSkillPipelineTests(unittest.TestCase):
     def test_completed_goal_documents_archive_on_completion_declaration(self) -> None:
         harness = self.read("delivery-harness/references/contract-and-traceability.md")
         project_agents = self.read("delivery-harness/assets/templates/PROJECT_AGENTS.template.md")
+        promotion = self.read("delivery-harness/references/branch-promotion-contract.md")
 
         self.assertIn("declares the project or initiative complete", harness)
-        self.assertIn("run `scripts/archive_run.py` on the same instruction", harness)
+        self.assertIn("archive on the same instruction", harness)
+        self.assertIn("archive_run.py", harness)
         self.assertIn("docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/", harness)
-        self.assertIn("archive the finished plan runtime", project_agents)
+        self.assertIn("writes closed `ARCHIVE_RECEIPT.json`", project_agents)
         self.assertIn("never moves anything under `docs/product/`", project_agents)
+        self.assertIn("At RUN close, candidate C", promotion)
+        self.assertIn("archive-only commit A", promotion)
+        self.assertIn("If separately authorized, `push_archived_candidate.py`", promotion)
+        self.assertIn("Only after production verification may `product-activation`", promotion)
+        self.assertLess(
+            promotion.index("## Managed RUN Archive Before Promotion"),
+            promotion.index("## Candidate Gate"),
+        )
+        self.assertLess(
+            promotion.index("## Candidate Gate"),
+            promotion.index("## Promote To Main"),
+        )
 
     def test_activation_is_create_once_post_delivery_and_outcome_bound(self) -> None:
         product = self.read("product-definition-builder/SKILL.md")
@@ -155,7 +169,36 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("does not already exist", product)
         self.assertIn("docs/ACTIVATION.md", lifecycle)
         self.assertIn("Never create, edit, reopen, or extend `docs/goal/PLAN.md`", activation)
-        self.assertIn("`product-activation` follows required promotion", delivery)
+        self.assertIn(
+            "`product-activation`, outcome review, and SEO follow required promotion",
+            delivery,
+        )
+
+    def test_downstream_skills_always_run_the_full_product_gate_with_repo_root(self) -> None:
+        sources = {
+            "ui design": self.read("ui-design-builder/SKILL.md"),
+            "wireframes": self.read("ui-design-builder/references/wireframe-guide.md"),
+            "design system": self.read("design-system-compiler/SKILL.md"),
+            "activation": self.read("product-activation/SKILL.md"),
+        }
+        required = (
+            "check_product_package.py",
+            "--prd",
+            "--architecture",
+            "--stack-decisions",
+            "--repo-root <repository-root>",
+            "--require-filled",
+            "--require-approved",
+        )
+        for label, source in sources.items():
+            with self.subTest(label=label):
+                for marker in required:
+                    self.assertIn(marker, source)
+        self.assertIn("always run", sources["activation"])
+        self.assertNotIn(
+            "When the PRD carries the Product Definition approval marker",
+            sources["activation"],
+        )
 
     def test_repository_design_images_require_recorded_confirmation(self) -> None:
         references = self.read("ui-design-builder/references/design-reference-guide.md")

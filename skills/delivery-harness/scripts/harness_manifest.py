@@ -44,6 +44,8 @@ from harness_schema import (
     is_current_pair,
     is_valid_provider_id,
     run_required_harness_version,
+    archive_first_required,
+    required_harness_version,
     runtime_driver_priority,
     RUNTIME_REVIEW_TYPES,
     RUNTIME_REASONING_EFFORTS,
@@ -728,10 +730,28 @@ def _validate_plan_ui_surfaces(
         _add(errors, "plan.ui_surfaces", "must be a list")
     else:
         seen_ui: set[str] = set()
-        ui_keys = {"id", "trace_ids", "route", "breakpoints", "states", "evidence_gate"}
+        ui_keys = {
+            "id",
+            "trace_ids",
+            "route",
+            "breakpoints",
+            "states",
+            "evidence_gate",
+        }
         for index, surface in enumerate(plan["ui_surfaces"]):
             path = f"plan.ui_surfaces[{index}]"
-            if not _keys(errors, path, surface, ui_keys):
+            if not _keys(
+                errors,
+                path,
+                surface,
+                ui_keys,
+                {
+                    # Required by the 0.38 UI authority join; optional here so
+                    # older PLAN-v6 manifests remain readable until paired
+                    # with that RUN.
+                    "capture_mode",
+                },
+            ):
                 continue
             if not _nonempty_string(surface["id"]):
                 _add(errors, f"{path}.id", "must be a non-empty string")
@@ -767,6 +787,13 @@ def _validate_plan_ui_surfaces(
             _strings(errors, f"{path}.states", surface["states"], nonempty=True)
             if surface["evidence_gate"] not in {"required", "optional", "n/a"}:
                 _add(errors, f"{path}.evidence_gate", "has an unsupported value")
+            if "capture_mode" in surface and surface["capture_mode"] not in {
+                "hosted-browser",
+                "browser-extension",
+                "native",
+                "desktop",
+            }:
+                _add(errors, f"{path}.capture_mode", "has an unsupported value")
 
 
 def _validate_plan_risks(errors: list[str], plan: dict[str, Any]) -> None:
@@ -1000,11 +1027,11 @@ def _validate_plan_missions(
             )
             for scope in mission_write
         )
-        if wireframe_source_scope and "product-definition-builder" not in required_skills:
+        if wireframe_source_scope and "ui-design-builder" not in required_skills:
             _add(
                 errors,
                 f"{mission_path}.required_skills",
-                "wireframe-source write scope must include 'product-definition-builder'",
+                "wireframe-source write scope must include 'ui-design-builder'",
             )
         if "stop_conditions" in mission:
             _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
@@ -1787,6 +1814,37 @@ def validate_plan(
     if plan.get("schema_version") in {5, 6} and repo_root is not None:
         errors.extend(validate_plan_sources(plan, repo_root))
     return sorted(set(errors))
+
+
+def _archive_first_state_errors(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
+    """Apply archive-first state gates to current RUN-v11 only."""
+
+    if run.get("schema_version") != 11:
+        return []
+    version = required_harness_version(run)
+    errors: list[str] = []
+    if version is None:
+        push = run.get("authorizations", {}).get("push") if isinstance(run.get("authorizations"), dict) else None
+        if isinstance(push, dict) and push.get("authorized") is True:
+            errors.append("run.authorizations.push: missing or malformed required_harness_version cannot authorize push")
+        return errors
+    if not archive_first_required(run):
+        return errors
+    landing = run.get("landing")
+    if isinstance(landing, dict):
+        if landing.get("mode") != "local_only":
+            errors.append("run.landing.mode: archive-first RUN-v11 must remain local_only")
+        if landing.get("pushed_head_sha") is not None:
+            errors.append("run.landing.pushed_head_sha: archive-first RUN-v11 must remain null")
+    push = run.get("authorizations", {}).get("push") if isinstance(run.get("authorizations"), dict) else None
+    if isinstance(push, dict) and push.get("authorized") is True:
+        errors.append("run.authorizations.push: archive-first RUN-v11 must keep push authorization false")
+    graph = plan.get("graph") if isinstance(plan, dict) else None
+    for node in graph.get("nodes", []) if isinstance(graph, dict) else []:
+        if isinstance(node, dict) and node.get("kind") == "lifecycle" and node.get("ref") == "push":
+            errors.append("plan.graph: archive-first RUN-v11 cannot contain a push lifecycle node")
+            break
+    return errors
 
 
 def _validate_landing(
@@ -5511,6 +5569,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
         )
+    errors.extend(_archive_first_state_errors(plan, run))
     if schema_version in {10, 11} and isinstance(run.get("landing"), dict):
         v10_landing = run["landing"]
         continuity = v10_landing.get("continuity")
@@ -7377,6 +7436,13 @@ def validate_current_plan_run(
         return [
             "current PLAN/RUN validation requires --repo-root for immutable source validation"
         ]
+    if (
+        repo_root is None
+        and version_at_least(run_required_harness_version(run), (0, 38, 0))
+    ):
+        return [
+            "current PLAN/RUN validation requires --repo-root for the Harness 0.38 authority join"
+        ]
     effective_repo_root = repo_root
     plan_errors = (
         validate_plan(plan)
@@ -7388,8 +7454,30 @@ def validate_current_plan_run(
         if effective_repo_root is None
         else validate_frozen_contract_joins(plan, effective_repo_root, run=run)
     )
+    evidence_errors: list[str] = []
+    integration_errors: list[str] = []
+    if effective_repo_root is not None:
+        # Current transition validation must bind every v0.38 UI artifact,
+        # parity baseline, and authority source to the accepted Git head and
+        # independently re-check the live integration ref.  Keep this inside
+        # the pair entrypoint so callers cannot validate the PLAN/RUN shape and
+        # accidentally skip immutable evidence.
+        evidence_errors = validate_ui_evidence_files(
+            plan, run, effective_repo_root
+        )
+        integration_errors = validate_integration_head_against_git(
+            run, effective_repo_root
+        )
     return sorted(
-        set([*plan_errors, *contract_errors, *validate_run(plan, run)])
+        set(
+            [
+                *plan_errors,
+                *contract_errors,
+                *validate_run(plan, run),
+                *evidence_errors,
+                *integration_errors,
+            ]
+        )
     )
 
 

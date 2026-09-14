@@ -37,6 +37,9 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
     def bound_plan_and_run(self) -> tuple[dict[str, object], dict[str, object]]:
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
+        # Source-binding cases intentionally have no current integration head;
+        # live-head Git verification has its own dedicated test surface.
+        run["integration"]["integration_head_sha"] = None
         return plan, run
 
     def bind_hashes(self, plan: dict[str, object], *, prd: bytes, architecture: bytes) -> None:

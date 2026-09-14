@@ -39,6 +39,7 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import RUN_DISPATCH_STATUSES, RUN_HEADING
+from harness_schema import archive_first_required, required_harness_version
 from push_integration_branch import (
     make_push_request,
     validate_push_receipt,
@@ -481,6 +482,12 @@ def _validate_push_side_effect(
     run: dict[str, Any], repo_root: Path | None, authorized_head_sha: Any
 ) -> None:
     """Bind push reservation/completion to the exact live branch head."""
+
+    if run.get("schema_version") == 11:
+        if required_harness_version(run) is None:
+            raise ManifestError("RUN schema 11 push requires an explicit valid required_harness_version pin")
+        if archive_first_required(run):
+            raise ManifestError("RUN pins archive-first promotion; reserve/push the archived candidate instead")
 
     if not is_full_sha(authorized_head_sha):
         raise ManifestError("push lifecycle requires a full authorized head SHA")

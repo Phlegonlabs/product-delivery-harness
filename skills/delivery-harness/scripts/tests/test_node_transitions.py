@@ -1428,5 +1428,17 @@ class NodeTransitionTests(unittest.TestCase):
         self.assertNotIn(node["id"], [item["node_id"] for item in directives])
 
 
+    def test_archive_first_v11_refuses_push_transition_before_git_checks(self) -> None:
+        plan = mf.valid_plan()
+        run = mf.valid_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"]["required_harness_version"] = "0.38.0"
+        with self.assertRaisesRegex(ManifestError, "archive-first"):
+            harness_transition._validate_push_side_effect(
+                run,
+                Path("C:/not-used"),
+                "a" * 40,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

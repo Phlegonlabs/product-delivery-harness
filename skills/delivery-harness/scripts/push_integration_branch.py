@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from harness_core import ManifestError, _normalized_branch, is_full_sha
+from harness_schema import archive_first_required, required_harness_version
 from harness_authorization import authorization_covers
 from harness_manifest import (
     canonical_json,
@@ -504,6 +505,14 @@ def push_authorized_head(
 
     root = _root(repo_root)
     current = run.get("schema_version") == 11
+    if current and required_harness_version(run) is None:
+        raise ManifestError(
+            "RUN schema 11 push requires an explicit valid required_harness_version pin"
+        )
+    if current and archive_first_required(run):
+        raise ManifestError(
+            "RUN pins archive-first promotion (Harness >=0.38); use push_archived_candidate.py"
+        )
     if not current:
         raise ManifestError(
             "push side effects require RUN schema 11; legacy runs are read-only recovery"

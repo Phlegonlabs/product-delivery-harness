@@ -26,9 +26,9 @@ Architecture source: [repo-relative path @ sha256:<lowercase sha256>]
 
 Stack source: [repo-relative path @ sha256:<lowercase sha256>]
 
-Product Definition Approval: approved — [owner and date]
+Product Definition Approval: approved
 
-Stack Decision Checkpoint: approved — [owner and date]
+Stack Decision Checkpoint: approved
 
 ## UI Design Intake
 
@@ -96,7 +96,11 @@ Candidate theme: [color, typography, spacing, shape, iconography, imagery, and m
 
 Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>]
 
-The connected HiFi HTML must pass the generic self-contained surface check: no active external resources, network or executable APIs, remote forms, base/meta refresh navigation, CSS imports, or external scripts. This check does not apply the wireframe schema or canonical reviewer shell.
+The connected HiFi HTML must pass the generic self-contained surface check: no active external resources, network or executable APIs, remote forms, base/meta refresh navigation, CSS imports, or external scripts. Every publication must contain exactly one CSP meta with this exact closed policy (the parser is deterministic and does not claim to prove arbitrary JavaScript safe):
+
+`default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`
+
+The CSP denies remote media, forms, frames, objects, base navigation, and connections while allowing only the local inline CSS/script and embedded image/font/media needed by the self-contained review. This check does not apply the wireframe schema or canonical reviewer shell.
 
 ## HiFi Review
 
@@ -120,7 +124,7 @@ HiFi lowest dimension: [0-100]
 
 HiFi blocks or disputes: [none / named blocks or disputes]
 
-Each PASS evidence file is a `ui-evidence/2` human-attested JSON receipt with exactly `schema`, `check`, `result`, `reviewedArtifact`, `receipt`, `attestation`, and `owner`. `check` is platform-specific (for example `wireframe-browser`, `wireframe-browser-grading`, `wireframe-extension`, `wireframe-native`, `wireframe-desktop`, and corresponding HiFi checks); `reviewedArtifact` carries the exact current path and SHA-256; `receipt.matrix` is `{ "cases": [{"surface":"UI-*","state":"...","target":"..."}] }` derived per surface state × responsive target, `receipt.results` repeats those exact cases with `result: PASS`, and `receipt` carries a closed tool/method, a transcript/output artifact path+hash, and a past timezone-aware `executedAt`; `owner` names a human. The receipt is an attestation record, not an automatic approval—human Visual Approval remains required.
+Each PASS evidence file is a `ui-evidence/2` human-attested JSON receipt with exactly `schema`, `check`, `result`, `reviewedArtifact`, `receipt`, `attestation`, and `owner`. `check` is platform-specific (for example `wireframe-browser`, `wireframe-browser-grading`, `wireframe-extension`, `wireframe-native`, `wireframe-desktop`, and corresponding HiFi checks); `reviewedArtifact` carries the exact current path and SHA-256; `receipt.matrix` is `{ "cases": [{"surface":"UI-*","state":"...","target":"..."}] }` derived per surface state × responsive target, `receipt.results` repeats those exact cases with `result: PASS`, and `receipt` carries a closed tool/method, a transcript/output artifact path+hash, and a past timezone-aware `executedAt`; `owner` names a human. Every `hifi-*` surface check uses method `sandboxed-offline-browser` with its platform tool. Its retained `ui-output/1` output artifact additionally contains the exact `sandbox` object `{ "network":"disabled", "topNavigation":"blocked", "popups":"blocked", "forms":"blocked" }`, `console`, `network`, and `navigation` transcript arrays; any console error, request, navigation, popup, or form attempt fails. The target is rendered inside a sandbox with network disabled and top navigation/popups/forms blocked. The receipt is an attestation record, not an automatic approval—human Visual Approval remains required.
 
 Agents may validate or draft a proposed receipt but cannot set `attestation: human-attested`, select `owner`, or approve a Wireframe/Visual gate. The owner performs or confirms the check and supplies the receipt.
 
