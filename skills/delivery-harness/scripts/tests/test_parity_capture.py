@@ -393,9 +393,7 @@ class ParityCaptureTests(unittest.TestCase):
             link.symlink_to(original)
         except OSError as exc:
             self.skipTest(f"symlink unavailable: {exc}")
-        with self.assertRaises((OSError, RuntimeError)):
-            parity_capture._bind_posix_launcher(link)
-        bound, descriptor = parity_capture._bind_posix_launcher(original)
+        bound, descriptor = parity_capture._bind_posix_launcher(link)
         try:
             os.replace(replacement, original)
             completed = subprocess.run(

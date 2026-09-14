@@ -298,6 +298,68 @@ class HarnessGitTests(unittest.TestCase):
         self.assertEqual(200, token.value)
         create_restricted.assert_called_once()
 
+    @unittest.skipUnless(os.name == "nt", "Windows native AccessCheck fixture only")
+    def test_native_accesscheck_uses_restricted_probe_token_and_fails_closed(self) -> None:
+        import harness_git as module
+        import ctypes as ctypes_module
+
+        sid_buffer = ctypes.create_string_buffer(b"fixture-admin-sid")
+
+        def build_api(*, dangerous: bool, uncertain: bool = False) -> tuple[object, object, Mock]:
+            advapi = type("FakeAdvapi", (), {})()
+            kernel32 = type("FakeKernel", (), {})()
+            get_info = Mock()
+
+            def get_token_information(_token, _kind, buffer, _length, returned):
+                if buffer is None:
+                    returned._obj.value = 64
+                    return False
+                ctypes.c_uint32.from_buffer(buffer).value = 1
+                ctypes.c_void_p.from_buffer(buffer, 8).value = ctypes.addressof(sid_buffer)
+                ctypes.c_uint32.from_buffer(buffer, 8 + ctypes.sizeof(ctypes.c_void_p)).value = 4
+                return True
+
+            get_info.side_effect = get_token_information
+            advapi.GetNamedSecurityInfoW = Mock(side_effect=lambda *_args: (setattr(_args[-1]._obj, "value", 1) or setattr(_args[3]._obj, "value", 1) or 0))
+            advapi.ConvertSidToStringSidW = Mock(side_effect=lambda _sid, output: (setattr(output._obj, "value", "S-1-5-32-544") or True))
+            advapi.GetTokenInformation = get_info
+            advapi.OpenThreadToken = Mock(return_value=False)
+            advapi.OpenProcessToken = Mock(side_effect=lambda _process, _access, output: (setattr(output._obj, "value", 111) or True))
+            advapi.DuplicateToken = Mock(return_value=False)
+            advapi.CreateRestrictedToken = Mock(side_effect=lambda *_args: (setattr(_args[-1]._obj, "value", 100) or True))
+            advapi.DuplicateTokenEx = Mock(side_effect=lambda *_args: (setattr(_args[-1]._obj, "value", 200) or True))
+            access_check = Mock()
+
+            def access(_descriptor, token, *_args):
+                self.assertEqual(200, token.value)
+                access_status = _args[-1]
+                granted = _args[-2]
+                access_status._obj.value = not uncertain
+                granted._obj.value = 0x00010000 if dangerous else 0
+                return not uncertain
+
+            access_check.side_effect = access
+            advapi.AccessCheck = access_check
+            advapi.LocalFree = Mock()
+            kernel32.GetCurrentThread = Mock(return_value=1)
+            kernel32.GetCurrentProcess = Mock(return_value=2)
+            kernel32.CloseHandle = Mock()
+            kernel32.LocalFree = Mock()
+            return advapi, kernel32, access_check
+
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / "machine-dir"
+            target.mkdir()
+            icacls = target / "icacls.exe"
+            icacls.write_bytes(b"fixture")
+            icacls_hash = __import__("hashlib").sha256(icacls.read_bytes()).hexdigest()
+            for dangerous, uncertain, expected in ((False, False, False), (True, False, True), (False, True, True)):
+                with self.subTest(dangerous=dangerous, uncertain=uncertain):
+                    advapi, kernel32, access_check = build_api(dangerous=dangerous, uncertain=uncertain)
+                    with patch.object(module, "windows_icacls_path", return_value=(icacls, icacls_hash)), patch.object(ctypes_module, "WinDLL", side_effect=lambda name, **_kwargs: advapi if name == "advapi32" else kernel32):
+                        self.assertEqual(expected, module._windows_acl_allows_current_write(target))
+                    self.assertTrue(access_check.called)
+
     @unittest.skipUnless(os.name == "nt", "Windows owner/access fixture only")
     def test_program_files_path_does_not_bypass_native_owner_access_check(self) -> None:
         import harness_git as module
