@@ -16,6 +16,7 @@ import re
 import secrets
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,30 @@ from push_integration_branch import (
 from archive_run import _documents_after_bytes, validate_archive_receipt
 from archive_run import validate_archive_anchor
 
+
+POSIX_TRUST_POLICY_PATH = Path("/etc/product-delivery-harness/archive-push.allowed_signers")
+WINDOWS_TRUST_REGISTRY_PATH = r"SOFTWARE\ProductDeliveryHarness"
+WINDOWS_TRUST_REGISTRY_VALUE = "ArchivePushAllowedSigners"
+
+
+@dataclass(frozen=True)
+class MachineTrustPolicy:
+    policy_id: str
+    allowed_signers_path: Path
+    allowed_signers_sha256: str
+    principal: str
+    cleanup_path: Path | None = None
+
+    def cleanup(self) -> None:
+        if self.cleanup_path is not None:
+            try:
+                self.cleanup_path.unlink()
+            except OSError:
+                pass
+
+    def __del__(self) -> None:
+        self.cleanup()
+
 REQUEST_PROTOCOL = "harness-archive-push-request-v3"
 RECEIPT_PROTOCOL = "harness-archive-push-receipt-v3"
 ATTEMPT_PROTOCOL = "harness-archive-push-attempt-v2"
@@ -59,7 +84,7 @@ REQUEST_KEYS = {
     "push_url", "push_endpoint_kind", "push_endpoint_summary", "push_url_sha256", "remote_pre_push_head",
     "request_path", "request_path_sha256", "receipt_path", "receipt_path_sha256",
     "execution_evidence_path", "execution_evidence_path_sha256",
-    "trusted_signers_path", "trusted_signers_sha256", "trusted_host_principal",
+    "trust_policy_id", "trust_policy_sha256", "trusted_host_principal",
     "signature_verifier_path", "signature_verifier_sha256",
     "execution_nonce", "created_at", "request_sha256", "attempt_path", "attempt_path_sha256",
 }
@@ -74,7 +99,7 @@ RECEIPT_KEYS = {
     "anchor_path", "anchor_path_sha256", "anchor_nonce",
     "execution_evidence_path", "execution_evidence_path_sha256", "execution_evidence_sha256",
     "trusted_host_issuer", "trusted_host_principal",
-    "trusted_signers_path", "trusted_signers_sha256", "signature_verifier_path", "signature_verifier_sha256",
+    "trust_policy_id", "trust_policy_sha256", "signature_verifier_path", "signature_verifier_sha256",
 }
 ATTEMPT_KEYS = {
     "protocol", "request_sha256", "attempt_path", "attempt_path_sha256",
@@ -83,14 +108,14 @@ ATTEMPT_KEYS = {
     "remote_pre_push_head", "attempt_sha256",
     "execution_evidence_path", "execution_evidence_path_sha256",
     "prior_publication_state", "prior_publication_receipt_path", "prior_publication_receipt_sha256",
-    "trusted_signers_path", "trusted_signers_sha256", "signature_verifier_path", "signature_verifier_sha256",
+    "trust_policy_id", "trust_policy_sha256", "signature_verifier_path", "signature_verifier_sha256",
 }
 EXECUTION_EVIDENCE_KEYS = {
     "protocol", "request_sha256", "attempt_sha256", "execution_nonce", "candidate_a",
     "branch_ref", "push_url", "push_url_sha256", "remote_pre_push_head",
     "readback_head_sha", "push_argv", "push_argv_sha256", "request_reloaded",
     "authorization_revalidated", "endpoint_revalidated", "config_sanitized",
-    "dangerous_local_config_rejected", "trusted_host_issuer", "trusted_host_principal",
+    "dangerous_local_config_rejected", "trusted_host_issuer", "trusted_host_principal", "trust_policy_id",
     "authentication_proof", "executed_at", "evidence_sha256",
 }
 COORDINATION_NAMES = ("PLAN.md", "RUN.md", "DECISIONS.md", "REFINEMENT_BACKLOG.md")
@@ -188,6 +213,129 @@ def _trusted_signature_verifier_path(value: object, *, root: Path) -> str:
     if normalized not in allowed:
         raise ManifestError("signature_verifier_path is not an OS-managed OpenSSH verifier")
     return raw
+
+
+def _parse_machine_signer_line(value: str, *, policy_id: str) -> tuple[str, bytes]:
+    lines = value.splitlines()
+    if len(lines) != 1 or not lines[0].strip():
+        raise ManifestError(
+            f"machine trust policy {policy_id} must contain exactly one allowed-signers line; "
+            "install the administrator-provided policy before archive publication"
+        )
+    line = lines[0].strip()
+    fields = line.split()
+    if len(fields) < 3 or not re.fullmatch(r"(?:ssh|ecdsa|sk|rsa)-[^\s]+", fields[1]):
+        raise ManifestError(
+            f"machine trust policy {policy_id} has an invalid allowed-signers line"
+        )
+    principal = fields[0]
+    return principal, (line + "\n").encode("utf-8")
+
+
+def _protected_policy_path(path: Path, *, root: Path) -> Path:
+    resolved = Path(_canonical_external_path(path, label="machine trust policy", root=root))
+    if not resolved.is_file():
+        raise ManifestError(
+            "machine trust policy is absent; an administrator must install the archive-push allowed-signers policy"
+        )
+    if os.name != "nt":
+        try:
+            for component in list(reversed(resolved.parents)) + [resolved]:
+                info = component.stat()
+                if info.st_uid != 0 or info.st_mode & 0o022:
+                    raise ManifestError(
+                        "machine trust policy must be root-owned and not group/world writable"
+                    )
+        except OSError as exc:
+            raise ManifestError("cannot inspect machine trust policy ownership") from exc
+    return resolved
+
+
+def _discover_machine_trust_policy(*, root: Path | None = None) -> MachineTrustPolicy:
+    """Read the administrator/host trust root; callers cannot select it."""
+
+    if os.name == "nt":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                WINDOWS_TRUST_REGISTRY_PATH,
+                0,
+                winreg.KEY_READ | getattr(winreg, "KEY_WOW64_64KEY", 0),
+            ) as key:
+                value, value_type = winreg.QueryValueEx(key, WINDOWS_TRUST_REGISTRY_VALUE)
+        except (FileNotFoundError, OSError) as exc:
+            raise ManifestError(
+                "machine trust policy is absent; an administrator must install "
+                "HKLM\\SOFTWARE\\ProductDeliveryHarness\\ArchivePushAllowedSigners"
+            ) from exc
+        if value_type not in {1, 2} or not isinstance(value, str):
+            raise ManifestError("machine trust policy registry value must be a string")
+        policy_id = f"HKLM\\{WINDOWS_TRUST_REGISTRY_PATH}\\{WINDOWS_TRUST_REGISTRY_VALUE}"
+        principal, payload = _parse_machine_signer_line(value, policy_id=policy_id)
+        handle = tempfile.NamedTemporaryFile(
+            prefix="harness-machine-signers-",
+            suffix=".allowed-signers",
+            delete=False,
+        )
+        path = Path(handle.name).resolve()
+        try:
+            handle.write(payload)
+            handle.flush()
+        finally:
+            handle.close()
+        return MachineTrustPolicy(
+            policy_id=policy_id,
+            allowed_signers_path=path,
+            allowed_signers_sha256=hashlib.sha256(payload).hexdigest(),
+            principal=principal,
+            cleanup_path=path,
+        )
+
+    path = _protected_policy_path(POSIX_TRUST_POLICY_PATH, root=(root or Path.cwd()).resolve())
+    try:
+        value = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ManifestError("cannot read the administrator machine trust policy") from exc
+    principal, payload = _parse_machine_signer_line(value, policy_id=f"file:{path}")
+    return MachineTrustPolicy(
+        policy_id=f"file:{path}",
+        allowed_signers_path=path,
+        allowed_signers_sha256=hashlib.sha256(payload).hexdigest(),
+        principal=principal,
+    )
+
+
+def _discover_os_managed_verifier(*, root: Path) -> str:
+    """Select an OS-managed ssh-keygen without caller-supplied paths."""
+
+    candidates: list[Path] = []
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetWindowsDirectoryW.restype = wintypes.UINT
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = kernel32.GetWindowsDirectoryW(buffer, len(buffer))
+        if length:
+            windows = Path(buffer.value[:length]).resolve()
+            candidates.extend(
+                (
+                    windows / "System32" / "OpenSSH" / "ssh-keygen.exe",
+                    windows.anchor and Path(windows.anchor) / "Program Files" / "OpenSSH" / "ssh-keygen.exe",
+                    windows.anchor and Path(windows.anchor) / "Program Files" / "Git" / "usr" / "bin" / "ssh-keygen.exe",
+                )
+            )
+    else:
+        candidates.extend((Path("/usr/bin/ssh-keygen"), Path("/bin/ssh-keygen"), Path("/usr/local/bin/ssh-keygen")))
+    for candidate in candidates:
+        if candidate and candidate.is_file():
+            return _trusted_signature_verifier_path(candidate, root=root)
+    raise ManifestError(
+        "OS-managed ssh-keygen is absent; install OpenSSH/ssh-keygen before archive publication"
+    )
 
 
 def _validate_timestamp(value: object, label: str) -> None:
@@ -290,25 +438,23 @@ def _validate_execution_evidence_shape(
     principal = evidence.get("trusted_host_principal")
     _require_nonempty(issuer, "evidence.trusted_host_issuer")
     _require_nonempty(principal, "evidence.trusted_host_principal")
+    _require_nonempty(evidence.get("trust_policy_id"), "evidence.trust_policy_id")
     proof = evidence.get("authentication_proof")
     if not isinstance(proof, dict) or set(proof) != {
         "kind",
         "namespace",
+        "policy_id",
         "principal",
         "signature_path",
         "signature_sha256",
-        "allowed_signers_path",
-        "allowed_signers_sha256",
     }:
         raise ManifestError("trusted-host evidence requires a detached signature proof")
     if proof.get("kind") != "ssh-signature" or proof.get("namespace") != EXECUTION_EVIDENCE_NAMESPACE:
         raise ManifestError("trusted-host evidence signature proof is invalid")
     if proof.get("principal") != principal:
         raise ManifestError("trusted-host evidence principal does not match signature proof")
-    for key in ("signature_path", "allowed_signers_path"):
-        _canonical_external_path(proof.get(key), label=f"evidence.{key}", root=root)
+    _canonical_external_path(proof.get("signature_path"), label="evidence.signature_path", root=root)
     _require_sha(proof.get("signature_sha256"), length=64, label="evidence.signature_sha256")
-    _require_sha(proof.get("allowed_signers_sha256"), length=64, label="evidence.allowed_signers_sha256")
     _validate_timestamp(evidence.get("executed_at"), "evidence.executed_at")
     _require_sha(evidence.get("evidence_sha256"), length=64, label="evidence.evidence_sha256")
     unsigned = {
@@ -323,37 +469,29 @@ def _verify_execution_evidence_signature(
     *,
     root: Path,
     request: dict[str, Any],
-    trusted_signers_path: Path | None,
-    trusted_principal: str | None,
-    signature_verifier_path: Path | None,
 ) -> None:
     """Verify a detached trusted-host signature; local prose cannot satisfy it."""
 
     proof = evidence["authentication_proof"]
-    configured_signers = (
-        Path(_canonical_external_path(trusted_signers_path, label="trusted_signers_path", root=root))
-        if trusted_signers_path is not None
-        else None
-    )
-    if configured_signers is None:
-        raise ManifestError(
-            "recovery requires an explicit trusted-host allowed-signers boundary"
-        )
-    if str(configured_signers) != proof["allowed_signers_path"]:
-        raise ManifestError("trusted-host allowed-signers path does not match evidence")
-    request_signers = Path(request["trusted_signers_path"])
-    if configured_signers != request_signers:
-        raise ManifestError("trusted-host allowed-signers path is not request-bound")
-    if trusted_principal is None or trusted_principal != proof["principal"]:
-        raise ManifestError("recovery requires the expected trusted-host principal")
-    if trusted_principal != request["trusted_host_principal"]:
-        raise ManifestError("trusted-host principal is not request-bound")
+    policy = _discover_machine_trust_policy(root=root)
+    if policy.policy_id != request["trust_policy_id"] or policy.policy_id != evidence["trust_policy_id"]:
+        policy.cleanup()
+        raise ManifestError("machine trust policy identity changed after prepare")
+    if policy.allowed_signers_sha256 != request["trust_policy_sha256"]:
+        policy.cleanup()
+        raise ManifestError("machine trust policy hash changed after prepare")
+    if policy.principal != request["trusted_host_principal"] or policy.principal != proof["principal"]:
+        policy.cleanup()
+        raise ManifestError("machine trust policy principal changed after prepare")
+    if proof.get("policy_id") != policy.policy_id:
+        policy.cleanup()
+        raise ManifestError("trusted-host evidence policy ID does not match machine policy")
+    configured_signers = policy.allowed_signers_path
     signature_path = Path(proof["signature_path"])
-    signers_path = Path(proof["allowed_signers_path"])
+    signers_path = configured_signers
     if not signature_path.is_file() or not signers_path.is_file():
+        policy.cleanup()
         raise ManifestError("trusted-host signature or allowed-signers file is missing")
-    if proof["allowed_signers_sha256"] != request["trusted_signers_sha256"]:
-        raise ManifestError("trusted-host evidence signers hash is not request-bound")
     bound_fds: list[int] = []
 
     def bind(path: Path, expected: str) -> tuple[int, str]:
@@ -437,21 +575,18 @@ def _verify_execution_evidence_signature(
             bound_fds.pop()
             raise ManifestError("no descriptor path is available for trusted-host verifier")
         return fd, str(path)
-    configured_verifier = (
-        Path(_trusted_signature_verifier_path(signature_verifier_path, root=root))
-        if signature_verifier_path is not None
-        else None
-    )
-    if configured_verifier is None:
-        raise ManifestError(
-            "recovery requires an explicit request-bound signature verifier"
-        )
+    try:
+        configured_verifier = Path(_discover_os_managed_verifier(root=root))
+    except Exception:
+        policy.cleanup()
+        raise
     if str(configured_verifier) != request["signature_verifier_path"]:
+        policy.cleanup()
         raise ManifestError("signature verifier path does not match request")
     result = None
     try:
         _, verifier_arg = bind(configured_verifier, request["signature_verifier_sha256"])
-        _, signers_arg = bind(signers_path, request["trusted_signers_sha256"])
+        _, signers_arg = bind(signers_path, request["trust_policy_sha256"])
         _, signature_arg = bind(signature_path, proof["signature_sha256"])
         command = [
             verifier_arg,
@@ -489,6 +624,7 @@ def _verify_execution_evidence_signature(
                 os.close(fd)
             except OSError:
                 pass
+        policy.cleanup()
     if result is None:
         raise ManifestError("trusted-host signature verification did not run")
     if result.returncode != 0:
@@ -500,10 +636,6 @@ def _read_execution_evidence(
     root: Path,
     request: dict[str, Any],
     attempt: dict[str, Any],
-    *,
-    trusted_signers_path: Path | None,
-    trusted_principal: str | None,
-    signature_verifier_path: Path | None,
 ) -> dict[str, Any]:
     path = Path(request["execution_evidence_path"])
     _canonical_external_path(path, label="execution_evidence_path", root=root)
@@ -518,9 +650,6 @@ def _read_execution_evidence(
         evidence,
         root=root,
         request=request,
-        trusted_signers_path=trusted_signers_path,
-        trusted_principal=trusted_principal,
-        signature_verifier_path=signature_verifier_path,
     )
     return evidence
 
@@ -623,28 +752,26 @@ def _validate_request_values(request: dict[str, Any], root: Path, request_path: 
     }:
         raise ManifestError("execution evidence path must be distinct from request/attempt/receipt")
     _validate_endpoint(request)
-    trusted_signers_path = _canonical_external_path(
-        request.get("trusted_signers_path"),
-        label="trusted_signers_path",
-        root=root,
-    )
-    signers_file = Path(trusted_signers_path)
-    if not signers_file.is_file():
-        raise ManifestError("trusted-host allowed-signers policy is missing")
-    _require_sha(request.get("trusted_signers_sha256"), length=64, label="trusted_signers_sha256")
-    if hashlib.sha256(signers_file.read_bytes()).hexdigest() != request["trusted_signers_sha256"]:
-        raise ManifestError("trusted-host allowed-signers policy hash does not match request")
-    _require_nonempty(request.get("trusted_host_principal"), "trusted_host_principal")
-    verifier_path = _trusted_signature_verifier_path(
-        request.get("signature_verifier_path"),
-        root=root,
-    )
+    policy = _discover_machine_trust_policy(root=root)
+    if request.get("trust_policy_id") != policy.policy_id:
+        policy.cleanup()
+        raise ManifestError("request trust policy ID does not match machine policy")
+    if request.get("trust_policy_sha256") != policy.allowed_signers_sha256:
+        policy.cleanup()
+        raise ManifestError("request trust policy hash does not match machine policy")
+    if request.get("trusted_host_principal") != policy.principal:
+        policy.cleanup()
+        raise ManifestError("request trust policy principal does not match machine policy")
+    verifier_path = _discover_os_managed_verifier(root=root)
     verifier_file = Path(verifier_path)
     if not verifier_file.is_file():
+        policy.cleanup()
         raise ManifestError("trusted-host signature verifier is missing")
     _require_sha(request.get("signature_verifier_sha256"), length=64, label="signature_verifier_sha256")
     if hashlib.sha256(verifier_file.read_bytes()).hexdigest() != request["signature_verifier_sha256"]:
+        policy.cleanup()
         raise ManifestError("trusted-host signature verifier hash does not match request")
+    policy.cleanup()
     pre = request.get("remote_pre_push_head")
     if pre is not None:
         _require_sha(pre, label="remote_pre_push_head")
@@ -930,9 +1057,6 @@ def _replacement_base_from_plan(
             root,
             prior_request,
             prior_attempt,
-            trusted_signers_path=Path(prior_request["trusted_signers_path"]),
-            trusted_principal=prior_request["trusted_host_principal"],
-            signature_verifier_path=Path(prior_request["signature_verifier_path"]),
         )
         if prior_evidence.get("readback_head_sha") != revision:
             raise ManifestError("published prior evidence does not read back prior A")
@@ -1286,9 +1410,6 @@ def prepare(
     receipt_path: Path,
     archive_anchor: Path | None = None,
     execution_evidence_path: Path | None = None,
-    trusted_signers_path: Path | None = None,
-    trusted_host_principal: str | None = None,
-    signature_verifier_path: Path | None = None,
     authorization_source: str | None = None,
     authorization_ref: str | None = None,
 ) -> dict[str, Any]:
@@ -1311,27 +1432,14 @@ def prepare(
             root=root,
         )
     )
-    if trusted_signers_path is None or trusted_host_principal is None:
-        raise ManifestError(
-            "prepare requires an explicit trusted-host allowed-signers policy and principal"
-        )
-    trusted_signers_path = Path(
-        _canonical_external_path(
-            trusted_signers_path,
-            label="trusted_signers_path",
-            root=root,
-        )
-    )
-    if not trusted_signers_path.is_file():
-        raise ManifestError("trusted-host allowed-signers policy is missing")
-    _require_nonempty(trusted_host_principal, "trusted_host_principal")
-    if signature_verifier_path is None:
-        raise ManifestError("prepare requires an absolute trusted signature verifier path")
-    signature_verifier_path = Path(
-        _trusted_signature_verifier_path(signature_verifier_path, root=root)
-    )
-    if not signature_verifier_path.is_file():
-        raise ManifestError("trusted signature verifier is missing")
+    policy = _discover_machine_trust_policy(root=root)
+    try:
+        verifier_path = Path(_discover_os_managed_verifier(root=root))
+        policy_id = policy.policy_id
+        policy_sha256 = policy.allowed_signers_sha256
+        policy_principal = policy.principal
+    finally:
+        policy.cleanup()
     if len({request_path, attempt_path, receipt_path, execution_evidence_path}) != 4:
         raise ManifestError(
             "request, attempt, receipt, and execution evidence paths must be pairwise distinct"
@@ -1420,11 +1528,11 @@ def prepare(
         "receipt_path_sha256": _path_digest(receipt_path),
         "execution_evidence_path": str(execution_evidence_path),
         "execution_evidence_path_sha256": _path_digest(execution_evidence_path),
-        "trusted_signers_path": str(trusted_signers_path),
-        "trusted_signers_sha256": hashlib.sha256(trusted_signers_path.read_bytes()).hexdigest(),
-        "trusted_host_principal": trusted_host_principal,
-        "signature_verifier_path": str(signature_verifier_path),
-        "signature_verifier_sha256": hashlib.sha256(signature_verifier_path.read_bytes()).hexdigest(),
+        "trust_policy_id": policy_id,
+        "trust_policy_sha256": policy_sha256,
+        "trusted_host_principal": policy_principal,
+        "signature_verifier_path": str(verifier_path),
+        "signature_verifier_sha256": hashlib.sha256(verifier_path.read_bytes()).hexdigest(),
         "execution_nonce": secrets.token_hex(32),
         "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
@@ -1503,9 +1611,10 @@ def _validate_receipt_values(receipt: dict[str, Any], root: Path) -> None:
         _require_sha(receipt.get(key), length=64, label=f"receipt.{key}")
     _require_nonempty(receipt.get("trusted_host_issuer"), "receipt.trusted_host_issuer")
     _require_nonempty(receipt.get("trusted_host_principal"), "receipt.trusted_host_principal")
-    _canonical_external_path(receipt.get("trusted_signers_path"), label="receipt.trusted_signers_path", root=root)
+    _require_nonempty(receipt.get("trust_policy_id"), "receipt.trust_policy_id")
+    _require_sha(receipt.get("trust_policy_sha256"), length=64, label="receipt.trust_policy_sha256")
     _trusted_signature_verifier_path(receipt.get("signature_verifier_path"), root=root)
-    for key in ("trusted_signers_sha256", "signature_verifier_sha256"):
+    for key in ("trust_policy_sha256", "signature_verifier_sha256"):
         _require_sha(receipt.get(key), length=64, label=f"receipt.{key}")
 
 
@@ -1565,8 +1674,8 @@ def begin_handoff(root: Path, *, request_path: Path) -> dict[str, Any]:
         "remote_pre_push_head": remote_pre_push_head,
         "execution_evidence_path": request["execution_evidence_path"],
         "execution_evidence_path_sha256": request["execution_evidence_path_sha256"],
-        "trusted_signers_path": request["trusted_signers_path"],
-        "trusted_signers_sha256": request["trusted_signers_sha256"],
+        "trust_policy_id": request["trust_policy_id"],
+        "trust_policy_sha256": request["trust_policy_sha256"],
         "signature_verifier_path": request["signature_verifier_path"],
         "signature_verifier_sha256": request["signature_verifier_sha256"],
     }
@@ -1652,8 +1761,8 @@ def _load_attempt(request: dict[str, Any], root: Path) -> dict[str, Any]:
         "push_url",
         "execution_evidence_path",
         "execution_evidence_path_sha256",
-        "trusted_signers_path",
-        "trusted_signers_sha256",
+        "trust_policy_id",
+        "trust_policy_sha256",
         "signature_verifier_path",
         "signature_verifier_sha256",
     ):
@@ -1674,9 +1783,6 @@ def verify_receipt(
     root: Path,
     *,
     request_path: Path,
-    trusted_signers_path: Path | None = None,
-    trusted_principal: str | None = None,
-    signature_verifier_path: Path | None = None,
 ) -> dict[str, Any]:
     root = _root(root)
     request = _load_request(request_path, root)
@@ -1685,9 +1791,6 @@ def verify_receipt(
         root,
         request,
         attempt,
-        trusted_signers_path=trusted_signers_path,
-        trusted_principal=trusted_principal,
-        signature_verifier_path=signature_verifier_path,
     )
     receipt = _read_closed(Path(request["receipt_path"]), RECEIPT_PROTOCOL, RECEIPT_KEYS)
     _validate_receipt_values(receipt, root)
@@ -1712,8 +1815,8 @@ def verify_receipt(
             "remote_pre_push_head",
             "execution_evidence_path",
             "execution_evidence_path_sha256",
-            "trusted_signers_path",
-            "trusted_signers_sha256",
+            "trust_policy_id",
+            "trust_policy_sha256",
             "signature_verifier_path",
             "signature_verifier_sha256",
         )
@@ -1745,9 +1848,6 @@ def recover_uncertain(
     root: Path,
     *,
     request_path: Path,
-    trusted_signers_path: Path | None = None,
-    trusted_principal: str | None = None,
-    signature_verifier_path: Path | None = None,
 ) -> dict[str, Any]:
     root = _root(root)
     request = _load_request(request_path, root)
@@ -1757,17 +1857,11 @@ def recover_uncertain(
         return verify_receipt(
             root,
             request_path=request_path,
-            trusted_signers_path=trusted_signers_path,
-            trusted_principal=trusted_principal,
-            signature_verifier_path=signature_verifier_path,
         )
     evidence = _read_execution_evidence(
         root,
         request,
         attempt,
-        trusted_signers_path=trusted_signers_path,
-        trusted_principal=trusted_principal,
-        signature_verifier_path=signature_verifier_path,
     )
     authority = verify_archive_candidate(root, archive_path=root / request["archive_path"], candidate_a=request["candidate_a"])
     _request_matches_authority(request, authority)
@@ -1804,8 +1898,8 @@ def recover_uncertain(
         "execution_evidence_sha256": evidence["evidence_sha256"],
         "trusted_host_issuer": evidence["trusted_host_issuer"],
         "trusted_host_principal": evidence["trusted_host_principal"],
-        "trusted_signers_path": request["trusted_signers_path"],
-        "trusted_signers_sha256": request["trusted_signers_sha256"],
+        "trust_policy_id": request["trust_policy_id"],
+        "trust_policy_sha256": request["trust_policy_sha256"],
         "signature_verifier_path": request["signature_verifier_path"],
         "signature_verifier_sha256": request["signature_verifier_sha256"],
     }
@@ -1826,16 +1920,10 @@ def main(argv: list[str] | None = None) -> int:
     prepare_parser.add_argument("--receipt-path", required=True, type=Path)
     prepare_parser.add_argument("--archive-anchor", required=True, type=Path)
     prepare_parser.add_argument("--execution-evidence", type=Path)
-    prepare_parser.add_argument("--trusted-signers", required=True, type=Path)
-    prepare_parser.add_argument("--trusted-principal", required=True)
-    prepare_parser.add_argument("--signature-verifier", required=True, type=Path)
     for name in ("begin-handoff", "execute", "verify-receipt", "recover"):
         current = sub.add_parser(name)
         current.add_argument("--repo-root", required=True, type=Path)
         current.add_argument("--request", required=True, type=Path)
-        current.add_argument("--trusted-signers", type=Path)
-        current.add_argument("--trusted-principal")
-        current.add_argument("--signature-verifier", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "prepare":
@@ -1848,9 +1936,6 @@ def main(argv: list[str] | None = None) -> int:
                 receipt_path=args.receipt_path,
                 archive_anchor=args.archive_anchor,
                 execution_evidence_path=args.execution_evidence,
-                trusted_signers_path=args.trusted_signers,
-                trusted_host_principal=args.trusted_principal,
-                signature_verifier_path=args.signature_verifier,
             )
         elif args.command in {"begin-handoff", "execute"}:
             value = begin_handoff(args.repo_root, request_path=args.request)
@@ -1858,17 +1943,11 @@ def main(argv: list[str] | None = None) -> int:
             value = verify_receipt(
                 args.repo_root,
                 request_path=args.request,
-                trusted_signers_path=args.trusted_signers,
-                trusted_principal=args.trusted_principal,
-                signature_verifier_path=args.signature_verifier,
             )
         else:
             value = recover_uncertain(
                 args.repo_root,
                 request_path=args.request,
-                trusted_signers_path=args.trusted_signers,
-                trusted_principal=args.trusted_principal,
-                signature_verifier_path=args.signature_verifier,
             )
     except (OSError, ManifestError, ValueError, KeyError, GitMetadataError) as exc:
         print(json.dumps({"status": "ERROR", "errors": [str(exc)]}, sort_keys=True))

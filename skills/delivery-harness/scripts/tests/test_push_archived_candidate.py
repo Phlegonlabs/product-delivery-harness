@@ -54,6 +54,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
         self._temps: list[tempfile.TemporaryDirectory[str]] = []
         self._anchors: list[Path] = []
         self._external_files: list[Path] = []
+        self._patchers: list[object] = []
 
     def tearDown(self) -> None:
         for anchor in self._anchors:
@@ -66,6 +67,8 @@ class ArchiveFirstPushTests(unittest.TestCase):
                 path.unlink()
         for item in self._temps:
             item.cleanup()
+        for patcher in self._patchers:
+            patcher.stop()
 
     def _fixture(self) -> dict[str, Path | str]:
         """Create one real archive A with a bare remote and closed receipt."""
@@ -161,6 +164,15 @@ class ArchiveFirstPushTests(unittest.TestCase):
         if not verifier.is_file():
             verifier = Path(shutil.which("ssh-keygen") or "")
         receipt_path = anchor.with_name(anchor.stem + "-publication-receipt.json")
+        policy = subject.MachineTrustPolicy(
+            policy_id=f"test:{root.name}",
+            allowed_signers_path=signers.resolve(),
+            allowed_signers_sha256=hashlib.sha256(signers.read_bytes()).hexdigest(),
+            principal=principal,
+        )
+        policy_patcher = patch.object(subject, "_discover_machine_trust_policy", return_value=policy)
+        policy_patcher.start()
+        self._patchers.append(policy_patcher)
         return {"root": root, "remote": remote, "request": root.parent / f"request-{root.name}.json", "attempt": root.parent / f"attempt-{root.name}.json", "receipt": receipt_path, "archive": archive_run_path, "anchor": anchor, "candidate_c": expected_main, "candidate_a": candidate_a, "trust_dir": trust_dir, "private_key": private_key, "signers": signers, "principal": principal, "verifier": verifier.resolve()}
 
     def _prepare(self, fixture: dict[str, Path | str]) -> dict[str, object]:
@@ -172,9 +184,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
             attempt_path=Path(fixture["attempt"]),
             receipt_path=Path(fixture["receipt"]),
             archive_anchor=Path(fixture["anchor"]),
-            trusted_signers_path=Path(fixture["signers"]),
-            trusted_host_principal=str(fixture["principal"]),
-            signature_verifier_path=Path(fixture["verifier"]),
         )
 
     def _attest(self, fixture: dict[str, Path | str], handoff: dict[str, object]) -> None:
@@ -202,14 +211,14 @@ class ArchiveFirstPushTests(unittest.TestCase):
             "dangerous_local_config_rejected": True,
             "trusted_host_issuer": "fixture-trusted-host",
             "trusted_host_principal": fixture["principal"],
+            "trust_policy_id": f"test:{Path(fixture['root']).name}",
             "authentication_proof": {
                 "kind": "ssh-signature",
                 "namespace": subject.EXECUTION_EVIDENCE_NAMESPACE,
+                "policy_id": f"test:{Path(fixture['root']).name}",
                 "principal": fixture["principal"],
                 "signature_path": str(signature_path.resolve()),
                 "signature_sha256": "0" * 64,
-                "allowed_signers_path": str(Path(fixture["signers"]).resolve()),
-                "allowed_signers_sha256": hashlib.sha256(Path(fixture["signers"]).read_bytes()).hexdigest(),
             },
             "executed_at": "2026-09-13T00:00:00Z",
         }
@@ -235,9 +244,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         return subject.recover_uncertain(
             Path(fixture["root"]),
             request_path=Path(fixture["request"]),
-            trusted_signers_path=Path(fixture["signers"]),
-            trusted_principal=str(fixture["principal"]),
-            signature_verifier_path=Path(fixture["verifier"]),
         )
 
     def test_real_bare_remote_archive_push_happy_path(self) -> None:
@@ -257,8 +263,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         self._attest(fixture, handoff)
         subject.recover_uncertain(
             Path(fixture["root"]), request_path=Path(fixture["request"]),
-            trusted_signers_path=Path(fixture["signers"]), trusted_principal=str(fixture["principal"]),
-            signature_verifier_path=Path(fixture["verifier"]),
         )
         self.assertEqual(
             fixture["candidate_a"],
@@ -266,8 +270,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         )
         subject.verify_receipt(
             Path(fixture["root"]), request_path=Path(fixture["request"]),
-            trusted_signers_path=Path(fixture["signers"]), trusted_principal=str(fixture["principal"]),
-            signature_verifier_path=Path(fixture["verifier"]),
         )
         # PATH replacement cannot redirect the request-bound absolute verifier.
         fake_bin = Path(fixture["root"]).parent / f"fake-verifier-{Path(fixture['root']).name}"
@@ -277,8 +279,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         with patch.dict(os.environ, {"PATH": str(fake_bin) + os.pathsep + os.environ.get("PATH", "")}, clear=False):
             subject.verify_receipt(
                 Path(fixture["root"]), request_path=Path(fixture["request"]),
-                trusted_signers_path=Path(fixture["signers"]), trusted_principal=str(fixture["principal"]),
-                signature_verifier_path=Path(fixture["verifier"]),
             )
 
     def test_real_archive_run_dirty_plan_and_run_produce_receipt_accepted_by_verifier(self) -> None:
@@ -292,8 +292,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
         fake = Path(fixture["root"]).parent / f"fake-ssh-keygen-{Path(fixture['root']).name}.exe"
         fake.write_bytes(b"not an OS-managed verifier")
         self._external_files.append(fake)
-        with self.assertRaisesRegex(ManifestError, "OS-managed OpenSSH"):
-            subject.prepare(
+        prepared = subject.prepare(
                 Path(fixture["root"]),
                 archive_path=Path(fixture["archive"]),
                 remote="origin",
@@ -301,24 +300,19 @@ class ArchiveFirstPushTests(unittest.TestCase):
                 attempt_path=Path(fixture["attempt"]),
                 receipt_path=Path(fixture["receipt"]),
                 archive_anchor=Path(fixture["anchor"]),
-                trusted_signers_path=Path(fixture["signers"]),
-                trusted_host_principal=str(fixture["principal"]),
+            )
+        self.assertNotEqual(str(fake.resolve()), prepared["signature_verifier_path"])
+        with self.assertRaises(TypeError):
+            subject.prepare(
+                Path(fixture["root"]), archive_path=Path(fixture["archive"]), remote="origin",
+                request_path=Path(fixture["request"]), attempt_path=Path(fixture["attempt"]),
+                receipt_path=Path(fixture["receipt"]), archive_anchor=Path(fixture["anchor"]),
                 signature_verifier_path=fake,
             )
-        spoof_root = Path(fixture["root"]).parent / f"spoof-system-{Path(fixture['root']).name}"
-        spoof = spoof_root / "System32" / "OpenSSH" / "ssh-keygen.exe"
-        spoof.parent.mkdir(parents=True)
-        spoof.write_bytes(b"spoofed verifier")
-        self._external_files.append(spoof_root)
-        with patch.dict(os.environ, {"SystemRoot": str(spoof_root)}, clear=False):
-            with self.assertRaisesRegex(ManifestError, "OS-managed OpenSSH"):
-                subject.prepare(
-                    Path(fixture["root"]), archive_path=Path(fixture["archive"]), remote="origin",
-                    request_path=Path(fixture["request"]), attempt_path=Path(fixture["attempt"]),
-                    receipt_path=Path(fixture["receipt"]), archive_anchor=Path(fixture["anchor"]),
-                    trusted_signers_path=Path(fixture["signers"]), trusted_host_principal=str(fixture["principal"]),
-                    signature_verifier_path=spoof,
-                )
+
+    def test_cli_rejects_legacy_trust_override_flags(self) -> None:
+        with self.assertRaises(SystemExit):
+            subject.main(["recover", "--repo-root", ".", "--request", "request.json", "--trusted-signers", "attacker"])
 
     def _correction_fixture(self, *, publication_state: str = "published", omit_source: bool = False, forged_batch: bool = False) -> dict[str, object]:
         """Build a real C2/A2 archive for lineage/pre-state adversarial cases."""
@@ -388,7 +382,15 @@ class ArchiveFirstPushTests(unittest.TestCase):
         attempt = root.parent / f"unpublished-appeared-attempt-{root.name}.json"
         receipt = Path(case["anchor2"]).with_name(Path(case["anchor2"]).stem + "-publication-receipt.json")
         with self.assertRaisesRegex(ManifestError, "remote pre-state"):
-            subject.prepare(root, archive_path=Path(case["archive2"]), remote="origin", request_path=request, attempt_path=attempt, receipt_path=receipt, archive_anchor=Path(case["anchor2"]), trusted_signers_path=Path(fixture["signers"]), trusted_host_principal=str(fixture["principal"]), signature_verifier_path=Path(fixture["verifier"]))
+            subject.prepare(
+                root,
+                archive_path=Path(case["archive2"]),
+                remote="origin",
+                request_path=request,
+                attempt_path=attempt,
+                receipt_path=receipt,
+                archive_anchor=Path(case["anchor2"]),
+            )
 
     def test_omitted_prior_source_is_rejected_from_archive_lineage(self) -> None:
         case = self._correction_fixture(omit_source=True)
@@ -443,8 +445,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         with patch.object(subject.subprocess, "run", side_effect=probe):
             subject.recover_uncertain(
                 Path(fixture["root"]), request_path=Path(fixture["request"]),
-                trusted_signers_path=Path(fixture["signers"]), trusted_principal=str(fixture["principal"]),
-                signature_verifier_path=Path(fixture["verifier"]),
             )
         if os.name == "nt":
             self.assertEqual([True, True, True], replace_results)
@@ -548,8 +548,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         with patch.object(subject, "_git", side_effect=reject_push):
             recovered = subject.recover_uncertain(
                 Path(fixture["root"]), request_path=Path(fixture["request"]),
-                trusted_signers_path=Path(fixture["signers"]), trusted_principal=str(fixture["principal"]),
-                signature_verifier_path=Path(fixture["verifier"]),
             )
         self.assertEqual("PASS", recovered["status"] if "status" in recovered else "PASS")
 
@@ -565,15 +563,11 @@ class ArchiveFirstPushTests(unittest.TestCase):
         self._attest(fixture, handoff)
         subject.recover_uncertain(
             Path(fixture["root"]), request_path=Path(fixture["request"]),
-            trusted_signers_path=Path(fixture["signers"]), trusted_principal=str(fixture["principal"]),
-            signature_verifier_path=Path(fixture["verifier"]),
         )
         git(Path(fixture["root"]), "remote", "set-url", "--push", "origin", str(alternate))
         with self.assertRaisesRegex(ManifestError, "endpoint|configured push"):
             subject.verify_receipt(
                 Path(fixture["root"]), request_path=Path(fixture["request"]),
-                trusted_signers_path=Path(fixture["signers"]), trusted_principal=str(fixture["principal"]),
-                signature_verifier_path=Path(fixture["verifier"]),
             )
 
     def test_post_attempt_dirty_drift_is_rechecked_before_push(self) -> None:
@@ -598,8 +592,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
                 Path(fixture["root"]), archive_path=Path(fixture["archive"]), remote="origin",
                 request_path=Path(fixture["request"]), attempt_path=Path(fixture["attempt"]),
                 receipt_path=Path(fixture["receipt"]), archive_anchor=inside,
-                trusted_signers_path=Path(fixture["signers"]), trusted_host_principal=str(fixture["principal"]),
-                signature_verifier_path=Path(fixture["verifier"]),
             )
         with self.assertRaises(FileExistsError):
             archive_run._write_closed_anchor(Path(fixture["anchor"]), {}, Path(fixture["root"]))
@@ -867,11 +859,9 @@ class ArchiveFirstPushTests(unittest.TestCase):
             subject.prepare(
                 root, archive_path=archive2, remote="origin", request_path=deleted_request,
                 attempt_path=deleted_attempt, receipt_path=receipt, archive_anchor=anchor2,
-                trusted_signers_path=Path(fixture["signers"]), trusted_host_principal=str(fixture["principal"]),
-                signature_verifier_path=Path(fixture["verifier"]),
             )
         git(root, "--no-replace-objects", "push", "--", "origin", f"{candidate_a}:refs/heads/codex/test")
-        prepared = subject.prepare(root, archive_path=archive2, remote="origin", request_path=request, attempt_path=attempt, receipt_path=receipt, archive_anchor=anchor2, trusted_signers_path=Path(fixture["signers"]), trusted_host_principal=str(fixture["principal"]), signature_verifier_path=Path(fixture["verifier"]))
+        prepared = subject.prepare(root, archive_path=archive2, remote="origin", request_path=request, attempt_path=attempt, receipt_path=receipt, archive_anchor=anchor2)
         self.assertEqual(candidate_a, prepared["replacement_base"])
         self.assertEqual(candidate_a, prepared["remote_pre_push_head"])
         handoff2 = subject.begin_handoff(root, request_path=request)
@@ -885,9 +875,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         completed = subject.recover_uncertain(
             root,
             request_path=request,
-            trusted_signers_path=Path(fixture["signers"]),
-            trusted_principal=str(fixture["principal"]),
-            signature_verifier_path=Path(fixture["verifier"]),
         )
         self.assertEqual("PASS", completed["status"])
         self.assertEqual(a2, completed["candidate_a"])
@@ -900,7 +887,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
         Path(wrong_receipt).unlink()
         git(root, "--no-replace-objects", "push", "--force", "--", "origin", f"{fixture['candidate_c']}:refs/heads/codex/test")
         with self.assertRaisesRegex(ManifestError, "remote pre-state"):
-            subject.prepare(root, archive_path=archive2, remote="origin", request_path=wrong, attempt_path=wrong_attempt, receipt_path=wrong_receipt, archive_anchor=anchor2, trusted_signers_path=Path(fixture["signers"]), trusted_host_principal=str(fixture["principal"]), signature_verifier_path=Path(fixture["verifier"]))
+            subject.prepare(root, archive_path=archive2, remote="origin", request_path=wrong, attempt_path=wrong_attempt, receipt_path=wrong_receipt, archive_anchor=anchor2)
 
 
 if __name__ == "__main__":
