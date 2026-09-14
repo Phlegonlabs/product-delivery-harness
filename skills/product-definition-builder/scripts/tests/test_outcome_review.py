@@ -90,6 +90,37 @@ Verdict: {verdict} — measured outcomes met the reviewed target
 """
 
 
+def schema2_outcome(*, verdict: str = "no_change") -> str:
+    """Return a schema-2 record with the typed empty prior-verdict history marker."""
+
+    outcome = valid_outcome(verdict=verdict).replace("outcome-review/1", "outcome-review/2", 1)
+    history = """\n## Verdict History
+| Prior outcome sha256 | Verdict | Verdict section sha256 | Verdict reason |
+| --- | --- | --- | --- |
+| none | none | none | none |
+"""
+    return outcome.replace("\n## Activation Sources", history + "\n## Activation Sources", 1)
+
+
+def append_schema2_history(prior: str, *, current: str | None = None) -> str:
+    """Append the exact typed row derived from one prior authoritative record."""
+
+    current_text = current or schema2_outcome()
+    prior_digest = hashlib.sha256(prior.encode("utf-8")).hexdigest()
+    details = check_outcome_review._authoritative_verdict(prior)
+    assert details is not None
+    verdict, reason, section_digest = details
+    row = f"| {prior_digest} | {verdict} | {section_digest} | {reason} |"
+    current_text = current_text.replace(
+        "- Verdict: no_change\n",
+        f"- Verdict: no_change\n- Prior outcome sha256: {prior_digest}\n",
+        1,
+    )
+    return current_text.replace(
+        "| none | none | none | none |", row, 1
+    )
+
+
 class OutcomeReviewTests(unittest.TestCase):
     def check(self, outcome: str) -> list[str]:
         # Outcome tests isolate the Outcome contract; the activation gate is
@@ -107,14 +138,14 @@ class OutcomeReviewTests(unittest.TestCase):
         self.assertEqual([], self.check(valid_outcome()))
 
     def test_schema2_direct_review_is_accepted(self) -> None:
-        self.assertEqual([], self.check(valid_outcome().replace("outcome-review/1", "outcome-review/2", 1)))
+        self.assertEqual([], self.check(schema2_outcome()))
 
     def test_schema2_review_can_run_with_approved_stack_and_deployment_gate(self) -> None:
         with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
             "check_product_package.validate_texts", return_value=[]
         ), patch("check_deployment.check_deployment_text", return_value=[]):
             findings = check_outcome_review.check_outcome_review_text(
-                valid_outcome().replace("outcome-review/1", "outcome-review/2", 1),
+                schema2_outcome(),
                 prd_text=PRD,
                 architecture_text=ARCHITECTURE,
                 deployment_text=DEPLOYMENT,
@@ -311,7 +342,7 @@ class OutcomeReviewTests(unittest.TestCase):
             )
             self.assertEqual(1, schema_failure.returncode)
             self.assertIn("requires Schema: outcome-review/2", schema_failure.stderr)
-            review_path.write_text(valid_outcome().replace("outcome-review/1", "outcome-review/2", 1), encoding="utf-8")
+            review_path.write_text(schema2_outcome(), encoding="utf-8")
             stack_failure = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(2, stack_failure.returncode)
             self.assertIn("requires --stack-decisions", stack_failure.stderr)
@@ -321,7 +352,8 @@ class OutcomeReviewTests(unittest.TestCase):
             root = Path(temp)
             current = root / "current.md"
             prior = root / "prior.md"
-            for path, content in ((current, valid_outcome()), (prior, valid_outcome())):
+            prior_text = schema2_outcome()
+            for path, content in ((current, schema2_outcome()), (prior, prior_text)):
                 path.write_text(content, encoding="utf-8")
             command = [
                 sys.executable,
@@ -343,15 +375,39 @@ class OutcomeReviewTests(unittest.TestCase):
             rejected = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(1, rejected.returncode)
             self.assertIn("Prior outcome sha256", rejected.stderr)
-            prior_digest = hashlib.sha256(prior.read_bytes()).hexdigest()
-            current.write_text(
-                valid_outcome() + f"\n- Prior outcome sha256: {prior_digest}\n",
-                encoding="utf-8",
-            )
+            current.write_text(append_schema2_history(prior_text), encoding="utf-8")
             prior.write_text(prior.read_text(encoding="utf-8") + "\nrewritten history\n", encoding="utf-8")
             rewritten = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(1, rewritten.returncode)
             self.assertIn("Prior outcome sha256", rewritten.stderr)
+
+    def test_schema2_prior_append_requires_typed_derived_row(self) -> None:
+        prior = schema2_outcome()
+        appended = append_schema2_history(prior)
+        self.assertEqual([], check_outcome_review.prior_append_findings(prior, appended))
+        # The old vulnerable shape copied a prose Verdict line into another
+        # section.  A typed history row is required, so relocation fails.
+        relocated = appended.replace(
+            next(line for line in appended.splitlines() if line.startswith("| ") and hashlib.sha256(prior.encode("utf-8")).hexdigest() in line),
+            "| none | none | none | none |",
+            1,
+        )
+        relocated = relocated.replace(
+            "| none | none |\n",
+            "| Verdict: no_change — measured outcomes met the reviewed target | none |\n",
+            1,
+        )
+        findings = "\n".join(check_outcome_review.prior_append_findings(prior, relocated))
+        self.assertIn("Prior outcome: Verdict History", findings)
+
+    def test_schema2_history_shape_rejects_placeholders_and_duplicates(self) -> None:
+        broken = schema2_outcome().replace(
+            "| none | none | none | none |",
+            "| none | none | none | none |\n| none | none | none | none |",
+            1,
+        )
+        findings = "\n".join(self.check(broken))
+        self.assertIn("duplicate none placeholder rows", findings)
 
     def test_prior_outcome_history_allows_only_ordered_append_rows(self) -> None:
         prior = valid_outcome()

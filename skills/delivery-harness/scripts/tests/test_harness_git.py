@@ -266,5 +266,24 @@ class HarnessGitTests(unittest.TestCase):
                     ):
                         self.assertTrue(module._windows_parent_user_writable(Path(temp)))
 
+    @unittest.skipUnless(os.name == "nt", "Windows owner/access fixture only")
+    def test_program_files_path_does_not_bypass_native_owner_access_check(self) -> None:
+        import harness_git as module
+
+        system_tool = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "icacls.exe"
+        with patch.object(
+            module,
+            "windows_icacls_path",
+            return_value=(system_tool, "0" * 64),
+        ), patch.object(
+            module,
+            "_windows_acl_allows_current_write",
+            return_value=True,
+        ) as access_check:
+            self.assertTrue(
+                module._windows_parent_user_writable(Path(r"C:\Program Files\OwnedByUser"))
+            )
+        access_check.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()

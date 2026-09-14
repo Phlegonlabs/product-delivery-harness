@@ -5,6 +5,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import sys
@@ -1241,6 +1242,41 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                     checker._windows_open_parent = original_open
                 else:
                     checker._open_posix_parent = original_open
+            self.assertEqual(concurrent_edit, md.read_bytes())
+
+    def test_write_exchange_primitive_preserves_displaced_edit(self) -> None:
+        markdown = b"# Original\n"
+        concurrent_edit = b"# Concurrent inside primitive\n"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            md.write_bytes(markdown)
+            if os.name == "nt":
+                primitive = checker._windows_replace_with_backup
+
+                def inject(destination: Path, replacement: Path, backup: Path) -> None:
+                    destination.write_bytes(concurrent_edit)
+                    primitive(destination, replacement, backup)
+
+                patcher = mock.patch.object(
+                    checker, "_windows_replace_with_backup", side_effect=inject
+                )
+            else:
+                primitive = checker._posix_rename_exchange
+
+                def inject(parent_fd: int, left_name: str, right_name: str) -> None:
+                    md.write_bytes(concurrent_edit)
+                    primitive(parent_fd, left_name, right_name)
+
+                patcher = mock.patch.object(
+                    checker, "_posix_rename_exchange", side_effect=inject
+                )
+            with patcher:
+                with self.assertRaisesRegex(
+                    checker.ConcurrentModificationError,
+                    "displaced bytes|preserved|restore",
+                ):
+                    checker._write_bytes_atomic(md, b"# Replacement\n", markdown)
             self.assertEqual(concurrent_edit, md.read_bytes())
 
     def test_replace_and_extract_reject_inverse_and_unmatched_markers(self) -> None:

@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import os
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -2306,6 +2307,89 @@ def _run_replace_commit_boundary(path: Path) -> None:
     del path
 
 
+def _run_posix_exchange(parent_fd: int, left_name: str, right_name: str) -> None:
+    """Exchange two RUN names atomically; fail closed when unavailable."""
+
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise ManifestError("RUN commit requires renameat2(RENAME_EXCHANGE)")
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    if renameat2(parent_fd, os.fsencode(left_name), parent_fd, os.fsencode(right_name), 0x2) != 0:
+        error = ctypes.get_errno()
+        raise ManifestError(f"RUN atomic exchange failed (errno={error})")
+
+
+def _run_windows_replace_with_backup(destination: Path, replacement: Path, backup: Path) -> None:
+    """Use ReplaceFileW with an explicit displaced RUN backup."""
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.ReplaceFileW.restype = wintypes.BOOL
+    kernel32.ReplaceFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.LPVOID,
+    ]
+    if backup.exists():
+        raise ManifestError(f"RUN transaction backup already exists: {backup}")
+    if not kernel32.ReplaceFileW(str(destination), str(replacement), str(backup), 0x1, None, None):
+        raise ManifestError(f"RUN ReplaceFileW failed (winerror={ctypes.get_last_error()})")
+
+
+def _run_exchange_commit(
+    path: Path,
+    temporary: Path,
+    *,
+    temporary_name: str,
+    parent_fd: int | None,
+    expected_version: tuple[int, int, int, int, str],
+    updated: bytes,
+) -> None:
+    """Commit RUN by exchange/backup, validating and restoring displaced bytes."""
+
+    if os.name != "nt":
+        if parent_fd is None:
+            raise ManifestError("RUN commit requires a held POSIX parent descriptor")
+        _run_posix_exchange(parent_fd, temporary_name, path.name)
+        displaced_version = _run_document_version_token(Path(temporary_name), parent_fd=parent_fd)
+        if displaced_version != expected_version:
+            current = _run_document_version_token(path, parent_fd=parent_fd)
+            if current[-1] == hashlib.sha256(updated).hexdigest():
+                _run_posix_exchange(parent_fd, temporary_name, path.name)
+                restored = _run_document_version_token(path, parent_fd=parent_fd)
+                if restored != expected_version:
+                    raise ManifestError("RUN restore verification failed; recovery artifacts retained")
+                os.unlink(temporary_name, dir_fd=parent_fd)
+            raise ManifestError("RUN displaced bytes changed at atomic exchange; concurrent bytes preserved")
+        os.unlink(temporary_name, dir_fd=parent_fd)
+        os.fsync(parent_fd)
+        return
+
+    backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.backup"
+    _run_windows_replace_with_backup(path, temporary, backup)
+    displaced_version = _run_document_version_token(backup)
+    if displaced_version != expected_version:
+        current = _run_document_version_token(path)
+        if current[-1] == hashlib.sha256(updated).hexdigest():
+            rollback_backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.rollback"
+            _run_windows_replace_with_backup(path, backup, rollback_backup)
+            restored = _run_document_version_token(path)
+            if restored != expected_version:
+                raise ManifestError("RUN restore verification failed; recovery artifacts retained")
+            rollback_backup.unlink(missing_ok=True)
+        raise ManifestError("RUN displaced bytes changed at atomic replacement; concurrent bytes preserved")
+    backup.unlink(missing_ok=True)
+
+
 def _open_posix_parent_chain(path: Path) -> list[int]:
     """Open every parent component with O_NOFOLLOW and retain all handles."""
 
@@ -2394,74 +2478,6 @@ def _open_windows_parent_chain(path: Path) -> list[tuple[Any, int]]:
         raise
 
 
-def _windows_rename_bound(
-    kernel32: Any,
-    parent_handle: int,
-    source: Path,
-    destination_name: str,
-    fallback_destination: str | None = None,
-) -> None:
-    """Rename a temp file relative to a held Windows parent handle."""
-
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32.CreateFileW.restype = wintypes.HANDLE
-    source_handle = kernel32.CreateFileW(
-        str(source),
-        0x80000000 | 0x00010000,  # GENERIC_READ | DELETE
-        0x00000001 | 0x00000002,  # share read/write, deny delete by others
-        None,
-        3,
-        0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
-        None,
-    )
-    if source_handle in (None, wintypes.HANDLE(-1).value):
-        raise ManifestError(f"cannot hold RUN temp file for rename: {source}")
-    try:
-        class RenameInfo(ctypes.Structure):
-            _fields_ = [
-                ("replace", wintypes.BOOLEAN),
-                ("root", wintypes.HANDLE),
-                ("length", wintypes.DWORD),
-                ("name", wintypes.WCHAR * 1),
-            ]
-
-        kernel32.SetFileInformationByHandle.restype = wintypes.BOOL
-        attempts = [(parent_handle, destination_name)]
-        if fallback_destination is not None:
-            # Some Windows filesystems reject FILE_RENAME_INFO with a root
-            # handle for replacement of an existing file (ERROR_INVALID_PARAMETER).
-            # Retry with the canonical absolute destination while retaining the
-            # held parent identity and non-reparse guard.
-            attempts.append((None, fallback_destination))
-        last_error = 0
-        for root_handle, name in attempts:
-            name_bytes = name.encode("utf-16-le")
-            offset = RenameInfo.name.offset
-            buffer = ctypes.create_string_buffer(
-                offset + len(name_bytes) + ctypes.sizeof(wintypes.WCHAR)
-            )
-            info = ctypes.cast(buffer, ctypes.POINTER(RenameInfo)).contents
-            info.replace = 1
-            info.root = root_handle
-            info.length = len(name_bytes)
-            ctypes.memmove(ctypes.addressof(buffer) + offset, name_bytes, len(name_bytes))
-            if kernel32.SetFileInformationByHandle(
-                source_handle, 3, ctypes.byref(buffer), ctypes.sizeof(buffer)
-            ):
-                return
-            last_error = ctypes.get_last_error()
-            if root_handle is not None and last_error == 87:
-                continue
-            break
-        raise ManifestError(
-            f"handle-bound RUN rename failed (winerror {last_error}): {source}"
-        )
-    finally:
-        kernel32.CloseHandle(source_handle)
-
-
 def _replace_run_document(
     path: Path, run: dict[str, Any], expected_text: str | None = None
 ) -> None:
@@ -2532,32 +2548,15 @@ def _replace_run_document(
             raise ManifestError(
                 "RUN.md changed at the commit boundary; concurrent bytes were preserved"
             )
-        if os.name != "nt":
-            os.replace(
-                Path(temp_name).name,
-                path.name,
-                src_dir_fd=posix_parent_fds[-1],
-                dst_dir_fd=posix_parent_fds[-1],
-            )
-            replaced = True
-            try:
-                os.fsync(posix_parent_fds[-1])
-            except OSError:
-                # A durable directory sync is a best effort on filesystems
-                # that do not expose O_DIRECTORY; the atomic replacement is
-                # still complete and the next transition will re-read it.
-                pass
-        else:
-            assert windows_parent_handles
-            windows_kernel, windows_parent_handle = windows_parent_handles[-1]
-            _windows_rename_bound(
-                windows_kernel,
-                windows_parent_handle,
-                Path(temp_name),
-                path.name,
-                str(path),
-            )
-            replaced = True
+        _run_exchange_commit(
+            path,
+            Path(temp_name),
+            temporary_name=Path(temp_name).name,
+            parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
+            expected_version=current_version,
+            updated=updated.encode("utf-8"),
+        )
+        replaced = True
     except BaseException as exc:
         failure = exc
     finally:

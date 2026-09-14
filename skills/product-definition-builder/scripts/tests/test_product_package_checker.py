@@ -334,11 +334,29 @@ def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple
     if "Monetization Infrastructure Gate | required" in prd or "Partner Channel Gate | required" in prd:
         areas.add("commercial")
     area_value = ", ".join(sorted(areas)) if areas else "none"
+    stack = re.sub(r"- Approved areas:.*", f"- Approved areas: {area_value}", stack, count=1)
     stack = re.sub(r"- Applicable areas:.*", f"- Applicable areas: {area_value}", stack, count=1)
     stack = re.sub(r"- Resolved areas:.*", f"- Resolved areas: {area_value}", stack, count=1)
-    approved_map = ["OPT-FE-01=frontend"] if "OPT-FE-01" in stack else []
-    if "OPT-MOB-01" in stack and "| approved |" in stack:
-        approved_map.append("OPT-MOB-01=mobile or desktop")
+    approved_map: list[str] = []
+    option_rows = check_product_package._find_table(stack, check_product_package.STACK_OPTIONS_HEADER) or []
+    for option in option_rows:
+        if len(option) != len(check_product_package.STACK_OPTIONS_HEADER) or option[5].casefold() != "approved":
+            continue
+        option_ids = check_product_package._ids(option[0], "OPT")
+        if len(option_ids) != 1:
+            continue
+        option_id = next(iter(option_ids))
+        layer_values: dict[str, str] = {}
+        for section_name, area_name in check_product_package.STACK_SECTION_AREAS.items():
+            if area_name not in check_product_package._stack_areas(option[1]):
+                continue
+            section = check_product_package._section(stack, f"## {section_name}") or ""
+            recorded = check_product_package._subsection(section, "### Recorded or Approved Stack") or ""
+            for layer_row in check_product_package._find_table(recorded, check_product_package.STACK_LAYER_HEADER) or []:
+                if len(layer_row) == len(check_product_package.STACK_LAYER_HEADER) and layer_row[2].casefold() in check_product_package.EXECUTABLE_STACK_STATUSES:
+                    layer_values[layer_row[0].strip()] = layer_row[1].strip()
+        payload = ";".join(f"{layer}=>{selection}" for layer, selection in layer_values.items())
+        approved_map.append(f"{option_id}={payload}")
     stack = re.sub(
         r"- Approved option map:.*",
         "- Approved option map: " + (", ".join(approved_map) or "none"),
@@ -412,12 +430,29 @@ class ProductPackageCheckerTests(unittest.TestCase):
         )
         self.assertIn("Package digest does not match", "\n".join(findings))
 
+    def test_strict_approval_revision_is_an_exact_digest_binding(self) -> None:
+        prd, architecture, stack = strictize_approved_package(
+            valid_prd(), valid_architecture(), valid_stack()
+        )
+        digest = re.search(r"Package digest: (sha256:[0-9a-f]{64})", prd).group(1)
+        for revision in (
+            f"release-PD-R1@{digest}",
+            f"PD-R1@{digest}-suffix",
+            f"PD-R1@sha256:{'f' * 64}",
+        ):
+            with self.subTest(revision=revision):
+                candidate = re.sub(r"- Package revision:.*", f"- Package revision: {revision}", prd, count=1)
+                findings = check_product_package.validate_texts(
+                    candidate, architecture, stack, require_filled=True, require_approved=True
+                )
+                self.assertIn("Package revision", "\n".join(findings))
+
     def test_strict_approval_requires_exact_applicable_resolved_areas_and_option_map(self) -> None:
         prd, architecture, stack = strictize_approved_package(
             valid_prd(), valid_architecture(), valid_stack()
         )
         wrong_areas = stack.replace("- Applicable areas: none", "- Applicable areas: frontend", 1)
-        wrong_map = stack.replace("- Approved option map: OPT-FE-01=frontend", "- Approved option map: OPT-FE-02=frontend", 1)
+        wrong_map = re.sub(r"- Approved option map:.*", "- Approved option map: OPT-FE-02=frontend=>mutated", stack, count=1)
         for candidate, expected in (
             (wrong_areas, "Applicable areas must exactly match"),
             (wrong_map, "Approved option map does not exactly match"),
@@ -444,7 +479,38 @@ class ProductPackageCheckerTests(unittest.TestCase):
         findings = check_product_package.validate_texts(
             prd, architecture, stack, require_filled=True, require_approved=True
         )
-        self.assertIn("must reference every applicable row", "\n".join(findings))
+        self.assertIn("must exactly equal required references", "\n".join(findings))
+
+    def test_strict_reference_tokens_reject_substrings_extras_and_duplicates(self) -> None:
+        prd = valid_prd().replace(
+            "| --- | --- | --- | --- | --- | --- |\n## Open Questions",
+            "| --- | --- | --- | --- | --- | --- |\n| a | impact | validate | Owner | 2026-09-12 | accepted |\n## Open Questions",
+            1,
+        ).replace(
+            "- Accepted assumptions and non-blocking questions: none",
+            "- Accepted assumptions and non-blocking questions: assumption:abc",
+            1,
+        )
+        prd, architecture, stack = strictize_approved_package(
+            prd, valid_architecture(), valid_stack()
+        )
+        substring = check_product_package.validate_texts(
+            prd, architecture, stack, require_filled=True, require_approved=True
+        )
+        self.assertIn("must exactly equal required references", "\n".join(substring))
+        extra = prd.replace(
+            "- Accepted assumptions and non-blocking questions: assumption:abc",
+            "- Accepted assumptions and non-blocking questions: assumption:a, assumption:a, question:ghost",
+            1,
+        )
+        extra, architecture, stack = strictize_approved_package(extra, architecture, stack)
+        extra_findings = "\n".join(
+            check_product_package.validate_texts(
+                extra, architecture, stack, require_filled=True, require_approved=True
+            )
+        )
+        self.assertIn("duplicate references", extra_findings)
+        self.assertIn("must exactly equal required references", extra_findings)
 
     def test_code_and_outer_comments_cannot_supply_contracts(self) -> None:
         fenced = valid_prd().replace(
@@ -1562,9 +1628,12 @@ class ProductPackageCheckerTests(unittest.TestCase):
             prd = root / "PRD.md"
             architecture = root / "architecture.md"
             stack = root / "stack-decisions.md"
-            prd.write_text(valid_prd(), encoding="utf-8")
-            architecture.write_text(valid_architecture(), encoding="utf-8")
-            stack.write_text(valid_stack(), encoding="utf-8")
+            fixture_prd, fixture_architecture, fixture_stack = strictize_approved_package(
+                valid_prd(), valid_architecture(), valid_stack()
+            )
+            prd.write_text(fixture_prd, encoding="utf-8")
+            architecture.write_text(fixture_architecture, encoding="utf-8")
+            stack.write_text(fixture_stack, encoding="utf-8")
             result = subprocess.run(
                 [
                     sys.executable,

@@ -205,61 +205,127 @@ def _is_within(path: Path, root: Path) -> bool:
 
 
 def _windows_parent_user_writable(path: Path) -> bool:
-    """Inspect broad Users/Everyone ACLs without treating an admin token as a user write."""
+    """Use native owner/DACL AccessCheck and fail closed on uncertainty."""
 
-    bound = windows_icacls_path()
-    if bound is None:
+    if os.name != "nt" or windows_icacls_path() is None:
+        return os.name == "nt"
+    return _windows_acl_allows_current_write(Path(path))
+
+
+def _windows_acl_allows_current_write(path: Path) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.GetNamedSecurityInfoW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    advapi32.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_wchar_p)]
+    advapi32.OpenThreadToken.restype = wintypes.BOOL
+    advapi32.OpenThreadToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.BOOL, ctypes.POINTER(wintypes.HANDLE)]
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    advapi32.DuplicateToken.restype = wintypes.BOOL
+    advapi32.DuplicateToken.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.POINTER(wintypes.HANDLE)]
+    advapi32.AccessCheck.restype = wintypes.BOOL
+    owner_sid = ctypes.c_void_p()
+    group_sid = ctypes.c_void_p()
+    dacl = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
+    status = advapi32.GetNamedSecurityInfoW(
+        str(path),
+        1,
+        1 | 2 | 4,  # OWNER | GROUP | DACL security information
+        ctypes.byref(owner_sid),
+        ctypes.byref(group_sid),
+        ctypes.byref(dacl),
+        None,
+        ctypes.byref(descriptor),
+    )
+    if status != 0 or not descriptor.value:
         return True
-    command, expected_hash = bound
+    owner_text = ctypes.c_wchar_p()
     try:
-        result = subprocess.run(
-            [str(command), str(path)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return True
-    if result.returncode != 0:
-        return True
-    try:
-        if hashlib.sha256(command.read_bytes()).hexdigest() != expected_hash:
+        if not advapi32.ConvertSidToStringSidW(owner_sid, ctypes.byref(owner_text)):
             return True
-    except OSError:
-        return True
-    saw_acl = False
-    trusted_write_principals = ("builtin\\administrators", "nt authority\\system", "nt service\\trustedinstaller", "creator owner")
-    for line in result.stdout.splitlines():
-        rights_match = re.search(r"((?:\([A-Za-z,]+\))+)$", line.strip())
-        if not rights_match:
-            continue
-        rights = rights_match.group(1)
-        principal = line.strip()[: rights_match.start()].rstrip(" :")
-        lowered_principal = principal.casefold()
-        for marker in ("nt service\\", "nt authority\\", "builtin\\", "application package authority\\"):
-            marker_index = lowered_principal.find(marker)
-            if marker_index >= 0:
-                principal = principal[marker_index:]
-                break
-        else:
-            principal = "creator owner" if lowered_principal.endswith("creator owner") else principal.rsplit(" ", 1)[-1]
-        saw_acl = True
-        principal = principal.casefold()
-        rights_tokens = {
-            token.casefold()
-            for group in re.findall(r"\(([^)]*)\)", rights)
-            for token in group.split(",")
-        }
-        grants_write = bool(
-            rights_tokens
-            & {"w", "m", "f", "d", "gw", "ga", "wd", "ad", "wea", "wa", "dc", "de", "wdac", "wo"}
-        )
-        if "deny" not in rights_tokens and grants_write and not principal.startswith(trusted_write_principals):
+        owner = owner_text.value or ""
+        if owner not in {"S-1-5-18", "S-1-5-32-544"} and not owner.startswith("S-1-5-80-"):
             return True
-    return not saw_acl
+        source_token = wintypes.HANDLE()
+        kernel32.GetCurrentThread.restype = wintypes.HANDLE
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        token_access = 0x0008 | 0x0002  # TOKEN_QUERY | TOKEN_DUPLICATE
+        if not advapi32.OpenThreadToken(kernel32.GetCurrentThread(), token_access, True, ctypes.byref(source_token)) and not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), token_access, ctypes.byref(source_token)):
+            return True
+        try:
+            token = wintypes.HANDLE()
+            if not advapi32.DuplicateToken(
+                source_token,
+                2,  # SecurityImpersonation
+                ctypes.byref(token),
+            ):
+                return True
+            try:
+                class GenericMapping(ctypes.Structure):
+                    _fields_ = [("read", wintypes.DWORD), ("write", wintypes.DWORD), ("execute", wintypes.DWORD), ("all", wintypes.DWORD)]
+                mapping = GenericMapping(0x120089, 0x120116, 0x1200A0, 0x1F01FF)
+                advapi32.AccessCheck.argtypes = [
+                    wintypes.LPVOID,
+                    wintypes.HANDLE,
+                    wintypes.DWORD,
+                    ctypes.POINTER(GenericMapping),
+                    wintypes.LPVOID,
+                    ctypes.POINTER(wintypes.DWORD),
+                    ctypes.POINTER(wintypes.DWORD),
+                    ctypes.POINTER(wintypes.BOOL),
+                ]
+                privilege = ctypes.create_string_buffer(1024)
+                privilege_length = wintypes.DWORD(len(privilege))
+                granted = wintypes.DWORD()
+                access_status = wintypes.BOOL()
+                checked = advapi32.AccessCheck(
+                    descriptor,
+                    token,
+                    0x02000000,  # MAXIMUM_ALLOWED
+                    ctypes.byref(mapping),
+                    privilege,
+                    ctypes.byref(privilege_length),
+                    ctypes.byref(granted),
+                    ctypes.byref(access_status),
+                )
+                dangerous = (
+                    0x00000002  # FILE_ADD_FILE / FILE_WRITE_DATA
+                    | 0x00000004  # FILE_ADD_SUBDIRECTORY / FILE_APPEND_DATA
+                    | 0x00000010  # FILE_WRITE_EA
+                    | 0x00000100  # FILE_WRITE_ATTRIBUTES
+                    | 0x00010000  # DELETE
+                    | 0x00040000  # WRITE_DAC
+                    | 0x00080000  # WRITE_OWNER
+                )
+                return (
+                    not checked
+                    or not access_status.value
+                    or bool(int(granted.value) & dangerous)
+                )
+            finally:
+                kernel32.CloseHandle(token)
+        finally:
+            kernel32.CloseHandle(source_token)
+    finally:
+        if owner_text:
+            kernel32.LocalFree(owner_text)
+        if descriptor:
+            kernel32.LocalFree(descriptor)
 
 
 def windows_parent_user_writable(path: Path) -> bool:

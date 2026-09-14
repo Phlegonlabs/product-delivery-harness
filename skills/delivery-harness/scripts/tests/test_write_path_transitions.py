@@ -147,15 +147,18 @@ class WritePathTransitionTests(unittest.TestCase):
         )
         run_path.write_text(original, encoding="utf-8")
         with mock.patch.object(
-            harness_transition.os, "replace", wraps=harness_transition.os.replace
-        ) as replace:
-            harness_transition._replace_run_document(
-                run_path, self.run, expected_text=original
-            )
-        self.assertTrue(replace.called)
-        _source, _destination = replace.call_args.args[:2]
-        self.assertIsNotNone(replace.call_args.kwargs.get("src_dir_fd"))
-        self.assertIsNotNone(replace.call_args.kwargs.get("dst_dir_fd"))
+            harness_transition, "_run_posix_exchange", wraps=harness_transition._run_posix_exchange
+        ) as exchange:
+            try:
+                harness_transition._replace_run_document(
+                    run_path, self.run, expected_text=original
+                )
+            except ManifestError as exc:
+                if "renameat2" in str(exc):
+                    self.skipTest(str(exc))
+                raise
+        self.assertTrue(exchange.called)
+        _parent_fd, _temporary_name, _destination_name = exchange.call_args.args
         self.assertNotEqual(original, run_path.read_text(encoding="utf-8"))
 
     def test_run_document_replacement_rejects_parent_symlink(self) -> None:
@@ -193,6 +196,40 @@ class WritePathTransitionTests(unittest.TestCase):
             side_effect=edit_at_commit_boundary,
         ):
             with self.assertRaisesRegex(ManifestError, "commit boundary"):
+                harness_transition._replace_run_document(
+                    run_path, self.run, expected_text=original
+                )
+        self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
+
+    def test_run_document_exchange_primitive_preserves_displaced_edit(self) -> None:
+        run_path = self.root / "RUN.md"
+        original = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        concurrent = "# concurrent primitive edit\n"
+        run_path.write_text(original, encoding="utf-8")
+        if os.name == "nt":
+            primitive = harness_transition._run_windows_replace_with_backup
+
+            def inject(destination: Path, replacement: Path, backup: Path) -> None:
+                destination.write_text(concurrent, encoding="utf-8")
+                primitive(destination, replacement, backup)
+
+            patcher = mock.patch.object(
+                harness_transition, "_run_windows_replace_with_backup", side_effect=inject
+            )
+        else:
+            primitive = harness_transition._run_posix_exchange
+
+            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
+                run_path.write_text(concurrent, encoding="utf-8")
+                primitive(parent_fd, left_name, right_name)
+
+            patcher = mock.patch.object(
+                harness_transition, "_run_posix_exchange", side_effect=inject
+            )
+        with patcher:
+            with self.assertRaisesRegex(ManifestError, "displaced bytes|preserved|restore"):
                 harness_transition._replace_run_document(
                     run_path, self.run, expected_text=original
                 )

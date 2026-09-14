@@ -364,6 +364,36 @@ class ArchiveRunTests(unittest.TestCase):
                 )
         self.assertEqual(b"injected at replace boundary\n", documents.read_bytes())
 
+    def test_documents_exchange_primitive_preserves_displaced_edit(self) -> None:
+        documents = self.root / "docs" / "DOCUMENTS.md"
+        original = documents.read_bytes()
+        concurrent = b"concurrent edit inside exchange primitive\n"
+        if os.name == "nt":
+            primitive = archive_run._windows_replace_file
+
+            def inject(destination: Path, replacement: Path, backup: Path) -> None:
+                destination.write_bytes(concurrent)
+                primitive(destination, replacement, backup)
+
+            patcher = patch.object(archive_run, "_windows_replace_file", side_effect=inject)
+        else:
+            primitive = archive_run._posix_rename_exchange
+
+            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
+                documents.write_bytes(concurrent)
+                primitive(parent_fd, left_name, right_name)
+
+            patcher = patch.object(archive_run, "_posix_rename_exchange", side_effect=inject)
+        with patcher:
+            with self.assertRaisesRegex(OSError, "displaced bytes|preserved|restore"):
+                archive_run._atomic_write_documents(
+                    self.root,
+                    documents,
+                    b"transaction output\n",
+                    expected_bytes=original,
+                )
+        self.assertEqual(concurrent, documents.read_bytes())
+
     def test_empty_optional_evidence_directory_is_skipped(self) -> None:
         empty = self.goal / "evidence"
         for child in empty.iterdir():

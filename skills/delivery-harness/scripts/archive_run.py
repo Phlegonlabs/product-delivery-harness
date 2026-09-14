@@ -151,6 +151,131 @@ def _documents_before_commit(root: Path, documents: Path) -> None:
 
     return None
 
+
+def _posix_rename_exchange(parent_fd: int, left_name: str, right_name: str) -> None:
+    """Atomically exchange two names under one held parent directory."""
+
+    if os.name == "nt":
+        raise OSError("POSIX rename exchange is unavailable on Windows")
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise OSError("renameat2(RENAME_EXCHANGE) is unavailable; refusing destructive replace")
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    result = renameat2(
+        parent_fd,
+        os.fsencode(left_name),
+        parent_fd,
+        os.fsencode(right_name),
+        0x2,  # RENAME_EXCHANGE
+    )
+    if result != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, f"renameat2 exchange failed for {left_name} and {right_name}")
+
+
+def _windows_replace_file(destination: Path, replacement: Path, backup: Path) -> None:
+    """Replace an authority file while retaining an explicit displaced backup."""
+
+    if os.name != "nt":
+        raise OSError("ReplaceFileW is unavailable on this host")
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.ReplaceFileW.restype = wintypes.BOOL
+    kernel32.ReplaceFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.LPVOID,
+    ]
+    if backup.exists():
+        raise FileExistsError(f"transaction backup already exists: {backup}")
+    if not kernel32.ReplaceFileW(
+        str(destination),
+        str(replacement),
+        str(backup),
+        0x1,  # REPLACEFILE_WRITE_THROUGH
+        None,
+        None,
+    ):
+        error = ctypes.get_last_error()
+        raise OSError(error, f"ReplaceFileW failed for {destination}")
+
+
+def _path_identity_and_bytes(path: Path) -> tuple[tuple[int, int, int], bytes]:
+    info = os.lstat(path)
+    if not stat.S_ISREG(info.st_mode):
+        raise OSError(f"transaction displaced path is not a regular file: {path}")
+    return (int(info.st_dev), int(info.st_ino), int(info.st_mode)), path.read_bytes()
+
+
+def _documents_exchange_commit(
+    root: Path,
+    documents: Path,
+    temporary: Path,
+    *,
+    temporary_name: str,
+    parent_fd: int | None,
+    expected_identity: tuple[int, int, int],
+    expected_bytes: bytes,
+    payload: bytes,
+) -> tuple[int, int, int]:
+    """Commit with an exchange/backup primitive and validate displaced bytes."""
+
+    if os.name != "nt":
+        if parent_fd is None:
+            raise OSError("DOCUMENTS exchange requires a held POSIX parent descriptor")
+        _posix_rename_exchange(parent_fd, temporary_name, documents.name)
+        displaced = documents.parent / temporary_name
+        try:
+            displaced_identity, displaced_bytes = _path_identity_and_bytes(displaced)
+            if displaced_identity != expected_identity or displaced_bytes != expected_bytes:
+                current = _documents_version(root, documents)
+                if current is not None and current[1] == _sha256_bytes(payload):
+                    _posix_rename_exchange(parent_fd, temporary_name, documents.name)
+                    restored_identity, restored_bytes = _path_identity_and_bytes(documents)
+                    if restored_identity != expected_identity or restored_bytes != expected_bytes:
+                        raise OSError("DOCUMENTS restore verification failed; recovery artifacts retained")
+                    os.unlink(temporary_name, dir_fd=parent_fd)
+                raise OSError("DOCUMENTS displaced bytes changed at atomic exchange; concurrent bytes preserved")
+            identity = _safe_documents_identity(root, documents)
+            if identity is None:
+                raise OSError("DOCUMENTS disappeared after atomic exchange")
+            os.unlink(temporary_name, dir_fd=parent_fd)
+            os.fsync(parent_fd)
+            return identity
+        except Exception:
+            raise
+
+    backup = documents.parent / f".{documents.name}.{secrets.token_hex(8)}.backup"
+    _windows_replace_file(documents, temporary, backup)
+    try:
+        displaced_identity, displaced_bytes = _path_identity_and_bytes(backup)
+        if displaced_identity != expected_identity or displaced_bytes != expected_bytes:
+            current = _documents_version(root, documents)
+            if current is not None and current[1] == _sha256_bytes(payload):
+                rollback_backup = documents.parent / f".{documents.name}.{secrets.token_hex(8)}.rollback"
+                _windows_replace_file(documents, backup, rollback_backup)
+                restored_identity, restored_bytes = _path_identity_and_bytes(documents)
+                if restored_identity != expected_identity or restored_bytes != expected_bytes:
+                    raise OSError("DOCUMENTS restore verification failed; recovery artifacts retained")
+                rollback_backup.unlink(missing_ok=True)
+            raise OSError("DOCUMENTS displaced bytes changed at atomic replacement; concurrent bytes preserved")
+        identity = _safe_documents_identity(root, documents)
+        if identity is None:
+            raise OSError("DOCUMENTS disappeared after atomic replacement")
+        backup.unlink(missing_ok=True)
+        return identity
+    except Exception:
+        raise
+
 _UTC_RFC3339_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
 )
@@ -477,20 +602,16 @@ def _atomic_write_documents(
         current_version = _documents_version(root, documents)
         if current_version != initial_version:
             raise OSError(f"{DOCUMENTS_PATH.as_posix()} version changed at commit boundary")
-        if parent_fd is not None:
-            os.replace(
-                temporary_name,
-                documents.name,
-                src_dir_fd=parent_fd,
-                dst_dir_fd=parent_fd,
-            )
-            os.fsync(parent_fd)
-        else:
-            os.replace(temporary, documents)
-        identity = _safe_documents_identity(root, documents)
-        if identity is None:
-            raise OSError(f"{DOCUMENTS_PATH.as_posix()} disappeared after atomic replace")
-        return identity
+        return _documents_exchange_commit(
+            root,
+            documents,
+            temporary,
+            temporary_name=temporary_name or temporary.name,
+            parent_fd=parent_fd,
+            expected_identity=initial,
+            expected_bytes=initial_bytes,
+            payload=value,
+        )
     finally:
         if fd >= 0:
             try:

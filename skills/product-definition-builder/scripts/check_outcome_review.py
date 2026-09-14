@@ -114,6 +114,13 @@ TARGET_INCIDENT_HEADERS = (
     "evidence",
 )
 FOLLOWUP_HEADERS = ("follow-up", "route")
+VERDICT_HISTORY_HEADERS = (
+    "prior outcome sha256",
+    "verdict",
+    "verdict section sha256",
+    "verdict reason",
+)
+VERDICT_HISTORY_NONE = ("none", "none", "none", "none")
 FOLLOWUP_ROUTES = {"enhancement request", "open question", "risk", "none"}
 ABSENT = {"", "none", "n/a", "pending"}
 NO_INDEPENDENT_ARTIFACT_VALUES = {
@@ -202,10 +209,165 @@ def _raw_table_rows(text: str, heading: str) -> list[str]:
     ]
 
 
+def _row_values(raw_row: str) -> tuple[str, ...]:
+    """Return normalized cells for one raw Markdown table row."""
+
+    return tuple(cell.strip() for cell in raw_row.strip().strip("|").split("|"))
+
+
+def _schema(text: str) -> str:
+    return _fields(_section(text, "## Record") or []).get("Schema", "")
+
+
+def _authoritative_verdict(text: str) -> tuple[str, str, str] | None:
+    """Return (verdict, reason, canonical Verdict-section SHA-256)."""
+
+    section = _section(text, "## Verdict")
+    if section is None:
+        return None
+    body = "\n".join(line.rstrip() for line in section).strip()
+    match = re.fullmatch(r"Verdict:\s*(\S+)\s*—\s*(.+)", body)
+    if match is None:
+        return None
+    verdict, reason = match.group(1), match.group(2).strip()
+    canonical = f"## Verdict\n{body}"
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return verdict, reason, digest
+
+
+def _history_data_rows(text: str) -> list[str]:
+    """Return meaningful Verdict History rows, excluding its typed empty marker."""
+
+    rows = _raw_table_rows(text, "## Verdict History")
+    if len(rows) == 1 and _row_values(rows[0]) == VERDICT_HISTORY_NONE:
+        return []
+    return rows
+
+
+def _verdict_history_findings(text: str, record: dict[str, str]) -> list[str]:
+    """Validate the schema-2 typed prior-verdict history table."""
+
+    findings: list[str] = []
+    section = _section(text, "## Verdict History")
+    if section is None:
+        return ["Verdict History: schema outcome-review/2 requires this section"]
+    rows, header_ok = _rows(text, "## Verdict History", VERDICT_HISTORY_HEADERS)
+    if not header_ok:
+        findings.append(
+            "Verdict History: expected columns " + " | ".join(VERDICT_HISTORY_HEADERS)
+        )
+    if not rows:
+        findings.append(
+            "Verdict History: requires one row; use the exact none placeholder when no prior outcome exists"
+        )
+    seen_prior: set[str] = set()
+    placeholder_rows = 0
+    meaningful_rows: list[list[str]] = []
+    for index, row in enumerate(rows, start=1):
+        if len(row) != len(VERDICT_HISTORY_HEADERS):
+            findings.append(
+                f"Verdict History: row {index} must have the exact column count"
+            )
+            continue
+        if tuple(cell.casefold() for cell in row) == VERDICT_HISTORY_NONE:
+            placeholder_rows += 1
+            if len(rows) != 1:
+                findings.append(
+                    "Verdict History: the none placeholder cannot be mixed with history rows"
+                )
+            continue
+        meaningful_rows.append(row)
+        if any(
+            cell.casefold() in ABSENT
+            or cell.strip().startswith(("<", "["))
+            or cell.strip().endswith((">", "]"))
+            for cell in row
+        ):
+            findings.append(f"Verdict History: row {index} contains a placeholder cell")
+        prior_sha, verdict, section_sha, reason = row
+        if not SHA256_RE.fullmatch(prior_sha):
+            findings.append(
+                f"Verdict History: row {index} prior outcome sha256 must be 64 lowercase hex characters"
+            )
+        elif prior_sha in seen_prior:
+            findings.append(
+                f"Verdict History: duplicate prior outcome identity {prior_sha}"
+            )
+        seen_prior.add(prior_sha)
+        if verdict not in VERDICTS:
+            findings.append(f"Verdict History: row {index} has invalid verdict {verdict!r}")
+        if not SHA256_RE.fullmatch(section_sha):
+            findings.append(
+                f"Verdict History: row {index} verdict section sha256 must be 64 lowercase hex characters"
+            )
+        if not reason.strip() or "|" in reason:
+            findings.append(f"Verdict History: row {index} needs one authoritative verdict reason")
+    if placeholder_rows and meaningful_rows:
+        findings.append("Verdict History: empty placeholder cannot accompany meaningful rows")
+    if placeholder_rows > 1:
+        findings.append("Verdict History: duplicate none placeholder rows")
+    if meaningful_rows:
+        prior_digest = record.get("Prior outcome sha256", "")
+        if prior_digest != meaningful_rows[-1][0]:
+            findings.append(
+                "Verdict History: the last row must match Record Prior outcome sha256"
+            )
+    elif record.get("Prior outcome sha256", "").strip():
+        findings.append(
+            "Verdict History: Record Prior outcome sha256 requires a meaningful history row"
+        )
+    # The history must be established before the current authoritative verdict.
+    active_lines = active_text(text).splitlines()
+    try:
+        history_index = next(i for i, line in enumerate(active_lines) if line.strip() == "## Verdict History")
+        verdict_index = next(i for i, line in enumerate(active_lines) if line.strip() == "## Verdict")
+        if history_index > verdict_index:
+            findings.append("Verdict History: section must appear before the current Verdict section")
+    except StopIteration:
+        pass
+    return findings
+
+
 def prior_append_findings(prior_text: str, current_text: str) -> list[str]:
     """Enforce append-only preservation of a prior outcome's historical rows."""
 
     findings: list[str] = []
+    if _schema(prior_text) == "outcome-review/2" or _schema(current_text) == "outcome-review/2":
+        if _schema(current_text) != "outcome-review/2":
+            findings.append("Prior outcome: --prior-outcome appends require current Schema outcome-review/2")
+            return findings
+        if _schema(prior_text) == "outcome-review/2":
+            prior_record = _fields(_section(prior_text, "## Record") or [])
+            findings.extend(
+                f"Prior outcome: {item}"
+                for item in _verdict_history_findings(prior_text, prior_record)
+            )
+        prior_rows = _history_data_rows(prior_text)
+        current_rows = _history_data_rows(current_text)
+        if len(current_rows) < len(prior_rows):
+            findings.append("Prior outcome: Verdict History deleted historical row(s)")
+        elif current_rows[: len(prior_rows)] != prior_rows:
+            findings.append(
+                "Prior outcome: Verdict History historical rows must remain byte-identical and ordered"
+            )
+        prior_details = _authoritative_verdict(prior_text)
+        if prior_details is None:
+            findings.append(
+                "Prior outcome: prior record must contain one authoritative Verdict section"
+            )
+        else:
+            prior_digest = hashlib.sha256(prior_text.encode("utf-8")).hexdigest()
+            verdict, reason, section_digest = prior_details
+            expected = f"| {prior_digest} | {verdict} | {section_digest} | {reason} |"
+            if len(current_rows) != len(prior_rows) + 1:
+                findings.append(
+                    "Prior outcome: Verdict History must append exactly one derived row for the immediate prior record"
+                )
+            elif current_rows[-1] != expected:
+                findings.append(
+                    "Prior outcome: Verdict History last row must match the prior outcome digest and authoritative Verdict section"
+                )
+        return findings
     for heading in IMMUTABLE_HISTORY_SECTIONS:
         prior_rows = _raw_table_rows(prior_text, heading)
         if not prior_rows:
@@ -218,14 +380,13 @@ def prior_append_findings(prior_text: str, current_text: str) -> list[str]:
             findings.append(
                 f"Prior outcome: {heading} historical rows must remain byte-identical and ordered"
             )
-    prior_verdict_lines = [
+    prior_verdict = _authoritative_verdict(prior_text)
+    current_verdict_lines = {
         line.strip()
-        for line in (active_text(prior_text).splitlines())
+        for line in (_section(current_text, "## Verdict") or [])
         if line.strip().startswith("Verdict:")
-    ]
-    if prior_verdict_lines and not any(
-        line in active_text(current_text).splitlines() for line in prior_verdict_lines
-    ):
+    }
+    if prior_verdict is not None and f"Verdict: {prior_verdict[0]} — {prior_verdict[1]}" not in current_verdict_lines:
         findings.append("Prior outcome: prior verdict history must remain present")
     return findings
 
@@ -813,8 +974,16 @@ def check_outcome_review_text(
     for field in RECORD_FIELDS:
         if field not in record:
             findings.append(f"Record: missing field {field}")
-    if record.get("Schema") not in {"outcome-review/1", "outcome-review/2"}:
+    schema = record.get("Schema")
+    if schema not in {"outcome-review/1", "outcome-review/2"}:
         findings.append("Record: Schema must be outcome-review/1 or outcome-review/2")
+    elif schema == "outcome-review/2":
+        history_heading_count = sum(
+            line.strip() == "## Verdict History" for line in active.splitlines()
+        )
+        if history_heading_count > 1:
+            findings.append("duplicate required section ## Verdict History")
+        findings.extend(_verdict_history_findings(text, record))
     verdict = record.get("Verdict", "")
     if verdict not in VERDICTS:
         findings.append(f"Record: invalid verdict {verdict!r}")
@@ -1261,7 +1430,14 @@ def main(argv: list[str] | None = None) -> int:
             print(current_error, file=sys.stderr)
             return 2
         prior_digest = hashlib.sha256((prior_text or "").encode("utf-8")).hexdigest()
-        if f"Prior outcome sha256: {prior_digest}" not in (current_text or ""):
+        current_record = _fields(_section(current_text or "", "## Record") or [])
+        if current_record.get("Schema") != "outcome-review/2":
+            print(
+                "Record: --prior-outcome requires current Schema: outcome-review/2",
+                file=sys.stderr,
+            )
+            return 1
+        if current_record.get("Prior outcome sha256") != prior_digest:
             print("Record: --prior-outcome requires an exact Prior outcome sha256 line", file=sys.stderr)
             return 1
         prior_history_findings = prior_append_findings(prior_text or "", current_text or "")

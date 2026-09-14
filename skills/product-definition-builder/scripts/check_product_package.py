@@ -2418,7 +2418,11 @@ def validate_texts(
             _add(problems, "prd approval", "missing required field 'Package digest'")
         package_digest = product_fields.get("package digest", "")
         package_revision = product_fields.get("package revision", "")
-        revision_digest = re.search(r"@(?P<digest>sha256:[0-9a-f]{64})$", package_revision, re.I)
+        revision_digest = re.fullmatch(
+            r"PD-R[0-9]+@(?P<digest>sha256:[0-9a-f]{64})",
+            package_revision,
+            re.I,
+        )
         if require_approved:
             expected_digest = sha256_text(
                 canonical_product_bytes(prd_text, architecture_text, stack_text)
@@ -2438,13 +2442,13 @@ def validate_texts(
                     "prd approval",
                     "Package digest does not match the approved PRD/architecture/stack bytes",
                 )
-            if require_approved and revision_digest is None:
+            if revision_digest is None:
                 _add(
                     problems,
                     "prd approval",
-                    "Package revision must include @sha256:<64 lowercase hex>",
+                    "Package revision must exactly match PD-R<integer>@sha256:<the exact package digest>",
                 )
-            elif revision_digest is not None and supplied_digest is not None:
+            elif supplied_digest is not None:
                 revision_value = parse_digest(revision_digest.group("digest"))
                 if revision_value != supplied_digest:
                     _add(
@@ -2452,36 +2456,38 @@ def validate_texts(
                         "prd approval",
                         "Package revision digest must equal Package digest",
                     )
-        elif require_approved and package_revision and not re.fullmatch(
-            r"PD-R[0-9]+", package_revision, re.I
-        ):
-            _add(problems, "prd approval", "Package revision must be structured as PD-R<integer> or PD-R<integer>@sha256:<digest>")
         accepted_refs = product_fields.get("accepted assumptions and non-blocking questions", "")
-        if accepted_refs and accepted_refs.casefold() not in {"none", "n/a"}:
-            refs = [item.strip() for item in accepted_refs.split(",") if item.strip()]
-            if any(not re.fullmatch(r"(?:assumption|question):[^,]+", item, re.I) for item in refs):
-                _add(
-                    problems,
-                    "prd approval",
-                    "Accepted assumptions and non-blocking questions must use assumption:<id> or question:<id> references",
-                )
-        if require_approved:
-            expected_refs: list[str] = []
-            for row in _find_table(assumptions or "", ASSUMPTIONS_HEADER) or []:
-                if len(row) == len(ASSUMPTIONS_HEADER) and row[0].strip():
-                    expected_refs.append(f"assumption:{row[0].strip().casefold()}")
-            for row in _find_table(open_questions or "", OPEN_QUESTIONS_HEADER) or []:
-                if len(row) == len(OPEN_QUESTIONS_HEADER) and row[0].strip() and row[4].casefold() == "no":
-                    expected_refs.append(f"question:{row[0].strip().casefold()}")
-            accepted_lower = accepted_refs.casefold()
-            missing_refs = [ref for ref in expected_refs if ref not in accepted_lower]
-            if missing_refs:
-                _add(
-                    problems,
-                    "prd approval",
-                    "Accepted assumptions and non-blocking questions must reference every applicable row: "
-                    + ", ".join(missing_refs),
-                )
+        expected_refs: set[str] = set()
+        for row in _find_table(assumptions or "", ASSUMPTIONS_HEADER) or []:
+            if len(row) == len(ASSUMPTIONS_HEADER) and row[0].strip():
+                ref_id = re.sub(r"[^a-z0-9]+", "-", row[0].strip().casefold()).strip("-")
+                expected_refs.add(f"assumption:{ref_id}")
+        for row in _find_table(open_questions or "", OPEN_QUESTIONS_HEADER) or []:
+            if len(row) == len(OPEN_QUESTIONS_HEADER) and row[0].strip() and row[4].casefold() == "no":
+                ref_id = re.sub(r"[^a-z0-9]+", "-", row[0].strip().casefold()).strip("-")
+                expected_refs.add(f"question:{ref_id}")
+        if accepted_refs.casefold().strip() in {"", "none", "n/a"}:
+            parsed_refs: list[str] = []
+        else:
+            parsed_refs = [item.strip().casefold() for item in accepted_refs.split(",") if item.strip()]
+        if len(parsed_refs) != len(set(parsed_refs)):
+            _add(problems, "prd approval", "Accepted assumptions and non-blocking questions contain duplicate references")
+        invalid_refs = [
+            item for item in parsed_refs
+            if re.fullmatch(r"(?:assumption|question):[a-z0-9][a-z0-9-]*", item) is None
+        ]
+        if invalid_refs:
+            _add(
+                problems,
+                "prd approval",
+                "Accepted assumptions and non-blocking questions must use a closed token set",
+            )
+        if require_approved and set(parsed_refs) != expected_refs:
+            _add(
+                problems,
+                "prd approval",
+                "Accepted assumptions and non-blocking questions must exactly equal required references",
+            )
         decision = product_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
             _add(problems, "prd approval", f"invalid decision {decision!r}")
@@ -2749,13 +2755,13 @@ def validate_texts(
                 )
         option_map = stack_fields.get("approved option map", "")
         checkpoint_option_map = option_map
-        if option_map:
+        if option_map and require_approved:
             entries = [item.strip() for item in option_map.split(",") if item.strip()]
-            if any("=" not in item for item in entries):
+            if any("=" not in item or "=>" not in item for item in entries):
                 _add(
                     problems,
                     "stack checkpoint",
-                    "Approved option map must use OPT-ID=layer entries",
+                    "Approved option map must use OPT-ID=layer=>selection entries",
                 )
         decision = stack_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
@@ -2799,10 +2805,18 @@ def validate_texts(
                 "non-public release targets require a substantive CLI and Toolchain Decision",
             )
     if require_approved:
+        approved_value = stack_fields.get("approved areas", "") if stack_block is not None else ""
+        approved = _stack_areas(approved_value)
         applicable_value = stack_fields.get("applicable areas", "") if stack_block is not None else ""
         resolved_value = stack_fields.get("resolved areas", "") if stack_block is not None else ""
         applicable = _stack_areas(applicable_value)
         resolved = _stack_areas(resolved_value)
+        if approved != required_stack_areas:
+            _add(
+                problems,
+                "stack checkpoint",
+                "Approved areas must exactly match release-surface and gate applicability",
+            )
         if applicable != required_stack_areas:
             _add(
                 problems,
@@ -2883,15 +2897,23 @@ def validate_texts(
                     "stack-decisions",
                     f"Coherent Options Presented must retain the approved {area} option",
                 )
-        if checkpoint_option_map:
-            expected_map: dict[str, set[str]] = {}
+        if checkpoint_option_map and require_approved:
+            expected_map: dict[str, dict[str, str]] = {}
             for item in checkpoint_option_map.split(","):
                 item = item.strip()
                 if "=" not in item:
                     continue
-                option_id, layer = (part.strip().upper() for part in item.split("=", 1))
-                expected_map.setdefault(option_id, set()).add(layer.casefold())
-            actual_map: dict[str, set[str]] = {}
+                option_id, payload = item.split("=", 1)
+                option_id = option_id.strip().upper()
+                payload = payload.strip()
+                expected_layers: dict[str, str] = {}
+                for pair in payload.split(";"):
+                    if "=>" not in pair:
+                        continue
+                    layer, selection = pair.split("=>", 1)
+                    expected_layers[layer.strip().casefold()] = selection.strip()
+                expected_map[option_id] = expected_layers
+            actual_map: dict[str, dict[str, str]] = {}
             for row in option_rows:
                 if len(row) != len(STACK_OPTIONS_HEADER) or row[5].casefold() != "approved":
                     continue
@@ -2899,11 +2921,16 @@ def validate_texts(
                 if len(ids) != 1:
                     continue
                 option_id = next(iter(ids))
-                # An approved option is a coherent bundle; its declared area
-                # is the machine-checked layer binding.  This keeps the map
-                # stable without requiring every layer evidence cell to repeat
-                # the option ID.
-                actual_map[option_id] = _stack_areas(row[1])
+                actual_layers: dict[str, str] = {}
+                for section_name, area_name in STACK_SECTION_AREAS.items():
+                    if area_name not in _stack_areas(row[1]):
+                        continue
+                    section = _section(stack_text, f"## {section_name}") or ""
+                    recorded = _subsection(section, "### Recorded or Approved Stack") or ""
+                    for layer_row in _find_table(recorded, STACK_LAYER_HEADER) or []:
+                        if len(layer_row) == len(STACK_LAYER_HEADER) and layer_row[2].casefold() in EXECUTABLE_STACK_STATUSES:
+                            actual_layers[layer_row[0].strip().casefold()] = layer_row[1].strip()
+                actual_map[option_id] = actual_layers
             if expected_map != actual_map:
                 _add(
                     problems,

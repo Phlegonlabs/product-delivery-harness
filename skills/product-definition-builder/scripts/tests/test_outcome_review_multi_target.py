@@ -144,6 +144,31 @@ Verdict: no_change — all reviewed targets met their recorded targets
 """
 
 
+def schema2_multi_target_outcome() -> str:
+    outcome = multi_target_outcome().replace("outcome-review/1", "outcome-review/2", 1)
+    history = """\n## Verdict History
+| Prior outcome sha256 | Verdict | Verdict section sha256 | Verdict reason |
+| --- | --- | --- | --- |
+| none | none | none | none |
+"""
+    return outcome.replace("\n## Activation Sources", history + "\n## Activation Sources", 1)
+
+
+def append_schema2_multi_history(prior: str) -> str:
+    current = schema2_multi_target_outcome()
+    prior_digest = hashlib.sha256(prior.encode("utf-8")).hexdigest()
+    details = check_outcome_review._authoritative_verdict(prior)
+    assert details is not None
+    verdict, reason, section_digest = details
+    row = f"| {prior_digest} | {verdict} | {section_digest} | {reason} |"
+    current = current.replace(
+        "- Verdict: no_change\n",
+        f"- Verdict: no_change\n- Prior outcome sha256: {prior_digest}\n",
+        1,
+    )
+    return current.replace("| none | none | none | none |", row, 1)
+
+
 def incident_multi_target_outcome() -> str:
     outcome = multi_target_outcome()
     outcome = outcome.replace("- Verdict: no_change", "- Verdict: incident", 1)
@@ -176,6 +201,12 @@ class MultiTargetOutcomeReviewTests(unittest.TestCase):
 
     def test_multi_target_outcome_review_passes(self) -> None:
         self.assertEqual([], self.check(multi_target_outcome()))
+
+    def test_schema2_multi_target_append_preserves_typed_verdict_history(self) -> None:
+        prior = schema2_multi_target_outcome()
+        current = append_schema2_multi_history(prior)
+        self.assertEqual([], check_outcome_review.prior_append_findings(prior, current))
+        self.assertEqual([], self.check(current))
 
     def test_rotating_first_target_is_rejected(self) -> None:
         rotated = multi_target_outcome().replace(

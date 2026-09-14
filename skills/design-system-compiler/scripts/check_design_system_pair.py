@@ -21,6 +21,7 @@ import os
 import hashlib
 import re
 import stat
+import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -256,27 +257,90 @@ def _windows_open_parent(path: Path) -> tuple[int, list[int]]:
         raise
 
 
-def _windows_rename_relative(temp_path: Path, destination: Path, parent_handle: int) -> None:
-    """Rename under a held parent using a fail-closed native primitive.
+def _posix_rename_exchange(parent_fd: int, left_name: str, right_name: str) -> None:
+    """Exchange destination and payload atomically, or fail closed."""
 
-    ``SetFileInformationByHandle(FileRenameInfo)`` is not consistently
-    implemented by older Windows filesystems for ``RootDirectory`` handles.
-    The held parent is opened without delete sharing and verified non-reparse;
-    ``MoveFileExW`` then performs the native replace while that handle pins the
-    destination directory. No pathname fallback is attempted after failure.
-    """
+    if os.name == "nt":
+        raise ConcurrentModificationError("POSIX rename exchange is unavailable on Windows")
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise ConcurrentModificationError("renameat2(RENAME_EXCHANGE) is unavailable")
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    if renameat2(parent_fd, os.fsencode(left_name), parent_fd, os.fsencode(right_name), 0x2) != 0:
+        raise ConcurrentModificationError(f"renameat2 exchange failed (errno={ctypes.get_errno()})")
+
+
+def _windows_replace_with_backup(destination: Path, replacement: Path, backup: Path) -> None:
+    """Replace a design-system authority file while retaining its old bytes."""
 
     if os.name != "nt":
-        raise ConcurrentModificationError("Windows relative rename is unavailable on this host")
-    del parent_handle  # the held handle pins the parent for the native move
+        raise ConcurrentModificationError("ReplaceFileW is unavailable on this host")
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.MoveFileExW.restype = wintypes.BOOL
-    flags = 0x00000001 | 0x00000008  # REPLACE_EXISTING | WRITE_THROUGH
-    if not kernel32.MoveFileExW(str(temp_path), str(destination), flags):
-        error = ctypes.get_last_error()
-        raise ConcurrentModificationError(
-            f"{destination} native replace failed (winerror={error})"
-        )
+    kernel32.ReplaceFileW.restype = wintypes.BOOL
+    kernel32.ReplaceFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.LPVOID,
+    ]
+    if backup.exists():
+        raise ConcurrentModificationError(f"design-system transaction backup already exists: {backup}")
+    if not kernel32.ReplaceFileW(str(destination), str(replacement), str(backup), 0x1, None, None):
+        raise ConcurrentModificationError(f"ReplaceFileW failed (winerror={ctypes.get_last_error()})")
+
+
+def _path_version(path: Path) -> tuple[int, int, int, int, str]:
+    info = path.stat(follow_symlinks=False)
+    return (
+        int(info.st_dev),
+        int(info.st_ino),
+        int(info.st_size),
+        int(info.st_mtime_ns),
+        hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+
+
+def _exchange_design_system_commit(
+    path: Path,
+    temporary_path: Path,
+    *,
+    parent_fd: int | None,
+    expected_version: tuple[int, int, int, int, str],
+    payload: bytes,
+) -> None:
+    """Commit with a displaced-file backup and verify/restore on mismatch."""
+
+    if os.name != "nt":
+        if parent_fd is None:
+            raise ConcurrentModificationError("design-system exchange requires a held parent descriptor")
+        _posix_rename_exchange(parent_fd, temporary_path.name, path.name)
+        displaced = path.parent / temporary_path.name
+        if _path_version(displaced) != expected_version:
+            if _path_version(path)[-1] == hashlib.sha256(payload).hexdigest():
+                _posix_rename_exchange(parent_fd, temporary_path.name, path.name)
+                if _path_version(path) != expected_version:
+                    raise ConcurrentModificationError("design-system restore verification failed; artifacts retained")
+                os.unlink(temporary_path.name, dir_fd=parent_fd)
+            raise ConcurrentModificationError("design-system displaced bytes changed; concurrent bytes preserved")
+        os.unlink(temporary_path.name, dir_fd=parent_fd)
+        os.fsync(parent_fd)
+        return
+
+    backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.backup"
+    _windows_replace_with_backup(path, temporary_path, backup)
+    if _path_version(backup) != expected_version:
+        if _path_version(path)[-1] == hashlib.sha256(payload).hexdigest():
+            rollback_backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.rollback"
+            _windows_replace_with_backup(path, backup, rollback_backup)
+            if _path_version(path) != expected_version:
+                raise ConcurrentModificationError("design-system restore verification failed; artifacts retained")
+            rollback_backup.unlink(missing_ok=True)
+        raise ConcurrentModificationError("design-system displaced bytes changed; concurrent bytes preserved")
+    backup.unlink(missing_ok=True)
 
 
 def _destination_lock_path(path: Path) -> Path:
@@ -457,16 +521,21 @@ def _write_bytes_atomic_unlocked(path: Path, payload: bytes, expected_bytes: byt
             )
         if os.name == "nt":
             # Windows has no dir_fd form of os.replace. Hold the final parent
-            # without FILE_SHARE_DELETE and use SetFileInformationByHandle's
-            # RootDirectory field for a relative rename. A failed native
-            # primitive is fail-closed; never fall back to a pathname move.
+            # without FILE_SHARE_DELETE and use ReplaceFileW with a displaced
+            # backup so a concurrent edit can be restored or retained.
             parent_handle, ancestor_handles = _windows_open_parent(path)
             try:
                 if _destination_version_token(path) != destination_version_token:
                     raise ConcurrentModificationError(
                         f"{path} changed before the native replace"
                     )
-                _windows_rename_relative(temporary_path, path, parent_handle)
+                _exchange_design_system_commit(
+                    path,
+                    temporary_path,
+                    parent_fd=None,
+                    expected_version=destination_version_token,
+                    payload=payload,
+                )
             finally:
                 _windows_close(parent_handle)
                 for ancestor_handle in reversed(ancestor_handles):
@@ -475,19 +544,19 @@ def _write_bytes_atomic_unlocked(path: Path, payload: bytes, expected_bytes: byt
             # POSIX keeps every component no-follow checked and the final
             # directory open while replacing by basename. This prevents an
             # ancestor swap from redirecting the destination after CAS.
-            parent_fd, basename = _open_posix_parent(path)
+            parent_fd, _basename = _open_posix_parent(path)
             try:
                 if _destination_version_token(path) != destination_version_token:
                     raise ConcurrentModificationError(
                         f"{path} changed before the dirfd replace"
                     )
-                os.replace(
-                    temporary_path.name,
-                    basename,
-                    src_dir_fd=parent_fd,
-                    dst_dir_fd=parent_fd,
+                _exchange_design_system_commit(
+                    path,
+                    temporary_path,
+                    parent_fd=parent_fd,
+                    expected_version=destination_version_token,
+                    payload=payload,
                 )
-                os.fsync(parent_fd)
             finally:
                 os.close(parent_fd)
         temporary_path = None

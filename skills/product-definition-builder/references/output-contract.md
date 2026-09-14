@@ -425,8 +425,15 @@ Use `assets/templates/OUTCOME_REVIEW.template.md` and validate it with `scripts/
 # Outcome Review: [Product Name]
 
 ## Record
-Schema: outcome-review/1
+Schema: outcome-review/2
 Product, human outcome owner, production release target, full Release SHA, exact artifact/build identity, exact Deployment identity and checked time, Deployment PASS, `docs/ACTIVATION.md`, lowercase SHA-256 of the current Activation bytes, real Reviewed date, and closed verdict. A multi-target Record also adds `Production release targets: target-set: ...` and keeps the legacy primary fields bound to the first ordered target.
+
+## Verdict History
+| Prior outcome sha256 | Verdict | Verdict section sha256 | Verdict reason |
+| --- | --- | --- | --- |
+| none | none | none | none |
+
+Start a new record with one exact `none | none | none | none` row. When `--prior-outcome` is used, preserve every prior history row byte-for-byte and in order, then append exactly one row derived from the prior record's current `## Verdict` section before the new current Verdict section. Do not move a verdict into `## Open Follow-ups`, rewrite a historical row, or use placeholders/duplicate prior digests.
 
 For a multi-target review, add these ordered target and per-signal tables:
 
@@ -625,7 +632,7 @@ Use this structure:
 - Checkpoint digest: [sha256:<64 lowercase hex> over canonical stack bytes, excluding this checkpoint block]
 - Applicable areas: [Exact release-surface and gate applicability]
 - Resolved areas: [Exact areas closed by this checkpoint]
-- Approved option map: [OPT-ID=layer entries, exactly matching approved executable layers]
+- Approved option map: [OPT-ID=layer=>selection;layer=>selection entries, exactly matching approved executable layer selections]
 <!-- stack-decision-checkpoint:end -->
 
 Keep the `Stack Decisions` title, this marker pair and fields, the Coherent Options header, every `Recorded or Approved Stack` heading, and layer-table header in English in a translated package; they are machine anchors.

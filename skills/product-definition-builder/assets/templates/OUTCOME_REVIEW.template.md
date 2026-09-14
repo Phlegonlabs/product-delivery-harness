@@ -4,7 +4,7 @@ This strict post-deployment record is written only after the real measurement wi
 
 ## Record
 
-- Schema: outcome-review/1
+- Schema: outcome-review/2
 - Product: <fill>
 - Outcome owner: <human owner>
 - Production release target: <architecture release-target-id>
@@ -19,6 +19,12 @@ This strict post-deployment record is written only after the real measurement wi
 - Reviewed on: <YYYY-MM-DD>
 - Verdict: <no_change / enhancement / incident>
 - Prior outcome sha256: <required only when --prior-outcome appends immutable history>
+
+## Verdict History
+
+| Prior outcome sha256 | Verdict | Verdict section sha256 | Verdict reason |
+| --- | --- | --- | --- |
+| none | none | none | none |
 
 ## Activation Sources
 
