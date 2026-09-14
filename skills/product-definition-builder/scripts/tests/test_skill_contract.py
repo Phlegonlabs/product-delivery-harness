@@ -1843,6 +1843,7 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
+        template = self.read("assets/templates/OUTCOME_REVIEW.template.md")
 
         # The review is an owner-initiated post-publish step with a closed
         # verdict vocabulary and real measurement windows.
@@ -1873,7 +1874,22 @@ async function agent(_prompt, options) {
         self.assertIn("`outcome-review.md` is a post-deployment record", lifecycle)
         self.assertIn("Activation source status:", contract)
         self.assertIn("matching verified `MS-*` sources", skill)
+        self.assertIn("exact numeric window duration/start-after-deployment checks", skill)
+        self.assertIn("targets listed by Activation Outcome Coverage", skill)
         self.assertIn("--require-verified-sources", contract)
+        fence_open = False
+        architecture_active = False
+        for line in contract.splitlines():
+            if line.startswith("```"):
+                fence_open = not fence_open
+            if line.strip() == "## `architecture.md`":
+                architecture_active = not fence_open
+        self.assertFalse(fence_open, "output contract Markdown fences must be balanced")
+        self.assertTrue(architecture_active, "architecture output section must remain active Markdown")
+        active_template = re.sub(r"```[^\n]*\n[\s\S]*?```", "", template)
+        self.assertIn("| Incident | Containment | Human owner |", active_template)
+        self.assertNotIn("| Incident | Release target | Containment |", active_template)
+        self.assertIn("| Incident | Release target | Containment |", template)
 
     def test_activation_seed_is_create_once_and_owned_downstream(self) -> None:
         skill = self.read("SKILL.md")

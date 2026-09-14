@@ -429,7 +429,6 @@ Product, human outcome owner, production release target, full Release SHA, exact
 
 For a multi-target review, add these ordered target and per-signal tables:
 
-```markdown
 ## Target Reviews
 | Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -439,7 +438,6 @@ For a multi-target review, add these ordered target and per-signal tables:
 | Signal | Release target | Baseline | Target | Window start | Window end | Actual | Source ID |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [PRD metric or required TEST] | [target] | [baseline] | [target] | [date] | [date] | [actual] | [MS-*] |
-```
 
 The target set for each signal is the exact `Release targets` value in Activation Outcome Coverage for that signal. Do not synthesize a full signal-by-target cross-product when Activation scopes a signal to only some production targets.
 
@@ -463,6 +461,8 @@ For a multi-target review, use `Fact | Release target | Source ID | Observed` in
 | --- | --- | --- | --- | --- | --- |
 | [none, or the incident] | [containment or n/a] | [human or n/a] | [PRD Risks routing or n/a] | [PRD Open Questions routing or n/a] | [MS-* or n/a] |
 
+For a multi-target review use `Incident | Release target | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence`. Bind each incident evidence source to that target; incident rows are required exactly for Target Reviews whose per-target verdict is `incident`, and the aggregate verdict must follow those target verdicts.
+
 ## Verdict
 Verdict: [no_change / enhancement / incident] — [one-line reason]
 
@@ -477,7 +477,7 @@ Rules:
 - Run `python skills/product-definition-builder/scripts/check_outcome_review.py --outcome docs/product/outcome-review.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md`.
 - Record actual against target for every `PRD.md` `## Metrics` metric and every required `TEST-*` expected signal; baseline, target/expected signal, and (when present) numeric measurement-window duration must exactly join the PRD row. An empty or duplicate Measurements table means the review is not done.
 - The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
-- A single-target review cannot mix targets or releases and is production-only. A multi-target review keeps the ordered target set explicit, joins every target row to its own current Deployment PASS identity and verified `MS-*` sources, and repeats every PRD metric and required `TEST-*` signal per target in `Target Measurements`. No target's SHA, artifact, source, or actual may be reused implicitly for another target. All reviewed targets must be production architecture targets, and the aggregate verdict follows the closed deterministic severity order.
+- A single-target review cannot mix targets or releases and is production-only. A multi-target review keeps the ordered target set explicit, joins every target row to its own current Deployment PASS identity and verified `MS-*` sources, and repeats every PRD metric and required `TEST-*` signal only for the targets listed in that signal's Activation Outcome Coverage. Each target row's measurement window must use the PRD's exact numeric duration and start/end strictly after that target's Deployment checked date. No target's SHA, artifact, source, or actual may be reused implicitly for another target. All reviewed targets must be production architecture targets, and the aggregate verdict follows the closed deterministic severity order.
 - An incident requires typed containment, a human owner, and explicit concrete routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
 - The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
 

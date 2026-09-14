@@ -43,7 +43,9 @@ Include this section when `Production release targets` names more than one targe
 
 ## Target Measurements
 
-Include this section for a multi-target review. Repeat every PRD metric and required `TEST-*` signal for every target; each row names the exact target and matching `MS-*` source.
+Include this section for a multi-target review. Repeat each PRD metric and required `TEST-*` signal only for the targets listed for that signal in Activation Outcome Coverage; each row names the exact target and matching `MS-*` source.
+
+Use only the targets listed for that signal in Activation Outcome Coverage. Match any numeric PRD window duration exactly and start/end strictly after that target's Deployment checked date.
 
 | Signal | Release target | Baseline | Target | Window start | Window end | Actual | Source ID |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -60,6 +62,16 @@ For a multi-target record use `Fact | Release target | Source ID | Observed` and
 ## Incident Response
 
 Leave one `none` row for a non-incident verdict. An incident must use one typed containment (`rollout halted`, `rollback`, `forward fix`, `feature disabled`, `traffic reduced`, `access revoked`, or `monitoring only`), name a human owner, and route to concrete next-record entries under `PRD Risks` and `PRD Open Questions`.
+
+For a multi-target review, use `Incident | Release target | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence`. Every incident row must use a verified source bound to that target, and an incident row is required exactly for each target whose Target Review verdict is `incident`; the aggregate verdict must follow the target verdicts.
+
+Replace the active single-target table below with this shape for a multi-target review:
+
+```markdown
+| Incident | Release target | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| <none or incident> | <production target> | <typed containment or n/a> | <human or n/a> | <PRD Risks routing or n/a> | <PRD Open Questions routing or n/a> | <MS-* or n/a> |
+```
 
 | Incident | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence |
 | --- | --- | --- | --- | --- | --- |

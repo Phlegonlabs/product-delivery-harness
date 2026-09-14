@@ -103,6 +103,15 @@ INCIDENT_HEADERS = (
     "prd open question routing",
     "evidence",
 )
+TARGET_INCIDENT_HEADERS = (
+    "incident",
+    "release target",
+    "containment",
+    "human owner",
+    "prd risk routing",
+    "prd open question routing",
+    "evidence",
+)
 FOLLOWUP_HEADERS = ("follow-up", "route")
 FOLLOWUP_ROUTES = {"enhancement request", "open question", "risk", "none"}
 ABSENT = {"", "none", "n/a", "pending"}
@@ -319,6 +328,7 @@ def _multi_target_findings(
         target_rows = []
     seen_targets: list[str] = []
     target_verdicts: list[str] = []
+    target_verdict_map: dict[str, str] = {}
     target_sources: dict[str, set[str]] = {}
     target_bindings: dict[str, str] = {}
     for row in target_rows:
@@ -346,6 +356,7 @@ def _multi_target_findings(
             findings.append(f"Target Reviews: {target_id} has invalid verdict {verdict!r}")
         else:
             target_verdicts.append(verdict)
+            target_verdict_map[target_id] = verdict
         deployment = deployment_rows.get(target_id)
         if deployment is None:
             findings.append(f"Target Reviews: deployment is missing {target_id}")
@@ -400,16 +411,71 @@ def _multi_target_findings(
                 f"Target Reviews: aggregate verdict must be deterministic {expected_aggregate!r}"
             )
 
+    incident_rows, incident_header_ok = _rows(text, "## Incident Response", TARGET_INCIDENT_HEADERS)
+    incident_by_target: dict[str, int] = {}
+    if not incident_header_ok:
+        findings.append("Incident Response: expected columns " + " | ".join(TARGET_INCIDENT_HEADERS))
+        incident_rows = []
+    for row in incident_rows:
+        if len(row) != len(TARGET_INCIDENT_HEADERS):
+            findings.append("Incident Response: each row must have the exact column count")
+            continue
+        incident, incident_target, containment, owner, risk_routing, question_routing, evidence = row
+        if incident_target not in target_sources:
+            findings.append(f"Incident Response: {incident_target} is not a reviewed target")
+            continue
+        if incident.casefold() in ABSENT:
+            continue
+        incident_by_target[incident_target] = incident_by_target.get(incident_target, 0) + 1
+        if incident_by_target[incident_target] > 1:
+            findings.append(f"Incident Response: duplicate incident row for {incident_target}")
+        if evidence not in target_sources[incident_target]:
+            findings.append(
+                f"Incident Response: {incident_target} incident must use a verified source bound to that target"
+            )
+        if not incident.strip() or not evidence.strip():
+            findings.append(f"Incident Response: {incident_target} incident and evidence are required")
+        containment_kind = containment.split(":", 1)[0].strip().casefold()
+        if containment_kind not in CONTAINMENT_TYPES:
+            findings.append(
+                f"Incident Response: {incident_target} requires typed containment"
+            )
+        if not _human(owner):
+            findings.append(f"Incident Response: {incident_target} incident requires a human owner")
+        if not re.fullmatch(r"PRD Risks:\s*\S.*", risk_routing):
+            findings.append(f"Incident Response: {incident_target} requires PRD Risks routing")
+        if not re.fullmatch(r"PRD Open Questions:\s*\S.*", question_routing):
+            findings.append(f"Incident Response: {incident_target} requires PRD Open Questions routing")
+    for target_id, target_verdict in target_verdict_map.items():
+        if target_verdict == "incident" and incident_by_target.get(target_id, 0) == 0:
+            findings.append(f"Incident Response: incident target {target_id} needs a target-bound incident row")
+        if target_verdict != "incident" and incident_by_target.get(target_id, 0):
+            findings.append(f"Incident Response: non-incident target {target_id} cannot carry an incident row")
+
     feedback_rows, feedback_header_ok = _rows(text, "## Feedback", TARGET_FEEDBACK_HEADERS)
-    if feedback_header_ok:
-        for row in feedback_rows:
-            if len(row) != len(TARGET_FEEDBACK_HEADERS):
-                continue
-            _fact, feedback_target, source_id, _observed = row
-            if source_id not in target_sources.get(feedback_target, set()):
-                findings.append(
-                    f"Feedback: {feedback_target} fact must use a verified source bound to that target"
-                )
+    if not feedback_header_ok:
+        findings.append("Feedback: expected columns " + " | ".join(TARGET_FEEDBACK_HEADERS))
+        feedback_rows = []
+    if not feedback_rows:
+        findings.append("Feedback: at least one substantive target-bound fact is required")
+    seen_feedback_rows: set[tuple[str, str, str, str]] = set()
+    for row in feedback_rows:
+        if len(row) != len(TARGET_FEEDBACK_HEADERS):
+            findings.append("Feedback: each multi-target row must have the exact column count")
+            continue
+        fact, feedback_target, source_id, observed = row
+        feedback_identity = (fact, feedback_target, source_id, observed)
+        if feedback_identity in seen_feedback_rows:
+            findings.append(f"Feedback: duplicate fact row for {feedback_target}")
+        seen_feedback_rows.add(feedback_identity)
+        if feedback_target not in target_ids:
+            findings.append(f"Feedback: fact names an unreviewed target {feedback_target}")
+        if fact.casefold() in ABSENT or observed.casefold() in ABSENT:
+            findings.append(f"Feedback: {feedback_target} facts and observations cannot be empty")
+        if source_id not in target_sources.get(feedback_target, set()):
+            findings.append(
+                f"Feedback: {feedback_target} fact must use a verified source bound to that target"
+            )
 
     expected_signals, prd_findings = _parse_prd_signal_contract(prd_text)
     findings.extend(prd_findings)
@@ -474,8 +540,24 @@ def _multi_target_findings(
                 )
         if not _valid_date(start) or not _valid_date(end) or start > end:
             findings.append(f"Target Measurements: {signal}/{target_id} needs an ordered date window")
-        elif date.fromisoformat(end) > datetime.now(timezone.utc).date():
-            findings.append(f"Target Measurements: {signal}/{target_id} window cannot end in the future")
+        else:
+            expected_window = expectation.get("window", "")
+            duration_match = re.search(r"\b(\d+)\s*days?\b", expected_window, re.IGNORECASE)
+            if duration_match and (
+                date.fromisoformat(end) - date.fromisoformat(start)
+            ).days != int(duration_match.group(1)):
+                findings.append(
+                    f"Target Measurements: {signal}/{target_id} window must match PRD measurement window {expected_window!r}"
+                )
+            if date.fromisoformat(end) > datetime.now(timezone.utc).date():
+                findings.append(f"Target Measurements: {signal}/{target_id} window cannot end in the future")
+            deployment = deployment_rows.get(target_id)
+            deployment_date = deployment["checked"][:10] if deployment else ""
+            if deployment_date and _valid_date(deployment_date):
+                if start <= deployment_date or end <= deployment_date:
+                    findings.append(
+                        f"Target Measurements: {signal}/{target_id} window must start and end after target deployment"
+                    )
         if _valid_date(reviewed_on) and _valid_date(end) and reviewed_on < end:
             findings.append(f"Target Measurements: {signal}/{target_id} window ends after Reviewed on")
         if actual.lower() in ABSENT:
@@ -856,9 +938,11 @@ def check_outcome_review_text(
 
     feedback_headers = TARGET_FEEDBACK_HEADERS if multi_target_mode else FEEDBACK_HEADERS
     feedback_rows, feedback_header_ok = _rows(text, "## Feedback", feedback_headers)
+    if multi_target_mode:
+        feedback_rows, feedback_header_ok = [], True
     if not feedback_header_ok:
         findings.append("Feedback: expected columns " + " | ".join(feedback_headers))
-    if not feedback_rows:
+    if not feedback_rows and not multi_target_mode:
         findings.append("Feedback: at least one substantive post-deployment fact is required")
     for feedback_row in feedback_rows:
         if len(feedback_row) != len(feedback_headers):
@@ -882,19 +966,33 @@ def check_outcome_review_text(
         if source_id not in matching_sources:
             findings.append(f"Feedback: fact uses a non-matching source {source_id}")
 
+    incident_headers = TARGET_INCIDENT_HEADERS if multi_target_mode else INCIDENT_HEADERS
     incident_rows, incident_header_ok = _rows(
-        text, "## Incident Response", INCIDENT_HEADERS
+        text, "## Incident Response", incident_headers
     )
+    if multi_target_mode:
+        incident_rows, incident_header_ok = [], True
     if not incident_header_ok:
-        findings.append("Incident Response: expected columns " + " | ".join(INCIDENT_HEADERS))
-    if verdict == "incident":
+        findings.append("Incident Response: expected columns " + " | ".join(incident_headers))
+    if verdict == "incident" and not multi_target_mode:
         if not incident_rows:
             findings.append("Incident Response: incident verdict requires at least one incident row")
         for incident_row in incident_rows:
-            if len(incident_row) != len(INCIDENT_HEADERS):
+            if len(incident_row) != len(incident_headers):
                 findings.append("Incident Response: each row must have the exact column count")
                 continue
-            incident, containment, owner, risk_routing, question_routing, evidence = incident_row
+            if multi_target_mode:
+                incident, incident_target, containment, owner, risk_routing, question_routing, evidence = incident_row
+                if incident_target not in {
+                    item.strip()
+                    for item in record.get("Production release targets", "")
+                    .removeprefix("target-set:")
+                    .split(",")
+                    if item.strip()
+                }:
+                    findings.append(f"Incident Response: incident names an unreviewed target {incident_target}")
+            else:
+                incident, containment, owner, risk_routing, question_routing, evidence = incident_row
             if incident.lower() in ABSENT or evidence.lower() in ABSENT:
                 findings.append("Incident Response: incident and evidence are required")
             elif evidence not in matching_sources:
@@ -912,10 +1010,14 @@ def check_outcome_review_text(
                 findings.append("Incident Response: incident requires explicit PRD Risks routing")
             if not re.fullmatch(r"PRD Open Questions:\s*\S.*", question_routing):
                 findings.append("Incident Response: incident requires explicit PRD Open Questions routing")
-    elif any(
+    elif not multi_target_mode and any(
         any(cell.casefold() not in ABSENT for cell in row) for row in incident_rows
     ):
         findings.append("Incident Response: only an incident verdict may contain incident rows")
+    elif multi_target_mode:
+        for row in incident_rows:
+            if row and row[0].casefold() not in ABSENT:
+                findings.append("Incident Response: only an incident target verdict may contain incident rows")
 
     verdict_lines = _section(text, "## Verdict") or []
     verdict_match = re.match(r"^Verdict:\s*(\S+)\s*—\s*(.+)$", "\n".join(verdict_lines).strip())
