@@ -13,6 +13,12 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+# A canonical absolute executable (resolved interpreter) so sandbox
+# preflight fixtures satisfy the canonical-path validator on POSIX hosts
+# where the interpreter is a root-owned symlink.
+FIXTURE_RUNTIME_EXECUTABLE = str(Path(sys.executable).resolve())
+
+
 from harness_manifest import AUTHORIZATION_KEYS, plan_digest  # noqa: E402
 from harness_schema import (  # noqa: E402
     CURRENT_PLAN_SCHEMA_VERSION,
@@ -549,11 +555,11 @@ def sandbox_observation(plan: dict[str, object]) -> dict[str, object]:
                 "image": image,
                 "repo_digest": image,
                 "runtime_probe": {
-                    "executable": "C:/fixture/docker.exe",
+                    "executable": FIXTURE_RUNTIME_EXECUTABLE,
                     "executable_sha256": "a" * 64,
                     "version_output_sha256": "b" * 64,
                     "trust": {
-                        "path": "C:/fixture/docker.exe",
+                        "path": FIXTURE_RUNTIME_EXECUTABLE,
                         "runtime": runtime,
                         "ownership": "fixture-machine-policy",
                         "uid": 0,

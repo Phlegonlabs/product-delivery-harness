@@ -65,7 +65,10 @@ if ($CheckDependencies) {
         }
     }
     if ($missing.Count -gt 0) {
-        $missing | ForEach-Object { Write-Error "dependency missing: $_" }
+        # -ErrorAction Continue keeps each missing dependency visible even
+        # though $ErrorActionPreference is Stop; otherwise the first Write-Error
+        # terminates the script before every dependency is reported.
+        $missing | ForEach-Object { Write-Error "dependency missing: $_" -ErrorAction Continue }
         throw "install frontend-design through the Codex skill installer and Impeccable through 'npx impeccable install', then rerun with -CheckDependencies"
     }
     exit 0
@@ -191,7 +194,10 @@ function Get-TreeManifest {
     if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
         throw "manifest root does not exist: $Root"
     }
-    $SourceRoot = (Resolve-Path -LiteralPath $Root).ProviderPath
+    # PowerShell 7 normalizes 8.3 short components in Get-ChildItem FullNames
+    # while Resolve-Path keeps the short form; slice relatives against the
+    # enumerated (long) form so the manifest matches on short-path TEMP roots.
+    $SourceRoot = (Get-Item -LiteralPath $Root).FullName
     $manifest = @(Get-ChildItem -LiteralPath $SourceRoot -Recurse -Force -File |
         Where-Object {
             $relative = $_.FullName.Substring($SourceRoot.Length + 1)
@@ -469,6 +475,9 @@ try {
         }
         [IO.File]::WriteAllText((Join-Path $target ".pdh-install-owner"), "$AttemptId`n")
         $stageSource = Join-Path $StageRoot $Skill
+        # Normalize 8.3 short components so FullName slicing stays aligned
+        # with the enumerated (long) form on PowerShell 7.
+        $stageSource = (Get-Item -LiteralPath $stageSource).FullName
         Get-ChildItem -LiteralPath $stageSource -Recurse -Force -File | ForEach-Object {
             $relative = $_.FullName.Substring($stageSource.Length + 1)
             $targetFile = Join-Path $target $relative

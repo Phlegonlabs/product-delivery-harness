@@ -24,7 +24,12 @@ import new_run  # noqa: E402
 import render_tasks_view  # noqa: E402
 from harness_manifest import load_plan  # noqa: E402
 from manifest_fixtures import manifest_markdown  # noqa: E402
-from test_product_package_checker import release_architecture, valid_prd, valid_stack  # noqa: E402
+from test_product_package_checker import (  # noqa: E402
+    release_architecture,
+    strictize_approved_package,
+    valid_prd,
+    valid_stack,
+)
 
 while str(PDB_TESTS_DIR) in sys.path:
     sys.path.remove(str(PDB_TESTS_DIR))
@@ -103,10 +108,13 @@ class RenderTasksViewTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.dir = Path(self.tmp.name)
         self.plan = load_plan(PLAN_TEMPLATE)
+        approved_prd, approved_architecture, approved_stack = strictize_approved_package(
+            valid_prd(), release_architecture(), valid_stack()
+        )
         product_sources = {
-            "docs/product/PRD.md": valid_prd().encode("utf-8"),
-            "docs/product/architecture.md": release_architecture().encode("utf-8"),
-            "docs/product/stack-decisions.md": valid_stack().encode("utf-8"),
+            "docs/product/PRD.md": approved_prd.encode("utf-8"),
+            "docs/product/architecture.md": approved_architecture.encode("utf-8"),
+            "docs/product/stack-decisions.md": approved_stack.encode("utf-8"),
         }
         for location, value in product_sources.items():
             path = self.dir / location

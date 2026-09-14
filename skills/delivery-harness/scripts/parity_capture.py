@@ -16,6 +16,7 @@ RUN's ``target_comparison`` records; this tool never edits RUN state.
 from __future__ import annotations
 
 import argparse
+import errno
 import html
 import json
 import os
@@ -205,7 +206,10 @@ def _trusted_launcher_path(path: Path, label: str) -> Path:
         resolved.stat()
     except OSError as exc:
         raise RuntimeError(f"{label} is unavailable: {path}") from exc
-    if not resolved.is_file() or path.is_symlink():
+    # POSIX systems routinely expose the interpreter through a root-owned
+    # symlink (/usr/bin/python3 -> python3.13); the resolved target stays
+    # machine-managed, so only Windows rejects the link itself.
+    if not resolved.is_file() or (os.name == "nt" and path.is_symlink()):
         raise RuntimeError(f"{label} must be a regular non-symlink file: {resolved}")
     for current in (resolved, *resolved.parents):
         try:
@@ -240,7 +244,15 @@ def _trusted_launcher_path(path: Path, label: str) -> Path:
 def _bind_posix_launcher(path: Path, *, executable: bool = True) -> tuple[str, int]:
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(path, flags)
+        try:
+            fd = os.open(path, flags)
+        except OSError as exc:
+            # A symlinked launcher (for example a distro /usr/bin/python3)
+            # raises ELOOP under O_NOFOLLOW; pin the resolved target instead
+            # so the bound descriptor still names the machine-managed inode.
+            if exc.errno != errno.ELOOP:
+                raise
+            fd = os.open(path.resolve(strict=True), flags)
         info = os.fstat(fd)
         if not os.path.isfile(path) or (executable and not (info.st_mode & 0o111)):
             os.close(fd)

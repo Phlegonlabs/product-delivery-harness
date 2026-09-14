@@ -212,6 +212,108 @@ def _windows_parent_user_writable(path: Path) -> bool:
     return _windows_acl_allows_current_write(Path(path))
 
 
+def _windows_restricted_probe_token(advapi32, kernel32, source_token):
+    """Return an impersonation token that probes least-privilege writability.
+
+    Elevated CI and admin hosts grant Program Files write access through an
+    enabled BUILTIN\\Administrators group; the user-writability policy must
+    measure what a standard (non-elevated) token could do. When that group is
+    enabled, the returned duplicate disables it via CreateRestrictedToken.
+    Returns None when the probe token cannot be built (fail closed).
+    """
+
+    import ctypes
+    from ctypes import wintypes
+
+    class SidAndAttributes(ctypes.Structure):
+        _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", wintypes.DWORD)]
+
+    class TokenGroups(ctypes.Structure):
+        _fields_ = [("GroupCount", wintypes.DWORD), ("Groups", SidAndAttributes * 1)]
+
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    length = wintypes.DWORD(0)
+    if advapi32.GetTokenInformation(source_token, 2, None, 0, ctypes.byref(length)) or not length.value:
+        return None
+    groups = ctypes.create_string_buffer(length.value)
+    if not advapi32.GetTokenInformation(source_token, 2, groups, length.value, ctypes.byref(length)):
+        return None
+    token_groups = TokenGroups.from_buffer(groups)
+    first_group = ctypes.addressof(groups) + TokenGroups.Groups.offset
+    to_disable: list[SidAndAttributes] = []
+    for index in range(token_groups.GroupCount):
+        entry = SidAndAttributes.from_address(first_group + index * ctypes.sizeof(SidAndAttributes))
+        text = ctypes.c_wchar_p()
+        if not advapi32.ConvertSidToStringSidW(entry.Sid, ctypes.byref(text)):
+            return None
+        try:
+            if text.value == "S-1-5-32-544" and entry.Attributes & 0x4:  # SE_GROUP_ENABLED
+                to_disable.append(SidAndAttributes(Sid=entry.Sid, Attributes=entry.Attributes))
+        finally:
+            if text.value:
+                kernel32.LocalFree(text)
+    impersonation = wintypes.HANDLE()
+    if not to_disable:
+        if not advapi32.DuplicateToken(source_token, 2, ctypes.byref(impersonation)):
+            return None
+        return impersonation if impersonation.value else None
+    advapi32.CreateRestrictedToken.restype = wintypes.BOOL
+    advapi32.CreateRestrictedToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(SidAndAttributes),
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    disable_sids = (SidAndAttributes * len(to_disable))(*to_disable)
+    restricted = wintypes.HANDLE()
+    if not advapi32.CreateRestrictedToken(
+        source_token,
+        0,
+        len(to_disable),
+        disable_sids,
+        0,
+        None,
+        0,
+        None,
+        ctypes.byref(restricted),
+    ):
+        return None
+    try:
+        advapi32.DuplicateTokenEx.restype = wintypes.BOOL
+        advapi32.DuplicateTokenEx.argtypes = [
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            ctypes.c_int,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.HANDLE),
+        ]
+        if not advapi32.DuplicateTokenEx(
+            restricted,
+            0x0008 | 0x0004,  # TOKEN_QUERY | TOKEN_IMPERSONATE
+            None,
+            2,  # SecurityImpersonation
+            2,  # TokenImpersonation
+            ctypes.byref(impersonation),
+        ):
+            return None
+        return impersonation if impersonation.value else None
+    finally:
+        kernel32.CloseHandle(restricted)
+
+
 def _windows_acl_allows_current_write(path: Path) -> bool:
     import ctypes
     from ctypes import wintypes
@@ -268,16 +370,12 @@ def _windows_acl_allows_current_write(path: Path) -> bool:
         if not advapi32.OpenThreadToken(kernel32.GetCurrentThread(), token_access, True, ctypes.byref(source_token)) and not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), token_access, ctypes.byref(source_token)):
             return True
         try:
-            token = wintypes.HANDLE()
-            if not advapi32.DuplicateToken(
-                source_token,
-                2,  # SecurityImpersonation
-                ctypes.byref(token),
-            ):
+            probe_token = _windows_restricted_probe_token(advapi32, kernel32, source_token)
+            if probe_token is None:
                 return True
             try:
                 class GenericMapping(ctypes.Structure):
-                    _fields_ = [("read", wintypes.DWORD), ("write", wintypes.DWORD), ("execute", wintypes.DWORD), ("all", wintypes.DWORD)]
+                        _fields_ = [("read", wintypes.DWORD), ("write", wintypes.DWORD), ("execute", wintypes.DWORD), ("all", wintypes.DWORD)]
                 mapping = GenericMapping(0x120089, 0x120116, 0x1200A0, 0x1F01FF)
                 advapi32.AccessCheck.argtypes = [
                     wintypes.LPVOID,
@@ -295,7 +393,7 @@ def _windows_acl_allows_current_write(path: Path) -> bool:
                 access_status = wintypes.BOOL()
                 checked = advapi32.AccessCheck(
                     descriptor,
-                    token,
+                    probe_token,
                     0x02000000,  # MAXIMUM_ALLOWED
                     ctypes.byref(mapping),
                     privilege,
@@ -318,7 +416,7 @@ def _windows_acl_allows_current_write(path: Path) -> bool:
                     or bool(int(granted.value) & dangerous)
                 )
             finally:
-                kernel32.CloseHandle(token)
+                kernel32.CloseHandle(probe_token)
         finally:
             kernel32.CloseHandle(source_token)
     finally:

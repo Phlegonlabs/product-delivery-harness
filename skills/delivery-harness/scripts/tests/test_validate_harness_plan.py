@@ -40,7 +40,12 @@ from validate_harness_plan import _viewport_floor_errors  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from manifest_fixtures import manifest_markdown, wireframes_html  # noqa: E402
 from test_wireframe_contract import render_html, wireframe_data  # noqa: E402
-from test_product_package_checker import release_architecture, valid_prd, valid_stack  # noqa: E402
+from test_product_package_checker import (  # noqa: E402
+    release_architecture,
+    strictize_approved_package,
+    valid_prd,
+    valid_stack,
+)
 
 for candidate in (UI_TESTS_DIR, PDB_TESTS_DIR):
     while str(candidate) in sys.path:
@@ -747,9 +752,12 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertIn("full wireframe checker is unavailable", missing[0])
 
     def test_approved_product_package_runs_the_full_builder_checker(self) -> None:
-        prd = valid_prd().encode("utf-8")
-        architecture = release_architecture().encode("utf-8")
-        stack = valid_stack().encode("utf-8")
+        strict_prd, strict_architecture, strict_stack = strictize_approved_package(
+            valid_prd(), release_architecture(), valid_stack()
+        )
+        prd = strict_prd.encode("utf-8")
+        architecture = strict_architecture.encode("utf-8")
+        stack = strict_stack.encode("utf-8")
         self.assertEqual(
             [], full_product_package_checker_errors(prd, architecture, stack)
         )
@@ -805,18 +813,21 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         plan["ui_surfaces"] = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            prd_path = self.bind_prd(plan, root, valid_prd())
+            bound_prd, bound_architecture, bound_stack = strictize_approved_package(
+                valid_prd(), release_architecture(), valid_stack()
+            )
+            prd_path = self.bind_prd(plan, root, bound_prd)
             architecture_source = next(
                 source for source in plan["sources"] if source["kind"] == "architecture"
             )
             architecture_path = root / architecture_source["location"]
             architecture_path.parent.mkdir(parents=True, exist_ok=True)
-            architecture_path.write_text(release_architecture(), encoding="utf-8")
+            architecture_path.write_text(bound_architecture, encoding="utf-8")
             architecture_source["content_sha256"] = hashlib.sha256(
                 architecture_path.read_bytes()
             ).hexdigest()
             stack_path = root / "docs/product/stack-decisions.md"
-            stack_path.write_text(valid_stack(), encoding="utf-8")
+            stack_path.write_text(bound_stack, encoding="utf-8")
             plan["sources"].append(
                 {
                     "id": "SRC-STACK",

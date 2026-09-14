@@ -23,7 +23,12 @@ if str(PDB_TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(PDB_TESTS_DIR))
 
 import new_run  # noqa: E402
-from test_product_package_checker import release_architecture, valid_prd, valid_stack  # noqa: E402
+from test_product_package_checker import (  # noqa: E402
+    release_architecture,
+    strictize_approved_package,
+    valid_prd,
+    valid_stack,
+)
 from harness_manifest import (  # noqa: E402
     load_plan,
     load_run,
@@ -44,10 +49,13 @@ class NewRunTests(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         self.plan = load_plan(PLAN_TEMPLATE)
         self.plan_path = self.dir / "PLAN.md"
+        approved_prd, approved_architecture, approved_stack = strictize_approved_package(
+            valid_prd(), release_architecture(), valid_stack()
+        )
         product_sources = {
-            "docs/product/PRD.md": valid_prd().encode("utf-8"),
-            "docs/product/architecture.md": release_architecture().encode("utf-8"),
-            "docs/product/stack-decisions.md": valid_stack().encode("utf-8"),
+            "docs/product/PRD.md": approved_prd.encode("utf-8"),
+            "docs/product/architecture.md": approved_architecture.encode("utf-8"),
+            "docs/product/stack-decisions.md": approved_stack.encode("utf-8"),
         }
         for location, value in product_sources.items():
             path = self.dir / location

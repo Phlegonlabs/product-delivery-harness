@@ -33,7 +33,12 @@ from harness_contract_join import (  # noqa: E402
 from harness_manifest import validate_current_plan_run  # noqa: E402
 from manifest_fixtures import valid_plan, valid_run  # noqa: E402
 from check_design_system_pair import replace_generated_contract  # noqa: E402
-from test_product_package_checker import release_architecture, valid_prd, valid_stack  # noqa: E402
+from test_product_package_checker import (  # noqa: E402
+    release_architecture,
+    strictize_approved_package,
+    valid_prd,
+    valid_stack,
+)
 from test_ui_design_contract import materialize_publication  # noqa: E402
 
 # Cross-skill fixture modules add their own test directories to ``sys.path``.
@@ -83,10 +88,16 @@ class StrictAuthorityJoinTests(unittest.TestCase):
 
     @classmethod
     def _headless_fixture(cls, root: Path) -> tuple[dict[str, object], dict[str, object]]:
+        # Render the approval fields (package/checkpoint digests, applicable
+        # areas, approved option map) from the exact packaged bytes so the
+        # fixture satisfies the strict exact-approval contract.
+        prd, architecture, stack = strictize_approved_package(
+            valid_prd(), release_architecture(), valid_stack()
+        )
         files = {
-            "docs/product/PRD.md": valid_prd(),
-            "docs/product/architecture.md": release_architecture(),
-            "docs/product/stack-decisions.md": valid_stack(),
+            "docs/product/PRD.md": prd,
+            "docs/product/architecture.md": architecture,
+            "docs/product/stack-decisions.md": stack,
         }
         for relative, text in files.items():
             path = root / relative
