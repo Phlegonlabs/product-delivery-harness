@@ -20,6 +20,7 @@ touches the platform.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import re
 import sys
 from datetime import datetime, timezone
@@ -254,6 +255,8 @@ def _human(value: str) -> bool:
 
 def _endpoint_findings(
     surface_class: str,
+    stage: str,
+    public_discoverability: str,
     endpoint: str,
     status: str,
     artifact: str,
@@ -261,7 +264,7 @@ def _endpoint_findings(
 ) -> list[str]:
     """Validate endpoint/domain identity using the typed architecture class."""
 
-    if status == "pending":
+    if status == "pending" and endpoint.strip().casefold() in {"", "pending"}:
         return []
     value = endpoint.strip()
     lowered = value.casefold()
@@ -300,11 +303,26 @@ def _endpoint_findings(
         parsed = urlparse(candidate)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             return ["hosted endpoint must be an http(s) URL or hostname"]
+        hostname = parsed.hostname.casefold()
+        try:
+            loopback = ipaddress.ip_address(hostname).is_loopback
+        except ValueError:
+            loopback = hostname == "localhost"
+        if parsed.scheme == "http":
+            if not (
+                stage == "development"
+                and public_discoverability == "no"
+                and loopback
+            ):
+                return [
+                    "hosted endpoint must use HTTPS; HTTP is allowed only for "
+                    "non-public localhost/loopback development"
+                ]
         if parsed.username or parsed.password:
             return ["hosted endpoint must not contain userinfo"]
         if parsed.query or parsed.fragment:
             return ["hosted endpoint must not contain a query or fragment"]
-        if not HOST_RE.fullmatch(parsed.hostname.rstrip(".").casefold()):
+        if not loopback and not HOST_RE.fullmatch(parsed.hostname.rstrip(".").casefold()):
             return ["hosted endpoint hostname is invalid"]
         return []
     if surface_class in {"worker", "job", "webhook", "realtime", "cli", "agent"}:
@@ -491,7 +509,13 @@ def _validate_release_target_status(
                 f"{label}: hosted target {target_id} needs a concrete endpoint or domain"
             )
         for endpoint_finding in _endpoint_findings(
-            target.surface_class, endpoint, status, artifact, provider
+            target.surface_class,
+            target.stage,
+            target.public_discoverability,
+            endpoint,
+            status,
+            artifact,
+            provider,
         ):
             findings.append(f"{label}: {target_id} {endpoint_finding}")
         if status not in {*ENVIRONMENT_STATUSES, "pending"}:

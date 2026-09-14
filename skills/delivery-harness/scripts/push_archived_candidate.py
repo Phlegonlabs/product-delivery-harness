@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Archive-first exact-SHA push with closed immutable request/receipt records."""
+"""Prepare and verify an archive-first exact-SHA publication handoff.
+
+This local tool never invokes ``git push``.  It writes closed immutable
+request/attempt records, returns a safe no-force argv for a human or trusted
+host, and closes the receipt only after recovery reads back the exact SHA.
+"""
 
 from __future__ import annotations
 
@@ -13,8 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from harness_authorization import is_explicit_remote_intent
 from harness_core import ManifestError, extract_json_manifest_text, is_full_sha, plan_digest
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_schema import PLAN_HEADING, RUN_HEADING, archive_first_required
 from harness_manifest import validate_plan, validate_run
 from harness_contract_join import validate_frozen_contract_joins
@@ -26,13 +31,16 @@ from archive_run import validate_archive_anchor
 REQUEST_PROTOCOL = "harness-archive-push-request-v2"
 RECEIPT_PROTOCOL = "harness-archive-push-receipt-v2"
 ATTEMPT_PROTOCOL = "harness-archive-push-attempt-v1"
+LOCAL_AUTHORIZATION_SOURCE = "external-human-or-trusted-host"
+LOCAL_AUTHORIZATION_REF = "not-authorized-by-local-executor"
+PENDING_TRUSTED_HOST_STATUS = "PENDING_TRUSTED_HOST_PUBLICATION"
 REQUEST_KEYS = {
     "protocol", "authorization_source", "authorization_ref", "plan_id", "plan_revision",
     "plan_digest_sha256", "run_id", "run_schema_version", "archive_path", "archive_hashes",
     "moves", "archive_receipt_sha256", "expected_main", "main_ref", "stamp",
     "documents_before_sha256", "documents_after_sha256",
     "anchor_path", "anchor_path_sha256", "anchor_nonce",
-    "candidate_c", "candidate_a", "run_branch", "branch_ref", "remote",
+    "candidate_c", "candidate_a", "replacement_base", "run_branch", "branch_ref", "remote",
     "push_endpoint_kind", "push_endpoint_summary", "push_url_sha256", "remote_pre_push_head",
     "request_path", "request_path_sha256", "receipt_path", "receipt_path_sha256",
     "execution_nonce", "created_at", "request_sha256", "attempt_path", "attempt_path_sha256",
@@ -43,11 +51,16 @@ RECEIPT_KEYS = {
     "push_endpoint_summary", "push_url_sha256", "remote_pre_push_head", "readback_head_sha",
     "plan_id", "plan_revision", "plan_digest_sha256", "run_id", "run_schema_version",
     "archive_path", "archive_hashes", "moves", "archive_receipt_sha256", "candidate_c",
-    "run_branch", "expected_main", "main_ref", "stamp", "documents_before_sha256",
+    "run_branch", "replacement_base", "expected_main", "main_ref", "stamp", "documents_before_sha256",
     "documents_after_sha256", "receipt_sha256",
     "anchor_path", "anchor_path_sha256", "anchor_nonce",
 }
-ATTEMPT_KEYS = {"protocol", "request_sha256", "attempt_path", "attempt_path_sha256", "execution_nonce", "candidate_a", "branch_ref", "remote", "started_at", "attempt_sha256"}
+ATTEMPT_KEYS = {
+    "protocol", "request_sha256", "attempt_path", "attempt_path_sha256",
+    "execution_nonce", "candidate_a", "replacement_base", "branch_ref", "remote", "started_at",
+    "push_mode", "push_endpoint_kind", "push_endpoint_summary", "push_url_sha256",
+    "remote_pre_push_head", "attempt_sha256",
+}
 COORDINATION_NAMES = ("PLAN.md", "RUN.md", "DECISIONS.md", "REFINEMENT_BACKLOG.md")
 COORDINATION_DIR = Path("docs/goal")
 DOCUMENTS_PATH = Path("docs/DOCUMENTS.md")
@@ -61,7 +74,7 @@ ARCHIVE_RECEIPT_KEYS = {
 
 
 def _git(root: Path, *args: str, text: bool = True) -> subprocess.CompletedProcess[Any]:
-    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=text, timeout=30, check=False)
+    return run_git(root, *args, capture_output=True, text=text, timeout=30, check=False)
 
 
 def _out(root: Path, *args: str) -> str:
@@ -123,6 +136,11 @@ def _validate_archive_authority(authority: dict[str, Any]) -> None:
     _require_sha(authority["plan_digest_sha256"], length=64, label="plan_digest_sha256")
     _require_sha(authority["candidate_c"], label="candidate_c")
     _require_sha(authority["candidate_a"], label="candidate_a")
+    replacement_base = authority.get("replacement_base")
+    if replacement_base is not None:
+        _require_sha(replacement_base, label="replacement_base")
+        if replacement_base in {authority["candidate_c"], authority["candidate_a"]}:
+            raise ManifestError("replacement_base must identify the prior candidate, not C or A")
     branch = _canonical_branch(authority["run_branch"])
     if branch is None or _protected_branch(branch) or authority["branch_ref"] != f"refs/heads/{branch}":
         raise ManifestError("archive branch/ref is not canonical or is protected")
@@ -171,9 +189,14 @@ def _validate_request_values(request: dict[str, Any], root: Path, request_path: 
         raise ManifestError("request has missing or extra fields before digest")
     if request.get("protocol") != REQUEST_PROTOCOL:
         raise ManifestError("request protocol is invalid")
-    if not is_explicit_remote_intent(request.get("authorization_source")):
-        raise ManifestError("authorization_source is not explicit remote intent")
-    _require_nonempty(request.get("authorization_ref"), "authorization_ref")
+    if request.get("authorization_source") != LOCAL_AUTHORIZATION_SOURCE:
+        raise ManifestError(
+            "caller-supplied authorization prose/ref cannot authorize archive publication"
+        )
+    if request.get("authorization_ref") != LOCAL_AUTHORIZATION_REF:
+        raise ManifestError(
+            "caller-supplied authorization prose/ref cannot authorize archive publication"
+        )
     _validate_archive_authority(request)
     _require_nonempty(request.get("remote"), "remote")
     _validate_endpoint(request)
@@ -200,6 +223,10 @@ def _root(root: Path) -> Path:
     root = root.resolve()
     if Path(_out(root, "rev-parse", "--show-toplevel")).resolve() != root:
         raise ManifestError("--repo-root must be the repository root")
+    try:
+        reject_object_substitution(root)
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
     return root
 
 
@@ -327,6 +354,70 @@ def _read_archive_anchor(root: Path, receipt: dict[str, Any]) -> dict[str, Any]:
     return anchor
 
 
+def _replacement_base_from_plan(
+    root: Path,
+    plan: dict[str, Any],
+    *,
+    branch: str,
+    candidate_c: str,
+    expected_main: str,
+) -> str | None:
+    """Resolve an explicit prior archive candidate for a correction RUN."""
+
+    sources = [
+        source
+        for source in plan.get("sources", [])
+        if isinstance(source, dict)
+        and " ".join(
+            str(source.get("kind", "")).replace("_", " ").split()
+        ).casefold()
+        == "prior archive candidate"
+    ]
+    if not sources:
+        return None
+    if len(sources) != 1:
+        raise ManifestError(
+            "correction RUN requires exactly one prior archive candidate source"
+        )
+    source = sources[0]
+    revision = source.get("source_revision")
+    location = source.get("location")
+    content_sha256 = source.get("content_sha256")
+    if not is_full_sha(revision):
+        raise ManifestError(
+            "prior archive candidate source_revision must be exact A"
+        )
+    if (
+        not isinstance(location, str)
+        or not _canonical_archive_path(str(Path(location).parent).replace("\\", "/"))
+        or Path(location).name != ARCHIVE_RECEIPT_NAME
+    ):
+        raise ManifestError(
+            "prior archive candidate source must name its archived ARCHIVE_RECEIPT.json"
+        )
+    receipt_bytes = _blob(root, revision, location)
+    if (
+        not isinstance(content_sha256, str)
+        or hashlib.sha256(receipt_bytes).hexdigest() != content_sha256
+    ):
+        raise ManifestError("prior archive candidate source hash does not match exact A")
+    prior_receipt = _read_receipt(root, revision, location)
+    _read_archive_anchor(root, prior_receipt)
+    if _canonical_branch(prior_receipt.get("branch")) != branch:
+        raise ManifestError("prior archive candidate belongs to another run branch")
+    if prior_receipt.get("expected_main") != expected_main:
+        raise ManifestError("prior archive candidate records another main base")
+    parents = _out(root, "rev-list", "--parents", "-n", "1", revision).split()
+    if (
+        len(parents) != 2
+        or parents[1] != prior_receipt.get("candidate_c")
+    ):
+        raise ManifestError("prior archive candidate is not its receipt-bound archive A")
+    if _git(root, "merge-base", "--is-ancestor", revision, candidate_c).returncode != 0:
+        raise ManifestError("prior archive candidate is not an ancestor of correction C2")
+    return revision
+
+
 def verify_archive_candidate(root: Path, *, archive_path: Path, candidate_a: str) -> dict[str, Any]:
     """Verify archive-only candidate A using the receipt as byte authority."""
 
@@ -371,6 +462,13 @@ def verify_archive_candidate(root: Path, *, archive_path: Path, candidate_a: str
         raise ManifestError("archived integration.branch does not match the live run branch")
     if run.get("status") != "complete" or integration.get("integration_head_sha") != candidate_c:
         raise ManifestError("archived RUN must be complete and record candidate C")
+    replacement_base = _replacement_base_from_plan(
+        root,
+        plan,
+        branch=branch,
+        candidate_c=candidate_c,
+        expected_main=receipt.get("expected_main"),
+    )
     if run.get("plan", {}).get("id") != plan.get("plan_id") or run.get("plan", {}).get("revision") != plan.get("revision") or run.get("plan", {}).get("digest_sha256") != plan_digest(plan):
         raise ManifestError("archived PLAN/RUN identity or digest mismatch")
     expected_authority = {
@@ -445,6 +543,7 @@ def verify_archive_candidate(root: Path, *, archive_path: Path, candidate_a: str
         "run_schema_version": run.get("schema_version"),
         "run_branch": branch,
         "candidate_a": candidate_a,
+        "replacement_base": replacement_base,
         "archive_path": archive_prefix,
         "archive_hashes": archive_hashes,
         "moves": moves,
@@ -497,10 +596,12 @@ def _remote_state(root: Path, remote: str, branch_ref: str) -> str | None:
     return fields[0]
 
 
-def prepare(root: Path, *, archive_path: Path, remote: str, authorization_source: str, authorization_ref: str, request_path: Path, attempt_path: Path, receipt_path: Path, archive_anchor: Path | None = None) -> dict[str, Any]:
+def prepare(root: Path, *, archive_path: Path, remote: str, request_path: Path, attempt_path: Path, receipt_path: Path, archive_anchor: Path | None = None, authorization_source: str | None = None, authorization_ref: str | None = None) -> dict[str, Any]:
     root = _root(root)
-    if not is_explicit_remote_intent(authorization_source) or not authorization_ref.strip():
-        raise ManifestError("prepare requires explicit action-time remote authorization source/ref")
+    if authorization_source is not None or authorization_ref is not None:
+        raise ManifestError(
+            "caller-supplied authorization prose/ref is rejected; prepare only creates a trusted-host handoff"
+        )
     request_path = Path(_canonical_external_path(request_path, label="request_path", root=root))
     attempt_path = Path(_canonical_external_path(attempt_path, label="attempt_path", root=root))
     receipt_path = Path(_canonical_external_path(receipt_path, label="receipt_path", root=root))
@@ -522,13 +623,26 @@ def prepare(root: Path, *, archive_path: Path, remote: str, authorization_source
     checked = _safe_remote(remote, configured_name=True)
     _, url = _verify_configured_remote(root, checked)
     pre = _remote_state(root, checked, verified["branch_ref"])
-    if pre not in {None, verified["candidate_c"]}:
-        raise ManifestError("remote pre-state must be absent or C")
+    replacement_base = verified.get("replacement_base")
+    allowed_pre = (
+        {None, replacement_base}
+        if replacement_base is not None
+        else {None, verified["candidate_c"]}
+    )
+    if pre not in allowed_pre:
+        expectation = (
+            "absent or the exact replacement base"
+            if replacement_base is not None
+            else "absent or C"
+        )
+        raise ManifestError(
+            f"remote pre-state must be {expectation}"
+        )
     metadata = _push_url_metadata(url)
     request = {
         "protocol": REQUEST_PROTOCOL,
-        "authorization_source": authorization_source,
-        "authorization_ref": authorization_ref,
+        "authorization_source": LOCAL_AUTHORIZATION_SOURCE,
+        "authorization_ref": LOCAL_AUTHORIZATION_REF,
         "plan_id": verified["plan_id"],
         "plan_revision": verified["plan_revision"],
         "plan_digest_sha256": verified["plan_digest_sha256"],
@@ -547,6 +661,7 @@ def prepare(root: Path, *, archive_path: Path, remote: str, authorization_source
         "anchor_path_sha256": verified["anchor_path_sha256"],
         "anchor_nonce": verified["anchor_nonce"],
         "candidate_c": verified["candidate_c"],
+        "replacement_base": verified.get("replacement_base"),
         "candidate_a": verified["candidate_a"],
         "run_branch": verified["run_branch"],
         "branch_ref": verified["branch_ref"],
@@ -587,7 +702,7 @@ def _request_matches_authority(request: dict[str, Any], authority: dict[str, Any
         "plan_id", "plan_revision", "plan_digest_sha256", "run_id", "run_schema_version",
         "archive_path", "archive_hashes", "moves", "archive_receipt_sha256",
         "expected_main", "main_ref", "stamp", "documents_before_sha256",
-        "documents_after_sha256", "candidate_c", "candidate_a", "run_branch", "branch_ref",
+        "documents_after_sha256", "candidate_c", "candidate_a", "replacement_base", "run_branch", "branch_ref",
         "anchor_path", "anchor_path_sha256", "anchor_nonce",
     ):
         if request.get(key) != authority.get(key):
@@ -637,7 +752,7 @@ def _pre_push_recheck(root: Path, request: dict[str, Any], authority: dict[str, 
     return request["remote"], url
 
 
-def execute(root: Path, *, request_path: Path) -> dict[str, Any]:
+def begin_handoff(root: Path, *, request_path: Path) -> dict[str, Any]:
     root = _root(root)
     request = _load_request(request_path, root)
     attempt_path = Path(request["attempt_path"])
@@ -651,44 +766,66 @@ def execute(root: Path, *, request_path: Path) -> dict[str, Any]:
     _configured_endpoint(root, request)
     if _remote_state(root, request["remote"], request["branch_ref"]) != request["remote_pre_push_head"]:
         raise ManifestError("remote pre-state drifted before archive push")
-    attempt = {"protocol": ATTEMPT_PROTOCOL, "request_sha256": request["request_sha256"], "attempt_path": request["attempt_path"], "attempt_path_sha256": request["attempt_path_sha256"], "execution_nonce": request["execution_nonce"], "candidate_a": request["candidate_a"], "branch_ref": request["branch_ref"], "remote": request["remote"], "started_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
-    attempt["attempt_sha256"] = _digest(attempt)
-    _write_closed(attempt_path, attempt, root)
-    # The attempt is the durable pre-side-effect receipt.  Recheck every
-    # mutable fact after writing it and immediately before the exact push.
-    _, url = _pre_push_recheck(root, request, verified)
-    result = _git(root, "push", "--", url, f"{request['candidate_a']}:{request['branch_ref']}")
-    if result.returncode != 0:
-        raise ManifestError(result.stderr.strip() or "archive push failed")
-    if _remote_state(root, request["remote"], request["branch_ref"]) != request["candidate_a"]:
-        raise ManifestError("archive push readback is not exact A")
-    endpoint = _push_url_metadata(url)
-    receipt = {
-        "protocol": RECEIPT_PROTOCOL,
-        "status": "PASS",
+    endpoint_kind = request["push_endpoint_kind"]
+    endpoint_summary = request["push_endpoint_summary"]
+    endpoint_digest = request["push_url_sha256"]
+    remote_pre_push_head = request.get("remote_pre_push_head")
+    attempt = {
+        "protocol": ATTEMPT_PROTOCOL,
         "request_sha256": request["request_sha256"],
         "attempt_path": request["attempt_path"],
         "attempt_path_sha256": request["attempt_path_sha256"],
-        "receipt_path": request["receipt_path"],
-        "receipt_path_sha256": request["receipt_path_sha256"],
+        "execution_nonce": request["execution_nonce"],
+        "candidate_a": request["candidate_a"],
+        "replacement_base": request.get("replacement_base"),
+        "branch_ref": request["branch_ref"],
+        "remote": request["remote"],
+        "started_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "push_mode": "no_force",
+        "push_endpoint_kind": endpoint_kind,
+        "push_endpoint_summary": endpoint_summary,
+        "push_url_sha256": endpoint_digest,
+        "remote_pre_push_head": remote_pre_push_head,
+    }
+    attempt["attempt_sha256"] = _digest(attempt)
+    _write_closed(attempt_path, attempt, root)
+    # Recheck endpoint, branch, candidate, and remote pre-state immediately
+    # after writing the attempt.  The local tool never performs publication:
+    # a human or trusted host must execute the exact no-force push, then call
+    # ``recover``/``verify-receipt`` for read-back and receipt closure.
+    remote_name, _ = _pre_push_recheck(root, request, verified)
+    return {
+        "status": PENDING_TRUSTED_HOST_STATUS,
+        "request_sha256": request["request_sha256"],
+        "attempt_path": request["attempt_path"],
+        "attempt_path_sha256": request["attempt_path_sha256"],
         "execution_nonce": request["execution_nonce"],
         "candidate_a": request["candidate_a"],
         "branch_ref": request["branch_ref"],
         "remote": request["remote"],
-        **endpoint,
-        "remote_pre_push_head": request["remote_pre_push_head"],
-        "readback_head_sha": request["candidate_a"],
-        **{key: request[key] for key in (
-            "plan_id", "plan_revision", "plan_digest_sha256", "run_id", "run_schema_version",
-            "archive_path", "archive_hashes", "moves", "archive_receipt_sha256", "candidate_c",
-            "run_branch", "expected_main", "main_ref", "stamp", "documents_before_sha256",
-            "documents_after_sha256",
-            "anchor_path", "anchor_path_sha256", "anchor_nonce",
-        )},
+        "push_mode": "no_force",
+        "push_endpoint_kind": endpoint_kind,
+        "push_endpoint_summary": endpoint_summary,
+        "push_url_sha256": endpoint_digest,
+        "remote_pre_push_head": remote_pre_push_head,
+        "receipt_path": request["receipt_path"],
+        "receipt_path_sha256": request["receipt_path_sha256"],
+        "push_argv": [
+            "git",
+            "--no-replace-objects",
+            "push",
+            "--",
+            remote_name,
+            f"{request['candidate_a']}:{request['branch_ref']}",
+        ],
+        "message": "trusted host or human must execute the exact no-force push; local executor did not push",
     }
-    receipt["receipt_sha256"] = _digest(receipt)
-    _write_closed(receipt_path, receipt, root)
-    return receipt
+
+
+def execute(root: Path, *, request_path: Path) -> dict[str, Any]:
+    """Compatibility alias for :func:`begin_handoff`; never invokes Git push."""
+
+    return begin_handoff(root, request_path=request_path)
 
 
 def _load_attempt(request: dict[str, Any], root: Path) -> dict[str, Any]:
@@ -703,9 +840,18 @@ def _load_attempt(request: dict[str, Any], root: Path) -> dict[str, Any]:
     _validate_timestamp(attempt.get("started_at"), "attempt.started_at")
     _require_sha(attempt.get("request_sha256"), length=64, label="attempt.request_sha256")
     _require_sha(attempt.get("candidate_a"), label="attempt.candidate_a")
-    for key in ("request_sha256", "attempt_path", "attempt_path_sha256", "execution_nonce", "candidate_a", "branch_ref", "remote"):
+    if attempt.get("push_mode") != "no_force":
+        raise ManifestError("attempt push_mode must be no_force")
+    _validate_endpoint(attempt)
+    pre = attempt.get("remote_pre_push_head")
+    if pre is not None:
+        _require_sha(pre, label="attempt.remote_pre_push_head")
+    for key in ("request_sha256", "attempt_path", "attempt_path_sha256", "execution_nonce", "candidate_a", "replacement_base", "branch_ref", "remote"):
         if attempt.get(key) != request.get(key):
             raise ManifestError("attempt identity does not match request")
+    for key in ("push_endpoint_kind", "push_endpoint_summary", "push_url_sha256", "remote_pre_push_head"):
+        if attempt.get(key) != request.get(key):
+            raise ManifestError("attempt endpoint identity does not match request")
     return attempt
 
 
@@ -717,12 +863,12 @@ def verify_receipt(root: Path, *, request_path: Path) -> dict[str, Any]:
     _validate_receipt_values(receipt, root)
     if receipt["receipt_sha256"] != _digest({k: v for k, v in receipt.items() if k != "receipt_sha256"}):
         raise ManifestError("receipt digest mismatch")
-    if any(receipt.get(k) != request.get(k) for k in ("request_sha256", "attempt_path", "attempt_path_sha256", "receipt_path", "receipt_path_sha256", "execution_nonce", "candidate_a", "branch_ref", "remote", "remote_pre_push_head")):
+    if any(receipt.get(k) != request.get(k) for k in ("request_sha256", "attempt_path", "attempt_path_sha256", "receipt_path", "receipt_path_sha256", "execution_nonce", "candidate_a", "replacement_base", "branch_ref", "remote", "remote_pre_push_head")):
         raise ManifestError("receipt identity does not match request")
     if any(receipt.get(k) != request.get(k) for k in (
         "plan_id", "plan_revision", "plan_digest_sha256", "run_id", "run_schema_version",
         "archive_path", "archive_hashes", "moves", "archive_receipt_sha256", "candidate_c",
-        "run_branch", "expected_main", "main_ref", "stamp", "documents_before_sha256",
+        "run_branch", "replacement_base", "expected_main", "main_ref", "stamp", "documents_before_sha256",
         "documents_after_sha256",
         "anchor_path", "anchor_path_sha256", "anchor_nonce",
     )):
@@ -767,7 +913,7 @@ def recover_uncertain(root: Path, *, request_path: Path) -> dict[str, Any]:
         **{key: request[key] for key in (
             "plan_id", "plan_revision", "plan_digest_sha256", "run_id", "run_schema_version",
             "archive_path", "archive_hashes", "moves", "archive_receipt_sha256", "candidate_c",
-            "run_branch", "expected_main", "main_ref", "stamp", "documents_before_sha256",
+            "run_branch", "replacement_base", "expected_main", "main_ref", "stamp", "documents_before_sha256",
             "documents_after_sha256",
             "anchor_path", "anchor_path_sha256", "anchor_nonce",
         )},
@@ -784,30 +930,30 @@ def main(argv: list[str] | None = None) -> int:
     prepare_parser.add_argument("--repo-root", required=True, type=Path)
     prepare_parser.add_argument("--archive", required=True, type=Path)
     prepare_parser.add_argument("--remote", required=True)
-    prepare_parser.add_argument("--authorization-source", required=True)
-    prepare_parser.add_argument("--authorization-ref", required=True)
     prepare_parser.add_argument("--request-out", required=True, type=Path)
     prepare_parser.add_argument("--attempt-path", required=True, type=Path)
     prepare_parser.add_argument("--receipt-path", required=True, type=Path)
     prepare_parser.add_argument("--archive-anchor", required=True, type=Path)
-    for name in ("execute", "verify-receipt", "recover"):
+    for name in ("begin-handoff", "execute", "verify-receipt", "recover"):
         current = sub.add_parser(name)
         current.add_argument("--repo-root", required=True, type=Path)
         current.add_argument("--request", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "prepare":
-            value = prepare(args.repo_root, archive_path=args.archive, remote=args.remote, authorization_source=args.authorization_source, authorization_ref=args.authorization_ref, request_path=args.request_out, attempt_path=args.attempt_path, receipt_path=args.receipt_path, archive_anchor=args.archive_anchor)
-        elif args.command == "execute":
-            value = execute(args.repo_root, request_path=args.request)
+            value = prepare(args.repo_root, archive_path=args.archive, remote=args.remote, request_path=args.request_out, attempt_path=args.attempt_path, receipt_path=args.receipt_path, archive_anchor=args.archive_anchor)
+        elif args.command in {"begin-handoff", "execute"}:
+            value = begin_handoff(args.repo_root, request_path=args.request)
         elif args.command == "verify-receipt":
             value = verify_receipt(args.repo_root, request_path=args.request)
         else:
             value = recover_uncertain(args.repo_root, request_path=args.request)
-    except (OSError, ManifestError, ValueError, KeyError) as exc:
+    except (OSError, ManifestError, ValueError, KeyError, GitMetadataError) as exc:
         print(json.dumps({"status": "ERROR", "errors": [str(exc)]}, sort_keys=True))
         return 2
-    print(json.dumps({**value, "status": "PASS"}, sort_keys=True))
+    payload = dict(value)
+    payload.setdefault("status", "PASS")
+    print(json.dumps(payload, sort_keys=True))
     return 0
 
 

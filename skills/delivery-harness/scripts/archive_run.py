@@ -4,9 +4,10 @@
 The script refuses anything but a completed run whose PLAN/RUN pair
 passes full manifest validation with every final gate PASS, lists every
 exact move first (dry run by default), and moves — never deletes — the
-coordination set into one timestamped archive directory. It performs no
-Git operations; committing the archival stays with the parent under its
-ordinary create_local_commits authorization.
+coordination set into one timestamped archive directory. It performs no Git
+ref or commit writes; hardened Git metadata/blob reads stay read-only from the
+parent's perspective, and committing the archival remains with the parent
+under its ordinary create_local_commits authorization.
 """
 
 from __future__ import annotations
@@ -14,11 +15,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,6 +31,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import load_plan, load_run  # noqa: E402
+from harness_git import GitMetadataError, reject_object_substitution, run_git  # noqa: E402
 from harness_manifest import plan_digest  # noqa: E402
 from harness_manifest import validate_current_plan_run  # noqa: E402
 from harness_schema import archive_first_required  # noqa: E402
@@ -93,6 +98,85 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _link_component(root: Path, path: Path) -> tuple[Path, str] | None:
+    """Return the first symlink/reparse component under ``root``.
+
+    ``Path.resolve`` alone is not a safety check: a link can resolve to another
+    path still inside the checkout, including `.git`.  Inspect every existing
+    component with ``lstat`` and reject Windows reparse points as well.
+    """
+
+    root = root.resolve(strict=False)
+    candidate = path if path.is_absolute() else root / path
+    candidate = Path(os.path.normpath(str(candidate)))
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError:
+        return candidate, "outside repository root"
+    current = root
+    for part in relative.parts:
+        current /= part
+        try:
+            info = os.lstat(current)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return current, "unreadable path component"
+        if stat.S_ISLNK(info.st_mode):
+            return current, "symlink"
+        attributes = getattr(info, "st_file_attributes", 0)
+        reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
+        if attributes & reparse:
+            return current, "reparse point"
+    return None
+
+
+def _safe_documents_identity(root: Path, documents: Path) -> tuple[int, int, int] | None:
+    """Validate the documents path and return its lstat identity."""
+
+    link = _link_component(root, documents)
+    if link is not None:
+        component, kind = link
+        raise OSError(
+            f"{DOCUMENTS_PATH.as_posix()} contains unsafe {kind} component: {component}"
+        )
+    try:
+        info = os.lstat(documents)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        raise OSError(f"{DOCUMENTS_PATH.as_posix()} is not a regular file")
+    return (info.st_dev, info.st_ino, info.st_mode)
+
+
+def _atomic_write_documents(root: Path, documents: Path, value: bytes) -> None:
+    """Write DOCUMENTS.md atomically after an immediate identity recheck."""
+
+    initial = _safe_documents_identity(root, documents)
+    if initial is None:
+        raise OSError(f"{DOCUMENTS_PATH.as_posix()} disappeared before write")
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{documents.name}.", suffix=".tmp", dir=documents.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(value)
+            handle.flush()
+            os.fsync(handle.fileno())
+        # The path may have been swapped after preflight.  Never replace a
+        # different inode or a newly introduced link.
+        current = _safe_documents_identity(root, documents)
+        if current != initial:
+            raise OSError(f"{DOCUMENTS_PATH.as_posix()} identity changed before atomic replace")
+        os.replace(temporary, documents)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _git_filtered_bytes(
     root: Path,
     destination: Path,
@@ -103,17 +187,31 @@ def _git_filtered_bytes(
     """Read the exact Git blob bytes after destination-path filters apply."""
 
     destination_arg = destination.relative_to(root).as_posix() if destination.is_absolute() else destination.as_posix()
-    command = ["git", "hash-object", "-w", f"--path={destination_arg}"]
     if source is not None:
-        command.extend(["--", str(source)])
-        hashed = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=10)
+        hashed = run_git(
+            root,
+            "hash-object",
+            "-w",
+            f"--path={destination_arg}",
+            "--",
+            str(source),
+            timeout=10,
+        )
     else:
-        command.append("--stdin")
-        hashed = subprocess.run(command, cwd=root, input=value or b"", capture_output=True, text=False, timeout=10)
+        hashed = run_git(
+            root,
+            "hash-object",
+            "-w",
+            f"--path={destination_arg}",
+            "--stdin",
+            input=value or b"",
+            text=False,
+            timeout=10,
+        )
     if hashed.returncode != 0:
         raise OSError(hashed.stderr.strip() if isinstance(hashed.stderr, str) else "git hash-object failed")
     oid = hashed.stdout.strip() if isinstance(hashed.stdout, str) else bytes(hashed.stdout).decode("ascii").strip()
-    blob = subprocess.run(["git", "cat-file", "blob", oid], cwd=root, capture_output=True, text=False, timeout=10)
+    blob = run_git(root, "cat-file", "blob", oid, text=False, timeout=10)
     if blob.returncode != 0:
         raise OSError("git cat-file failed while reading filtered blob")
     return bytes(blob.stdout)
@@ -510,6 +608,14 @@ def _preflight_archive_paths(
     resolved_target = _resolved_inside(root, target)
     if resolved_target is None:
         return [f"archive target resolves outside the repository root: {target}"]
+    for label, path in (
+        ("archive target", target),
+        ("documents path", root / DOCUMENTS_PATH),
+    ):
+        link = _link_component(root, path)
+        if link is not None:
+            component, kind = link
+            problems.append(f"{label} contains unsafe {kind} component: {component}")
     if target.exists():
         problems.append(f"archive target already exists: {target}")
     if target.parent.exists() and not target.parent.is_dir():
@@ -520,6 +626,13 @@ def _preflight_archive_paths(
     destinations: set[Path] = set()
     for source in moves:
         source_path = root / source
+        link = _link_component(root, source_path)
+        if link is not None:
+            component, kind = link
+            problems.append(
+                f"source {source.as_posix()} contains unsafe {kind} component: {component}"
+            )
+            continue
         resolved_source = _resolved_inside(root, source_path)
         if resolved_source is None:
             problems.append(f"source resolves outside the repository root: {source}")
@@ -528,6 +641,12 @@ def _preflight_archive_paths(
             # plan_moves reports required files; optional paths may be absent.
             continue
         destination = resolved_target / source.name
+        link = _link_component(root, destination)
+        if link is not None:
+            component, kind = link
+            problems.append(
+                f"destination {destination} contains unsafe {kind} component: {component}"
+            )
         if destination in destinations:
             problems.append(f"duplicate archive destination: {destination}")
         destinations.add(destination)
@@ -539,8 +658,11 @@ def _preflight_archive_paths(
         problems.append(
             f"documents destination parent is not a directory: {documents.parent}"
         )
-    if documents.exists() and not documents.is_file():
-        problems.append(f"documents destination is not a file: {DOCUMENTS_PATH}")
+    if documents.exists():
+        try:
+            _safe_documents_identity(root, documents)
+        except OSError as exc:
+            problems.append(str(exc))
     resolved_documents = _resolved_inside(root, documents)
     if documents.exists() and resolved_documents is None:
         problems.append(
@@ -551,13 +673,7 @@ def _preflight_archive_paths(
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
     try:
-        return subprocess.run(
-            ["git", *args],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        return run_git(root, *args, capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -703,7 +819,7 @@ def _rollback_archive(
     documents_path = root / DOCUMENTS_PATH
     if documents_snapshot is not None:
         try:
-            documents_path.write_bytes(documents_snapshot)
+            _atomic_write_documents(root, documents_path, documents_snapshot)
         except OSError as exc:
             problems.append(
                 f"could not restore {DOCUMENTS_PATH.as_posix()}: {exc}; "
@@ -771,6 +887,11 @@ def archive(
     anchor_out: Path | None = None,
 ) -> int:
     root = root.resolve()
+    try:
+        reject_object_substitution(root)
+    except GitMetadataError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     run_path = root / GOAL_DIR / "RUN.md"
     if not run_path.is_file():
         print(f"error: {run_path} does not exist", file=sys.stderr)
@@ -934,14 +1055,15 @@ def archive(
 
 def _update_documents(root: Path) -> None:
     documents = root / DOCUMENTS_PATH
-    if not documents.is_file():
+    if not documents.exists():
         print(f"note: {DOCUMENTS_PATH.as_posix()} absent; row not recorded")
         return
+    _safe_documents_identity(root, documents)
     before = documents.read_bytes()
     after = _documents_after_bytes(before)
     if after == before:
         return
-    documents.write_bytes(after or b"")
+    _atomic_write_documents(root, documents, after or b"")
     print(f"documents row recorded in {DOCUMENTS_PATH.as_posix()}")
 
 

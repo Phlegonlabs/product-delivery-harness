@@ -5,22 +5,21 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 from harness_core import ManifestError, _nonempty_string, load_run
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_ui_evidence import _layout_check_required
 
 
 def _git(worktree: Path, *args: str) -> str | None:
-    result = subprocess.run(
-        ["git", "-C", str(worktree), *args],
-        capture_output=True,
-        check=False,
-        text=True,
-    )
+    try:
+        reject_object_substitution(worktree)
+        result = run_git(worktree, *args, check=False, text=True)
+    except (GitMetadataError, OSError):
+        return None
     if result.returncode != 0:
         return None
     return result.stdout.strip()
@@ -248,8 +247,9 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     run_path = (args.run or repo_root / "docs" / "goal" / "RUN.md").resolve()
     try:
+        reject_object_substitution(repo_root)
         summary = summarize_run(repo_root, load_run(run_path))
-    except (OSError, ManifestError) as exc:
+    except (GitMetadataError, OSError, ManifestError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     if args.as_json:

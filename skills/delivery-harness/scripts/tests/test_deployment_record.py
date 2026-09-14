@@ -371,6 +371,43 @@ class DeploymentRecordTests(unittest.TestCase):
         )
         self.assertEqual([], findings)
 
+    def test_hosted_http_is_limited_to_private_loopback_development(self) -> None:
+        production_http = ARCHITECTURE_BACKED_DEPLOYMENT.replace(
+            "Cloudflare;production route | https://example.com",
+            "Cloudflare;production route | http://127.0.0.1",
+        )
+        public_development_http = ARCHITECTURE_BACKED_DEPLOYMENT.replace(
+            "| web-dev | web-app | development | Cloudflare;development route | "
+            "pending | pending | pending | pending | pending | pending | pending |",
+            "| web-dev | web-app | development | Cloudflare;development route | "
+            f'http://localhost | {"a" * 40} | {"a" * 40} | deployment-dev | '
+            "development route answered the smoke check | 2026-09-03T11:00:00Z | PASS |",
+        )
+        private_architecture = RELEASE_ARCHITECTURE.replace(
+            "Public discoverability: yes", "Public discoverability: no"
+        )
+        private_development_http = public_development_http
+
+        for label, deployment, architecture in (
+            ("production-loopback", production_http, RELEASE_ARCHITECTURE),
+            ("public-development", public_development_http, RELEASE_ARCHITECTURE),
+        ):
+            with self.subTest(label):
+                findings = "\n".join(
+                    check_deployment.check_deployment_text(
+                        deployment, architecture_text=architecture
+                    )
+                )
+                self.assertIn("hosted endpoint must use HTTPS", findings)
+
+        self.assertEqual(
+            [],
+            check_deployment.check_deployment_text(
+                private_development_http,
+                architecture_text=private_architecture,
+            ),
+        )
+
     def test_api_android_and_desktop_targets_join_a_multi_surface_architecture(self) -> None:
         findings = check_deployment.check_deployment_text(
             multi_surface_deployment(),

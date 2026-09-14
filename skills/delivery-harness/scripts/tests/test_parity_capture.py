@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
@@ -74,12 +75,19 @@ class ParityCaptureTests(unittest.TestCase):
 
         stub_dir = self.root / "bin"
         stub_dir.mkdir()
-        (stub_dir / "_stub_browser.py").write_text(STUB_PY, encoding="utf-8")
+        self.stub_py = stub_dir / "_stub_browser.py"
+        self.stub_py.write_text(STUB_PY, encoding="utf-8")
         stub_sh = stub_dir / "agent-browser"
         stub_sh.write_text(STUB_SH, encoding="utf-8")
         # shutil.which on POSIX requires the executable bit.
         stub_sh.chmod(0o755)
         (stub_dir / "agent-browser.bat").write_text(STUB_BAT, encoding="utf-8")
+        self._old_resolve_cli = parity_capture._resolve_cli
+        parity_capture._resolve_cli = lambda: [
+            sys.executable,
+            str(self.stub_py),
+        ]
+        self.addCleanup(self._restore_resolve_cli)
         self.log_path = self.root / "calls.jsonl"
         self._old_env = {
             "PATH": os.environ.get("PATH"),
@@ -117,6 +125,9 @@ class ParityCaptureTests(unittest.TestCase):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+    def _restore_resolve_cli(self) -> None:
+        parity_capture._resolve_cli = self._old_resolve_cli
 
     def run_main(self, *extra: str) -> tuple[int, str]:
         argv = [
@@ -330,8 +341,61 @@ class ParityCaptureTests(unittest.TestCase):
             any("no valid JSON object" in problem for problem in manifest["errors"])
         )
 
+    def test_browser_arguments_never_cross_a_windows_shell_boundary(self) -> None:
+        arguments = [
+            "open",
+            'http://example.invalid/?x=&whoami|echo^%PATH%<(test)>"quoted"',
+            "literal&(pipe|group)^<redirect>",
+        ]
+        sentinel = self.root / "injected.txt"
+        completed = parity_capture._run_browser(
+            [sys.executable, str(self.stub_py)],
+            [*arguments, str(sentinel)],
+        )
+        self.assertEqual(0, completed.returncode)
+        self.assertEqual([*arguments, str(sentinel)], self.calls()[-1])
+        self.assertFalse(sentinel.exists())
+        with self.assertRaisesRegex(RuntimeError, "direct native or Node argv"):
+            parity_capture._run_browser(
+                [str(self.root / "agent-browser.cmd")],
+                arguments,
+            )
+
+    def test_windows_npm_shim_resolves_to_direct_node_argv(self) -> None:
+        npm_bin = self.root / "npm-bin"
+        javascript = (
+            npm_bin
+            / "node_modules"
+            / "agent-browser"
+            / "bin"
+            / "agent-browser.js"
+        )
+        javascript.parent.mkdir(parents=True)
+        javascript.write_text("// fixture\n", encoding="utf-8")
+        wrapper = npm_bin / "agent-browser.cmd"
+        wrapper.write_text("@echo off\n", encoding="utf-8")
+        node = npm_bin / "node.exe"
+        node.write_bytes(b"fixture")
+
+        def which(name: str) -> str | None:
+            return {
+                "agent-browser": str(wrapper),
+                "node.exe": str(node),
+                "node": str(node),
+            }.get(name)
+
+        with patch.object(parity_capture.os, "name", "nt"), patch.object(
+            parity_capture.shutil, "which", side_effect=which
+        ):
+            resolved = self._old_resolve_cli()
+        self.assertEqual(
+            [str(node.resolve()), str(javascript.resolve())],
+            resolved,
+        )
+
     def test_missing_cli_degrades_with_install_hint(self) -> None:
         os.environ["PATH"] = str(self.root / "nowhere")
+        parity_capture._resolve_cli = self._old_resolve_cli
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             code, _ = self.run_main()
@@ -352,7 +416,7 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertIn("reference HTML not found", stderr.getvalue())
 
-    def test_browser_extension_capture_refuses_hosted_url_parity(self) -> None:
+    def test_browser_extension_capture_reports_manual_platform_group(self) -> None:
         self.plan.write_text(
             plan_markdown(
                 [
@@ -371,13 +435,13 @@ class ParityCaptureTests(unittest.TestCase):
         )
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
-            code, _ = self.run_main()
-        self.assertEqual(1, code)
-        self.assertIn("not supported by parity_capture", stderr.getvalue())
-        self.assertIn("browser-extension", stderr.getvalue())
+            code, stdout = self.run_main()
+        self.assertEqual(0, code)
+        self.assertIn("manual/platform groups", stdout)
+        self.assertIn("browser-extension", stdout)
         self.assertFalse(self.out.exists())
 
-    def test_native_capture_refuses_even_without_a_base_url(self) -> None:
+    def test_native_capture_reports_manual_platform_group_without_base_url(self) -> None:
         self.plan.write_text(
             plan_markdown(
                 [
@@ -395,7 +459,8 @@ class ParityCaptureTests(unittest.TestCase):
             encoding="utf-8",
         )
         stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
+        stdout = io.StringIO()
+        with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(stdout):
             code = parity_capture.main(
                 [
                     "--plan", str(self.plan),
@@ -403,8 +468,8 @@ class ParityCaptureTests(unittest.TestCase):
                     "--out", str(self.out),
                 ]
             )
-        self.assertEqual(1, code)
-        self.assertIn("native", stderr.getvalue())
+        self.assertEqual(0, code)
+        self.assertIn("manual/platform groups", stdout.getvalue())
         self.assertNotIn("--base-url is required", stderr.getvalue())
 
 

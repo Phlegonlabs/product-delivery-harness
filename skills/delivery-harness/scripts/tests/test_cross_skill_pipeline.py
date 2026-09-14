@@ -121,7 +121,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "`` `responsive` ``, and `` `copy` `` field names are invariant",
             prd,
         )
-        self.assertIn("at least three ascending `viewports: 390, 768, 1200` for web", prd)
+        self.assertTrue(
+            "at least three ascending `viewports: 390, 768, 1200` for web" in prd
+            or "at least three ascending `viewports: 390, 768, 1200` for hosted web/extensions" in prd
+        )
         self.assertIn("exactly one responsive verification set", design)
         self.assertIn("PRD's `UI-*` surface contract agree exactly", harness)
 
@@ -150,6 +153,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("At RUN close, candidate C", promotion)
         self.assertIn("archive-only commit A", promotion)
         self.assertIn("If separately authorized, `push_archived_candidate.py`", promotion)
+        self.assertIn("PENDING_TRUSTED_HOST_PUBLICATION", promotion)
+        self.assertIn("never invokes `git push`", project_agents)
+        self.assertIn("fresh PLAN/RUN on the same non-default branch from exact A", harness)
         self.assertIn("Only after production verification may `product-activation`", promotion)
         self.assertLess(
             promotion.index("## Managed RUN Archive Before Promotion"),

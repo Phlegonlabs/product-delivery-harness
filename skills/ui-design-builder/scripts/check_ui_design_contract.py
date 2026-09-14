@@ -49,7 +49,7 @@ TARGET_SOURCE_RE = re.compile(
     r"scope=surfaces=(?P<surfaces>[^|;]+)\|routes=(?P<routes>[^|;]+)\|"
     r"states=(?P<states>[^|;]+)\|responsive=(?P<responsive>[^|;]+)\|"
     r"tolerance=(?P<tolerance>[^|;]+)\|allowedDeviations=(?P<deviations>[^|;]+)\|"
-    r"captureMode=(?P<captureMode>hosted-browser|browser-extension|native|desktop)$"
+    r"captureMode=(?P<captureMode>hosted-browser|browser-extension|native|desktop|mixed)$"
 )
 PAIR_RE = re.compile(
     r"^(?P<markdown>[A-Za-z0-9._/-]+) @ sha256:(?P<markdown_sha256>[0-9a-f]{64})"
@@ -107,6 +107,7 @@ RECEIPT_TOOLS = {
     "desktop-browser",
     "impeccable",
     "rubric-grader",
+    "platform-review",
 }
 RECEIPT_METHODS = {
     "browser-matrix",
@@ -114,6 +115,7 @@ RECEIPT_METHODS = {
     "native-matrix",
     "desktop-matrix",
     "rubric-grading",
+    "mixed-platform-matrix",
     "impeccable-critique",
     "impeccable-audit",
     "sandboxed-offline-browser",
@@ -124,6 +126,12 @@ HIFI_SURFACE_RECEIPT_METHOD = "sandboxed-offline-browser"
 def _receipt_contract(check: str | None) -> tuple[set[str], str] | None:
     if check is None:
         return None
+    if check == "hifi-mixed":
+        return {"platform-review"}, HIFI_SURFACE_RECEIPT_METHOD
+    if check == "wireframe-mixed":
+        return {"platform-review"}, "mixed-platform-matrix"
+    if check in {"hifi-mixed-grading", "wireframe-mixed-grading"}:
+        return {"rubric-grader"}, "rubric-grading"
     if check in {"hifi-browser", "hifi-extension", "hifi-native", "hifi-desktop"}:
         tool_by_check = {
             "hifi-browser": {"playwright", "chrome-devtools"},
@@ -532,12 +540,22 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
         _add(problems, f"{label} scope has unexpected keys")
         return None
     surfaces = scope["surfaces"]
+    allowed_surface_keys = {
+        "id",
+        "route",
+        "states",
+        "surfaceClass",
+        "releaseSurface",
+        "captureMode",
+        "responsive",
+    }
     if (
         not isinstance(surfaces, list)
         or not surfaces
         or any(
             not isinstance(item, dict)
-            or set(item) != {"id", "route", "states"}
+            or not set(item).issubset(allowed_surface_keys)
+            or not {"id", "route", "states"}.issubset(set(item))
             or not isinstance(item.get("id"), str)
             or not isinstance(item.get("route"), str)
             or not isinstance(item.get("states"), list)
@@ -550,7 +568,7 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
     responsive = scope["responsive"]
     if not isinstance(responsive, dict) or set(responsive) != {"kind", "targets"}:
         _add(problems, f"{label} scope responsive must contain kind and ordered targets")
-    elif responsive.get("kind") not in {"viewports", "sizeClasses"} or not isinstance(responsive.get("targets"), list) or not responsive["targets"]:
+    elif responsive.get("kind") not in {"viewports", "sizeClasses", "per-surface"} or not isinstance(responsive.get("targets"), list) or (responsive.get("kind") != "per-surface" and not responsive["targets"]):
         _add(problems, f"{label} scope responsive kind/targets are invalid")
     elif responsive.get("kind") == "viewports":
         targets = responsive["targets"]
@@ -560,10 +578,49 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
             or any(left >= right for left, right in zip(targets, targets[1:]))
         ):
             _add(problems, f"{label} scope viewports must be at least three ascending positive numbers")
-    else:
+    elif responsive.get("kind") == "sizeClasses":
         targets = responsive["targets"]
         if len(targets) < 2 or any(not isinstance(item, str) or not item.strip() for item in targets) or len(set(targets)) != len(targets):
             _add(problems, f"{label} scope sizeClasses must be at least two unique strings")
+    for item in surfaces if isinstance(surfaces, list) else []:
+        if not isinstance(item, dict):
+            continue
+        if "surfaceClass" in item and (not isinstance(item["surfaceClass"], str) or not item["surfaceClass"].strip()):
+            _add(problems, f"{label} surfaceClass must be a non-empty string")
+        if "releaseSurface" in item and (not isinstance(item["releaseSurface"], str) or not item["releaseSurface"].strip()):
+            _add(problems, f"{label} releaseSurface must be a non-empty string")
+        if "captureMode" in item and item["captureMode"] not in {"hosted-browser", "browser-extension", "native", "desktop"}:
+            _add(problems, f"{label} surface captureMode is invalid")
+        if "responsive" in item:
+            item_responsive = item["responsive"]
+            if not isinstance(item_responsive, dict) or set(item_responsive) != {"kind", "targets"}:
+                _add(problems, f"{label} surface responsive must contain kind and targets")
+            elif item_responsive.get("kind") not in {"viewports", "sizeClasses"} or not isinstance(item_responsive.get("targets"), list) or not item_responsive["targets"]:
+                _add(problems, f"{label} surface responsive kind/targets are invalid")
+            elif item_responsive.get("kind") == "viewports":
+                targets = item_responsive["targets"]
+                if len(targets) < 3 or any(not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0 for value in targets) or any(left >= right for left, right in zip(targets, targets[1:])):
+                    _add(problems, f"{label} surface viewports must be at least three ascending positive numbers")
+            else:
+                targets = item_responsive["targets"]
+                if len(targets) < 2 or any(not isinstance(value, str) or not value.strip() for value in targets) or len(set(targets)) != len(targets):
+                    _add(problems, f"{label} surface sizeClasses must be at least two unique strings")
+    hybrid_surface_contract = (
+        scope.get("captureMode") == "mixed"
+        or any(
+            isinstance(item, dict)
+            and any(key in item for key in ("surfaceClass", "releaseSurface", "captureMode", "responsive"))
+            for item in surfaces if isinstance(surfaces, list)
+        )
+    )
+    if hybrid_surface_contract and isinstance(surfaces, list):
+        required_hybrid_fields = {"releaseSurface", "surfaceClass", "captureMode", "responsive"}
+        for item in surfaces:
+            if isinstance(item, dict) and not required_hybrid_fields.issubset(item):
+                _add(problems, f"{label} hybrid surfaces require releaseSurface, surfaceClass, captureMode, and responsive")
+        modes = {item.get("captureMode") for item in surfaces if isinstance(item, dict)}
+        if len(modes) > 1 and scope.get("captureMode") != "mixed":
+            _add(problems, f"{label} hybrid surfaces with multiple capture modes require captureMode=mixed")
     if not isinstance(scope["routes"], list) or not isinstance(scope["states"], list):
         _add(problems, f"{label} scope routes and states must be JSON arrays")
     elif len([route for route in scope["routes"] if isinstance(route, str) and route.casefold() not in {"n/a", "na"}]) != len({route for route in scope["routes"] if isinstance(route, str) and route.casefold() not in {"n/a", "na"}}):
@@ -808,7 +865,8 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
             actual = manifest_by_id.get(surface_id)
             if actual is None:
                 continue
-            if actual.get("route") != expected.get("route") or actual.get("states") != expected.get("states") or actual.get("responsive") != scope.get("responsive"):
+            expected_responsive = expected.get("responsive") or scope.get("responsive")
+            if actual.get("route") != expected.get("route") or actual.get("states") != expected.get("states") or actual.get("responsive") != expected_responsive:
                 _add(problems, f"Connected HiFi manifest {surface_id} does not match Approved target scope")
             container = dom_parser.surfaces.get(surface_id)
             if dom_parser.counts.get(surface_id, 0) != 1:
@@ -816,7 +874,7 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
             if container is None:
                 _add(problems, f"Connected HiFi DOM is missing a container for {surface_id}")
                 continue
-            expected_targets = {str(item) for item in scope.get("responsive", {}).get("targets", [])}
+            expected_targets = {str(item) for item in expected_responsive.get("targets", [])} if isinstance(expected_responsive, dict) else set()
             if container["route"] != {expected.get("route")}:
                 _add(problems, f"Connected HiFi DOM route binding is wrong for {surface_id}")
             if container["states"] != {str(item) for item in expected.get("states", [])}:
@@ -826,7 +884,11 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
             expected_cases = {
                 (str(state), str(target))
                 for state in expected.get("states", [])
-                for target in scope.get("responsive", {}).get("targets", [])
+                for target in (
+                    expected_responsive.get("targets", [])
+                    if isinstance(expected_responsive, dict)
+                    else []
+                )
             }
             if container["cases"] != expected_cases:
                 _add(problems, f"Connected HiFi DOM state/target case coverage is wrong for {surface_id}")
@@ -897,8 +959,41 @@ def _validate_target_scope_join(
         expected_states = list(prd.get("states", []))
         if target.get("route") != (prd.get("routes") or [None])[0] or target.get("states") != expected_states:
             _add(problems, f"Approved target surface {surface_id} route/states differ from PRD")
+        for target_field, prd_field in (
+            ("releaseSurface", "releaseSurface"),
+            ("surfaceClass", "surfaceClass"),
+            ("captureMode", "captureMode"),
+        ):
+            if target_field in target and target.get(target_field) != prd.get(prd_field):
+                _add(
+                    problems,
+                    f"Approved target surface {surface_id} {target_field} differs from PRD",
+                )
+        target_responsive = target.get("responsive")
+        if isinstance(target_responsive, dict):
+            expected_responsive = {
+                "kind": prd.get("responsiveKind"),
+                "targets": [
+                    int(value) if isinstance(value, str) and value.isdigit() else value
+                    for value in prd.get("responsiveTargets", [])
+                ],
+            }
+            if target_responsive != expected_responsive:
+                _add(problems, f"Approved target surface {surface_id} responsive set differs from PRD")
         if target.get("route") != screen.get("route") or {str(item).casefold() for item in target.get("states", [])} != _screen_state_ids(screen):
             _add(problems, f"Approved target surface {surface_id} route/states differ from wireframe")
+        if isinstance(wireframe_data.get("responsiveBySurface"), dict):
+            wireframe_responsive = wireframe_data["responsiveBySurface"].get(surface_id)
+            comparable_wireframe_responsive = (
+                {
+                    "kind": wireframe_responsive.get("kind"),
+                    "targets": wireframe_responsive.get("targets"),
+                }
+                if isinstance(wireframe_responsive, dict)
+                else None
+            )
+            if target.get("responsive") != comparable_wireframe_responsive:
+                _add(problems, f"Approved target surface {surface_id} responsive set differs from wireframe")
     expected_routes = [target.get("route") for target in scope.get("surfaces", [])]
     expected_states = sorted({str(state) for target in scope.get("surfaces", []) for state in target.get("states", [])})
     if scope.get("routes") != expected_routes:
@@ -906,16 +1001,18 @@ def _validate_target_scope_join(
     if scope.get("states") != expected_states:
         _add(problems, "Approved target states array must equal the sorted surface state union")
     responsive = scope.get("responsive")
+    responsive_by_surface = wireframe_data.get("responsiveBySurface") if isinstance(wireframe_data.get("responsiveBySurface"), dict) else None
     wire_kind = "viewports" if isinstance(wireframe_data.get("viewports"), list) else "sizeClasses"
     wire_targets = wireframe_data.get(wire_kind) or []
     wire_targets = [int(value) if isinstance(value, float) and value.is_integer() else value for value in wire_targets]
     prd_sets = {(entry.get("responsiveKind"), tuple(entry.get("responsiveTargets", []))) for entry in prd_surfaces.values()}
     expected_prd = next(iter(prd_sets), (None, ()))
     target_targets = responsive.get("targets") if isinstance(responsive, dict) else None
-    if not isinstance(responsive, dict) or responsive.get("kind") != wire_kind or list(target_targets or []) != list(wire_targets):
-        _add(problems, "Approved target responsive kind/targets must match wireframe")
-    if expected_prd[0] != wire_kind or [str(item) for item in expected_prd[1]] != [str(item) for item in wire_targets]:
-        _add(problems, "Approved target responsive kind/targets must match PRD")
+    if scope.get("captureMode") != "mixed" and responsive_by_surface is None:
+        if not isinstance(responsive, dict) or responsive.get("kind") != wire_kind or list(target_targets or []) != list(wire_targets):
+            _add(problems, "Approved target responsive kind/targets must match wireframe")
+        if expected_prd[0] != wire_kind or [str(item) for item in expected_prd[1]] != [str(item) for item in wire_targets]:
+            _add(problems, "Approved target responsive kind/targets must match PRD")
     capture = scope.get("captureMode")
     release_contract, release_findings = parse_release_targets(architecture_text)
     problems.extend(f"target scope Release Targets: {finding}" for finding in release_findings)
@@ -924,6 +1021,11 @@ def _validate_target_scope_join(
         for target in release_contract.targets
         for surface_class in [_release_surface_class(target)]
         if surface_class is not None
+    }
+    release_by_surface = {
+        target.surface: target
+        for target in release_contract.targets
+        if isinstance(getattr(target, "surface", None), str)
     }
     expected_modes_by_class = {
         "hosted_web": "hosted-browser",
@@ -937,13 +1039,35 @@ def _validate_target_scope_join(
         "desktop": "desktop",
     }
     expected = {expected_modes_by_class[item] for item in release_classes if item in expected_modes_by_class}
-    if len(expected) != 1:
-        _add(problems, "Approved target must resolve exactly one typed ReleaseTarget capture mode")
-    elif capture not in expected:
-        _add(problems, "Approved target captureMode must match the typed ReleaseTarget surface class")
-    expected_kind = "sizeClasses" if capture in {"native", "desktop"} else "viewports"
-    if capture in {"hosted-browser", "browser-extension", "native", "desktop"} and wire_kind != expected_kind:
-        _add(problems, "Approved target responsive kind must match captureMode platform")
+    surface_contracts = [item for item in scope.get("surfaces", []) if isinstance(item, dict) and "surfaceClass" in item]
+    if surface_contracts:
+        if len(surface_contracts) != len(scope.get("surfaces", [])):
+            _add(problems, "Hybrid Approved target requires surfaceClass on every surface")
+        for item in surface_contracts:
+            surface_class = str(item.get("surfaceClass", "")).casefold()
+            mode = item.get("captureMode")
+            release_surface = item.get("releaseSurface")
+            release_target = release_by_surface.get(release_surface)
+            if release_target is None:
+                _add(problems, f"Approved target surface {item.get('id')} releaseSurface is absent from Release Targets")
+            elif _release_surface_class(release_target) != surface_class:
+                _add(problems, f"Approved target surface {item.get('id')} surfaceClass does not match releaseSurface")
+            expected_mode = expected_modes_by_class.get(surface_class)
+            if expected_mode and mode != expected_mode:
+                _add(problems, f"Approved target surface {item.get('id')} captureMode does not match surfaceClass")
+            item_responsive = item.get("responsive")
+            if isinstance(item_responsive, dict):
+                expected_kind = "sizeClasses" if mode in {"native", "desktop"} else "viewports"
+                if item_responsive.get("kind") != expected_kind:
+                    _add(problems, f"Approved target surface {item.get('id')} responsive kind does not match captureMode")
+    else:
+        if len(expected) != 1:
+            _add(problems, "Approved target must resolve exactly one typed ReleaseTarget capture mode")
+        elif capture not in expected:
+            _add(problems, "Approved target captureMode must match the typed ReleaseTarget surface class")
+        expected_kind = "sizeClasses" if capture in {"native", "desktop"} else "viewports"
+        if capture in {"hosted-browser", "browser-extension", "native", "desktop"} and wire_kind != expected_kind:
+            _add(problems, "Approved target responsive kind must match captureMode platform")
 
 
 def _screen_state_ids(screen: dict[str, Any]) -> set[str]:
@@ -1189,6 +1313,7 @@ def _evidence_check(label: str, capture_mode: str | None) -> str | None:
         "browser-extension": "extension",
         "native": "native",
         "desktop": "desktop",
+        "mixed": "mixed",
     }.get(capture_mode or "")
     if suffix is None:
         return EVIDENCE_CHECKS.get(label)
@@ -1873,7 +1998,11 @@ def validate(
                 for surface in target_scope_for_evidence.get("surfaces", [])
                 if isinstance(surface, dict)
                 for state in surface.get("states", [])
-                for target in responsive_targets
+                for target in (
+                    [str(item) for item in surface.get("responsive", {}).get("targets", [])]
+                    if isinstance(surface.get("responsive"), dict)
+                    else responsive_targets
+                )
             ]
         }
     if require_visual_approved:

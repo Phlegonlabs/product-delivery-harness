@@ -15,6 +15,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from harness_design_contract import compare_design_system_pair
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_schema import run_required_harness_version, version_at_least
 from harness_ui_evidence import validate_ui_surface_design_registry
 
@@ -821,12 +822,20 @@ def _resolve_source_bytes(
             return None, [
                 f"plan.sources: frozen {label} source_revision must be a full Git SHA"
             ]
-        result = subprocess.run(
-            ["git", "show", f"{revision}:{relative}"],
-            cwd=root,
-            capture_output=True,
-            timeout=30,
-        )
+        try:
+            reject_object_substitution(root)
+            result = run_git(
+                root,
+                "show",
+                f"{revision}:{relative}",
+                text=False,
+                timeout=30,
+            )
+        except (GitMetadataError, OSError, subprocess.SubprocessError) as exc:
+            return None, [
+                f"plan.sources: cannot read frozen {label} bytes at "
+                f"{revision}:{relative} ({exc})"
+            ]
         if result.returncode != 0:
             return None, [
                 f"plan.sources: cannot read frozen {label} bytes at {revision}:{relative}"
@@ -1240,14 +1249,30 @@ def _strict_ui_surface_errors(
     target_values = responsive.get("targets") if isinstance(responsive, dict) else []
     target_values = [str(item) for item in target_values] if isinstance(target_values, list) else []
     capture_mode = view.get("capture_mode")
-    if capture_mode not in {"hosted-browser", "browser-extension", "native", "desktop"}:
-        errors.append("ui-design: approved target captureMode is missing or invalid")
-    expected_kind = "sizeClasses" if capture_mode in {"native", "desktop"} else "viewports"
-    if target_kind != expected_kind:
-        errors.append("ui-design: approved target responsive kind does not match captureMode")
+    hybrid = capture_mode == "mixed" or any(
+        isinstance(item, dict) and ("captureMode" in item or "responsive" in item)
+        for item in target_surfaces.values()
+    )
+    if not hybrid:
+        if capture_mode not in {"hosted-browser", "browser-extension", "native", "desktop"}:
+            errors.append("ui-design: approved target captureMode is missing or invalid")
+        expected_kind = "sizeClasses" if capture_mode in {"native", "desktop"} else "viewports"
+        if target_kind != expected_kind:
+            errors.append("ui-design: approved target responsive kind does not match captureMode")
     for surface_id in sorted(set(target_surfaces) & set(plan_surfaces)):
         target = target_surfaces[surface_id]
         plan_surface = plan_surfaces[surface_id]
+        target_class = target.get("surfaceClass")
+        plan_class = plan_surface.get("surface_class")
+        if target_class is not None and plan_class != target_class:
+            errors.append(
+                f"plan.ui_surfaces: surface {surface_id} surface_class must equal approved target surfaceClass"
+            )
+        target_release_surface = target.get("releaseSurface")
+        if target_release_surface is not None and plan_surface.get("release_surface") != target_release_surface:
+            errors.append(
+                f"plan.ui_surfaces: surface {surface_id} release_surface must equal approved target releaseSurface"
+            )
         if plan_surface.get("route") != target.get("route"):
             errors.append(f"plan.ui_surfaces: surface {surface_id} route differs from approved target")
         target_states = {
@@ -1258,17 +1283,27 @@ def _strict_ui_surface_errors(
         }
         if plan_states != target_states:
             errors.append(f"plan.ui_surfaces: surface {surface_id} states differ from approved target")
+        surface_capture = target.get("captureMode", capture_mode)
+        surface_responsive = target.get("responsive", responsive)
+        surface_kind = surface_responsive.get("kind") if isinstance(surface_responsive, dict) else target_kind
+        surface_values = surface_responsive.get("targets", []) if isinstance(surface_responsive, dict) else target_values
+        surface_values = [str(item) for item in surface_values] if isinstance(surface_values, list) else []
+        if surface_capture not in {"hosted-browser", "browser-extension", "native", "desktop"}:
+            errors.append(f"ui-design: approved target surface {surface_id} captureMode is missing or invalid")
+        expected_surface_kind = "sizeClasses" if surface_capture in {"native", "desktop"} else "viewports"
+        if surface_kind != expected_surface_kind:
+            errors.append(f"ui-design: approved target surface {surface_id} responsive kind does not match captureMode")
         breakpoints = [str(item).strip() for item in plan_surface.get("breakpoints", []) if isinstance(item, str)]
-        if target_kind == "viewports":
-            if len(breakpoints) != len(target_values) or any(
-                not any(breakpoint_matches_viewport(item, target) for item in breakpoints)
-                for target in target_values
+        if surface_kind == "viewports":
+            if len(breakpoints) != len(surface_values) or any(
+                not any(breakpoint_matches_viewport(item, target_value) for item in breakpoints)
+                for target_value in surface_values
             ):
                 errors.append(f"plan.ui_surfaces: surface {surface_id} breakpoints differ from approved target")
-        elif set(breakpoints) != set(target_values) or len(breakpoints) != len(target_values):
+        elif set(breakpoints) != set(surface_values) or len(breakpoints) != len(surface_values):
             errors.append(f"plan.ui_surfaces: surface {surface_id} size classes differ from approved target")
         capture = plan_surface.get("capture_mode")
-        if capture != capture_mode:
+        if capture != surface_capture:
             errors.append(
                 f"plan.ui_surfaces: surface {surface_id} capture_mode must equal approved target captureMode"
             )

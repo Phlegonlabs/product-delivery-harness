@@ -47,6 +47,7 @@ def validate_node_result(
     result: Any,
     *,
     manifest_already_validated: bool = False,
+    repo_root: str | Path | None = None,
 ) -> list[str]:
     """Validate one typed graph node result.
 
@@ -54,7 +55,12 @@ def validate_node_result(
     ``validate_current_plan_run`` on the same pair.
     """
 
-    errors = [] if manifest_already_validated else validate_current_plan_run(plan, run)
+    errors = [] if manifest_already_validated else validate_current_plan_run(
+        plan,
+        run,
+        repo_root=repo_root,
+        require_repo_root=repo_root is not None,
+    )
     if errors:
         if not is_current_pair(plan, run):
             return ["node result validation requires PLAN v6 with RUN v11"]
@@ -180,6 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan", required=True, type=Path)
     parser.add_argument("--run", required=True, type=Path)
     parser.add_argument("--result", required=True, type=Path)
+    parser.add_argument("--repo-root", type=Path)
     return parser
 
 
@@ -189,7 +196,9 @@ def main(argv: list[str] | None = None) -> int:
         result = json.loads(args.result.read_text(encoding="utf-8"))
         if isinstance(result, dict) and set(result) == {"node_result"}:
             result = result["node_result"]
-        errors = validate_node_result(load_plan(args.plan), load_run(args.run), result)
+        errors = validate_node_result(
+            load_plan(args.plan), load_run(args.run), result, repo_root=args.repo_root
+        )
     except (ManifestError, OSError, json.JSONDecodeError) as exc:
         errors = [str(exc)]
     payload = {"status": "PASS" if not errors else "ERROR", "errors": errors}

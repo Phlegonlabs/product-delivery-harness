@@ -47,6 +47,7 @@ CONTRACT_FIELDS = (
     "stylingMechanism",
     "enforcement",
     "sourceBindings",
+    "surfaceContracts",
     "tokenSources",
     "primitiveSources",
     "viewports",
@@ -82,6 +83,15 @@ SOURCE_BINDING_KEYS = (
 )
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 VALID_PLATFORMS = {"web", "ios", "android", "flutter", "react-native", "macos", "windows", "desktop"}
+VALID_HYBRID_SURFACE_CLASSES = {
+    "hosted_web",
+    "browser_extension",
+    "ios",
+    "android",
+    "macos",
+    "windows",
+    "desktop",
+}
 VALID_STYLING_MECHANISMS = {"utility CSS", "CSS-in-JS", "CSS modules", "plain CSS", "platform theme"}
 VALID_ENFORCEMENT = {"blocking", "advisory"}
 
@@ -255,6 +265,10 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
             "design-system.json schema must be 'design-system/1' or 'design-system/2'"
         )
 
+    hybrid_surface_contracts = registry.get("surfaceContracts")
+    if hybrid_surface_contracts is not None and schema != "design-system/2":
+        problems.append("design-system.json surfaceContracts requires design-system/2")
+    hybrid = schema == "design-system/2" and hybrid_surface_contracts is not None
     product = registry.get("product")
     if not isinstance(product, str) or not product.strip():
         problems.append("design-system.json product must be a non-empty string")
@@ -285,7 +299,59 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
         )
         and len(set(size_classes)) == len(size_classes)
     )
-    if (
+    if hybrid:
+        if has_viewports or has_size_classes or "platform" in registry or "stylingMechanism" in registry:
+            problems.append(
+                "design-system.json hybrid surfaceContracts must omit global platform, "
+                "stylingMechanism, viewports, and sizeClasses"
+            )
+        if not isinstance(hybrid_surface_contracts, dict) or len(hybrid_surface_contracts) < 2:
+            problems.append("design-system.json surfaceContracts must contain at least two UI-* surfaces")
+        elif any(not isinstance(key, str) or not key.startswith("UI-") for key in hybrid_surface_contracts):
+            problems.append("design-system.json surfaceContracts keys must be UI-* identities")
+        else:
+            for surface_id, contract in hybrid_surface_contracts.items():
+                path = f"surfaceContracts.{surface_id}"
+                expected_keys = {"releaseSurface", "surfaceClass", "captureMode", "responsive"}
+                if not isinstance(contract, dict) or set(contract) != expected_keys:
+                    problems.append(f"design-system.json {path} must contain exactly {sorted(expected_keys)}")
+                    continue
+                surface_class = contract.get("surfaceClass")
+                capture_mode = contract.get("captureMode")
+                for field in ("releaseSurface", "surfaceClass", "captureMode"):
+                    if not isinstance(contract.get(field), str) or not contract[field].strip():
+                        problems.append(f"design-system.json {path}.{field} must be a non-empty string")
+                if not isinstance(surface_class, str) or surface_class not in VALID_HYBRID_SURFACE_CLASSES:
+                    problems.append(f"design-system.json {path}.surfaceClass is invalid")
+                if not isinstance(capture_mode, str) or capture_mode not in {"hosted-browser", "browser-extension", "native", "desktop"}:
+                    problems.append(f"design-system.json {path}.captureMode is invalid")
+                expected_capture_modes = {
+                    "hosted_web": {"hosted-browser"},
+                    "browser_extension": {"browser-extension"},
+                    "ios": {"native"},
+                    "android": {"native"},
+                    "macos": {"desktop"},
+                    "windows": {"desktop"},
+                    "desktop": {"desktop"},
+                }.get(surface_class) if isinstance(surface_class, str) else None
+                if expected_capture_modes and capture_mode not in expected_capture_modes:
+                    problems.append(
+                        f"design-system.json {path}.captureMode is incompatible with surfaceClass"
+                    )
+                responsive = contract.get("responsive")
+                if not isinstance(responsive, dict) or set(responsive) != {"kind", "targets"}:
+                    problems.append(f"design-system.json {path}.responsive must contain kind and targets")
+                elif responsive.get("kind") == "viewports":
+                    targets = responsive.get("targets")
+                    if not isinstance(targets, list) or len(targets) < 3 or any(not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0 for value in targets) or any(left >= right for left, right in zip(targets, targets[1:])):
+                        problems.append(f"design-system.json {path}.responsive.viewports must be three ascending positive numbers")
+                elif responsive.get("kind") == "sizeClasses":
+                    targets = responsive.get("targets")
+                    if not isinstance(targets, list) or len(targets) < 2 or any(not isinstance(value, str) or not value.strip() for value in targets) or len(set(targets)) != len(targets):
+                        problems.append(f"design-system.json {path}.responsive.sizeClasses must be two unique strings")
+                else:
+                    problems.append(f"design-system.json {path}.responsive.kind is invalid")
+    elif (
         has_viewports == has_size_classes
         or (has_viewports and not valid_viewports)
         or (has_size_classes and not valid_size_classes)
@@ -296,6 +362,8 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
             "two unique string sizeClasses for native or desktop"
         )
     platform = registry.get("platform")
+    if hybrid:
+        platform = "<hybrid>"
     if not isinstance(platform, str) or not platform.strip():
         problems.append("design-system.json platform must be a non-empty string")
     elif not (platform.startswith("<") and platform.endswith(">")) and platform not in VALID_PLATFORMS:
@@ -314,6 +382,8 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
             )
 
     styling = registry.get("stylingMechanism")
+    if hybrid:
+        styling = "<hybrid>"
     if not isinstance(styling, str) or not styling.strip():
         problems.append("design-system.json stylingMechanism must be a non-empty string")
     elif not (styling.startswith("<") and styling.endswith(">")) and styling not in VALID_STYLING_MECHANISMS:
@@ -548,7 +618,8 @@ def _diff(expected: Any, actual: Any, path: str, problems: list[str]) -> None:
 
 
 def _ui_identity_bindings(
-    bindings: dict[str, Any], *, repo_root: Path, problems: list[str], require_contract: bool = False
+    bindings: dict[str, Any], *, repo_root: Path, problems: list[str], require_contract: bool = False,
+    surface_contracts: dict[str, Any] | None = None,
 ) -> None:
     """Cross-check pair source bindings against the UI contract they name."""
 
@@ -575,8 +646,11 @@ def _ui_identity_bindings(
     try:
         ui_checker = __import__("check_ui_design_contract")
         view, view_problems = ui_checker.parse_ui_contract_view(text)
-    except (ImportError, AttributeError) as exc:
-        problems.append(f"design-system.json cannot parse the shared UI contract view: {exc}")
+    except Exception as exc:
+        problems.append(
+            "design-system.json shared UI contract parser failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        )
         return
     problems.extend(f"ui-design: {item}" for item in view_problems)
     gate = view.get("gate") if isinstance(view, dict) else None
@@ -586,6 +660,33 @@ def _ui_identity_bindings(
     if isinstance(gate, dict) and gate.get("replacement"):
         problems.append("design-system.json sourceBindings.uiDesign must not contain a not_required replacement for a required pair")
     identities = view.get("source_identities") if isinstance(view, dict) else {}
+    target_scope = view.get("target_scope") if isinstance(view, dict) else None
+    if surface_contracts is not None:
+        if not isinstance(surface_contracts, dict) or not isinstance(target_scope, dict):
+            problems.append("design-system.json surfaceContracts requires an approved target scope")
+        else:
+            target_surfaces = {
+                item.get("id"): item
+                for item in target_scope.get("surfaces", [])
+                if isinstance(item, dict) and isinstance(item.get("id"), str)
+            }
+            if set(surface_contracts) != set(target_surfaces):
+                problems.append("design-system.json surfaceContracts must exactly match Approved target UI-* identities")
+            for surface_id, contract in surface_contracts.items():
+                target = target_surfaces.get(surface_id)
+                if not isinstance(contract, dict) or not isinstance(target, dict):
+                    continue
+                for contract_key, target_key in (
+                    ("releaseSurface", "releaseSurface"),
+                    ("surfaceClass", "surfaceClass"),
+                    ("captureMode", "captureMode"),
+                    ("responsive", "responsive"),
+                ):
+                    if contract.get(contract_key) != target.get(target_key):
+                        problems.append(
+                            f"design-system.json surfaceContracts.{surface_id}.{contract_key} "
+                            "does not match Approved target scope"
+                        )
     mapping = {
         "prd": "prd",
         "architecture": "architecture",
@@ -714,6 +815,7 @@ def compare(
                     repo_root=root,
                     problems=problems,
                     require_contract=require_filled,
+                    surface_contracts=registry.get("surfaceContracts") if isinstance(registry, dict) else None,
                 )
 
     # Every DS-* id active Markdown names — prose or tables, never fences or

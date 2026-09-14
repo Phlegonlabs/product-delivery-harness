@@ -15,6 +15,8 @@
     "hifi": { "path": "<approved HiFi target>", "sha256": "<lowercase sha256>" }
   },
 
+  "$comment:hybrid": "For a hybrid product, replace global platform, stylingMechanism, viewports, and sizeClasses with surfaceContracts keyed by each UI-* surface. Every entry names releaseSurface, surfaceClass, captureMode, and its own responsive {kind, targets} set; platform and styling choices remain sourced from the approved stack binding.",
+
   "$comment:minimal": "Keep only tokens, primitives, product components, motion variants, states, and responsive entries required by the PRD UI surface contract. Remove unused examples before publication.",
   "$comment:sources": "tokenSources are the only paths where a raw color, dimension, or motion value may appear. primitiveSources are the paths whose job is defining control and surface selectors, so page-local-control-style is not reported for them. Both are matched as path suffixes against each checked file.",
   "tokenSources": [

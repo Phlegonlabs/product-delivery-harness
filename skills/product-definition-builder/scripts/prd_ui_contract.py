@@ -58,6 +58,9 @@ COMPLETE_FIELD_PATTERNS = {
 VALID_COPY_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 UI_START_MARKER = "<!-- ui-surface-contract:start -->"
 UI_END_MARKER = "<!-- ui-surface-contract:end -->"
+SURFACE_CLASS_RE = re.compile(r"^\s*-\s*`surfaceClass`\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+RELEASE_SURFACE_RE = re.compile(r"^\s*-\s*`releaseSurface`\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
+CAPTURE_MODE_RE = re.compile(r"^\s*-\s*`captureMode`\s*:\s*(.+)$", re.IGNORECASE | re.MULTILINE)
 
 
 def _values(value: str) -> list[str]:
@@ -222,6 +225,9 @@ def parse_prd_ui_contract(
         route_matches = list(ROUTE_RE.finditer(surface_block))
         states_matches = list(STATES_RE.finditer(surface_block))
         responsive_matches = list(RESPONSIVE_RE.finditer(surface_block))
+        surface_class_matches = list(SURFACE_CLASS_RE.finditer(surface_block))
+        release_surface_matches = list(RELEASE_SURFACE_RE.finditer(surface_block))
+        capture_mode_matches = list(CAPTURE_MODE_RE.finditer(surface_block))
         copy_matches = list(COPY_RE.finditer(surface_block))
         complete_matches = {
             label: list(pattern.finditer(surface_block))
@@ -284,6 +290,19 @@ def parse_prd_ui_contract(
                 f"prd: UI surface {surface_id} requires exactly one `responsive` "
                 f"anchor; found {len(responsive_matches)}"
             )
+        surface_class = surface_class_matches[0].group(1).strip() if len(surface_class_matches) == 1 else None
+        release_surface = release_surface_matches[0].group(1).strip() if len(release_surface_matches) == 1 else None
+        capture_mode = capture_mode_matches[0].group(1).strip() if len(capture_mode_matches) == 1 else None
+        if len(surface_class_matches) > 1:
+            errors.append(f"prd: UI surface {surface_id} requires at most one `surfaceClass` anchor")
+        if len(release_surface_matches) > 1:
+            errors.append(f"prd: UI surface {surface_id} requires at most one `releaseSurface` anchor")
+        if len(capture_mode_matches) > 1:
+            errors.append(f"prd: UI surface {surface_id} requires at most one `captureMode` anchor")
+        if release_surface is not None and re.fullmatch(r"[a-z0-9][a-z0-9-]*", release_surface) is None:
+            errors.append(f"prd: UI surface {surface_id} has invalid releaseSurface {release_surface!r}")
+        if capture_mode is not None and capture_mode not in {"hosted-browser", "browser-extension", "native", "desktop"}:
+            errors.append(f"prd: UI surface {surface_id} has invalid captureMode {capture_mode!r}")
         copy_status: str | None = None
         if len(copy_matches) == 1:
             copy_status = _copy_status(copy_matches[0].group(1))
@@ -353,6 +372,9 @@ def parse_prd_ui_contract(
             "states": states,
             "responsiveKind": responsive_kind,
             "responsiveTargets": responsive_targets,
+            "surfaceClass": surface_class,
+            "releaseSurface": release_surface,
+            "captureMode": capture_mode,
             "copyStatus": copy_status,
             "contractFields": complete_values,
         }
@@ -365,7 +387,25 @@ def parse_prd_ui_contract(
             for entry in entries.values()
             if entry["responsiveKind"] is not None
         }
-        if len(responsive_sets) > 1:
+        has_platform_bindings = any(
+            entry.get("surfaceClass")
+            or entry.get("releaseSurface")
+            or entry.get("captureMode")
+            for entry in entries.values()
+        )
+        if has_platform_bindings:
+            for surface_id, entry in entries.items():
+                missing = [
+                    field
+                    for field in ("releaseSurface", "surfaceClass", "captureMode")
+                    if not entry.get(field)
+                ]
+                if missing:
+                    errors.append(
+                        f"prd: UI surface {surface_id} platform binding is missing "
+                        + ", ".join(missing)
+                    )
+        if len(responsive_sets) > 1 and not has_platform_bindings:
             errors.append(
                 "prd: every UI surface must use the same ordered responsive set"
             )
@@ -428,6 +468,15 @@ def validate_prd_wireframe_data(
             "wireframes: screens absent from the PRD UI surface contract: "
             + ", ".join(extra)
         )
+    responsive_by_surface = data.get("responsiveBySurface")
+    if isinstance(responsive_by_surface, dict) and responsive_by_surface:
+        responsive_ids = {
+            key for key in responsive_by_surface if isinstance(key, str)
+        }
+        if responsive_ids != screen_ids:
+            errors.append(
+                "wireframes: responsiveBySurface must contain exactly the screen IDs"
+            )
     for surface_id in sorted(prd_ids & screen_ids):
         routes = prd_surfaces[surface_id]["routes"]
         screen = screens[surface_id]
@@ -461,6 +510,20 @@ def validate_prd_wireframe_data(
                     f"{screen.get('copyStatus')!r} differs from the PRD copy status "
                     f"{prd_surfaces[surface_id]['copyStatus']!r}"
                 )
+        if isinstance(responsive_by_surface, dict) and responsive_by_surface:
+            surface_responsive = responsive_by_surface.get(surface_id)
+            if not isinstance(surface_responsive, dict) or set(surface_responsive) != {"kind", "targets", "canvasWidths"}:
+                errors.append(f"wireframes: screen {surface_id} responsiveBySurface entry is invalid")
+                continue
+            responsive_kind = surface_responsive.get("kind")
+            wireframe_targets = [str(value) for value in surface_responsive.get("targets", [])]
+            prd_targets = prd_surfaces[surface_id]["responsiveTargets"]
+            if prd_surfaces[surface_id]["responsiveKind"] != responsive_kind or prd_targets != wireframe_targets:
+                errors.append(
+                    f"wireframes: screen {surface_id} responsive set {responsive_kind} {wireframe_targets} differs from the PRD "
+                    f"{prd_surfaces[surface_id]['responsiveKind']} {prd_targets}"
+                )
+            continue
         has_viewports = isinstance(data.get("viewports"), list)
         has_size_classes = isinstance(data.get("sizeClasses"), list)
         if has_viewports == has_size_classes:

@@ -222,6 +222,37 @@ class InstallScriptTests(unittest.TestCase):
         subprocess.run(["git", "commit", "-qm", "fixture"], cwd=source, check=True)
         return source
 
+    def make_junction(self, link: Path, target: Path) -> None:
+        if POWERSHELL is None:
+            self.skipTest("PowerShell is unavailable")
+        target.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            [
+                POWERSHELL,
+                "-NoProfile",
+                "-Command",
+                (
+                    "New-Item -ItemType Junction -Path $env:PDH_TEST_JUNCTION "
+                    "-Target $env:PDH_TEST_JUNCTION_TARGET "
+                    "-ErrorAction Stop | Out-Null"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.home,
+            timeout=30,
+            env={
+                **os.environ,
+                "PDH_TEST_JUNCTION": str(link),
+                "PDH_TEST_JUNCTION_TARGET": str(target),
+            },
+        )
+        if result.returncode != 0 or not link.exists():
+            self.skipTest(
+                "directory junction creation is unavailable: "
+                + (result.stderr.strip() or result.stdout.strip())
+            )
+
     def test_bash_installs_complete_manifest_and_migrates_legacy_copies(self) -> None:
         self.seed_managed_copies()
         result = self.run_bash(
@@ -442,6 +473,53 @@ class InstallScriptTests(unittest.TestCase):
             set(self.MANAGED_SKILLS),
             {child.name for child in backups[0].iterdir()},
         )
+
+    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
+    def test_powershell_rejects_destination_and_backup_junctions_before_mutation(self) -> None:
+        command_prefix = [
+            POWERSHELL,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(REPO_ROOT / "install.ps1"),
+        ]
+        for label in ("destination", "backup"):
+            with self.subTest(label=label):
+                protected = self.home / f"protected-{label}"
+                protected.mkdir()
+                sentinel = protected / "keep.txt"
+                sentinel.write_text("preserve\n", encoding="utf-8")
+                alias = self.home / f"{label}-junction"
+                self.make_junction(alias, protected)
+                destination = alias if label == "destination" else self.home / "plain-skills"
+                backup = alias if label == "backup" else self.home / "plain-backups"
+                result = subprocess.run(
+                    [
+                        *command_prefix,
+                        "-Destination",
+                        str(destination),
+                        "-BackupRoot",
+                        str(backup),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    cwd=self.home,
+                    timeout=180,
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(
+                    "reparse-point path component is forbidden",
+                    result.stderr + result.stdout,
+                )
+                self.assertEqual("preserve\n", sentinel.read_text(encoding="utf-8"))
+                self.assertFalse((protected / ".pdh-install.lock").exists())
+                self.assertFalse(
+                    any(
+                        child.name.startswith(".pdh-install-stage-")
+                        for child in protected.iterdir()
+                    )
+                )
 
     @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
     def test_powershell_foreign_race_target_is_never_deleted(self) -> None:

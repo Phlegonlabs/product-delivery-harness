@@ -4,7 +4,12 @@
 from __future__ import annotations
 
 import copy
+import contextlib
+import io
+import json
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,7 +24,9 @@ if str(SCRIPTS_DIR) not in sys.path:
 from harness_manifest import plan_digest  # noqa: E402
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
 from test_harness_manifest import authorize_execution  # noqa: E402
-from validate_node_result import validate_node_result  # noqa: E402
+from manifest_fixtures import manifest_markdown  # noqa: E402
+from test_harness_strict_authority import StrictAuthorityJoinTests  # noqa: E402
+from validate_node_result import main as validate_node_result_main, validate_node_result  # noqa: E402
 
 
 def running_result(plan: dict[str, object], run: dict[str, object]) -> dict[str, object]:
@@ -67,6 +74,94 @@ def running_result(plan: dict[str, object], run: dict[str, object]) -> dict[str,
 
 
 class ValidateNodeResultTests(unittest.TestCase):
+    def test_cli_accepts_repo_root_for_current_harness_038_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            plan, _run = StrictAuthorityJoinTests._headless_fixture(root)
+            plan["security_review"] = {
+                "status": "not_applicable",
+                "skill_slot": "code_security_verification",
+                "reason": "documentation-only fixture",
+            }
+            for mission in plan["missions"]:
+                mission["write_scope"] = ["docs/fixture.md"]
+                for task in mission["tasks"]:
+                    task["write_scope"] = ["docs/fixture.md"]
+            run = StrictAuthorityJoinTests._run(plan)
+            subprocess.run(["git", "init", "-q", "-b", "codex/test"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(["git", "add", "docs/product"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "strict sources"], cwd=root, check=True)
+            head = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            run["integration"].update(
+                {
+                    "branch": "codex/test",
+                    "batch_base_sha": head,
+                    "integration_head_sha": head,
+                }
+            )
+            run["observed"]["git"].update(
+                {
+                    "parent_worktree_path": str(root.resolve()),
+                    "parent_branch": "codex/test",
+                    "parent_head_sha": head,
+                    "parent_dirty": False,
+                    "worktrees": [],
+                }
+            )
+            result = running_result(plan, run)
+            run["mission_states"]["M1"]["base_sha"] = head
+            plan_path = root / "PLAN.md"
+            run_path = root / "RUN.md"
+            result_path = root / "result.json"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            run_path.write_text(
+                manifest_markdown("## Harness Run State", "harness_run", run),
+                encoding="utf-8",
+            )
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = validate_node_result_main(
+                    [
+                        "--plan", str(plan_path),
+                        "--run", str(run_path),
+                        "--result", str(result_path),
+                        "--repo-root", str(root),
+                    ]
+                )
+            self.assertEqual(0, code, output.getvalue())
+            self.assertEqual("PASS", json.loads(output.getvalue())["status"])
+
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = validate_node_result_main(
+                    [
+                        "--plan", str(plan_path),
+                        "--run", str(run_path),
+                        "--result", str(result_path),
+                    ]
+                )
+            self.assertEqual(2, code)
+            self.assertIn(
+                "current PLAN/RUN validation requires --repo-root for the Harness 0.38 authority join",
+                output.getvalue(),
+            )
+
     def test_matching_result_for_a_running_node_passes(self) -> None:
         plan = valid_graph_plan()
         run = valid_graph_run(plan)

@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Iterable
 
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_schema import (
     MODEL_TOKEN_RE,
     PLAN_HEADING,
@@ -675,14 +676,17 @@ def read_git_blob(
     """Read one blob from a commit/ref without consulting the working tree."""
 
     try:
-        result = subprocess.run(
-            ["git", "show", "--no-ext-diff", "--format=", f"{revision}:{relative_path}"],
-            cwd=root,
-            capture_output=True,
+        reject_object_substitution(root)
+        result = run_git(
+            root,
+            "show",
+            "--no-ext-diff",
+            "--format=",
+            f"{revision}:{relative_path}",
             text=False,
             timeout=10,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (GitMetadataError, OSError, subprocess.SubprocessError) as exc:
         return None, str(exc)
     if result.returncode != 0:
         reason = result.stderr.decode("utf-8", errors="replace").lower()
@@ -702,6 +706,76 @@ def changed_files_digest(files: list[str]) -> str:
     return hashlib.sha256(
         json.dumps(files, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()
+
+
+def sandbox_execution_binding_errors(
+    policy: Any,
+    preflight: Any,
+    attestation: Any,
+) -> list[str]:
+    """Validate one container execution against its observed runtime identity."""
+
+    errors: list[str] = []
+    preflight_keys = {"runtime", "image", "repo_digest", "runtime_probe"}
+    probe_keys = {"executable", "executable_sha256", "version_output_sha256"}
+    attestation_keys = {
+        "runtime",
+        "runtime_probe",
+        "image",
+        "image_probe",
+        "policy",
+        "mount",
+        "network",
+    }
+    if not isinstance(policy, dict):
+        return ["declared container sandbox policy is missing"]
+    if not isinstance(preflight, dict) or set(preflight) != preflight_keys:
+        return ["sandbox preflight must retain the exact observed entry"]
+    if preflight.get("runtime") != policy.get("runtime"):
+        errors.append("sandbox preflight runtime differs from the declared policy")
+    if preflight.get("image") != policy.get("image"):
+        errors.append("sandbox preflight image differs from the declared policy")
+    image = preflight.get("image")
+    repo_digest = preflight.get("repo_digest")
+    if (
+        not isinstance(image, str)
+        or not isinstance(repo_digest, str)
+        or re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", repo_digest) is None
+        or not repo_digest.endswith("@" + image.rsplit("@", 1)[-1])
+    ):
+        errors.append("sandbox preflight RepoDigest does not attest the pinned image")
+    runtime_probe = preflight.get("runtime_probe")
+    if not isinstance(runtime_probe, dict) or set(runtime_probe) != probe_keys:
+        errors.append("sandbox preflight runtime identity is malformed")
+    else:
+        executable = runtime_probe.get("executable")
+        if not isinstance(executable, str) or not executable or not Path(executable).is_absolute():
+            errors.append("sandbox preflight executable is not an absolute path")
+        for key in ("executable_sha256", "version_output_sha256"):
+            if re.fullmatch(r"[0-9a-f]{64}", str(runtime_probe.get(key))) is None:
+                errors.append(f"sandbox preflight {key} is not a SHA-256 digest")
+    if not isinstance(attestation, dict) or set(attestation) != attestation_keys:
+        errors.append("sandbox attestation must retain the complete execution identity")
+        return errors
+    if attestation.get("policy") != policy:
+        errors.append("sandbox attestation policy differs from the declaration")
+    if attestation.get("runtime") != preflight.get("runtime"):
+        errors.append("sandbox attestation runtime differs from preflight")
+    if attestation.get("image") != preflight.get("image"):
+        errors.append("sandbox attestation image differs from preflight")
+    if attestation.get("runtime_probe") != runtime_probe:
+        errors.append("sandbox attestation runtime identity differs from preflight")
+    if attestation.get("image_probe") != repo_digest:
+        errors.append("sandbox attestation RepoDigest differs from preflight")
+    if attestation.get("mount") != {
+        "source": "git_archive",
+        "destination": "/workspace",
+        "read_only": True,
+    }:
+        errors.append("sandbox attestation does not prove the read-only Git archive mount")
+    if attestation.get("network") != "none":
+        errors.append("sandbox attestation does not prove network isolation")
+    return errors
 
 
 def _optional_sha(errors: list[str], path: str, value: Any) -> None:

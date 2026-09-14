@@ -301,6 +301,53 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertEqual(view["replacement"], view["gate"]["replacement"])
         self.assertRegex(view["canonical_ui_digest"], r"^[0-9a-f]{64}$")
 
+    def test_hybrid_target_scope_requires_per_surface_release_contract(self):
+        self.assertEqual(
+            ({"platform-review"}, "sandboxed-offline-browser"),
+            checker._receipt_contract("hifi-mixed"),
+        )
+        target = (
+            "docs/design/ui-references/hybrid/index.html @ sha256:"
+            + "a" * 64
+            + "; scope=surfaces="
+            + json.dumps(
+                [
+                    {
+                        "id": "UI-WEB",
+                        "route": "/home",
+                        "states": ["ready"],
+                        "releaseSurface": "web",
+                        "surfaceClass": "hosted_web",
+                        "captureMode": "hosted-browser",
+                        "responsive": {"kind": "viewports", "targets": [390, 768, 1200]},
+                    },
+                    {
+                        "id": "UI-IOS",
+                        "route": "/ios-home",
+                        "states": ["ready"],
+                        "releaseSurface": "ios",
+                        "surfaceClass": "ios",
+                        "captureMode": "native",
+                        "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]},
+                    },
+                ],
+                separators=(",", ":"),
+            )
+            + "|routes=[\"/home\",\"/ios-home\"]|states=[\"ready\"]|responsive="
+            + json.dumps({"kind": "per-surface", "targets": []}, separators=(",", ":"))
+            + '|tolerance="exact"|allowedDeviations=[]|captureMode=mixed'
+        )
+        problems: list[str] = []
+        scope = checker._target_scope(target, "Approved target", problems)
+        self.assertEqual([], problems)
+        self.assertEqual("mixed", scope["captureMode"])
+        self.assertEqual("ios", scope["surfaces"][1]["releaseSurface"])
+
+        invalid = target.replace('"releaseSurface":"ios",', "")
+        problems = []
+        checker._target_scope(invalid, "Approved target", problems)
+        self.assertTrue(any("hybrid surfaces require" in item for item in problems))
+
     def test_full_validate_not_required_publication_round_trip(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

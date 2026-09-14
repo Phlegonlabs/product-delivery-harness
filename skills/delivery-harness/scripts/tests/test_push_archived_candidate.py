@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import copy
 import shutil
 import subprocess
 import tempfile
@@ -25,6 +26,7 @@ if str(PDB_TESTS) not in sys.path:
 
 import push_archived_candidate as subject  # noqa: E402
 import archive_run  # noqa: E402
+import manifest_fixtures as mf  # noqa: E402
 from harness_schema import archive_first_required, parse_harness_version  # noqa: E402
 from push_integration_branch import push_authorized_head  # noqa: E402
 from harness_core import ManifestError  # noqa: E402
@@ -141,8 +143,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
             Path(fixture["root"]),
             archive_path=Path(fixture["archive"]),
             remote="origin",
-            authorization_source="user: approve and push archive candidate",
-            authorization_ref="ticket:ARCHIVE-1",
             request_path=Path(fixture["request"]),
             attempt_path=Path(fixture["attempt"]),
             receipt_path=Path(fixture["receipt"]),
@@ -153,7 +153,17 @@ class ArchiveFirstPushTests(unittest.TestCase):
         fixture = self._fixture()
         request_value = self._prepare(fixture)
         self.assertEqual(fixture["candidate_a"], request_value["candidate_a"])
-        subject.execute(Path(fixture["root"]), request_path=Path(fixture["request"]))
+        handoff = subject.begin_handoff(Path(fixture["root"]), request_path=Path(fixture["request"]))
+        self.assertEqual(subject.PENDING_TRUSTED_HOST_STATUS, handoff["status"])
+        self.assertEqual(
+            [
+                "git", "--no-replace-objects", "push", "--", "origin",
+                f"{fixture['candidate_a']}:refs/heads/codex/test",
+            ],
+            handoff["push_argv"],
+        )
+        git(Path(fixture["root"]), "--no-replace-objects", "push", "--", "origin", f"{fixture['candidate_a']}:refs/heads/codex/test")
+        subject.recover_uncertain(Path(fixture["root"]), request_path=Path(fixture["request"]))
         self.assertEqual(
             fixture["candidate_a"],
             git(Path(fixture["root"]), "ls-remote", str(fixture["remote"]), "refs/heads/codex/test").split()[0],
@@ -165,6 +175,37 @@ class ArchiveFirstPushTests(unittest.TestCase):
         verified = subject.verify_archive_candidate(Path(fixture["root"]), archive_path=Path(fixture["archive"]), candidate_a=str(fixture["candidate_a"]))
         self.assertEqual(fixture["candidate_c"], verified["candidate_c"])
         self.assertEqual(fixture["candidate_a"], verified["candidate_a"])
+
+    def test_caller_supplied_prose_or_ref_is_rejected_before_request_creation(self) -> None:
+        fixture = self._fixture()
+        with self.assertRaisesRegex(ManifestError, "caller-supplied authorization"):
+            subject.prepare(
+                Path(fixture["root"]),
+                archive_path=Path(fixture["archive"]),
+                remote="origin",
+                authorization_source="approve and push this exact candidate",
+                authorization_ref="ticket:ATTACKER",
+                request_path=Path(fixture["request"]),
+                attempt_path=Path(fixture["attempt"]),
+                receipt_path=Path(fixture["receipt"]),
+                archive_anchor=Path(fixture["anchor"]),
+            )
+
+    def test_begin_handoff_never_invokes_local_git_push(self) -> None:
+        fixture = self._fixture()
+        self._prepare(fixture)
+        original_git = subject._git
+        calls: list[tuple[str, ...]] = []
+
+        def record(root: Path, *args: str, **kwargs: object):
+            calls.append(args)
+            self.assertNotEqual("push", args[0] if args else None)
+            return original_git(root, *args, **kwargs)
+
+        with patch.object(subject, "_git", side_effect=record):
+            handoff = subject.begin_handoff(Path(fixture["root"]), request_path=Path(fixture["request"]))
+        self.assertEqual(subject.PENDING_TRUSTED_HOST_STATUS, handoff["status"])
+        self.assertFalse(any(args and args[0] == "push" for args in calls))
 
     def test_receipt_move_type_tamper_is_rejected_even_with_recomputed_digest(self) -> None:
         fixture = self._fixture()
@@ -217,10 +258,10 @@ class ArchiveFirstPushTests(unittest.TestCase):
         self._prepare(fixture)
         with self.assertRaisesRegex(ManifestError, "immutable artifact"):
             subject.recover_uncertain(Path(fixture["root"]), request_path=Path(fixture["request"]))
-        # A completed push creates a valid attempt.  Remove only the test
-        # receipt, then recovery must reconstruct it without invoking push.
-        subject.execute(Path(fixture["root"]), request_path=Path(fixture["request"]))
-        Path(fixture["receipt"]).unlink()
+        # A completed trusted-host publication leaves an attempt but no local
+        # receipt until recovery closes it, so recovery must never invoke push.
+        subject.begin_handoff(Path(fixture["root"]), request_path=Path(fixture["request"]))
+        git(Path(fixture["root"]), "--no-replace-objects", "push", "--", "origin", f"{fixture['candidate_a']}:refs/heads/codex/test")
         original_git = subject._git
 
         def reject_push(root: Path, *args: str, **kwargs: object):
@@ -235,11 +276,13 @@ class ArchiveFirstPushTests(unittest.TestCase):
     def test_endpoint_retarget_and_execute_replay_are_rejected(self) -> None:
         fixture = self._fixture()
         self._prepare(fixture)
-        subject.execute(Path(fixture["root"]), request_path=Path(fixture["request"]))
-        with self.assertRaisesRegex(ManifestError, "already exists|replay"):
-            subject.execute(Path(fixture["root"]), request_path=Path(fixture["request"]))
+        subject.begin_handoff(Path(fixture["root"]), request_path=Path(fixture["request"]))
+        with self.assertRaisesRegex(ManifestError, "attempt already exists|replay"):
+            subject.begin_handoff(Path(fixture["root"]), request_path=Path(fixture["request"]))
         alternate = Path(fixture["root"]).parent / "alternate.git"
         subprocess.run(["git", "init", "--bare", "-q", str(alternate)], check=True)
+        git(Path(fixture["root"]), "--no-replace-objects", "push", "--", "origin", f"{fixture['candidate_a']}:refs/heads/codex/test")
+        subject.recover_uncertain(Path(fixture["root"]), request_path=Path(fixture["request"]))
         git(Path(fixture["root"]), "remote", "set-url", "--push", "origin", str(alternate))
         with self.assertRaisesRegex(ManifestError, "endpoint|configured push"):
             subject.verify_receipt(Path(fixture["root"]), request_path=Path(fixture["request"]))
@@ -264,7 +307,6 @@ class ArchiveFirstPushTests(unittest.TestCase):
         with self.assertRaisesRegex(ManifestError, "anchor|external"):
             subject.prepare(
                 Path(fixture["root"]), archive_path=Path(fixture["archive"]), remote="origin",
-                authorization_source="user: approve and push archive candidate", authorization_ref="ticket:ANCHOR",
                 request_path=Path(fixture["request"]), attempt_path=Path(fixture["attempt"]),
                 receipt_path=Path(fixture["receipt"]), archive_anchor=inside,
             )
@@ -438,6 +480,109 @@ class ArchiveFirstPushTests(unittest.TestCase):
             a = git(root, "rev-parse", "HEAD")
             with self.assertRaisesRegex(ManifestError, "ARCHIVE_RECEIPT|archived RUN|direct non-merge"):
                 subject.verify_archive_candidate(root, archive_path=root / "docs/goal/archived/20260913-run-1", candidate_a=a)
+
+    def test_push_verifier_rejects_git_replace_refs_before_authority_reads(self) -> None:
+        fixture = self._fixture()
+        root = Path(fixture["root"])
+        git(root, "update-ref", f"refs/replace/{fixture['candidate_a']}", str(fixture["candidate_c"]))
+        with self.assertRaisesRegex(ManifestError, "replacement refs"):
+            subject.verify_archive_candidate(root, archive_path=Path(fixture["archive"]), candidate_a=str(fixture["candidate_a"]))
+
+    def test_published_a_preview_failure_uses_replacement_c2_a2_lineage(self) -> None:
+        fixture = self._fixture()
+        root = Path(fixture["root"])
+        candidate_a = str(fixture["candidate_a"])
+        git(root, "--no-replace-objects", "push", "--", "origin", f"{candidate_a}:refs/heads/codex/test")
+
+        def read_manifest(path: Path, wrapper: str) -> dict[str, object]:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            start = next(index for index, line in enumerate(lines) if line.strip() == "```json") + 1
+            end = next(index for index in range(start, len(lines)) if lines[index].strip() == "```")
+            return json.loads("\n".join(lines[start:end]))[wrapper]
+
+        from manifest_fixtures import manifest_markdown
+
+        archive = Path(fixture["archive"])
+        plan = read_manifest(archive / "PLAN.md", "harness_plan")
+        plan = copy.deepcopy(plan)
+        plan["plan_id"] = "PLAN-REPLACEMENT-001"
+        plan["revision"] = 1
+        prior_receipt = archive / "ARCHIVE_RECEIPT.json"
+        plan["sources"].append(
+            {
+                "id": "SRC-PRIOR-ARCHIVE-A",
+                "kind": "prior archive candidate",
+                "location": prior_receipt.relative_to(root).as_posix(),
+                "owner": "fixture",
+                "status": "frozen",
+                "content_sha256": hashlib.sha256(prior_receipt.read_bytes()).hexdigest(),
+                "source_revision": candidate_a,
+                "staged_revision": None,
+                "notes": "failed preview correction lineage",
+            }
+        )
+        goal = root / "docs" / "goal"
+        (root / "repair.txt").write_text("preview repair\n", encoding="utf-8")
+        git(root, "add", "repair.txt")
+        git(root, "commit", "-qm", "replacement repair C2")
+        repair_head = git(root, "rev-parse", "HEAD")
+        run = mf.valid_run(plan)
+        run["run_id"] = "RUN-REPLACEMENT-001"
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"].update(
+            {"harness_version": "0.38.0", "required_harness_version": "0.38.0"}
+        )
+        run["integration"].update(
+            {
+                "branch": "codex/test",
+                "batch_base_sha": candidate_a,
+                "integration_head_sha": repair_head,
+            }
+        )
+        mf.mark_complete(plan, run)
+        run["observed"]["git"].update(
+            {
+                "parent_head_sha": repair_head,
+                "parent_branch": "codex/test",
+                "parent_dirty": False,
+            }
+        )
+        (goal / "PLAN.md").write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
+        (goal / "RUN.md").write_text(manifest_markdown("## Harness Run State", "harness_run", run), encoding="utf-8")
+        c2 = repair_head
+        self.assertEqual(c2, repair_head)
+        anchor2 = root.parent / f"archive-anchor-replacement-{root.name}.json"
+        self._anchors.append(anchor2)
+        archive_result = subprocess.run([
+            sys.executable, str(SCRIPTS / "archive_run.py"), "--repo-root", str(root), "--apply",
+            "--stamp", "20260913-000001", "--expected-main", str(fixture["candidate_c"]),
+            "--main-ref", "refs/heads/main", "--anchor-out", str(anchor2),
+        ], capture_output=True, text=True)
+        if archive_result.returncode != 0:
+            self.fail(archive_result.stdout + archive_result.stderr)
+        archive2 = next(path for path in (root / "docs/goal/archived").iterdir() if path.name.startswith("20260913-000001"))
+        git(root, "add", ".")
+        git(root, "commit", "-qm", "archive replacement A2")
+        a2 = git(root, "rev-parse", "HEAD")
+        request = root.parent / f"replacement-request-{root.name}.json"
+        attempt = root.parent / f"replacement-attempt-{root.name}.json"
+        receipt = root.parent / f"replacement-receipt-{root.name}.json"
+        prepared = subject.prepare(root, archive_path=archive2, remote="origin", request_path=request, attempt_path=attempt, receipt_path=receipt, archive_anchor=anchor2)
+        self.assertEqual(candidate_a, prepared["replacement_base"])
+        self.assertEqual(candidate_a, prepared["remote_pre_push_head"])
+        subject.begin_handoff(root, request_path=request)
+        git(root, "--no-replace-objects", "push", "--", "origin", f"{a2}:refs/heads/codex/test")
+        completed = subject.recover_uncertain(root, request_path=request)
+        self.assertEqual("PASS", completed["status"])
+        self.assertEqual(a2, completed["candidate_a"])
+
+        # A non-ancestor/incorrect continuation pre-state is rejected even
+        # though the archive and anchor themselves remain valid.
+        wrong = root.parent / f"replacement-wrong-request-{root.name}.json"
+        wrong_attempt = root.parent / f"replacement-wrong-attempt-{root.name}.json"
+        wrong_receipt = root.parent / f"replacement-wrong-receipt-{root.name}.json"
+        git(root, "--no-replace-objects", "push", "--force", "--", "origin", f"{fixture['candidate_c']}:refs/heads/codex/test")
+        with self.assertRaisesRegex(ManifestError, "remote pre-state"):
+            subject.prepare(root, archive_path=archive2, remote="origin", request_path=wrong, attempt_path=wrong_attempt, receipt_path=wrong_receipt, archive_anchor=anchor2)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_design_contract import validate_design_system_registry
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_core import (
     _add,
     read_git_blob,
@@ -845,6 +846,7 @@ def validate_ui_surface_design_registry(
         return errors
     required_states = {state.strip() for state in state_matrix}
 
+    surface_contracts = registry.get("surfaceContracts")
     has_viewports = "viewports" in registry
     has_size_classes = "sizeClasses" in registry
     viewports = registry.get("viewports")
@@ -870,7 +872,7 @@ def validate_ui_surface_design_registry(
     )
     responsive_kind: str | None = None
     responsive_values: list[str] = []
-    if (
+    if not isinstance(surface_contracts, dict) and (
         has_viewports == has_size_classes
         or (has_viewports and not valid_viewports)
         or (has_size_classes and not valid_size_classes)
@@ -881,12 +883,16 @@ def validate_ui_surface_design_registry(
             "must define exactly one non-empty unique responsive set with at least "
             "two targets: viewports or sizeClasses",
         )
-    elif has_viewports:
+    elif not isinstance(surface_contracts, dict) and has_viewports:
         responsive_kind = "viewports"
         responsive_values = [_viewport_label(value) for value in viewports]
-    else:
+    elif not isinstance(surface_contracts, dict):
         responsive_kind = "sizeClasses"
         responsive_values = list(size_classes)
+
+    if isinstance(surface_contracts, dict):
+        responsive_kind = None
+        responsive_values = []
 
     surfaces = plan.get("ui_surfaces")
     if isinstance(surfaces, dict):
@@ -905,6 +911,29 @@ def validate_ui_surface_design_registry(
             continue
         surface_label = surface_id if _nonempty_string(surface_id) else str(index)
         plan_path = f"plan.ui_surfaces[{surface_label}]"
+        surface_responsive_kind = responsive_kind
+        surface_responsive_values = responsive_values
+        if isinstance(surface_contracts, dict):
+            contract = surface_contracts.get(surface_id)
+            if not isinstance(contract, dict):
+                _add(errors, plan_path, "surface is missing from design-system.json surfaceContracts")
+            else:
+                for plan_key, contract_key in (
+                    ("release_surface", "releaseSurface"),
+                    ("surface_class", "surfaceClass"),
+                    ("capture_mode", "captureMode"),
+                ):
+                    if plan_key in surface and surface.get(plan_key) != contract.get(contract_key):
+                        _add(errors, plan_path, f"{plan_key} differs from design-system.json surfaceContracts")
+                responsive = contract.get("responsive")
+                if isinstance(responsive, dict):
+                    surface_responsive_kind = responsive.get("kind")
+                    values = responsive.get("targets")
+                    surface_responsive_values = (
+                        [_viewport_label(value) for value in values]
+                        if surface_responsive_kind == "viewports" and isinstance(values, list)
+                        else list(values) if isinstance(values, list) else []
+                    )
 
         states = surface.get("states")
         covered_states: set[str] = set()
@@ -927,10 +956,10 @@ def validate_ui_surface_design_registry(
             if isinstance(breakpoints, list)
             else []
         )
-        if responsive_kind == "viewports":
+        if surface_responsive_kind == "viewports":
             missing_responsive = [
                 value
-                for value in responsive_values
+                for value in surface_responsive_values
                 if not any(
                     _breakpoint_matches_viewport(breakpoint, value)
                     for breakpoint in covered_breakpoints
@@ -941,15 +970,15 @@ def validate_ui_surface_design_registry(
                 for breakpoint in covered_breakpoints
                 if not any(
                     _breakpoint_matches_viewport(breakpoint, value)
-                    for value in responsive_values
+                for value in surface_responsive_values
                 )
             ]
-        elif responsive_kind == "sizeClasses":
+        elif surface_responsive_kind == "sizeClasses":
             missing_responsive = [
-                value for value in responsive_values if value not in covered_breakpoints
+                value for value in surface_responsive_values if value not in covered_breakpoints
             ]
             extra_responsive = [
-                value for value in covered_breakpoints if value not in responsive_values
+                value for value in covered_breakpoints if value not in surface_responsive_values
             ]
         else:
             missing_responsive = []
@@ -1150,14 +1179,29 @@ def validate_integration_head_against_git(
     path = "run.integration.integration_head_sha"
     errors: list[str] = []
 
+    try:
+        reject_object_substitution(Path(repo_root))
+    except (GitMetadataError, OSError) as exc:
+        detail = str(exc)
+        if "not a git repository" in detail.casefold():
+            detail = (
+                f"--repo-root {repo_root} is not a Git checkout "
+                "(pass the correct --repo-root)"
+            )
+        _add(
+            errors,
+            path,
+            f"could not be verified against live Git: {detail}",
+        )
+        return sorted(set(errors))
+
     def _run_git(*args: str) -> subprocess.CompletedProcess[str] | None:
         # Every git call on this path must degrade into an error entry, never a
         # traceback: this validator's whole job is to report problems as data.
         try:
-            return subprocess.run(
-                ["git", *args],
-                cwd=repo_root,
-                capture_output=True,
+            return run_git(
+                Path(repo_root),
+                *args,
                 text=True,
                 timeout=10,
             )

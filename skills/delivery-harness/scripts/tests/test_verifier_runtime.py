@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 import sys
@@ -24,11 +25,11 @@ from verifier_runtime import (  # noqa: E402
     CACHE_BANNED_LAYERS,
     PROTOCOL,
     VerifierRuntimeError,
-    build_execution_key,
+    build_execution_key as _build_execution_key,
     protected_path_sha256,
     probe_plan_sandboxes,
     run_verifier_batch,
-    run_verifier,
+    run_verifier as _run_verifier,
 )
 
 
@@ -126,6 +127,44 @@ def verifier(counter: Path, *, identifier: str = "focused") -> dict[str, object]
     }
 
 
+def sandbox_preflight(declaration: dict[str, object]) -> dict[str, object]:
+    execution = declaration["execution"]
+    assert isinstance(execution, dict)
+    policy = execution["sandbox"]
+    assert isinstance(policy, dict)
+    executable = Path(sys.executable).resolve()
+    return {
+        "runtime": policy["runtime"],
+        "image": policy["image"],
+        "repo_digest": policy["image"],
+        "runtime_probe": {
+            "executable": str(executable),
+            "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+            "version_output_sha256": "2" * 64,
+        },
+    }
+
+
+def run_verifier(
+    declaration: dict[str, object],
+    verifier_context: dict[str, object],
+    **kwargs: object,
+) -> dict[str, object]:
+    """Test adapter that supplies the required recorded preflight."""
+
+    kwargs.setdefault("sandbox_preflight", sandbox_preflight(declaration))
+    return _run_verifier(declaration, verifier_context, **kwargs)
+
+
+def build_execution_key(
+    declaration: dict[str, object],
+    verifier_context: dict[str, object],
+    **kwargs: object,
+) -> tuple[str, dict[str, object]]:
+    kwargs.setdefault("sandbox_preflight", sandbox_preflight(declaration))
+    return _build_execution_key(declaration, verifier_context, **kwargs)
+
+
 class VerifierRuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -176,6 +215,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         argv: list[str],
         policy: dict[str, object],
         timeout_seconds: float,
+        sandbox_preflight: dict[str, object] | None = None,
     ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
         execution_cwd = (snapshot_root / declared_cwd).resolve()
         environment = dict(os.environ)
@@ -192,11 +232,12 @@ class VerifierRuntimeTests(unittest.TestCase):
             timeout=timeout_seconds,
         )
         image = str(policy["image"])
+        assert isinstance(sandbox_preflight, dict)
         return completed, {
             "runtime": str(policy["runtime"]),
-            "runtime_probe": "fixture-runtime",
+            "runtime_probe": sandbox_preflight["runtime_probe"],
             "image": image,
-            "image_probe": image,
+            "image_probe": sandbox_preflight["repo_digest"],
             "policy": policy,
             "mount": {
                 "source": "git_archive",
@@ -212,6 +253,18 @@ class VerifierRuntimeTests(unittest.TestCase):
 
     def read_count(self, counter: Path) -> int:
         return int(counter.read_text(encoding="utf-8"))
+
+    def test_container_execution_requires_the_bound_preflight(self) -> None:
+        with self.assertRaisesRegex(
+            VerifierRuntimeError,
+            "exact sandbox preflight entry",
+        ):
+            _run_verifier(
+                verifier(self.root / "counter.txt"),
+                context(),
+                checkout_root=self.checkout,
+                environment=self.environment,
+            )
 
     def test_git_guard_rejects_tracked_file_changes_restored_during_execution(self) -> None:
         subprocess.run(
@@ -385,6 +438,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             _argv: list[str],
             policy: dict[str, object],
             _timeout_seconds: float,
+            sandbox_preflight: dict[str, object] | None = None,
         ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
             calls.append(str(policy["runtime"]))
             image = str(policy["image"])
@@ -479,6 +533,123 @@ class VerifierRuntimeTests(unittest.TestCase):
                     self.assertEqual([], probe_plan_sandboxes(plan))
         which.assert_called_once_with("docker")
         self.assertEqual(run.call_count, 2)
+
+    def test_sandbox_runtime_path_switch_is_rejected_before_run(self) -> None:
+        patch.stopall()
+        from verifier_runtime import _run_container_verifier
+        runtime_a = self.root / "runtime-a"
+        runtime_b = self.root / "runtime-b"
+        runtime_a.write_bytes(b"runtime-a")
+        runtime_b.write_bytes(b"runtime-b")
+        policy = container_execution()["sandbox"]
+        preflight = {
+            "runtime": "docker",
+            "image": policy["image"],
+            "repo_digest": policy["image"],
+            "runtime_probe": {
+                "executable": str(runtime_a),
+                "executable_sha256": hashlib.sha256(runtime_a.read_bytes()).hexdigest(),
+                "version_output_sha256": hashlib.sha256(b"version-a").hexdigest(),
+            },
+        }
+        with patch("verifier_runtime.shutil.which", return_value=str(runtime_b)):
+            with self.assertRaisesRegex(VerifierRuntimeError, "executable changed"):
+                _run_container_verifier(
+                    self.checkout,
+                    self.checkout,
+                    ".",
+                    ["python", "-c", "pass"],
+                    policy,
+                    5,
+                    sandbox_preflight=preflight,
+                )
+
+    def test_sandbox_runtime_hash_version_and_repo_digest_drift_fail_closed(self) -> None:
+        patch.stopall()
+        from verifier_runtime import _run_container_verifier
+
+        runtime = self.root / "runtime"
+        original = b"trusted-runtime"
+        runtime.write_bytes(original)
+        policy = container_execution()["sandbox"]
+        version_output = "version-a"
+        preflight = {
+            "runtime": "docker",
+            "image": policy["image"],
+            "repo_digest": policy["image"],
+            "runtime_probe": {
+                "executable": str(runtime.resolve()),
+                "executable_sha256": hashlib.sha256(original).hexdigest(),
+                "version_output_sha256": hashlib.sha256(
+                    version_output.encode("utf-8")
+                ).hexdigest(),
+            },
+        }
+
+        runtime.write_bytes(b"substituted-runtime")
+        with patch("verifier_runtime.shutil.which", return_value=str(runtime)), patch(
+            "verifier_runtime.subprocess.run"
+        ) as invoked:
+            with self.assertRaisesRegex(VerifierRuntimeError, "executable changed"):
+                _run_container_verifier(
+                    self.checkout,
+                    self.checkout,
+                    ".",
+                    ["python", "-c", "pass"],
+                    policy,
+                    5,
+                    sandbox_preflight=preflight,
+                )
+            invoked.assert_not_called()
+
+        runtime.write_bytes(original)
+        wrong_version = subprocess.CompletedProcess(
+            args=[str(runtime), "version"],
+            returncode=0,
+            stdout="version-b",
+            stderr="",
+        )
+        with patch("verifier_runtime.shutil.which", return_value=str(runtime)), patch(
+            "verifier_runtime.subprocess.run", return_value=wrong_version
+        ):
+            with self.assertRaisesRegex(VerifierRuntimeError, "version output changed"):
+                _run_container_verifier(
+                    self.checkout,
+                    self.checkout,
+                    ".",
+                    ["python", "-c", "pass"],
+                    policy,
+                    5,
+                    sandbox_preflight=preflight,
+                )
+
+        version_ok = subprocess.CompletedProcess(
+            args=[str(runtime), "version"],
+            returncode=0,
+            stdout=version_output,
+            stderr="",
+        )
+        other_repo = "other@" + str(policy["image"]).rsplit("@", 1)[-1]
+        inspect_other = subprocess.CompletedProcess(
+            args=[str(runtime), "image", "inspect"],
+            returncode=0,
+            stdout=json.dumps([other_repo]),
+            stderr="",
+        )
+        with patch("verifier_runtime.shutil.which", return_value=str(runtime)), patch(
+            "verifier_runtime.subprocess.run",
+            side_effect=[version_ok, inspect_other],
+        ):
+            with self.assertRaisesRegex(VerifierRuntimeError, "RepoDigest changed"):
+                _run_container_verifier(
+                    self.checkout,
+                    self.checkout,
+                    ".",
+                    ["python", "-c", "pass"],
+                    policy,
+                    5,
+                    sandbox_preflight=preflight,
+                )
 
     def test_git_guard_rejects_changes_to_an_ignored_coordination_file(self) -> None:
         subprocess.run(
@@ -968,6 +1139,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             "checkout_root": str(self.checkout),
             "cache_root": None,
             "timeout_seconds": 5,
+            "sandbox_preflight": sandbox_preflight(candidate),
         }
 
     def test_parallel_batch_runs_independent_opted_in_verifiers_together(self) -> None:

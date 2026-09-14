@@ -17,6 +17,8 @@ from harness_manifest import AUTHORIZATION_KEYS, plan_digest  # noqa: E402
 from harness_schema import (  # noqa: E402
     CURRENT_PLAN_SCHEMA_VERSION,
     CURRENT_RUN_SCHEMA_VERSION,
+    run_required_harness_version,
+    version_at_least,
 )
 
 
@@ -955,17 +957,25 @@ def mark_complete(plan: dict[str, object], run: dict[str, object]) -> None:
         )
     }
     authorize_execution(run, mission_ids, status="complete")
+    existing_version_gate = (
+        run.get("runtime_capabilities", {})
+        .get("runtime_adapter", {})
+        .get("version_gate")
+    )
+    runtime_adapter = {
+        "provider": "codex",
+        "available_drivers": ["subagents", "sequential_parent"],
+        "detection_source": "fallback",
+    }
+    if isinstance(existing_version_gate, dict):
+        runtime_adapter["version_gate"] = existing_version_gate
     run["runtime_capabilities"].update(
         {
             "worker_runtime": "subagent",
             "workspace_mode": "parent_managed_worktree",
             "completion_channel": "agent_result",
             "max_parallel_workers": len(mission_ids),
-            "runtime_adapter": {
-                "provider": "codex",
-                "available_drivers": ["subagents", "sequential_parent"],
-                "detection_source": "fallback",
-            },
+            "runtime_adapter": runtime_adapter,
         }
     )
     run["observed"]["runtime"].update(
@@ -1293,6 +1303,9 @@ def retained_gate_execution(
     head_sha: str | None = None,
     checkout_role: str = "integration",
 ) -> dict[str, object]:
+    strict_runtime = version_at_least(
+        run_required_harness_version(run), (0, 38, 0)
+    )
     changed_files: list[str] = []
     execution_head = head_sha or run["integration"]["integration_head_sha"]
     context = {
@@ -1325,8 +1338,13 @@ def retained_gate_execution(
         "execution": declaration["execution"],
         "cache": declared_cache,
     }
+    protocol = (
+        "harness-verifier-execution-v2"
+        if strict_runtime
+        else "harness-verifier-execution-v1"
+    )
     key_document = {
-        "protocol": "harness-verifier-execution-v1",
+        "protocol": protocol,
         "verifier_id": declaration["id"],
         "layer": layer,
         "mission_id": mission_id,
@@ -1359,6 +1377,72 @@ def retained_gate_execution(
         },
         "environment_digests": {},
     }
+    sandbox_attestation: dict[str, object] | None = None
+    git_guard_attestation: dict[str, object] | None = None
+    if strict_runtime:
+        for logical_key in (
+            "verifier_id",
+            "layer",
+            "mission_id",
+            "task_id",
+            "attempt_id",
+            "lease_id",
+        ):
+            key_document.pop(logical_key)
+        observed_entries = run.get("observed", {}).get("sandbox", {}).get("entries", [])
+        policy = declaration["execution"]["sandbox"]
+        preflight = next(
+            entry
+            for entry in observed_entries
+            if entry.get("runtime") == policy.get("runtime")
+            and entry.get("image") == policy.get("image")
+        )
+        preflight = json.loads(json.dumps(preflight))
+        key_document.update(
+            {
+                "read_only": declaration.get("read_only", False),
+                "execution": declaration["execution"],
+                "sandbox_preflight": preflight,
+            }
+        )
+        sandbox_attestation = {
+            "runtime": preflight["runtime"],
+            "runtime_probe": json.loads(json.dumps(preflight["runtime_probe"])),
+            "image": preflight["image"],
+            "image_probe": preflight["repo_digest"],
+            "policy": json.loads(json.dumps(policy)),
+            "mount": {
+                "source": "git_archive",
+                "destination": "/workspace",
+                "read_only": True,
+            },
+            "network": "none",
+        }
+        if layer in {"task", "worker"}:
+            bound_worker = next(
+                worker
+                for worker in run.get("workers", [])
+                if worker.get("mission_id") == mission_id
+                and worker.get("lease_id") == lease_id
+            )
+            git_guard_attestation = {
+                "checkout_root": bound_worker["worktree_path"],
+                "git_guard": {
+                    "expected_branch": str(bound_worker["branch_ref"]).removeprefix(
+                        "refs/heads/"
+                    ),
+                    "expected_head_sha": execution_head,
+                    "ignored_paths": [],
+                },
+                "isolation_mode": "container",
+                "source_head_sha": execution_head,
+                "sandbox_attestation": json.loads(
+                    json.dumps(sandbox_attestation)
+                ),
+                "tracked_files": {},
+                "protected_path_sha256": {},
+                "protected_path_stats": {},
+            }
     execution_key = hashlib.sha256(
         json.dumps(
             key_document,
@@ -1376,7 +1460,7 @@ def retained_gate_execution(
         "task_id": task_id,
         "attempt_id": attempt_id,
         "lease_id": lease_id,
-        "protocol": "harness-verifier-execution-v1",
+        "protocol": protocol,
         "execution_key": execution_key,
         "evidence_key": execution_key,
         "key_document": key_document,
@@ -1391,6 +1475,16 @@ def retained_gate_execution(
         "stdout_sha256": empty_digest,
         "stderr_sha256": empty_digest,
         "evidence_paths": [],
+        **(
+            {"sandbox_attestation": sandbox_attestation}
+            if sandbox_attestation is not None
+            else {}
+        ),
+        **(
+            {"git_guard_attestation": git_guard_attestation}
+            if git_guard_attestation is not None
+            else {}
+        ),
     }
 
 

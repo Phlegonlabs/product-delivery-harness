@@ -363,14 +363,35 @@ class WritePathTransitionTests(unittest.TestCase):
                 "attempt_id": attempt_id,
                 "lease_id": "LEASE-M1-RESULT",
             }
+            policy = declaration["execution"]["sandbox"]
+            sandbox_preflight = next(
+                copy.deepcopy(entry)
+                for entry in self.run["observed"]["sandbox"]["entries"]
+                if entry["runtime"] == policy["runtime"]
+                and entry["image"] == policy["image"]
+            )
             execution_key, key_document = build_execution_key(
                 declaration,
                 context,
                 checkout_root=worker_root,
                 environment={},
+                sandbox_preflight=sandbox_preflight,
             )
             normalized = copy.deepcopy(declaration)
             normalized.setdefault("cache", {"mode": "disabled", "environment_keys": []})
+            sandbox_attestation = {
+                "runtime": sandbox_preflight["runtime"],
+                "runtime_probe": copy.deepcopy(sandbox_preflight["runtime_probe"]),
+                "image": sandbox_preflight["image"],
+                "image_probe": sandbox_preflight["repo_digest"],
+                "policy": policy,
+                "mount": {
+                    "source": "git_archive",
+                    "destination": "/workspace",
+                    "read_only": True,
+                },
+                "network": "none",
+            }
             return {
                 "protocol": "harness-verifier-execution-v2",
                 "verifier_id": declaration["id"],
@@ -387,6 +408,7 @@ class WritePathTransitionTests(unittest.TestCase):
                 "cache_reason": "cache_disabled",
                 "duration_ms": 0,
                 "metrics": {"executed": 1, "reused": 0},
+                "sandbox_attestation": sandbox_attestation,
                 "git_guard_attestation": {
                     "checkout_root": str(worker_root.resolve()),
                     "git_guard": {
@@ -396,15 +418,7 @@ class WritePathTransitionTests(unittest.TestCase):
                     },
                     "isolation_mode": "container",
                     "source_head_sha": head,
-                    "sandbox_attestation": {
-                        "runtime": "docker",
-                        "runtime_probe": "fixture",
-                        "image": "fixture@sha256:" + "1" * 64,
-                        "image_probe": "fixture@sha256:" + "1" * 64,
-                        "policy": declaration["execution"]["sandbox"],
-                        "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
-                        "network": "none",
-                    },
+                    "sandbox_attestation": copy.deepcopy(sandbox_attestation),
                     "tracked_files": {},
                     "protected_path_sha256": {},
                     "protected_path_stats": {},

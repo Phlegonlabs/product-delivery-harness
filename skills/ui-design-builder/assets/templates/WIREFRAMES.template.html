@@ -1033,11 +1033,29 @@
       "use strict";
 
       const data = JSON.parse(document.getElementById("wireframe-data").textContent);
-      const responsiveKind = Array.isArray(data.viewports) ? "viewports" : "sizeClasses";
-      const responsiveTargets = data[responsiveKind].map(String);
+      const responsiveSpecFor = (screen) => {
+        const effectiveScreen = screen || data.screens[0];
+        const perSurface = effectiveScreen && data.responsiveBySurface?.[effectiveScreen.id];
+        if (perSurface) {
+          return {
+            kind: perSurface.kind,
+            targets: perSurface.targets.map(String),
+            canvasWidths: perSurface.canvasWidths
+          };
+        }
+        const kind = Array.isArray(data.viewports) ? "viewports" : "sizeClasses";
+        return {
+          kind,
+          targets: data[kind].map(String),
+          canvasWidths: data.canvasWidths
+        };
+      };
+      const initialPage = location.hash.slice(1) || "overview";
+      const initialScreen = data.screens.find((screen) => screen.id === initialPage) || data.screens[0];
+      const initialResponsive = responsiveSpecFor(initialScreen);
       const state = {
-        page: location.hash.slice(1) || "overview",
-        responsiveTarget: responsiveTargets[responsiveTargets.length - 1],
+        page: initialPage,
+        responsiveTarget: initialResponsive.targets[initialResponsive.targets.length - 1],
         screenState: "ready",
         inspectorOpen: false,
         selectedRegion: null
@@ -1078,6 +1096,8 @@
       const selectPage = (page) => {
         state.page = page;
         const screen = currentScreen();
+        const responsive = responsiveSpecFor(screen);
+        state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
         state.screenState = screen?.states?.[0]?.id || "ready";
         state.selectedRegion = null;
         state.inspectorOpen = false;
@@ -1104,10 +1124,18 @@
         });
       };
 
-      const activeLayout = (screen) => screen.responsiveLayouts[state.responsiveTarget];
+      const targetFor = (screen, requestedTarget = state.responsiveTarget) => {
+        const responsive = responsiveSpecFor(screen);
+        return responsive.targets.includes(String(requestedTarget))
+          ? String(requestedTarget)
+          : responsive.targets[responsive.targets.length - 1];
+      };
 
-      const regionOrder = (screen) => {
-        const layout = activeLayout(screen);
+      const activeLayout = (screen, requestedTarget = state.responsiveTarget) =>
+        screen.responsiveLayouts[targetFor(screen, requestedTarget)];
+
+      const regionOrder = (screen, requestedTarget = state.responsiveTarget) => {
+        const layout = activeLayout(screen, requestedTarget);
         const order = new Map(layout.order.map((id, index) => [id, index]));
         return [...screen.regions].sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999));
       };
@@ -1204,17 +1232,24 @@
         title.id = titleId;
         dialog.setAttribute("aria-labelledby", titleId);
         body.append(title, element("div", "eyebrow", "Overlay preview"), element("p", "", target.goal));
-        const targetLayout = target.responsiveLayouts[state.responsiveTarget];
+        const targetResponsive = responsiveSpecFor(target);
+        const targetResponsiveTarget = targetFor(target, state.responsiveTarget);
+        const targetLayout = target.responsiveLayouts[targetResponsiveTarget];
         const targetState = target.states[0];
         const hidden = new Set(targetLayout.hidden);
         const overlayCanvas = element("div", "wireframe");
         overlayCanvas.setAttribute("role", "group");
         overlayCanvas.style.gridTemplateColumns = `repeat(${targetLayout.columns}, minmax(0, 1fr))`;
+        const targetCanvasWidth = targetResponsive.canvasWidths[targetResponsiveTarget];
+        if (targetCanvasWidth !== undefined) {
+          overlayCanvas.style.width = `min(100%, ${targetCanvasWidth}px)`;
+          overlayCanvas.style.maxWidth = `${targetCanvasWidth}px`;
+        }
         overlayCanvas.setAttribute(
           "aria-label",
-          `${target.name} overlay, ${state.responsiveTarget}, ${targetState.id}`
+          `${target.name} overlay, ${targetResponsiveTarget}, ${targetState.id}`
         );
-        regionOrder(target)
+        regionOrder(target, targetResponsiveTarget)
           .filter((region) => !hidden.has(region.id))
           .forEach((region) => overlayCanvas.append(renderRegion(target.id, region, targetState, targetLayout, false)));
         body.append(overlayCanvas);
@@ -1496,8 +1531,14 @@
 
       const renderResponsiveControls = () => {
         responsiveControls.replaceChildren();
-        responsiveTargets.forEach((target) => {
-          const suffix = responsiveKind === "viewports" ? "px" : "";
+        const screen = currentScreen();
+        if (!screen) return;
+        const responsive = responsiveSpecFor(screen);
+        if (!responsive.targets.includes(state.responsiveTarget)) {
+          state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
+        }
+        responsive.targets.forEach((target) => {
+          const suffix = responsive.kind === "viewports" ? "px" : "";
           const button = element("button", "control", `${target}${suffix}`);
           button.type = "button";
           button.setAttribute("data-responsive-target", target);
@@ -1516,8 +1557,22 @@
         Math.min(left.right, right.right) - Math.max(left.left, right.left) > 1 &&
         Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top) > 1;
 
+      let qaGeneration = 0;
       const runLayoutQa = (canvas, shell, panel, screen) => {
+        const generation = ++qaGeneration;
+        const qaScreen = screen;
+        const qaTarget = targetFor(screen);
+        const qaState = state.screenState;
         requestAnimationFrame(() => {
+          if (
+            generation !== qaGeneration ||
+            !canvas.isConnected ||
+            !shell.isConnected ||
+            !panel.isConnected ||
+            currentScreen() !== qaScreen ||
+            targetFor(qaScreen) !== qaTarget ||
+            state.screenState !== qaState
+          ) return;
           const regions = [...canvas.querySelectorAll(":scope > [data-region]")];
           const collisions = [];
           for (let leftIndex = 0; leftIndex < regions.length; leftIndex += 1) {
@@ -1560,7 +1615,9 @@
               );
             }
           });
-          const expectedCanvasWidth = Number(data.canvasWidths[state.responsiveTarget]);
+          const expectedCanvasWidth = Number(
+            responsiveSpecFor(qaScreen).canvasWidths[qaTarget]
+          );
           const actualCanvasWidth = shell.getBoundingClientRect().width;
           const canvasWidthMismatch = Math.abs(actualCanvasWidth - expectedCanvasWidth) > 1;
           const failures = [
@@ -1583,7 +1640,7 @@
             : "Layout QA passed — no overlap, overflow, or clipped product copy";
           window.wireframeQaResults ||= {};
           window.wireframeQaResults[
-            `${screen.id}|${state.responsiveTarget}|${state.screenState}`
+            `${qaScreen.id}|${qaTarget}|${qaState}`
           ] = {
             status,
             collisions,
@@ -1633,8 +1690,9 @@
           element("p", "", screen.goal)
         );
         const metadata = element("div", "metadata");
+        const responsive = responsiveSpecFor(screen);
         const rows = [
-          [responsiveKind === "viewports" ? "Viewport" : "Size class", state.responsiveTarget],
+          [responsive.kind === "viewports" ? "Viewport" : "Size class", state.responsiveTarget],
           ["State", state.screenState],
           ["Sections", String(screen.regions.length)],
           ["Copy", screen.copyStatus || "legacy"]
@@ -1654,7 +1712,7 @@
 
         const layout = activeLayout(screen);
         const shell = element("div", "canvas-shell");
-        shell.style.width = `min(100%, ${data.canvasWidths[state.responsiveTarget]}px)`;
+        shell.style.width = `min(100%, ${responsive.canvasWidths[state.responsiveTarget]}px)`;
         const canvas = element("div", "wireframe");
         canvas.setAttribute("role", "group");
         canvas.style.gridTemplateColumns = `repeat(${layout.columns}, minmax(0, 1fr))`;
@@ -1763,6 +1821,10 @@
       window.addEventListener("hashchange", () => {
         state.page = location.hash.slice(1) || "overview";
         const screen = currentScreen();
+        if (screen) {
+          const responsive = responsiveSpecFor(screen);
+          state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
+        }
         state.screenState = screen?.states?.[0]?.id || "ready";
         state.selectedRegion = null;
         setInspectorOpen(false);

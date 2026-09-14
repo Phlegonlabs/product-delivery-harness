@@ -7,6 +7,15 @@ SKILL_ROOT = Path(__file__).resolve().parents[2]
 
 
 class UiDesignBuilderSkillContractTests(unittest.TestCase):
+    def test_wireframe_runtime_uses_target_context_and_discards_stale_qa(self):
+        template = self.read("assets/templates/WIREFRAMES.template.html")
+        self.assertIn("targetResponsiveTarget", template)
+        self.assertIn("targetCanvasWidth", template)
+        self.assertIn("regionOrder(target, targetResponsiveTarget)", template)
+        self.assertIn("qaGeneration", template)
+        self.assertIn("generation !== qaGeneration", template)
+        self.assertIn("canvas.isConnected", template)
+
     def read(self, relative: str) -> str:
         return (SKILL_ROOT / relative).read_text(encoding="utf-8")
 

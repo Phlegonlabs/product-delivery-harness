@@ -1449,6 +1449,63 @@ def validate_texts(
         architecture_text,
         problems=problems,
     )
+    release_contract, _release_findings = parse_release_targets(architecture_text)
+    capture_mode_by_class = {
+        "hosted_web": "hosted-browser",
+        "browser_extension": "browser-extension",
+        "ios": "native",
+        "android": "native",
+        "macos": "desktop",
+        "windows": "desktop",
+    }
+    for surface_id, surface in ui_surfaces.items():
+        binding_fields = ("releaseSurface", "surfaceClass", "captureMode")
+        if require_filled:
+            for field in binding_fields:
+                if not surface.get(field):
+                    _add(
+                        problems,
+                        f"prd.{surface_id}.{field}",
+                        "is required for an implementation-ready UI surface",
+                    )
+        release_surface = surface.get("releaseSurface")
+        surface_class = surface.get("surfaceClass")
+        capture_mode = surface.get("captureMode")
+        if not release_surface:
+            continue
+        matching_targets = [
+            target
+            for target in release_contract.targets
+            if target.surface == release_surface
+        ]
+        if not matching_targets:
+            _add(
+                problems,
+                f"prd.{surface_id}.releaseSurface",
+                "does not resolve to an architecture Release Target surface",
+            )
+            continue
+        release_classes = {target.surface_class for target in matching_targets}
+        if len(release_classes) != 1 or surface_class not in release_classes:
+            _add(
+                problems,
+                f"prd.{surface_id}.surfaceClass",
+                "must equal the architecture Release Target surface class",
+            )
+            continue
+        expected_capture = capture_mode_by_class.get(surface_class)
+        if expected_capture is None:
+            _add(
+                problems,
+                f"prd.{surface_id}.surfaceClass",
+                "does not identify a supported shipped UI capture class",
+            )
+        elif capture_mode != expected_capture:
+            _add(
+                problems,
+                f"prd.{surface_id}.captureMode",
+                f"must be {expected_capture!r} for surfaceClass {surface_class!r}",
+            )
     if require_filled:
         _validate_architecture_sections(architecture_text, problems=problems)
 

@@ -113,6 +113,9 @@ async function agent(_prompt, options) {
             "web-app": "web",
             "public-api": "api",
             "ios-app": "ios",
+            "android-app": "android",
+            "macos-app": "macos",
+            "windows-app": "windows",
             "browser-extension": "extension",
         }
         canonical_name = f"fixture-{suffixes.get(surface, surface)}"
@@ -123,6 +126,9 @@ async function agent(_prompt, options) {
                 "web-app": "hosted_web",
                 "public-api": "hosted_api",
                 "ios-app": "ios",
+                "android-app": "android",
+                "macos-app": "macos",
+                "windows-app": "windows",
                 "browser-extension": "browser_extension",
             }.get(surface, "other_nonpublic"),
             "public_discoverability": "yes" if surface == "web-app" else "no",
@@ -249,7 +255,10 @@ async function agent(_prompt, options) {
         self.assertIn("<!-- ui-surface-contract:end -->", contract)
         self.assertIn("- `route`: [One literal route value", contract)
         self.assertIn("- `states`: [Comma-separated state IDs", contract)
-        self.assertIn("- `responsive`: [Exactly one responsive set", contract)
+        self.assertIn("- `responsive`: [This surface's exact responsive set", contract)
+        self.assertIn("- `releaseSurface`:", contract)
+        self.assertIn("- `surfaceClass`:", contract)
+        self.assertIn("- `captureMode`:", contract)
         self.assertIn("invariant machine anchors", contract)
         self.assertNotIn("wireframes.md", contract)
         self.assertIn("## UI Design Handoff Status", contract)
@@ -1404,6 +1413,75 @@ async function agent(_prompt, options) {
         self.assertTrue(result["ok"])
         self.assertEqual("candidate_ready", result["status"])
 
+    def test_workflow_accepts_web_ios_hybrid_release_targets(self) -> None:
+        workflow_args = self.base_workflow_args()
+        workflow_args.update(
+            {
+                "product_archetypes": ["hybrid"],
+                "browser_frontend": True,
+                "hosted_deployable": True,
+                "deployment_platform": "Cloudflare",
+                "deployable_surfaces": ["web-app", "ios-app"],
+                "mobile_desktop_platform": "native iOS",
+                "release_targets": [
+                    self.release_target("web-development", "web-app", "Cloudflare", "development", "exact candidate run branch head", "fixture-web-dev"),
+                    self.release_target("web-production", "web-app", "Cloudflare", "production", "main branch head after candidate PASS", "fixture-web"),
+                    self.release_target("ios-development", "ios-app", "TestFlight", "development", "exact candidate run branch head", "fixture-ios-dev"),
+                    self.release_target("ios-production", "ios-app", "App Store", "production", "main branch head after candidate PASS", "fixture-ios"),
+                ],
+            }
+        )
+        result = self.run_workflow(workflow_args)
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
+
+    def test_workflow_accepts_web_extension_hybrid_release_targets(self) -> None:
+        workflow_args = self.base_workflow_args()
+        workflow_args.update(
+            {
+                "product_archetypes": ["hybrid"],
+                "browser_frontend": True,
+                "hosted_deployable": True,
+                "deployment_platform": "Cloudflare",
+                "deployable_surfaces": ["web-app", "browser-extension"],
+                "release_targets": [
+                    self.release_target("web-development", "web-app", "Cloudflare", "development", "exact candidate run branch head", "fixture-web-dev"),
+                    self.release_target("web-production", "web-app", "Cloudflare", "production", "main branch head after candidate PASS", "fixture-web"),
+                    self.release_target("extension-development", "browser-extension", "Chrome Web Store test group", "development", "exact candidate run branch head", "fixture-extension-dev"),
+                    self.release_target("extension-production", "browser-extension", "Chrome Web Store", "production", "main branch head after candidate PASS", "fixture-extension"),
+                ],
+            }
+        )
+        result = self.run_workflow(workflow_args)
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
+
+    def test_workflow_accepts_api_android_and_desktop_release_targets(self) -> None:
+        workflow_args = self.base_workflow_args()
+        workflow_args.update(
+            {
+                "product_archetypes": ["hybrid"],
+                "browser_frontend": True,
+                "hosted_deployable": True,
+                "deployment_platform": "Cloudflare",
+                "deployable_surfaces": ["public-api", "android-app", "macos-app", "windows-app"],
+                "mobile_desktop_platform": "native Android; native macOS; native Windows",
+                "release_targets": [
+                    self.release_target("api-development", "public-api", "Cloudflare", "development", "exact candidate run branch head", "fixture-api-dev"),
+                    self.release_target("api-production", "public-api", "Cloudflare", "production", "main branch head after candidate PASS", "fixture-api"),
+                    self.release_target("android-development", "android-app", "Play Console", "development", "exact candidate run branch head", "fixture-android-dev"),
+                    self.release_target("android-production", "android-app", "Google Play", "production", "main branch head after candidate PASS", "fixture-android"),
+                    self.release_target("macos-development", "macos-app", "Developer ID", "development", "exact candidate run branch head", "fixture-macos-dev"),
+                    self.release_target("macos-production", "macos-app", "Mac App Store", "production", "main branch head after candidate PASS", "fixture-macos"),
+                    self.release_target("windows-development", "windows-app", "MSIX signing", "development", "exact candidate run branch head", "fixture-windows-dev"),
+                    self.release_target("windows-production", "windows-app", "Microsoft Store", "production", "main branch head after candidate PASS", "fixture-windows"),
+                ],
+            }
+        )
+        result = self.run_workflow(workflow_args)
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
+
     def test_workflow_rejects_release_name_reuse_across_surfaces(self) -> None:
         workflow_args = self.base_workflow_args()
         workflow_args.update(
@@ -1809,9 +1887,12 @@ async function agent(_prompt, options) {
         self.assertIn("does not already exist", skill)
         self.assertIn("preserve it byte-for-byte", skill)
         self.assertIn("one Outcome Coverage row for every PRD metric", skill)
-        self.assertIn("web, iOS, or browser-extension release target", skill)
-        self.assertIn("Leave Android, desktop, API-only", skill)
-        self.assertIn("supported active target set", skill)
+        self.assertIn("any release target with an activation scope", skill)
+        self.assertIn("api / backend", skill)
+        self.assertIn("android", skill)
+        self.assertIn("macos", skill)
+        self.assertIn("windows", skill)
+        self.assertIn("including hybrids", skill)
         self.assertIn("check_activation.py --activation", skill)
         self.assertIn("creates it only when absent", contract)
         self.assertIn("never stages, overwrites, archives, resets", contract)

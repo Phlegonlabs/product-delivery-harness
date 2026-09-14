@@ -93,6 +93,7 @@ from harness_core import (
     plan_digest,
     resolve_runtime_options,
     route_runtime_driver,
+    sandbox_execution_binding_errors,
     scope_contains,
     scope_overlap,
     topological_levels,
@@ -750,6 +751,8 @@ def _validate_plan_ui_surfaces(
                     # older PLAN-v6 manifests remain readable until paired
                     # with that RUN.
                     "capture_mode",
+                    "surface_class",
+                    "release_surface",
                 },
             ):
                 continue
@@ -794,6 +797,9 @@ def _validate_plan_ui_surfaces(
                 "desktop",
             }:
                 _add(errors, f"{path}.capture_mode", "has an unsupported value")
+            for optional_name in ("surface_class", "release_surface"):
+                if optional_name in surface and not _nonempty_string(surface[optional_name]):
+                    _add(errors, f"{path}.{optional_name}", "must be a non-empty string")
 
 
 def _validate_plan_risks(errors: list[str], plan: dict[str, Any]) -> None:
@@ -1507,7 +1513,13 @@ def _security_not_applicable_scope_errors(plan: dict[str, Any]) -> list[str]:
         if not isinstance(source, dict) or not isinstance(source.get("location"), str):
             continue
         source_kind = str(source.get("kind") or "").lower()
-        if source_kind in {"wireframe", "ui design", "design system", "design system machine"}:
+        if source_kind in {
+            "wireframe",
+            "ui design",
+            "design system",
+            "design system machine",
+            "prior archive candidate",
+        }:
             continue
         location = source["location"].replace("\\", "/").lower()
         if "://" not in location and not (
@@ -2357,6 +2369,17 @@ def _validate_verifier_executions(
         return
 
     verifier_owners = _verifier_owners(plan)
+    strict_sandbox_binding = version_at_least(
+        run_required_harness_version(run), (0, 38, 0)
+    )
+    observed_sandbox = run.get("observed", {}).get("sandbox", {})
+    observed_sandbox_entries = (
+        observed_sandbox.get("entries", [])
+        if isinstance(observed_sandbox, dict)
+        else []
+    )
+    if not isinstance(observed_sandbox_entries, list):
+        observed_sandbox_entries = []
 
     attempt_log = run.get("attempt_log")
     attempt_items = attempt_log if isinstance(attempt_log, list) else []
@@ -2409,11 +2432,11 @@ def _validate_verifier_executions(
     seen_execution_ids: set[str] = set()
     for index, item in enumerate(value):
         path = f"run.verifier_executions[{index}]"
-        optional_entry_keys = (
-            {"reservation", "dispatch_attestation", "git_guard_attestation"}
-            if run.get("schema_version") == 11
-            else set()
-        )
+        optional_entry_keys = {"sandbox_attestation"}
+        if run.get("schema_version") == 11:
+            optional_entry_keys.update(
+                {"reservation", "dispatch_attestation", "git_guard_attestation"}
+            )
         if not _keys(errors, path, item, entry_keys, optional_entry_keys):
             continue
         execution_id = item["execution_id"]
@@ -2577,15 +2600,10 @@ def _validate_verifier_executions(
                         f"{path}.dispatch_attestation",
                         "must match the persisted verifier request and checkout",
                     )
-        declared_container = (
-            isinstance(declaration, dict)
-            and isinstance(declaration.get("execution"), dict)
-            and declaration["execution"].get("isolation") == "container"
-        )
         if (
             run.get("schema_version") == 11
             and item.get("protocol") == "harness-verifier-execution-v2"
-            and (item.get("layer") in {"task", "worker"} or declared_container)
+            and item.get("layer") in {"task", "worker"}
         ):
             if not isinstance(git_guard_attestation, dict):
                 _add(
@@ -2668,7 +2686,11 @@ def _validate_verifier_executions(
                                 "must match the declared sandbox image",
                             )
                         for probe_key in ("runtime_probe", "image_probe"):
-                            if not isinstance(sandbox_attestation.get(probe_key), str) or not sandbox_attestation[probe_key].strip():
+                            probe_value = sandbox_attestation.get(probe_key)
+                            valid_probe = isinstance(probe_value, str) and bool(probe_value.strip())
+                            if probe_key == "runtime_probe" and isinstance(probe_value, dict):
+                                valid_probe = set(probe_value) == {"executable", "executable_sha256", "version_output_sha256"} and isinstance(probe_value.get("executable"), str) and bool(probe_value["executable"].strip()) and SHA256_RE.fullmatch(str(probe_value.get("executable_sha256"))) is not None and SHA256_RE.fullmatch(str(probe_value.get("version_output_sha256"))) is not None
+                            if not valid_probe:
                                 _add(
                                     errors,
                                     f"{path}.git_guard_attestation.sandbox_attestation.{probe_key}",
@@ -2826,6 +2848,12 @@ def _validate_verifier_executions(
             "harness-verifier-execution-v2",
         }:
             _add(errors, f"{path}.protocol", "has an unsupported value")
+        if strict_sandbox_binding and protocol != "harness-verifier-execution-v2":
+            _add(
+                errors,
+                f"{path}.protocol",
+                "Harness 0.38 verifier evidence must use execution protocol v2",
+            )
         execution_key = item["execution_key"]
         if not isinstance(execution_key, str) or SHA256_RE.fullmatch(execution_key) is None:
             _add(errors, f"{path}.execution_key", "must be a lowercase SHA-256 digest")
@@ -2868,7 +2896,21 @@ def _validate_verifier_executions(
         else:
             key_document_keys.add("read_only")
             key_document_keys.add("execution")
-        if _keys(errors, f"{path}.key_document", key_document, key_document_keys):
+            if strict_sandbox_binding:
+                key_document_keys.add("sandbox_preflight")
+        optional_key_document_keys = (
+            {"sandbox_preflight"}
+            if protocol == "harness-verifier-execution-v2"
+            and not strict_sandbox_binding
+            else set()
+        )
+        if _keys(
+            errors,
+            f"{path}.key_document",
+            key_document,
+            key_document_keys,
+            optional_key_document_keys,
+        ):
             encoded = json.dumps(
                 key_document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
             ).encode("utf-8")
@@ -3054,6 +3096,45 @@ def _validate_verifier_executions(
                     f"{path}.key_document.execution",
                     "must encode the verifier execution isolation policy",
                 )
+            if strict_sandbox_binding:
+                declared_sandbox = (
+                    expected_execution.get("sandbox")
+                    if isinstance(expected_execution, dict)
+                    else None
+                )
+                preflight = key_document.get("sandbox_preflight")
+                attestation = item.get("sandbox_attestation")
+                for issue in sandbox_execution_binding_errors(
+                    declared_sandbox,
+                    preflight,
+                    attestation,
+                ):
+                    _add(errors, f"{path}.sandbox_attestation", issue)
+                matches = [
+                    entry
+                    for entry in observed_sandbox_entries
+                    if isinstance(entry, dict)
+                    and isinstance(preflight, dict)
+                    and entry.get("runtime") == preflight.get("runtime")
+                    and entry.get("image") == preflight.get("image")
+                ]
+                if len(matches) != 1 or matches[0] != preflight:
+                    _add(
+                        errors,
+                        f"{path}.key_document.sandbox_preflight",
+                        "must equal the current PLAN-bound RUN sandbox observation",
+                    )
+                nested = (
+                    item.get("git_guard_attestation", {}).get("sandbox_attestation")
+                    if isinstance(item.get("git_guard_attestation"), dict)
+                    else None
+                )
+                if nested is not None and nested != attestation:
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation.sandbox_attestation",
+                        "must equal the retained top-level sandbox attestation",
+                    )
         if isinstance(key_document, dict) and any(
             key_document.get(key) != normalized_verifier[key]
             for key in ("cwd", "argv", "pass_signal")

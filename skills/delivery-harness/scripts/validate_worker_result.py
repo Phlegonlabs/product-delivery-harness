@@ -7,12 +7,17 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-from harness_core import _normalized_branch, changed_files_digest
+from harness_core import (
+    _normalized_branch,
+    changed_files_digest,
+    sandbox_execution_binding_errors,
+)
+from harness_schema import run_required_harness_version, version_at_least
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
     ManifestError,
     NESTED_SUBAGENT_ROLES,
@@ -127,10 +132,14 @@ def _observe_git_worker(
         raise ManifestError("live worker observation requires one mission/lease worker")
     worker = matches[0]
     root = Path(repo_root).resolve()
-    top = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=root,
-        capture_output=True,
+    try:
+        reject_object_substitution(root)
+    except (GitMetadataError, OSError) as exc:
+        raise ManifestError(str(exc)) from exc
+    top = run_git(
+        root,
+        "rev-parse",
+        "--show-toplevel",
         text=True,
         check=False,
         timeout=30,
@@ -142,9 +151,7 @@ def _observe_git_worker(
         raise ManifestError("--repo-root does not match the bound worker worktree")
 
     def git(*args: str, text: bool = True) -> str | bytes:
-        completed = subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=text, check=False, timeout=30
-        )
+        completed = run_git(root, *args, text=text, check=False, timeout=30)
         if completed.returncode != 0:
             detail = completed.stderr if text else completed.stderr.decode(errors="replace")
             raise ManifestError(f"git {' '.join(args)} failed: {str(detail).strip()}")
@@ -158,10 +165,12 @@ def _observe_git_worker(
     base = worker.get("batch_base_sha")
     if not is_full_sha(base) or not is_full_sha(head):
         raise ManifestError("live worker base/head must be full Git SHAs")
-    ancestry = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", base, head],
-        cwd=root,
-        capture_output=True,
+    ancestry = run_git(
+        root,
+        "merge-base",
+        "--is-ancestor",
+        base,
+        head,
         text=True,
         check=False,
         timeout=30,
@@ -182,10 +191,11 @@ def _observe_git_worker(
         for token in tokens[index : index + count]:
             changed.add(token.decode("utf-8").replace("\\", "/"))
         index += count
-    status = subprocess.run(
-        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-        cwd=root,
-        capture_output=True,
+    status = run_git(
+        root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
         text=True,
         check=False,
         timeout=30,
@@ -585,6 +595,16 @@ def _retained_verifier_results(
         "checkout_role": "worker",
         "checkout_dirty": expected_checkout_dirty,
     }
+    strict_sandbox_binding = version_at_least(
+        run_required_harness_version(run), (0, 38, 0)
+    )
+    observed_sandbox = run.get("observed", {}).get("sandbox", {})
+    observed_sandbox_entries = (
+        observed_sandbox.get("entries", [])
+        if isinstance(observed_sandbox, dict)
+        and isinstance(observed_sandbox.get("entries", []), list)
+        else []
+    )
     for index, item in enumerate(values):
         path = f"observed.verifier_results[{index}]"
         if not isinstance(item, dict):
@@ -739,9 +759,57 @@ def _retained_verifier_results(
             and declaration["execution"].get("isolation") == "container"
         )
         if (
+            strict_sandbox_binding
+            and protocol == VERIFIER_PROTOCOL
+            and declared_container
+            and isinstance(key_document, dict)
+        ):
+            declared_sandbox = declaration["execution"].get("sandbox")
+            preflight = key_document.get("sandbox_preflight")
+            sandbox_attestation = item.get("sandbox_attestation")
+            for issue in sandbox_execution_binding_errors(
+                declared_sandbox,
+                preflight,
+                sandbox_attestation,
+            ):
+                _issue(
+                    errors,
+                    "retained_verifier_sandbox_mismatch",
+                    f"{path}.sandbox_attestation",
+                    issue,
+                )
+            matches = [
+                entry
+                for entry in observed_sandbox_entries
+                if isinstance(entry, dict)
+                and isinstance(preflight, dict)
+                and entry.get("runtime") == preflight.get("runtime")
+                and entry.get("image") == preflight.get("image")
+            ]
+            if len(matches) != 1 or matches[0] != preflight:
+                _issue(
+                    errors,
+                    "retained_verifier_sandbox_mismatch",
+                    f"{path}.key_document.sandbox_preflight",
+                    "must equal the current PLAN-bound RUN sandbox observation",
+                )
+            guarded = item.get("git_guard_attestation")
+            nested_sandbox = (
+                guarded.get("sandbox_attestation")
+                if isinstance(guarded, dict)
+                else None
+            )
+            if nested_sandbox is not None and nested_sandbox != sandbox_attestation:
+                _issue(
+                    errors,
+                    "retained_verifier_sandbox_mismatch",
+                    f"{path}.git_guard_attestation.sandbox_attestation",
+                    "must equal the retained top-level sandbox attestation",
+                )
+        if (
             run.get("schema_version") == 11
             and protocol == VERIFIER_PROTOCOL
-            and (expected_layer in {"task", "worker"} or declared_container)
+            and expected_layer in {"task", "worker"}
         ):
             attestation = item.get("git_guard_attestation")
             if not isinstance(attestation, dict):
@@ -810,7 +878,15 @@ def _retained_verifier_results(
                                 "runtime and image must match the declared sandbox policy",
                             )
                         for probe_key in ("runtime_probe", "image_probe"):
-                            if not isinstance(sandbox_attestation.get(probe_key), str) or not sandbox_attestation[probe_key].strip():
+                            probe_value = sandbox_attestation.get(probe_key)
+                            valid_probe = isinstance(probe_value, str) and bool(probe_value.strip())
+                            if probe_key == "runtime_probe" and isinstance(probe_value, dict):
+                                valid_probe = set(probe_value) == {
+                                    "executable",
+                                    "executable_sha256",
+                                    "version_output_sha256",
+                                }
+                            if not valid_probe:
                                 _issue(
                                     errors,
                                     "retained_verifier_guard_mismatch",

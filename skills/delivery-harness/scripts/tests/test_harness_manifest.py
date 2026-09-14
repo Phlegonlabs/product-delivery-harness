@@ -880,6 +880,62 @@ class RunValidationTests(unittest.TestCase):
         errors = validate_plan(plan)
         self.assertTrue(any("observed non-zero RepoDigest" in error for error in errors))
 
+    def test_harness_038_execution_binds_observed_runtime_identity(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "not_applicable",
+            "skill_slot": "code_security_verification",
+            "reason": "sandbox identity fixture",
+        }
+        run = valid_closeout_run(plan)
+        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+        gate["required_harness_version"] = "0.38.0"
+        gate["harness_version"] = "0.38.0"
+        mark_complete(plan, run)
+        self.assertEqual([], validate_run(plan, run))
+
+        missing = copy.deepcopy(run)
+        missing["verifier_executions"][0].pop("sandbox_attestation")
+        self.assertTrue(
+            any(
+                "sandbox_attestation" in error
+                for error in validate_run(plan, missing)
+            )
+        )
+
+        substituted = copy.deepcopy(run)
+        execution = substituted["verifier_executions"][0]
+        execution["sandbox_attestation"]["runtime_probe"][
+            "executable_sha256"
+        ] = "f" * 64
+        self.assertTrue(
+            any(
+                "runtime identity differs from preflight" in error
+                for error in validate_run(plan, substituted)
+            )
+        )
+
+        stale = copy.deepcopy(run)
+        execution = stale["verifier_executions"][0]
+        execution["key_document"]["sandbox_preflight"]["runtime_probe"][
+            "version_output_sha256"
+        ] = "e" * 64
+        execution["execution_key"] = hashlib.sha256(
+            json.dumps(
+                execution["key_document"],
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        execution["evidence_key"] = execution["execution_key"]
+        self.assertTrue(
+            any(
+                "current PLAN-bound RUN sandbox observation" in error
+                for error in validate_run(plan, stale)
+            )
+        )
+
     def test_integration_branch_must_not_resolve_to_the_default_branch(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)

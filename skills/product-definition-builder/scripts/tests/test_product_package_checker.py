@@ -215,6 +215,9 @@ def ui_contract(*, copy: str = "draft — product responsibility is draft") -> s
 ## UI Surface Contract
 ### UI-001 — Home
 - `route`: /home
+- `releaseSurface`: web-app
+- `surfaceClass`: hosted_web
+- `captureMode`: hosted-browser
 - Main purpose: Let the delivery owner inspect fixture completion.
 - Content responsibilities: Show completion state from the fixture record with source, order, format, count, length, and fallback bounds.
 - Actions and transitions: Refresh the record, show success feedback, and show a recoverable failure state.
@@ -238,6 +241,15 @@ def release_target(
     suffix: str = "web",
     provider: str = "Cloudflare",
 ) -> str:
+    surface_class = {
+        "web-app": "hosted_web",
+        "public-api": "hosted_api",
+        "browser-extension": "browser_extension",
+        "ios-app": "ios",
+        "android-app": "android",
+        "macos-app": "macos",
+        "windows-app": "windows",
+    }.get(surface, "other_nonpublic")
     source_policy = (
         "stage=development; ref=run.integration.branch; "
         "sha=run.integration.integration_head_sha"
@@ -247,7 +259,7 @@ def release_target(
     )
     return f"""### Release Target: {target_id}
 - Surface: {surface}
-- Surface class: {'hosted_web' if surface == 'web-app' else 'hosted_api' if surface == 'public-api' else 'other_nonpublic'}
+- Surface class: {surface_class}
 - Public discoverability: {'yes' if surface == 'web-app' else 'no'}
 - Surface suffix: {suffix}
 - Release name: {release_name}
@@ -264,10 +276,17 @@ def release_target(
 """
 
 
-def release_architecture(*, expected: str = "web-app", include_production: bool = True) -> str:
+def release_architecture(
+    *,
+    expected: str = "web-app",
+    include_production: bool = True,
+    extra_targets: str = "",
+) -> str:
     targets = release_target("web-development", stage="development", release_name="fixture-web-dev")
     if include_production:
         targets += "\n" + release_target("web-production", stage="production", release_name="fixture-web")
+    if extra_targets:
+        targets += "\n" + extra_targets
     return valid_architecture().replace(
         "Expected deployable surfaces: none — fixture ships no deployable surface.",
         f"Expected deployable surfaces: {expected}\n\n{targets}",
@@ -284,9 +303,17 @@ class ProductPackageCheckerTests(unittest.TestCase):
         require_approved: bool = True,
         repo_root: Path | None = None,
     ) -> list[str]:
+        selected_prd = prd if prd is not None else valid_prd()
+        selected_architecture = architecture
+        if selected_architecture is None:
+            selected_architecture = (
+                release_architecture()
+                if "<!-- ui-surface-contract:start -->" in selected_prd
+                else valid_architecture()
+            )
         return check_product_package.validate_texts(
-            prd if prd is not None else valid_prd(),
-            architecture if architecture is not None else valid_architecture(),
+            selected_prd,
+            selected_architecture,
             stack if stack is not None else valid_stack(),
             require_filled=True,
             require_approved=require_approved,
@@ -849,6 +876,90 @@ class ProductPackageCheckerTests(unittest.TestCase):
 
     def test_normal_deployable_release_targets_pass(self) -> None:
         self.assertEqual([], self.validate(architecture=release_architecture()))
+
+    def test_hybrid_ui_surfaces_bind_web_and_ios_release_contracts(self) -> None:
+        native_surface = """
+### UI-002 — Native home
+- `route`: /native-home
+- `releaseSurface`: ios-app
+- `surfaceClass`: ios
+- `captureMode`: native
+- Main purpose: Let the owner inspect the same fixture on iOS.
+- Content responsibilities: Show completion state with source: fixture record; order: status then recovery; format: text; count: one; length: bounded; fallback: unavailable message.
+- Actions and transitions: Refresh the record, show success feedback, and show a recoverable failure state.
+- `states`: ready
+- `responsive`: sizeClasses: compact, regular
+- `copy`: draft — product responsibility is draft
+- Responsive obligations: Never drop status or recovery actions in compact and regular layouts.
+- Accessibility: Preserve headings, labels, focus order, announcements, and meaningful alternative text.
+- SEO metadata: n/a — native app surface.
+- Trace IDs: PRD-001, UX-001, ARCH-001, TEST-001
+"""
+        contract = ui_contract().replace(
+            "<!-- ui-surface-contract:end -->",
+            native_surface + "\n<!-- ui-surface-contract:end -->",
+        )
+        prd = valid_prd().replace(
+            "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",
+            "UI design: pending explicit ui-design-builder request\nUI decision owner: Product owner",
+        ).replace(
+            "not_required — the fixture exposes no shipped user interface.",
+            "| ID | User / task | Requirement | Success and failure signal | Evidence status |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| UX-001 | Owner reviews status | Show completion and recovery | Success is visible; failure offers retry | prototype-reviewed |",
+        ) + contract
+        ios_targets = "\n".join(
+            (
+                release_target(
+                    "ios-development",
+                    surface="ios-app",
+                    suffix="ios",
+                    provider="TestFlight",
+                    stage="development",
+                    release_name="fixture-ios-dev",
+                ),
+                release_target(
+                    "ios-production",
+                    surface="ios-app",
+                    suffix="ios",
+                    provider="App Store",
+                    stage="production",
+                    release_name="fixture-ios",
+                ),
+            )
+        )
+        architecture = release_architecture(
+            expected="web-app, ios-app",
+            extra_targets=ios_targets,
+        )
+        stack = valid_stack().replace(
+            "- Approved areas: frontend",
+            "- Approved areas: frontend, mobile or desktop",
+        ).replace(
+            "| OPT-FE-02 | Frontend | Astro islands bundle | Content-led app | Team owns integrations | rejected |",
+            "| OPT-FE-02 | Frontend | Astro islands bundle | Content-led app | Team owns integrations | rejected |\n"
+            "| OPT-MOB-01 | Mobile or desktop | Native SwiftUI and Xcode bundle | iOS app | Mobile team owns distribution | approved |\n"
+            "| OPT-MOB-02 | Mobile or desktop | Cross-platform client bundle | Multi-OS app | Team owns framework upgrades | rejected |",
+        )
+        mobile_rows = "\n".join(
+            f"| {layer.title()} | fixture choice | Approved | Owner decision | Fits iOS | None |"
+            for layer in check_product_package.STACK_SECTION_LAYERS[
+                "Mobile/Desktop Technology Decision"
+            ]
+        )
+        stack += (
+            "\n## Mobile/Desktop Technology Decision\n"
+            "### Recorded or Approved Stack\n"
+            "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |\n"
+            "| --- | --- | --- | --- | --- | --- |\n"
+            + mobile_rows
+            + "\n"
+        )
+
+        self.assertEqual(
+            [],
+            self.validate(prd=prd, architecture=architecture, stack=stack),
+        )
 
     def test_release_target_typed_surface_and_discoverability_are_closed(self) -> None:
         architecture = release_architecture().replace(

@@ -7,11 +7,11 @@ import copy
 import hashlib
 import json
 import os
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from harness_core import ManifestError, _normalized_branch, is_full_sha
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
     _verifier_owners,
     validate_current_plan_run,
@@ -77,10 +77,9 @@ def _bound_worker(
 
 
 def _git(root: Path, *arguments: str, text: bool = True) -> str | bytes:
-    completed = subprocess.run(
-        ["git", *arguments],
-        cwd=root,
-        capture_output=True,
+    completed = run_git(
+        root,
+        *arguments,
         text=text,
         timeout=30,
     )
@@ -106,10 +105,11 @@ def _git_common_dir(root: Path) -> Path:
 def _worker_dirty(root: Path) -> bool | None:
     """Observe dirty state; a failed Git status is unknown, never clean."""
 
-    completed = subprocess.run(
-        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-        cwd=root,
-        capture_output=True,
+    completed = run_git(
+        root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
         text=True,
         timeout=30,
     )
@@ -136,6 +136,11 @@ def _observe_bound_worker(
     worktree = Path(worktree_path)
     if not worktree.is_dir():
         raise ManifestError(f"bound worker worktree does not exist: {worktree}")
+    try:
+        reject_object_substitution(repo_root)
+        reject_object_substitution(worktree)
+    except (GitMetadataError, OSError) as exc:
+        raise ManifestError(str(exc)) from exc
     if os.path.normcase(str(_git_common_dir(worktree))) != os.path.normcase(
         str(_git_common_dir(repo_root))
     ):
@@ -153,10 +158,12 @@ def _observe_bound_worker(
     base_sha = worker.get("batch_base_sha")
     if not is_full_sha(base_sha):
         raise ManifestError("bound worker has no valid batch_base_sha")
-    ancestry = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", str(base_sha), live_head],
-        cwd=worktree,
-        capture_output=True,
+    ancestry = run_git(
+        worktree,
+        "merge-base",
+        "--is-ancestor",
+        str(base_sha),
+        live_head,
         text=True,
         timeout=30,
     ).returncode == 0
@@ -405,6 +412,11 @@ def _retained_execution(
                 )
             }
             if isinstance(retained.get("git_guard_attestation"), dict)
+            else {}
+        ),
+        **(
+            {"sandbox_attestation": copy.deepcopy(retained["sandbox_attestation"])}
+            if isinstance(retained.get("sandbox_attestation"), dict)
             else {}
         ),
     }

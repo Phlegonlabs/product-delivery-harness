@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import time
@@ -20,6 +21,7 @@ from typing import Any, Mapping
 
 from select_verifiers import VerifierSelectionError, normalize_changed_files
 from harness_core import normalize_sandbox_policy
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 
 
 PROTOCOL = "harness-verifier-execution-v2"
@@ -65,7 +67,12 @@ BATCH_JOB_FIELDS = {
     "cache_root",
     "timeout_seconds",
 }
-BATCH_JOB_OPTIONAL_FIELDS = {"git_guard", "reservation", "request_sha256"}
+BATCH_JOB_OPTIONAL_FIELDS = {
+    "git_guard",
+    "reservation",
+    "request_sha256",
+    "sandbox_preflight",
+}
 
 
 class VerifierRuntimeError(ValueError):
@@ -116,19 +123,71 @@ def _require_sha(value: Any, label: str) -> str:
     return checked
 
 
+def _validated_sandbox_preflight(
+    policy: dict[str, Any], value: Any
+) -> dict[str, Any]:
+    """Validate and normalize the exact observation bound to execution."""
+
+    if not isinstance(value, dict) or set(value) != {
+        "runtime",
+        "image",
+        "repo_digest",
+        "runtime_probe",
+    }:
+        raise VerifierRuntimeError(
+            "container execution requires the exact sandbox preflight entry"
+        )
+    if value.get("runtime") != policy.get("runtime"):
+        raise VerifierRuntimeError("sandbox preflight runtime does not match policy")
+    if value.get("image") != policy.get("image"):
+        raise VerifierRuntimeError("sandbox preflight image does not match policy")
+    image = value["image"]
+    repo_digest = value.get("repo_digest")
+    if (
+        not isinstance(repo_digest, str)
+        or re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", repo_digest) is None
+        or not repo_digest.endswith("@" + image.rsplit("@", 1)[-1])
+    ):
+        raise VerifierRuntimeError(
+            "sandbox preflight RepoDigest does not attest the pinned image"
+        )
+    probe = value.get("runtime_probe")
+    if not isinstance(probe, dict) or set(probe) != {
+        "executable",
+        "executable_sha256",
+        "version_output_sha256",
+    }:
+        raise VerifierRuntimeError("sandbox preflight runtime identity is malformed")
+    executable = probe.get("executable")
+    if not isinstance(executable, str) or not executable or not Path(executable).is_absolute():
+        raise VerifierRuntimeError(
+            "sandbox preflight executable must be a canonical absolute path"
+        )
+    canonical = str(Path(executable).resolve())
+    if os.path.normcase(executable) != os.path.normcase(canonical):
+        raise VerifierRuntimeError(
+            "sandbox preflight executable must be a canonical absolute path"
+        )
+    for key in ("executable_sha256", "version_output_sha256"):
+        digest = probe.get(key)
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise VerifierRuntimeError(
+                f"sandbox preflight runtime_probe.{key} must be a lowercase SHA-256"
+            )
+    normalized = copy_json(value)
+    normalized["runtime_probe"]["executable"] = canonical
+    return normalized
+
+
 def _normalized_branch(value: str) -> str:
     return value.removeprefix("refs/heads/")
 
 
 def _git_output(root: Path, *arguments: str, text: bool = True) -> str | bytes:
-    completed = subprocess.run(
-        ["git", *arguments],
-        cwd=root,
-        capture_output=True,
-        text=text,
-        check=False,
-        timeout=30,
-    )
+    try:
+        completed = run_git(root, *arguments, text=text, check=False, timeout=30)
+    except GitMetadataError as exc:
+        raise VerifierRuntimeError(str(exc)) from exc
     if completed.returncode != 0:
         raise VerifierRuntimeError(
             f"git {' '.join(arguments)} failed while checking verifier checkout"
@@ -222,6 +281,10 @@ def _git_guard_snapshot(
 ) -> dict[str, Any]:
     """Prove the requested committed checkout and fingerprint tracked files."""
 
+    try:
+        reject_object_substitution(checkout_root)
+    except GitMetadataError as exc:
+        raise VerifierRuntimeError(str(exc)) from exc
     if not isinstance(guard, dict) or set(guard) != GIT_GUARD_FIELDS:
         raise VerifierRuntimeError(
             "git_guard must contain expected_branch, expected_head_sha, and ignored_paths"
@@ -716,6 +779,7 @@ def build_execution_key(
     *,
     checkout_root: Path,
     environment: Mapping[str, str] | None = None,
+    sandbox_preflight: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     effective_environment = os.environ if environment is None else environment
     _, _, normalized_verifier, key_inputs = _validated_inputs(
@@ -724,7 +788,19 @@ def build_execution_key(
         checkout_root,
         effective_environment,
     )
-    return _key_document(normalized_verifier, key_inputs)
+    execution_key, key_document = _key_document(normalized_verifier, key_inputs)
+    if normalized_verifier.get("execution", {}).get("isolation") == "container":
+        policy = normalized_verifier["execution"].get("sandbox")
+        if not isinstance(policy, dict):
+            raise VerifierRuntimeError("container sandbox policy is malformed")
+        checked = _validated_sandbox_preflight(policy, sandbox_preflight)
+        key_document["sandbox_preflight"] = copy_json(checked)
+        execution_key = execution_key_from_document(key_document)
+    elif sandbox_preflight is not None:
+        raise VerifierRuntimeError(
+            "sandbox_preflight is valid only for container execution"
+        )
+    return execution_key, key_document
 
 
 def _key_document(
@@ -775,6 +851,10 @@ def _materialize_git_snapshot(
     """Materialize an immutable Git tree outside the worker checkout."""
 
     checkout = checkout_root.resolve()
+    try:
+        reject_object_substitution(checkout)
+    except GitMetadataError as exc:
+        raise VerifierRuntimeError(str(exc)) from exc
     for index, argument in enumerate(argv):
         if not isinstance(argument, str):
             continue
@@ -787,14 +867,18 @@ def _materialize_git_snapshot(
             raise VerifierRuntimeError(
                 f"snapshot verifier argv[{index}] must not reference the live checkout"
             )
-    archive = subprocess.run(
-        ["git", "archive", "--format=tar", head_sha],
-        cwd=checkout,
-        capture_output=True,
-        text=False,
-        check=False,
-        timeout=60,
-    )
+    try:
+        archive = run_git(
+            checkout,
+            "archive",
+            "--format=tar",
+            head_sha,
+            text=False,
+            check=False,
+            timeout=60,
+        )
+    except GitMetadataError as exc:
+        raise VerifierRuntimeError(str(exc)) from exc
     if archive.returncode != 0:
         detail = archive.stderr.decode(errors="replace").strip()
         raise VerifierRuntimeError(f"cannot materialize git snapshot: {detail}")
@@ -874,6 +958,7 @@ def _run_container_verifier(
     argv: list[str],
     policy: dict[str, Any],
     timeout_seconds: float,
+    sandbox_preflight: dict[str, Any],
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
     """Run a verifier under an explicit, machine-probed container policy."""
 
@@ -881,16 +966,31 @@ def _run_container_verifier(
     image = policy.get("image")
     if runtime not in {"docker", "podman"} or not isinstance(image, str):
         raise VerifierRuntimeError("container sandbox policy is malformed")
+    checked_preflight = _validated_sandbox_preflight(policy, sandbox_preflight)
+    runtime_probe = checked_preflight["runtime_probe"]
+    bound_executable = Path(runtime_probe["executable"])
     executable = shutil.which(runtime)
     if executable is None:
         raise VerifierRuntimeError(
             f"container sandbox runtime {runtime!r} is unavailable; run the sandbox preflight again and defer the gate"
         )
+    if os.path.normcase(str(Path(executable).resolve())) != os.path.normcase(
+        str(bound_executable)
+    ):
+        raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
+    try:
+        executable_hash = _sha256_bytes(bound_executable.read_bytes())
+    except OSError as exc:
+        raise VerifierRuntimeError(
+            f"cannot read sandbox runtime executable: {exc}"
+        ) from exc
+    if executable_hash != runtime_probe["executable_sha256"]:
+        raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
     probe_env = {"PATH": os.environ.get("PATH", "")}
     if os.name == "nt" and os.environ.get("SystemRoot"):
         probe_env["SystemRoot"] = os.environ["SystemRoot"]
     probe = subprocess.run(
-        [executable, "version"],
+        [str(bound_executable), "version"],
         capture_output=True,
         text=True,
         env=probe_env,
@@ -899,8 +999,12 @@ def _run_container_verifier(
     )
     if probe.returncode != 0:
         raise VerifierRuntimeError("container sandbox runtime probe failed")
+    if _sha256_bytes(probe.stdout.encode("utf-8")) != runtime_probe[
+        "version_output_sha256"
+    ]:
+        raise VerifierRuntimeError("sandbox runtime version output changed since preflight")
     inspect = subprocess.run(
-        [executable, "image", "inspect", "--format", "{{json .RepoDigests}}", image],
+        [str(bound_executable), "image", "inspect", "--format", "{{json .RepoDigests}}", image],
         capture_output=True,
         text=True,
         env=probe_env,
@@ -922,9 +1026,21 @@ def _run_container_verifier(
     )
     if matched_repo_digest is None:
         raise VerifierRuntimeError("container image probe did not attest the pinned digest")
+    if checked_preflight["repo_digest"] != matched_repo_digest:
+        raise VerifierRuntimeError("container image RepoDigest changed since preflight")
+    try:
+        immediate_hash = _sha256_bytes(bound_executable.read_bytes())
+    except OSError as exc:
+        raise VerifierRuntimeError(
+            f"cannot recheck sandbox runtime executable: {exc}"
+        ) from exc
+    if immediate_hash != runtime_probe["executable_sha256"]:
+        raise VerifierRuntimeError(
+            "sandbox runtime executable changed immediately before execution"
+        )
     workdir = "/workspace" + ("/" + declared_cwd.strip("./") if declared_cwd != "." else "")
     command = [
-        executable,
+        str(bound_executable),
         "run",
         "--rm",
         "--pull=never",
@@ -950,9 +1066,19 @@ def _run_container_verifier(
         check=False,
         timeout=timeout_seconds,
     )
+    try:
+        final_hash = _sha256_bytes(bound_executable.read_bytes())
+    except OSError as exc:
+        raise VerifierRuntimeError(
+            f"cannot recheck sandbox runtime executable after execution: {exc}"
+        ) from exc
+    if final_hash != runtime_probe["executable_sha256"]:
+        raise VerifierRuntimeError(
+            "sandbox runtime executable changed during execution"
+        )
     return completed, {
         "runtime": runtime,
-        "runtime_probe": probe.stdout.strip(),
+        "runtime_probe": copy_json(runtime_probe),
         "image": image,
         "image_probe": matched_repo_digest,
         "policy": copy_json(policy),
@@ -1013,6 +1139,7 @@ def run_verifier(
     git_guard: dict[str, Any] | None = None,
     reservation: dict[str, Any] | None = None,
     request_sha256: str | None = None,
+    sandbox_preflight: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if timeout_seconds <= 0:
         raise VerifierRuntimeError("timeout_seconds must be positive")
@@ -1023,7 +1150,26 @@ def run_verifier(
         checkout_root,
         effective_environment,
     )
+    container_mode = (
+        normalized_verifier.get("execution", {}).get("isolation") == "container"
+    )
+    container_policy = normalized_verifier.get("execution", {}).get("sandbox")
+    checked_sandbox_preflight: dict[str, Any] | None = None
+    if container_mode:
+        if not isinstance(container_policy, dict):
+            raise VerifierRuntimeError("container sandbox policy is malformed")
+        checked_sandbox_preflight = _validated_sandbox_preflight(
+            container_policy,
+            sandbox_preflight,
+        )
+    elif sandbox_preflight is not None:
+        raise VerifierRuntimeError(
+            "sandbox_preflight is valid only for container execution"
+        )
     execution_key, key_document = _key_document(normalized_verifier, key_inputs)
+    if checked_sandbox_preflight is not None:
+        key_document["sandbox_preflight"] = copy_json(checked_sandbox_preflight)
+        execution_key = execution_key_from_document(key_document)
     checked_reservation = _validated_reservation(reservation)
     context_layer = key_inputs["context"].get("layer")
     context_role = key_inputs["context"].get("checkout_role")
@@ -1048,7 +1194,6 @@ def run_verifier(
             raise VerifierRuntimeError(
                 "git_guard.expected_head_sha must equal context.head_sha"
             )
-    container_mode = normalized_verifier.get("execution", {}).get("isolation") == "container"
     worker_guarded_mode = context_layer in {"task", "worker"} and context_role == "worker"
     if worker_guarded_mode and not container_mode:
         raise VerifierRuntimeError(
@@ -1172,7 +1317,6 @@ def run_verifier(
     execution_cwd = cwd
     execution_argv = argv
     execution_environment = effective_environment
-    container_policy = normalized_verifier.get("execution", {}).get("sandbox")
     if container_mode:
         snapshot_temp, execution_cwd, execution_argv = _materialize_git_snapshot(
             checkout_root,
@@ -1194,6 +1338,7 @@ def run_verifier(
                 argv,
                 container_policy,
                 timeout_seconds,
+                sandbox_preflight=checked_sandbox_preflight,
             )
         else:
             completed = subprocess.run(
@@ -1394,6 +1539,7 @@ def run_verifier_batch(
                 git_guard=job.get("git_guard"),
                 reservation=job.get("reservation"),
                 request_sha256=job.get("request_sha256"),
+                sandbox_preflight=job.get("sandbox_preflight"),
             )
         except (OSError, ValueError, VerifierRuntimeError) as exc:
             return {"protocol": PROTOCOL, "status": "ERROR", "errors": [str(exc)]}
@@ -1465,6 +1611,7 @@ def main(argv: list[str] | None = None) -> int:
                 git_guard=request.get("git_guard"),
                 reservation=request.get("reservation"),
                 request_sha256=request_sha256,
+                sandbox_preflight=request.get("sandbox_preflight"),
             )
     except (KeyError, OSError, ValueError, VerifierRuntimeError) as exc:
         print(

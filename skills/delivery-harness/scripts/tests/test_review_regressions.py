@@ -10,6 +10,7 @@ guards at their edges.
 from __future__ import annotations
 
 import copy
+import hashlib
 import subprocess
 import sys
 import tempfile
@@ -77,6 +78,19 @@ def real_verifier_record(**cache_extra):
         "changed_files": [],
     }
     context = {key: supplied.get(key) for key in CONTEXT_FIELDS}
+    runtime_executable = Path(sys.executable).resolve()
+    sandbox_preflight = {
+        "runtime": execution["sandbox"]["runtime"],
+        "image": execution["sandbox"]["image"],
+        "repo_digest": execution["sandbox"]["image"],
+        "runtime_probe": {
+            "executable": str(runtime_executable),
+            "executable_sha256": hashlib.sha256(
+                runtime_executable.read_bytes()
+            ).hexdigest(),
+            "version_output_sha256": "b" * 64,
+        },
+    }
     def fake_container(
         _checkout_root: Path,
         _snapshot_root: Path,
@@ -84,15 +98,16 @@ def real_verifier_record(**cache_extra):
         _argv: list[str],
         policy: dict[str, object],
         _timeout_seconds: float,
+        sandbox_preflight: dict[str, object],
     ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
         image = str(policy["image"])
         return subprocess.CompletedProcess(
             args=["docker", "run"], returncode=0, stdout="", stderr=""
         ), {
             "runtime": str(policy["runtime"]),
-            "runtime_probe": "fixture-runtime",
+            "runtime_probe": sandbox_preflight["runtime_probe"],
             "image": image,
-            "image_probe": image,
+            "image_probe": sandbox_preflight["repo_digest"],
             "policy": policy,
             "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
             "network": "none",
@@ -105,6 +120,7 @@ def real_verifier_record(**cache_extra):
             checkout_root=checkout,
             cache_root=root / "cache",
             environment={},
+            sandbox_preflight=sandbox_preflight,
         )
 
 

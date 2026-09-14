@@ -41,16 +41,13 @@ OVERLAP_REPORT_LIMIT = 10
 
 
 def _capture_mode_errors(plan: dict[str, Any]) -> list[str]:
-    """Refuse URL parity for extension, native, and desktop surfaces.
+    """Reject only malformed capture modes; mixed plans remain reportable.
 
-    ``parity_capture`` is intentionally a hosted-browser helper.  The other
-    modes still require real platform screenshots, but those are collected by
-    extension automation or native/desktop UI-test tooling and must never be
-    approximated with a ``--base-url`` browser capture.
+    ``parity_capture`` captures the hosted subset. Extension, native, and
+    desktop groups are returned as manual/platform work in the manifest.
     """
 
     errors: list[str] = []
-    modes: set[str] = set()
     for index, surface in enumerate(plan.get("ui_surfaces") or []):
         if not isinstance(surface, dict) or "capture_mode" not in surface:
             continue  # pre-0.38 plans retain the hosted-browser behavior
@@ -65,18 +62,27 @@ def _capture_mode_errors(plan: dict[str, Any]) -> list[str]:
                 f"PLAN ui_surfaces[{index}].capture_mode is invalid: {mode!r}"
             )
             continue
-        modes.add(mode)
-        if mode != "hosted-browser":
-            errors.append(
-                f"capture mode {mode!r} is not supported by parity_capture; "
-                "use extension/native/desktop platform tooling and manual captures"
-            )
-    if len(modes) > 1 and not errors:
-        errors.append(
-            "parity_capture requires one hosted-browser capture mode; mixed UI "
-            "platforms must be captured by their platform-specific tooling"
-        )
     return errors
+
+
+def _unsupported_surface_groups(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    groups: list[dict[str, Any]] = []
+    for surface in plan.get("ui_surfaces") or []:
+        if not isinstance(surface, dict):
+            continue
+        mode = surface.get("capture_mode", "hosted-browser")
+        if mode == "hosted-browser":
+            continue
+        groups.append(
+            {
+                "surface_id": surface.get("id"),
+                "route": surface.get("route"),
+                "capture_mode": mode,
+                "status": "manual_or_platform_tooling_required",
+                "reason": "parity_capture only captures hosted-browser surfaces",
+            }
+        )
+    return groups
 
 GEOMETRY_PROBE_JS = """
 (() => {
@@ -118,23 +124,94 @@ GEOMETRY_PROBE_JS = """
 )
 
 
-def _resolve_cli() -> str | None:
+def _direct_node_launcher(wrapper: Path) -> list[str] | None:
+    """Resolve a Windows npm/Volta shim to Node without invoking a shell."""
+
+    node = shutil.which("node.exe") or shutil.which("node")
+    package_root = wrapper.parent
+    javascript = package_root / "node_modules" / "agent-browser" / "bin" / "agent-browser.js"
+
+    volta = wrapper.parent / "volta.exe"
+    if not volta.is_file():
+        resolved_volta = shutil.which("volta.exe") or shutil.which("volta")
+        volta = Path(resolved_volta) if resolved_volta else volta
+    if volta.is_file():
+        try:
+            package_probe = subprocess.run(
+                [str(volta.resolve()), "which", "agent-browser"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
+            node_probe = subprocess.run(
+                [str(volta.resolve()), "which", "node"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            package_probe = node_probe = None
+        if (
+            package_probe is not None
+            and node_probe is not None
+            and package_probe.returncode == 0
+            and node_probe.returncode == 0
+        ):
+            package_launcher = Path(package_probe.stdout.strip()).resolve()
+            volta_node = Path(node_probe.stdout.strip()).resolve()
+            candidate = (
+                package_launcher.parent
+                / "node_modules"
+                / "agent-browser"
+                / "bin"
+                / "agent-browser.js"
+            )
+            if volta_node.is_file() and candidate.is_file():
+                return [str(volta_node), str(candidate.resolve())]
+
+    if node:
+        node_path = Path(node).resolve()
+        if node_path.is_file() and javascript.is_file():
+            return [str(node_path), str(javascript.resolve())]
+    return None
+
+
+def _resolve_cli() -> list[str] | None:
     resolved = shutil.which("agent-browser")
-    return str(resolved) if resolved else None
+    if not resolved:
+        return None
+    path = Path(resolved).resolve()
+    if os.name == "nt":
+        if path.suffix.casefold() in {".cmd", ".bat"}:
+            return _direct_node_launcher(path)
+        if path.suffix.casefold() == ".py":
+            return [str(Path(sys.executable).resolve()), str(path)]
+        if path.suffix.casefold() not in {".exe", ".com"}:
+            return _direct_node_launcher(path)
+    return [str(path)]
 
 
 def _run_browser(
-    cli: str,
+    cli: list[str],
     argv: list[str],
     *,
     stdin: str | None = None,
     timeout: int = 90,
 ) -> subprocess.CompletedProcess[str]:
-    command = [cli, *argv]
-    # npm-global installs on Windows are .cmd shims; CreateProcess cannot
-    # execute them directly, so route through cmd /c like a shell would.
-    if os.name == "nt" and cli.lower().endswith((".cmd", ".bat")):
-        command = ["cmd", "/c", cli, *argv]
+    if (
+        not isinstance(cli, list)
+        or not cli
+        or any(not isinstance(item, str) or not item for item in cli)
+        or any(item.casefold().endswith((".cmd", ".bat")) for item in cli)
+    ):
+        raise RuntimeError("agent-browser must use a direct native or Node argv")
+    command = [*cli, *argv]
     return subprocess.run(
         command,
         input=stdin,
@@ -151,10 +228,14 @@ def _token(value: str) -> str:
     return token or "root"
 
 
-def _matrix(plan: dict[str, Any], only: str | None) -> list[dict[str, Any]]:
+def _matrix(
+    plan: dict[str, Any], only: str | None, *, hosted_only: bool = False
+) -> list[dict[str, Any]]:
     combos = []
     for surface in plan.get("ui_surfaces") or []:
         if not isinstance(surface, dict):
+            continue
+        if hosted_only and surface.get("capture_mode", "hosted-browser") != "hosted-browser":
             continue
         route = surface.get("route")
         if only and route != only:
@@ -186,7 +267,7 @@ def _route_map_load(path: Path | None) -> dict[str, Any]:
 
 
 def _navigate_reference(
-    cli: str, reference_url: str, route: str, entry: dict[str, Any]
+    cli: list[str], reference_url: str, route: str, entry: dict[str, Any]
 ) -> tuple[bool, str]:
     """Open the reference file and select the route; return (ok, method)."""
 
@@ -218,7 +299,7 @@ def _navigate_reference(
 
 
 def _shoot(
-    cli: str,
+    cli: list[str],
     *,
     viewport: tuple[str, int],
     screenshot: Path,
@@ -249,7 +330,7 @@ def _shoot(
 
 
 def _capture_app(
-    cli: str,
+    cli: list[str],
     url: str,
     *,
     viewport: tuple[str, int],
@@ -273,7 +354,7 @@ def _capture_app(
     )
 
 
-def _geometry_probe(cli: str) -> tuple[dict[str, Any] | None, str | None]:
+def _geometry_probe(cli: list[str]) -> tuple[dict[str, Any] | None, str | None]:
     probed = _run_browser(
         cli, ["eval", "--stdin"], stdin=GEOMETRY_PROBE_JS, timeout=60
     )
@@ -395,9 +476,21 @@ def capture(args: argparse.Namespace) -> int:
             print(f"error: {problem}", file=sys.stderr)
         return 1
 
+    unsupported_groups = _unsupported_surface_groups(plan)
     all_combos = _matrix(plan, None)
-    combos = _matrix(plan, args.only)
+    combos = _matrix(plan, args.only, hosted_only=True)
     if not combos:
+        if unsupported_groups:
+            print(
+                "no hosted-browser parity combinations; manual/platform groups "
+                "were reported and do not block this capture command"
+            )
+            for group in unsupported_groups:
+                print(
+                    f"manual/platform group {group['surface_id']}: "
+                    f"{group['capture_mode']} ({group['reason']})"
+                )
+            return 0
         print("error: no route x breakpoint x state combinations found", file=sys.stderr)
         return 1
 
@@ -540,6 +633,7 @@ def capture(args: argparse.Namespace) -> int:
         "only_routes": [args.only] if args.only else [],
         "captured": captured,
         "skipped": skipped,
+        "unsupported_groups": unsupported_groups,
         "errors": errors,
     }
     (out_dir / "manifest.json").write_text(

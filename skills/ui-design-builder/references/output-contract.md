@@ -138,6 +138,8 @@ Decided on: [YYYY-MM-DD]
 
 Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=surfaces=[{"id":"UI-001","route":"/path","states":["ready"]}]|routes=["/path"]|states=["ready"]|responsive={"kind":"viewports","targets":[390,768,1200]}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser]
 
+For a hybrid target, each surface object additionally records `releaseSurface`, `surfaceClass`, `captureMode`, and its own `responsive` object. Use `captureMode=mixed` only together with complete per-surface fields; a global mode or responsive set never substitutes for a surface's platform contract.
+
 ## Design System Need Gate
 
 Decision: [required / not_required / blocked]

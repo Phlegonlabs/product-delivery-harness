@@ -174,8 +174,20 @@ class NodeTransitionTests(unittest.TestCase):
             mf.git(root, "add", "docs/product")
             mf.git(root, "commit", "-qm", "contracts")
             head = mf.git(root, "rev-parse", "HEAD")
-
+            fake_runtime = control / "docker.cmd"
+            fake_runtime.write_text(
+                "@echo off\r\n"
+                "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
+                "if \"%1\"==\"image\" (echo [\"fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111\"]&exit /b 0)\r\n"
+                "if \"%1\"==\"run\" exit /b 0\r\n"
+                "exit /b 1\r\n",
+                encoding="utf-8",
+            )
             run = mf.valid_run(plan)
+            sandbox_entry = run["observed"]["sandbox"]["entries"][0]
+            sandbox_entry["runtime_probe"]["executable"] = str(fake_runtime)
+            sandbox_entry["runtime_probe"]["executable_sha256"] = hashlib.sha256(fake_runtime.read_bytes()).hexdigest()
+            sandbox_entry["runtime_probe"]["version_output_sha256"] = hashlib.sha256(b"fixture-runtime\n").hexdigest()
             mf.authorize_execution(run, ["M1", "M2"])
             run.update({"status": "running", "plan_readiness": "ready"})
             run["observed"].update({"captured_at": "2026-01-01T00:00:00Z"})
@@ -638,9 +650,9 @@ class NodeTransitionTests(unittest.TestCase):
             image = policy["image"]
             fake_attestation = {
                 "runtime": policy["runtime"],
-                "runtime_probe": "fixture-runtime",
+                "runtime_probe": request["sandbox_preflight"]["runtime_probe"],
                 "image": image,
-                "image_probe": image,
+                "image_probe": request["sandbox_preflight"]["repo_digest"],
                 "policy": policy,
                 "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
                 "network": "none",
@@ -662,6 +674,7 @@ class NodeTransitionTests(unittest.TestCase):
                     git_guard=request["git_guard"],
                     reservation=request["reservation"],
                     request_sha256=harness_transition._json_sha256(request),
+                    sandbox_preflight=request["sandbox_preflight"],
                 )
             self.assertEqual("PASS", execution["status"])
             self.assertEqual(request["reservation"], execution["reservation"])
@@ -1438,6 +1451,24 @@ class NodeTransitionTests(unittest.TestCase):
                 Path("C:/not-used"),
                 "a" * 40,
             )
+
+
+    def test_transition_git_reads_reject_replace_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", "-b", "work"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Harness Test"], cwd=root, check=True)
+            (root / "sample.txt").write_text("trusted\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "trusted"], cwd=root, check=True)
+            trusted = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            (root / "sample.txt").write_text("substituted\n", encoding="utf-8")
+            subprocess.run(["git", "commit", "-qam", "substituted"], cwd=root, check=True)
+            substituted = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            subprocess.run(["git", "replace", trusted, substituted], cwd=root, check=True)
+            with self.assertRaisesRegex(ManifestError, "replacement refs"):
+                harness_transition._git_out(root, "rev-parse", "HEAD")
 
 
 if __name__ == "__main__":

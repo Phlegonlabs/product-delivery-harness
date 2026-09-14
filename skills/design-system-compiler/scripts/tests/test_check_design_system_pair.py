@@ -444,6 +444,53 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         self.assertEqual([], problems)
         self.assertEqual(0, code)
 
+    def test_schema_two_hybrid_surface_contracts_replace_global_platform_and_responsive(self):
+        data = registry(schema="design-system/2")
+        for key in ("platform", "stylingMechanism", "viewports", "sizeClasses"):
+            data.pop(key, None)
+        data["surfaceContracts"] = {
+            "UI-WEB": {
+                "releaseSurface": "web-app",
+                "surfaceClass": "hosted_web",
+                "captureMode": "hosted-browser",
+                "responsive": {"kind": "viewports", "targets": [390, 768, 1200]},
+            },
+            "UI-IOS": {
+                "releaseSurface": "ios-app",
+                "surfaceClass": "ios",
+                "captureMode": "native",
+                "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]},
+            },
+        }
+        binding_paths = {
+            "prd": "docs/product/PRD.md",
+            "architecture": "docs/product/architecture.md",
+            "stack": "docs/product/stack-decisions.md",
+            "uiDesign": "docs/design/ui-design.md",
+            "wireframe": "docs/design/wireframes.html",
+            "hifi": "docs/design/ui-references/run-1/index.html",
+        }
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "a" * 64}
+            for key, path in binding_paths.items()
+        }
+        self.assertEqual([], checker.validate_registry(data))
+        data["viewports"] = [390, 768, 1200]
+        self.assertTrue(any("hybrid surfaceContracts must omit" in item for item in checker.validate_registry(data)))
+        data.pop("viewports", None)
+        data["surfaceContracts"]["UI-IOS"]["captureMode"] = "hosted-browser"
+        self.assertTrue(any("captureMode is incompatible with surfaceClass" in item for item in checker.validate_registry(data)))
+        data["surfaceContracts"]["UI-IOS"]["captureMode"] = "native"
+        data["surfaceContracts"]["UI-WEB"]["captureMode"] = "native"
+        self.assertTrue(any("captureMode is incompatible with surfaceClass" in item for item in checker.validate_registry(data)))
+        data["surfaceContracts"]["UI-WEB"]["captureMode"] = "hosted-browser"
+        data["surfaceContracts"]["UI-WEB"]["surfaceClass"] = "unknown"
+        self.assertTrue(any("surfaceClass is invalid" in item for item in checker.validate_registry(data)))
+
+        schema_one = dict(data)
+        schema_one["schema"] = "design-system/1"
+        self.assertTrue(any("surfaceContracts requires design-system/2" in item for item in checker.validate_registry(schema_one)))
+
     def test_schema_two_requires_every_source_binding_and_current_bytes(self):
         base = registry(schema="design-system/2")
         markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, base)

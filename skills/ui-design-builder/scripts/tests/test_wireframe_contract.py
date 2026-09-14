@@ -1,5 +1,6 @@
 """Direct tests for the wireframe HTML checker and the PRD UI contract parser."""
 
+import copy
 import importlib
 import json
 import re
@@ -210,6 +211,19 @@ def validate_html(html, **kwargs):
 
 
 class WireframeHtmlCheckerTests(unittest.TestCase):
+    def test_template_binds_overlay_responsive_spec_before_width_lookup(self):
+        template = (
+            Path(__file__).resolve().parents[2]
+            / "assets"
+            / "templates"
+            / "WIREFRAMES.template.html"
+        ).read_text(encoding="utf-8")
+        binding = "const targetResponsive = responsiveSpecFor(target);"
+        lookup = "targetResponsive.canvasWidths[targetResponsiveTarget]"
+        self.assertIn(binding, template)
+        self.assertIn(lookup, template)
+        self.assertLess(template.index(binding), template.index(lookup))
+
     def test_valid_projection_passes_strict_checks(self):
         self.assertEqual(
             validate_html(
@@ -1007,6 +1021,33 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         data["canvasWidths"]["unexpected"] = 640
         joined = "\n".join(validate_html(render_html(data)))
         self.assertIn("must contain exactly the responsive target keys", joined)
+
+    def test_per_surface_responsive_contract_requires_canvas_widths(self):
+        data = wireframe_data()
+        del data["viewports"]
+        del data["canvasWidths"]
+        data["responsiveBySurface"] = {
+            "UI-001": {
+                "kind": "viewports",
+                "targets": [390, 768, 1200],
+                "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
+            }
+        }
+        self.assertEqual([], validate_html(render_html(data)))
+
+        missing = copy.deepcopy(data)
+        del missing["responsiveBySurface"]["UI-001"]["canvasWidths"]
+        self.assertIn(
+            "must contain kind, targets, and canvasWidths",
+            "\n".join(validate_html(render_html(missing))),
+        )
+
+        mismatched = copy.deepcopy(data)
+        mismatched["responsiveBySurface"]["UI-001"]["canvasWidths"]["390"] = 768
+        self.assertIn(
+            "must use positive widths and match numeric viewport targets",
+            "\n".join(validate_html(render_html(mismatched))),
+        )
 
     def test_responsive_layout_cannot_hide_never_drop_regions(self):
         data = wireframe_data()

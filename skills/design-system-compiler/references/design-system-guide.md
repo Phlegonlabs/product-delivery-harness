@@ -19,7 +19,7 @@ Publish the Markdown and JSON together.
 
 `design-system.json` is the sole structured authority. New approval pairs use `design-system/2`; its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
 
-Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`.
+Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`. A hybrid pair uses `surfaceContracts` instead of global `platform`, `stylingMechanism`, `viewports`, and `sizeClasses`: each UI-* entry names the exact `releaseSurface`, `surfaceClass`, capture mode, and responsive `{kind, targets}` set. Platform and styling choices remain grounded in the approved `stack-decisions.md` source binding rather than being duplicated per surface. Shared tokens, primitives, product components, motion variants, and state matrix remain global.
 
 Browser-extension UI uses `platform: web` with the UI approval `captureMode: browser-extension`; it is not silently treated as hosted web.
 
@@ -110,12 +110,14 @@ Do not repeat the full primitive or component inventory manually in Markdown; th
 
 ## Responsive, State, And Accessibility Rules
 
-Ship exactly one responsive set:
+Ship exactly one responsive set for a homogeneous product:
 
 - at least three ascending `viewports` for web; or
 - at least two `sizeClasses` for native or desktop.
 
 Copy the exact approved PRD and wireframe set; do not add, remove, or rename targets during compilation. Choose that smallest sufficient set upstream during product definition. Native and desktop products use their platform's own size or window classes, not web pixel breakpoints. Each target has an implementation-facing reflow, visibility, interaction, long-content, and intended-overlay rule. Unintended overlap, clipping, occlusion, and horizontal overflow are blocking defects at every target and state.
+
+For a hybrid product, each `surfaceContracts` entry carries its own exact responsive set and release/capture contract; do not collapse web viewports and native/desktop size classes into one global set. Platform and styling mechanism stay in the approved stack decision.
 
 `stateMatrix` is the checklist for every screen. Each screen implements every listed state or records `<state>: n/a — <reason>` in `PRD.md`. The PRD and JSON must agree.
 

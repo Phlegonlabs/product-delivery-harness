@@ -5,18 +5,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import ManifestError, load_plan, load_run, validate_current_plan_run
 
 
 def _git(repo: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=repo, capture_output=True, text=True, timeout=30
-    )
+    result = run_git(repo, *args, text=True, timeout=30)
     if result.returncode != 0:
         raise ManifestError(result.stderr.strip() or f"git {' '.join(args)} failed")
     return result.stdout
@@ -30,6 +28,10 @@ def render_packet(
     *,
     max_diff_bytes: int = 50000,
 ) -> str:
+    try:
+        reject_object_substitution(repo_root)
+    except (GitMetadataError, OSError) as exc:
+        raise ManifestError(str(exc)) from exc
     node = next(
         (item for item in plan["graph"]["nodes"] if item.get("id") == node_id),
         None,

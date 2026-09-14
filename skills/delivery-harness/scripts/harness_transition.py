@@ -30,6 +30,7 @@ from harness_core import (
     plan_digest,
     path_in_scopes,
 )
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
     _verifier_owners,
     INTERRUPTED_REVIEW_RECEIPT,
@@ -79,15 +80,21 @@ def _json_sha256(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
+    try:
+        reject_object_substitution(root)
+        result = run_git(root, "merge-base", "--is-ancestor", ancestor, descendant)
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
+    return result.returncode == 0
+
+
 def _candidate_changed_paths(root: Path, base_sha: str, head_sha: str) -> list[str]:
-    result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base_sha}..{head_sha}"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+    try:
+        reject_object_substitution(root)
+        result = run_git(root, "diff", "--name-only", f"{base_sha}..{head_sha}")
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
     if result.returncode != 0:
         raise ManifestError("cannot observe candidate changed paths from Git")
     return sorted({line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()})
@@ -370,9 +377,11 @@ def _watchdog_report(run: dict[str, Any], stale_after: float) -> list[str]:
 
 
 def _git_out(repo_root: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=repo_root, capture_output=True, text=True, timeout=30
-    )
+    try:
+        reject_object_substitution(repo_root)
+        result = run_git(repo_root, *args, text=True, timeout=30)
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
     if result.returncode != 0:
         raise ManifestError(f"git {' '.join(args)} failed in {repo_root}")
     return result.stdout
@@ -419,14 +428,11 @@ def _git_status_excluding_run_or_none(
             relative = None
         if relative is not None:
             arguments.append(f":(exclude,top,literal){relative.as_posix()}")
-    result = subprocess.run(
-        ["git", *arguments],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+    try:
+        reject_object_substitution(repo_root)
+        result = run_git(repo_root, *arguments, text=True, timeout=30)
+    except GitMetadataError:
+        return None
     if result.returncode != 0:
         return None
     return result.stdout
@@ -439,13 +445,11 @@ def _same_path(left: str | Path, right: str | Path) -> bool:
 
 
 def _remote_default_branch(repo_root: Path) -> str | None:
-    result = subprocess.run(
-        ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    try:
+        reject_object_substitution(repo_root)
+        result = run_git(repo_root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD", text=True, timeout=30)
+    except GitMetadataError:
+        return None
     if result.returncode != 0:
         return None
     value = result.stdout.strip()
@@ -578,14 +582,7 @@ def _validate_security_integration_checkout(
         raise ManifestError(
             f"{operation} security integration review requires a full batch_base_sha"
         )
-    ancestry = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", batch_base, live_head],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if ancestry.returncode != 0:
+    if not _git_is_ancestor(repo_root, batch_base, live_head):
         raise ManifestError(
             f"batch base {batch_base} is not an ancestor of integration head {live_head}; "
             f"{operation} security integration review cannot proceed"
@@ -646,14 +643,11 @@ def _record_observation(
                 entry["managed_by"] = "parent"
                 continue
             try:
-                status = subprocess.run(
-                    ["git", "status", "--porcelain"],
-                    cwd=path,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+                reject_object_substitution(Path(path))
+                status = run_git(Path(path), "status", "--porcelain")
                 dirty = None if status.returncode != 0 else bool(status.stdout.strip())
+            except GitMetadataError as exc:
+                raise ManifestError(str(exc)) from exc
             except (OSError, subprocess.SubprocessError):
                 # A pruned/dead worktree must not abort the mandatory
                 # observation; record it as unavailable rather than crash.
@@ -1187,6 +1181,16 @@ def _local_verifier_request(
             }
         ),
     }
+    sandbox_policy = declaration.get("execution", {}).get("sandbox") if isinstance(declaration.get("execution"), dict) else None
+    observed_sandbox = run.get("observed", {}).get("sandbox") if isinstance(run.get("observed"), dict) else None
+    sandbox_preflight = None
+    if isinstance(sandbox_policy, dict) and isinstance(observed_sandbox, dict):
+        for entry in observed_sandbox.get("entries", []):
+            if isinstance(entry, dict) and entry.get("runtime") == sandbox_policy.get("runtime") and entry.get("image") == sandbox_policy.get("image"):
+                sandbox_preflight = copy.deepcopy(entry)
+                break
+    if sandbox_preflight is None:
+        raise ManifestError("local verifier request requires the exact PLAN-bound sandbox preflight entry")
     return {
         "protocol": "harness-verifier-request-v1",
         "run_id": run.get("run_id"),
@@ -1209,6 +1213,7 @@ def _local_verifier_request(
             "expected_head_sha": head_sha,
             "ignored_paths": ignored_paths,
         },
+        "sandbox_preflight": sandbox_preflight,
     }
 
 
@@ -2160,14 +2165,7 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
     if not is_full_sha(worker_head):
         raise ManifestError("record-integration requires the mission's worker head SHA")
     if worker_head != args.integrated_sha:
-        worker_ancestor = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", worker_head, args.integrated_sha],
-            cwd=args.repo_root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if worker_ancestor.returncode != 0:
+        if not _git_is_ancestor(args.repo_root, worker_head, args.integrated_sha):
             raise ManifestError(
                 f"worker head {worker_head} is not contained in {args.integrated_sha}; "
                 "integrate the mission's work first"
@@ -2185,32 +2183,12 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
             "record-integration requires a full prior integration_head_sha when present"
         )
     integration_parent = previous_integration_head or batch_base_sha
-    prior_ancestor = subprocess.run(
-        [
-            "git",
-            "merge-base",
-            "--is-ancestor",
-            integration_parent,
-            args.integrated_sha,
-        ],
-        cwd=args.repo_root,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if prior_ancestor.returncode != 0:
+    if not _git_is_ancestor(args.repo_root, integration_parent, args.integrated_sha):
         raise ManifestError(
             f"prior integration head {integration_parent} is not an ancestor of "
             f"{args.integrated_sha}; record-integration may only move forward"
         )
-    ancestor = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", batch_base_sha, args.integrated_sha],
-        cwd=args.repo_root,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if ancestor.returncode != 0:
+    if not _git_is_ancestor(args.repo_root, batch_base_sha, args.integrated_sha):
         raise ManifestError(
             f"batch base {batch_base_sha} is not an ancestor of {args.integrated_sha}"
         )
@@ -2267,13 +2245,11 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
 def _git_tree(repo_root: Path, sha: str) -> str:
     """Resolve a commit's tree SHA from live Git; the skip proof is real or absent."""
 
-    result = subprocess.run(
-        ["git", "rev-parse", f"{sha}^{{tree}}"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    try:
+        reject_object_substitution(repo_root)
+        result = run_git(repo_root, "rev-parse", f"{sha}^{{tree}}")
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
     tree = result.stdout.strip()
     if result.returncode != 0 or not is_full_sha(tree):
         raise ManifestError(f"cannot resolve tree SHA for {sha!r} in {repo_root}")

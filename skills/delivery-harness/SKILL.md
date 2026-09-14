@@ -219,6 +219,6 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 ### 6. Complete
 
-Harness 0.38 RUNs close `local_only` at C after every gate and exact-SHA security review passes. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back a failed step; commit only the repository bookkeeping as A and reverify it. A current RUN never pushes. Under a new exact instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, and receipt outside the checkout, pushes only A without force, and reads it back. Candidate gates and separately authorized exact-A `main` promotion follow.
+Harness 0.38 RUNs close `local_only` at C after all gates and security pass. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back failure; commit only bookkeeping as A and reverify it. A current RUN never pushes. Under a new instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, and receipt external, returns a trusted-host no-force argv, and never invokes `git push`; a human/trusted host publishes and recovery reads A back. Candidate gates and separately authorized exact-A `main` promotion follow.
 
 `product-activation`, outcome review, and SEO follow required promotion and production verification; no RUN grant authorizes them.

@@ -98,6 +98,24 @@ function Test-ForbiddenSourceFile {
     return $false
 }
 
+function Assert-NoReparseComponents {
+    param([string]$Path)
+
+    $full = [IO.Path]::GetFullPath($Path)
+    $cursor = $full
+    while ($null -ne $cursor -and $cursor.Length -gt 0) {
+        $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
+        if ($null -ne $item) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "reparse-point path component is forbidden: $cursor"
+            }
+        }
+        $parent = Split-Path -Parent $cursor
+        if ($parent -eq $cursor) { break }
+        $cursor = $parent
+    }
+}
+
 function Get-TrackedRelativeFiles {
     param([string]$Skill)
 
@@ -213,9 +231,15 @@ function Copy-TrackedFiles {
         $sourceFile = Join-Path $SourceRoot $relative
         $targetFile = Join-Path $Target $relative
         $targetDirectory = Split-Path -Parent $targetFile
+        Assert-NoReparseComponents $sourceFile
+        Assert-NoReparseComponents $targetFile
+        Assert-NoReparseComponents $targetDirectory
         if (-not (Test-Path -LiteralPath $targetDirectory)) {
             New-Item -ItemType Directory -Path $targetDirectory | Out-Null
         }
+        Assert-NoReparseComponents $sourceFile
+        Assert-NoReparseComponents $targetDirectory
+        Assert-NoReparseComponents $targetFile
         Copy-Item -LiteralPath $sourceFile -Destination $targetFile
     }
 }
@@ -228,6 +252,7 @@ function Release-InstallLock {
     if ($LockOwned -and $null -ne $LockPath -and (Test-Path -LiteralPath $LockPath -PathType Leaf)) {
         $owner = [IO.File]::ReadAllText($LockPath).Trim()
         if ($owner -eq $AttemptId -or -not $owner) {
+            Assert-NoReparseComponents $LockPath
             Remove-Item -LiteralPath $LockPath -Force
         }
         else {
@@ -248,6 +273,7 @@ function Restore-Installation {
             [IO.File]::ReadAllText($ownerPath).Trim() -eq $AttemptId
         if ($ownerMatches -or (-not $ownerExists -and $LockOwned)) {
             try {
+                Assert-NoReparseComponents $target
                 Remove-Item -LiteralPath $target -Recurse -Force
             }
             catch {
@@ -274,6 +300,8 @@ function Restore-Installation {
                 continue
             }
             try {
+                Assert-NoReparseComponents $saved
+                Assert-NoReparseComponents $target
                 Move-Item -LiteralPath $saved -Destination $target
             }
             catch {
@@ -283,6 +311,7 @@ function Restore-Installation {
         }
         if ((Test-Path -LiteralPath $BackupDir) -and -not (Get-ChildItem -LiteralPath $BackupDir -Force)) {
             try {
+                Assert-NoReparseComponents $BackupDir
                 Remove-Item -LiteralPath $BackupDir -Force
             }
             catch {
@@ -293,6 +322,7 @@ function Restore-Installation {
 
     if ($null -ne $StageRoot -and (Test-Path -LiteralPath $StageRoot)) {
         try {
+            Assert-NoReparseComponents $StageRoot
             Remove-Item -LiteralPath $StageRoot -Recurse -Force
         }
         catch {
@@ -303,6 +333,9 @@ function Restore-Installation {
 }
 
 try {
+    Assert-NoReparseComponents $SkillsSrc
+    Assert-NoReparseComponents $Destination
+    Assert-NoReparseComponents $BackupRoot
     foreach ($Skill in $Skills) {
         Assert-NoUnexpectedSourceFiles $Skill
     }
@@ -320,6 +353,7 @@ try {
         throw "BackupRoot must stay outside Destination: $backupFull"
     }
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    Assert-NoReparseComponents $Destination
     $LockPath = Join-Path $Destination ".pdh-install.lock"
     try {
         $LockStream = [IO.File]::Open(
@@ -346,10 +380,12 @@ try {
     $stageName = ".pdh-install-stage-$stamp-$([Guid]::NewGuid().ToString('N'))"
     $StageRoot = Join-Path $Destination $stageName
     New-Item -ItemType Directory -Path $StageRoot | Out-Null
+    Assert-NoReparseComponents $StageRoot
 
     foreach ($Skill in $Skills) {
         $stageTarget = Join-Path $StageRoot $Skill
         New-Item -ItemType Directory -Path $stageTarget | Out-Null
+        Assert-NoReparseComponents $stageTarget
         Copy-TrackedFiles -Skill $Skill -Target $stageTarget
     }
 
@@ -372,6 +408,7 @@ try {
     }
 
     New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
+    Assert-NoReparseComponents $BackupRoot
     $existing = @($ManagedSkills | Where-Object { Test-Path -LiteralPath (Join-Path $Destination $_) })
     if ($existing.Count -gt 0) {
         $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -382,8 +419,11 @@ try {
             $collision++
         }
         New-Item -ItemType Directory -Path $BackupDir | Out-Null
+        Assert-NoReparseComponents $BackupDir
         foreach ($Skill in $existing) {
             $Moved += $Skill
+            Assert-NoReparseComponents (Join-Path $Destination $Skill)
+            Assert-NoReparseComponents (Join-Path $BackupDir $Skill)
             Move-Item -LiteralPath (Join-Path $Destination $Skill) -Destination (Join-Path $BackupDir $Skill)
             Write-Host "backed up existing $Skill -> $(Join-Path $BackupDir $Skill)"
         }
@@ -391,11 +431,13 @@ try {
 
     foreach ($Skill in $Skills) {
         $target = Join-Path $Destination $Skill
+        Assert-NoReparseComponents $target
         if ($env:PDH_INSTALL_TEST_CREATE_FOREIGN_TARGET -eq $Skill) {
             New-Item -ItemType Directory -Path $target | Out-Null
             [IO.File]::WriteAllText((Join-Path $target "keep.txt"), "foreign sentinel`n")
         }
         New-Item -ItemType Directory -Path $target | Out-Null
+        Assert-NoReparseComponents $target
         $Installed += $Skill
         if ($env:PDH_INSTALL_TEST_FAIL_OWNER_MARKER -eq $Skill) {
             throw "induced target owner marker failure for $Skill"
@@ -406,9 +448,15 @@ try {
             $relative = $_.FullName.Substring($stageSource.Length + 1)
             $targetFile = Join-Path $target $relative
             $targetDirectory = Split-Path -Parent $targetFile
+            Assert-NoReparseComponents $_.FullName
+            Assert-NoReparseComponents $targetFile
+            Assert-NoReparseComponents $targetDirectory
             if (-not (Test-Path -LiteralPath $targetDirectory)) {
                 New-Item -ItemType Directory -Path $targetDirectory | Out-Null
             }
+            Assert-NoReparseComponents $_.FullName
+            Assert-NoReparseComponents $targetDirectory
+            Assert-NoReparseComponents $targetFile
             Copy-Item -LiteralPath $_.FullName -Destination $targetFile
         }
         Write-Host "installed $Skill -> $target"
@@ -434,9 +482,11 @@ try {
         }
     }
     foreach ($Skill in $Skills) {
+        Assert-NoReparseComponents (Join-Path (Join-Path $Destination $Skill) ".pdh-install-owner")
         Remove-Item -LiteralPath (Join-Path (Join-Path $Destination $Skill) ".pdh-install-owner") -Force
     }
 
+    Assert-NoReparseComponents $StageRoot
     Remove-Item -LiteralPath $StageRoot -Recurse -Force
     $StageRoot = $null
     Write-Host "done. start a fresh host session so it discovers the skills."

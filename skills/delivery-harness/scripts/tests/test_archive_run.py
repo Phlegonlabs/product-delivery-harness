@@ -6,6 +6,8 @@ import contextlib
 import hashlib
 import io
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -437,6 +439,62 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("unrelated dirty path: unrelated.txt", result.stderr)
         self.assertTrue((self.root / "unrelated.txt").exists())
+        self.assertTrue((self.goal / "RUN.md").exists())
+
+    def test_apply_rejects_documents_symlink_without_touching_internal_target(self) -> None:
+        documents = self.root / "docs" / "DOCUMENTS.md"
+        internal = self.root / ".git" / "config"
+        original = internal.read_bytes()
+        documents.unlink()
+        try:
+            documents.symlink_to(internal)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink unavailable: {exc}")
+        result = self.archive("--apply")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertRegex(result.stderr, "unsafe (symlink|reparse)|symlink")
+        self.assertEqual(original, internal.read_bytes())
+        self.assertFalse((self.goal / "archived").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction regression")
+    def test_apply_rejects_documents_junction_without_touching_git_metadata(self) -> None:
+        powershell = shutil.which("pwsh") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("PowerShell is unavailable")
+        documents = self.root / "docs" / "DOCUMENTS.md"
+        internal = self.root / ".git"
+        config = internal / "config"
+        original = config.read_bytes()
+        documents.unlink()
+        created = subprocess.run(
+            [
+                powershell,
+                "-NoProfile",
+                "-Command",
+                "New-Item -ItemType Junction -Path $env:PDH_JUNCTION -Target $env:PDH_TARGET -ErrorAction Stop | Out-Null",
+            ],
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "PDH_JUNCTION": str(documents),
+                "PDH_TARGET": str(internal),
+            },
+            timeout=30,
+        )
+        if created.returncode != 0:
+            self.skipTest(created.stderr.strip() or "junction creation failed")
+        result = self.archive("--apply")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertRegex(result.stderr, "unsafe (symlink|reparse)|reparse point")
+        self.assertEqual(original, config.read_bytes())
+        self.assertFalse((self.goal / "archived").exists())
+
+    def test_archive_rejects_git_replace_refs_before_validation(self) -> None:
+        mf.git(self.root, "update-ref", f"refs/replace/{self.expected_main}", self.expected_main)
+        result = self.archive()
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertIn("replacement refs", result.stderr)
         self.assertTrue((self.goal / "RUN.md").exists())
 
     def test_apply_refuses_a_stale_but_reachable_main_sha(self) -> None:

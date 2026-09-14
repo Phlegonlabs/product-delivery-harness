@@ -22,7 +22,7 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR, UI_TESTS_DIR, PDB_TESTS_DIR, DS_TESTS_
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
 
-from harness_contract_join import validate_frozen_contract_joins  # noqa: E402
+from harness_contract_join import _strict_ui_surface_errors, validate_frozen_contract_joins  # noqa: E402
 from harness_manifest import validate_current_plan_run  # noqa: E402
 from manifest_fixtures import valid_plan, valid_run  # noqa: E402
 from check_design_system_pair import replace_generated_contract  # noqa: E402
@@ -312,6 +312,57 @@ class StrictAuthorityJoinTests(unittest.TestCase):
                 source["content_sha256"] = hashlib.sha256(source_path.read_bytes()).hexdigest()
             errors = validate_frozen_contract_joins(plan, root, run=run)
             self.assertTrue(any("design-system/2" in error for error in errors))
+
+    def test_hybrid_plan_surface_join_keeps_web_and_native_matrices_separate(self) -> None:
+        plan = {
+            "ui_surfaces": [
+                {
+                    "id": "UI-WEB",
+                    "route": "/home",
+                    "states": ["ready"],
+                    "breakpoints": ["390", "768", "1200"],
+                    "capture_mode": "hosted-browser",
+                    "surface_class": "hosted_web",
+                    "release_surface": "web",
+                },
+                {
+                    "id": "UI-IOS",
+                    "route": "/ios-home",
+                    "states": ["ready"],
+                    "breakpoints": ["compact", "regular"],
+                    "capture_mode": "native",
+                    "surface_class": "ios",
+                    "release_surface": "ios",
+                },
+            ]
+        }
+        view = {
+            "capture_mode": "mixed",
+            "target_scope": {
+                "surfaces": [
+                    {
+                        "id": "UI-WEB",
+                        "route": "/home",
+                        "states": ["ready"],
+                        "surfaceClass": "hosted_web",
+                        "releaseSurface": "web",
+                        "captureMode": "hosted-browser",
+                        "responsive": {"kind": "viewports", "targets": [390, 768, 1200]},
+                    },
+                    {
+                        "id": "UI-IOS",
+                        "route": "/ios-home",
+                        "states": ["ready"],
+                        "surfaceClass": "ios",
+                        "releaseSurface": "ios",
+                        "captureMode": "native",
+                        "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]},
+                    },
+                ],
+                "responsive": {"kind": "per-surface", "targets": []},
+            },
+        }
+        self.assertEqual([], _strict_ui_surface_errors(plan, view))
 
 
 if __name__ == "__main__":

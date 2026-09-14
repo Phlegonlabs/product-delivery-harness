@@ -939,6 +939,51 @@ def _responsive_key(value: Any) -> str:
 def _validate_responsive_data(
     data: dict[str, Any], problems: list[str]
 ) -> list[str]:
+    responsive_by_surface = data.get("responsiveBySurface")
+    if isinstance(responsive_by_surface, dict) and responsive_by_surface and "viewports" not in data and "sizeClasses" not in data:
+        targets_by_surface: dict[str, list[str]] = {}
+        for surface_id, spec in responsive_by_surface.items():
+            if not isinstance(surface_id, str) or not isinstance(spec, dict) or set(spec) != {"kind", "targets", "canvasWidths"}:
+                _add(problems, f"wireframe-data.responsiveBySurface.{surface_id}", "must contain kind, targets, and canvasWidths")
+                continue
+            kind = spec.get("kind")
+            targets = spec.get("targets")
+            if kind == "viewports":
+                valid = isinstance(targets, list) and len(targets) >= (3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2) and all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0 for value in targets) and len(set(targets)) == len(targets) and all(left < right for left, right in zip(targets, targets[1:]))
+            elif kind == "sizeClasses":
+                valid = isinstance(targets, list) and len(targets) >= 2 and all(_nonempty(value) for value in targets) and len(set(targets)) == len(targets)
+            else:
+                valid = False
+            if not valid:
+                _add(problems, f"wireframe-data.responsiveBySurface.{surface_id}", "has an invalid responsive set")
+                continue
+            target_keys = [_responsive_key(value) for value in targets]
+            canvas_widths = spec.get("canvasWidths")
+            if not isinstance(canvas_widths, dict) or set(canvas_widths) != set(target_keys):
+                _add(
+                    problems,
+                    f"wireframe-data.responsiveBySurface.{surface_id}.canvasWidths",
+                    "must contain exactly one width for every target",
+                )
+                continue
+            invalid_width = any(
+                not isinstance(width, (int, float))
+                or isinstance(width, bool)
+                or not math.isfinite(width)
+                or width <= 0
+                or (kind == "viewports" and float(width) != float(target))
+                for target, width in canvas_widths.items()
+            )
+            if invalid_width:
+                _add(
+                    problems,
+                    f"wireframe-data.responsiveBySurface.{surface_id}.canvasWidths",
+                    "must use positive widths and match numeric viewport targets",
+                )
+                continue
+            targets_by_surface[surface_id] = target_keys
+        data["_validatedResponsiveBySurface"] = targets_by_surface
+        return []
     has_viewports = "viewports" in data
     has_size_classes = "sizeClasses" in data
     viewports = data.get("viewports")
@@ -1062,6 +1107,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
     copy_is_frozen = _validate_copy_freeze(data, problems) if copy_contract else False
 
     responsive_targets = _validate_responsive_data(data, problems)
+    responsive_by_surface = data.get("_validatedResponsiveBySurface", {})
 
     screens = data.get("screens")
     if not isinstance(screens, list) or not screens:
@@ -1228,6 +1274,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     "must include every primary region: " + ", ".join(missing_primary),
                 )
 
+        screen_targets = responsive_by_surface.get(screen_id, responsive_targets) if isinstance(responsive_by_surface, dict) else responsive_targets
         responsive_layouts = screen.get("responsiveLayouts")
         if not isinstance(responsive_layouts, dict):
             _add(
@@ -1236,14 +1283,14 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                 "must be an object keyed by every responsive target",
             )
             responsive_layouts = {}
-        elif set(responsive_layouts) != set(responsive_targets):
+        elif set(responsive_layouts) != set(screen_targets):
             _add(
                 problems,
                 f"{path}.responsiveLayouts",
                 "must contain exactly the responsive targets: "
-                + ", ".join(responsive_targets),
+                + ", ".join(screen_targets),
             )
-        for target in responsive_targets:
+        for target in screen_targets:
             layout = responsive_layouts.get(target)
             layout_path = f"{path}.responsiveLayouts.{target}"
             if not isinstance(layout, dict):
@@ -1464,6 +1511,24 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     f"wireframe-data.flows.{origin}.{trigger}",
                     f"must match exactly one visible region action (found {count})",
                 )
+
+    if isinstance(responsive_by_surface, dict) and responsive_by_surface:
+        declared_surface_ids = {
+            key for key in responsive_by_surface if isinstance(key, str)
+        }
+        if declared_surface_ids != seen_screens:
+            missing = sorted(seen_screens - declared_surface_ids)
+            extra = sorted(declared_surface_ids - seen_screens)
+            detail: list[str] = []
+            if missing:
+                detail.append("missing " + ", ".join(missing))
+            if extra:
+                detail.append("unknown " + ", ".join(extra))
+            _add(
+                problems,
+                "wireframe-data.responsiveBySurface",
+                "must contain exactly one entry per screen: " + "; ".join(detail),
+            )
 
     if require_filled:
         def walk(value: Any, path: str) -> None:

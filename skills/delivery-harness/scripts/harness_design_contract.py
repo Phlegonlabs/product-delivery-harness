@@ -19,6 +19,7 @@ CONTRACT_FIELDS = (
     "platform",
     "stylingMechanism",
     "enforcement",
+    "surfaceContracts",
     "tokenSources",
     "primitiveSources",
     "viewports",
@@ -95,6 +96,8 @@ def validate_design_system_registry(registry: dict[str, Any]) -> list[str]:
                 pass
 
     problems: list[str] = []
+    if "surfaceContracts" in registry:
+        problems.append("design-system.json surfaceContracts requires design-system/2")
     if registry.get("schema") != "design-system/1":
         problems.append("design-system.json schema must be 'design-system/1'")
 

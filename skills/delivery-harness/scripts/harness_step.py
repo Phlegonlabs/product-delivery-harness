@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 from harness_manifest import ManifestError, load_plan, load_run, plan_digest
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from select_ready_nodes import GraphSelectionError, select_ready_nodes
 
 # Facts no manifest or repository read can supply. The parent observes these
@@ -39,9 +39,9 @@ PARENT_OBSERVED_FACTS = (
 
 def _git(repo_root: Path, *args: str) -> str | None:
     try:
-        completed = subprocess.run(
-            ["git", "-C", str(repo_root), *args],
-            capture_output=True,
+        completed = run_git(
+            repo_root,
+            *args,
             text=True,
             check=False,
         )
@@ -54,6 +54,11 @@ def _git(repo_root: Path, *args: str) -> str | None:
 
 def observe(repo_root: Path, plan: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
     """Derive every pre-launch fact that PLAN, RUN, and Git already know."""
+
+    try:
+        reject_object_substitution(repo_root)
+    except (GitMetadataError, OSError) as exc:
+        raise ManifestError(str(exc)) from exc
 
     integration = run.get("integration", {}) or {}
     recorded_base = integration.get("batch_base_sha")

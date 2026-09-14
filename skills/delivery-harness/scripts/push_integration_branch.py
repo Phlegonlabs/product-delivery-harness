@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from harness_core import ManifestError, _normalized_branch, is_full_sha
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_schema import archive_first_required, required_harness_version
 from harness_authorization import authorization_covers
 from harness_manifest import (
@@ -33,10 +34,9 @@ RECEIPT_PROTOCOL = "harness-push-receipt-v1"
 def _git(
     root: Path, *arguments: str, text: bool = True
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
-        ["git", *arguments],
-        cwd=root,
-        capture_output=True,
+    return run_git(
+        root,
+        *arguments,
         text=text,
         timeout=30,
         check=False,
@@ -165,6 +165,10 @@ def _root(path: Path) -> Path:
         raise ManifestError(
             f"--repo-root {path} must be the repository root, not a subdirectory"
         )
+    try:
+        reject_object_substitution(resolved)
+    except (GitMetadataError, OSError) as exc:
+        raise ManifestError(str(exc)) from exc
     return resolved
 
 
