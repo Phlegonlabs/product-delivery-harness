@@ -25,6 +25,7 @@ from harness_core import ManifestError, extract_json_manifest_text, is_full_sha,
 from harness_git import (
     GitMetadataError,
     git_environment,
+    git_executable,
     reject_object_substitution,
     run_git,
 )
@@ -38,7 +39,11 @@ from push_integration_branch import (
     _safe_remote,
     _verify_configured_remote,
 )
-from archive_run import _documents_after_bytes, validate_archive_receipt
+from archive_run import (
+    _canonical_repo_path,
+    _documents_after_bytes,
+    validate_archive_receipt,
+)
 from archive_run import validate_archive_anchor
 
 
@@ -339,12 +344,17 @@ def _discover_os_managed_verifier(*, root: Path) -> str:
 
 
 def _validate_timestamp(value: object, label: str) -> None:
-    if not isinstance(value, str) or value != value.strip() or not value.endswith("Z"):
+    if (
+        not isinstance(value, str)
+        or not re.fullmatch(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$", value)
+    ):
         raise ManifestError(f"{label} must be an RFC3339 UTC timestamp")
     try:
-        datetime.fromisoformat(value[:-1] + "+00:00")
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
     except ValueError as exc:
         raise ManifestError(f"{label} must be an RFC3339 UTC timestamp") from exc
+    if parsed.tzinfo != timezone.utc:
+        raise ManifestError(f"{label} must be an RFC3339 UTC timestamp")
 
 
 def _validate_endpoint(metadata: dict[str, Any]) -> None:
@@ -683,8 +693,12 @@ def _validate_archive_authority(authority: dict[str, Any]) -> None:
     for move in authority["moves"]:
         if not isinstance(move, dict) or set(move) != {"source", "destination", "type", "sha256"}:
             raise ManifestError("moves contains an invalid row")
-        _require_nonempty(move.get("source"), "move.source")
-        _require_nonempty(move.get("destination"), "move.destination")
+        source = move.get("source")
+        destination = move.get("destination")
+        if not _canonical_repo_path(source):
+            raise ManifestError("move.source must be a canonical repository path")
+        if not _canonical_repo_path(destination, prefix=f"{authority['archive_path']}/"):
+            raise ManifestError("move.destination must be a canonical archive path")
         if move["type"] != "file":
             raise ManifestError("move.type must be file")
         _require_sha(move.get("sha256"), length=64, label="move.sha256")
@@ -841,11 +855,29 @@ def _archive_rel(root: Path, archive: Path) -> Path:
 
 
 def _tree_files(root: Path, revision: str, prefix: str) -> dict[str, str]:
-    result = _git(root, "ls-tree", "-r", "-z", "--name-only", revision, "--", prefix, text=False)
+    result = _git(root, "ls-tree", "-r", "-z", revision, "--", prefix, text=False)
     if result.returncode != 0:
         raise ManifestError("cannot inspect archived Git tree")
-    names = [item.decode("utf-8") for item in bytes(result.stdout).split(b"\0") if item]
-    return {name: hashlib.sha256(_blob(root, revision, name)).hexdigest() for name in names}
+    files: dict[str, str] = {}
+    for raw in bytes(result.stdout).split(b"\0"):
+        if not raw:
+            continue
+        try:
+            header, encoded_name = raw.split(b"\t", 1)
+            mode, object_type, object_id = header.split()
+            name = encoded_name.decode("utf-8")
+            mode_text = mode.decode("ascii")
+            type_text = object_type.decode("ascii")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise ManifestError("archived Git tree entry is malformed") from exc
+        if type_text != "blob" or mode_text not in {"100644", "100755"}:
+            raise ManifestError(
+                f"archived Git tree contains a non-regular entry: {name} ({mode_text} {type_text})"
+            )
+        if not _canonical_repo_path(name):
+            raise ManifestError("archived Git tree path is not canonical")
+        files[name] = hashlib.sha256(_blob(root, revision, name)).hexdigest()
+    return files
 
 
 def _coordination_files(root: Path, revision: str) -> dict[str, str]:
@@ -886,12 +918,8 @@ def _protected_branch(value: object) -> bool:
 
 def _canonical_archive_path(value: object) -> bool:
     return (
-        isinstance(value, str)
-        and value == value.strip()
-        and value == value.replace("\\", "/")
-        and value.startswith("docs/goal/archived/")
-        and len(Path(value).parts) == 4
-        and all(part not in {"", ".", ".."} for part in Path(value).parts)
+        _canonical_repo_path(value, prefix="docs/goal/archived/")
+        and len(str(value).split("/")) == 4
     )
 
 
@@ -1272,6 +1300,19 @@ def verify_archive_candidate(root: Path, *, archive_path: Path, candidate_a: str
     if "docs/goal/PLAN.md" not in source_names or "docs/goal/RUN.md" not in source_names:
         raise ManifestError("archive receipt moves must include PLAN.md and RUN.md")
     c_files = _coordination_files(root, candidate_c)
+    # PLAN/RUN are intentionally allowed to be the closeout working-tree
+    # coordination inputs (C can predate the manifests); every other file
+    # must be exactly the immutable candidate-C coordination inventory.
+    expected_source_names = set(c_files) | {"docs/goal/PLAN.md", "docs/goal/RUN.md"}
+    if not expected_source_names.issubset(source_names):
+        missing = sorted(expected_source_names - source_names)
+        detail = []
+        if missing:
+            detail.append("missing=" + ",".join(missing))
+        raise ManifestError(
+            "archive receipt moves must cover every coordination file in candidate C"
+            + (" (" + "; ".join(detail) + ")" if detail else "")
+        )
     allowed_changes = set(c_files) | source_names | expected_destinations | {receipt_path, DOCUMENTS_PATH.as_posix()}
     changed = set(filter(None, _out(root, "diff", "--name-only", candidate_c, candidate_a).splitlines()))
     if not changed.issubset(allowed_changes):
@@ -1371,7 +1412,7 @@ def _remote_state(root: Path, endpoint: str, branch_ref: str) -> str | None:
         environment["GIT_CONFIG_GLOBAL"] = os.devnull if os.name != "nt" else "NUL"
         environment["GIT_CEILING_DIRECTORIES"] = str(isolated_directory)
         result = subprocess.run(
-            ["git", "--no-replace-objects", "ls-remote", "--", url, branch_ref],
+            [git_executable(environment), "--no-replace-objects", "ls-remote", "--", url, branch_ref],
             cwd=isolated_directory,
             capture_output=True,
             text=True,

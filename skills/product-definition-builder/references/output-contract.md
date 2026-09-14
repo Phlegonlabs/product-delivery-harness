@@ -33,7 +33,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `stack-decisions.md` | The owner and engineer choosing or reviewing technology | Which coherent options were considered, what the owner approved, and why |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
 | `research-assessment.md` | Anyone deciding whether this product should have been drafted | What the pre-draft evidence supported, and what the gate decided |
-| `outcome-review.md` | The owner deciding what happens after a release | What actually happened post-deployment, measured against the targets, and the verdict |
+| `outcomes/YYYY-MM-DD-<release-set>.md` | The owner deciding what happens after a release | Immutable post-deployment measurements and the verdict |
 | `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, and what actually deployed |
 | `docs/ACTIVATION.md` | The owner or operator activating a delivered release | Which external actions and measurement sources are pending, configured, verified, blocked, or stale |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
@@ -52,7 +52,7 @@ Length budget. These are targets, not caps — say less when the product is simp
 - `stack-decisions.md`: about 150 lines.
 - `market-research.md`: about 150 lines. Findings and sources, not an industry report.
 - `research-assessment.md`: about 80 lines. Evidence and the gate decision, not a duplicate of the post-draft research.
-- `outcome-review.md`: about 60 lines. Deployed facts and the verdict, not a status report.
+- `outcomes/YYYY-MM-DD-<release-set>.md`: about 60 lines. Deployed facts and the verdict, not a status report.
 
 When a section runs past its share, the usual cause is detail that belongs in a different artifact. Move it before expanding the file.
 
@@ -268,6 +268,7 @@ Research Gate: [go / clarify / stop / skipped] — [assessment date and findings
 ### Product Definition Approval
 - Package mode: [new / enhancement]
 - Package revision: [Stable revision label for this candidate]
+- Package digest: [sha256:<64 lowercase hex> over canonical PRD/architecture/stack bytes, excluding this approval block]
 - Decision: [approved / revision_requested / blocked]
 - Decision owner: [Human product owner]
 - Decided on: [YYYY-MM-DD]
@@ -410,13 +411,13 @@ The seed must:
 - add exactly one Outcome Coverage row for every `## Metrics` metric and every `TEST-*` row marked `Required: Yes`, repeating the exact structured definition/obligation, baseline, target/guardrail, measurement window, and expected-signal values, scoped to that supported Activation target subset;
 - leave implementation-owned actions, routes, accounts, queries, release bindings, sources, evidence, authorization, and readiness visibly pending;
 - contain secret names only and no secret values; and
-- pass `python skills/product-activation/scripts/check_activation.py --activation <staged ACTIVATION.md> --prd <staged PRD.md> --architecture <staged architecture.md> --deployment <staged DEPLOYMENT.md>` before publication; the architecture and deployment inputs are the only release-target authority and must be staged together.
+- pass `python skills/product-activation/scripts/check_activation.py --activation <staged ACTIVATION.md> --prd <staged PRD.md> --architecture <staged architecture.md> --deployment <staged DEPLOYMENT.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root>` before publication; the approved package and full Deployment record are one joined authority and must be staged together.
 
 Publish a new seed flat at `docs/ACTIVATION.md` in the same approved move as the product package. Once the path exists, `product-activation` owns it. Product Definition reads it for context but never stages, overwrites, archives, resets, or treats its operational status as product approval.
 
-## `outcome-review.md`
+## `outcomes/YYYY-MM-DD-<release-set>.md`
 
-Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal.
+Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal. A saved review is immutable: use a dated/release-set path or provide an exact prior-record digest when appending history.
 
 Use `assets/templates/OUTCOME_REVIEW.template.md` and validate it with `scripts/check_outcome_review.py`. A single-target review keeps its original fields. A product with multiple production targets records an ordered `Production release targets: target-set: <id>, <id>, ...` field, one immutable row per target in `## Target Reviews`, and target-bound signal rows in `## Target Measurements`; the top-level `Verdict` is the deterministic aggregate (`incident` if any target is incident, otherwise `enhancement` if any target is enhancement, otherwise `no_change`). Separate target rows prevent one target's SHA, artifact, deployment, or measurement source from overwriting another target.
 
@@ -430,6 +431,8 @@ Product, human outcome owner, production release target, full Release SHA, exact
 For a multi-target review, add these ordered target and per-signal tables:
 
 ## Target Reviews
+
+The machine checker requires the exact `target-set:` prefix for multi-target records and binds the legacy top-level fields to the first ordered target. Verdict routing is closed: `enhancement` needs an enhancement-request follow-up, `incident` needs risk or open-question routing, and `no_change` has no substantive follow-up.
 | Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | [production target] | [full SHA] | [artifact] | [release;channel;artifact] | [RFC3339] | PASS | [MS IDs] | [enum] |
@@ -474,7 +477,7 @@ Verdict: [no_change / enhancement / incident] — [one-line reason]
 
 Rules:
 
-- Run `python skills/product-definition-builder/scripts/check_outcome_review.py --outcome docs/product/outcome-review.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md`.
+- Run `python skills/product-definition-builder/scripts/check_outcome_review.py --outcome docs/product/outcomes/YYYY-MM-DD-<release-set>.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md --repo-root <repository-root> --require-lifecycle`. When appending to a retained record instead of creating a dated one, also pass `--prior-outcome <immutable-prior-record>` and record its exact digest.
 - Record actual against target for every `PRD.md` `## Metrics` metric and every required `TEST-*` expected signal; baseline, target/expected signal, and (when present) numeric measurement-window duration must exactly join the PRD row. An empty or duplicate Measurements table means the review is not done.
 - The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
 - A single-target review cannot mix targets or releases and is production-only. A multi-target review keeps the ordered target set explicit, joins every target row to its own current Deployment PASS identity and verified `MS-*` sources, and repeats every PRD metric and required `TEST-*` signal only for the targets listed in that signal's Activation Outcome Coverage. Each target row's measurement window must use the PRD's exact numeric duration and start/end strictly after that target's Deployment checked date. No target's SHA, artifact, source, or actual may be reused implicitly for another target. All reviewed targets must be production architecture targets, and the aggregate verdict follows the closed deterministic severity order.
@@ -619,6 +622,10 @@ Use this structure:
 - Approved areas: [Frontend / Mobile or desktop / Backend or data / AI or automation / Monetization or partner channel / none]
 - Delegated choices: [None / exact decision classes explicitly delegated and source]
 - Open areas: [None / exact unresolved areas]
+- Checkpoint digest: [sha256:<64 lowercase hex> over canonical stack bytes, excluding this checkpoint block]
+- Applicable areas: [Exact release-surface and gate applicability]
+- Resolved areas: [Exact areas closed by this checkpoint]
+- Approved option map: [OPT-ID=layer entries, exactly matching approved executable layers]
 <!-- stack-decision-checkpoint:end -->
 
 Keep the `Stack Decisions` title, this marker pair and fields, the Coherent Options header, every `Recorded or Approved Stack` heading, and layer-table header in English in a translated package; they are machine anchors.

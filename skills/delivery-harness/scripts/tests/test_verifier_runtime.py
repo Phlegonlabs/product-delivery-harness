@@ -514,31 +514,71 @@ class VerifierRuntimeTests(unittest.TestCase):
         declaration = verifier(self.root / "unused.txt")
         plan = {"batch_verifiers": [declaration], "final_gates": [], "missions": []}
         image = declaration["execution"]["sandbox"]["image"]
-        with patch("verifier_runtime.shutil.which", return_value="docker") as which:
-            with patch("verifier_runtime.Path.read_bytes", return_value=b"fixture-runtime"):
-                with patch(
-                "verifier_runtime.subprocess.run",
-                side_effect=[
-                    subprocess.CompletedProcess(
-                        args=["docker", "version"], returncode=0, stdout="fixture", stderr=""
-                    ),
-                    subprocess.CompletedProcess(
-                        args=["docker", "image", "inspect"],
-                        returncode=0,
-                        stdout=json.dumps([image]),
-                        stderr="",
-                    ),
-                ],
-                ) as run:
-                    self.assertEqual([], probe_plan_sandboxes(plan))
+        with patch("verifier_runtime.shutil.which", return_value="docker.exe") as which:
+            with patch(
+                "verifier_runtime._runtime_trust",
+                return_value={
+                    "path": "docker.exe",
+                    "runtime": "docker",
+                    "ownership": "test-machine-policy",
+                    "uid": 0,
+                    "mode": 0o755,
+                    "reparse": False,
+                },
+            ):
+                with patch("verifier_runtime.Path.read_bytes", return_value=b"fixture-runtime"):
+                    with patch(
+                    "verifier_runtime.subprocess.run",
+                    side_effect=[
+                        subprocess.CompletedProcess(
+                            args=["docker", "version"], returncode=0, stdout="fixture", stderr=""
+                        ),
+                        subprocess.CompletedProcess(
+                            args=["docker", "image", "inspect"],
+                            returncode=0,
+                            stdout=json.dumps([image]),
+                            stderr="",
+                        ),
+                    ],
+                    ) as run:
+                        self.assertEqual([], probe_plan_sandboxes(plan))
         which.assert_called_once_with("docker")
         self.assertEqual(run.call_count, 2)
+
+    def test_windows_script_runtime_is_rejected_before_version_probe(self) -> None:
+        import verifier_runtime as runtime_module
+
+        declaration = verifier(self.root / "unused.txt")
+        with patch.object(runtime_module, "shutil") as shutil_module, patch(
+            "verifier_runtime.subprocess.run"
+        ) as run:
+            shutil_module.which.return_value = str(self.root / "docker.cmd")
+            with patch.object(runtime_module.os, "name", "nt"):
+                errors = runtime_module.probe_plan_sandboxes(
+                    {"batch_verifiers": [declaration], "final_gates": [], "missions": []}
+                )
+        self.assertTrue(any("native .exe" in error for error in errors), errors)
+        run.assert_not_called()
+
+    @unittest.skipUnless(os.name != "nt", "POSIX ownership fixture only")
+    def test_runtime_trust_rejects_writable_parent_component(self) -> None:
+        import verifier_runtime as runtime_module
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            executable = root / "docker"
+            executable.write_bytes(b"fixture")
+            executable.chmod(0o755)
+            root.chmod(0o777)
+            with patch.object(runtime_module, "_path_within", return_value=True):
+                with self.assertRaisesRegex(VerifierRuntimeError, "root-owned and not writable"):
+                    runtime_module._runtime_trust(executable, "docker")
 
     def test_sandbox_runtime_path_switch_is_rejected_before_run(self) -> None:
         patch.stopall()
         from verifier_runtime import _run_container_verifier
-        runtime_a = self.root / "runtime-a"
-        runtime_b = self.root / "runtime-b"
+        runtime_a = self.root / "runtime-a.exe"
+        runtime_b = self.root / "runtime-b.exe"
         runtime_a.write_bytes(b"runtime-a")
         runtime_b.write_bytes(b"runtime-b")
         if os.name != "nt":
@@ -571,7 +611,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         patch.stopall()
         from verifier_runtime import _run_container_verifier
 
-        runtime = self.root / "runtime"
+        runtime = self.root / "runtime.exe"
         original = b"trusted-runtime"
         runtime.write_bytes(original)
         if os.name != "nt":
@@ -660,7 +700,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         patch.stopall()
         from verifier_runtime import _run_container_verifier
 
-        runtime = self.root / "runtime"
+        runtime = self.root / "runtime.exe"
         runtime.write_bytes(b"trusted-runtime")
         if os.name != "nt":
             runtime.chmod(0o755)
@@ -725,8 +765,8 @@ class VerifierRuntimeTests(unittest.TestCase):
         patch.stopall()
         from verifier_runtime import _run_container_verifier
 
-        runtime = self.root / "runtime"
-        replacement = self.root / "runtime.replacement"
+        runtime = self.root / "runtime.exe"
+        replacement = self.root / "runtime-replacement.exe"
         sentinel = self.root / "runtime.sentinel"
         original = b"trusted-runtime"
         runtime.write_bytes(original)

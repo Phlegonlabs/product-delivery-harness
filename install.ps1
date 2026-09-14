@@ -3,7 +3,8 @@
 # moved to one timestamped backup, and any failure restores that backup.
 param(
     [string]$Destination = "$HOME\.agents\skills",
-    [string]$BackupRoot = "$HOME\.agents\skill-backups\product-delivery-harness"
+    [string]$BackupRoot = "$HOME\.agents\skill-backups\product-delivery-harness",
+    [switch]$CheckDependencies
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +27,10 @@ $LegacySkills = @(
     "product-design-builder"
 )
 $ManagedSkills = $Skills + $LegacySkills
+$ExternalDependencies = @{
+    "frontend-design" = "https://github.com/anthropics/skills/tree/main/skills/frontend-design"
+    "impeccable" = "https://github.com/pbakaus/impeccable"
+}
 $RequiredCommands = @(
     "Compare-Object",
     "Copy-Item",
@@ -48,6 +53,23 @@ $AttemptId = "pdh-$((Get-Date).ToString('yyyyMMdd-HHmmss'))-$([Guid]::NewGuid().
 $LockPath = $null
 $LockStream = $null
 $LockOwned = $false
+
+if ($CheckDependencies) {
+    $missing = @()
+    foreach ($name in $ExternalDependencies.Keys) {
+        $skillPath = Join-Path $Destination (Join-Path $name "SKILL.md")
+        if (Test-Path -LiteralPath $skillPath -PathType Leaf) {
+            Write-Host "dependency available: $name"
+        } else {
+            $missing += "$name (source: $($ExternalDependencies[$name]))"
+        }
+    }
+    if ($missing.Count -gt 0) {
+        $missing | ForEach-Object { Write-Error "dependency missing: $_" }
+        throw "install frontend-design through the Codex skill installer and Impeccable through 'npx impeccable install', then rerun with -CheckDependencies"
+    }
+    exit 0
+}
 
 foreach ($CommandName in $RequiredCommands) {
     if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
@@ -435,6 +457,9 @@ try {
         if ($env:PDH_INSTALL_TEST_CREATE_FOREIGN_TARGET -eq $Skill) {
             New-Item -ItemType Directory -Path $target | Out-Null
             [IO.File]::WriteAllText((Join-Path $target "keep.txt"), "foreign sentinel`n")
+        }
+        if (Test-Path -LiteralPath $target) {
+            throw "install target appeared during transaction: $target"
         }
         New-Item -ItemType Directory -Path $target | Out-Null
         Assert-NoReparseComponents $target

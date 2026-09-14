@@ -77,3 +77,51 @@ jobs:
             base="${{ github.event.before }}"
           fi
           git diff --check "$base...HEAD"
+
+  windows-hardening:
+    name: windows-hardening
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install harness test dependencies
+        shell: pwsh
+        run: python -m pip install -r skills/delivery-harness/requirements-test.txt
+
+      - name: Run native runtime, Git, parity, transition and context tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_verifier_runtime.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_harness_git.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_parity_capture.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_node_transitions.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_configure_project_context.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_write_path_transitions.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_archive_run.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_trusted_host_publication.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_harness_strict_authority.py" -v
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_install_script.py" -v
+          python -m unittest discover -s skills/design-system-compiler/scripts/tests -p "test_check_design_system_pair.py" -v
+
+      - name: Verify PowerShell installer syntax and dependency check route
+        shell: pwsh
+        run: |-
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path install.ps1), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { throw "install.ps1 parse failed" }
+          $dependencyCheck = & pwsh -NoProfile -File ./install.ps1 -CheckDependencies -Destination "$env:RUNNER_TEMP/pdh-skills" 2>&1
+          if ($LASTEXITCODE -eq 0) { throw "dependency check unexpectedly passed on an empty destination" }
+          if (($dependencyCheck -join "`n") -notmatch "frontend-design" -or
+              ($dependencyCheck -join "`n") -notmatch "impeccable") {
+            throw "dependency check did not report both required external UI skills"
+          }

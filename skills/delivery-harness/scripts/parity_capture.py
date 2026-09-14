@@ -33,6 +33,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_core import ManifestError, load_plan  # noqa: E402
 from harness_ui_evidence import _state_marker  # noqa: E402
+from harness_git import windows_machine_roots  # noqa: E402
 
 DEFAULT_OUT = Path("docs/goal/evidence/parity")
 VIEWPORT_HEIGHT = 1000
@@ -127,6 +128,7 @@ GEOMETRY_PROBE_JS = """
 def _direct_node_launcher(wrapper: Path) -> list[str] | None:
     """Resolve a Windows npm/Volta shim to Node without invoking a shell."""
 
+    wrapper = _trusted_launcher_path(wrapper, "agent-browser launcher")
     node = shutil.which("node.exe") or shutil.which("node")
     package_root = wrapper.parent
     javascript = package_root / "node_modules" / "agent-browser" / "bin" / "agent-browser.js"
@@ -136,6 +138,10 @@ def _direct_node_launcher(wrapper: Path) -> list[str] | None:
         resolved_volta = shutil.which("volta.exe") or shutil.which("volta")
         volta = Path(resolved_volta) if resolved_volta else volta
     if volta.is_file():
+        try:
+            volta = _trusted_launcher_path(volta, "Volta launcher")
+        except RuntimeError:
+            volta = Path()
         try:
             package_probe = subprocess.run(
                 [str(volta.resolve()), "which", "agent-browser"],
@@ -163,8 +169,8 @@ def _direct_node_launcher(wrapper: Path) -> list[str] | None:
             and package_probe.returncode == 0
             and node_probe.returncode == 0
         ):
-            package_launcher = Path(package_probe.stdout.strip()).resolve()
-            volta_node = Path(node_probe.stdout.strip()).resolve()
+            package_launcher = Path(package_probe.stdout.strip())
+            volta_node = Path(node_probe.stdout.strip())
             candidate = (
                 package_launcher.parent
                 / "node_modules"
@@ -172,26 +178,115 @@ def _direct_node_launcher(wrapper: Path) -> list[str] | None:
                 / "bin"
                 / "agent-browser.js"
             )
-            if volta_node.is_file() and candidate.is_file():
-                return [str(volta_node), str(candidate.resolve())]
+            try:
+                trusted_node = _trusted_launcher_path(volta_node, "Node runtime")
+                trusted_candidate = _trusted_launcher_path(candidate, "agent-browser script")
+            except RuntimeError:
+                trusted_node = trusted_candidate = None
+            if trusted_node is not None and trusted_candidate is not None:
+                return [str(trusted_node), str(trusted_candidate)]
 
     if node:
-        node_path = Path(node).resolve()
-        if node_path.is_file() and javascript.is_file():
-            return [str(node_path), str(javascript.resolve())]
+        try:
+            node_path = _trusted_launcher_path(Path(node), "Node runtime")
+            script_path = _trusted_launcher_path(javascript, "agent-browser script")
+        except RuntimeError:
+            return None
+        if node_path.is_file() and script_path.is_file():
+            return [str(node_path), str(script_path)]
     return None
+
+
+def _trusted_launcher_path(path: Path, label: str) -> Path:
+    """Bind a browser launcher to a non-reparse, machine-managed install."""
+
+    try:
+        resolved = path.resolve(strict=True)
+        info = resolved.stat()
+    except OSError as exc:
+        raise RuntimeError(f"{label} is unavailable: {path}") from exc
+    if not resolved.is_file() or path.is_symlink():
+        raise RuntimeError(f"{label} must be a regular non-symlink file: {resolved}")
+    for current in (resolved, *resolved.parents):
+        try:
+            if current.is_symlink() or getattr(current.stat(), "st_file_attributes", 0) & 0x0400:
+                raise RuntimeError(f"{label} path contains a reparse point: {current}")
+        except OSError as exc:
+            raise RuntimeError(f"cannot inspect {label}: {exc}") from exc
+    try:
+        resolved.relative_to(Path.cwd().resolve())
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError(f"{label} must not come from the current repository/worktree")
+    if os.name == "nt":
+        roots = list(windows_machine_roots())
+        if not any(_path_within(resolved, root) for root in roots):
+            raise RuntimeError(f"{label} must come from Program Files or Windows system directories")
+        if _windows_parent_user_writable(resolved.parent):
+            raise RuntimeError(f"{label} parent is user-writable: {resolved.parent}")
+        if resolved.suffix.casefold() not in {".exe", ".com", ".js", ".py", ".cmd", ".bat"}:
+            raise RuntimeError(f"{label} has an unsupported executable type")
+    else:
+        if info.st_uid != 0 or info.st_mode & 0o022:
+            raise RuntimeError(f"{label} must be root-owned and not writable by group/other")
+        if not any(_path_within(resolved, root) for root in (Path("/usr"), Path("/bin"), Path("/opt"))):
+            raise RuntimeError(f"{label} must come from an OS-protected install path")
+    return resolved
+
+
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _windows_parent_user_writable(path: Path) -> bool:
+    command = shutil.which("icacls")
+    if not command:
+        return True
+    try:
+        result = subprocess.run(
+            [command, str(path)], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    if result.returncode != 0:
+        return True
+    for line in result.stdout.splitlines()[1:]:
+        principal = line.strip().casefold()
+        if principal.startswith(("builtin\\users", "everyone", "authenticated users")) and any(
+            token in principal for token in ("(w)", "(m)", "(f)", "(d)")
+        ):
+            return True
+    return False
 
 
 def _resolve_cli() -> list[str] | None:
     resolved = shutil.which("agent-browser")
     if not resolved:
         return None
-    path = Path(resolved).resolve()
+    try:
+        path = _trusted_launcher_path(Path(resolved), "agent-browser launcher")
+    except RuntimeError:
+        return None
     if os.name == "nt":
         if path.suffix.casefold() in {".cmd", ".bat"}:
-            return _direct_node_launcher(path)
+            # Shell wrappers are never executed.  Resolve to direct Node argv
+            # only when both Node and the package script are machine-bound.
+            try:
+                return _direct_node_launcher(path)
+            except RuntimeError:
+                return None
         if path.suffix.casefold() == ".py":
-            return [str(Path(sys.executable).resolve()), str(path)]
+            try:
+                python_path = _trusted_launcher_path(Path(sys.executable), "Python runtime")
+            except RuntimeError:
+                return None
+            return [str(python_path), str(path)]
         if path.suffix.casefold() not in {".exe", ".com"}:
             return _direct_node_launcher(path)
     return [str(path)]
@@ -466,7 +561,7 @@ def capture(args: argparse.Namespace) -> int:
     try:
         plan = load_plan(plan_path)
         route_map = _route_map_load(args.route_map)
-    except (ManifestError, json.JSONDecodeError, OSError) as exc:
+    except (ManifestError, json.JSONDecodeError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -617,7 +712,9 @@ def capture(args: argparse.Namespace) -> int:
         )
     if not captured:
         errors.append("no parity pairs were captured")
-    partial = bool(args.only)
+    # Any unsupported platform surface makes a mixed board diagnostic only;
+    # a hosted subset can never turn the whole plan into a PASS.
+    partial = bool(args.only or unsupported_groups)
     manifest = {
         "status": "FAIL" if errors else ("PARTIAL" if partial else "PASS"),
         "gating_eligible": not partial and not errors,
@@ -654,7 +751,7 @@ def capture(args: argparse.Namespace) -> int:
         return 1
     if partial:
         print(
-            "partial diagnostic capture is not eligible for a parity gate",
+            "partial/platform diagnostic capture is not eligible for a parity gate",
             file=sys.stderr,
         )
         return 2
@@ -691,7 +788,7 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.TimeoutExpired as exc:
         print(f"error: agent-browser timed out: {exc}", file=sys.stderr)
         return 1
-    except (ManifestError, OSError) as exc:
+    except (ManifestError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

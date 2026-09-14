@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import stat
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping
@@ -45,6 +47,12 @@ _HELPER_ENVIRONMENT = {
     "GIT_SSH_VARIANT",
     "SSH_ASKPASS",
     "SSH_ASKPASS_REQUIRE",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_EXEC_PATH",
+    "GIT_TERMINAL_PROMPT",
+    "GIT_EDITOR",
+    "GIT_SEQUENCE_EDITOR",
+    "GIT_DIFF_OPTS",
 }
 
 _REMOTE_COMMANDS = {
@@ -74,7 +82,146 @@ _DANGEROUS_CONFIG_EXACT = {
     "core.hookspath",
     "core.fsmonitor",
     "include.path",
+    "http.sslverify",
+    "https.sslverify",
+    "http.sslcainfo",
+    "https.sslcainfo",
+    "http.sslcert",
+    "https.sslcert",
+    "http.sslkey",
+    "https.sslkey",
+    "http.extraheader",
+    "https.extraheader",
 }
+
+
+def _path_has_reparse_or_link(path: Path) -> bool:
+    """Return true when any existing component is a link/reparse point."""
+
+    current = Path(path)
+    while True:
+        try:
+            if current.is_symlink():
+                return True
+            if os.name == "nt" and current.exists():
+                # ``stat().st_file_attributes`` is available on modern
+                # Windows Python and exposes junctions without following
+                # them.  Keep the fallback conservative when unavailable.
+                attributes = getattr(current.stat(), "st_file_attributes", 0)
+                if attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400):
+                    return True
+        except OSError:
+            return True
+        parent = current.parent
+        if parent == current:
+            return False
+        current = parent
+
+
+def _machine_git_roots() -> tuple[Path, ...]:
+    if os.name == "nt":
+        return windows_machine_roots()
+    return (Path("/usr").resolve(), Path("/bin").resolve(), Path("/opt").resolve())
+
+
+def windows_machine_roots() -> tuple[Path, ...]:
+    """Resolve Windows system roots through kernel32, never caller env vars."""
+
+    if os.name != "nt":
+        return ()
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetWindowsDirectoryW.restype = wintypes.UINT
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = kernel32.GetWindowsDirectoryW(buffer, len(buffer))
+        if not length:
+            return ()
+        windows = Path(buffer.value[:length]).resolve()
+        drive = Path(windows.anchor)
+        return (windows, (drive / "Program Files").resolve())
+    except (AttributeError, OSError, ValueError):
+        return ()
+
+
+def _trusted_executable(path: Path, label: str) -> Path:
+    """Bind an executable to an administrator-managed, non-reparse path."""
+
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.stat()
+    except OSError as exc:
+        raise GitMetadataError(f"{label} is unavailable: {path}") from exc
+    if not resolved.is_file() or _path_has_reparse_or_link(path):
+        raise GitMetadataError(f"{label} must be a non-reparse regular file: {resolved}")
+    try:
+        resolved.relative_to(Path.cwd().resolve())
+    except ValueError:
+        pass
+    else:
+        raise GitMetadataError(f"{label} must not come from the current repository/worktree: {resolved}")
+    roots = _machine_git_roots()
+    if not any(_is_within(resolved, root) for root in roots):
+        raise GitMetadataError(f"{label} must come from an OS-protected install path: {resolved}")
+    if os.name != "nt":
+        for component in (resolved, *resolved.parents):
+            component_info = component.stat()
+            if component_info.st_uid != 0 or component_info.st_mode & 0o022:
+                raise GitMetadataError(f"{label} path must be root-owned and not writable by group/other: {component}")
+    elif resolved.suffix.casefold() != ".exe":
+        raise GitMetadataError(f"{label} must be a native .exe on Windows: {resolved}")
+    elif _windows_parent_user_writable(resolved.parent):
+        raise GitMetadataError(f"{label} parent is user-writable: {resolved.parent}")
+    return resolved
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _windows_parent_user_writable(path: Path) -> bool:
+    """Inspect broad Users/Everyone ACLs without treating an admin token as a user write."""
+
+    command = shutil.which("icacls")
+    if not command:
+        return True
+    try:
+        result = subprocess.run(
+            [command, str(path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    if result.returncode != 0:
+        return True
+    for line in result.stdout.splitlines()[1:]:
+        principal = line.strip().casefold()
+        if not principal.startswith(("builtin\\users", "everyone", "authenticated users")):
+            continue
+        if any(token in principal for token in ("(w)", "(m)", "(f)", "(d)")):
+            return True
+    return False
+
+
+def git_executable(environment: Mapping[str, str] | None = None) -> str:
+    """Resolve Git once and reject PATH-shadowed or repository-local binaries."""
+
+    source = dict(os.environ if environment is None else environment)
+    found = shutil.which("git", path=source.get("PATH"))
+    if found is None:
+        raise GitMetadataError("administrator-installed Git executable is unavailable")
+    return str(_trusted_executable(Path(found), "Git executable"))
 
 
 def _normalise_config_name(value: str) -> str:
@@ -155,6 +302,7 @@ def git_environment(
         if key.upper() not in forbidden
         and not key.upper().startswith(_CONFIGURATION_ENVIRONMENT_PREFIX + "_")
         and key.upper() != _CONFIGURATION_ENVIRONMENT_PREFIX
+        and not key.upper().startswith("GIT_SSL_")
     }
     # ``trusted_boundary`` is retained as an explicit call-site marker for
     # compatibility, but this module never restores helper environment
@@ -167,7 +315,7 @@ def git_environment(
 def git_argv(*arguments: str) -> list[str]:
     """Build a Git argv that reads raw object identities."""
 
-    return ["git", "--no-replace-objects", *arguments]
+    return [git_executable(), "--no-replace-objects", *arguments]
 
 
 def _raw_git(
@@ -234,6 +382,7 @@ def reject_dangerous_local_config(
     # origin/name pairs.  A malformed odd-length response is not trustworthy.
     if len(fields) % 2:
         raise GitConfigurationError("effective Git configuration listing is malformed")
+    root_resolved = resolved
     for index in range(0, len(fields), 2):
         origin, name = fields[index], fields[index + 1]
         if not _dangerous_config_name(name):
@@ -251,15 +400,35 @@ def reject_dangerous_local_config(
             or (normalized.startswith("merge.") and normalized.endswith(".driver"))
             or normalized in {"core.hookspath", "core.fsmonitor"}
         )
-        if local_only_helper:
-            origin_path = origin.removeprefix("file:").replace("\\", "/").casefold()
-            local_config = (
-                origin_path.endswith("/.git/config")
-                or origin_path.endswith("/.git/config.worktree")
-                or ("/.git/worktrees/" in origin_path and origin_path.endswith("/config"))
-            )
-            if not local_config:
-                continue
+        origin_path = origin.removeprefix("file:").replace("\\", "/")
+        local_config = False
+        if origin_path and not origin_path.startswith(("command:", "blob:", "stdin:")):
+            try:
+                origin_candidate = Path(origin_path)
+                if not origin_candidate.is_absolute():
+                    origin_candidate = root_resolved / origin_candidate
+                local_config = _is_within(origin_candidate.resolve(strict=False), root_resolved / ".git")
+            except OSError:
+                local_config = True
+        # Repository-local helpers, URL rewrites, endpoint overrides, and
+        # local TLS weakening are never trusted.  System/global operator
+        # policy remains available for corporate proxies and credential
+        # helpers, but command-line/config-injection origins are rejected.
+        remote_rewrite = normalized.startswith("url.") and normalized.endswith((".insteadof", ".pushinsteadof"))
+        always_reject = remote_rewrite or normalized in {
+            "http.sslverify",
+            "https.sslverify",
+            "http.extraheader",
+            "https.extraheader",
+        }
+        proxy_or_tls = (
+            normalized.endswith((".proxy", ".proxycommand"))
+            or normalized in _DANGEROUS_CONFIG_EXACT
+        )
+        if local_only_helper or proxy_or_tls or remote_rewrite:
+            if always_reject or local_config or origin.startswith(("command:", "blob:", "stdin:")):
+                dangerous.append(f"{origin}:{name}")
+            continue
         dangerous.append(f"{origin}:{name}")
     if dangerous:
         raise GitConfigurationError(

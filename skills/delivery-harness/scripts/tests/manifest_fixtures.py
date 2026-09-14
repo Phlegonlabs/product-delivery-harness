@@ -552,6 +552,14 @@ def sandbox_observation(plan: dict[str, object]) -> dict[str, object]:
                     "executable": "C:/fixture/docker.exe",
                     "executable_sha256": "a" * 64,
                     "version_output_sha256": "b" * 64,
+                    "trust": {
+                        "path": "C:/fixture/docker.exe",
+                        "runtime": runtime,
+                        "ownership": "fixture-machine-policy",
+                        "uid": 0,
+                        "mode": 493,
+                        "reparse": False,
+                    },
                 },
             }
     return {

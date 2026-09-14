@@ -7,6 +7,12 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 skills_src="$repo_root/skills"
 skills_dest="${1:-$HOME/.agents/skills}"
+if [ "${1:-}" = "--check-dependencies" ]; then
+  skills_dest="${2:-$HOME/.agents/skills}"
+  dependency_check_only=1
+else
+  dependency_check_only=0
+fi
 backup_root="${SKILL_BACKUP_ROOT:-$HOME/.agents/skill-backups/product-delivery-harness}"
 skills=(
   delivery-harness
@@ -37,6 +43,11 @@ required_commands=(
   rmdir
   sleep
   sort
+  stat
+)
+external_dependencies=(
+  "frontend-design|https://github.com/anthropics/skills/tree/main/skills/frontend-design"
+  "impeccable|https://github.com/pbakaus/impeccable"
 )
 
 stage_root=""
@@ -52,6 +63,83 @@ fail() {
   exit 1
 }
 
+check_external_dependencies() {
+  local item name locator missing=0
+  for item in "${external_dependencies[@]}"; do
+    name="${item%%|*}"
+    locator="${item#*|}"
+    if [ -f "$skills_dest/$name/SKILL.md" ]; then
+      echo "dependency available: $name"
+    else
+      echo "dependency missing: $name (source: $locator)" >&2
+      missing=1
+    fi
+  done
+  if [ "$missing" -ne 0 ]; then
+    echo "install frontend-design through the Codex skill installer and Impeccable through 'npx impeccable install', then rerun: $0 --check-dependencies $skills_dest" >&2
+    return 1
+  fi
+}
+
+if [ "$dependency_check_only" -eq 1 ]; then
+  check_external_dependencies
+  exit $?
+fi
+
+assert_no_reparse_entry() {
+  local value="$1"
+  if [ -L "$value" ]; then
+    fail "symlink/reparse path component is forbidden: $value"
+  fi
+}
+
+assert_no_reparse_tree() {
+  local root="$1" found
+  [ -e "$root" ] || return 0
+  while IFS= read -r found; do
+    [ -n "$found" ] || continue
+    fail "symlink/reparse path component is forbidden: $found"
+  done < <(find "$root" -type l -print 2>/dev/null)
+}
+
+assert_no_reparse_components() {
+  local value="$1" current parent kind
+  case "$value" in
+    /*) current="$value" ;;
+    *) current="$(pwd -P)/$value" ;;
+  esac
+  while :; do
+    if [ -L "$current" ]; then
+      fail "symlink/reparse path component is forbidden: $current"
+    fi
+    if [ -e "$current" ]; then
+      kind="$(stat -c '%F' -- "$current" 2>/dev/null || true)"
+      case "$kind" in
+        *"symbolic link"*|*"junction"*|*"reparse"*)
+          fail "symlink/reparse path component is forbidden: $current" ;;
+      esac
+    fi
+    [ "$current" = "/" ] && break
+    parent="${current%/*}"
+    [ -n "$parent" ] || parent="/"
+    [ "$parent" = "$current" ] && break
+    current="$parent"
+  done
+}
+
+assert_tracked_regular_files() {
+  local skill="$1" entry metadata mode tracked
+  while IFS= read -r -d '' entry; do
+    metadata="${entry%%$'\t'*}"
+    tracked="${entry#*$'\t'}"
+    mode="${metadata%% *}"
+    case "$mode" in
+      100644|100755) ;;
+      *) fail "non-regular tracked source entry is not installable: mode=$mode path=$tracked" ;;
+    esac
+  done < <(git -C "$repo_root" ls-files --stage -z -- "skills/$skill")
+}
+
 for command_name in "${required_commands[@]}"; do
   command -v "$command_name" >/dev/null 2>&1 ||
     fail "required command is unavailable: $command_name"
@@ -59,6 +147,9 @@ done
 
 for skill in "${skills[@]}"; do
   source_dir="$skills_src/$skill"
+  assert_no_reparse_components "$source_dir"
+  assert_no_reparse_tree "$source_dir"
+  assert_tracked_regular_files "$skill"
   [ -d "$source_dir" ] || fail "missing skill directory $source_dir"
   [ -f "$source_dir/SKILL.md" ] || fail "missing $source_dir/SKILL.md"
 done
@@ -80,16 +171,23 @@ is_forbidden_source_file() {
 }
 
 write_source_manifest() {
-  local skill="$1" output="$2" tracked relative
+  local skill="$1" output="$2" entry metadata mode tracked relative
   : >"$output"
-  while IFS= read -r tracked; do
+  while IFS= read -r -d '' entry; do
+    metadata="${entry%%$'\t'*}"
+    tracked="${entry#*$'\t'}"
+    mode="${metadata%% *}"
     [ -n "$tracked" ] || continue
+    case "$mode" in
+      100644|100755) ;;
+      *) fail "non-regular tracked source entry is not installable: mode=$mode path=$tracked" ;;
+    esac
     relative="${tracked#"skills/$skill/"}"
     [ "$relative" != "$tracked" ] || fail "unexpected tracked path for $skill: $tracked"
     is_cache_file "$relative" && continue
     is_forbidden_source_file "$relative" && fail "forbidden tracked source artifact: skills/$skill/$relative"
     printf '%s\n' "$relative" >>"$output"
-  done < <(git -C "$repo_root" ls-files -- "skills/$skill")
+  done < <(git -C "$repo_root" ls-files --stage -z -- "skills/$skill")
   LC_ALL=C sort -o "$output" "$output"
   [ -s "$output" ] || fail "$skill tracked manifest is empty"
 }
@@ -150,16 +248,20 @@ verify_tree() {
 }
 
 copy_tracked_tree() {
-  local skill="$1" target="$2" manifest="$stage_root/.manifests/${skill}.copy" relative target_file target_parent
+  local skill="$1" target="$2" manifest="$stage_root/.manifests/${skill}.copy"
   write_source_manifest "$skill" "$manifest"
+  assert_no_reparse_components "$skills_src/$skill" force
+  assert_no_reparse_tree "$skills_src/$skill"
+  assert_no_reparse_components "$target" force
   mkdir "$target"
-  while IFS= read -r relative; do
-    [ -n "$relative" ] || continue
-    target_file="$target/$relative"
-    target_parent="${target_file%/*}"
-    [ "$target_parent" = "$target_file" ] || mkdir -p "$target_parent"
-    cp -p "$skills_src/$skill/$relative" "$target_file"
-  done <"$manifest"
+  # A single recursive copy avoids one Git-Bash process per tracked file. The
+  # tracked/untracked gate already ran above; remove only reproducible cache
+  # artifacts that the manifest deliberately excludes, then verify every byte
+  # against the manifest before any destination mutation.
+  cp -a "$skills_src/$skill/." "$target/"
+  find "$target" -type d \( -name __pycache__ -o -name .pytest_cache \) -prune -exec rm -rf -- {} +
+  find "$target" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+  assert_no_reparse_tree "$target"
 }
 
 release_lock() {
@@ -196,6 +298,7 @@ restore_install() {
     fi
     if { [ -f "$target/.pdh-install-owner" ] && [ "$owner_value" = "$attempt_id" ]; } ||
        { [ ! -e "$target/.pdh-install-owner" ] && [ "$lock_owned" -eq 1 ]; }; then
+      assert_no_reparse_components "$target" force || restore_status=1
       rm -rf -- "$target" || restore_status=1
     elif [ -e "$target" ]; then
       echo "error: preserving partial target not owned by this attempt: $target" >&2
@@ -212,6 +315,8 @@ restore_install() {
         restore_status=1
         continue
       fi
+      assert_no_reparse_components "$backup_dir/$skill" force || restore_status=1
+      assert_no_reparse_components "$target" force || restore_status=1
       mv "$backup_dir/$skill" "$target" || restore_status=1
     done
     if [ -d "$backup_dir" ] && ! rmdir "$backup_dir" 2>/dev/null; then
@@ -220,6 +325,7 @@ restore_install() {
   fi
 
   if [ -n "$stage_root" ] && [ -d "$stage_root" ]; then
+    assert_no_reparse_components "$stage_root" force || restore_status=1
     rm -rf -- "$stage_root" || restore_status=1
   fi
   release_lock || restore_status=1
@@ -244,7 +350,11 @@ for skill in "${skills[@]}"; do
   check_untracked_source_files "$skill"
 done
 
+assert_no_reparse_components "$skills_src"
+assert_no_reparse_components "$skills_dest"
+assert_no_reparse_components "$backup_root"
 mkdir -p "$skills_dest"
+assert_no_reparse_components "$skills_dest"
 skills_dest_abs="$(cd "$skills_dest" && pwd -P)"
 skills_src_abs="$(cd "$skills_src" && pwd -P)"
 case "$skills_dest_abs" in
@@ -289,6 +399,7 @@ for skill in "${skills[@]}"; do
 done
 
 mkdir -p "$backup_root"
+assert_no_reparse_components "$backup_root"
 backup_root_abs="$(cd "$backup_root" && pwd -P)"
 case "$backup_root_abs" in
   "$skills_dest_abs"|"$skills_dest_abs"/*) fail "backup root must stay outside destination: $backup_root_abs" ;;
@@ -307,8 +418,12 @@ if [ "${#existing[@]}" -gt 0 ]; then
     collision=$((collision + 1))
   done
   mkdir "$backup_dir"
+  assert_no_reparse_components "$backup_dir"
   for skill in "${existing[@]}"; do
     moved+=("$skill")
+    assert_no_reparse_components "$skills_dest/$skill" force
+    assert_no_reparse_tree "$skills_dest/$skill"
+    assert_no_reparse_components "$backup_dir/$skill" force
     mv "$skills_dest/$skill" "$backup_dir/$skill"
     echo "backed up existing $skill -> $backup_dir/$skill"
   done
@@ -316,9 +431,13 @@ fi
 
 for skill in "${skills[@]}"; do
   target="$skills_dest/$skill"
+  assert_no_reparse_components "$target" force
   if [ "${PDH_INSTALL_TEST_CREATE_FOREIGN_TARGET:-}" = "$skill" ]; then
     mkdir "$target"
     printf 'foreign sentinel\n' >"$target/keep.txt"
+  fi
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    fail "install target appeared during transaction: $target"
   fi
   mkdir "$target"
   installed+=("$skill")
@@ -326,7 +445,9 @@ for skill in "${skills[@]}"; do
     fail "induced target owner marker failure for $skill"
   fi
   printf '%s\n' "$attempt_id" >"$target/.pdh-install-owner"
+  assert_no_reparse_entry "$target/.pdh-install-owner"
   cp -a "$stage_root/$skill/." "$target/"
+  assert_no_reparse_components "$target" force
   echo "installed $skill -> $target"
   if [ "${PDH_INSTALL_FAIL_AFTER:-}" = "$skill" ]; then
     fail "induced failure after installing $skill"
@@ -352,9 +473,11 @@ done
 
 for skill in "${skills[@]}"; do
   owner="$skills_dest/$skill/.pdh-install-owner"
+  assert_no_reparse_entry "$owner"
   rm -- "$owner"
 done
 
+assert_no_reparse_components "$stage_root" force
 rm -rf -- "$stage_root"
 stage_root=""
 release_lock

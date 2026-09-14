@@ -1,6 +1,6 @@
 # Documents
 
-The manifest of every document this delivery flow produces or governs. Keep it at `docs/DOCUMENTS.md` and keep it current: add a row when a document is created, update its status when it is published or approved, and note archival instead of deleting the row. An unfilled row means the document has not been created yet — not that it is optional.
+The manifest of every document this delivery flow produces or governs. Keep it at `docs/DOCUMENTS.md` and keep it current: add a row when a document is created, update its status when it is published or approved, and note archival instead of deleting the row. Rows labeled `when required`, `when requested`, or `managed run` are conditional; once applicability is known, fill them with the artifact status or `n/a — <reason>`. An unfilled applicable row is missing work.
 
 | Document | Location | Stage | Owner | Canonical | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `stack-decisions.md` | `docs/product/` | PRD | product-definition-builder | stack choices + rationale | |
 | `market-research.md` | `docs/product/` | PRD (gap pass) | product-definition-builder | sourced research | |
 | `implementation-plan.md` | `docs/product/` | PRD (when requested) | product-definition-builder | sequenced implementation outline | |
-| `design-system.md` / `design-system.json` | `docs/product/` | design (when required) | design-system-compiler | frozen design pair | |
+| `YYYY-MM-DD-<release-set>.md` | `docs/product/outcomes/` | post-release outcome (when requested) | product-definition-builder + owner | immutable outcome evidence and verdict | |
 | `docs/DEPLOYMENT.md` | `docs/` | PRD seed, implementation reconciliation, deployment check | product-definition-builder + delivery-harness + owner | name-only configuration handoff + deployment record | |
 | `docs/ACTIVATION.md` | `docs/` | create-once PRD seed, post-delivery activation | product-definition-builder seed + product-activation + owner | external action, measurement-source, and activation-readiness record | |
 | `docs/DOCUMENTS.md` | `docs/` | PRD seed, then owner | product-definition-builder + owner edits | this manifest | |

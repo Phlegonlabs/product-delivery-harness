@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Trusted host publication evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol", "request_sha256", "attempt_sha256", "execution_nonce",
+    "candidate_a", "branch_ref", "push_url", "push_url_sha256",
+    "remote_pre_push_head", "readback_head_sha", "push_argv",
+    "push_argv_sha256", "request_reloaded", "authorization_revalidated",
+    "endpoint_revalidated", "config_sanitized", "dangerous_local_config_rejected",
+    "trusted_host_issuer", "trusted_host_principal", "trust_policy_id",
+    "authentication_proof", "executed_at", "evidence_sha256"
+  ],
+  "properties": {
+    "protocol": {"const": "trusted-host-publication-v1"},
+    "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "attempt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "execution_nonce": {"type": "string", "minLength": 16},
+    "candidate_a": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "branch_ref": {"type": "string", "pattern": "^refs/heads/[A-Za-z0-9._/-]+$"},
+    "push_url": {"type": "string", "minLength": 1},
+    "push_url_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "remote_pre_push_head": {"type": ["string", "null"]},
+    "readback_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "push_argv": {"type": "array", "items": {"type": "string"}},
+    "push_argv_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "request_reloaded": {"const": true},
+    "authorization_revalidated": {"const": true},
+    "endpoint_revalidated": {"const": true},
+    "config_sanitized": {"const": true},
+    "dangerous_local_config_rejected": {"const": true},
+    "trusted_host_issuer": {"type": "string", "minLength": 1},
+    "trusted_host_principal": {"type": "string", "minLength": 1},
+    "trust_policy_id": {"type": "string", "minLength": 1},
+    "authentication_proof": {"type": "object"},
+    "executed_at": {"type": "string", "format": "date-time"},
+    "evidence_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

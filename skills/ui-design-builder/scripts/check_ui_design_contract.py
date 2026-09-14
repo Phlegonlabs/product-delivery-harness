@@ -8,6 +8,7 @@ from datetime import date, datetime, timezone
 import hashlib
 import json
 import re
+import stat
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -54,6 +55,12 @@ TARGET_SOURCE_RE = re.compile(
 PAIR_RE = re.compile(
     r"^(?P<markdown>[A-Za-z0-9._/-]+) @ sha256:(?P<markdown_sha256>[0-9a-f]{64})"
     r" and (?P<registry>[A-Za-z0-9._/-]+) @ sha256:(?P<registry_sha256>[0-9a-f]{64})$"
+)
+PENDING_PAIR_VALUE = "pending — design-system-compiler"
+PAIR_DISPOSITION_RE = re.compile(
+    r"^(?P<decision>none|retain|retire)\s+—\s+(?P<reason>[^;]+);\s*"
+    r"owner=(?P<owner>[^;]+);\s*decided=(?P<date>\d{4}-\d{2}-\d{2})$",
+    re.IGNORECASE,
 )
 EVIDENCE_RE = re.compile(
     r"^PASS\s+—\s+evidence=(?P<path>[A-Za-z0-9._/-]+)\s+@\s+"
@@ -354,6 +361,23 @@ def parse_ui_contract_view(text: str) -> tuple[dict[str, Any], list[str]]:
 
     gate_decision = (_field(gate_section, "Decision") or "").strip().casefold()
     compiled_values = _field_values(gate_section, "Compiled design system pair")
+    pending_pair = bool(
+        compiled_values
+        and compiled_values[0].strip().casefold() == PENDING_PAIR_VALUE.casefold()
+    )
+    disposition_value = _field(
+        gate_section, "Existing design-system pair disposition"
+    )
+    disposition = None
+    if disposition_value:
+        disposition_match = PAIR_DISPOSITION_RE.fullmatch(disposition_value.strip())
+        if disposition_match is not None:
+            disposition = {
+                "decision": disposition_match.group("decision").casefold(),
+                "reason": disposition_match.group("reason").strip(),
+                "owner": disposition_match.group("owner").strip(),
+                "decidedOn": disposition_match.group("date"),
+            }
     replacement_values = _field_values(
         gate_section, "Replacement visual contract when_not_required"
     ) or _field_values(gate_section, "Replacement visual contract when not_required")
@@ -390,6 +414,8 @@ def parse_ui_contract_view(text: str) -> tuple[dict[str, Any], list[str]]:
         "gate": {
             "decision": gate_decision or None,
             "pair": pair,
+            "pending_pair": pending_pair,
+            "existing_pair_disposition": disposition,
             "replacement": replacement,
         },
         "gate_decision": gate_decision or None,
@@ -654,9 +680,29 @@ def _resolve_source(
     if match is None:
         return
     relative = match.group("path")
-    candidate = (repo_root / relative).resolve()
+    parts = relative.split("/")
+    if relative != relative.strip() or "\\" in relative or any(
+        part in {"", ".", ".."} for part in parts
+    ):
+        _add(problems, f"{label} path must use canonical POSIX segments: {relative}")
+        return
+    candidate = repo_root / relative
+    cursor = repo_root
+    for part in parts:
+        cursor = cursor / part
+        try:
+            info = cursor.lstat()
+        except OSError as exc:
+            _add(problems, f"{label} path cannot be inspected: {exc}")
+            return
+        if stat.S_ISLNK(info.st_mode) or bool(
+            getattr(info, "st_file_attributes", 0)
+            & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        ):
+            _add(problems, f"{label} path must not traverse a symlink or reparse point")
+            return
     try:
-        candidate.relative_to(repo_root.resolve())
+        candidate.resolve(strict=False).relative_to(repo_root.resolve())
     except ValueError:
         _add(problems, f"{label} path escapes repo-root: {relative}")
         return
@@ -1269,6 +1315,10 @@ def _resolve_evidence(
                                 "console",
                                 "network",
                                 "navigation",
+                                "popups",
+                                "forms",
+                                "popupAttempts",
+                                "formAttempts",
                             } if offline else {
                                 "schema",
                                 "check",
@@ -1345,9 +1395,31 @@ def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
     console = output.get("console")
     network = output.get("network")
     navigation = output.get("navigation")
-    if not isinstance(console, list) or not isinstance(network, list) or not isinstance(navigation, list):
-        findings.append("HiFi offline output artifact must contain console, network, and navigation transcript arrays")
+    popups = output.get("popups")
+    forms = output.get("forms")
+    popup_attempts = output.get("popupAttempts")
+    form_attempts = output.get("formAttempts")
+    if (
+        not isinstance(console, list)
+        or not isinstance(network, list)
+        or not isinstance(navigation, list)
+        or not isinstance(popups, list)
+        or not isinstance(forms, list)
+        or not isinstance(popup_attempts, int)
+        or isinstance(popup_attempts, bool)
+        or not isinstance(form_attempts, int)
+        or isinstance(form_attempts, bool)
+    ):
+        findings.append(
+            "HiFi offline output artifact must contain console, network, navigation, "
+            "popups, and forms transcript arrays plus integer attempt counts"
+        )
         return findings
+    if popup_attempts != len(popups) or form_attempts != len(forms):
+        findings.append(
+            "HiFi offline transcript popupAttempts/formAttempts must equal the "
+            "corresponding transcript lengths"
+        )
     for event in console:
         if isinstance(event, dict):
             level = str(event.get("level", "")).casefold()
@@ -1360,6 +1432,10 @@ def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
         findings.append("HiFi offline transcript recorded a network request")
     if navigation:
         findings.append("HiFi offline transcript recorded a navigation or popup attempt")
+    if popups:
+        findings.append("HiFi offline transcript recorded a popup attempt")
+    if forms:
+        findings.append("HiFi offline transcript recorded a form attempt")
     return sorted(set(findings))
 
 
@@ -1536,6 +1612,7 @@ def validate_text(
     require_filled: bool = False,
     require_wireframe_approved: bool = False,
     require_visual_approved: bool = False,
+    allow_pending_design_system_pair: bool = False,
 ) -> list[str]:
     text = active_text(text)
     problems: list[str] = []
@@ -1828,7 +1905,13 @@ def validate_text(
         gate = sections.get("## Design System Need Gate", "")
         gate_values = _require_fields(
             gate,
-            ("Decision", "Decision owner", "Decided on", "Reason"),
+            (
+                "Decision",
+                "Decision owner",
+                "Decided on",
+                "Reason",
+                "Existing design-system pair disposition",
+            ),
             label="Design System Need Gate",
             require_filled=True,
             problems=problems,
@@ -1855,7 +1938,19 @@ def validate_text(
                     "required Design System Need Gate is missing exactly one compiled pair field",
                 )
             else:
-                _pair_syntax(compiled[0], problems)
+                if (
+                    allow_pending_design_system_pair
+                    and compiled[0].strip().casefold()
+                    == PENDING_PAIR_VALUE.casefold()
+                ):
+                    pass
+                elif compiled[0].strip().casefold() == PENDING_PAIR_VALUE.casefold():
+                    _add(
+                        problems,
+                        "required Design System Need Gate pending pair marker is only valid during the exact compiler preflight",
+                    )
+                else:
+                    _pair_syntax(compiled[0], problems)
             if replacement:
                 _add(
                     problems,
@@ -1875,6 +1970,22 @@ def validate_text(
             if len(replacement) == 1:
                 _replacement_parts(replacement[0], problems)
 
+        disposition = gate_values.get("Existing design-system pair disposition", "")
+        disposition_match = PAIR_DISPOSITION_RE.fullmatch(disposition.strip())
+        if disposition_match is None:
+            _add(
+                problems,
+                "Design System Need Gate Existing design-system pair disposition must use "
+                "'none|retain|retire — reason; owner=<human>; decided=<YYYY-MM-DD>'",
+            )
+        else:
+            if not _human_owner(disposition_match.group("owner")):
+                _add(problems, "Design System Need Gate existing pair disposition owner must be human")
+            if not _date(disposition_match.group("date")):
+                _add(problems, "Design System Need Gate existing pair disposition decided date must be real")
+            if not disposition_match.group("reason").strip():
+                _add(problems, "Design System Need Gate existing pair disposition reason must be filled")
+
     if (
         (require_wireframe_approved or require_visual_approved)
         and wireframe_path is not None
@@ -1885,7 +1996,7 @@ def validate_text(
     return problems
 
 
-def validate(
+def _validate_impl(
     ui_design_path: Path,
     *,
     repo_root: Path | None = None,
@@ -1894,7 +2005,7 @@ def validate(
     hifi_path: Path | None = None,
     design_system_markdown_path: Path | None = None,
     design_system_registry_path: Path | None = None,
-    verify_design_system_pair: bool = True,
+    _allow_pending_design_system_pair: bool = False,
     require_filled: bool = False,
     require_wireframe_approved: bool = False,
     require_visual_approved: bool = False,
@@ -1908,6 +2019,7 @@ def validate(
         require_filled=require_filled,
         require_wireframe_approved=require_wireframe_approved,
         require_visual_approved=require_visual_approved,
+        allow_pending_design_system_pair=_allow_pending_design_system_pair,
     )
 
     active = active_text(text)
@@ -2115,7 +2227,7 @@ def validate(
         replacement = _field(gate, "Replacement visual contract when_not_required") or _field(
             gate, "Replacement visual contract when not_required"
         )
-        if gate_decision == "required" and verify_design_system_pair:
+        if gate_decision == "required" and not _allow_pending_design_system_pair:
             pair_match = PAIR_RE.fullmatch((compiled or "").strip()) if compiled else None
             if design_system_markdown_path is None or design_system_registry_path is None:
                 _add(problems, "required Design System Need Gate requires --design-system-markdown and --design-system-registry")
@@ -2187,7 +2299,7 @@ def validate(
                                     continue
                                 if actual.get("path") != expected_match.group("path") or actual.get("sha256") != expected_match.group("sha256"):
                                     _add(problems, f"compiled pair sourceBindings.{key} does not match UI/Product identities")
-        elif gate_decision == "not_required" and verify_design_system_pair:
+        elif gate_decision == "not_required":
             parts = _replacement_parts(replacement, problems)
             if design_system_markdown_path is not None or design_system_registry_path is not None:
                 _add(problems, "not_required Design System Need Gate must not receive compiled pair CLI paths")
@@ -2212,7 +2324,90 @@ def validate(
             for key, expected_value in expected_values.items():
                 if key not in parts or parts[key] != expected_value:
                     _add(problems, f"not_required replacement {key} must exactly match the recorded source")
+
+        # A retained formal pair and a not_required gate are mutually
+        # exclusive unless the owner has recorded an explicit disposition.
+        # The disposition is machine-bound to the canonical pair paths so a
+        # stale pair cannot silently remain executable.
+        if gate_decision == "not_required":
+            disposition = _field(gate, "Existing design-system pair disposition") or ""
+            disposition_match = PAIR_DISPOSITION_RE.fullmatch(disposition.strip())
+            pair_paths = (
+                root / "docs/design/design-system.md",
+                root / "docs/design/design-system.json",
+            )
+            pair_present = any(path.exists() for path in pair_paths)
+            if disposition_match is not None:
+                decision = disposition_match.group("decision").casefold()
+                if decision == "none" and pair_present:
+                    _add(problems, "not_required existing pair disposition none conflicts with an existing design-system pair")
+                elif decision == "retain" and not all(path.is_file() for path in pair_paths):
+                    _add(problems, "not_required existing pair disposition retain requires both canonical pair files")
+                elif decision == "retire" and pair_present:
+                    _add(problems, "not_required existing pair disposition retire requires the canonical pair to be archived before publication")
     return problems
+
+
+def validate(
+    ui_design_path: Path,
+    *,
+    repo_root: Path | None = None,
+    prd_path: Path | None = None,
+    wireframes_path: Path | None = None,
+    hifi_path: Path | None = None,
+    design_system_markdown_path: Path | None = None,
+    design_system_registry_path: Path | None = None,
+    require_filled: bool = False,
+    require_wireframe_approved: bool = False,
+    require_visual_approved: bool = False,
+) -> list[str]:
+    """Validate a UI contract for normal publication.
+
+    Pair verification is deliberately not a caller-selectable boolean.  The
+    only pair-less route is the exact compiler preflight below, which requires
+    the pending marker and all upstream approval gates.
+    """
+
+    return _validate_impl(
+        ui_design_path,
+        repo_root=repo_root,
+        prd_path=prd_path,
+        wireframes_path=wireframes_path,
+        hifi_path=hifi_path,
+        design_system_markdown_path=design_system_markdown_path,
+        design_system_registry_path=design_system_registry_path,
+        require_filled=require_filled,
+        require_wireframe_approved=require_wireframe_approved,
+        require_visual_approved=require_visual_approved,
+    )
+
+
+def _validate_for_design_system_preflight(
+    ui_design_path: Path,
+    *,
+    repo_root: Path,
+    prd_path: Path,
+    wireframes_path: Path,
+    hifi_path: Path,
+) -> list[str]:
+    """Validate an exact required-gate candidate immediately before compile.
+
+    This is intentionally the sole internal pair-less entry point.  It is not
+    exposed as a CLI switch and refuses to run without every upstream source
+    and the final visual gate.
+    """
+
+    return _validate_impl(
+        ui_design_path,
+        repo_root=repo_root,
+        prd_path=prd_path,
+        wireframes_path=wireframes_path,
+        hifi_path=hifi_path,
+        require_filled=True,
+        require_wireframe_approved=True,
+        require_visual_approved=True,
+        _allow_pending_design_system_pair=True,
+    )
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:

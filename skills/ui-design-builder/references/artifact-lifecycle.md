@@ -30,3 +30,5 @@ Show the exact source, destination, overwrite, and archive paths before publicat
 When an approved artifact supersedes a current UI artifact, archive the old file or complete pair under `docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/` and update every live pointer. Move; never delete. Do not move a legacy `docs/product/` UI artifact merely to normalize its location without exact owner approval. New work may publish alongside a legacy artifact only when `ui-design.md` explicitly names which one is authoritative and the legacy one is marked superseded.
 
 The design-system pair publishes and archives atomically. Legacy `design-system/1` files remain inspection-only and never grant new approval authority. A `not_required` decision does not silently remove an existing pair; explicitly retain or retire it with owner approval.
+
+For a new required pair, the pending marker is a short-lived compiler handoff, not a publishable state. The compiler consumes the exact approved UI digest, writes Markdown and JSON together, and the UI owner records both final hashes before the normal checker runs.

@@ -4,10 +4,11 @@ Use this template only when the owner asks to save a lifecycle public-release re
 
 ## Record
 
-- Schema: seo-review/1
+- Schema: seo-review/2
 - Mode: <baseline / growth_review / traffic_drop>
 - Review type: lifecycle_public_release
 - Review owner: <human owner>
+- Product: <approved PRD product identity>
 - Production release target: <architecture release-target-id>
 - Release SHA: <full lowercase Git SHA>
 - Artifact / build identity: <exact artifact or build identity>
@@ -18,12 +19,19 @@ Use this template only when the owner asks to save a lifecycle public-release re
 - Activation record: docs/ACTIVATION.md
 - Activation sha256: <lowercase SHA-256 of current docs/ACTIVATION.md>
 - Review date: <YYYY-MM-DD>
+- Target market: <country or region>
+- Language: <primary language and locale>
+- Business outcome: <approved business outcome>
+- Timezone: <IANA timezone>
+- Comparison window: <period> vs <period>
+- Segmentation: <query, page, country, device when traffic_drop>
+- Global data coverage through: <RFC3339>
 
 ## Verified Sources
 
-| MS ID | Scope | Release binding | Source role | Data cutoff | Evidence |
-| --- | --- | --- | --- | --- | --- |
-| MS-001 | <exact Activation source target scope> | <target>@<sha>#<artifact> | <role derived from Activation retrieval> | <latest PASS Activation evidence RFC3339> | <Activation EVID-* IDs and non-secret verification evidence> |
+| MS ID | Scope | Release binding | Source role | Verified at | Coverage through | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| MS-001 | <exact Activation source target scope> | <target>@<sha>#<artifact> | <role derived from Activation retrieval> | <latest PASS Activation evidence RFC3339> | <RFC3339 coverage cutoff> | <Activation EVID-* IDs and non-secret verification evidence> |
 
 ## Measurement Integrity
 

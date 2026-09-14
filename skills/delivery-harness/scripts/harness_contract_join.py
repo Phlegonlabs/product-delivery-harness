@@ -8,7 +8,9 @@ import importlib.util
 import inspect
 import json
 import math
+import stat
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -140,6 +142,15 @@ def _strict_source_rows(
         if not isinstance(location, str):
             continue
         normalized = location.replace("\\", "/").strip()
+        segments = normalized.split("/")
+        if normalized != location.strip() or any(
+            segment in {"", ".", ".."} for segment in segments
+        ):
+            errors.append(
+                f"plan.sources: {key} source location must use canonical POSIX path segments"
+            )
+            rows.append(source)
+            continue
         filename = normalized.rsplit("/", 1)[-1]
         canonical = str(spec["canonical"])
         if key == "approved-target":
@@ -808,6 +819,13 @@ def _resolve_source_bytes(
         return None, [
             f"plan.sources: frozen {label} join requires a repository-relative POSIX path"
         ]
+    path_parts = location.split("/")
+    if location != location.strip() or any(
+        part in {"", ".", ".."} for part in path_parts
+    ):
+        return None, [
+            f"plan.sources: frozen {label} join requires canonical POSIX path segments"
+        ]
     root = Path(repo_root).resolve()
     source_candidate = root / location
     source_path = source_candidate.resolve()
@@ -819,13 +837,20 @@ def _resolve_source_bytes(
     # whose target can change independently of the recorded path.
     if strict:
         cursor = root
-        for component in PureWindowsPath(location.replace("/", "\\")).parts:
-            if component in {".", ""}:
-                continue
+        for component in path_parts:
             cursor = cursor / component
-            if cursor.is_symlink():
+            try:
+                component_stat = cursor.stat(follow_symlinks=False)
+            except (OSError, TypeError) as exc:
                 return None, [
-                    f"plan.sources: frozen {label} path must not traverse a symlink"
+                    f"plan.sources: cannot inspect frozen {label} path component ({exc})"
+                ]
+            attributes = getattr(component_stat, "st_file_attributes", 0)
+            if stat.S_ISLNK(component_stat.st_mode) or bool(
+                attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            ):
+                return None, [
+                    f"plan.sources: frozen {label} path must not traverse a symlink or reparse point"
                 ]
     revision = source.get("source_revision")
     current_contents: bytes | None = None
@@ -1129,9 +1154,19 @@ def full_ui_design_checker_errors(
     wireframe_bytes: bytes,
     prd_bytes: bytes,
     *,
+    architecture_bytes: bytes | None = None,
+    stack_bytes: bytes | None = None,
+    hifi_bytes: bytes | None = None,
+    source_root: Path | None = None,
     sibling_scripts: Path | None = None,
 ) -> list[str]:
-    """Run ui-design-builder's approved visual-contract checker on frozen bytes."""
+    """Run the UI checker in a temporary repository-shaped legacy adapter.
+
+    Older Harness joins used temporary basenames, which bypassed the checker
+    once it required ``--repo-root`` and an exact HiFi/pair context.  The
+    adapter preserves every recorded repo-relative identity and copies only
+    the frozen bytes plus retained evidence needed by the checker.
+    """
 
     scripts = sibling_scripts or sibling_ui_design_scripts_dir()
     validate_ui_design = _load_full_ui_design_checker(scripts)
@@ -1143,17 +1178,73 @@ def full_ui_design_checker_errors(
         ]
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        ui_design_path = root / "ui-design.md"
-        wireframes_path = root / "wireframes.html"
-        prd_path = root / "PRD.md"
-        ui_design_path.write_bytes(ui_design_bytes)
-        wireframes_path.write_bytes(wireframe_bytes)
-        prd_path.write_bytes(prd_bytes)
+        try:
+            view, _ = _load_ui_contract_view(scripts)(ui_design_bytes.decode("utf-8"))
+        except Exception:
+            view = {}
+        identities = view.get("source_identities", {}) if isinstance(view, dict) else {}
+
+        def relative_identity(key: str, fallback: str) -> str:
+            item = identities.get(key) if isinstance(identities, dict) else None
+            value = item.get("path") if isinstance(item, dict) else None
+            return value if isinstance(value, str) and value else fallback
+
+        paths = {
+            "ui": relative_identity("uiDesign", "docs/design/ui-design.md"),
+            "wireframe": relative_identity("wireframe", "docs/design/wireframes.html"),
+            "prd": relative_identity("prd", "docs/product/PRD.md"),
+            "architecture": relative_identity("architecture", "docs/product/architecture.md"),
+            "stack": relative_identity("stack", "docs/product/stack-decisions.md"),
+        }
+        target = view.get("approved_target") if isinstance(view, dict) else None
+        hifi_relative = target.get("path") if isinstance(target, dict) else None
+        if not isinstance(hifi_relative, str) or not hifi_relative:
+            hifi_relative = "docs/design/ui-references/run-1/index.html"
+
+        def write_relative(relative: str, payload: bytes) -> Path:
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(payload)
+            return destination
+
+        ui_design_path = write_relative(paths["ui"], ui_design_bytes)
+        wireframes_path = write_relative(paths["wireframe"], wireframe_bytes)
+        prd_path = write_relative(paths["prd"], prd_bytes)
+        if architecture_bytes is not None:
+            architecture_path = write_relative(paths["architecture"], architecture_bytes)
+        else:
+            architecture_path = root / paths["architecture"]
+        if stack_bytes is not None:
+            stack_path = write_relative(paths["stack"], stack_bytes)
+        else:
+            stack_path = root / paths["stack"]
+        if hifi_bytes is not None:
+            hifi_path = write_relative(hifi_relative, hifi_bytes)
+        else:
+            hifi_path = root / hifi_relative
+        if source_root is not None:
+            for relative in ("docs/evidence", "docs/design/ui-references"):
+                source = source_root / relative
+                destination = root / relative
+                if source.is_dir():
+                    shutil.copytree(source, destination, dirs_exist_ok=True)
+            for relative, destination in (
+                (paths["architecture"], architecture_path),
+                (paths["stack"], stack_path),
+                (hifi_relative, hifi_path),
+            ):
+                source = source_root / relative
+                if destination.exists() or not source.is_file():
+                    continue
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
         try:
             return validate_ui_design(
                 ui_design_path,
+                repo_root=root,
                 prd_path=prd_path,
                 wireframes_path=wireframes_path,
+                hifi_path=hifi_path,
                 require_filled=True,
                 require_wireframe_approved=True,
                 require_visual_approved=True,
@@ -1728,11 +1819,28 @@ def validate_frozen_contract_joins(
                 )
             )
     if all(name in resolved for name in ("ui-design", "wireframes", "PRD")):
+        hifi_bytes: bytes | None = None
+        try:
+            ui_view, _ = _load_ui_contract_view(sibling_ui_design_scripts_dir())(
+                resolved["ui-design"].decode("utf-8")
+            )
+            target = ui_view.get("approved_target") if isinstance(ui_view, dict) else None
+            target_path = target.get("path") if isinstance(target, dict) else None
+            if isinstance(target_path, str):
+                candidate = Path(repo_root) / target_path
+                if candidate.is_file():
+                    hifi_bytes = candidate.read_bytes()
+        except (OSError, UnicodeError, TypeError):
+            hifi_bytes = None
         errors.extend(
             full_ui_design_checker_errors(
                 resolved["ui-design"],
                 resolved["wireframes"],
                 resolved["PRD"],
+                architecture_bytes=resolved.get("architecture"),
+                stack_bytes=resolved.get("stack-decisions"),
+                hifi_bytes=hifi_bytes,
+                source_root=Path(repo_root),
             )
         )
     registry: Any = None

@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -225,6 +226,56 @@ The prior inventory used OrderCard.
 
 
 class CheckDesignSystemPairTests(unittest.TestCase):
+    def test_stack_semantics_bind_homogeneous_and_hybrid_surface_choices(self):
+        stack = """
+# Stack Decisions
+## Frontend Technology Decision
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Rendering model | SPA | Approved | Owner | Fits | None |
+| Component foundation | shadcn/ui | Approved | Owner | Fits | None |
+| Styling approach | Tailwind CSS | Approved | Owner | Fits | None |
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "stack-decisions.md"
+            path.write_text(stack, encoding="utf-8")
+            registry_data = registry(
+                schema="design-system/2",
+                stylingMechanism="Tailwind CSS",
+                stackSemantics={
+                    "platform": "web",
+                    "renderingModel": "SPA",
+                    "componentFoundation": "shadcn/ui",
+                    "stylingMechanism": "Tailwind CSS",
+                },
+            )
+            problems: list[str] = []
+            checker._validate_stack_semantics(
+                registry_data,
+                stack_path=path,
+                ui_view={
+                    "target_scope": {
+                        "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web"}]
+                    }
+                },
+                problems=problems,
+            )
+            self.assertEqual([], problems)
+            registry_data["stackSemantics"]["renderingModel"] = "SSR"
+            problems = []
+            checker._validate_stack_semantics(
+                registry_data,
+                stack_path=path,
+                ui_view={
+                    "target_scope": {
+                        "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web"}]
+                    }
+                },
+                problems=problems,
+            )
+            self.assertTrue(any("renderingModel" in item for item in problems))
+
     def run_pair(
         self,
         markdown: str,
@@ -1026,6 +1077,74 @@ class CheckDesignSystemPairTests(unittest.TestCase):
 
             self.assertTrue(link.is_symlink())
             self.assertEqual(original, target.read_bytes())
+
+    def test_atomic_write_rejects_a_symlink_parent_component_on_posix(self) -> None:
+        if os.name == "nt":
+            self.skipTest("POSIX component dirfd semantics are unavailable on Windows")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            real = root / "real"
+            real.mkdir()
+            destination = real / "design-system.md"
+            original = b"# Original\n"
+            destination.write_bytes(original)
+            alias = root / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            redirected = alias / "design-system.md"
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError,
+                "parent directory contains a symlink or reparse point|cannot be held",
+            ):
+                checker._write_bytes_atomic(redirected, b"# Replacement\n", original)
+            self.assertEqual(original, destination.read_bytes())
+
+    def test_windows_junction_parent_is_rejected_before_native_replace(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows junction semantics are unavailable on this host")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            real = root / "real"
+            real.mkdir()
+            destination = real / "design-system.md"
+            original = b"# Original\n"
+            destination.write_bytes(original)
+            junction = root / "junction"
+            result = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(junction), str(real)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                self.skipTest("junction creation unavailable: " + result.stderr.strip())
+            redirected = junction / "design-system.md"
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError,
+                "symlink or reparse point|cannot be held",
+            ):
+                checker._write_bytes_atomic(redirected, b"# Replacement\n", original)
+            self.assertEqual(original, destination.read_bytes())
+
+    def test_windows_ancestor_junction_is_rejected_by_component_handle_walk(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows junction semantics are unavailable on this host")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            real = root / "real"
+            (real / "parent").mkdir(parents=True)
+            junction = root / "alias"
+            result = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(junction), str(real)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                self.skipTest("junction creation unavailable: " + result.stderr.strip())
+            redirected = junction / "parent" / "design-system.md"
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError,
+                "symlink or reparse point|cannot be held",
+            ):
+                checker._windows_open_parent(redirected)
 
     def test_write_aborts_when_markdown_changes_during_compare(self) -> None:
         markdown = "# Design System\n\nHuman rationale.\n"

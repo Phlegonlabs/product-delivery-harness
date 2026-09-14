@@ -2689,7 +2689,7 @@ def _validate_verifier_executions(
                             probe_value = sandbox_attestation.get(probe_key)
                             valid_probe = isinstance(probe_value, str) and bool(probe_value.strip())
                             if probe_key == "runtime_probe" and isinstance(probe_value, dict):
-                                valid_probe = set(probe_value) == {"executable", "executable_sha256", "version_output_sha256"} and isinstance(probe_value.get("executable"), str) and bool(probe_value["executable"].strip()) and SHA256_RE.fullmatch(str(probe_value.get("executable_sha256"))) is not None and SHA256_RE.fullmatch(str(probe_value.get("version_output_sha256"))) is not None
+                                valid_probe = {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(probe_value) and not (set(probe_value) - {"executable", "executable_sha256", "version_output_sha256", "trust"}) and isinstance(probe_value.get("executable"), str) and bool(probe_value["executable"].strip()) and SHA256_RE.fullmatch(str(probe_value.get("executable_sha256"))) is not None and SHA256_RE.fullmatch(str(probe_value.get("version_output_sha256"))) is not None and isinstance(probe_value.get("trust"), dict)
                             if not valid_probe:
                                 _add(
                                     errors,
@@ -4398,9 +4398,7 @@ def _validate_run_observed(
                     elif isinstance(image, str) and not repo_digest.endswith("@" + image.rsplit("@", 1)[-1]):
                         _add(errors, f"{path}.repo_digest", "must attest the exact image digest")
                     runtime_probe = entry["runtime_probe"]
-                    if not isinstance(runtime_probe, dict) or set(runtime_probe) != {
-                        "executable", "executable_sha256", "version_output_sha256"
-                    }:
+                    if not isinstance(runtime_probe, dict) or not {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(runtime_probe) or set(runtime_probe) - {"executable", "executable_sha256", "version_output_sha256", "trust"}:
                         _add(errors, f"{path}.runtime_probe", "must contain executable and both SHA-256 probe digests")
                     elif (
                         not _nonempty_string(runtime_probe["executable"])

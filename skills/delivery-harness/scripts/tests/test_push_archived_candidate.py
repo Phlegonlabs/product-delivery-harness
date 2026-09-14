@@ -287,6 +287,45 @@ class ArchiveFirstPushTests(unittest.TestCase):
         self.assertEqual(fixture["candidate_c"], verified["candidate_c"])
         self.assertEqual(fixture["candidate_a"], verified["candidate_a"])
 
+    def test_receipt_must_cover_optional_coordination_files_from_candidate_c(self) -> None:
+        fixture = self._fixture()
+        root = Path(fixture["root"])
+        archive = Path(fixture["archive"])
+        with patch.object(
+            subject,
+            "_coordination_files",
+            return_value={"docs/goal/DECISIONS.md": "0" * 64},
+        ):
+            with self.assertRaisesRegex(ManifestError, "cover every coordination file|missing=docs/goal/DECISIONS.md"):
+                subject.verify_archive_candidate(
+                    root,
+                    archive_path=archive,
+                    candidate_a=str(fixture["candidate_a"]),
+                )
+
+    def test_archived_git_tree_rejects_symlink_and_gitlink_modes(self) -> None:
+        for mode, object_type in (("120000", "blob"), ("160000", "commit")):
+            with self.subTest(mode=mode):
+                fake = subprocess.CompletedProcess(
+                    ["git", "ls-tree"],
+                    0,
+                    stdout=f"{mode} {object_type} {'a' * 40}\tdocs/goal/evidence/unsafe\0".encode(),
+                    stderr=b"",
+                )
+                with patch.object(subject, "_git", return_value=fake):
+                    with self.assertRaisesRegex(ManifestError, "non-regular entry"):
+                        subject._tree_files(Path("."), "a" * 40, "docs/goal/evidence")
+
+    def test_archive_timestamp_requires_strict_utc_rfc3339(self) -> None:
+        for value in (
+            "2026-01-01T00:00:00+00:00",
+            "2026-01-01T00:00Z",
+            "2026-01-01T00:00:00.1234567Z",
+        ):
+            with self.assertRaisesRegex(ManifestError, "RFC3339 UTC"):
+                subject._validate_timestamp(value, "test.timestamp")
+        subject._validate_timestamp("2026-01-01T00:00:00.123456Z", "test.timestamp")
+
     def test_fake_absolute_signature_verifier_is_rejected(self) -> None:
         fixture = self._fixture()
         fake = Path(fixture["root"]).parent / f"fake-ssh-keygen-{Path(fixture['root']).name}.exe"

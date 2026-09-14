@@ -15,6 +15,14 @@ from markdown_contract import active_markdown_lines, active_text, active_machine
 from prd_ui_contract import parse_prd_ui_contract
 from release_targets import parse_release_targets
 from git_evidence import GitEvidenceError, verify_revision_path
+from contract_utils import (
+    canonical_product_bytes,
+    canonical_stack_bytes,
+    parse_digest,
+    product_identity,
+    release_area_requirements,
+    sha256_text,
+)
 
 
 PRODUCT_APPROVAL_START = "<!-- product-definition-approval:start -->"
@@ -378,6 +386,17 @@ OPTIONAL_ARCHITECTURE_SECTIONS = {
     "## Integrations",
     "## Monetization and Partner Channel Architecture",
 }
+ARCHITECTURE_AREA_SECTIONS = {
+    "frontend": {"## Frontend Architecture"},
+    "mobile or desktop": {"## Frontend Architecture"},
+    "backend or data": {
+        "## Backend Architecture",
+        "## Data Model",
+        "## API and Interface Contracts",
+    },
+    "ai or automation": {"## AI and Automation Architecture"},
+    "commercial": {"## Monetization and Partner Channel Architecture"},
+}
 STACK_SELECTED_EVIDENCE_RE = re.compile(
     r"\brepository:(?P<path>(?!/)(?![A-Za-z]:)(?![^@]*\.\.)"
     r"[A-Za-z0-9._/-]+)@(?P<revision>[0-9a-f]{40}|sha256:[0-9a-f]{64})\b"
@@ -474,6 +493,27 @@ def _real_date(value: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def _not_future_date(value: str) -> bool:
+    return _real_date(value) and datetime.date.fromisoformat(value) <= datetime.date.today()
+
+
+def _duration_days(value: str) -> int | None:
+    match = re.fullmatch(r"\s*(\d+)\s*(day|days|week|weeks)\s*", value, re.I)
+    if match is None:
+        return None
+    amount = int(match.group(1))
+    if amount <= 0:
+        return None
+    return amount * (7 if match.group(2).casefold().startswith("week") else 1)
+
+
+def _valid_measurement_value(value: str) -> bool:
+    normalized = value.strip().casefold()
+    if normalized in {"", "tbd", "tbc", "todo", "pending", "unknown", "baseline", "target"}:
+        return False
+    return not _placeholder_cell(value)
 
 
 def _contains_non_human_owner(value: str) -> bool:
@@ -657,8 +697,12 @@ def _explicit_absence_reason(value: str) -> str | None:
 
 
 def _validate_architecture_sections(
-    architecture_text: str, *, problems: list[str]
+    architecture_text: str,
+    *,
+    problems: list[str],
+    required_areas: set[str] | None = None,
 ) -> None:
+    required_areas = required_areas or set()
     for heading in REQUIRED_ARCHITECTURE_HEADINGS:
         if heading == "## Release Targets":
             continue
@@ -707,6 +751,22 @@ def _validate_architecture_sections(
                 f"{heading} requires substantive implementation content or an "
                 "explicit not_required reason",
             )
+    for area in sorted(required_areas):
+        headings = ARCHITECTURE_AREA_SECTIONS.get(area, set())
+        if not headings or any(
+            (
+                (section := _section(architecture_text, heading)) is not None
+                and _explicit_absence_reason(section) is None
+                and _meaningful(section, minimum=25)
+            )
+            for heading in headings
+        ):
+            continue
+        _add(
+            problems,
+            "architecture",
+            f"release surfaces require substantive {area} architecture; it cannot be not_required",
+        )
 
 
 def _validate_prd_core_sections(
@@ -1432,6 +1492,7 @@ def validate_texts(
         problems=problems,
     )
     release_contract, _release_findings = parse_release_targets(architecture_text)
+    required_stack_areas.update(release_area_requirements(release_contract.targets))
     capture_mode_by_class = {
         "hosted_web": "hosted-browser",
         "browser_extension": "browser-extension",
@@ -1501,7 +1562,24 @@ def validate_texts(
                 f"must use {expected_responsive!r} responsive data for captureMode {capture_mode!r}",
             )
     if require_filled:
-        _validate_architecture_sections(architecture_text, problems=problems)
+        _validate_architecture_sections(
+            architecture_text,
+            problems=problems,
+            required_areas=required_stack_areas,
+        )
+
+    identities = {
+        "PRD": product_identity(prd_text, kind="prd"),
+        "architecture": product_identity(architecture_text, kind="architecture"),
+        "stack-decisions": product_identity(stack_text, kind="stack"),
+    }
+    explicit_identities = {value for value in identities.values() if value}
+    if len(explicit_identities) > 1:
+        _add(
+            problems,
+            "package",
+            "PRD, architecture, and stack-decisions product identities must match exactly",
+        )
 
     functional = _section(prd_text, "## Functional Requirements")
     functional_rows = (
@@ -1749,6 +1827,16 @@ def validate_texts(
                 seen_metrics.add(metric)
                 if _invalid_human_owner(row[6]):
                     _add(problems, "prd", f"metric {row[0]!r} must name a human owner")
+                if not _valid_measurement_value(row[2]):
+                    _add(problems, "prd", f"metric {row[0]!r} baseline must be concrete")
+                if not _valid_measurement_value(row[3]):
+                    _add(problems, "prd", f"metric {row[0]!r} target / guardrail must be concrete")
+                if _duration_days(row[4]) is None:
+                    _add(
+                        problems,
+                        "prd",
+                        f"metric {row[0]!r} measurement window must use a positive day/week duration",
+                    )
                 if not _meaningful(row[1], minimum=8) or not _meaningful(
                     row[5], minimum=4
                 ):
@@ -2038,12 +2126,16 @@ def validate_texts(
                 "architecture",
                 "required commercial gate cannot mark its architecture not_required",
             )
-        required_commercial_terms = [
-            ("purchase", "billing", "payment"),
-            ("entitlement",),
-            ("refund", "chargeback"),
-            ("reconciliation",),
-        ]
+        required_commercial_terms: list[tuple[str, ...]] = []
+        if rows_by_decision.get("monetization infrastructure gate", ("", ""))[1].casefold() == "required":
+            required_commercial_terms.extend(
+                [
+                    ("purchase", "billing", "payment"),
+                    ("entitlement",),
+                    ("refund", "chargeback"),
+                    ("reconciliation",),
+                ]
+            )
         if rows_by_decision.get("partner channel gate", ("", ""))[1].casefold() == "required":
             required_commercial_terms.extend(
                 [("attribution",), ("commission", "payout"), ("provision",), ("termination",)]
@@ -2059,13 +2151,9 @@ def validate_texts(
                 "required commercial gate architecture is missing purchase, entitlement, "
                 "recovery, reconciliation, or partner-operation obligations",
             )
-        if not ui_surfaces:
-            _add(
-                problems,
-                "prd",
-                "required commercial gate must define the affected customer, partner, "
-                "or administration UI surfaces",
-            )
+        # A paid API, webhook, job, or partner-only surface can be commercial
+        # without shipping a UI.  The architecture and interface contracts
+        # above are the applicability evidence for headless purchase flows.
 
     # Product Definition owns the UI surface contract but not UI direction,
     # wireframes, motion/media treatment, or visual approval. Require an
@@ -2154,6 +2242,15 @@ def validate_texts(
             required_stack_areas.add("backend or data")
         if gate_label == "AI and Automation Gate" and gate == "required":
             required_stack_areas.add("ai or automation")
+
+    if any(target.surface_class == "agent" for target in release_contract.targets):
+        agent_gate = gate_records.get("AI and Automation Gate")
+        if agent_gate is None or agent_gate[0] != "required":
+            _add(
+                problems,
+                "prd",
+                "agent release targets require an AI and Automation Gate marked required",
+            )
 
     required_gate_details = (
         (
@@ -2309,6 +2406,41 @@ def validate_texts(
             problems=problems,
             require_filled=require_filled,
         )
+        package_digest = product_fields.get("package digest", "")
+        package_revision = product_fields.get("package revision", "")
+        revision_digest = re.search(r"@(?P<digest>sha256:[0-9a-f]{64})$", package_revision, re.I)
+        if package_digest or revision_digest:
+            expected_digest = sha256_text(
+                canonical_product_bytes(prd_text, architecture_text, stack_text)
+            )
+            supplied_digest = parse_digest(package_digest)
+            if supplied_digest is None and revision_digest is not None:
+                supplied_digest = parse_digest(revision_digest.group("digest"))
+            if supplied_digest is None:
+                _add(
+                    problems,
+                    "prd approval",
+                    "Package digest must use sha256:<64 lowercase hex>",
+                )
+            elif supplied_digest != expected_digest:
+                _add(
+                    problems,
+                    "prd approval",
+                    "Package digest does not match the approved PRD/architecture/stack bytes",
+                )
+        elif require_approved and package_revision and not re.fullmatch(
+            r"PD-R[0-9]+", package_revision, re.I
+        ):
+            _add(problems, "prd approval", "Package revision must be structured as PD-R<integer> or PD-R<integer>@sha256:<digest>")
+        accepted_refs = product_fields.get("accepted assumptions and non-blocking questions", "")
+        if accepted_refs and accepted_refs.casefold() not in {"none", "n/a"}:
+            refs = [item.strip() for item in accepted_refs.split(",") if item.strip()]
+            if any(not re.fullmatch(r"(?:assumption|question):[^,]+", item, re.I) for item in refs):
+                _add(
+                    problems,
+                    "prd approval",
+                    "Accepted assumptions and non-blocking questions must use assumption:<id> or question:<id> references",
+                )
         decision = product_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
             _add(problems, "prd approval", f"invalid decision {decision!r}")
@@ -2320,6 +2452,8 @@ def validate_texts(
         decided_on = product_fields.get("decided on", "")
         if decided_on and not _real_date(decided_on):
             _add(problems, "prd approval", "Decided on must be a real YYYY-MM-DD date")
+        elif decided_on and not _not_future_date(decided_on):
+            _add(problems, "prd approval", "Decided on cannot be in the future")
         approved_artifacts = [
             value.strip().casefold()
             for value in product_fields.get("approved artifacts", "").split(",")
@@ -2412,6 +2546,30 @@ def validate_texts(
                         )
                     changed = impact in {"changed", "structure", "style", "both"}
                     if changed:
+                        referenced_ids = {
+                            match.group(0).upper()
+                            for match in re.finditer(
+                                r"\b(?:PRD|UX|ARCH|TEST|MR|RA)-[A-Z0-9-]+\b",
+                                row[2],
+                                re.IGNORECASE,
+                            )
+                        }
+                        known_ids = (
+                            requirement_ids
+                            | ux_ids
+                            | architecture_ids
+                            | known_test_ids
+                            | _ids(prd_text, "MR")
+                            | _ids(prd_text, "RA")
+                        )
+                        unknown_ids = sorted(referenced_ids - known_ids)
+                        if unknown_ids:
+                            _add(
+                                problems,
+                                "prd",
+                                f"changed enhancement row {row[0]} references unknown IDs: "
+                                + ", ".join(unknown_ids),
+                            )
                         if not (
                             re.search(
                                 r"\b(?:PRD|UX|UI|ARCH|TEST|MR|RA)-[A-Z0-9-]+\b",
@@ -2438,7 +2596,12 @@ def validate_texts(
                         if area == "ui structure / style":
                             if impact == "style":
                                 required_artifacts = {"ui-design.md"}
-                                required_gates = {"visual approval"}
+                                required_gates = {
+                                    "style integration",
+                                    "impeccable",
+                                    "h1-h9",
+                                    "visual approval",
+                                }
                             else:
                                 required_artifacts = {"wireframes.html", "ui-design.md"}
                                 required_gates = {
@@ -2478,6 +2641,7 @@ def validate_texts(
                         + ", ".join(missing),
                     )
 
+    checkpoint_option_map = ""
     stack_block = _extract_machine_block(
         stack_text,
         STACK_CHECKPOINT_START,
@@ -2504,6 +2668,49 @@ def validate_texts(
             problems=problems,
             require_filled=require_filled,
         )
+        checkpoint_digest = stack_fields.get("checkpoint digest", "")
+        if checkpoint_digest:
+            expected_checkpoint = sha256_text(canonical_stack_bytes(stack_text))
+            supplied_checkpoint = parse_digest(checkpoint_digest)
+            if supplied_checkpoint is None:
+                _add(
+                    problems,
+                    "stack checkpoint",
+                    "Checkpoint digest must use sha256:<64 lowercase hex>",
+                )
+            elif supplied_checkpoint != expected_checkpoint:
+                _add(
+                    problems,
+                    "stack checkpoint",
+                    "Checkpoint digest does not match the approved stack bytes",
+                )
+        applicable_value = stack_fields.get("applicable areas", "")
+        resolved_value = stack_fields.get("resolved areas", "")
+        if applicable_value or resolved_value:
+            applicable = _stack_areas(applicable_value)
+            resolved = _stack_areas(resolved_value)
+            if applicable != required_stack_areas:
+                _add(
+                    problems,
+                    "stack checkpoint",
+                    "Applicable areas must exactly match release-surface and gate applicability",
+                )
+            if resolved != applicable:
+                _add(
+                    problems,
+                    "stack checkpoint",
+                    "Resolved areas must exactly match Applicable areas",
+                )
+        option_map = stack_fields.get("approved option map", "")
+        checkpoint_option_map = option_map
+        if option_map:
+            entries = [item.strip() for item in option_map.split(",") if item.strip()]
+            if any("=" not in item for item in entries):
+                _add(
+                    problems,
+                    "stack checkpoint",
+                    "Approved option map must use OPT-ID=layer entries",
+                )
         decision = stack_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
             _add(problems, "stack checkpoint", f"invalid decision {decision!r}")
@@ -2515,6 +2722,8 @@ def validate_texts(
         decided_on = stack_fields.get("decided on", "")
         if decided_on and not _real_date(decided_on):
             _add(problems, "stack checkpoint", "Decided on must be a real YYYY-MM-DD date")
+        elif decided_on and not _not_future_date(decided_on):
+            _add(problems, "stack checkpoint", "Decided on cannot be in the future")
         open_areas = stack_fields.get("open areas", "").casefold()
         if require_approved and open_areas not in {"none", "n/a"}:
             _add(problems, "stack checkpoint", "Open areas must be none")
@@ -2530,6 +2739,22 @@ def validate_texts(
         repo_root=repo_root,
         problems=problems,
     )
+    if "cli/toolchain" in required_stack_areas:
+        cli_section = _section(stack_text, "## CLI and Toolchain Decision")
+        if cli_section is None or not _meaningful(cli_section, minimum=25):
+            _add(
+                problems,
+                "stack-decisions",
+                "CLI release targets require a substantive CLI and Toolchain Decision",
+            )
+    if "toolchain" in required_stack_areas:
+        toolchain_section = _section(stack_text, "## CLI and Toolchain Decision")
+        if toolchain_section is None or not _meaningful(toolchain_section, minimum=25):
+            _add(
+                problems,
+                "stack-decisions",
+                "non-public release targets require a substantive CLI and Toolchain Decision",
+            )
     option_rows = _find_table(stack_text, STACK_OPTIONS_HEADER)
     if approved_stack_areas and not option_rows:
         _add(
@@ -2593,6 +2818,36 @@ def validate_texts(
                     problems,
                     "stack-decisions",
                     f"Coherent Options Presented must retain the approved {area} option",
+                )
+        if checkpoint_option_map:
+            expected_map: dict[str, set[str]] = {}
+            for item in checkpoint_option_map.split(","):
+                item = item.strip()
+                if "=" not in item:
+                    continue
+                option_id, layer = (part.strip().upper() for part in item.split("=", 1))
+                expected_map.setdefault(option_id, set()).add(layer.casefold())
+            actual_map: dict[str, set[str]] = {}
+            for row in option_rows:
+                if len(row) != len(STACK_OPTIONS_HEADER) or row[5].casefold() != "approved":
+                    continue
+                ids = _ids(row[0], "OPT")
+                if len(ids) != 1:
+                    continue
+                option_id = next(iter(ids))
+                # An approved option is a bundle; bind it to every layer whose
+                # authority/evidence explicitly names the option id.
+                for section_name in STACK_SECTION_LAYERS:
+                    section = _section(stack_text, f"## {section_name}") or ""
+                    recorded = _subsection(section, "### Recorded or Approved Stack") or ""
+                    for layer_row in _find_table(recorded, STACK_LAYER_HEADER) or []:
+                        if len(layer_row) == len(STACK_LAYER_HEADER) and option_id in layer_row[3].upper():
+                            actual_map.setdefault(option_id, set()).add(layer_row[0].casefold())
+            if expected_map != actual_map:
+                _add(
+                    problems,
+                    "stack-decisions",
+                    "Approved option map does not exactly match approved option IDs and executable layers",
                 )
     return problems
 

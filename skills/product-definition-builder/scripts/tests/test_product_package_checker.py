@@ -208,6 +208,20 @@ def valid_stack(*, status: str = "Approved", decision: str = "approved") -> str:
 | Build tool | Vite | {status} | Owner decision | Fits framework | None |
 | Routing and data | React Router loaders | {status} | Owner decision | Typed route data | None |
 | Testing | Vitest and Playwright | {status} | Owner decision | Covers required layers | None |
+
+## Backend and Data Technology Decision
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Service topology | Single service | Required | Owner decision | Keeps fixture simple | Revisit at scale |
+| Backend runtime / framework | Python service | Required | Owner decision | Fits fixture | Revisit at scale |
+| Database category | None | Required | Owner decision | Fixture is deterministic | Revisit if persistence lands |
+| Database engine | None | Required | Owner decision | Fixture is deterministic | Revisit if persistence lands |
+| Auth strategy | None | Required | Owner decision | No protected data | Revisit if auth lands |
+| Auth provider | None | Required | Owner decision | No protected data | Revisit if auth lands |
+| API style | Local command | Required | Owner decision | Fits fixture | Revisit if hosted |
+| Background jobs / queue | None | Required | Owner decision | No jobs | Revisit if jobs land |
+| File / object storage | None | Required | Owner decision | No files | Revisit if files land |
 """
 
 

@@ -13,6 +13,7 @@ under its ordinary create_local_commits authorization.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -31,7 +32,13 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import load_plan, load_run  # noqa: E402
-from harness_git import GitMetadataError, reject_object_substitution, run_git  # noqa: E402
+from harness_git import (  # noqa: E402
+    GitMetadataError,
+    git_environment,
+    git_executable,
+    reject_object_substitution,
+    run_git,
+)
 from harness_manifest import plan_digest  # noqa: E402
 from harness_manifest import validate_current_plan_run  # noqa: E402
 from harness_schema import archive_first_required  # noqa: E402
@@ -60,6 +67,8 @@ ARCHIVE_RECEIPT_KEYS = {
     "anchor_path", "anchor_path_sha256", "anchor_nonce", "receipt_sha256",
 }
 ARCHIVE_ANCHOR_NAME = "ARCHIVE_ANCHOR"
+ARCHIVE_JOURNAL_NAME = ".ARCHIVE_TRANSACTION.json"
+ARCHIVE_JOURNAL_PROTOCOL = "harness-archive-transaction-v1"
 ARCHIVE_ANCHOR_PROTOCOL = "harness-archive-anchor-v1"
 ARCHIVE_ANCHOR_KEYS = {
     "protocol", "anchor_path", "anchor_path_sha256", "anchor_nonce", "receipt_sha256",
@@ -67,6 +76,93 @@ ARCHIVE_ANCHOR_KEYS = {
     "branch", "branch_ref", "expected_main", "main_ref", "stamp", "archive_path",
     "source_inventory", "moves_sha256", "anchor_sha256", "created_at",
 }
+
+_LAST_DOCUMENT_WRITE_STATE: dict[str, object] | None = None
+
+_UTC_RFC3339_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
+)
+
+
+def _canonical_repo_path(value: object, *, prefix: str | None = None) -> bool:
+    """Return whether a receipt path is a strict canonical POSIX path."""
+
+    if not isinstance(value, str) or not value or value != value.strip():
+        return False
+    if value != value.replace("\\", "/") or value.startswith("/"):
+        return False
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+        return False
+    parts = value.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return False
+    if prefix is not None and not value.startswith(prefix):
+        return False
+    return True
+
+
+def _is_reparse(info: os.stat_result) -> bool:
+    attributes = getattr(info, "st_file_attributes", 0)
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400))
+
+
+def _inventory_tree(path: Path) -> list[Path]:
+    """Inventory regular files without following a symlink/reparse point.
+
+    ``Path.rglob`` follows enough path state between enumeration and stat that
+    a nested junction can turn a harmless-looking evidence tree into an escape
+    path.  Descriptor-backed ``scandir`` plus ``lstat`` gives every component a
+    no-follow check.  Empty directories are deliberately not represented in
+    the receipt; the archive contract moves only regular files.
+    """
+
+    path = Path(path)
+    try:
+        info = os.lstat(path)
+    except OSError as exc:
+        raise OSError(f"cannot inspect archive source {path}: {exc}") from exc
+    if stat.S_ISLNK(info.st_mode) or _is_reparse(info):
+        raise OSError(f"archive source contains a symlink/reparse point: {path}")
+    if stat.S_ISREG(info.st_mode):
+        return [path]
+    if not stat.S_ISDIR(info.st_mode):
+        raise OSError(f"archive source is not a regular file or directory: {path}")
+
+    result: list[Path] = []
+    pending = [path]
+    while pending:
+        current = pending.pop()
+        try:
+            with os.scandir(current) as entries:
+                children = sorted(entries, key=lambda item: item.name)
+                for entry in children:
+                    child = Path(entry.path)
+                    try:
+                        child_info = entry.stat(follow_symlinks=False)
+                    except OSError as exc:
+                        raise OSError(f"cannot inspect archive source {child}: {exc}") from exc
+                    if stat.S_ISLNK(child_info.st_mode) or _is_reparse(child_info):
+                        raise OSError(f"archive source contains a symlink/reparse point: {child}")
+                    if stat.S_ISDIR(child_info.st_mode):
+                        pending.append(child)
+                    elif stat.S_ISREG(child_info.st_mode):
+                        result.append(child)
+                    else:
+                        raise OSError(f"archive source contains a non-regular entry: {child}")
+        except OSError:
+            raise
+    return sorted(result, key=lambda item: item.as_posix())
+
+
+def _validate_utc_timestamp(value: object, label: str) -> None:
+    if not isinstance(value, str) or not _UTC_RFC3339_RE.fullmatch(value):
+        raise ValueError(f"{label} must be an RFC3339 UTC timestamp ending in Z")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as exc:
+        raise ValueError(f"{label} must be an RFC3339 UTC timestamp ending in Z") from exc
+    if parsed.tzinfo != timezone.utc:
+        raise ValueError(f"{label} must be an RFC3339 UTC timestamp ending in Z")
 
 
 def _canonical_branch(value: object) -> str | None:
@@ -149,32 +245,91 @@ def _safe_documents_identity(root: Path, documents: Path) -> tuple[int, int, int
     return (info.st_dev, info.st_ino, info.st_mode)
 
 
-def _atomic_write_documents(root: Path, documents: Path, value: bytes) -> None:
+def _atomic_write_documents(
+    root: Path,
+    documents: Path,
+    value: bytes,
+    *,
+    expected_bytes: bytes | None = None,
+) -> tuple[int, int, int]:
     """Write DOCUMENTS.md atomically after an immediate identity recheck."""
 
     initial = _safe_documents_identity(root, documents)
     if initial is None:
         raise OSError(f"{DOCUMENTS_PATH.as_posix()} disappeared before write")
-    fd, temporary_name = tempfile.mkstemp(
-        prefix=f".{documents.name}.", suffix=".tmp", dir=documents.parent
-    )
-    temporary = Path(temporary_name)
+    if expected_bytes is not None:
+        try:
+            current_bytes = documents.read_bytes()
+        except OSError as exc:
+            raise OSError(f"cannot read {DOCUMENTS_PATH.as_posix()} before write") from exc
+        if current_bytes != expected_bytes:
+            raise OSError(f"{DOCUMENTS_PATH.as_posix()} content changed before write")
+    parent = documents.parent
+    parent_fd: int | None = None
+    if os.name != "nt":
+        parent_fd = os.open(
+            parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+        )
+    fd = -1
+    temporary_name: str | None = None
     try:
+        if parent_fd is not None:
+            temporary_name = f".{documents.name}.{secrets.token_hex(8)}.tmp"
+            fd = os.open(
+                temporary_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+                dir_fd=parent_fd,
+            )
+            temporary = Path(temporary_name)
+        else:
+            fd, temporary_name = tempfile.mkstemp(
+                prefix=f".{documents.name}.", suffix=".tmp", dir=parent
+            )
+            temporary = Path(temporary_name)
         with os.fdopen(fd, "wb") as handle:
             handle.write(value)
             handle.flush()
             os.fsync(handle.fileno())
+        fd = -1
         # The path may have been swapped after preflight.  Never replace a
         # different inode or a newly introduced link.
         current = _safe_documents_identity(root, documents)
         if current != initial:
             raise OSError(f"{DOCUMENTS_PATH.as_posix()} identity changed before atomic replace")
-        os.replace(temporary, documents)
+        if expected_bytes is not None and documents.read_bytes() != expected_bytes:
+            raise OSError(f"{DOCUMENTS_PATH.as_posix()} content changed before atomic replace")
+        if parent_fd is not None:
+            os.replace(
+                temporary_name,
+                documents.name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+            )
+            os.fsync(parent_fd)
+        else:
+            os.replace(temporary, documents)
+        identity = _safe_documents_identity(root, documents)
+        if identity is None:
+            raise OSError(f"{DOCUMENTS_PATH.as_posix()} disappeared after atomic replace")
+        return identity
     finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        if temporary_name is not None:
+            try:
+                if parent_fd is not None:
+                    os.unlink(temporary_name, dir_fd=parent_fd)
+                else:
+                    Path(temporary_name).unlink()
+            except FileNotFoundError:
+                pass
+        if parent_fd is not None:
+            os.close(parent_fd)
 
 
 def _git_filtered_bytes(
@@ -188,30 +343,61 @@ def _git_filtered_bytes(
 
     destination_arg = destination.relative_to(root).as_posix() if destination.is_absolute() else destination.as_posix()
     if source is not None:
-        hashed = run_git(
-            root,
-            "hash-object",
-            "-w",
-            f"--path={destination_arg}",
-            "--",
-            str(source),
-            timeout=10,
-        )
-    else:
-        hashed = run_git(
-            root,
-            "hash-object",
-            "-w",
-            f"--path={destination_arg}",
-            "--stdin",
-            input=value or b"",
-            text=False,
-            timeout=10,
-        )
-    if hashed.returncode != 0:
-        raise OSError(hashed.stderr.strip() if isinstance(hashed.stderr, str) else "git hash-object failed")
-    oid = hashed.stdout.strip() if isinstance(hashed.stdout, str) else bytes(hashed.stdout).decode("ascii").strip()
-    blob = run_git(root, "cat-file", "blob", oid, text=False, timeout=10)
+        link = _link_component(root, source)
+        if link is not None:
+            component, kind = link
+            raise OSError(f"cannot hash unsafe archive source {component}: {kind}")
+    # ``hash-object -w`` is required to apply Git's path filters, but writing
+    # into the checkout's object database makes a supposedly read-only archive
+    # preflight mutate .git/objects.  Give Git a temporary object store with
+    # the real store as a read-only alternate and remove it after cat-file.
+    try:
+        reject_object_substitution(root)
+        objects_result = run_git(root, "rev-parse", "--git-path", "objects", timeout=10)
+        if objects_result.returncode != 0:
+            raise OSError("cannot resolve Git object store")
+        objects = Path(str(objects_result.stdout).strip())
+        if not objects.is_absolute():
+            objects = (root / objects).resolve()
+        with tempfile.TemporaryDirectory(prefix="harness-filtered-objects-") as isolated:
+            isolated_objects = Path(isolated) / "objects"
+            isolated_objects.mkdir()
+            environment = git_environment()
+            environment["GIT_OBJECT_DIRECTORY"] = str(isolated_objects)
+            environment["GIT_ALTERNATE_OBJECT_DIRECTORIES"] = str(objects)
+            executable = git_executable(environment)
+            argv = [executable, "--no-replace-objects", "hash-object", "-w", f"--path={destination_arg}"]
+            if source is not None:
+                argv.extend(("--", str(source)))
+                input_data: bytes | None = None
+            else:
+                argv.append("--stdin")
+                input_data = value or b""
+            hashed = subprocess.run(
+                argv,
+                cwd=root,
+                capture_output=True,
+                text=False,
+                timeout=10,
+                env=environment,
+                input=input_data,
+            )
+            if hashed.returncode != 0:
+                detail = bytes(hashed.stderr).decode(errors="replace").strip()
+                raise OSError(detail or "git hash-object failed")
+            oid = bytes(hashed.stdout).decode("ascii").strip()
+            blob = subprocess.run(
+                [executable, "--no-replace-objects", "cat-file", "blob", oid],
+                cwd=root,
+                capture_output=True,
+                text=False,
+                timeout=10,
+                env=environment,
+            )
+    except (OSError, subprocess.SubprocessError) as exc:
+        if isinstance(exc, OSError) and str(exc):
+            raise
+        raise OSError("git filtered blob read failed") from exc
     if blob.returncode != 0:
         raise OSError("git cat-file failed while reading filtered blob")
     return bytes(blob.stdout)
@@ -245,18 +431,11 @@ def _archive_file_moves(root: Path, moves: list[Path], target: Path) -> list[dic
         # the already-created archive copy when the source is absent.  The
         # receipt remains authoritative for the bytes and never derives them
         # from candidate C.
-        if source_path.is_file():
-            files = [source_path]
-        elif source_path.is_dir():
-            files = sorted(path for path in source_path.rglob("*") if path.is_file())
+        if source_path.exists():
+            files = _inventory_tree(source_path)
         else:
             archived_source = target / source.name
-            if archived_source.is_file():
-                files = [archived_source]
-            elif archived_source.is_dir():
-                files = sorted(path for path in archived_source.rglob("*") if path.is_file())
-            else:
-                files = []
+            files = _inventory_tree(archived_source) if archived_source.exists() else []
         for path in files:
             base = source_path if source_path.is_dir() else target / source.name
             relative = path.relative_to(base).as_posix() if base.is_dir() else path.name
@@ -321,9 +500,7 @@ def _build_archive_receipt(
 def _write_archive_receipt(path: Path, receipt: dict[str, object]) -> None:
     if set(receipt) != ARCHIVE_RECEIPT_KEYS:
         raise RuntimeError("archive receipt has an invalid schema")
-    with path.open("x", encoding="utf-8", newline="\n") as handle:
-        json.dump(receipt, handle, sort_keys=True, indent=2, ensure_ascii=False)
-        handle.write("\n")
+    _write_atomic_exclusive_json(path, receipt)
 
 
 def validate_archive_receipt(receipt: object) -> list[str]:
@@ -369,7 +546,7 @@ def validate_archive_receipt(receipt: object) -> list[str]:
     stamp = receipt.get("stamp")
     if not isinstance(stamp, str) or re.fullmatch(r"\d{8}-\d{6}", stamp) is None or not isinstance(archive_path, str) or not archive_path.startswith(f"docs/goal/archived/{stamp}-"):
         errors.append("archive receipt stamp is invalid")
-    if not isinstance(archive_path, str) or archive_path != archive_path.replace("\\", "/") or archive_path.startswith("/") or ".." in archive_path.split("/") or not archive_path.startswith("docs/goal/archived/"):
+    if not _canonical_repo_path(archive_path, prefix="docs/goal/archived/"):
         errors.append("archive receipt archive_path must be a repository-relative archive path")
     elif len(Path(archive_path).parts) != 4:
         errors.append("archive receipt archive_path must name one archive directory")
@@ -388,8 +565,17 @@ def validate_archive_receipt(receipt: object) -> list[str]:
             destination = move.get("destination")
             move_type = move.get("type")
             digest = move.get("sha256")
-            valid_source = isinstance(source, str) and source == source.strip() and source == source.replace("\\", "/") and not source.startswith("/") and ".." not in source.split("/") and (source in {"docs/goal/PLAN.md", "docs/goal/RUN.md"} or source in allowed_optional or source.startswith("docs/goal/evidence/"))
-            valid_destination = isinstance(destination, str) and destination == destination.strip() and destination == destination.replace("\\", "/") and destination.startswith(f"{archive_path}/") and ".." not in destination.split("/")
+            valid_source = (
+                _canonical_repo_path(source)
+                and (
+                    source in {"docs/goal/PLAN.md", "docs/goal/RUN.md"}
+                    or source in allowed_optional
+                    or source.startswith("docs/goal/evidence/")
+                )
+            )
+            valid_destination = _canonical_repo_path(
+                destination, prefix=f"{archive_path}/"
+            )
             if not valid_source:
                 errors.append(f"archive receipt moves[{index}] source is outside the coordination set")
             if not valid_destination:
@@ -488,8 +674,10 @@ def validate_archive_anchor(anchor: object, *, root: Path | None = None) -> list
             if not isinstance(row, dict) or set(row) != {"source", "destination", "type", "sha256"}:
                 errors.append("archive anchor source_inventory row is invalid")
     created = anchor.get("created_at")
-    if not isinstance(created, str) or not created.endswith("Z"):
-        errors.append("archive anchor created_at is invalid")
+    try:
+        _validate_utc_timestamp(created, "archive anchor created_at")
+    except ValueError as exc:
+        errors.append(str(exc))
     if not isinstance(anchor.get("anchor_sha256"), str) or re.fullmatch(r"[0-9a-f]{64}", str(anchor.get("anchor_sha256"))) is None:
         errors.append("archive anchor anchor_sha256 is invalid")
     elif anchor["anchor_sha256"] != _anchor_digest(anchor):
@@ -534,15 +722,96 @@ def _build_archive_anchor(
     return anchor
 
 
+def _write_atomic_exclusive_json(
+    path: Path,
+    value: dict[str, object],
+    *,
+    dir_fd: int | None = None,
+    replace: bool = False,
+) -> None:
+    """Publish a closed JSON record with fsync and no-replace semantics."""
+
+    payload = (json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    parent = path.parent
+    if dir_fd is not None:
+        temporary_name = f".{path.name}.{secrets.token_hex(8)}.tmp"
+        fd = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=dir_fd,
+        )
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if replace:
+                os.replace(
+                    temporary_name,
+                    path.name,
+                    src_dir_fd=dir_fd,
+                    dst_dir_fd=dir_fd,
+                )
+            else:
+                os.link(
+                    temporary_name,
+                    path.name,
+                    src_dir_fd=dir_fd,
+                    dst_dir_fd=dir_fd,
+                    follow_symlinks=False,
+                )
+            os.fsync(dir_fd)
+        finally:
+            try:
+                os.unlink(temporary_name, dir_fd=dir_fd)
+            except FileNotFoundError:
+                pass
+        return
+
+    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=parent)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        # A hard-link publish is atomic and refuses to replace an existing
+        # destination on POSIX and NTFS.  If a filesystem has no link support,
+        # fail closed instead of falling back to an overwriting replace.
+        if replace:
+            os.replace(temporary_name, path)
+        else:
+            os.link(temporary_name, path)
+        try:
+            parent_fd = os.open(
+                parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+            )
+        except OSError:
+            parent_fd = None
+        if parent_fd is not None:
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
+    except FileExistsError:
+        raise
+    except OSError as exc:
+        raise OSError(f"cannot publish closed JSON record atomically: {exc}") from exc
+    finally:
+        try:
+            Path(temporary_name).unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _write_closed_anchor(path: Path, anchor: dict[str, object], root: Path) -> None:
     if path.resolve().is_relative_to(root.resolve()):
         raise ValueError("archive anchor must be outside checkout")
     if path.exists():
         raise FileExistsError("archive anchor path already exists")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("x", encoding="utf-8", newline="\n") as handle:
-        json.dump(anchor, handle, sort_keys=True, indent=2, ensure_ascii=False)
-        handle.write("\n")
+    _write_atomic_exclusive_json(path, anchor)
 
 
 def _slugify(value: str) -> str:
@@ -582,7 +851,20 @@ def plan_moves(root: Path) -> tuple[list[Path], list[str]]:
     sources.append((GOAL_DIR / "evidence", False))
     sources.append((Path("docs/tasks.md"), False))
     for source, required in sources:
-        if (root / source).exists():
+        candidate = root / source
+        if candidate.exists() and source == GOAL_DIR / "evidence":
+            # Empty optional directories have no receipt rows and are
+            # deliberately skipped.  This keeps the archive contract typed as
+            # regular-file moves only instead of silently moving an
+            # unrepresented directory.
+            try:
+                if not _inventory_tree(candidate):
+                    continue
+            except OSError:
+                # Keep unsafe trees in the move list so preflight/guard emits
+                # the precise symlink/reparse or non-regular finding.
+                pass
+        if candidate.exists():
             moves.append(source)
         elif required:
             missing_required.append(source.as_posix())
@@ -833,6 +1115,13 @@ class _ArchiveMutationGuard:
         try:
             self._prepare()
         except Exception:
+            if self.archived_created:
+                try:
+                    self.remove_archived_parent()
+                except OSError:
+                    # The original failure is authoritative; leave a visible
+                    # empty parent only when the OS cannot safely remove it.
+                    pass
             self.close()
             raise
 
@@ -853,12 +1142,7 @@ class _ArchiveMutationGuard:
                 raise OSError(f"archive directory identity changed: {path}")
 
     def _reject_tree_reparse(self, path: Path) -> None:
-        if path.is_symlink():
-            raise OSError(f"archive source is a symlink/reparse point: {path}")
-        if path.is_dir():
-            for child in path.rglob("*"):
-                if child.is_symlink():
-                    raise OSError(f"archive source contains a symlink/reparse point: {child}")
+        _inventory_tree(path)
 
     def _prepare_posix(self) -> None:
         flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -882,7 +1166,8 @@ class _ArchiveMutationGuard:
             self.source_parent_fds[self.anchor_path.parent] = self.anchor_parent_fd
         for source in self.moves:
             source_path = self.root / source
-            self._reject_tree_reparse(source_path)
+            if source_path.exists():
+                self._reject_tree_reparse(source_path)
         self.target_fd = None
 
     def _windows_handle(self, path: Path, *, directory: bool, delete_access: bool = False) -> object:
@@ -951,6 +1236,11 @@ class _ArchiveMutationGuard:
             )
             if destination_handle is None:
                 raise OSError(f"destination parent is not held: {destination_parent}")
+            # FILE_RENAME_INFO rejects RootDirectory+basename for this handle
+            # combination on supported Windows runners (ERROR_INVALID_PARAMETER).
+            # Every destination ancestor is already held without FILE_SHARE_DELETE
+            # and identity-checked, so the absolute name cannot be redirected by
+            # renaming or replacing its parent while this operation is in flight.
             name_bytes = str(destination).encode("utf-16-le")
             class RenameInfo(ctypes.Structure):
                 _fields_ = [
@@ -1005,7 +1295,8 @@ class _ArchiveMutationGuard:
             self.parent_identities[self.anchor_path.parent] = self._windows_identity(self.parent_handles[self.anchor_path.parent])
         for source in self.moves:
             source_path = self.root / source
-            self._reject_tree_reparse(source_path)
+            if source_path.exists():
+                self._reject_tree_reparse(source_path)
             parent = source_path.parent.resolve()
             if parent not in self.parent_handles:
                 self.parent_handles[parent] = self._windows_handle(parent, directory=True)
@@ -1028,16 +1319,27 @@ class _ArchiveMutationGuard:
                 dir_fd=archived_fd,
             )
 
+    def bind_existing_target(self) -> None:
+        """Bind an existing archive target for crash recovery/rollback."""
+
+        if os.name == "nt":
+            self.target_handle = self._windows_handle(self.target, directory=True, delete_access=True)
+        else:
+            archived_fd = self.source_parent_fds[Path("docs/goal/archived")]
+            self.target_fd = os.open(
+                self.target.name,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=archived_fd,
+            )
+
     def move(self, source: Path, destination: Path) -> None:
         if os.name == "nt":
             self._check_windows_identities()
-            if source.is_symlink() or (source.exists() and source.stat().st_file_attributes & 0x400):
-                raise OSError(f"archive source became a reparse point: {source}")
+            self._reject_tree_reparse(source)
             self._windows_rename_bound(source, destination)
             return
         self._check_posix_identities()
-        if source.is_symlink():
-            raise OSError(f"archive source became a symlink: {source}")
+        self._reject_tree_reparse(source)
         source_rel = source.relative_to(self.root).parent
         destination_rel = destination.relative_to(self.root).parent
         source_fd = self.target_fd if source == self.target / source.name else self.source_parent_fds.get(source_rel)
@@ -1051,17 +1353,11 @@ class _ArchiveMutationGuard:
             _write_archive_receipt(self.target / ARCHIVE_RECEIPT_NAME, receipt)
             return
         self._check_posix_identities()
-        fd = os.open(
-            ARCHIVE_RECEIPT_NAME,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
+        _write_atomic_exclusive_json(
+            self.target / ARCHIVE_RECEIPT_NAME,
+            receipt,
             dir_fd=self.target_fd,
         )
-        try:
-            payload = json.dumps(receipt, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
-            os.write(fd, payload.encode("utf-8"))
-        finally:
-            os.close(fd)
 
     def write_anchor(self, anchor: dict[str, object]) -> None:
         if self.anchor_path is None:
@@ -1070,17 +1366,89 @@ class _ArchiveMutationGuard:
             _write_closed_anchor(self.anchor_path, anchor, self.root)
             return
         self._check_posix_identities()
-        fd = os.open(
-            self.anchor_path.name,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
+        _write_atomic_exclusive_json(
+            self.anchor_path,
+            anchor,
             dir_fd=self.anchor_parent_fd,
         )
+
+    def write_journal(self, journal: dict[str, object]) -> None:
+        if self.target_fd is None and os.name != "nt":
+            raise OSError("archive target descriptor is not held")
+        if os.name == "nt":
+            _write_atomic_exclusive_json(
+                self.target / ARCHIVE_JOURNAL_NAME,
+                journal,
+                replace=True,
+            )
+        else:
+            # Journal updates use an atomic same-directory replace after the
+            # new bytes are durable.  The target remains handle-bound.
+            if self.target_fd is not None:
+                _write_atomic_exclusive_json(
+                    self.target / ARCHIVE_JOURNAL_NAME,
+                    journal,
+                    dir_fd=self.target_fd,
+                    replace=True,
+                )
+
+    def remove_journal(self) -> None:
+        if os.name == "nt":
+            path = self.target / ARCHIVE_JOURNAL_NAME
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+            return
+        if self.target_fd is not None:
+            try:
+                os.unlink(ARCHIVE_JOURNAL_NAME, dir_fd=self.target_fd)
+            except FileNotFoundError:
+                pass
+
+    def remove_anchor(self) -> None:
+        if self.anchor_path is None:
+            return
+        if os.name == "nt" or self.anchor_parent_fd is None:
+            try:
+                self.anchor_path.unlink()
+            except FileNotFoundError:
+                pass
+            return
         try:
-            payload = json.dumps(anchor, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
-            os.write(fd, payload.encode("utf-8"))
-        finally:
-            os.close(fd)
+            os.unlink(self.anchor_path.name, dir_fd=self.anchor_parent_fd)
+        except FileNotFoundError:
+            pass
+
+    def remove_archived_parent(self) -> None:
+        if not self.archived_created:
+            return
+        if os.name == "nt":
+            # Windows cannot remove a directory while its no-delete handle is
+            # open.  Identity was checked immediately before this call; close
+            # only the exact archived-parent handle, then remove that empty
+            # directory.  We never touch a pre-existing parent.
+            held = self.parent_handles.get(self.archived_parent)
+            if held is not None:
+                for index, item in enumerate(self.handles):
+                    kernel32, handle = item
+                    if handle == held:
+                        kernel32.CloseHandle(handle)
+                        self.handles.pop(index)
+                        break
+                self.parent_handles.pop(self.archived_parent, None)
+            try:
+                self.archived_parent.rmdir()
+            except FileNotFoundError:
+                pass
+            return
+        goal_fd = self.source_parent_fds.get(Path("docs/goal"))
+        if goal_fd is None:
+            raise OSError("docs/goal descriptor is not held")
+        try:
+            os.rmdir("archived", dir_fd=goal_fd)
+        except FileNotFoundError:
+            pass
 
     def release_target_handle(self) -> None:
         if os.name != "nt" or self.target_handle is None:
@@ -1101,6 +1469,9 @@ class _ArchiveMutationGuard:
             receipt_path = self.target / ARCHIVE_RECEIPT_NAME
             if receipt_path.exists():
                 receipt_path.unlink()
+            journal_path = self.target / ARCHIVE_JOURNAL_NAME
+            if journal_path.exists():
+                journal_path.unlink()
             import ctypes
             from ctypes import wintypes
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -1119,7 +1490,11 @@ class _ArchiveMutationGuard:
             return
         if self.target_fd is None:
             raise OSError("archive target descriptor is not held")
-        os.unlink(ARCHIVE_RECEIPT_NAME, dir_fd=self.target_fd)
+        for name in (ARCHIVE_RECEIPT_NAME, ARCHIVE_JOURNAL_NAME):
+            try:
+                os.unlink(name, dir_fd=self.target_fd)
+            except FileNotFoundError:
+                pass
         archived_fd = self.source_parent_fds[Path("docs/goal/archived")]
         os.rmdir(self.target.name, dir_fd=archived_fd)
 
@@ -1150,31 +1525,79 @@ def _rollback_archive(
     target: Path,
     anchor_path: Path | None = None,
     mutation_guard: _ArchiveMutationGuard | None = None,
+    documents_write_state: dict[str, object] | None = None,
 ) -> list[str]:
     """Restore the pre-archive layout; retain archive copies only if a restore fails."""
 
     problems: list[str] = []
     documents_path = root / DOCUMENTS_PATH
+    # Restore DOCUMENTS only when its identity and bytes still equal the
+    # transaction's own output.  A concurrent writer gets preserved and a
+    # recovery message instead of being silently clobbered.
+    expected_after = (
+        documents_write_state.get("bytes")
+        if documents_write_state is not None
+        else _documents_after_bytes(documents_snapshot)
+    )
+    expected_identity = (
+        documents_write_state.get("identity")
+        if documents_write_state is not None
+        else None
+    )
+    try:
+        current_identity = _safe_documents_identity(root, documents_path)
+    except OSError as exc:
+        problems.append(f"could not inspect {DOCUMENTS_PATH.as_posix()} during rollback: {exc}")
+        current_identity = None
+    current_bytes: bytes | None = None
+    if current_identity is not None:
+        try:
+            current_bytes = documents_path.read_bytes()
+        except OSError as exc:
+            problems.append(f"could not read {DOCUMENTS_PATH.as_posix()} during rollback: {exc}")
     if documents_snapshot is not None:
-        try:
-            _atomic_write_documents(root, documents_path, documents_snapshot)
-        except OSError as exc:
-            problems.append(
-                f"could not restore {DOCUMENTS_PATH.as_posix()}: {exc}; "
-                "the original bytes were not replaced"
-            )
-    elif documents_path.exists():
-        try:
-            if documents_path.is_file():
-                documents_path.unlink()
-            else:
-                problems.append(
-                    f"cannot remove newly created {DOCUMENTS_PATH.as_posix()}: "
-                    "the path is no longer a file"
+        owns_output = (
+            current_identity is not None
+            and current_bytes == expected_after
+            and expected_identity is not None
+            and current_identity == expected_identity
+        )
+        unchanged = current_identity is not None and current_bytes == documents_snapshot
+        if owns_output:
+            try:
+                _atomic_write_documents(
+                    root,
+                    documents_path,
+                    documents_snapshot,
+                    expected_bytes=expected_after,
                 )
-        except OSError as exc:
+            except OSError as exc:
+                problems.append(
+                    f"could not restore {DOCUMENTS_PATH.as_posix()}: {exc}; "
+                    "the original bytes were not replaced"
+                )
+        elif not unchanged:
             problems.append(
-                f"could not remove newly created {DOCUMENTS_PATH.as_posix()}: {exc}"
+                f"preserved concurrent or unowned {DOCUMENTS_PATH.as_posix()}; "
+                "manual recovery is required"
+            )
+    elif current_identity is not None:
+        owns_created = (
+            current_bytes == expected_after
+            and expected_identity is not None
+            and current_identity == expected_identity
+        )
+        if owns_created:
+            try:
+                documents_path.unlink()
+            except OSError as exc:
+                problems.append(
+                    f"could not remove transaction-created {DOCUMENTS_PATH.as_posix()}: {exc}"
+                )
+        else:
+            problems.append(
+                f"preserved concurrent or unowned {DOCUMENTS_PATH.as_posix()}; "
+                "manual recovery is required"
             )
     for source, destination in reversed(moved):
         try:
@@ -1211,26 +1634,140 @@ def _rollback_archive(
                 target.rmdir()
         except OSError as exc:
             problems.append(f"could not remove the empty failed archive target: {exc}")
-    if not problems and target.parent.exists():
-        try:
-            target.parent.rmdir()
-        except OSError:
-            # A non-empty parent may retain unrelated archives; only the empty
-            # directory chain created for this failed attempt is safe to undo.
-            pass
     if not problems and anchor_path is not None and anchor_path.exists():
         try:
-            anchor_path.unlink()
+            if mutation_guard is not None:
+                mutation_guard.remove_anchor()
+            else:
+                anchor_path.unlink()
         except OSError as exc:
             problems.append(f"could not remove newly created archive anchor: {exc}")
-    if mutation_guard is not None:
-        mutation_guard.close()
     if not problems and archived_created and archived_parent is not None and archived_parent.exists():
         try:
-            archived_parent.rmdir()
+            if mutation_guard is not None:
+                mutation_guard.remove_archived_parent()
+            else:
+                archived_parent.rmdir()
         except OSError as exc:
             problems.append(f"could not remove newly created archive parent: {exc}")
+    if mutation_guard is not None:
+        mutation_guard.close()
     return problems
+
+
+def recover_archive(root: Path, target: Path | None = None) -> int:
+    """Recover an interrupted archive transaction safely and idempotently.
+
+    A journal is written before the first move and after every move.  Recovery
+    only reverses a destination when its source is still absent; if both sides
+    exist or either side has been replaced, it preserves the data and returns
+    a non-zero result for manual recovery.  A fully committed transaction only
+    needs its stale journal removed.
+    """
+
+    root = root.resolve()
+    archived = root / GOAL_DIR / "archived"
+    if target is not None:
+        candidates = [target.resolve()]
+    elif archived.is_dir():
+        candidates = sorted(
+            path for path in archived.iterdir()
+            if path.is_dir() and (path / ARCHIVE_JOURNAL_NAME).is_file()
+        )
+    else:
+        candidates = []
+    if not candidates:
+        return 0
+    failures = 0
+    for current_target in candidates:
+        journal_path = current_target / ARCHIVE_JOURNAL_NAME
+        if not journal_path.exists() and not current_target.exists():
+            # A prior recovery already completed the transaction.  Recovery
+            # is intentionally idempotent and treats the absent target as a
+            # successful no-op.
+            continue
+        try:
+            journal = json.loads(journal_path.read_text(encoding="utf-8"))
+            if not isinstance(journal, dict) or journal.get("protocol") != ARCHIVE_JOURNAL_PROTOCOL:
+                raise ValueError("archive transaction journal protocol is invalid")
+            archive_rel = journal.get("archive_path")
+            if not _canonical_repo_path(archive_rel, prefix="docs/goal/archived/"):
+                raise ValueError("archive transaction journal path is not canonical")
+            if (root / archive_rel).resolve() != current_target:
+                raise ValueError("archive transaction journal target does not match")
+            moves = journal.get("moves")
+            if not isinstance(moves, list) or not moves:
+                raise ValueError("archive transaction journal moves are missing")
+            move_paths: list[Path] = []
+            for item in moves:
+                if not isinstance(item, dict):
+                    raise ValueError("archive transaction journal move is malformed")
+                source = item.get("source")
+                destination = item.get("destination")
+                if not _canonical_repo_path(source) or not _canonical_repo_path(destination):
+                    raise ValueError("archive transaction journal move path is not canonical")
+                move_paths.append(Path(source))
+            anchor_value = journal.get("anchor_path")
+            anchor_candidate = None
+            if isinstance(anchor_value, str) and anchor_value:
+                anchor_candidate = _canonical_external_path(
+                    anchor_value,
+                    root=root,
+                    label="archive transaction anchor_path",
+                )
+            guard = _ArchiveMutationGuard(
+                root,
+                move_paths,
+                current_target,
+                anchor_candidate,
+            )
+            guard.bind_existing_target()
+            phase = journal.get("phase")
+            if phase == "documents_written":
+                receipt_path = current_target / ARCHIVE_RECEIPT_NAME
+                receipt_value = json.loads(receipt_path.read_text(encoding="utf-8"))
+                receipt_errors = validate_archive_receipt(receipt_value)
+                if receipt_errors:
+                    raise ValueError(
+                        "cannot finalize a journaled archive with an invalid receipt: "
+                        + "; ".join(receipt_errors)
+                    )
+                guard.remove_journal()
+                guard.close()
+                continue
+            conflict = False
+            for item in moves:
+                source_path = root / str(item["source"])
+                destination_path = root / str(item["destination"])
+                source_exists = source_path.exists()
+                destination_exists = destination_path.exists()
+                if source_exists and destination_exists:
+                    conflict = True
+                    print(
+                        f"recovery preserved conflicting archive paths: {source_path} and {destination_path}",
+                        file=sys.stderr,
+                    )
+                elif not source_exists and destination_exists:
+                    guard.move(destination_path, source_path)
+                elif not source_exists and not destination_exists:
+                    conflict = True
+                    print(
+                        f"recovery cannot locate either side of archive move: {source_path}",
+                        file=sys.stderr,
+                    )
+            if conflict:
+                failures += 1
+                guard.close()
+                continue
+            guard.remove_target()
+            if anchor_candidate is not None:
+                guard.remove_anchor()
+            guard.remove_archived_parent()
+            guard.close()
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            failures += 1
+            print(f"archive recovery failed for {current_target}: {exc}", file=sys.stderr)
+    return 1 if failures else 0
 
 
 def archive(
@@ -1351,6 +1888,9 @@ def archive(
     documents_snapshot = (
         documents_path.read_bytes() if documents_path.is_file() else None
     )
+    documents_initial_identity = _safe_documents_identity(root, documents_path)
+    global _LAST_DOCUMENT_WRITE_STATE
+    _LAST_DOCUMENT_WRITE_STATE = None
     moved: list[tuple[Path, Path]] = []
     mutation_guard: _ArchiveMutationGuard | None = None
     try:
@@ -1358,52 +1898,141 @@ def archive(
     except Exception as exc:  # noqa: BLE001 - fail closed before any mutation
         print(f"error: archive filesystem identity guard failed: {exc}", file=sys.stderr)
         return 1
-    anchor_nonce = secrets.token_hex(32) if anchor_path is not None else None
-    archive_receipt = _build_archive_receipt(
-        root, plan, run, moves, target,
-        expected_main=expected_main,
-        main_ref=main_ref,
-        stamp=stamp,
-        anchor_path=anchor_path,
-        anchor_nonce=anchor_nonce,
+    # The first preflight was only a snapshot.  Re-read branch, HEAD, main,
+    # ancestry, and cleanliness while directory identities are held and just
+    # before any anchor/target write.  A concurrent ref update therefore fails
+    # closed instead of producing a stale archive receipt.
+    final_live_head_problems = _live_head_problems(
+        run, root, expected_main, main_ref, moves
     )
+    if final_live_head_problems:
+        for problem in final_live_head_problems:
+            print(f"error: {problem}", file=sys.stderr)
+        try:
+            mutation_guard.remove_archived_parent()
+        except OSError:
+            pass
+        mutation_guard.close()
+        return 1
+    anchor_nonce = secrets.token_hex(32) if anchor_path is not None else None
+    try:
+        archive_receipt = _build_archive_receipt(
+            root, plan, run, moves, target,
+            expected_main=expected_main,
+            main_ref=main_ref,
+            stamp=stamp,
+            anchor_path=anchor_path,
+            anchor_nonce=anchor_nonce,
+        )
+    except Exception as exc:  # noqa: BLE001 - fail closed before any mutation
+        print(f"error: cannot build archive receipt: {exc}", file=sys.stderr)
+        try:
+            mutation_guard.remove_archived_parent()
+        except OSError:
+            pass
+        mutation_guard.close()
+        return 1
     receipt_errors = validate_archive_receipt(archive_receipt)
     if receipt_errors:
         for problem in receipt_errors:
             print(f"error: {problem}", file=sys.stderr)
+        try:
+            mutation_guard.remove_archived_parent()
+        except OSError:
+            pass
         mutation_guard.close()
         return 1
-    archive_anchor = (
-        _build_archive_anchor(root, archive_receipt, anchor_path=anchor_path, nonce=anchor_nonce)
-        if anchor_path is not None and anchor_nonce is not None
-        else None
-    )
+    try:
+        archive_anchor = (
+            _build_archive_anchor(root, archive_receipt, anchor_path=anchor_path, nonce=anchor_nonce)
+            if anchor_path is not None and anchor_nonce is not None
+            else None
+        )
+    except Exception as exc:  # noqa: BLE001 - fail closed before any mutation
+        print(f"error: cannot build archive anchor: {exc}", file=sys.stderr)
+        try:
+            mutation_guard.remove_archived_parent()
+        except OSError:
+            pass
+        mutation_guard.close()
+        return 1
     if archive_anchor is not None:
         anchor_errors = validate_archive_anchor(archive_anchor, root=root)
         if anchor_errors:
             for problem in anchor_errors:
                 print(f"error: {problem}", file=sys.stderr)
+            try:
+                mutation_guard.remove_archived_parent()
+            except OSError:
+                pass
             mutation_guard.close()
             return 1
     anchor_created = False
+    journal = {
+        "protocol": ARCHIVE_JOURNAL_PROTOCOL,
+        "phase": "prepared",
+        "archive_path": target.relative_to(root).as_posix(),
+        "moves": [
+            {
+                "source": source.as_posix(),
+                "destination": (target / source.name).relative_to(root).as_posix(),
+            }
+            for source in moves
+        ],
+        "moved": [],
+        "documents_before_b64": base64.b64encode(documents_snapshot or b"").decode("ascii")
+        if documents_snapshot is not None
+        else None,
+        "documents_before_identity": documents_initial_identity,
+        "archived_parent_created": mutation_guard.archived_created,
+        "anchor_path": str(anchor_path) if anchor_path is not None else None,
+    }
     try:
+        mutation_guard.create_target()
+        mutation_guard.write_journal(journal)
+        journal["phase"] = "receipt_pending"
+        mutation_guard.write_journal(journal)
+        mutation_guard.write_receipt(root, archive_receipt)
+        journal["phase"] = "receipt_written"
+        mutation_guard.write_journal(journal)
         if archive_anchor is not None and anchor_path is not None:
             mutation_guard.write_anchor(archive_anchor)
             anchor_created = True
-        mutation_guard.create_target()
-        mutation_guard.write_receipt(root, archive_receipt)
         for source in moves:
             source_path = root / source
             destination_path = target / source.name
             mutation_guard.move(source_path, destination_path)
             moved.append((source_path, destination_path))
+            # Re-scan the renamed tree after the descriptor-bound move.  POSIX
+            # cannot lock descendants against every concurrent mutation; a
+            # newly introduced nested link therefore fails closed and leaves
+            # the archive copy for explicit recovery.
+            mutation_guard._reject_tree_reparse(destination_path)
+            journal["moved"] = [
+                {"source": item[0].relative_to(root).as_posix(), "destination": item[1].relative_to(root).as_posix()}
+                for item in moved
+            ]
+            journal["phase"] = "moving"
+            mutation_guard.write_journal(journal)
         _update_documents(root)
+        journal["phase"] = "documents_written"
+        journal["documents_after_b64"] = base64.b64encode(
+            _documents_after_bytes(documents_snapshot) or b""
+        ).decode("ascii") if documents_snapshot is not None else None
+        journal["documents_after_identity"] = (
+            _LAST_DOCUMENT_WRITE_STATE.get("identity")
+            if _LAST_DOCUMENT_WRITE_STATE is not None
+            else None
+        )
+        mutation_guard.write_journal(journal)
+        mutation_guard.remove_journal()
     except Exception as exc:  # noqa: BLE001 - every apply failure must roll back
         print(f"error: archival failed: {exc}", file=sys.stderr)
         rollback_problems = _rollback_archive(
             root, moved, documents_snapshot, target,
             anchor_path if anchor_created else None,
             mutation_guard,
+            _LAST_DOCUMENT_WRITE_STATE,
         )
         if rollback_problems:
             for problem in rollback_problems:
@@ -1423,6 +2052,8 @@ def archive(
 
 
 def _update_documents(root: Path) -> None:
+    global _LAST_DOCUMENT_WRITE_STATE
+    _LAST_DOCUMENT_WRITE_STATE = None
     documents = root / DOCUMENTS_PATH
     if not documents.exists():
         print(f"note: {DOCUMENTS_PATH.as_posix()} absent; row not recorded")
@@ -1432,7 +2063,13 @@ def _update_documents(root: Path) -> None:
     after = _documents_after_bytes(before)
     if after == before:
         return
-    _atomic_write_documents(root, documents, after or b"")
+    identity = _atomic_write_documents(
+        root,
+        documents,
+        after or b"",
+        expected_bytes=before,
+    )
+    _LAST_DOCUMENT_WRITE_STATE = {"identity": identity, "bytes": after or b""}
     print(f"documents row recorded in {DOCUMENTS_PATH.as_posix()}")
 
 
@@ -1474,7 +2111,17 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="external absolute path for the closed ARCHIVE_ANCHOR; required for Harness 0.38 apply",
     )
+    parser.add_argument(
+        "--recover",
+        type=Path,
+        help="recover one interrupted archive target from its transaction journal; no new archive is created",
+    )
     args = parser.parse_args(argv)
+    if args.recover is not None:
+        recovery_target = args.recover
+        if not recovery_target.is_absolute():
+            recovery_target = args.repo_root / recovery_target
+        return recover_archive(args.repo_root, recovery_target)
     run_path = args.repo_root / GOAL_DIR / "RUN.md"
     slug = args.slug
     if slug is None:

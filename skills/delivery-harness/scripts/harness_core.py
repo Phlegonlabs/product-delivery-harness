@@ -745,7 +745,7 @@ def sandbox_execution_binding_errors(
     ):
         errors.append("sandbox preflight RepoDigest does not attest the pinned image")
     runtime_probe = preflight.get("runtime_probe")
-    if not isinstance(runtime_probe, dict) or set(runtime_probe) != probe_keys:
+    if not isinstance(runtime_probe, dict) or not probe_keys.issubset(runtime_probe) or set(runtime_probe) - probe_keys - {"trust"}:
         errors.append("sandbox preflight runtime identity is malformed")
     else:
         executable = runtime_probe.get("executable")
@@ -754,6 +754,11 @@ def sandbox_execution_binding_errors(
         for key in ("executable_sha256", "version_output_sha256"):
             if re.fullmatch(r"[0-9a-f]{64}", str(runtime_probe.get(key))) is None:
                 errors.append(f"sandbox preflight {key} is not a SHA-256 digest")
+        trust = runtime_probe.get("trust")
+        if not isinstance(trust, dict) or set(trust) != {"path", "runtime", "ownership", "uid", "mode", "reparse"}:
+            errors.append("sandbox preflight runtime trust proof is missing")
+        elif trust.get("path") != runtime_probe.get("executable") or trust.get("reparse") is not False:
+            errors.append("sandbox preflight runtime trust proof does not bind the executable")
     if not isinstance(attestation, dict) or set(attestation) != attestation_keys:
         errors.append("sandbox attestation must retain the complete execution identity")
         return errors

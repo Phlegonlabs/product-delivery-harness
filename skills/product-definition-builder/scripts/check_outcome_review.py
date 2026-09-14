@@ -23,6 +23,7 @@ from check_activation import _table, check_activation_text  # noqa: E402
 from check_deployment import parse_release_target_status  # noqa: E402
 from markdown_contract import active_text, is_human_owner  # noqa: E402
 from release_targets import allows_no_independent_artifact, parse_release_targets  # noqa: E402
+from contract_utils import product_identity, safe_read_text  # noqa: E402
 
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -165,6 +166,15 @@ def _fields(lines: list[str]) -> dict[str, str]:
     return result
 
 
+def _duplicate_fields(lines: list[str]) -> list[str]:
+    names = [
+        match.group(1).strip().casefold()
+        for line in lines
+        if (match := re.match(r"^-\s*([^:\n]+):\s*", line.strip()))
+    ]
+    return sorted(name for name, count in Counter(names).items() if count > 1)
+
+
 def _rows(text: str, heading: str, expected: tuple[str, ...]) -> tuple[list[list[str]], bool]:
     section = _section(text, heading)
     if section is None:
@@ -200,6 +210,13 @@ def _timestamp(value: str) -> datetime | None:
 
 def _not_future(value: datetime | None) -> bool:
     return value is not None and value <= datetime.now(timezone.utc)
+
+
+def _duration_days(value: str) -> int | None:
+    match = re.fullmatch(r"\s*(\d+)\s*(day|days|week|weeks)\s*", value, re.I)
+    if match is None or int(match.group(1)) <= 0:
+        return None
+    return int(match.group(1)) * (7 if match.group(2).casefold().startswith("week") else 1)
 
 
 def _activation_sources(
@@ -542,10 +559,14 @@ def _multi_target_findings(
             findings.append(f"Target Measurements: {signal}/{target_id} needs an ordered date window")
         else:
             expected_window = expectation.get("window", "")
-            duration_match = re.search(r"\b(\d+)\s*days?\b", expected_window, re.IGNORECASE)
-            if duration_match and (
+            duration_days = _duration_days(expected_window)
+            if duration_days is None and expected_window.strip() and not expected_window.casefold().startswith("n/a") and not expected_window.casefold().endswith("test"):
+                findings.append(
+                    f"Target Measurements: {signal}/{target_id} PRD measurement window must use a positive day/week duration"
+                )
+            elif duration_days is not None and (
                 date.fromisoformat(end) - date.fromisoformat(start)
-            ).days != int(duration_match.group(1)):
+            ).days != duration_days:
                 findings.append(
                     f"Target Measurements: {signal}/{target_id} window must match PRD measurement window {expected_window!r}"
                 )
@@ -697,8 +718,28 @@ def check_outcome_review_text(
     architecture_text: str,
     deployment_text: str,
     activation_text: str,
+    stack_text: str | None = None,
 ) -> list[str]:
     findings: list[str] = []
+    if stack_text is not None:
+        from check_product_package import validate_texts
+        findings.extend(
+            f"Product package: {item}"
+            for item in validate_texts(
+                prd_text,
+                architecture_text,
+                stack_text,
+                require_filled=True,
+                require_approved=True,
+            )
+        )
+        from check_deployment import check_deployment_text
+        findings.extend(
+            f"Deployment: {item}"
+            for item in check_deployment_text(
+                deployment_text, architecture_text=architecture_text
+            )
+        )
     active = active_text(text)
     for heading in REQUIRED_SECTIONS:
         count = sum(line.strip() == heading for line in active.splitlines())
@@ -711,12 +752,14 @@ def check_outcome_review_text(
 
     record_lines = _section(text, "## Record") or []
     record = _fields(record_lines)
+    for field in _duplicate_fields(record_lines):
+        findings.append(f"Record: duplicate field {field}")
     multi_target_mode = bool(record.get("Production release targets", "").strip())
     for field in RECORD_FIELDS:
         if field not in record:
             findings.append(f"Record: missing field {field}")
-    if record.get("Schema") != "outcome-review/1":
-        findings.append("Record: Schema must be outcome-review/1")
+    if record.get("Schema") not in {"outcome-review/1", "outcome-review/2"}:
+        findings.append("Record: Schema must be outcome-review/1 or outcome-review/2")
     verdict = record.get("Verdict", "")
     if verdict not in VERDICTS:
         findings.append(f"Record: invalid verdict {verdict!r}")
@@ -729,6 +772,13 @@ def check_outcome_review_text(
         findings.append(
             f"Record: Product must exactly match the PRD product identity {product_name!r}"
         )
+    architecture_identity = product_identity(architecture_text, kind="architecture")
+    if architecture_identity and product_identity(prd_text, kind="prd") != architecture_identity:
+        findings.append("Package: PRD and architecture product identities must match")
+    if stack_text is not None:
+        stack_identity = product_identity(stack_text, kind="stack")
+        if stack_identity and stack_identity != product_identity(prd_text, kind="prd"):
+            findings.append("Package: PRD and stack-decisions product identities must match")
 
     contract, architecture_findings = parse_release_targets(architecture_text)
     findings.extend(architecture_findings)
@@ -902,8 +952,12 @@ def check_outcome_review_text(
         else:
             measurement_end_dates.append(end)
             expected_window = expectation.get("window", "")
-            duration_match = re.search(r"\b(\d+)\s*days?\b", expected_window, re.IGNORECASE)
-            if duration_match and (date.fromisoformat(end) - date.fromisoformat(start)).days != int(duration_match.group(1)):
+            duration_days = _duration_days(expected_window)
+            if duration_days is None and expected_window.strip() and not expected_window.casefold().startswith("n/a") and not expected_window.casefold().endswith("test"):
+                findings.append(
+                    f"Measurements: {signal} PRD measurement window must use a positive day/week duration"
+                )
+            elif duration_days is not None and (date.fromisoformat(end) - date.fromisoformat(start)).days != duration_days:
                 findings.append(
                     f"Measurements: {signal} window must match PRD measurement window {expected_window!r}"
                 )
@@ -1040,14 +1094,68 @@ def check_outcome_review_text(
             continue
         if followup.lower() in ABSENT or route not in FOLLOWUP_ROUTES:
             findings.append(f"Open Follow-ups: invalid route {route!r}")
+    substantive_followups = [
+        row for row in followups
+        if len(row) == len(FOLLOWUP_HEADERS) and row[0].casefold() not in {"none", "n/a", "pending", ""}
+    ]
+    if verdict == "enhancement" and not any(row[1] == "enhancement request" for row in substantive_followups):
+        findings.append("Open Follow-ups: enhancement verdict requires an enhancement request")
+    elif verdict == "incident" and not multi_target_mode and not any(
+        row[1] in {"risk", "open question"} for row in substantive_followups
+    ):
+        findings.append("Open Follow-ups: incident verdict requires risk or open question routing")
+    elif verdict == "no_change" and substantive_followups:
+        findings.append("Open Follow-ups: no_change verdict cannot carry substantive follow-ups")
     target_set_value = record.get("Production release targets", "")
+    target_review_probe, target_review_header_probe = _rows(text, "## Target Reviews", TARGET_REVIEW_HEADERS)
+    target_measure_probe, target_measure_header_probe = _rows(text, "## Target Measurements", TARGET_MEASUREMENT_HEADERS)
+    if not target_set_value.strip():
+        if target_review_header_probe and target_review_probe:
+            findings.append("Outcome mode: single-target reviews cannot carry active Target Reviews")
+        if target_measure_header_probe and target_measure_probe:
+            findings.append("Outcome mode: single-target reviews cannot carry active Target Measurements")
     if target_set_value:
+        if not target_set_value.startswith("target-set:"):
+            findings.append("Record: Production release targets must use the exact `target-set:` prefix")
         if target_set_value.startswith("target-set:"):
             target_set_value = target_set_value.removeprefix("target-set:").strip()
         target_ids = [item.strip() for item in target_set_value.split(",") if item.strip()]
         if len(target_ids) < 2 or len(set(target_ids)) != len(target_ids):
             findings.append("Record: Production release targets must name an ordered unique multi-target set")
         else:
+            if target_ids and target_id != target_ids[0]:
+                findings.append("Record: Production release target must equal the first target-set entry")
+            # Multi-target records keep a compatibility projection for the
+            # first ordered target.  It must be complete and byte-for-byte
+            # equal in the identity-bearing columns to that target's rows.
+            legacy_rows, legacy_header_ok = _rows(text, "## Measurements", MEASUREMENT_HEADERS)
+            first_target_rows = [
+                row for row in target_measure_probe
+                if len(row) == len(TARGET_MEASUREMENT_HEADERS) and row[1] == target_ids[0]
+            ]
+            if not legacy_header_ok or not legacy_rows:
+                findings.append("Outcome mode: multi-target review requires a first-target Measurements projection")
+            else:
+                first_by_signal = {row[0]: row for row in first_target_rows}
+                for row in legacy_rows:
+                    if len(row) != len(MEASUREMENT_HEADERS):
+                        findings.append("Measurements: projection rows must have the exact column count")
+                        continue
+                    target_row = first_by_signal.get(row[0])
+                    if target_row is None:
+                        # A signal scoped only to another target is not part of
+                        # the first-target compatibility projection.
+                        continue
+                    if (
+                        row[0], row[1], row[2], row[5], row[6]
+                    ) != (
+                        target_row[0], target_row[2], target_row[3], target_row[6], target_row[7]
+                    ):
+                        findings.append(f"Measurements: {row[0]} must project the first target exactly")
+                projected_signals = {row[0] for row in legacy_rows}
+                missing_projection = sorted(set(first_by_signal) - projected_signals)
+                for signal in missing_projection:
+                    findings.append(f"Measurements: {signal} is missing from the first-target projection")
             findings.extend(
                 _multi_target_findings(
                     text,
@@ -1072,17 +1180,94 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--architecture", type=Path, required=True)
     parser.add_argument("--deployment", type=Path, required=True)
     parser.add_argument("--activation", type=Path, required=True)
+    parser.add_argument("--stack-decisions", type=Path)
+    parser.add_argument("--require-lifecycle", action="store_true")
+    parser.add_argument("--prior-outcome", type=Path)
+    parser.add_argument("--repo-root", type=Path, default=Path("."))
     args = parser.parse_args(argv)
+    if args.require_lifecycle and args.prior_outcome is None:
+        try:
+            relative = args.outcome.resolve().relative_to(args.repo_root.resolve()).as_posix()
+        except ValueError:
+            relative = ""
+        if not re.fullmatch(r"docs/product/outcomes/\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.md", relative):
+            print("path: lifecycle outcomes must use docs/product/outcomes/YYYY-MM-DD-<slug>.md", file=sys.stderr)
+            return 1
+    if args.prior_outcome is not None:
+        if not args.prior_outcome.is_file():
+            print(f"prior outcome record not found: {args.prior_outcome}", file=sys.stderr)
+            return 2
+        prior_text, prior_error = safe_read_text(args.prior_outcome)
+        if prior_error:
+            print(prior_error, file=sys.stderr)
+            return 2
+        current_text, current_error = safe_read_text(args.outcome)
+        if current_error:
+            print(current_error, file=sys.stderr)
+            return 2
+        prior_digest = hashlib.sha256((prior_text or "").encode("utf-8")).hexdigest()
+        if f"Prior outcome sha256: {prior_digest}" not in (current_text or ""):
+            print("Record: --prior-outcome requires an exact Prior outcome sha256 line", file=sys.stderr)
+            return 1
+    if args.stack_decisions is None and args.require_lifecycle:
+        print("--require-lifecycle requires --stack-decisions", file=sys.stderr)
+        return 2
     paths = (args.outcome, args.prd, args.architecture, args.deployment, args.activation)
+    if args.stack_decisions is not None:
+        paths += (args.stack_decisions,)
     if any(not path.is_file() for path in paths):
         print("one or more input files do not exist", file=sys.stderr)
         return 2
+    loaded: dict[str, str] = {}
+    for name, path in {
+        "outcome": args.outcome,
+        "prd": args.prd,
+        "architecture": args.architecture,
+        "deployment": args.deployment,
+        "activation": args.activation,
+        "stack": args.stack_decisions,
+    }.items():
+        if path is None:
+            continue
+        value, error = safe_read_text(path)
+        if error:
+            print(error, file=sys.stderr)
+            return 2
+        loaded[name] = value or ""
+    if args.require_lifecycle:
+        lifecycle_record = _fields(_section(loaded["outcome"], "## Record") or [])
+        if lifecycle_record.get("Schema") != "outcome-review/2":
+            print("--require-lifecycle requires Schema: outcome-review/2", file=sys.stderr)
+            return 1
+    if args.stack_decisions is not None:
+        from check_product_package import validate_texts
+        package_findings = validate_texts(
+            loaded["prd"], loaded["architecture"], loaded["stack"],
+            require_filled=True, require_approved=True,
+            repo_root=args.repo_root,
+        )
+        if package_findings:
+            for item in package_findings:
+                print(f"Product package: {item}", file=sys.stderr)
+            return 1
+    if args.stack_decisions is not None or args.require_lifecycle:
+        from check_deployment import check_deployment_text
+        deployment_findings = check_deployment_text(
+            loaded["deployment"], architecture_text=loaded["architecture"]
+        )
+        if deployment_findings:
+            for item in deployment_findings:
+                print(f"Deployment: {item}", file=sys.stderr)
+            return 1
     findings = check_outcome_review_text(
-        args.outcome.read_text(encoding="utf-8"),
-        prd_text=args.prd.read_text(encoding="utf-8"),
-        architecture_text=args.architecture.read_text(encoding="utf-8"),
-        deployment_text=args.deployment.read_text(encoding="utf-8"),
-        activation_text=args.activation.read_text(encoding="utf-8"),
+        loaded["outcome"],
+        prd_text=loaded["prd"],
+        architecture_text=loaded["architecture"],
+        deployment_text=loaded["deployment"],
+        activation_text=loaded["activation"],
+        # The CLI validates the package/deployment immediately before this
+        # call; avoid repeating the same findings in the final report.
+        stack_text=None,
     )
     for finding in findings:
         print(f"{args.outcome}: {finding}")

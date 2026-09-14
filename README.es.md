@@ -38,19 +38,19 @@ Cada uno de los siete skills incluidos se puede invocar por separado; el pipelin
 
 - **El trabajo pequeño se queda pequeño.** Un cambio acotado usa un ciclo directo de inspección, implementación, verificación y revisión.
 - **El trabajo grande es explícito.** PLAN v6 define el typed graph; RUN v11 registra autorización, intentos y evidencia.
-- **La Product Definition se aprueba antes del diseño UI.** Todo producto pasa una aprobación humana que cubre scope, requisitos medibles, arquitectura frontend/backend completa, release targets tipados, gates de trust/AI/comercio, assumptions y stack. Un producto con UI entra en `ui-design-builder` solo tras una petición explícita.
-- **Una recomendación no autoriza implementación.** Cada área aplicable recibe dos o tres stacks coherentes. Una elección nueva aceptada queda `Approved`, una existente `Selected` y una restricción dura `Required`; `Recommended` y `Provisional` bloquean delivery. Frontend separa lenguaje, package manager, framework, UI runtime, component foundation como shadcn/ui, styling, build, routing/data y tests.
-- **El diseño UI tiene su propia ruta de aprobación.** `ui-design-builder` completa primero el intake de UI/style/motion/media. El wireframe schema 4 congela el copy exacto y los contratos dinámicos antes de la aprobación estructural; en productos híbridos cada `UI-*` surface queda ligada a su `releaseSurface`, `surfaceClass`, `captureMode` y responsive set por surface, con evidencia hosted, extension, native y desktop separada. El target HiFi debe incluir ese scope exacto, un CSP restrictivo y un receipt humano `sandboxed-offline-browser` que conserve la salida de console/network/navigation. El agent solo puede redactar o validar; no puede firmar la attestation ni aprobar. Los tokens se compilan solo tras Visual Approval y cuando Design System Need es `required`.
+- **La Product Definition se aprueba antes del diseño UI.** Una matriz cerrada de aplicabilidad deriva arquitectura y stack de cada release surface: hosted UI exige frontend, native UI exige mobile/desktop, servicios y agentes exigen backend/data/interfaces, y CLI exige toolchain explícito. Las aprobaciones de Product y Stack ligan digests canónicos, una revisión estructurada, fecha no futura y referencias exactas para cada open item aceptado. Un producto con UI entra en `ui-design-builder` solo tras petición explícita.
+- **Una recomendación no autoriza implementación.** Cada área aplicable recibe dos o tres stacks coherentes. Una elección nueva aceptada queda `Approved`, una existente `Selected` y una restricción dura `Required`; `Recommended` y `Provisional` bloquean delivery. El conjunto cerrado del checkpoint debe igualar las áreas aplicables resueltas, y el mapa de layers de la opción aprobada debe igualar las filas ejecutables.
+- **El diseño UI tiene su propia ruta de aprobación.** `ui-design-builder` completa primero el intake de UI/style/motion/media. El wireframe schema 4 congela copy y contratos de presentación; cada surface híbrida liga `releaseSurface`, `surfaceClass`, `captureMode` y su responsive set. El HiFi conserva scope, CSP restrictivo y un receipt humano offline con intentos de console, network, navigation, forms y popups. Un design system requerido usa un único handshake: Visual Approval registra `required/pending`, el compiler valida ese digest y genera el par, y el owner liga ambos hashes; la validación final rechaza pending. Un agente no puede aprobar por el owner.
 - **Los workers están aislados.** Las missions de escritura usan worktrees dedicados y scopes acotados. El parent valida cada commit y diff devueltos.
-- **Cada graph attempt es durable y el candidate code está aislado.** Los nodos reservan antes de ejecutar fuera del RUN lock. Cada verifier local de PLAN v6 usa una imagen Docker/Podman fijada, Git archive de solo lectura, red desactivada, rootfs de solo lectura, usuario no-root y recursos acotados; Plan Readiness comprueba antes el runtime y el RepoDigest local. Los checks remotos, de browser o network usan rutas externas, no subprocesses del host.
+- **Cada graph attempt es durable y el candidate code está aislado.** Los nodos reservan antes de ejecutar fuera del RUN lock. Cada verifier local de PLAN v6 solo usa un executable nativo Docker/Podman aprobado por política de máquina, protegido por el SO y fuera del repositorio y de rutas escribibles por el usuario; la attestation liga path, hash, ownership, RepoDigest y política de sandbox. El candidate entra como Git archive de solo lectura, sin red, con rootfs read-only, usuario no-root y recursos acotados.
 - **Los runtime bindings son explícitos.** `lease-worker` deriva provider, driver, model, effort y ejes de runtime portables del directive seleccionado, acepta `--task-thread-id` solo para app tasks, acepta un target exacto existente y materializa un target exacto nuevo solo desde un wildcard grant activo, sin ampliar la autoridad.
 - **Tener capacidad no es tener permiso.** Un runtime puede poder hacer push o limpieza, pero cada acción sigue necesitando autorización exacta.
-- **La activación se lee de vuelta.** La configuración externa queda fuera de PLAN/RUN y liga la aprobación a un action digest y release target tipado exactos. El Outcome Review híbrido usa filas de targets ordenadas, mediciones/feedback de Outcome Coverage por target y un veredicto agregado determinista; el checker del seed une targets de arquitectura staged con sus perfiles. Deployment, Activation, Outcome y SEO reutilizan el mismo SHA, artifact, provider/channel, endpoint e identidades de medición.
-- **El crecimiento SEO se apoya en evidencia.** Un lifecycle SEO guardado solo acepta un target de producción hosted-web público y descubrible, y liga cada fuente first-party a evidencia de Activation; Search Console y GA4 siguen separados.
+- **La activación se lee de vuelta.** Activation, Outcome y SEO revalidan primero Product/Stack aprobados y el Deployment completo. Outcome Coverage conserva method, owner y un mapa target→source exacto; cada ventana empieza después de que su target esté disponible. Multi-target usa un solo modo, liga campos primary al primer target ordenado, mantiene las filas anteriores append-only y deriva el veredicto y follow-up exigido.
+- **El crecimiento SEO se apoya en evidencia.** Un lifecycle SEO guardado solo acepta un target hosted-web público y descubrible; cada modo fija mercado, idioma, outcome, timezone, ventanas y segmentación. El `verified at` de cada source se separa del límite común de cobertura de datos, y Search Console permanece separado de GA4.
 - **La evidencia sigue al SHA.** Un commit nuevo invalida la evidencia previa de gates y UI del head anterior.
 - **La evidencia UI demuestra layout, no píxeles.** Los runs fijados a harness 0.34.0 o posterior registran un `layout_check` por route-breakpoint-state desde un navegador real; cada tarea UI clasifica su impacto (`none`/`style`/`structure`/`both`), las desviaciones aceptadas van a un ledger con cita, y el motion entregado traza a Motion and Media Intent de `ui-design.md`. Los runs fijados a 0.35.0 o posterior también verifican por máquina el `deviation_ledger` y un `ui_impact_summary` por misión.
-- **Los runs completados se archivan antes de la promoción.** `archive_run.py` reverifica C, `main` actual, evidencia y move list, escribe un `ARCHIVE_RECEIPT.json` cerrado y un anchor immutable externo al checkout, y después mueve la coordinación; revierte cualquier fallo. El archive-only A se revalida contra ese anchor antes de recibir una autorización separada de publication. `push_archived_candidate.py` liga la URL canónica exacta, el ID/hash/principal de la política machine-installed y el hash del verificador OS-managed en request/attempt inmutables, con un receipt determinista `<anchor-stem>-publication-receipt.json`, y devuelve `PENDING_TRUSTED_HOST_PUBLICATION`; rechaza prose/ref del caller como autorización y nunca ejecuta `git push`. Un trusted host recarga y revalida el request con configuración saneada, ejecuta la URL exacta sin force, firma la evidencia y recovery la verifica antes de leer de vuelta A y cerrar el receipt. Product Definition permanece publicado.
-- **La paridad se captura, no se recuerda.** Las surfaces hosted-browser usan `scripts/parity_capture.py` para cada route×viewport×state, con el mismo viewport para la referencia y la implementación; las apps extension, native y desktop usan tooling de su plataforma o capturas manuales etiquetadas y nunca sustituyen una URL hosted. Cada fila liga Git blobs aceptados, paths/hashes de autoridad, imagen/hash baseline, método de captura y resultado de layout; la verificación de producción lo repite contra la URL desplegada.
+- **Los runs gestionados se archivan antes de la promoción.** `archive_run.py` reverifica C, `main`, todo el inventario y los moves bajo handles no-follow, y ejecuta C→A con un journal durable que preserva cambios concurrentes durante recovery. A se revalida contra un anchor externo; el agente local solo prepara el handoff ligado a machine policy, verifier y evidencia firmada del trusted host, y nunca ejecuta el argv de publicación. El trabajo directo conserva su candidate fijo y no inventa un archivo PLAN/RUN.
+- **La paridad se captura, no se recuerda.** Hosted-browser captura cada route×viewport×state; extension, native y desktop usan tooling de plataforma o captura manual explícita. Un grupo requerido no soportado vuelve el resultado parcial y no válido como gate. Cada fila liga Git blob, authority hash, baseline, método, identidad trusted del launcher y layout.
 - **Leer las reglas es obligatorio.** El `AGENTS.md` del proyecto sembrado exige leer el SKILL.md de `delivery-harness` instalado antes del trabajo gestionado y las secciones afectadas del PRD antes del trabajo directo que afecta al producto; saltárselo es un hallazgo bloqueante.
 - **La seguridad de código es una revisión final nueva.** Todo PLAN con código requiere `code-security-review`; `not_applicable` solo sirve para trabajo de documentación estrecho. Los paths reales del candidate deben quedar dentro del scope de mission/security y nunca incluir coordinación del parent. Los security commands requeridos son verifiers de container ordenados por graph y se comprueba su execution key del head actual antes del review. Un PASS liga SHA exacto, coverage completa y cero exclusions.
 - **La promoción es main-only.** Entrega inicial y enhancements parten del `main` remoto observado. Un RUN 0.38 cierra en C como local-only y no puede hacer push. La publication autorizada de A necesita el anchor externo pre-archivo, registros inmutables de request/attempt/receipt y un límite trusted-host/humano; después de los gates del candidate, otra autorización y read-back fast-forwardean A sin cambios a `main`. Si falla el candidate o preview después de A, crea un PLAN/RUN de continuación fresco en la misma branch no-default desde el A exacto, importa el scope verificado y el repair y liga los registros de A como entrada histórica, cierra C2 y archiva A2 con un anchor nuevo; nunca reescribe el historial de A ni reutiliza sus registros. Si A fue publicado, el pre-state remoto de A2 debe ser exactamente A; si no, debe seguir ausente.
@@ -134,9 +134,11 @@ flowchart TB
         review["Impeccable critique + audit<br/>scoring H1–H9"]
         vgate{{"Human Visual Approval"}}
         dgate{{"Design System Need Gate"}}
-        pair["design-system-compiler<br/>design-system.md + design-system.json"]
+        pending["Marker required/pending aprobado<br/>ligado al digest de Visual Approval"]
+        pair["Preflight + compile de design-system-compiler<br/>design-system.md + design-system.json"]
+        linked["El owner liga los hashes<br/>validación UI final"]
         intake --> wf --> cgate --> wgate --> style --> review --> vgate --> dgate
-        dgate -->|required| pair
+        dgate -->|required| pending --> pair --> linked
         dgate -->|not_required| target[Target aprobado fiel a las páginas]
     end
 
@@ -182,15 +184,18 @@ flowchart TB
 
     subgraph DEPLOY["Despliegue (plataforma conectada a Git)"]
         direction TB
-        handoff["Actualizar docs/DEPLOYMENT.md<br/>(targets tipados + nombres + tareas de consola)"]
+        handoff["Managed: actualizar docs/DEPLOYMENT.md<br/>(targets tipados + nombres + tareas de consola)"]
         archive["Cerrar RUN y archivar coordinación<br/>commit + revalidar candidate"]
         push["Request/attempt/receipt externo al checkout<br/>publicación exacta del candidate de run branch"]
+        directhandoff["Direct: actualizar Deployment<br/>conservar un candidate fijo verificado"]
+        directpush["Publicación direct autorizada<br/>por separado"]
         preview["Los preview builds salen solos<br/>(la plataforma construye por push)"]
         merge([Fast-forward exacto a main<br/>autorizado por separado])
         prod["Despliegue a producción<br/>(la plataforma construye desde main)"]
         check["Verificación post-despliegue (solo lectura)<br/>check_deployment.py"]
         status["Reconciliar el registro de despliegue<br/>(estado + acciones humanas pendientes)"]
         handoff --> archive --> push --> preview --> merge --> prod --> check --> status
+        directhandoff --> directpush --> preview
     end
 
     subgraph ACTIVATE["product-activation — activación post-entrega"]
@@ -211,7 +216,7 @@ flowchart TB
     end
 
     subgraph OUTCOME["Revisión de outcome post-release"]
-        outcome["outcome-review.md<br/>(a pedido del owner, tras la ventana de medición)"]
+        outcome["docs/product/outcomes/YYYY-MM-DD-release-set.md<br/>(a pedido del owner, tras la ventana de medición)"]
         verdict{{"Veredicto: no_change | enhancement | incident"}}
         outcome --> verdict
     end
@@ -226,9 +231,9 @@ flowchart TB
     user --> interview
     pgate -->|producto UI aprobado y petición explícita| intake
     pgate -->|headless o UI diferida| HARNESS
-    pair --> route
+    linked --> route
     target --> route
-    DIRECT --> handoff
+    DIRECT --> directhandoff
     gates2 --> handoff
     status --> profiles
     ready --> outcome
@@ -335,7 +340,11 @@ El `allowed_providers` de un nodo de graph debe incluir el host que realmente es
 
 ## Instalación
 
-El repositorio es público, así que no se necesita permiso de acceso. Necesitas al menos un host que descubra un directorio de skills de usuario como `~/.agents/skills/` — Codex, Claude Code, Pi o cualquier otro.
+El repositorio es público. Necesitas Python 3.10 o posterior, Git y al menos un host que descubra `~/.agents/skills/`. Instala antes de validar las dependencias Python fijadas, incluido Pillow:
+
+```bash
+python -m pip install -r skills/delivery-harness/requirements-test.txt
+```
 
 ```bash
 git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
@@ -354,27 +363,31 @@ cd product-delivery-harness
 
 No existe un equivalente seguro de copia directa para actualizar: omitiría el manifest de archivos registrados, el bloqueo del destino, los marcadores de propiedad, la verificación completa y el rollback. Si ninguno de los instaladores puede ejecutarse, detente y repara el entorno en vez de copiar sobre una instalación existente.
 
-El instalador omite caches de Python reproducibles y rechaza cualquier otro artefacto de origen sin seguimiento o ignorado, incluidos valores locales `.env` y `.dev.vars`; los archivos example registrados siguen permitidos. Bash y PowerShell comparten el mismo bloqueo. PowerShell rechaza componentes junction/reparse en source, destination, backup, staging y targets gestionados antes e inmediatamente alrededor de moves o limpieza recursiva. Cada target nuevo conserva un marcador del intento hasta terminar la verificación del árbol completo, por lo que el rollback solo elimina rutas creadas por ese intento y restaura el backup anterior; conserva rutas creadas por otra persona o proceso. Repetir el instalador sigue requiriendo autorización explícita y sesiones de skills detenidas. Reinicia el host solo después del éxito.
+El instalador omite caches de Python reproducibles y rechaza cualquier otro artefacto sin seguimiento o ignorado, incluidos `.env` y `.dev.vars`; los examples registrados siguen permitidos. Bash y PowerShell comparten el mismo bloqueo. Ambos rechazan modos tracked symlink/gitlink y componentes junction/reparse en source, destination, backup, staging y targets gestionados antes e inmediatamente alrededor de cada mutación. Cada target nuevo conserva un marcador del intento, por lo que rollback solo elimina rutas del propio intento y restaura el backup; conserva rutas concurrentes. Repetir el instalador requiere autorización y sesiones detenidas. Reinicia el host solo después del éxito.
 
-Al actualizar desde 0.23 o anterior, archiva los directorios heredados bajo sus IDs originales (archive the legacy directories under their original IDs) en ese mismo backup. Luego instala sus reemplazos — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder` y `product-design-builder` → `design-system-compiler` — más el skill nuevo `product-activation`. Después de copiar, verifica que los tres IDs heredados ya no estén en `~/.agents/skills/`; si no, el host descubrirá skills duplicados con triggers solapados.
+Al actualizar desde 0.23 o anterior, ejecuta el instalador: archiva los directorios heredados bajo sus IDs originales en el mismo backup e instala los siete skills actuales: `delivery-harness`, `product-definition-builder`, `ui-design-builder`, `design-system-compiler`, `code-security-review`, `product-activation` y `seo-growth-review`. El mapa es `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder` y `product-design-builder` → `design-system-compiler`; el instalador verifica que los IDs heredados ya no sean descubribles.
 
 Los siete skills se pueden invocar por separado, pero los modos cross-skill validan dependencias. Product Definition, UI Design, Design System, Activation y Harness ejecutan incondicionalmente el mismo full Product checker con PRD, arquitectura, stack y repository root exactos antes del delivery; UI Design además une Copy Freeze, wireframe schema 4, evidencia HiFi/CSP/offline y el par schema 2 opcional; los productos híbridos requieren que `surfaceContracts` de schema 2 coincida con cada `UI-*` aprobado en release surface, capture mode y responsive set, mientras platform y styling permanecen en el source de stack aprobado. Deployment, Activation, Outcome y los lifecycle SEO guardados comparten la misma identidad de producción.
 
-Los Skill Bindings de un proyecto nuevo quedan deliberadamente unresolved hasta que la sesión observe candidatos instalados y el owner confirme un único skill por slot. El pin cubre el árbol completo, no solo `SKILL.md`. `check_external_skill_dependencies.py` valida el árbol externo conocido y su uso permitido. El `frontend-design` fijado sirve para dirección visual y autoría frontend; Harness posee los contratos de conformance y compilation. Impeccable nunca es el reviewer Harness de solo lectura por defecto: su workflow fijado exige autorización separada para subagents, browser/server, escritura de snapshots y cualquier descarga binaria opcional.
+Los Skill Bindings quedan unresolved hasta observar candidatos y recibir confirmación del owner. El manifest público fija source locator e install route para ambos requisitos UI: pide al `$skill-installer` de Codex instalar `frontend-design` desde la ruta Anthropic registrada, e instala Impeccable con `npx impeccable install` (la ruta npx actual requiere Node.js 22.18+). Ejecuta después `check_external_skill_dependencies.py`; un árbol upstream cambiado no puede sustituir silenciosamente los bytes fijados. Harness posee conformance/compilation e Impeccable sigue requiriendo autorización separada.
+
+Los verifiers locales gestionados también necesitan Docker/Podman nativo instalado por administrator/root en una ruta protegida y admitido por la machine runtime policy. La publicación de archivos necesita otra machine trust policy y signing setup. El instalador no crea políticas privilegiadas; sigue `runtime-adapters.md` y `branch-promotion-contract.md` y verifícalas antes de ejecutar.
 
 ### Flujo Zero-to-one
 
 1. Instala un host soportado y los siete skills. El instalador bloquea el destino, respalda IDs gestionados, copia solo archivos tracked y verifica cada byte; reinicia el host.
 2. Empieza con `product-definition-builder`: discovery/research, reconciliación, stack coherente, release targets tipados, tests, Stack Decision Checkpoint y Product Definition Approval humana.
 3. Para UI, ejecuta `ui-design-builder`: intake humano, Copy Freeze, wireframe schema 4, Style Integration, HiFi estructurado, receipts humanos, H1–H9 y Visual Approval.
-4. Si Design System Need es `required`, compila el par schema 2 con `design-system-compiler`; si es `not_required`, conserva el replacement target sin par.
+4. Si Design System Need es `required`, registra `required/pending`, pasa el preflight estrecho del compiler, genera el par schema 2, liga ambos hashes mediante el owner y pasa la validación UI final. Si es `not_required`, registra la disposición retain/retire de cualquier par existente.
 5. Invoca `delivery-harness`. El size gate mantiene directo un cambio pequeño o crea PLAN-v6/RUN-v11 para trabajo gestionado. Cada mutación requiere autorización exacta.
-6. Antes del launch gestionado, pasa los joins y ejecuta `record-observation --repo-root <root>`; `--probe-sandboxes` es solo diagnóstico. Usa worktrees aislados y ejecuta todo candidate command en el container fijado; integra solo commits dentro de scope.
+6. Antes del launch gestionado, pasa los joins y ejecuta `python skills/delivery-harness/scripts/harness_transition.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`; `--probe-sandboxes` es solo diagnóstico. Usa worktrees aislados y el container fijado.
 7. Completa reviews exact-head, security checks ordenados, un `code-security-review` nuevo, regresión amplia y evidencia UI por plataforma.
-8. Cierra RUN; con la evidencia actual de `main`, ejecuta dry-run/apply de `archive_run.py` con `--anchor-out` externo de ruta absoluta, haz commit de los moves y del `ARCHIVE_RECEIPT.json` cerrado como A y reverifica contra el anchor.
-9. Autoriza por separado la preparación de A usando el mismo `--archive-anchor`, request/attempt/receipt/evidence externo y una política/verificador fijados; un trusted host revalida el request, ejecuta la URL exacta sin force, firma la evidencia y recovery la verifica junto con non-production y el read-back de A, y después se hace fast-forward exacto de A a `main` y se verifica producción. Si falla candidate/preview, crea un replacement RUN de continuación, liga el estado de publicación previo, cierra C2 y archiva A2 con un anchor nuevo.
-10. Ejecuta `product-activation` con acciones exactas, read-back independiente, evidencia, readiness y measurement sources.
-11. Tras la ventana, ejecuta Outcome Review; para un hosted-web público, `seo-growth-review` es opcional.
+8. Solo para managed, cierra RUN. Ejecuta dry-run/apply de `archive_run.py` con evidencia exacta de `main` y un `--anchor-out` externo absoluto; haz commit del move con journal y del receipt como A, y reverifica contra el anchor. Direct conserva su candidate fijo y omite el archivo RUN.
+9. Con autorización action-time separada, prepara A mediante anchor y request/attempt/receipt inmutables. El trusted host los recarga, valida, publica la URL exacta sin force y firma evidencia; recovery verifica y lee A. El agente local nunca ejecuta ese argv.
+10. Ejecuta gates aislados non-production contra el candidate exacto leído. Si falla tras A, crea un PLAN/RUN de continuación desde A, cierra C2, liga el estado previo y archiva A2 con anchor nuevo.
+11. Con otra autorización exact-A, fast-forwardea el candidate sin cambios a `main`, léelo de vuelta y verifica producción.
+12. Ejecuta `product-activation` con acciones exactas, read-back independiente, evidencia, readiness y measurement sources.
+13. Tras cada ventana por target, ejecuta Outcome Review append-only; para hosted-web público, `seo-growth-review` es opcional.
 
 ## Prompts típicos
 
@@ -405,7 +418,7 @@ Usa $delivery-harness para implementar el plan aprobado. Crea una branch y haz c
 ```
 
 ```text
-Usa $delivery-harness para implementar este plan y hacer push de la branch verificada. Yo abriré el PR y me encargaré del merge.
+Usa $delivery-harness solo si el size gate elige la ruta direct: implementa este cambio acotado, verifica un candidate fijo y publica esa branch no-default bajo esta autorización exacta. Detente si se requiere PLAN/RUN; managed necesita una petición nueva después de archivar.
 ```
 
 ```text
@@ -414,6 +427,10 @@ La entrega está completa. Usa $product-activation para los targets de release d
 
 ```text
 El RUN está completo en su branch no-default. Usa $delivery-harness para previsualizar y archivar la coordinación en esa misma branch, verificar el candidate de archivo y detenerte antes de push o promoción a main.
+```
+
+```text
+El candidate archive-only A está verificado. Prepara su request inmutable de publicación para el trusted host desde el anchor externo y detente. No ejecutes localmente el comando emitido; espera evidencia separada del trusted host y recovery.
 ```
 
 ```text
@@ -476,7 +493,7 @@ python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 git diff --check
 ```
 
-El CI también ejecuta el check end-to-end del spine. Ejecútalo localmente con `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`; recorre el spine real del CLI (`new_run.py` → joins congelados incluyendo el checker completo de wireframes del skill sibling → `validate_result.py --repo-root`) sobre un paquete de producto sintético, así el drift de contrato cross-skill aparece como un solo test en rojo.
+El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`. En PowerShell usa `$env:HARNESS_GOLDEN_PATH='1'; python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v; Remove-Item Env:HARNESS_GOLDEN_PATH`. Recorre el CLI real sobre un paquete sintético.
 
 ## Mantener los READMEs al día
 
@@ -508,7 +525,7 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
 
-- **0.38.0** — Endurecimiento completo del contrato zero-to-one. Product Definition valida autoridad CommonMark activa, joins completos de producto/arquitectura/stack e identidad exacta entre Deployment, Activation, Outcome y SEO; la UI híbrida liga release, capture y responsive por surface, y `surfaceContracts` de schema 2 debe coincidir con cada identity `UI-*` aprobada y su contrato de release/capture/responsive, mientras platform y styling permanecen en el source de stack aprobado. Los commands PLAN-v6 corren solo en un sandbox Docker/Podman fijado, no-root, sin red y read-only cuyo executable/hash/version/RepoDigest con descriptor queda ligado al request y a la evidencia; archive mutation paths retienen identidades de descriptor/handle contra swaps. Las lecturas Git exact-SHA rechazan replace refs/grafts; argv de browser en Windows no pasa por `cmd.exe`; archive/installer rechazan links/reparse points; endpoints hosted de production o públicos exigen HTTPS. RUN cierra local-only en C; el tooling local de archive nunca hace push y un A fallido entra en una continuación C2/A2 nueva sin reescribir historial. Cambio breaking del skill bundle.
+- **0.38.0** — Endurecimiento zero-to-one completo. Aplicabilidad por release surface, digests de Product/Stack, identidad exacta, Deployment completo, provenance/ventanas por target, Outcome append-only y SEO por modo cierran la cadena Product→Activation→Outcome. Un design system requerido usa pending→compile→owner-link y el stack liga styling/platform con UI y `surfaceContracts`. PLAN-v6 solo usa Docker/Podman nativo, machine-approved y OS-protected, reteniendo path/hash/ownership/version/RepoDigest; rechaza runtimes falsos y wrappers de Windows. Parity es non-gating ante grupos no soportados y liga el launcher. Archive C→A usa inventario no-follow, journal de recovery, paths/modos canónicos, Git filtering aislado y rollback transaction-owned que preserva datos concurrentes. Setup de trusted host y evidencia firmada son ejecutables fuera del límite local. Git, transition, design-system e installer rechazan swaps; Windows tiene CI específico; dependencias UI públicas y Python/Pillow son explícitas. RUN cierra local-only en C, direct omite archive gestionado y un A fallido usa C2/A2 sin reescribir historial. Cambio breaking del skill bundle.
 - **0.37.0** — El diseño UI pasa a ser un límite de aprobación separado. `product-definition-builder` fija scope, arquitectura frontend/backend completa y stack, y se detiene. El nuevo `ui-design-builder` posee el intake humano de UI/style/motion/media, placeholders tipados image/motion de `wireframes/4`, scoring estructural W1–W5, Style Integration con `frontend-design`, HTML HiFi conectado, critique/audit de Impeccable, scoring H1–H9, Visual Approval, routing GSAP condicional, generación de motion con Higgsfield MCP bajo autorización exacta y Design System Need Gate. Los wireframes schema 4 congelan copy estático, de acciones, feedback y estados alternativos, además de contratos dinámicos acotados, antes del grading o la aprobación estructural; `ui-design.md` registra owner, locale y fecha, y un cambio posterior de wording reabre Product Definition, Copy Freeze, revisión responsive y Wireframe Approval. Los tokens formales se compilan solo tras aprobación visual; los artifacts UI canónicos viven en `docs/design/`, y Harness 0.37.0+ exige un `ui-design.md` aprobado y congelado para UI delivery, manteniendo lectura de rutas legacy. El graph de análisis read-only de Product Definition ahora usa el runner nativo de sibling agents del host actual; Codex, Claude Code, Pi y hosts generic comparten el mismo contrato de roles y ownership del parent. El séptimo skill incluido, `seo-growth-review`, añade una revisión post-release opcional y de solo lectura sobre crawl/index, Search Console, GA4 y estimaciones actuales; separa visibilidad de comportamiento on-site, etiqueta la fuerza de evidencia, prioriza oportunidades query-to-page y enruta cada follow-up sin modificar el sitio ni cuentas externas. Cambio breaking del skill-bundle.
 - **0.36.0** — Las decisiones product-first ganan una ruta de aprobación completa. El market research post-borrador reconcilia el candidate core antes del Stack Decision Checkpoint y Product Definition Approval humanos; los wireframes UI parten solo de esa revisión aprobada, y los productos headless siguen necesitando aprobación. Las opciones técnicas se presentan como bundles coherentes y solo `Required`, `Selected` o `Approved` son ejecutables; `Recommended` y `Provisional` bloquean Harness. Frontend separa lenguaje, package manager, component foundation como shadcn/ui y styling; los destinos móviles se separan de native/cross-platform y framework. El PRD añade gates de Data & Trust y AI/Automation, métricas con ownership, assumptions/open questions estructuradas e impacto completo de enhancements. El nuevo `check_product_package.py` valida los tres archivos core y el frozen join de Harness reutiliza el checker cuando existe el approval marker. Cambio breaking del skill-bundle.
 - **0.35.5** — Nuevo `scripts/parity_capture.py`: el Final Visual Parity Loop pasa a ser ejecutable — enumera la matriz route×breakpoint×state desde `ui_surfaces` del PLAN, conduce la CLI agent-browser para capturar el render de referencia y la página implementada al mismo viewport (pares `-target.png`/`-actual.png` bajo `docs/goal/evidence/parity/`), ejecuta una sonda de geometría DOM por página (overflow horizontal más solapamientos visibles) para la atestación `layout_check`, y escribe `manifest.json` más un `parity-board.html` autocontenido para el juicio; un pequeño route map por run aporta selectores de referencia y disparadores de estado opcionales, el estado ready se captura sin disparador, y la captura manual sigue siendo el fallback sin CLI. El production smoke recibe su primera definición de contenido: los candidatos con UI recapturan paridad contra la URL de producción en `docs/goal/evidence/production/` (condición 7 del contrato de promoción, contrato de despliegue, AGENTS.md sembrado), así un deploy que se desvió de la referencia queda como hallazgo registrado y no como sorpresa post-deploy.

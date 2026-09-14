@@ -6,7 +6,7 @@ The design system exists so frontend implementation can follow one set of tokens
 
 ## Drafting Order
 
-1. Confirm that `docs/design/ui-design.md` records `Design System Need Gate: required`, then load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
+1. Confirm that `docs/design/ui-design.md` records `Design System Need Gate: required`, then run the exact pair-less preflight when its compiled-pair field is `pending — design-system-compiler`. Load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
 2. Confirm that the PRD UI Surface Contract is complete and frozen and that `docs/design/ui-design.md` records approved Wireframe and Visual decisions for the complete responsive browser matrix and immutable target.
 3. Consume the selected direction, Style Integration rules, Impeccable review evidence, H1-H9 result, and human approval from `ui-design.md`. Do not rerun `frontend-design`, Impeccable, direction generation, or the HiFi review during normal compilation.
 4. Translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target. `frontend-design` supplies the approved direction; it is not a compiler mode.
@@ -19,7 +19,7 @@ Publish the Markdown and JSON together.
 
 `design-system.json` is the sole structured authority. New approval pairs use `design-system/2`; its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
 
-Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`. A hybrid pair uses `surfaceContracts` instead of global `platform`, `stylingMechanism`, `viewports`, and `sizeClasses`: each UI-* entry names the exact `releaseSurface`, `surfaceClass`, capture mode, and responsive `{kind, targets}` set. Platform and styling choices remain grounded in the approved `stack-decisions.md` source binding rather than being duplicated per surface. Shared tokens, primitives, product components, motion variants, and state matrix remain global.
+Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | Tailwind CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`. `stackSemantics` binds the exact approved rendering model (or client strategy), component foundation (or framework), styling approach, and platform. A hybrid pair uses `surfaceContracts` instead of global `platform`, `stylingMechanism`, `viewports`, and `sizeClasses`, plus a `stackSemantics` map keyed by every UI-* surface. Platform and styling choices remain grounded in the approved `stack-decisions.md` source binding rather than being invented by the compiler. Shared tokens, primitives, product components, motion variants, and state matrix remain global.
 
 Browser-extension UI uses `platform: web` with the UI approval `captureMode: browser-extension`; it is not silently treated as hosted web.
 
@@ -159,6 +159,6 @@ Before publication:
 2. Confirm every token, primitive, component, state, and responsive entry is used or required.
 3. Confirm every required PRD UI element maps to a registered primitive or product component.
 4. Confirm no page-local value or control is required.
-5. Generate the Markdown contract block with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. The atomic write rejects a symlink Markdown destination instead of replacing the link or leaving its target unchanged.
+5. Generate the Markdown contract block with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. The atomic write rejects symlink/reparse components, holds the POSIX parent dirfd or Windows non-delete-sharing parent handle during the native replace, and never falls back to an unbound pathname move.
 6. Validate it with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`. The check resolves every complete `DS-*` token named anywhere in the Markdown — signature rules, primitive `dsId`, or `DS-COMP-*` — against the JSON registry, rejects malformed lookalikes, and enforces one global ID namespace across all three registries.
 7. Run the contrast and type-scale checks.

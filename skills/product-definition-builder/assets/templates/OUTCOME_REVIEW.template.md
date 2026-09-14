@@ -18,6 +18,7 @@ This strict post-deployment record is written only after the real measurement wi
 - Activation sha256: <lowercase SHA-256 of current docs/ACTIVATION.md>
 - Reviewed on: <YYYY-MM-DD>
 - Verdict: <no_change / enhancement / incident>
+- Prior outcome sha256: <required only when --prior-outcome appends immutable history>
 
 ## Activation Sources
 
@@ -86,3 +87,6 @@ Verdict: <no_change / enhancement / incident> — <one-line reason>
 | Follow-up | Route |
 | --- | --- |
 | none | none |
+
+Use no substantive follow-up for `no_change`; route `enhancement` to an
+enhancement request and `incident` to a risk or open question.

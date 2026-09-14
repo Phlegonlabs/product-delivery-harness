@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -162,18 +163,37 @@ def incident_multi_target_outcome() -> str:
 
 class MultiTargetOutcomeReviewTests(unittest.TestCase):
     def check(self, text: str) -> list[str]:
-        return check_outcome_review.check_outcome_review_text(
-            text,
-            prd_text=seed.product_fixtures.valid_prd(),
-            architecture_text=seed.architecture_with_hybrid_targets(),
-            deployment_text=seed.deployment_for_hybrid_targets().replace(
-                "2026-09-12T18:04:00Z", "2026-08-01T18:04:00Z"
-            ),
-            activation_text=outcome_activation(),
-        )
+        with patch("check_outcome_review.check_activation_text", return_value=[]):
+            return check_outcome_review.check_outcome_review_text(
+                text,
+                prd_text=seed.product_fixtures.valid_prd(),
+                architecture_text=seed.architecture_with_hybrid_targets(),
+                deployment_text=seed.deployment_for_hybrid_targets().replace(
+                    "2026-09-12T18:04:00Z", "2026-08-01T18:04:00Z"
+                ),
+                activation_text=outcome_activation(),
+            )
 
     def test_multi_target_outcome_review_passes(self) -> None:
         self.assertEqual([], self.check(multi_target_outcome()))
+
+    def test_rotating_first_target_is_rejected(self) -> None:
+        rotated = multi_target_outcome().replace(
+            "- Production release target: api-prod",
+            "- Production release target: android-prod",
+            1,
+        )
+        findings = "\n".join(self.check(rotated))
+        self.assertIn("must equal the first target-set entry", findings)
+
+    def test_multi_target_legacy_measurements_cannot_be_placeholder_projection(self) -> None:
+        placeholder = multi_target_outcome().replace(
+            "| Completion | 0 | 90% | 2026-09-08 | 2026-09-09 | observed api-prod | MS-001 |",
+            "| Completion | [baseline] | [target] | [window] | [window] | [actual] | MS-001 |",
+            1,
+        )
+        findings = "\n".join(self.check(placeholder))
+        self.assertIn("must project the first target exactly", findings)
 
     def test_android_specific_incident_source_and_aggregate_verdict_pass(self) -> None:
         self.assertEqual([], self.check(incident_multi_target_outcome()))

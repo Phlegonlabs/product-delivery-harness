@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import sys
 import subprocess
 import tempfile
@@ -136,6 +137,44 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._temp.cleanup()
+
+    def test_run_document_replacement_binds_parent_on_posix(self) -> None:
+        if os.name == "nt":
+            self.skipTest("POSIX dirfd assertion is not applicable on Windows")
+        run_path = self.root / "RUN.md"
+        original = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        run_path.write_text(original, encoding="utf-8")
+        with mock.patch.object(
+            harness_transition.os, "replace", wraps=harness_transition.os.replace
+        ) as replace:
+            harness_transition._replace_run_document(
+                run_path, self.run, expected_text=original
+            )
+        self.assertTrue(replace.called)
+        _source, _destination = replace.call_args.args[:2]
+        self.assertIsNotNone(replace.call_args.kwargs.get("src_dir_fd"))
+        self.assertIsNotNone(replace.call_args.kwargs.get("dst_dir_fd"))
+        self.assertNotEqual(original, run_path.read_text(encoding="utf-8"))
+
+    def test_run_document_replacement_rejects_parent_symlink(self) -> None:
+        link = self.root / "linked-run-parent"
+        target = self.root / "real-run-parent"
+        target.mkdir()
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"symlink unavailable: {exc}")
+        run_path = link / "RUN.md"
+        run_path.write_text(
+            mf.manifest_markdown("## Harness Run State", "harness_run", self.run),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ManifestError):
+            harness_transition._replace_run_document(
+                run_path, self.run, expected_text=run_path.read_text(encoding="utf-8")
+            )
 
     def _sync_plan_digest(self) -> None:
         digest = plan_digest(self.plan)

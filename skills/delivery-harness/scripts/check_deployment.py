@@ -881,9 +881,18 @@ def main(argv: list[str] | None = None) -> int:
         if not args.architecture.is_file():
             print(f"architecture record not found: {args.architecture}", file=sys.stderr)
             return 2
-        architecture_text = args.architecture.read_text(encoding="utf-8")
+        try:
+            architecture_text = args.architecture.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            print(f"cannot read architecture record {args.architecture}: {exc}", file=sys.stderr)
+            return 2
+    try:
+        deployment_text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        print(f"cannot read deployment record {path}: {exc}", file=sys.stderr)
+        return 2
     findings = check_deployment_text(
-        path.read_text(encoding="utf-8"), architecture_text=architecture_text
+        deployment_text, architecture_text=architecture_text
     )
     for finding in findings:
         print(f"{path}: {finding}")

@@ -37,7 +37,7 @@ Worker mission gate:
 - Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
-Current RUN-v11 task and worker verifiers execute in the declared pinned local container sandbox, with an exact PLAN-bound runtime executable path/hash/version and image RepoDigest observation recorded before readiness. The request and execution key carry that entry; `verifier_runtime.py` rechecks it immediately before invoking the bound absolute executable, and retained evidence must match the same RUN observation. Missing, stale, unavailable, or substituted preflight fails closed. A `read_only` declaration or Git snapshot alone is not process confinement and never authorizes a PASS; an external provider is only a future separately implemented route.
+Current RUN-v11 task and worker verifiers execute in the declared pinned local container sandbox, with an exact PLAN-bound administrator-installed runtime executable path/hash/ownership/version proof and image RepoDigest observation recorded before readiness. The request and execution key carry that entry; `verifier_runtime.py` rechecks it immediately before invoking the bound absolute executable, and retained evidence must match the same RUN observation. Missing, stale, unavailable, or substituted preflight fails closed. A `read_only` declaration or Git snapshot alone is not process confinement and never authorizes a PASS; an external provider is only a future separately implemented route.
 
 Non-runtime node gate:
 

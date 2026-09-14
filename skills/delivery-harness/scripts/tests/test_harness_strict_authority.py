@@ -27,6 +27,7 @@ from harness_contract_join import (  # noqa: E402
     _PRD_UI_CONTRACT_PARSERS,
     _load_canonical_prd_ui_contract_parser,
     _strict_ui_surface_errors,
+    _resolve_source_bytes,
     validate_frozen_contract_joins,
 )
 from harness_manifest import validate_current_plan_run  # noqa: E402
@@ -44,6 +45,20 @@ for candidate in (UI_TESTS_DIR, PDB_TESTS_DIR, DS_TESTS_DIR):
 
 
 class StrictAuthorityJoinTests(unittest.TestCase):
+    def test_strict_source_resolver_rejects_noncanonical_segments(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / "docs/product/PRD.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"fixture")
+            source = {
+                "location": "docs//product/PRD.md",
+                "content_sha256": hashlib.sha256(b"fixture").hexdigest(),
+            }
+            contents, errors = _resolve_source_bytes(source, root, label="PRD", strict=True)
+            self.assertIsNone(contents)
+            self.assertTrue(any("canonical POSIX path segments" in item for item in errors))
+
     @staticmethod
     def _row(source_id: str, kind: str, path: Path, root: Path) -> dict[str, object]:
         return {
@@ -332,6 +347,15 @@ class StrictAuthorityJoinTests(unittest.TestCase):
             target = next(source for source in plan["sources"] if source["kind"] == "approved ui target")
             target["location"] = "docs/design/ui-references/missing/index.html"
             self.assertTrue(any("approved UI target" in error for error in validate_frozen_contract_joins(plan, root, run=run)))
+
+    def test_legacy_ui_join_uses_repository_shaped_adapter_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, run, _paths = self._ui_fixture(root, required=False)
+            run["runtime_capabilities"]["runtime_adapter"]["version_gate"][
+                "required_harness_version"
+            ] = "0.37.0"
+            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=run))
 
     def test_not_required_pair_and_trace_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

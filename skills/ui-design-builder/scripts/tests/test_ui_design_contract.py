@@ -2,7 +2,9 @@
 
 import importlib
 import hashlib
+import inspect
 import json
+import re
 import sys
 import unittest
 import tempfile
@@ -110,6 +112,7 @@ Decision: not_required
 Decision owner: Product owner
 Decided on: 2026-09-13
 Reason: One surface with a binding all-screens target
+Existing design-system pair disposition: none — no prior formal pair; owner=Product owner; decided=2026-09-13
 Replacement visual contract when_not_required: target=docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; ui-design=docs/design/ui-design.md @ sha256:{U_HASH}; wireframe=docs/design/wireframes.html @ sha256:{D_HASH}; prd=docs/product/PRD.md @ sha256:{A_HASH}
 """
 
@@ -215,6 +218,10 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
                     "console": [],
                     "network": [],
                     "navigation": [],
+                    "popups": [],
+                    "forms": [],
+                    "popupAttempts": 0,
+                    "formAttempts": 0,
                 }
             )
         output_path.write_text(json.dumps(output), encoding="utf-8")
@@ -249,6 +256,13 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
         pair_markdown = root / "docs/design/design-system.md"
         pair_registry = root / "docs/design/design-system.json"
         pair_data = make_registry(schema="design-system/2")
+        pair_data["stylingMechanism"] = "Tailwind CSS"
+        pair_data["stackSemantics"] = {
+            "platform": "web",
+            "renderingModel": "SPA",
+            "componentFoundation": "shadcn/ui owned source",
+            "stylingMechanism": "Tailwind CSS",
+        }
         pair_data["sourceBindings"] = {
             "prd": {"path": "docs/product/PRD.md", "sha256": replacements[A_HASH]},
             "architecture": {"path": "docs/product/architecture.md", "sha256": replacements[B_HASH]},
@@ -283,6 +297,61 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
 
 
 class UiDesignContractTests(unittest.TestCase):
+    def test_public_validator_has_no_unscoped_pair_bypass_and_preflight_is_exact(self):
+        self.assertNotIn("verify_design_system_pair", inspect.signature(checker.validate).parameters)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, architecture, stack, wireframe, hifi, _ = materialize_publication(root, required=False)
+            ui = root / "docs/design/ui-design.md"
+            text = ui.read_text(encoding="utf-8")
+            text = text.replace("Decision: not_required", "Decision: required")
+            text = re.sub(
+                r"^Replacement visual contract when_not_required:.*$",
+                "Compiled design system pair: pending — design-system-compiler",
+                text,
+                flags=re.MULTILINE,
+            )
+            ui.write_text(text, encoding="utf-8")
+            preflight = checker._validate_for_design_system_preflight(
+                ui,
+                repo_root=root,
+                prd_path=product,
+                wireframes_path=wireframe,
+                hifi_path=hifi,
+            )
+            self.assertEqual([], preflight)
+            normal = checker.validate(
+                ui,
+                repo_root=root,
+                prd_path=product,
+                wireframes_path=wireframe,
+                hifi_path=hifi,
+                require_filled=True,
+                require_wireframe_approved=True,
+                require_visual_approved=True,
+            )
+            self.assertTrue(any("pending pair marker" in item for item in normal))
+
+    def test_not_required_pair_disposition_is_machine_bound_to_existing_pair(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, architecture, stack, wireframe, hifi, _ = materialize_publication(root, required=False)
+            pair_dir = root / "docs/design"
+            pair_dir.mkdir(parents=True, exist_ok=True)
+            (pair_dir / "design-system.md").write_text("retained", encoding="utf-8")
+            ui = root / "docs/design/ui-design.md"
+            problems = checker.validate(
+                ui,
+                repo_root=root,
+                prd_path=product,
+                wireframes_path=wireframe,
+                hifi_path=hifi,
+                require_filled=True,
+                require_wireframe_approved=True,
+                require_visual_approved=True,
+            )
+            self.assertTrue(any("disposition none conflicts" in item for item in problems))
+
     def test_shared_contract_view_exposes_authority_without_filesystem_io(self):
         view, problems = checker.parse_ui_contract_view(contract())
 

@@ -117,6 +117,7 @@ Read only what the current decision needs:
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
 - `references/runtime-upgrades.md`: host/Harness version observation, old-runtime wave boundaries, updater/restart handling, and fresh-session recovery.
+- Runtime trust/publication: see `references/runtime-trust.md` and `trusted-host-publication.md`.
 - `references/ui-implementation-contract.md`: every UI implementation or UI review.
 - `references/gitignore-contract.md`: task-specific ignore classification and checks.
 - `references/commit-convention.md`: before a Harness-managed commit.
@@ -201,7 +202,7 @@ Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate
 
 ### 4. Execute And Integrate
 
-After the runtime version gate, run `record-observation --repo-root <root>` so the selector and `accept-wave` can bind the pinned sandbox runtime, image RepoDigest, host, PLAN revision, and digest. `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector-derived bindings and materializes new exact targets only from active wildcard grants. Record mission and non-mission results through their guarded transitions, review exact heads, integrate serially, and close the wave.
+After the version gate, run `python skills/delivery-harness/scripts/harness_transition.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds runtime, RepoDigest, host, PLAN revision, and digest; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
 
 ### 5. Verify Local-First
 

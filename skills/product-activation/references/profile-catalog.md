@@ -103,6 +103,29 @@ Apply when an `api`, `worker`, `webhook`, `jobs`, or another independently relea
 
 Keep API measurement separate from browser analytics. API adoption uses server logs, platform metrics, business events, or another bounded query scoped to the API target; a GA4 page-view stream cannot prove API behavior.
 
+## CLI / Toolchain
+
+Apply to independently released CLI targets. Record the supported operating
+systems and shell boundary, package/signing or distribution identity, native
+runtime/toolchain versions, upgrade and rollback path, telemetry policy, and a
+human-readable command smoke test. A shell wrapper or an executable found only
+through a repository-controlled `PATH` is not trusted runtime evidence.
+
+## Agent / Automation
+
+Apply to agent release targets in addition to `API / Backend`. Record model and
+tool-provider ownership, prompt/context retention, approval gates for every side
+effect, evaluation and shutoff controls, cost limits, and a bounded behavior
+signal for each target. An agent profile never grants permission to execute a
+tool or publish an external change.
+
+## Other Non-Public
+
+Apply to an independently released non-public target that has no narrower
+catalog profile. Record its operator, distribution boundary, toolchain,
+identity, support and recovery path, and prove why each normal surface overlay
+is `n/a`.
+
 ### API Overlays
 
 - `api-webhooks`: provider/event contract, signatures, replay windows, idempotency, retries, dead-letter handling, endpoint ownership, and consumer confirmation.

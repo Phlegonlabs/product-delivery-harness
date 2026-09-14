@@ -135,6 +135,7 @@ class NodeTransitionTests(unittest.TestCase):
         return plan, run
 
     def test_cli_local_verifier_reserve_execute_record_spine(self) -> None:
+        windows_fixture = os.name == "nt"
         with (
             tempfile.TemporaryDirectory() as repo_dir,
             tempfile.TemporaryDirectory() as control_dir,
@@ -174,7 +175,7 @@ class NodeTransitionTests(unittest.TestCase):
             mf.git(root, "add", "docs/product")
             mf.git(root, "commit", "-qm", "contracts")
             head = mf.git(root, "rev-parse", "HEAD")
-            fake_runtime = control / "docker.cmd"
+            fake_runtime = control / ("docker.exe" if windows_fixture else "docker.cmd")
             fake_runtime.write_text(
                 "@echo off\r\n"
                 "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
@@ -188,6 +189,14 @@ class NodeTransitionTests(unittest.TestCase):
             sandbox_entry["runtime_probe"]["executable"] = str(fake_runtime)
             sandbox_entry["runtime_probe"]["executable_sha256"] = hashlib.sha256(fake_runtime.read_bytes()).hexdigest()
             sandbox_entry["runtime_probe"]["version_output_sha256"] = hashlib.sha256(b"fixture-runtime\n").hexdigest()
+            sandbox_entry["runtime_probe"]["trust"] = {
+                "path": str(fake_runtime),
+                "runtime": sandbox_entry["runtime"],
+                "ownership": "fixture-machine-policy",
+                "uid": 0,
+                "mode": 493,
+                "reparse": False,
+            }
             mf.authorize_execution(run, ["M1", "M2"])
             run.update({"status": "running", "plan_readiness": "ready"})
             run["observed"].update({"captured_at": "2026-01-01T00:00:00Z"})
@@ -251,7 +260,7 @@ class NodeTransitionTests(unittest.TestCase):
                     ]
                 ),
             )
-            fake_runtime = control / "docker.cmd"
+            fake_runtime = control / ("docker.exe" if windows_fixture else "docker.cmd")
             fake_runtime.write_text(
                 "@echo off\r\n"
                 "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
@@ -263,18 +272,48 @@ class NodeTransitionTests(unittest.TestCase):
             runtime_environment = os.environ.copy()
             runtime_environment["PATH"] = str(control) + os.pathsep + runtime_environment.get("PATH", "")
             runtime_environment["PATHEXT"] = ".CMD;.EXE;.BAT;.COM"
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "verifier_runtime.py"),
-                    "--request",
-                    str(request_path),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-                env=runtime_environment,
-            )
+            if windows_fixture:
+                import contextlib
+                import io
+                import verifier_runtime as runtime_module
+
+                def fake_container(
+                    _checkout_root: Path,
+                    _snapshot_root: Path,
+                    _declared_cwd: str,
+                    _argv: list[str],
+                    policy: dict[str, object],
+                    _timeout_seconds: float,
+                    sandbox_preflight: dict[str, object] | None = None,
+                ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+                    assert isinstance(sandbox_preflight, dict)
+                    return subprocess.CompletedProcess(["docker.exe", "run"], 0, "", ""), {
+                        "runtime": policy["runtime"],
+                        "runtime_probe": sandbox_preflight["runtime_probe"],
+                        "image": policy["image"],
+                        "image_probe": sandbox_preflight["repo_digest"],
+                        "policy": policy,
+                        "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
+                        "network": "none",
+                    }
+
+                output = io.StringIO()
+                with patch.object(runtime_module, "_run_container_verifier", side_effect=fake_container), contextlib.redirect_stdout(output):
+                    code = runtime_module.main(["--request", str(request_path)])
+                completed = subprocess.CompletedProcess(["verifier_runtime.py"], code, output.getvalue(), "")
+            else:
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        str(SCRIPTS_DIR / "verifier_runtime.py"),
+                        "--request",
+                        str(request_path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    env=runtime_environment,
+                )
             self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
             result_path.write_text(completed.stdout, encoding="utf-8")
             self.assertEqual(

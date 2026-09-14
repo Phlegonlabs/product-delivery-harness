@@ -84,6 +84,30 @@ RESOURCE_ATTRIBUTES = {
     "background",
     "manifest",
 }
+SAFE_DATA_FONT_TYPES = {
+    "font/otf",
+    "font/ttf",
+    "font/woff",
+    "font/woff2",
+    "application/font-sfnt",
+    "application/vnd.ms-fontobject",
+    "application/x-font-ttf",
+    "application/x-font-woff",
+}
+SAFE_DATA_AUDIO_TYPES = {
+    "audio/aac",
+    "audio/flac",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+}
+SAFE_DATA_VIDEO_TYPES = {
+    "video/mp4",
+    "video/mpeg",
+    "video/ogg",
+    "video/webm",
+}
 SAFE_DATA_IMAGE_TAGS = {"img", "input", "object", "picture", "source"}
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
 LOCALE_RE = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
@@ -188,21 +212,49 @@ def _is_local_navigation(value: str) -> bool:
     return not normalized or normalized.startswith("#")
 
 
-def _is_safe_data_url(value: str) -> bool:
+def _data_media_type(value: str) -> str | None:
     normalized = _normalize_url(value)
     if not normalized.lower().startswith("data:"):
-        return False
+        return None
     payload = normalized[5:]
     comma = payload.find(",")
     if comma < 0:
+        return None
+    return payload[:comma].split(";", 1)[0].strip().lower() or "text/plain"
+
+
+def _is_safe_data_url(
+    value: str,
+    *,
+    allow_images: bool = True,
+    allow_fonts: bool = False,
+    allow_audio: bool = False,
+    allow_video: bool = False,
+) -> bool:
+    media_type = _data_media_type(value)
+    if media_type is None:
         return False
-    media_type = payload[:comma].split(";", 1)[0].strip().lower()
-    return media_type in SAFE_DATA_IMAGE_TYPES
+    if allow_images and media_type in SAFE_DATA_IMAGE_TYPES:
+        return True
+    if allow_fonts and media_type in SAFE_DATA_FONT_TYPES:
+        return True
+    if allow_audio and media_type in SAFE_DATA_AUDIO_TYPES:
+        return True
+    if allow_video and media_type in SAFE_DATA_VIDEO_TYPES:
+        return True
+    return False
 
 
-def _is_safe_embedded_css_resource(value: str) -> bool:
+def _is_safe_embedded_css_resource(
+    value: str,
+    *,
+    allow_fonts: bool = False,
+) -> bool:
     normalized = _normalize_url(value)
-    return normalized.startswith("#") or _is_safe_data_url(normalized)
+    return normalized.startswith("#") or _is_safe_data_url(
+        normalized,
+        allow_fonts=allow_fonts,
+    )
 
 
 def _srcset_urls(value: str) -> list[str]:
@@ -453,7 +505,24 @@ class ResourceParser(HTMLParser):
 
         if lowered.startswith("data:"):
             data_allowed = tag in SAFE_DATA_IMAGE_TAGS and name in RESOURCE_ATTRIBUTES
-            if not data_allowed or not _is_safe_data_url(value):
+            if tag == "audio" and name in RESOURCE_ATTRIBUTES:
+                data_allowed = _is_safe_data_url(
+                    value, allow_images=False, allow_audio=True
+                )
+            elif tag == "video" and name in RESOURCE_ATTRIBUTES:
+                data_allowed = _is_safe_data_url(
+                    value, allow_images=False, allow_video=True
+                )
+            elif tag == "source" and name in RESOURCE_ATTRIBUTES:
+                data_allowed = _is_safe_data_url(
+                    value,
+                    allow_images=True,
+                    allow_audio=True,
+                    allow_video=True,
+                )
+            elif data_allowed:
+                data_allowed = _is_safe_data_url(value)
+            if not data_allowed:
                 self.active_security_surfaces.append(f"{tag}[{name}=data:]")
             return
 
@@ -659,7 +728,12 @@ class ResourceParser(HTMLParser):
             resource = next(
                 value for value in match.groups() if value is not None
             )
-            if not _is_safe_embedded_css_resource(resource):
+            # A data font is allowed only from an @font-face rule.  Images
+            # remain valid embedded CSS resources; audio/video data belongs in
+            # media elements where the CSP media-src directive applies.
+            context = css[max(0, match.start() - 256) : match.start()]
+            allow_fonts = re.search(r"@font-face\b", context, re.IGNORECASE) is not None
+            if not _is_safe_embedded_css_resource(resource, allow_fonts=allow_fonts):
                 self.external_css_resources.append(f"CSS url({resource!r})")
         for match in CSS_IMAGE_SET_RE.finditer(css):
             start = match.end()
@@ -940,50 +1014,59 @@ def _validate_responsive_data(
     data: dict[str, Any], problems: list[str]
 ) -> list[str]:
     responsive_by_surface = data.get("responsiveBySurface")
-    if isinstance(responsive_by_surface, dict) and responsive_by_surface and "viewports" not in data and "sizeClasses" not in data:
-        targets_by_surface: dict[str, list[str]] = {}
-        for surface_id, spec in responsive_by_surface.items():
-            if not isinstance(surface_id, str) or not isinstance(spec, dict) or set(spec) != {"kind", "targets", "canvasWidths"}:
-                _add(problems, f"wireframe-data.responsiveBySurface.{surface_id}", "must contain kind, targets, and canvasWidths")
-                continue
-            kind = spec.get("kind")
-            targets = spec.get("targets")
-            if kind == "viewports":
-                valid = isinstance(targets, list) and len(targets) >= (3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2) and all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0 for value in targets) and len(set(targets)) == len(targets) and all(left < right for left, right in zip(targets, targets[1:]))
-            elif kind == "sizeClasses":
-                valid = isinstance(targets, list) and len(targets) >= 2 and all(_nonempty(value) for value in targets) and len(set(targets)) == len(targets)
-            else:
-                valid = False
-            if not valid:
-                _add(problems, f"wireframe-data.responsiveBySurface.{surface_id}", "has an invalid responsive set")
-                continue
-            target_keys = [_responsive_key(value) for value in targets]
-            canvas_widths = spec.get("canvasWidths")
-            if not isinstance(canvas_widths, dict) or set(canvas_widths) != set(target_keys):
-                _add(
-                    problems,
-                    f"wireframe-data.responsiveBySurface.{surface_id}.canvasWidths",
-                    "must contain exactly one width for every target",
-                )
-                continue
-            invalid_width = any(
-                not isinstance(width, (int, float))
-                or isinstance(width, bool)
-                or not math.isfinite(width)
-                or width <= 0
-                or (kind == "viewports" and float(width) != float(target))
-                for target, width in canvas_widths.items()
+    if isinstance(responsive_by_surface, dict) and responsive_by_surface:
+        if "viewports" in data or "sizeClasses" in data:
+            _add(
+                problems,
+                "wireframe-data.responsiveBySurface",
+                "per-surface responsive data must not be combined with global viewports or sizeClasses",
             )
-            if invalid_width:
-                _add(
-                    problems,
-                    f"wireframe-data.responsiveBySurface.{surface_id}.canvasWidths",
-                    "must use positive widths and match numeric viewport targets",
+            # Keep validating the per-surface entries so callers receive all
+            # structural findings in one deterministic result.
+        else:
+            targets_by_surface: dict[str, list[str]] = {}
+            for surface_id, spec in responsive_by_surface.items():
+                if not isinstance(surface_id, str) or not isinstance(spec, dict) or set(spec) != {"kind", "targets", "canvasWidths"}:
+                    _add(problems, f"wireframe-data.responsiveBySurface.{surface_id}", "must contain kind, targets, and canvasWidths")
+                    continue
+                kind = spec.get("kind")
+                targets = spec.get("targets")
+                if kind == "viewports":
+                    valid = isinstance(targets, list) and len(targets) >= (3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2) and all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0 for value in targets) and len(set(targets)) == len(targets) and all(left < right for left, right in zip(targets, targets[1:]))
+                elif kind == "sizeClasses":
+                    valid = isinstance(targets, list) and len(targets) >= 2 and all(_nonempty(value) for value in targets) and len(set(targets)) == len(targets)
+                else:
+                    valid = False
+                if not valid:
+                    _add(problems, f"wireframe-data.responsiveBySurface.{surface_id}", "has an invalid responsive set")
+                    continue
+                target_keys = [_responsive_key(value) for value in targets]
+                canvas_widths = spec.get("canvasWidths")
+                if not isinstance(canvas_widths, dict) or set(canvas_widths) != set(target_keys):
+                    _add(
+                        problems,
+                        f"wireframe-data.responsiveBySurface.{surface_id}.canvasWidths",
+                        "must contain exactly one width for every target",
+                    )
+                    continue
+                invalid_width = any(
+                    not isinstance(width, (int, float))
+                    or isinstance(width, bool)
+                    or not math.isfinite(width)
+                    or width <= 0
+                    or (kind == "viewports" and float(width) != float(target))
+                    for target, width in canvas_widths.items()
                 )
-                continue
-            targets_by_surface[surface_id] = target_keys
-        data["_validatedResponsiveBySurface"] = targets_by_surface
-        return []
+                if invalid_width:
+                    _add(
+                        problems,
+                        f"wireframe-data.responsiveBySurface.{surface_id}.canvasWidths",
+                        "must use positive widths and match numeric viewport targets",
+                    )
+                    continue
+                targets_by_surface[surface_id] = target_keys
+            data["_validatedResponsiveBySurface"] = targets_by_surface
+            return []
     has_viewports = "viewports" in data
     has_size_classes = "sizeClasses" in data
     viewports = data.get("viewports")
@@ -1557,7 +1640,7 @@ def validate(
     problems: list[str] = []
     try:
         html = html_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         return [f"{html_path}: cannot read HTML: {exc}"]
 
     parser = ResourceParser()
@@ -1588,7 +1671,7 @@ def validate(
     if prd_path is not None:
         try:
             prd_text = prd_path.read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeError) as exc:
             return [f"{prd_path}: cannot read PRD: {exc}"]
         web_floor = (
             3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2

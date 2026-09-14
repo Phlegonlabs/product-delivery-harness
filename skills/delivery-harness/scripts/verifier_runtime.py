@@ -24,7 +24,12 @@ from typing import Any, Mapping
 
 from select_verifiers import VerifierSelectionError, normalize_changed_files
 from harness_core import normalize_sandbox_policy
-from harness_git import GitMetadataError, reject_object_substitution, run_git
+from harness_git import (
+    GitMetadataError,
+    reject_object_substitution,
+    run_git,
+    windows_machine_roots,
+)
 
 
 PROTOCOL = "harness-verifier-execution-v2"
@@ -300,6 +305,96 @@ def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _windows_parent_user_writable(path: Path) -> bool:
+    command = shutil.which("icacls")
+    if not command:
+        return True
+    try:
+        result = subprocess.run(
+            [command, str(path)], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    if result.returncode != 0:
+        return True
+    for line in result.stdout.splitlines()[1:]:
+        principal = line.strip().casefold()
+        if principal.startswith(("builtin\\users", "everyone", "authenticated users")) and any(
+            token in principal for token in ("(w)", "(m)", "(f)", "(d)")
+        ):
+            return True
+    return False
+
+
+def _runtime_trust(executable: Path, runtime: str) -> dict[str, Any]:
+    """Return machine-bound proof for a native sandbox runtime executable.
+
+    A hash alone is not an authority boundary: a user-writable directory can
+    replace a same-hash or same-name executable between preflight and launch.
+    The accepted roots below are administrator-managed OS locations.  The
+    descriptor/handle binding still protects the final execution window.
+    """
+
+    try:
+        canonical = executable.resolve(strict=True)
+        info = canonical.stat()
+    except OSError as exc:
+        raise VerifierRuntimeError(f"sandbox runtime executable is unavailable: {executable}") from exc
+    if not canonical.is_file() or executable.is_symlink():
+        raise VerifierRuntimeError("sandbox runtime executable must be a non-reparse regular file")
+    for component in (canonical, *canonical.parents):
+        try:
+            if component.is_symlink() or getattr(component.stat(), "st_file_attributes", 0) & 0x0400:
+                raise VerifierRuntimeError("sandbox runtime path contains a symlink or reparse point")
+        except OSError as exc:
+            raise VerifierRuntimeError(f"cannot inspect sandbox runtime path: {exc}") from exc
+    try:
+        canonical.relative_to(Path.cwd().resolve())
+    except ValueError:
+        pass
+    else:
+        raise VerifierRuntimeError("sandbox runtime executable must not come from the current repository/worktree")
+    if os.name == "nt":
+        if canonical.suffix.casefold() != ".exe":
+            raise VerifierRuntimeError("Windows sandbox runtime executable must be a canonical native .exe")
+        roots = list(windows_machine_roots())
+        if not any(_path_within(canonical, root) for root in roots):
+            raise VerifierRuntimeError("sandbox runtime executable must come from an administrator-installed Windows path")
+        # Windows stat does not expose a portable ACL matrix.  Refuse a
+        # user-writable parent where Python can observe one and retain the
+        # reparse/non-user path proof for the native Windows handle binder.
+        if _windows_parent_user_writable(canonical.parent):
+            raise VerifierRuntimeError("sandbox runtime parent is user-writable")
+    else:
+        allowed_roots = (Path("/usr").resolve(), Path("/bin").resolve(), Path("/opt").resolve())
+        if not any(_path_within(canonical, root) for root in allowed_roots):
+            raise VerifierRuntimeError("sandbox runtime executable must come from an administrator-installed POSIX path")
+        for component in (canonical, *canonical.parents):
+            component_info = component.stat()
+            if component_info.st_uid != 0 or component_info.st_mode & 0o022:
+                raise VerifierRuntimeError(
+                    "sandbox runtime path must be root-owned and not writable by group/other: "
+                    + str(component)
+                )
+    return {
+        "path": str(canonical),
+        "runtime": runtime,
+        "ownership": "administrator-managed",
+        "uid": int(getattr(info, "st_uid", -1)),
+        "mode": int(info.st_mode & 0o777),
+        "reparse": False,
+    }
+
+
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(
         value,
@@ -369,10 +464,15 @@ def _validated_sandbox_preflight(
             "sandbox preflight RepoDigest does not attest the pinned image"
         )
     probe = value.get("runtime_probe")
-    if not isinstance(probe, dict) or set(probe) != {
+    if not isinstance(probe, dict) or not {
         "executable",
         "executable_sha256",
         "version_output_sha256",
+    }.issubset(probe) or set(probe) - {
+        "executable",
+        "executable_sha256",
+        "version_output_sha256",
+        "trust",
     }:
         raise VerifierRuntimeError("sandbox preflight runtime identity is malformed")
     executable = probe.get("executable")
@@ -385,6 +485,10 @@ def _validated_sandbox_preflight(
         raise VerifierRuntimeError(
             "sandbox preflight executable must be a canonical absolute path"
         )
+    if os.name == "nt" and Path(canonical).suffix.casefold() != ".exe":
+        raise VerifierRuntimeError(
+            "Windows sandbox runtime executable must be a canonical native .exe"
+        )
     for key in ("executable_sha256", "version_output_sha256"):
         digest = probe.get(key)
         if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
@@ -393,6 +497,8 @@ def _validated_sandbox_preflight(
             )
     normalized = copy_json(value)
     normalized["runtime_probe"]["executable"] = canonical
+    if "trust" in probe and not isinstance(probe["trust"], dict):
+        raise VerifierRuntimeError("sandbox preflight runtime trust proof is malformed")
     return normalized
 
 
@@ -770,6 +876,15 @@ def observe_plan_sandboxes(
                 f"{path}: sandbox runtime {runtime!r} is unavailable; record an unavailable preflight and defer the gate"
             )
             continue
+        if os.name == "nt" and Path(executable).suffix.casefold() != ".exe":
+            errors.append(f"{path}: Windows sandbox runtime must resolve to a native .exe, not a script wrapper")
+            continue
+        try:
+            trust = _runtime_trust(Path(executable), runtime)
+        except VerifierRuntimeError as exc:
+            errors.append(f"{path}: {exc}")
+            continue
+        executable = trust["path"]
         probe_env = {"PATH": os.environ.get("PATH", "")}
         if os.name == "nt" and os.environ.get("SystemRoot"):
             probe_env["SystemRoot"] = os.environ["SystemRoot"]
@@ -825,9 +940,10 @@ def observe_plan_sandboxes(
                     "image": image,
                     "repo_digest": matched,
                     "runtime_probe": {
-                        "executable": str(Path(executable).resolve()),
+                        "executable": executable,
                         "executable_sha256": executable_sha256,
                         "version_output_sha256": version_output_sha256,
+                        "trust": trust,
                     },
                 }
             )
@@ -1196,6 +1312,11 @@ def _run_container_verifier(
             str(bound_executable)
         ):
             raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
+        recorded_trust = runtime_probe.get("trust")
+        if recorded_trust is not None:
+            observed_trust = _runtime_trust(bound_executable, runtime)
+            if observed_trust != recorded_trust:
+                raise VerifierRuntimeError("sandbox runtime machine trust proof changed since preflight")
         with _RuntimeExecutableBinding(bound_executable) as binding:
             if binding.sha256() != runtime_probe["executable_sha256"]:
                 raise VerifierRuntimeError("sandbox runtime executable changed since preflight")

@@ -35,6 +35,7 @@ from release_targets import (
     is_public_web_target,
     parse_release_targets,
 )  # noqa: E402
+from contract_utils import activation_product_identity, product_identity, safe_read_text  # noqa: E402
 
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -102,12 +103,31 @@ RECORD_FIELDS = (
     "Activation sha256",
     "Review date",
 )
+RECORD_FIELDS_V2 = RECORD_FIELDS + (
+    "Product",
+    "Target market",
+    "Language",
+    "Business outcome",
+    "Timezone",
+    "Comparison window",
+    "Segmentation",
+    "Global data coverage through",
+)
 SOURCE_HEADERS = (
     "ms id",
     "scope",
     "release binding",
     "source role",
     "data cutoff",
+    "evidence",
+)
+SOURCE_HEADERS_V2 = (
+    "ms id",
+    "scope",
+    "release binding",
+    "source role",
+    "verified at",
+    "coverage through",
     "evidence",
 )
 INTEGRITY_HEADERS = ("check", "result", "evidence")
@@ -165,6 +185,15 @@ def _fields(lines: list[str]) -> dict[str, str]:
         if match:
             result[match.group(1).strip()] = match.group(2).strip()
     return result
+
+
+def _duplicate_fields(lines: list[str]) -> list[str]:
+    names = [
+        match.group(1).strip().casefold()
+        for line in lines
+        if (match := re.match(r"^-\s*([^:\n]+):\s*", line.strip()))
+    ]
+    return sorted(name for name, count in Counter(names).items() if count > 1)
 
 
 def _rows(
@@ -273,8 +302,28 @@ def check_seo_review_text(
     architecture_text: str,
     deployment_text: str,
     activation_text: str,
+    stack_text: str | None = None,
 ) -> list[str]:
     findings: list[str] = []
+    if stack_text is not None:
+        from check_product_package import validate_texts
+        findings.extend(
+            f"Product package: {item}"
+            for item in validate_texts(
+                prd_text,
+                architecture_text,
+                stack_text,
+                require_filled=True,
+                require_approved=True,
+            )
+        )
+        from check_deployment import check_deployment_text
+        findings.extend(
+            f"Deployment: {item}"
+            for item in check_deployment_text(
+                deployment_text, architecture_text=architecture_text
+            )
+        )
     active = active_text(text)
     for heading in REQUIRED_SECTIONS:
         count = sum(line.strip() == heading for line in active.splitlines())
@@ -286,11 +335,15 @@ def check_seo_review_text(
         findings.append("expected one # SEO Growth Review title")
 
     record = _fields(_section(text, "## Record") or [])
-    for field in RECORD_FIELDS:
+    for field in _duplicate_fields(_section(text, "## Record") or []):
+        findings.append(f"Record: duplicate field {field}")
+    schema = record.get("Schema", "")
+    record_fields = RECORD_FIELDS_V2 if schema == "seo-review/2" else RECORD_FIELDS
+    for field in record_fields:
         if field not in record:
             findings.append(f"Record: missing field {field}")
-    if record.get("Schema") != "seo-review/1":
-        findings.append("Record: Schema must be seo-review/1")
+    if schema not in {"seo-review/1", "seo-review/2"}:
+        findings.append("Record: Schema must be seo-review/1 or seo-review/2")
     if record.get("Mode") not in MODES:
         findings.append("Record: Mode has an invalid value")
     if record.get("Review type") != "lifecycle_public_release":
@@ -326,6 +379,28 @@ def check_seo_review_text(
     activation_digest = hashlib.sha256(activation_text.encode("utf-8")).hexdigest()
     if record.get("Activation sha256") != activation_digest:
         findings.append("Record: Activation sha256 does not match the current document bytes")
+    if schema == "seo-review/2":
+        for field in RECORD_FIELDS_V2[len(RECORD_FIELDS):]:
+            if not _substantive(record.get(field, "")):
+                findings.append(f"Record: {field} must be substantive in seo-review/2")
+        if record.get("Mode") == "traffic_drop" and " vs " not in record.get("Comparison window", ""):
+            findings.append("Record: traffic_drop requires equal comparison windows using '<period> vs <period>'")
+        if record.get("Mode") == "traffic_drop":
+            segmentation = record.get("Segmentation", "").casefold()
+            required_segments = ("query", "page", "country", "device")
+            if any(segment not in segmentation for segment in required_segments):
+                findings.append(
+                    "Record: traffic_drop Segmentation must include query, page, country, and device"
+                )
+        if record.get("Mode") == "growth_review" and " vs " not in record.get("Comparison window", ""):
+            findings.append("Record: growth_review requires a comparison window using '<period> vs <period>'")
+        global_coverage = _timestamp(record.get("Global data coverage through", ""))
+        if global_coverage is None:
+            findings.append("Record: Global data coverage through must be RFC3339")
+        elif global_coverage > datetime.now(timezone.utc):
+            findings.append("Record: Global data coverage through cannot be in the future")
+        elif data_cutoff is not None and global_coverage > data_cutoff:
+            findings.append("Record: Global data coverage through cannot exceed Data cutoff")
     for field, value in record.items():
         if field == "Artifact / build identity":
             continue
@@ -382,16 +457,29 @@ def check_seo_review_text(
     )
     if not matching_sources:
         findings.append("Activation Sources: lifecycle review requires at least one matching verified source")
+    prd_identity = product_identity(prd_text, kind="prd")
+    activation_identity = activation_product_identity(activation_text)
+    if prd_identity and activation_identity and prd_identity != activation_identity:
+        findings.append("Package: Activation Product identity does not match the approved PRD")
+    record_identity = record.get("Product", "")
+    if prd_identity and record_identity and record_identity.casefold().strip() != prd_identity:
+        findings.append("Record: Product identity must exactly match the approved PRD")
 
-    source_rows, source_header_ok = _rows(text, "## Verified Sources", SOURCE_HEADERS)
+    source_expected_headers = SOURCE_HEADERS_V2 if schema == "seo-review/2" else SOURCE_HEADERS
+    source_rows, source_header_ok = _rows(text, "## Verified Sources", source_expected_headers)
     if not source_header_ok:
-        findings.append("Verified Sources: expected columns " + " | ".join(SOURCE_HEADERS))
+        findings.append("Verified Sources: expected columns " + " | ".join(source_expected_headers))
     listed: set[str] = set()
     for source_row in source_rows:
-        if len(source_row) != len(SOURCE_HEADERS):
+        if len(source_row) != len(source_expected_headers):
             findings.append("Verified Sources: each row must have the exact column count")
             continue
-        source_id, scope, binding, role, cutoff, evidence = source_row
+        if schema == "seo-review/2":
+            source_id, scope, binding, role, verified_at, coverage_through, evidence = source_row
+            cutoff = coverage_through
+        else:
+            source_id, scope, binding, role, cutoff, evidence = source_row
+            verified_at = cutoff
         if not MS_ID_RE.fullmatch(source_id):
             findings.append(f"Verified Sources: invalid source ID {source_id!r}")
             continue
@@ -416,8 +504,16 @@ def check_seo_review_text(
         cutoff_instant = _timestamp(cutoff)
         if cutoff_instant is None:
             findings.append(f"Verified Sources: {source_id} cutoff must be RFC3339")
-        elif cutoff != record.get("Data cutoff"):
+        elif schema == "seo-review/1" and cutoff != record.get("Data cutoff"):
             findings.append(f"Verified Sources: {source_id} cutoff differs from the Record cutoff")
+        if schema == "seo-review/2":
+            verified_instant = _timestamp(verified_at)
+            if verified_instant is None:
+                findings.append(f"Verified Sources: {source_id} verified at must be RFC3339")
+            elif activation_source is not None and verified_instant != activation_source["latest_pass"]:
+                findings.append(f"Verified Sources: {source_id} verified at must equal the latest PASS Activation evidence timestamp")
+            if cutoff_instant is not None and cutoff_instant > data_cutoff:
+                findings.append(f"Verified Sources: {source_id} coverage through cannot exceed the global data cutoff")
         elif activation_source is not None and cutoff_instant != activation_source["latest_pass"]:
             findings.append(f"Verified Sources: {source_id} cutoff must equal the latest PASS Activation evidence timestamp")
         if evidence.lower() in ABSENT:
@@ -538,6 +634,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--architecture", type=Path, required=True)
     parser.add_argument("--deployment", type=Path, required=True)
     parser.add_argument("--activation", type=Path, required=True)
+    parser.add_argument("--stack-decisions", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
     parser.add_argument("--require-lifecycle", action="store_true")
     args = parser.parse_args(argv)
@@ -547,21 +644,68 @@ def main(argv: list[str] | None = None) -> int:
             "path: lifecycle public-release reviews must use docs/seo/reviews/YYYY-MM-DD-<slug>.md"
         )
     paths = (args.review, args.prd, args.architecture, args.deployment, args.activation)
+    if args.stack_decisions is not None:
+        paths += (args.stack_decisions,)
     if any(not path.is_file() for path in paths):
         print("one or more input files do not exist", file=sys.stderr)
         return 2
+    loaded: dict[str, str] = {}
+    for name, path in {
+        "review": args.review,
+        "prd": args.prd,
+        "architecture": args.architecture,
+        "deployment": args.deployment,
+        "activation": args.activation,
+        "stack": args.stack_decisions,
+    }.items():
+        if path is None:
+            continue
+        value, error = safe_read_text(path)
+        if error:
+            print(error, file=sys.stderr)
+            return 2
+        loaded[name] = value or ""
+    review_record = _fields(_section(loaded["review"], "## Record") or [])
+    if args.require_lifecycle and review_record.get("Schema") != "seo-review/2":
+        print("--require-lifecycle requires Schema: seo-review/2", file=sys.stderr)
+        return 1
+    if args.require_lifecycle and args.stack_decisions is None:
+        print("--require-lifecycle requires --stack-decisions", file=sys.stderr)
+        return 2
+    if review_record.get("Schema") == "seo-review/2" and args.stack_decisions is None:
+        print("seo-review/2 requires --stack-decisions", file=sys.stderr)
+        return 2
+    if args.stack_decisions is not None:
+        from check_product_package import validate_texts
+        package_findings = validate_texts(
+            loaded["prd"], loaded["architecture"], loaded["stack"],
+            require_filled=True, require_approved=True,
+            repo_root=args.repo_root,
+        )
+        if package_findings:
+            for item in package_findings:
+                print(f"Product package: {item}", file=sys.stderr)
+            return 1
+        from check_deployment import check_deployment_text
+        deployment_findings = check_deployment_text(
+            loaded["deployment"], architecture_text=loaded["architecture"]
+        )
+        if deployment_findings:
+            for item in deployment_findings:
+                print(f"Deployment: {item}", file=sys.stderr)
+            return 1
     findings.extend(
         check_seo_review_text(
-            args.review.read_text(encoding="utf-8"),
-            prd_text=args.prd.read_text(encoding="utf-8"),
-            architecture_text=args.architecture.read_text(encoding="utf-8"),
-            deployment_text=args.deployment.read_text(encoding="utf-8"),
-            activation_text=args.activation.read_text(encoding="utf-8"),
+            loaded["review"],
+            prd_text=loaded["prd"],
+            architecture_text=loaded["architecture"],
+            deployment_text=loaded["deployment"],
+            activation_text=loaded["activation"],
         )
     )
     if args.require_lifecycle:
         path_date = _lifecycle_path_date(args.review, args.repo_root)
-        review_fields = _fields(_section(args.review.read_text(encoding="utf-8"), "## Record") or [])
+        review_fields = review_record
         if path_date is not None and review_fields.get("Review date") != path_date:
             findings.append(
                 "path: lifecycle filename date must equal Record Review date"

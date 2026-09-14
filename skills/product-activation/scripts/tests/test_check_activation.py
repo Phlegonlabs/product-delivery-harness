@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -191,7 +192,7 @@ def valid_record(*, task_blocks: list[str] | None = None) -> str:
 - Release reference: v1.0.0
 - Status: handoff_ready
 - Updated: 2026-09-07T18:00:00Z
-- Measurement window starts: 2026-09-07T18:00:00Z
+- Measurement window starts: 2026-09-07T18:05:00Z
 
 ## Applied Profiles
 | Profile | Applies | Reason | Owner |
@@ -246,6 +247,29 @@ def valid_record(*, task_blocks: list[str] | None = None) -> str:
 """
 
 
+def valid_record_v2(*, task_blocks: list[str] | None = None) -> str:
+    """Schema-2 record with explicit metric source/method and owner joins."""
+
+    text = valid_record(task_blocks=task_blocks).replace(
+        "product-activation/1", "product-activation/2", 1
+    )
+    text = text.replace(
+        "| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source ID | Status |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+        "| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source / method | Owner | Source ID | Status |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+    )
+    text = text.replace(
+        "| Activation rate | Users completing setup | none recorded | 70% in 14 days | n/a — PRD legacy metric table omits a separate measurement window | n/a — metric row | web-prod | MS-001 | verified |",
+        "| Activation rate | Users completing setup | 0% | 70% | 14 days | n/a — metric row | web-prod | Analytics event | Product owner | MS-001 | verified |",
+    )
+    text = text.replace(
+        "| TEST-001 | Setup succeeds | none recorded | n/a — required test has no numeric target | operational test | One verified setup event | web-prod | MS-001 | verified |",
+        "| TEST-001 | Setup succeeds | none recorded | n/a — required test has no numeric target | operational test | One verified setup event | web-prod |  |  | MS-001 | verified |",
+    )
+    return text
+
+
 class ActivationCheckerTests(unittest.TestCase):
     def test_prd_signal_parser_accepts_approved_and_legacy_metric_tables(self) -> None:
         for prd in (VALID_PRD, APPROVED_PRD):
@@ -264,15 +288,98 @@ class ActivationCheckerTests(unittest.TestCase):
         )
 
     def test_verified_record_passes_prd_source_and_target_checks(self) -> None:
-        findings = check_activation.check_activation_text(
+        with patch("check_product_package.validate_texts", return_value=[]), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ):
+            findings = check_activation.check_activation_text(
+                valid_record_v2(),
+                prd_text=APPROVED_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_verified_sources=True,
+                require_ready=("web-prod",),
+            )
+        self.assertEqual([], findings)
+
+    def test_require_ready_requires_stack_and_schema2(self) -> None:
+        missing_stack = check_activation.check_activation_text(
             valid_record(),
             prd_text=VALID_PRD,
             architecture_text=ARCHITECTURE,
             deployment_text=DEPLOYMENT,
-            require_verified_sources=True,
             require_ready=("web-prod",),
         )
-        self.assertEqual([], findings)
+        joined = "\n".join(missing_stack)
+        self.assertIn("stack: verified-source handoff requires stack-decisions.md", joined)
+        self.assertIn("requires product-activation/2", joined)
+
+    def test_require_ready_stack_validation_requires_repo_root(self) -> None:
+        findings = check_activation.check_activation_text(
+            valid_record_v2(),
+            prd_text=APPROVED_PRD,
+            architecture_text=ARCHITECTURE,
+            deployment_text=DEPLOYMENT,
+            stack_text="# Stack Decisions: Example",
+            require_ready=("web-prod",),
+        )
+        self.assertIn("stack validation requires repository root", "\n".join(findings))
+
+    def test_require_ready_propagates_full_deployment_finding(self) -> None:
+        with patch("check_product_package.validate_texts", return_value=[]), patch(
+            "check_deployment.check_deployment_text",
+            return_value=["Release Target Status is not a current PASS"],
+        ):
+            findings = check_activation.check_activation_text(
+                valid_record_v2(),
+                prd_text=APPROVED_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_ready=("web-prod",),
+            )
+        self.assertIn("Deployment: Release Target Status is not a current PASS", "\n".join(findings))
+
+    def test_schema2_source_method_owner_and_target_window_join(self) -> None:
+        wrong_method = valid_record_v2().replace(
+            "| web-prod | Analytics event | Product owner |",
+            "| web-prod | Wrong method | Product owner |",
+        )
+        wrong_owner = valid_record_v2().replace(
+            "| web-prod | Analytics event | Product owner |",
+            "| web-prod | Analytics event | Wrong owner |",
+        )
+        for record, expected in (
+            (wrong_method, "source / method must exactly match PRD"),
+            (wrong_owner, "owner must exactly match PRD"),
+        ):
+            with self.subTest(expected=expected):
+                findings = check_activation.check_activation_text(
+                    record, prd_text=APPROVED_PRD
+                )
+                self.assertIn(expected, "\n".join(findings))
+
+    def test_measurement_window_cannot_start_before_target_availability(self) -> None:
+        early = valid_record_v2().replace(
+            "- Measurement window starts: 2026-09-07T18:05:00Z",
+            "- Measurement window starts: 2026-09-07T18:03:00Z",
+            1,
+        )
+        with patch("check_product_package.validate_texts", return_value=[]), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ):
+            findings = check_activation.check_activation_text(
+                early,
+                prd_text=APPROVED_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_ready=("web-prod",),
+            )
+        self.assertIn("Measurement window starts must be after", "\n".join(findings))
 
     def test_release_authority_rejects_invented_and_missing_targets(self) -> None:
         invented = valid_record().replace(BINDING, BINDING.replace("web-prod", "other-prod"))

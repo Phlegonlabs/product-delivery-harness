@@ -2256,11 +2256,189 @@ def _git_tree(repo_root: Path, sha: str) -> str:
     return tree
 
 
+def _read_bound_posix(parent_fd: int, name: str) -> str:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(name, flags, dir_fd=parent_fd)
+    try:
+        with os.fdopen(fd, "r", encoding="utf-8") as handle:
+            return handle.read()
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+
+
+def _open_posix_parent_chain(path: Path) -> list[int]:
+    """Open every parent component with O_NOFOLLOW and retain all handles."""
+
+    absolute = Path(os.path.abspath(path))
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    handles: list[int] = []
+    try:
+        current_fd = os.open(os.sep, flags)
+        handles.append(current_fd)
+        components = [part for part in absolute.parts if part not in {absolute.anchor, ""}]
+        for component in components:
+            current_fd = os.open(component, flags, dir_fd=current_fd)
+            handles.append(current_fd)
+        return handles
+    except OSError:
+        for descriptor in reversed(handles):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        raise
+
+
+def _open_windows_parent(path: Path, *, writable: bool = False) -> tuple[Any, int]:
+    """Hold a non-reparse parent directory for a relative native rename."""
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.GetFinalPathNameByHandleW.restype = wintypes.DWORD
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    attrs = kernel32.GetFileAttributesW(str(path))
+    if attrs == wintypes.DWORD(-1).value or attrs & 0x0400:
+        raise ManifestError(f"RUN parent is unavailable or reparse: {path}")
+    handle = kernel32.CreateFileW(
+        str(path),
+        0x80000000 | (0x40000000 | 0x0002 if writable else 0),  # read, plus add-file for final parent
+        0x00000001 | 0x00000002,  # FILE_SHARE_READ | FILE_SHARE_WRITE
+        None,
+        3,  # OPEN_EXISTING
+        0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
+        None,
+    )
+    if handle in (None, wintypes.HANDLE(-1).value):
+        raise ManifestError(f"cannot hold RUN parent directory: {path}")
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = kernel32.GetFinalPathNameByHandleW(handle, buffer, len(buffer), 0)
+    if not length:
+        kernel32.CloseHandle(handle)
+        raise ManifestError(f"cannot resolve held RUN parent directory: {path}")
+    actual = buffer.value[:length].removeprefix("\\\\?\\").casefold().replace("\\", "/")
+    expected = str(path.resolve(strict=True)).casefold().replace("\\", "/")
+    if actual != expected:
+        kernel32.CloseHandle(handle)
+        raise ManifestError("held RUN parent directory changed before rename")
+    return kernel32, int(handle)
+
+
+def _open_windows_parent_chain(path: Path) -> list[tuple[Any, int]]:
+    """Hold every existing Windows ancestor so no junction swap can retarget it."""
+
+    absolute = Path(os.path.abspath(path))
+    ancestors = [
+        ancestor
+        for ancestor in (list(reversed(absolute.parents)) + [absolute])
+        if ancestor != Path(absolute.anchor)
+    ]
+    handles: list[tuple[Any, int]] = []
+    try:
+        for ancestor in ancestors:
+            handles.append(_open_windows_parent(ancestor, writable=ancestor == absolute))
+        return handles
+    except BaseException:
+        for kernel32, handle in reversed(handles):
+            kernel32.CloseHandle(handle)
+        raise
+
+
+def _windows_rename_bound(
+    kernel32: Any,
+    parent_handle: int,
+    source: Path,
+    destination_name: str,
+    fallback_destination: str | None = None,
+) -> None:
+    """Rename a temp file relative to a held Windows parent handle."""
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    source_handle = kernel32.CreateFileW(
+        str(source),
+        0x80000000 | 0x00010000,  # GENERIC_READ | DELETE
+        0x00000001 | 0x00000002,  # share read/write, deny delete by others
+        None,
+        3,
+        0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
+        None,
+    )
+    if source_handle in (None, wintypes.HANDLE(-1).value):
+        raise ManifestError(f"cannot hold RUN temp file for rename: {source}")
+    try:
+        class RenameInfo(ctypes.Structure):
+            _fields_ = [
+                ("replace", wintypes.BOOLEAN),
+                ("root", wintypes.HANDLE),
+                ("length", wintypes.DWORD),
+                ("name", wintypes.WCHAR * 1),
+            ]
+
+        kernel32.SetFileInformationByHandle.restype = wintypes.BOOL
+        attempts = [(parent_handle, destination_name)]
+        if fallback_destination is not None:
+            # Some Windows filesystems reject FILE_RENAME_INFO with a root
+            # handle for replacement of an existing file (ERROR_INVALID_PARAMETER).
+            # Retry with the canonical absolute destination while retaining the
+            # held parent identity and non-reparse guard.
+            attempts.append((None, fallback_destination))
+        last_error = 0
+        for root_handle, name in attempts:
+            name_bytes = name.encode("utf-16-le")
+            offset = RenameInfo.name.offset
+            buffer = ctypes.create_string_buffer(
+                offset + len(name_bytes) + ctypes.sizeof(wintypes.WCHAR)
+            )
+            info = ctypes.cast(buffer, ctypes.POINTER(RenameInfo)).contents
+            info.replace = 1
+            info.root = root_handle
+            info.length = len(name_bytes)
+            ctypes.memmove(ctypes.addressof(buffer) + offset, name_bytes, len(name_bytes))
+            if kernel32.SetFileInformationByHandle(
+                source_handle, 3, ctypes.byref(buffer), ctypes.sizeof(buffer)
+            ):
+                return
+            last_error = ctypes.get_last_error()
+            if root_handle is not None and last_error == 87:
+                continue
+            break
+        raise ManifestError(
+            f"handle-bound RUN rename failed (winerror {last_error}): {source}"
+        )
+    finally:
+        kernel32.CloseHandle(source_handle)
+
+
 def _replace_run_document(
     path: Path, run: dict[str, Any], expected_text: str | None = None
 ) -> None:
     # Compare-and-swap: if another writer replaced the document between this
     # process's load and now, refuse instead of silently clobbering its work.
+    path = Path(path)
+    parent = path.parent
+    # A path check is part of the compare-and-swap, not a one-time setup
+    # assertion.  A junction/symlink here would let os.replace write outside
+    # the reviewed checkout while all manifest bytes still look valid.
+    _assert_non_reparse_path(parent)
+    if path.exists() and _is_reparse(path):
+        raise ManifestError("RUN.md must not be a symlink or reparse point")
     text = path.read_text(encoding="utf-8")
     if expected_text is not None and text != expected_text:
         raise ManifestError(
@@ -2275,18 +2453,107 @@ def _replace_run_document(
         raise ManifestError("RUN.md has no fenced Harness Run State JSON block")
     body = json.dumps({"harness_run": run}, indent=2, ensure_ascii=False)
     updated = text[:body_start] + body + text[fence_end:]
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    parent.mkdir(parents=True, exist_ok=True)
+    _assert_non_reparse_path(parent)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=parent)
+    replaced = False
+    posix_parent_fds: list[int] = []
+    windows_parent_handles: list[tuple[Any, int]] = []
+    failure: BaseException | None = None
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(updated)
-        os.replace(temp_name, path)
-    except Exception:
-        try:
-            os.unlink(temp_name)
-        except OSError:
-            pass
-        raise
+            handle.flush()
+            os.fsync(handle.fileno())
+        # Last-read compare-and-swap immediately before replacement closes the
+        # common TOCTOU window.  The atomic rename still preserves readers.
+        _assert_non_reparse_path(parent)
+        if path.exists() and _is_reparse(path):
+            raise ManifestError("RUN.md became a symlink or reparse point")
+        if os.name != "nt":
+            try:
+                posix_parent_fds = _open_posix_parent_chain(parent)
+            except OSError as exc:
+                raise ManifestError(f"cannot hold RUN parent directory: {parent}: {exc}") from exc
+            try:
+                current = _read_bound_posix(posix_parent_fds[-1], path.name)
+            except FileNotFoundError:
+                current = ""
+        else:
+            windows_parent_handles = _open_windows_parent_chain(parent)
+            current = path.read_text(encoding="utf-8") if path.exists() else ""
+        if expected_text is not None and current != expected_text:
+            raise ManifestError(
+                "RUN.md changed during this transition; re-load the manifest and retry"
+            )
+        if os.name != "nt":
+            os.replace(
+                Path(temp_name).name,
+                path.name,
+                src_dir_fd=posix_parent_fds[-1],
+                dst_dir_fd=posix_parent_fds[-1],
+            )
+            replaced = True
+            try:
+                os.fsync(posix_parent_fds[-1])
+            except OSError:
+                # A durable directory sync is a best effort on filesystems
+                # that do not expose O_DIRECTORY; the atomic replacement is
+                # still complete and the next transition will re-read it.
+                pass
+        else:
+            assert windows_parent_handles
+            windows_kernel, windows_parent_handle = windows_parent_handles[-1]
+            _windows_rename_bound(
+                windows_kernel,
+                windows_parent_handle,
+                Path(temp_name),
+                path.name,
+                str(path),
+            )
+            replaced = True
+    except BaseException as exc:
+        failure = exc
+    finally:
+        if failure is not None and not replaced and posix_parent_fds:
+            try:
+                os.unlink(Path(temp_name).name, dir_fd=posix_parent_fds[-1])
+            except OSError:
+                pass
+        for descriptor in reversed(posix_parent_fds):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        for kernel32, handle in reversed(windows_parent_handles):
+            kernel32.CloseHandle(handle)
+    if failure is not None:
+        if not replaced and not posix_parent_fds:
+            try:
+                os.unlink(temp_name)
+            except OSError:
+                pass
+        raise failure
+
+
+def _is_reparse(path: Path) -> bool:
+    try:
+        if path.is_symlink():
+            return True
+        return bool(getattr(path.stat(), "st_file_attributes", 0) & 0x0400)
+    except OSError as exc:
+        raise ManifestError(f"cannot inspect transition path {path}: {exc}") from exc
+
+
+def _assert_non_reparse_path(path: Path) -> None:
+    current = Path(path)
+    while True:
+        if current.exists() and _is_reparse(current):
+            raise ManifestError(f"transition path contains a symlink or reparse point: {current}")
+        parent = current.parent
+        if parent == current:
+            return
+        current = parent
 
 
 def _write_text_exclusive(path: Path, text: str) -> None:

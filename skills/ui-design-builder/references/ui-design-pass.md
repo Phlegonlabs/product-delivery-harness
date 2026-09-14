@@ -78,7 +78,7 @@ The candidate is ready for the human gate only when overall `H1`–`H9` is at le
 
 ## Browser And Human Visual Approval
 
-Render every page-target-state and overlay in a real browser inside a closed offline sandbox and record the verdict as exact `PASS`. HiFi surface evidence uses method `sandboxed-offline-browser` and retains a `ui-output/1` console+network/navigation transcript with network disabled and top navigation, popups, and forms blocked. Any request, navigation/popup/form attempt, or console error fails. Reject broken navigation, dead controls, unexpected requests, console errors, unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify keyboard paths, focus management, target sizes, long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
+Render every page-target-state and overlay in a real browser inside a closed offline sandbox and record the verdict as exact `PASS`. HiFi surface evidence uses method `sandboxed-offline-browser` and retains a `ui-output/1` console+network/navigation/popup/form transcript with network disabled and top navigation, popups, and forms blocked plus matching attempt counts. Any request, navigation/popup/form attempt, or console error fails. Reject broken navigation, dead controls, unexpected requests, console errors, unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify keyboard paths, focus management, target sizes, long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
 
 Present only a passing candidate. Record the human decision as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. Approval proves visual-direction conformance, not representative-user usability or production readiness.
 
@@ -92,4 +92,4 @@ After Visual Approval, record exactly one Design System Need result:
 - `not_required`: the approved target, `ui-design.md`, wireframe, and PRD are sufficient; or
 - `blocked`: a required decision or source is missing.
 
-When `required`, invoke `design-system-compiler` only now. It freezes the approved candidate values into `docs/design/design-system.md` and `docs/design/design-system.json`; it does not reopen direction. When `not_required`, publish no placeholder pair.
+When `required`, write `Compiled design system pair: pending — design-system-compiler` as the exact handoff marker, run the compiler preflight against the approved PRD/architecture/stack/UI/wireframe/HiFi bytes, compile both files, and then replace the marker with both pair paths and hashes. The ordinary UI checker rejects a pending marker. When `not_required`, publish no placeholder pair and record the machine-bound existing-pair disposition.

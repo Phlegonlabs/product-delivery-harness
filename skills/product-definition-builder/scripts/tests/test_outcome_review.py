@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -91,16 +92,83 @@ Verdict: {verdict} — measured outcomes met the reviewed target
 
 class OutcomeReviewTests(unittest.TestCase):
     def check(self, outcome: str) -> list[str]:
-        return check_outcome_review.check_outcome_review_text(
-            outcome,
-            prd_text=PRD,
-            architecture_text=ARCHITECTURE,
-            deployment_text=DEPLOYMENT,
-            activation_text=ACTIVATION,
-        )
+        # Outcome tests isolate the Outcome contract; the activation gate is
+        # covered by the dedicated Product Activation suite.
+        with patch("check_outcome_review.check_activation_text", return_value=[]):
+            return check_outcome_review.check_outcome_review_text(
+                outcome,
+                prd_text=PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                activation_text=ACTIVATION,
+            )
 
     def test_valid_outcome_is_bound_to_verified_release(self) -> None:
         self.assertEqual([], self.check(valid_outcome()))
+
+    def test_schema2_direct_review_is_accepted(self) -> None:
+        self.assertEqual([], self.check(valid_outcome().replace("outcome-review/1", "outcome-review/2", 1)))
+
+    def test_schema2_review_can_run_with_approved_stack_and_deployment_gate(self) -> None:
+        with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch("check_deployment.check_deployment_text", return_value=[]):
+            findings = check_outcome_review.check_outcome_review_text(
+                valid_outcome().replace("outcome-review/1", "outcome-review/2", 1),
+                prd_text=PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                activation_text=ACTIVATION,
+                stack_text="# Stack Decisions: Example",
+            )
+        self.assertEqual([], findings)
+
+    def test_multi_target_prefix_and_first_target_projection_are_exact(self) -> None:
+        multi = valid_outcome().replace(
+            "- Production release target: web-prod",
+            "- Production release target: web-prod\n- Production release targets: web-prod, other-prod",
+            1,
+        )
+        # The checker must fail closed even before it can inspect target rows.
+        findings = "\n".join(self.check(multi))
+        self.assertIn("exact `target-set:` prefix", findings)
+
+    def test_single_target_mode_rejects_active_multi_target_tables_and_placeholders(self) -> None:
+        target_reviews = (
+            "\n## Target Reviews\n"
+            "| Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| [target] | [sha] | [artifact] | [deployment] | [time] | [status] | [sources] | [verdict] |\n"
+        )
+        target_measurements = (
+            "\n## Target Measurements\n"
+            "| Signal | Release target | Baseline | Target | Window start | Window end | Actual | Source ID |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| [signal] | [target] | [baseline] | [target] | [start] | [end] | [actual] | [source] |\n"
+        )
+        findings = "\n".join(self.check(valid_outcome() + target_reviews + target_measurements))
+        self.assertIn("single-target reviews cannot carry active Target Reviews", findings)
+        self.assertIn("single-target reviews cannot carry active Target Measurements", findings)
+
+    def test_duplicate_record_field_is_rejected(self) -> None:
+        duplicate = valid_outcome().replace(
+            "- Verdict: no_change\n",
+            "- Verdict: no_change\n- Verdict: no_change\n",
+            1,
+        )
+        self.assertIn("Record: duplicate field verdict", "\n".join(self.check(duplicate)))
+
+    def test_enhancement_verdict_requires_enhancement_follow_up(self) -> None:
+        enhancement = valid_outcome(verdict="enhancement")
+        findings = "\n".join(self.check(enhancement))
+        self.assertIn("enhancement verdict requires an enhancement request", findings)
+
+    def test_same_day_measurement_window_is_rejected(self) -> None:
+        same_day = valid_outcome().replace(
+            "2026-09-07 | 2026-09-09",
+            "2026-09-07 | 2026-09-07",
+        )
+        self.assertIn("window must elapse after deployment", "\n".join(self.check(same_day)))
 
     def test_stale_activation_hash_is_rejected(self) -> None:
         outcome = valid_outcome().replace(ACTIVATION_SHA256, "b" * 64)
@@ -205,7 +273,85 @@ class OutcomeReviewTests(unittest.TestCase):
                 capture_output=True,
                 check=False,
             )
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("stack", result.stdout + result.stderr)
+
+    def test_lifecycle_cli_requires_schema2_and_stack_decisions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            review_path = root / "docs" / "product" / "outcomes" / "2026-09-10-example.md"
+            review_path.parent.mkdir(parents=True)
+            review_path.write_text(valid_outcome(), encoding="utf-8")
+            paths = {
+                "PRD.md": PRD,
+                "architecture.md": ARCHITECTURE,
+                "DEPLOYMENT.md": DEPLOYMENT,
+                "ACTIVATION.md": ACTIVATION,
+            }
+            for name, content in paths.items():
+                (root / name).write_text(content, encoding="utf-8")
+            command = [
+                sys.executable,
+                str(SCRIPTS_DIR / "check_outcome_review.py"),
+                "--outcome", str(review_path),
+                "--prd", str(root / "PRD.md"),
+                "--architecture", str(root / "architecture.md"),
+                "--deployment", str(root / "DEPLOYMENT.md"),
+                "--activation", str(root / "ACTIVATION.md"),
+                "--repo-root", str(root),
+                "--require-lifecycle",
+            ]
+            stack_path = root / "stack-decisions.md"
+            stack_path.write_text("# Stack Decisions: Example\n", encoding="utf-8")
+            schema_failure = subprocess.run(
+                command + ["--stack-decisions", str(stack_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(1, schema_failure.returncode)
+            self.assertIn("requires Schema: outcome-review/2", schema_failure.stderr)
+            review_path.write_text(valid_outcome().replace("outcome-review/1", "outcome-review/2", 1), encoding="utf-8")
+            stack_failure = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(2, stack_failure.returncode)
+            self.assertIn("requires --stack-decisions", stack_failure.stderr)
+
+    def test_prior_outcome_digest_binds_immutable_history(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            current = root / "current.md"
+            prior = root / "prior.md"
+            for path, content in ((current, valid_outcome()), (prior, valid_outcome())):
+                path.write_text(content, encoding="utf-8")
+            command = [
+                sys.executable,
+                str(SCRIPTS_DIR / "check_outcome_review.py"),
+                "--outcome", str(current),
+                "--prd", str(root / "PRD.md"),
+                "--architecture", str(root / "architecture.md"),
+                "--deployment", str(root / "DEPLOYMENT.md"),
+                "--activation", str(root / "ACTIVATION.md"),
+                "--prior-outcome", str(prior),
+            ]
+            for name, content in {
+                "PRD.md": PRD,
+                "architecture.md": ARCHITECTURE,
+                "DEPLOYMENT.md": DEPLOYMENT,
+                "ACTIVATION.md": ACTIVATION,
+            }.items():
+                (root / name).write_text(content, encoding="utf-8")
+            rejected = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(1, rejected.returncode)
+            self.assertIn("Prior outcome sha256", rejected.stderr)
+            prior_digest = hashlib.sha256(prior.read_bytes()).hexdigest()
+            current.write_text(
+                valid_outcome() + f"\n- Prior outcome sha256: {prior_digest}\n",
+                encoding="utf-8",
+            )
+            prior.write_text(prior.read_text(encoding="utf-8") + "\nrewritten history\n", encoding="utf-8")
+            rewritten = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(1, rewritten.returncode)
+            self.assertIn("Prior outcome sha256", rewritten.stderr)
 
 
 if __name__ == "__main__":

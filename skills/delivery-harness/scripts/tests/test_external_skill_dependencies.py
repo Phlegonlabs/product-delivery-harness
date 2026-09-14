@@ -148,6 +148,12 @@ class ExternalSkillDependencyTests(unittest.TestCase):
         findings = checker.validate_manifest(swapped)
         self.assertEqual(2, sum("must bind exactly" in item for item in findings))
 
+    def test_manifest_requires_approved_source_and_install_route(self) -> None:
+        missing_route = json.loads(json.dumps(self.manifest))
+        del missing_route["profiles"]["ui_design"]["skills"][0]["install"]
+        findings = checker.validate_manifest(missing_route)
+        self.assertTrue(any("approved source locator and install route" in item for item in findings))
+
     def test_manifest_records_real_capabilities_and_template_stays_unresolved(self) -> None:
         manifest_path = (
             REPO_ROOT
@@ -198,6 +204,7 @@ def dependency(name: str, skills: Path) -> dict[str, object]:
     return {
         "name": name,
         "source": "external",
+        **checker.REQUIRED_ACQUISITION[name],
         "sha256": checker.hash_skill(path),
         "compatibility": checker.REQUIRED_COMPATIBILITY[name],
     }

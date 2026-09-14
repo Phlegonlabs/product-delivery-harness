@@ -325,6 +325,190 @@ class ArchiveRunTests(unittest.TestCase):
             ),
         )
 
+    def test_filtered_blob_read_does_not_write_the_checkout_object_database(self) -> None:
+        sample = self.root / "docs" / "sample.txt"
+        sample.write_bytes(b"filtered bytes\n")
+        objects = self.root / ".git" / "objects"
+        before = sorted(
+            path.relative_to(objects).as_posix()
+            for path in objects.rglob("*")
+            if path.is_file()
+        )
+        filtered = archive_run._git_filtered_bytes(
+            self.root,
+            self.root / "docs" / "goal" / "archived" / "sample.txt",
+            source=sample,
+        )
+        after = sorted(
+            path.relative_to(objects).as_posix()
+            for path in objects.rglob("*")
+            if path.is_file()
+        )
+        self.assertEqual(b"filtered bytes\n", filtered)
+        self.assertEqual(before, after)
+
+    def test_empty_optional_evidence_directory_is_skipped(self) -> None:
+        empty = self.goal / "evidence"
+        for child in empty.iterdir():
+            child.unlink()
+        moves, missing = archive_run.plan_moves(self.root)
+        self.assertEqual([], missing)
+        self.assertNotIn(Path("docs/goal/evidence"), moves)
+
+    def test_receipt_rejects_noncanonical_repeated_segments(self) -> None:
+        value = {
+            "protocol": archive_run.ARCHIVE_RECEIPT_PROTOCOL,
+            "run_id": "RUN-1",
+            "plan_id": "PLAN-1",
+            "plan_revision": 1,
+            "plan_digest_sha256": "a" * 64,
+            "candidate_c": "a" * 40,
+            "branch": "codex/test",
+            "branch_ref": "refs/heads/codex/test",
+            "expected_main": "b" * 40,
+            "main_ref": "refs/heads/main",
+            "stamp": "20260101-000000",
+            "archive_path": "docs/goal/archived/20260101-000000-run",
+            "moves": [
+                {"source": "docs/goal//PLAN.md", "destination": "docs/goal/archived/20260101-000000-run/PLAN.md", "type": "file", "sha256": "c" * 64},
+                {"source": "docs/goal/RUN.md", "destination": "docs/goal/archived/20260101-000000-run/RUN.md", "type": "file", "sha256": "d" * 64},
+            ],
+            "documents_before_sha256": None,
+            "documents_after_sha256": None,
+            "anchor_path": None,
+            "anchor_path_sha256": None,
+            "anchor_nonce": None,
+            "receipt_sha256": "e" * 64,
+        }
+        errors = archive_run.validate_archive_receipt(value)
+        self.assertTrue(any("source is outside" in item for item in errors))
+
+        for source in ("./docs/goal/PLAN.md", "docs/goal/../PLAN.md"):
+            value["moves"][0]["source"] = source
+            self.assertTrue(
+                any("source is outside" in item for item in archive_run.validate_archive_receipt(value)),
+                source,
+            )
+        value["moves"][0]["source"] = "docs/goal/PLAN.md"
+        value["moves"][0]["destination"] = "docs/goal/archived/20260101-000000-run//PLAN.md"
+        self.assertTrue(
+            any("destination is outside" in item for item in archive_run.validate_archive_receipt(value))
+        )
+
+    def test_recover_interrupted_archive_is_idempotent_and_descriptor_bound(self) -> None:
+        target = self.goal / "archived" / "20260101-000000-recovery"
+        target.mkdir(parents=True)
+        source = self.goal / "PLAN.md"
+        destination = target / "PLAN.md"
+        source.rename(destination)
+        journal = {
+            "protocol": archive_run.ARCHIVE_JOURNAL_PROTOCOL,
+            "phase": "moving",
+            "archive_path": "docs/goal/archived/20260101-000000-recovery",
+            "moves": [{"source": "docs/goal/PLAN.md", "destination": "docs/goal/archived/20260101-000000-recovery/PLAN.md"}],
+            "moved": [],
+            "documents_before_b64": None,
+            "documents_before_identity": None,
+            "archived_parent_created": False,
+            "anchor_path": None,
+        }
+        (target / archive_run.ARCHIVE_JOURNAL_NAME).write_text(
+            json.dumps(journal), encoding="utf-8"
+        )
+        self.assertEqual(0, archive_run.recover_archive(self.root, target))
+        self.assertTrue(source.exists())
+        self.assertFalse(target.exists())
+        # A second recovery is a no-op and cannot touch the recovered source.
+        self.assertEqual(0, archive_run.recover_archive(self.root, target))
+        self.assertTrue(source.exists())
+
+    def test_failed_archive_does_not_remove_a_preexisting_archived_parent(self) -> None:
+        archived = self.goal / "archived"
+        archived.mkdir()
+        sentinel = archived / "keep.txt"
+        sentinel.write_text("unrelated archive\n", encoding="utf-8")
+        guard = archive_run._ArchiveMutationGuard(
+            self.root,
+            [Path("docs/goal/PLAN.md")],
+            archived / "20260101-000000-preexisting-parent",
+        )
+        try:
+            self.assertFalse(guard.archived_created)
+            guard.remove_archived_parent()
+        finally:
+            guard.close()
+        self.assertEqual("unrelated archive\n", sentinel.read_text(encoding="utf-8"))
+        self.assertTrue(archived.exists())
+
+    def test_nested_symlink_swap_after_guard_is_rejected(self) -> None:
+        nested = self.goal / "evidence" / "deep" / "inner"
+        nested.mkdir(parents=True)
+        real_move = archive_run._ArchiveMutationGuard.move
+
+        try:
+            probe = nested / "probe"
+            probe.symlink_to(self.root / ".git", target_is_directory=True)
+            probe.unlink()
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink unavailable: {exc}")
+
+        def swap_after_move(guard: archive_run._ArchiveMutationGuard, source: Path, destination: Path) -> None:
+            real_move(guard, source, destination)
+            if source.name == "evidence":
+                link = destination / "deep" / "inner" / "post-guard-link"
+                link.symlink_to(self.root / ".git", target_is_directory=True)
+
+        with patch.object(archive_run._ArchiveMutationGuard, "move", autospec=True, side_effect=swap_after_move):
+            code = archive_run.archive(
+                self.root,
+                slug="post-guard-swap",
+                apply=True,
+                stamp="20260101-000000",
+                expected_main=self.expected_main,
+                main_ref="refs/heads/main",
+            )
+        self.assertEqual(1, code)
+
+    def test_nested_symlinks_at_multiple_depths_are_rejected_before_archive(self) -> None:
+        for depth in (self.goal / "evidence" / "deep" / "one", self.goal / "evidence" / "deep" / "two"):
+            depth.mkdir(parents=True)
+            link = depth / "link-to-git"
+            try:
+                link.symlink_to(self.root / ".git", target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+        result = self.archive("--apply", "--stamp", "20260101-000000")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertRegex(result.stderr, "symlink|reparse")
+        self.assertFalse((self.goal / "archived" / "20260101-000000-run-20260911-demo").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction regression")
+    def test_nested_junctions_at_multiple_depths_are_rejected_before_archive(self) -> None:
+        powershell = shutil.which("pwsh") or shutil.which("powershell")
+        if powershell is None:
+            self.skipTest("PowerShell is unavailable")
+        target = self.root / ".git"
+        for depth in (self.goal / "evidence" / "junction" / "one", self.goal / "evidence" / "junction" / "two"):
+            depth.mkdir(parents=True)
+            link = depth / "link-to-git"
+            created = subprocess.run(
+                [
+                    powershell,
+                    "-NoProfile",
+                    "-Command",
+                    "New-Item -ItemType Junction -Path $env:PDH_JUNCTION -Target $env:PDH_TARGET -ErrorAction Stop | Out-Null",
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PDH_JUNCTION": str(link), "PDH_TARGET": str(target)},
+                timeout=30,
+            )
+            if created.returncode != 0:
+                self.skipTest(created.stderr.strip() or "junction creation failed")
+        result = self.archive("--apply", "--stamp", "20260101-000000")
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertRegex(result.stderr, "reparse|symlink")
+
     def test_wrong_archival_base_is_refused_and_moves_nothing(self) -> None:
         wrong_base = "1" * 40
         result = self.archive("--apply", "--expected-main", wrong_base)
@@ -394,7 +578,7 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertTrue((self.goal / "RUN.md").exists())
         self.assertFalse((self.goal / "archived").exists())
 
-    def test_documents_update_failure_removes_a_new_documents_file(self) -> None:
+    def test_documents_update_failure_preserves_a_concurrent_new_documents_file(self) -> None:
         documents = self.root / "docs" / "DOCUMENTS.md"
         documents.unlink()
         mf.git(self.root, "add", "docs/DOCUMENTS.md")
@@ -421,9 +605,94 @@ class ArchiveRunTests(unittest.TestCase):
             )
 
         self.assertEqual(1, code)
-        self.assertFalse(documents.exists())
+        # A newly introduced DOCUMENTS file is not transaction-owned when the
+        # write path failed before recording its identity.  Preserve it and
+        # leave the journaled archive target for explicit recovery rather than
+        # deleting a concurrent writer's data.
+        self.assertTrue(documents.exists())
         self.assertTrue((self.goal / "RUN.md").exists())
-        self.assertFalse((self.goal / "archived").exists())
+        self.assertTrue((self.goal / "archived").exists())
+
+    def test_documents_concurrent_edit_is_preserved_during_rollback(self) -> None:
+        documents = self.root / "docs" / "DOCUMENTS.md"
+        real_update = archive_run._update_documents
+
+        def edit_after_transaction_write(root: Path) -> None:
+            real_update(root)
+            (root / "docs" / "DOCUMENTS.md").write_text("concurrent operator edit\n", encoding="utf-8")
+            raise OSError("injected concurrent edit")
+
+        with patch.object(archive_run, "_update_documents", side_effect=edit_after_transaction_write):
+            code = archive_run.archive(
+                self.root,
+                slug="documents-concurrent-edit",
+                apply=True,
+                stamp="20260101-000000",
+                expected_main=self.expected_main,
+                main_ref="refs/heads/main",
+            )
+        self.assertEqual(1, code)
+        self.assertEqual("concurrent operator edit\n", documents.read_text(encoding="utf-8"))
+        self.assertTrue((self.goal / "RUN.md").exists())
+        self.assertTrue((self.goal / "archived").exists())
+
+    def test_archive_rereads_head_under_guard_before_first_write(self) -> None:
+        original = archive_run._live_head_problems
+        calls = {"count": 0}
+
+        def drift_after_first_snapshot(run: dict[str, object], root: Path, expected_main: str, main_ref: str, moves: list[Path]) -> list[str]:
+            calls["count"] += 1
+            problems = original(run, root, expected_main, main_ref, moves)
+            if calls["count"] == 1:
+                mf.git(root, "commit", "--allow-empty", "-qm", "late HEAD drift")
+            return problems
+
+        with patch.object(archive_run, "_live_head_problems", side_effect=drift_after_first_snapshot):
+            code = archive_run.archive(
+                self.root,
+                slug="late-head-drift",
+                apply=True,
+                stamp="20260101-000000",
+                expected_main=self.expected_main,
+                main_ref="refs/heads/main",
+            )
+        self.assertEqual(1, code)
+        self.assertGreaterEqual(calls["count"], 2)
+        self.assertFalse((self.goal / "archived" / "20260101-000000-late-head-drift").exists())
+
+    def test_archive_rereads_clean_status_under_guard(self) -> None:
+        original = archive_run._live_head_problems
+        calls = {"count": 0}
+
+        def dirty_after_first_snapshot(run: dict[str, object], root: Path, expected_main: str, main_ref: str, moves: list[Path]) -> list[str]:
+            calls["count"] += 1
+            problems = original(run, root, expected_main, main_ref, moves)
+            if calls["count"] == 1:
+                (root / "late-unrelated.txt").write_text("late dirty path\n", encoding="utf-8")
+            return problems
+
+        with patch.object(archive_run, "_live_head_problems", side_effect=dirty_after_first_snapshot):
+            code = archive_run.archive(
+                self.root,
+                slug="late-clean-drift",
+                apply=True,
+                stamp="20260101-000000",
+                expected_main=self.expected_main,
+                main_ref="refs/heads/main",
+            )
+        self.assertEqual(1, code)
+        self.assertGreaterEqual(calls["count"], 2)
+        self.assertTrue((self.root / "late-unrelated.txt").exists())
+
+    def test_anchor_timestamp_requires_strict_utc_rfc3339(self) -> None:
+        for value in (
+            "2026-01-01T00:00:00+00:00",
+            "2026-01-01T00:00Z",
+            "2026-01-01T00:00:00.1234567Z",
+        ):
+            with self.assertRaises(ValueError, msg=value):
+                archive_run._validate_utc_timestamp(value, "created_at")
+        archive_run._validate_utc_timestamp("2026-01-01T00:00:00.123456Z", "created_at")
 
     def test_apply_refuses_the_wrong_current_branch(self) -> None:
         mf.git(self.root, "checkout", "-q", "main")

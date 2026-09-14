@@ -881,11 +881,7 @@ def _retained_verifier_results(
                             probe_value = sandbox_attestation.get(probe_key)
                             valid_probe = isinstance(probe_value, str) and bool(probe_value.strip())
                             if probe_key == "runtime_probe" and isinstance(probe_value, dict):
-                                valid_probe = set(probe_value) == {
-                                    "executable",
-                                    "executable_sha256",
-                                    "version_output_sha256",
-                                }
+                                valid_probe = {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(probe_value) and not (set(probe_value) - {"executable", "executable_sha256", "version_output_sha256", "trust"}) and isinstance(probe_value.get("trust"), dict)
                             if not valid_probe:
                                 _issue(
                                     errors,

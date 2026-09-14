@@ -386,6 +386,10 @@ class ParityCaptureTests(unittest.TestCase):
 
         with patch.object(parity_capture.os, "name", "nt"), patch.object(
             parity_capture.shutil, "which", side_effect=which
+        ), patch.object(
+            parity_capture,
+            "_trusted_launcher_path",
+            side_effect=lambda path, _label: path.resolve(),
         ):
             resolved = self._old_resolve_cli()
         self.assertEqual(

@@ -1538,7 +1538,7 @@ async function agent(_prompt, options) {
             result["error"],
         )
 
-    def test_release_sources_name_exact_branch_or_ref(self) -> None:
+    def test_release_sources_enforce_candidate_branch_and_main_only(self) -> None:
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
@@ -1555,9 +1555,13 @@ async function agent(_prompt, options) {
             ):
                 self.assertNotIn(retired, content)
         for content in (interview, architecture, workflow):
-            self.assertIn("branch or ref", content)
+            self.assertTrue("branch or ref" in content or "branch/ref" in content)
         for content in (interview, architecture):
-            self.assertIn("signed tag", content.lower())
+            self.assertIn("refs/heads/main", content)
+            self.assertTrue(
+                "signed tag" in content.lower()
+                or "tags and alternative production refs are rejected" in content.lower()
+            )
         self.assertIn("promotion.verified_main_sha", contract)
 
     def test_migration_order_drops_plan_v5_field_mapping(self) -> None:
@@ -1827,7 +1831,7 @@ async function agent(_prompt, options) {
             contract,
         )
         self.assertIn("A silently missing Research Gate", contract)
-        self.assertIn("`research-assessment.md`, and `outcome-review.md` in full", skill)
+        self.assertIn("every retained `docs/product/outcomes/*.md` record in full", skill)
 
         # The post-draft pass reconciles the assessment instead of
         # researching the same ground twice.
@@ -1862,16 +1866,13 @@ async function agent(_prompt, options) {
             contract,
         )
 
-        # It publishes at a fixed path and feeds the next enhancement run.
+        # It publishes under an immutable dated path and feeds the next enhancement run.
         self.assertIn(
-            "`docs/product/outcome-review.md` after a deployed release's outcome review",
+            "`docs/product/outcomes/YYYY-MM-DD-<release-set>.md` after each deployed release-set outcome review",
             lifecycle,
         )
-        self.assertIn(
-            "`research-assessment.md`, and `outcome-review.md` in full", skill
-        )
-        self.assertIn("and `outcome-review.md` in full", skill)
-        self.assertIn("`outcome-review.md` is a post-deployment record", lifecycle)
+        self.assertIn("every retained `docs/product/outcomes/*.md` record in full", skill)
+        self.assertIn("`docs/product/outcomes/` contains immutable post-deployment records", lifecycle)
         self.assertIn("Activation source status:", contract)
         self.assertIn("matching verified `MS-*` sources", skill)
         self.assertIn("exact numeric window duration/start-after-deployment checks", skill)

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import sys
 import tempfile
 import unittest
@@ -765,6 +767,27 @@ class DeploymentRecordTests(unittest.TestCase):
             "Environment Status: duplicate required level-2 section",
             "\n".join(findings),
         )
+
+    def test_cli_reports_malformed_utf8_without_a_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            deployment = root / "DEPLOYMENT.md"
+            architecture = root / "architecture.md"
+            deployment.write_text(GOOD_DEPLOYMENT, encoding="utf-8")
+            architecture.write_bytes(b"\xff")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                status = check_deployment.main(
+                    [
+                        "--deployment",
+                        str(deployment),
+                        "--architecture",
+                        str(architecture),
+                    ]
+                )
+            self.assertEqual(2, status)
+            self.assertIn("cannot read architecture record", stderr.getvalue())
+            self.assertNotIn("Traceback", stderr.getvalue())
 
 
 class ConfigurePlaceholderTests(unittest.TestCase):

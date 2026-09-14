@@ -31,6 +31,11 @@ from release_targets import (  # noqa: E402
     allows_no_independent_artifact,
     parse_release_targets,
 )
+from contract_utils import (  # noqa: E402
+    activation_product_identity,
+    product_identity,
+    safe_read_text,
+)
 
 
 TASK_START = "<!-- activation-task-contract:start -->"
@@ -425,7 +430,12 @@ def _value_findings(label: str, values: list[str], require_filled: bool) -> list
     return [f"{label}: unresolved placeholder {value!r}" for value in values if _placeholder(value)]
 
 
-def _validate_tables(text: str, require_filled: bool) -> tuple[dict[str, list[list[str]]], list[str]]:
+def _validate_tables(
+    text: str,
+    require_filled: bool,
+    *,
+    schema_v2: bool = False,
+) -> tuple[dict[str, list[list[str]]], list[str]]:
     findings: list[str] = []
     parsed: dict[str, list[list[str]]] = {}
     for heading, expected in TABLE_HEADERS.items():
@@ -437,14 +447,20 @@ def _validate_tables(text: str, require_filled: bool) -> tuple[dict[str, list[li
             continue
         if any(cell in FORBIDDEN_HEADERS for cell in header):
             findings.append(f"{label}: must not contain a credential-value column")
-        if tuple(header) != expected:
+        accepted_headers = (
+            (expected, OUTCOME_COVERAGE_V2_HEADER)
+            if schema_v2 and heading == "## Outcome Coverage"
+            else (expected,)
+        )
+        if tuple(header) not in accepted_headers:
             findings.append(f"{label}: expected columns {' | '.join(expected)}")
             parsed[heading] = []
             continue
         valid_rows: list[list[str]] = []
         for row in rows:
-            if len(row) != len(expected):
-                findings.append(f"{label}: each row must have {len(expected)} columns")
+            row_width = len(header)
+            if len(row) != row_width:
+                findings.append(f"{label}: each row must have {row_width} columns")
                 continue
             valid_rows.append(row)
             findings.extend(_value_findings(label, row, require_filled))
@@ -479,7 +495,23 @@ KNOWN_PROFILES = {
     "macos",
     "windows",
     "browser extension",
+    "cli/toolchain",
+    "agent/automation",
+    "other_nonpublic",
 }
+OUTCOME_COVERAGE_V2_HEADER = (
+    "signal",
+    "definition / obligation",
+    "baseline",
+    "target / guardrail",
+    "measurement window",
+    "expected signal",
+    "release targets",
+    "source / method",
+    "owner",
+    "source id",
+    "status",
+)
 
 
 def _surface_profiles(architecture_targets: dict[str, object]) -> set[str]:
@@ -498,6 +530,12 @@ def _surface_profiles(architecture_targets: dict[str, object]) -> set[str]:
             profiles.add("browser extension")
         elif surface_class in {"hosted_api", "worker", "job", "webhook", "realtime"}:
             profiles.add("api / backend")
+        elif surface_class == "cli":
+            profiles.add("cli/toolchain")
+        elif surface_class == "agent":
+            profiles.update({"agent/automation", "api / backend"})
+        elif surface_class == "other_nonpublic":
+            profiles.add("other_nonpublic")
         elif surface_class == "hosted_web":
             profiles.add("web")
     return profiles
@@ -532,10 +570,19 @@ def _validate_profiles(
     if architecture_targets:
         actual = {row[0].casefold() for row in rows if len(row) >= 2 and row[1].casefold() == "yes"}
         required = _surface_profiles(architecture_targets)
-        for profile in sorted(required - actual):
-            findings.append(
-                f"Applied Profiles: architecture release targets require profile {profile!r}"
-            )
+        row_by_profile = {row[0].casefold(): row for row in rows if len(row) >= 4}
+        for profile in sorted(required):
+            if profile in actual:
+                continue
+            row = row_by_profile.get(profile)
+            if row is None:
+                findings.append(
+                    f"Applied Profiles: architecture release targets require profile {profile!r}"
+                )
+            elif row[1].casefold() != "no" or not _n_a_with_reason(row[2]):
+                findings.append(
+                    f"Applied Profiles: profile {profile!r} needs yes or an explicit n/a disposition"
+                )
         for profile in sorted(actual - required):
             if profile not in KNOWN_PROFILES:
                 findings.append(f"Applied Profiles: profile {profile!r} is not in the closed catalog")
@@ -1309,6 +1356,10 @@ def _prd_signals(prd_text: str) -> tuple[set[str], list[str]]:
                         )
                     if not _human(row[6]):
                         findings.append(f"PRD: metric {row[0]} owner must name a human")
+                    if not re.fullmatch(r"\s*\d+\s*(?:days?|weeks?)\s*", row[4], re.I):
+                        findings.append(
+                            f"PRD: metric {row[0]} measurement window must use a positive day/week duration"
+                        )
         duplicates = sorted(
             name for name, count in Counter(metric_names).items() if count > 1
         )
@@ -1346,6 +1397,8 @@ def _prd_signal_details(prd_text: str) -> tuple[dict[str, dict[str, str]], list[
                 "baseline": "none recorded",
                 "target": target,
                 "window": "n/a — PRD legacy metric table omits a separate measurement window",
+                "source_method": "",
+                "owner": "",
                 "expected": "n/a — metric row",
             }
     elif metrics_header == [
@@ -1360,12 +1413,14 @@ def _prd_signal_details(prd_text: str) -> tuple[dict[str, dict[str, str]], list[
         for row in metrics:
             if len(row) != 7:
                 continue
-            name, definition, baseline, target, window, _source, _owner = row
+            name, definition, baseline, target, window, source_method, owner = row
             details[name] = {
                 "definition": definition,
                 "baseline": baseline,
                 "target": target,
                 "window": window,
+                "source_method": source_method,
+                "owner": owner,
                 "expected": "n/a — metric row",
             }
     else:
@@ -1391,6 +1446,8 @@ def _prd_signal_details(prd_text: str) -> tuple[dict[str, dict[str, str]], list[
                 "baseline": "none recorded",
                 "target": "n/a — required test has no numeric target",
                 "window": f"{test_type} test",
+                "source_method": "",
+                "owner": "",
                 "expected": expected_signal,
             }
     return details, findings
@@ -1458,18 +1515,45 @@ def check_activation_text(
     prd_text: str | None = None,
     architecture_text: str | None = None,
     deployment_text: str | None = None,
+    stack_text: str | None = None,
+    repo_root: Path | None = None,
     require_filled: bool = False,
     require_verified_sources: bool = False,
     require_ready: tuple[str, ...] = (),
 ) -> list[str]:
-    require_filled = require_filled or require_verified_sources
+    authority_required = require_verified_sources or bool(require_ready)
+    require_filled = require_filled or authority_required
     findings: list[str] = []
-    if require_verified_sources and prd_text is None:
+    if stack_text is not None:
+        if repo_root is None:
+            findings.append("Product package: stack validation requires repository root")
+        from check_product_package import validate_texts
+        findings.extend(
+            f"Product package: {item}"
+            for item in validate_texts(
+                prd_text or "",
+                architecture_text or "",
+                stack_text,
+                require_filled=True,
+                require_approved=True,
+                repo_root=repo_root,
+            )
+        )
+        from check_deployment import check_deployment_text
+        findings.extend(
+            f"Deployment: {item}"
+            for item in check_deployment_text(
+                deployment_text or "", architecture_text=architecture_text
+            )
+        )
+    if authority_required and prd_text is None:
         findings.append("PRD: verified-source handoff requires the current PRD")
-    if require_verified_sources and architecture_text is None:
+    if authority_required and architecture_text is None:
         findings.append("architecture: verified-source handoff requires architecture.md")
-    if require_verified_sources and deployment_text is None:
+    if authority_required and deployment_text is None:
         findings.append("deployment: verified-source handoff requires DEPLOYMENT.md")
+    if authority_required and stack_text is None:
+        findings.append("stack: verified-source handoff requires stack-decisions.md")
     architecture_targets = {}
     deployment_targets: dict[str, dict[str, str]] = {}
     if architecture_text is not None:
@@ -1504,8 +1588,12 @@ def check_activation_text(
     record, record_findings = _record(text)
     findings.extend(record_findings)
     if record:
-        if record.get("Schema") != "product-activation/1":
-            findings.append("Record: Schema must be product-activation/1")
+        if record.get("Schema") not in {"product-activation/1", "product-activation/2"}:
+            findings.append("Record: Schema must be product-activation/1 or product-activation/2")
+        if authority_required and record.get("Schema") != "product-activation/2":
+            findings.append(
+                "Record: verified-source/readiness lifecycle requires product-activation/2"
+            )
         if record.get("Status") not in RECORD_STATUSES:
             findings.append(f"Record: invalid status {record.get('Status')!r}")
         findings.extend(_value_findings("Record", list(record.values()), require_filled))
@@ -1528,8 +1616,14 @@ def check_activation_text(
                     findings.append(f"Record: filled record needs {name}")
             if not _human(record.get("Activation owner", "")):
                 findings.append("Record: Activation owner must name a human")
+        if prd_text is not None:
+            expected_identity = product_identity(prd_text, kind="prd")
+            actual_identity = activation_product_identity(text)
+            if expected_identity and actual_identity and expected_identity != actual_identity:
+                findings.append("Record: Product identity must exactly match the approved PRD")
 
-    tables, table_findings = _validate_tables(text, require_filled)
+    schema_v2 = record.get("Schema") == "product-activation/2"
+    tables, table_findings = _validate_tables(text, require_filled, schema_v2=schema_v2)
     findings.extend(table_findings)
     findings.extend(
         _validate_profiles(
@@ -1636,17 +1730,41 @@ def check_activation_text(
 
     coverage_rows = tables.get("## Outcome Coverage", [])
     coverage: dict[str, dict[str, object]] = {}
-    for (
-        signal,
-        definition,
-        baseline,
-        target_guardrail,
-        measurement_window,
-        expected_signal,
-        targets,
-        source_id,
-        status,
-    ) in coverage_rows:
+    for row in coverage_rows:
+        if schema_v2:
+            if len(row) != len(OUTCOME_COVERAGE_V2_HEADER):
+                findings.append("Outcome Coverage: each v2 row must have 11 columns")
+                continue
+            (
+                signal,
+                definition,
+                baseline,
+                target_guardrail,
+                measurement_window,
+                expected_signal,
+                targets,
+                source_method,
+                coverage_owner,
+                source_id,
+                status,
+            ) = row
+        else:
+            if len(row) != 9:
+                findings.append("Outcome Coverage: each row must have 9 columns")
+                continue
+            (
+                signal,
+                definition,
+                baseline,
+                target_guardrail,
+                measurement_window,
+                expected_signal,
+                targets,
+                source_id,
+                status,
+            ) = row
+            source_method = ""
+            coverage_owner = ""
         if _placeholder(signal):
             continue
         if signal in coverage:
@@ -1681,6 +1799,8 @@ def check_activation_text(
             "expected": expected_signal,
             "targets": set(_parse_list(targets)),
             "source_id": source_id,
+            "source_method": source_method,
+            "owner": coverage_owner,
             "status": status,
         }
     if prd_text is not None:
@@ -1708,6 +1828,11 @@ def check_activation_text(
                     findings.append(
                         f"Outcome Coverage: {signal} {label} must exactly match PRD"
                     )
+            if schema_v2 and expected_detail is not None:
+                if item["source_method"] != expected_detail.get("source_method", ""):
+                    findings.append(f"Outcome Coverage: {signal} source / method must exactly match PRD")
+                if item["owner"] != expected_detail.get("owner", ""):
+                    findings.append(f"Outcome Coverage: {signal} owner must exactly match PRD")
 
     active_targets: set[str] = set()
     for bindings in task_bindings.values():
@@ -2015,6 +2140,18 @@ def check_activation_text(
         findings.append("Record: handoff_ready requires at least one active release target")
     if record.get("Status") == "handoff_ready" and open_blockers:
         findings.append("Record: handoff_ready cannot have open blockers")
+    if authority_required and record.get("Measurement window starts"):
+        window_start = _timestamp(record.get("Measurement window starts", ""))
+        availability_times = [
+            _timestamp(deployment.get("checked", ""))
+            for target, deployment in deployment_targets.items()
+            if target in readiness and readiness[target]["status"] == "ready"
+        ]
+        availability_times = [item for item in availability_times if item is not None]
+        if window_start is not None and availability_times and window_start < max(availability_times):
+            findings.append(
+                "Record: Measurement window starts must be after every ready target's deployment availability"
+            )
     return findings
 
 
@@ -2024,19 +2161,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prd", type=Path)
     parser.add_argument("--architecture", type=Path)
     parser.add_argument("--deployment", type=Path)
+    parser.add_argument("--stack-decisions", type=Path)
+    parser.add_argument("--repo-root", type=Path, default=Path("."))
     parser.add_argument("--require-filled", action="store_true")
     parser.add_argument("--require-verified-sources", action="store_true")
     parser.add_argument("--require-ready", action="append", default=[])
     parser.add_argument("--show-action-digests", action="store_true")
     args = parser.parse_args(argv)
-    if args.require_verified_sources and args.prd is None:
-        print("--require-verified-sources requires --prd", file=sys.stderr)
+    authority_required = args.require_verified_sources or bool(args.require_ready)
+    authority_flag = "--require-verified-sources/--require-ready"
+    if authority_required and args.prd is None:
+        print(f"{authority_flag} requires --prd", file=sys.stderr)
         return 2
-    if args.require_verified_sources and args.architecture is None:
-        print("--require-verified-sources requires --architecture", file=sys.stderr)
+    if authority_required and args.architecture is None:
+        print(f"{authority_flag} requires --architecture", file=sys.stderr)
         return 2
-    if args.require_verified_sources and args.deployment is None:
-        print("--require-verified-sources requires --deployment", file=sys.stderr)
+    if authority_required and args.deployment is None:
+        print(f"{authority_flag} requires --deployment", file=sys.stderr)
+        return 2
+    if authority_required and args.stack_decisions is None:
+        print(f"{authority_flag} requires --stack-decisions", file=sys.stderr)
         return 2
     if not args.activation.is_file():
         print(f"activation record not found: {args.activation}", file=sys.stderr)
@@ -2050,18 +2194,29 @@ def main(argv: list[str] | None = None) -> int:
     if args.deployment is not None and not args.deployment.is_file():
         print(f"deployment record not found: {args.deployment}", file=sys.stderr)
         return 2
-    text = args.activation.read_text(encoding="utf-8")
-    prd_text = args.prd.read_text(encoding="utf-8") if args.prd is not None else None
-    architecture_text = (
-        args.architecture.read_text(encoding="utf-8")
-        if args.architecture is not None
-        else None
-    )
-    deployment_text = (
-        args.deployment.read_text(encoding="utf-8")
-        if args.deployment is not None
-        else None
-    )
+    if args.stack_decisions is not None and not args.stack_decisions.is_file():
+        print(f"stack decisions record not found: {args.stack_decisions}", file=sys.stderr)
+        return 2
+    loaded: dict[str, str | None] = {}
+    for name, path in {
+        "activation": args.activation,
+        "prd": args.prd,
+        "architecture": args.architecture,
+        "deployment": args.deployment,
+        "stack": args.stack_decisions,
+    }.items():
+        if path is None:
+            loaded[name] = None
+            continue
+        value, error = safe_read_text(path)
+        if error is not None:
+            print(error, file=sys.stderr)
+            return 2
+        loaded[name] = value
+    text = loaded["activation"] or ""
+    prd_text = loaded["prd"]
+    architecture_text = loaded["architecture"]
+    deployment_text = loaded["deployment"]
     tasks, _titles, parse_findings = _tasks(text)
     if args.show_action_digests:
         tables, _table_findings = _validate_tables(text, False)
@@ -2084,6 +2239,8 @@ def main(argv: list[str] | None = None) -> int:
         prd_text=prd_text,
         architecture_text=architecture_text,
         deployment_text=deployment_text,
+        stack_text=loaded["stack"],
+        repo_root=args.repo_root,
         require_filled=args.require_filled,
         require_verified_sources=args.require_verified_sources,
         require_ready=tuple(args.require_ready),

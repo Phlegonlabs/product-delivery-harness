@@ -47,6 +47,22 @@ EXPECTED_PROFILE_SKILLS = {
     "frontend_implementation": {"frontend-design"},
     "authorized_ui_quality": {"impeccable"},
 }
+REQUIRED_ACQUISITION: dict[str, dict[str, Any]] = {
+    "frontend-design": {
+        "source_locator": "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+        "install": {
+            "kind": "codex_skill_installer",
+            "request": (
+                "Install frontend-design from "
+                "https://github.com/anthropics/skills/tree/main/skills/frontend-design"
+            ),
+        },
+    },
+    "impeccable": {
+        "source_locator": "https://github.com/pbakaus/impeccable",
+        "install": {"kind": "command", "argv": ["npx", "impeccable", "install"]},
+    },
+}
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -100,6 +116,15 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
             if source != "external":
                 findings.append(
                     f"profile {profile!r} dependency {name!r} must declare source external"
+                )
+            expected_acquisition = REQUIRED_ACQUISITION.get(name)
+            if expected_acquisition is not None and any(
+                entry.get(field) != expected
+                for field, expected in expected_acquisition.items()
+            ):
+                findings.append(
+                    f"profile {profile!r} dependency {name!r} must declare its "
+                    "approved source locator and install route"
                 )
             if not isinstance(pin, str) or not PIN_RE.fullmatch(pin):
                 findings.append(

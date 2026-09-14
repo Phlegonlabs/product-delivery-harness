@@ -71,8 +71,8 @@ def is_cache_path(path: Path) -> bool:
     )
 
 
-def bash_path(path: Path) -> str:
-    resolved = path.resolve()
+def bash_path(path: Path, *, resolve: bool = True) -> str:
+    resolved = path.resolve() if resolve else Path(os.path.abspath(path))
     parts = resolved.parts
     try:
         temp_index = len(parts) - 1 - parts[::-1].index("Temp")
@@ -178,7 +178,13 @@ class InstallScriptTests(unittest.TestCase):
                 )
         self.assertTrue((self.destination / "unrelated-skill" / "SKILL.md").is_file())
 
-    def run_bash(self, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    def run_bash(
+        self,
+        extra_env: dict[str, str] | None = None,
+        *,
+        installer: Path | None = None,
+        destination: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         if BASH is None:
             self.skipTest("no usable bash is available")
         git_root = Path(BASH).resolve().parents[1]
@@ -190,15 +196,73 @@ class InstallScriptTests(unittest.TestCase):
         }
         for name, value in list(env.items()):
             if name == "SKILL_BACKUP_ROOT":
-                env[name] = bash_path(Path(value))
+                env[name] = bash_path(Path(value), resolve=False)
         return subprocess.run(
-            [BASH, str(REPO_ROOT / "install.sh"), bash_path(self.destination)],
+            [
+                BASH,
+                str(installer or (REPO_ROOT / "install.sh")),
+                bash_path(destination or self.destination, resolve=False),
+            ],
             capture_output=True,
             text=True,
             env=env,
             cwd=self.home,
             timeout=120,
         )
+
+    @unittest.skipIf(BASH is None, "no usable bash is available")
+    def test_bash_rejects_destination_and_backup_junctions_before_mutation(self) -> None:
+        for label in ("destination", "backup"):
+            with self.subTest(label=label):
+                protected = self.home / f"bash-protected-{label}"
+                protected.mkdir()
+                sentinel = protected / "keep.txt"
+                sentinel.write_text("preserve\n", encoding="utf-8")
+                alias = self.home / f"bash-{label}-junction"
+                self.make_junction(alias, protected)
+                destination = alias if label == "destination" else self.home / "bash-skills"
+                backup = alias if label == "backup" else self.home / "bash-backups"
+                result = self.run_bash(
+                    {"SKILL_BACKUP_ROOT": str(backup)},
+                    destination=destination,
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(
+                    "symlink/reparse path component is forbidden",
+                    result.stderr + result.stdout,
+                )
+                self.assertEqual("preserve\n", sentinel.read_text(encoding="utf-8"))
+                self.assertFalse((protected / ".pdh-install.lock").exists())
+
+    @unittest.skipIf(BASH is None, "no usable bash is available")
+    def test_bash_rejects_tracked_symlink_mode_before_mutation(self) -> None:
+        source = self.make_minimal_repo()
+        relative = "skills/delivery-harness/tracked-link"
+        working_file = source / relative
+        working_file.write_text("ordinary working-tree bytes\n", encoding="utf-8")
+        blob = subprocess.run(
+            ["git", "hash-object", "-w", "--stdin"],
+            cwd=source,
+            input="SKILL.md",
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "update-index", "--add", "--cacheinfo", f"120000,{blob},{relative}"],
+            cwd=source,
+            check=True,
+        )
+        result = self.run_bash(
+            {"SKILL_BACKUP_ROOT": str(self.backup_root)},
+            installer=source / "install.sh",
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            f"non-regular tracked source entry is not installable: mode=120000 path={relative}",
+            result.stderr + result.stdout,
+        )
+        self.assertFalse(self.destination.exists())
 
     def make_minimal_repo(self) -> Path:
         source = self.home / "minimal-source"

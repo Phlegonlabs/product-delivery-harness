@@ -11,6 +11,9 @@ Record:
 - target country or region, language and audience;
 - business outcome and relevant PRD metric or key event when available;
 - current and comparison periods, complete-data cutoff and timezone;
+- target market, language, business outcome, and (for `growth_review` or
+  `traffic_drop`) equal comparison windows;
+- each source's `verified at` time separately from its coverage-through cutoff;
 - release target, deployed SHA or artifact identity when verifiable; and
 - source inventory with exact property/account scope, freshness, route and limitation.
 
@@ -154,7 +157,7 @@ The saved lifecycle artifact is strict evidence, not a convenience copy:
 - bind the lowercase SHA-256 of the exact current `docs/ACTIVATION.md`;
 - list every verified `MS-*` source whose exact target, SHA, and artifact match, and no other source as verified evidence;
 - keep Search Console, GA4, production-page, demand, and first-party evidence roles separate; and
-- run `scripts/check_seo_review.py --review <path> --prd <PRD> --architecture <architecture> --deployment <DEPLOYMENT> --activation <ACTIVATION> --repo-root <repository-root> --require-lifecycle`.
+- run `scripts/check_seo_review.py --review <path> --prd <PRD> --architecture <architecture> --stack-decisions <stack-decisions> --deployment <DEPLOYMENT> --activation <ACTIVATION> --repo-root <repository-root> --require-lifecycle`.
 
 A URL, ranking, or analytics property alone does not identify the release. A stale Activation hash, mismatched deployment SHA/artifact, wrong domain, or non-matching source is a blocker before interpretation.
 

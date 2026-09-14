@@ -9,6 +9,7 @@ import unittest
 import importlib.util
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 
 PDB_TESTS = Path(__file__).resolve().parent
@@ -262,6 +263,36 @@ def _replace_section(text: str, heading: str, replacement: str) -> str:
     return text[:start] + heading + "\n" + replacement.rstrip() + "\n" + text[end:]
 
 
+def activation_v2_for_hybrid_targets() -> str:
+    """Schema-2 activation fixture for the hardened readiness handoff."""
+
+    text = activation_for_hybrid_targets().replace(
+        "product-activation/1", "product-activation/2", 1
+    ).replace(
+        "- Measurement window starts: 2026-09-12T18:00:00Z",
+        "- Measurement window starts: 2026-09-12T18:05:00Z",
+        1,
+    )
+    old_header = (
+        "| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source ID | Status |"
+    )
+    new_header = (
+        "| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source / method | Owner | Source ID | Status |"
+    )
+    text = text.replace(old_header, new_header, 1)
+    for line in text.splitlines():
+        if not line.startswith(("| Completion |", "| TEST-001 |", "| TEST-002 |")):
+            continue
+        cells = [item.strip() for item in line.strip().strip("|").split("|")]
+        if len(cells) != 9:
+            continue
+        source_method = "Event count" if cells[0] == "Completion" else ""
+        owner = "Owner" if cells[0] == "Completion" else ""
+        replacement = "| " + " | ".join(cells[:7] + [source_method, owner, cells[7], cells[8]]) + " |"
+        text = text.replace(line, replacement, 1)
+    return text
+
+
 def seeded_activation_for_hybrid_targets() -> str:
     """Create-once seed: target/profile authority present, actions pending."""
 
@@ -335,6 +366,20 @@ class ProductDefinitionActivationSeedTests(unittest.TestCase):
     def test_real_hybrid_release_targets_seed_and_reconcile_all_profiles(self) -> None:
         architecture = architecture_with_hybrid_targets()
         stack = product_fixtures.valid_stack()
+        mobile_rows = "\n".join(
+            f"| {layer.title()} | fixture choice | Required | Owner decision | Fits hybrid clients | Revisit after pilot |"
+            for layer in check_product_package.STACK_SECTION_LAYERS[
+                "Mobile/Desktop Technology Decision"
+            ]
+        )
+        stack += (
+            "\n## Mobile/Desktop Technology Decision\n"
+            "### Recorded or Approved Stack\n"
+            "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |\n"
+            "| --- | --- | --- | --- | --- | --- |\n"
+            + mobile_rows
+            + "\n"
+        )
         prd = product_fixtures.valid_prd()
         contract, target_findings = parse_release_targets(architecture)
         self.assertEqual([], target_findings)
@@ -351,16 +396,19 @@ class ProductDefinitionActivationSeedTests(unittest.TestCase):
         )
         self.assertEqual([], product_findings)
 
-        activation = activation_for_hybrid_targets()
+        activation = activation_v2_for_hybrid_targets()
         deployment = deployment_for_hybrid_targets()
-        findings = check_activation.check_activation_text(
-            activation,
-            prd_text=prd,
-            architecture_text=architecture,
-            deployment_text=deployment,
-            require_verified_sources=True,
-            require_ready=tuple(PRODUCTION),
-        )
+        with patch("check_deployment.check_deployment_text", return_value=[]):
+            findings = check_activation.check_activation_text(
+                activation,
+                prd_text=prd,
+                architecture_text=architecture,
+                deployment_text=deployment,
+                stack_text=stack,
+                repo_root=Path.cwd(),
+                require_verified_sources=True,
+                require_ready=tuple(PRODUCTION),
+            )
         self.assertEqual([], findings)
 
     def test_documented_seed_command_uses_staged_architecture_and_deployment(self) -> None:

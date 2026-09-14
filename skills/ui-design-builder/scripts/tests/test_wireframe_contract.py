@@ -211,6 +211,32 @@ def validate_html(html, **kwargs):
 
 
 class WireframeHtmlCheckerTests(unittest.TestCase):
+    def test_embedded_font_and_media_data_urls_use_contextual_allowlists(self):
+        self.assertTrue(check_wireframe_html._is_safe_data_url("data:font/woff2;base64,AA==", allow_images=False, allow_fonts=True))
+        self.assertTrue(check_wireframe_html._is_safe_data_url("data:audio/ogg;base64,AA==", allow_images=False, allow_audio=True))
+        self.assertTrue(check_wireframe_html._is_safe_data_url("data:video/webm;base64,AA==", allow_images=False, allow_video=True))
+        self.assertFalse(check_wireframe_html._is_safe_data_url("data:application/javascript;base64,AA==", allow_images=False, allow_fonts=True, allow_audio=True, allow_video=True))
+        parser = check_wireframe_html.ResourceParser()
+        parser.feed(
+            '<style>@font-face{font-family:Fixture;src:url(data:font/woff2;base64,AA==)}'
+            '</style><audio src="data:audio/ogg;base64,AA=="></audio>'
+        )
+        parser.close()
+        self.assertEqual([], parser.external_css_resources)
+        self.assertEqual([], parser.active_security_surfaces)
+
+    def test_hybrid_per_surface_responsive_data_rejects_global_targets(self):
+        data = wireframe_data()
+        data["responsiveBySurface"] = {
+            "UI-001": {
+                "kind": "viewports",
+                "targets": [390, 768, 1200],
+                "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
+            }
+        }
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must not be combined with global viewports", joined)
+
     def test_template_binds_overlay_responsive_spec_before_width_lookup(self):
         template = (
             Path(__file__).resolve().parents[2]

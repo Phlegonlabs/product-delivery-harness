@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -145,13 +146,15 @@ class HarnessGitTests(unittest.TestCase):
                 "Git_AskPass": "sentinel-askpass",
                 "GIT_PROXY_COMMAND": "sentinel-proxy",
                 "SSH_ASKPASS": "sentinel-askpass",
+                "GIT_SSL_NO_VERIFY": "1",
+                "GIT_SSL_CAPATH": "attacker-ca",
             }
         )
         normalized = {key.upper() for key in environment}
         self.assertFalse(
             any(key == "GIT_CONFIG" or key.startswith("GIT_CONFIG_") for key in normalized)
         )
-        for key in ("GIT_SSH_COMMAND", "GIT_SSH", "GIT_ASKPASS", "GIT_PROXY_COMMAND", "SSH_ASKPASS"):
+        for key in ("GIT_SSH_COMMAND", "GIT_SSH", "GIT_ASKPASS", "GIT_PROXY_COMMAND", "SSH_ASKPASS", "GIT_SSL_NO_VERIFY", "GIT_SSL_CAPATH"):
             self.assertNotIn(key, normalized)
 
     def test_local_helper_and_endpoint_rewrite_config_fails_closed_before_execution(self) -> None:
@@ -198,6 +201,53 @@ class HarnessGitTests(unittest.TestCase):
                 run_git(root, "status", "--porcelain")
             self.assertFalse(sentinel.exists())
 
+    def test_local_tls_weakening_is_rejected_and_trusted_global_proxy_is_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._repo(root)
+            subprocess.run(["git", "config", "http.sslVerify", "false"], cwd=root, check=True)
+            with self.assertRaisesRegex(GitConfigurationError, "http.sslverify"):
+                run_git(root, "rev-parse", "HEAD")
+
+            # System/global corporate proxy configuration is allowed; only
+            # repository-local endpoint/config injection is rejected.
+            import harness_git as module
+
+            with patch.object(
+                module,
+                "_raw_git",
+                return_value=subprocess.CompletedProcess(
+                    ["git", "config"], 0, "file:/etc/gitconfig\x00http.proxy\x00", ""
+                ),
+            ):
+                module.reject_dangerous_local_config(root)
+
+    @unittest.skipUnless(os.name != "nt", "POSIX ownership fixture only")
+    def test_git_executable_rejects_writable_parent_component(self) -> None:
+        import harness_git as module
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "git"
+            executable.write_bytes(b"fixture")
+            executable.chmod(0o755)
+            root.chmod(0o777)
+            with patch.object(module, "_machine_git_roots", return_value=(root,)):
+                with self.assertRaisesRegex(GitMetadataError, "root-owned and not writable"):
+                    module._trusted_executable(executable, "Git executable")
+
+    @unittest.skipUnless(os.name == "nt", "Windows machine-root fixture only")
+    def test_windows_machine_roots_ignore_spoofed_environment(self) -> None:
+        import harness_git as module
+
+        with patch.dict(
+            os.environ,
+            {"ProgramFiles": str(Path(tempfile.gettempdir()) / "fake-programs"), "SystemRoot": str(Path(tempfile.gettempdir()) / "fake-system")},
+            clear=False,
+        ):
+            roots = module.windows_machine_roots()
+        self.assertNotIn(Path(tempfile.gettempdir()).resolve() / "fake-programs", roots)
+        self.assertNotIn(Path(tempfile.gettempdir()).resolve() / "fake-system", roots)
 
 if __name__ == "__main__":
     unittest.main()

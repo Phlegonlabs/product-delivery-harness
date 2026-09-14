@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -95,18 +96,109 @@ No query-level seasonality conclusion is possible until the next complete month 
 """
 
 
+def valid_review_v2(*, mode: str = "baseline") -> str:
+    text = valid_review().replace("seo-review/1", "seo-review/2", 1)
+    text = text.replace(
+        "- Mode: baseline",
+        f"- Mode: {mode}",
+        1,
+    )
+    text = text.replace(
+        "- Review owner: Growth owner",
+        "- Review owner: Growth owner\n- Product: Example\n- Target market: United States\n- Language: en-US\n- Business outcome: setup activation\n- Timezone: UTC\n- Comparison window: 2026-08-01/2026-08-31 vs 2026-07-01/2026-07-31\n- Segmentation: query, page, country, device\n- Global data coverage through: 2026-09-07T18:02:00Z",
+        1,
+    )
+    text = text.replace(
+        "| MS ID | Scope | Release binding | Source role | Data cutoff | Evidence |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#{ARTIFACT} | ga4 | 2026-09-07T18:02:00Z | EVID-004 verified property read-back |",
+        "| MS ID | Scope | Release binding | Source role | Verified at | Coverage through | Evidence |\n"
+        "| --- | --- | --- | --- | --- | --- | --- |\n"
+        f"| MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#{ARTIFACT} | ga4 | 2026-09-07T18:02:00Z | 2026-09-07T18:02:00Z | EVID-004 verified property read-back |",
+        1,
+    )
+    return text
+
+
 class SeoLifecycleReviewTests(unittest.TestCase):
     def check(self, review: str) -> list[str]:
-        return check_seo_review.check_seo_review_text(
-            review,
-            prd_text=PRD,
-            architecture_text=ARCHITECTURE,
-            deployment_text=DEPLOYMENT,
-            activation_text=ACTIVATION,
-        )
+        with patch("check_seo_review.check_activation_text", return_value=[]):
+            return check_seo_review.check_seo_review_text(
+                review,
+                prd_text=PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                activation_text=ACTIVATION,
+            )
 
     def test_valid_lifecycle_review_passes_exact_bindings(self) -> None:
         self.assertEqual([], self.check(valid_review()))
+
+    def test_schema2_lifecycle_review_preserves_product_and_mode_fields(self) -> None:
+        self.assertEqual([], self.check(valid_review_v2()))
+
+    def test_schema2_mode_specific_windows_and_segmentation_are_required(self) -> None:
+        for mode in ("growth_review", "traffic_drop"):
+            missing_window = valid_review_v2(mode=mode).replace(
+                "- Comparison window: 2026-08-01/2026-08-31 vs 2026-07-01/2026-07-31",
+                "- Comparison window: one period",
+                1,
+            )
+            expected = (
+                "requires equal comparison windows"
+                if mode == "traffic_drop"
+                else "requires a comparison window"
+            )
+            self.assertIn(expected, "\n".join(self.check(missing_window)))
+        missing_segments = valid_review_v2(mode="traffic_drop").replace(
+            "- Segmentation: query, page, country, device",
+            "- Segmentation: query only",
+            1,
+        )
+        self.assertIn(
+            "Segmentation must include query, page, country, and device",
+            "\n".join(self.check(missing_segments)),
+        )
+
+    def test_schema2_requires_market_language_outcome_timezone_and_cutoff(self) -> None:
+        for field, marker in (
+            ("Target market", "- Target market: United States"),
+            ("Language", "- Language: en-US"),
+            ("Business outcome", "- Business outcome: setup activation"),
+            ("Timezone", "- Timezone: UTC"),
+            ("Global data coverage through", "- Global data coverage through: 2026-09-07T18:02:00Z"),
+        ):
+            with self.subTest(field=field):
+                missing = valid_review_v2().replace(marker, f"- {field}: ", 1)
+                self.assertIn(f"Record: {field} must be substantive", "\n".join(self.check(missing)))
+
+    def test_schema2_duplicate_record_fields_and_source_times_are_rejected(self) -> None:
+        duplicate = valid_review_v2().replace(
+            "- Product: Example\n",
+            "- Product: Example\n- Product: Example\n",
+            1,
+        )
+        self.assertIn("Record: duplicate field product", "\n".join(self.check(duplicate)))
+        stale_verified_at = valid_review_v2().replace(
+            "| ga4 | 2026-09-07T18:02:00Z | 2026-09-07T18:02:00Z |",
+            "| ga4 | 2026-09-07T17:02:00Z | 2026-09-07T18:02:00Z |",
+            1,
+        )
+        self.assertIn(
+            "verified at must equal the latest PASS Activation evidence",
+            "\n".join(self.check(stale_verified_at)),
+        )
+
+    def test_schema2_global_cutoff_cannot_exceed_source_or_record_scope(self) -> None:
+        future_cutoff = valid_review_v2().replace(
+            "- Global data coverage through: 2026-09-07T18:02:00Z",
+            "- Global data coverage through: 2099-09-07T18:02:00Z",
+            1,
+        )
+        self.assertIn(
+            "Global data coverage through cannot be in the future",
+            "\n".join(self.check(future_cutoff)),
+        )
 
     def test_release_domain_or_artifact_mismatch_is_rejected(self) -> None:
         domain = valid_review().replace("- Production domain: example.com", "- Production domain: https://example.com/path")
@@ -185,29 +277,19 @@ class SeoLifecycleReviewTests(unittest.TestCase):
             ]
             invalid = subprocess.run(command, text=True, capture_output=True, check=False)
             self.assertEqual(1, invalid.returncode)
-            self.assertIn("docs/seo/reviews/YYYY-MM-DD-<slug>.md", invalid.stdout)
+            self.assertIn("requires Schema: seo-review/2", invalid.stderr)
 
             dated = root / "docs" / "seo" / "reviews" / "2026-09-10-public-release.md"
             dated.parent.mkdir(parents=True)
-            dated.write_text(valid_review(), encoding="utf-8")
-            valid = subprocess.run(
+            dated.write_text(valid_review_v2(), encoding="utf-8")
+            gated = subprocess.run(
                 [part if part != str(review) else str(dated) for part in command],
                 text=True,
                 capture_output=True,
                 check=False,
             )
-            self.assertEqual(0, valid.returncode, valid.stdout + valid.stderr)
-
-            mismatched = root / "docs" / "seo" / "reviews" / "2026-09-11-public-release.md"
-            mismatched.write_text(valid_review(), encoding="utf-8")
-            invalid_date = subprocess.run(
-                [part if part != str(review) else str(mismatched) for part in command],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            self.assertEqual(1, invalid_date.returncode)
-            self.assertIn("filename date must equal Record Review date", invalid_date.stdout)
+            self.assertEqual(2, gated.returncode)
+            self.assertIn("requires --stack-decisions", gated.stderr)
 
 
 if __name__ == "__main__":

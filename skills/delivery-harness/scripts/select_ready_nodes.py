@@ -782,7 +782,7 @@ def _sandbox_observation_reasons(
         if not repo_digest.endswith("@" + image.rsplit("@", 1)[-1]):
             return {"sandbox_preflight_stale"}
         probe = entry.get("runtime_probe")
-        if not isinstance(probe, dict) or set(probe) != {"executable", "executable_sha256", "version_output_sha256"}:
+        if not isinstance(probe, dict) or not {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(probe) or set(probe) - {"executable", "executable_sha256", "version_output_sha256", "trust"}:
             return {"sandbox_preflight_unavailable"}
         if not isinstance(probe.get("executable"), str) or not probe["executable"].strip():
             return {"sandbox_preflight_unavailable"}

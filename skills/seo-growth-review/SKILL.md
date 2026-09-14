@@ -33,7 +33,7 @@ An absent repository does not block a public baseline review. Missing target mar
 - Do not install a connector, SDK, browser extension, or desktop app automatically. Do not ask the user to paste tokens or exported credentials into chat or a repository.
 - Do not promise rankings, traffic, backlinks, or a site-wide authority score. Do not recommend keyword stuffing, link schemes, scaled low-value pages, hidden text, cloaking, or another search-policy violation.
 - Do not leave the task open while waiting for indexing or a measurement window. Report what is not yet observable and end the review.
-- A standalone inline audit remains valid and writes no repository artifact. A saved lifecycle public-release review is different: it uses the dated immutable template and checker, and binds the exact production target, SHA/artifact, domain, cutoff, and verified `MS-*` sources.
+- A standalone inline audit remains valid and writes no repository artifact. A saved lifecycle public-release review is different: it uses the dated immutable template and checker, and binds the exact production target, SHA/artifact, domain, market, language, business outcome, timezone, comparison window, per-source verification time, global coverage cutoff, and verified `MS-*` sources. Schema `seo-review/2` is the forward format; `/1` remains read-only compatibility.
 
 ## Modes
 
@@ -56,7 +56,7 @@ Choose one mode from the available evidence:
 9. Prioritize with business fit, first-party demand, conversion or key-event evidence, page and intent fit, confidence, effort, and policy risk. Do not use a third-party authority score or one fixed keyword-volume threshold as the decision rule.
 10. Return the review in the shape defined by `references/review-method.md`. Give each proposed change one owner route and one measurable follow-up. A finding never authorizes the change.
 11. If the user asks to save the review, show the exact path first and preserve earlier reports. Default to an inline report; do not create a kanban board, standing dashboard, or canonical repository artifact without an explicit request.
-12. For a saved lifecycle public-release review, use `assets/templates/SEO_REVIEW.template.md`, save once under `docs/seo/reviews/YYYY-MM-DD-<slug>.md`, and run `scripts/check_seo_review.py --require-lifecycle` with the current PRD, architecture, Deployment, Activation, and repository root.
+12. For a saved lifecycle public-release review, use `assets/templates/SEO_REVIEW.template.md`, save once under `docs/seo/reviews/YYYY-MM-DD-<slug>.md`, and run `scripts/check_seo_review.py --require-lifecycle` with the current PRD, architecture, stack-decisions, Deployment, Activation, and repository root. The checker re-runs the full approved Product Definition and Deployment validation when stack-decisions are supplied and rejects malformed UTF-8/OSError inputs as deterministic findings.
 
 ## Secrets And Data
 

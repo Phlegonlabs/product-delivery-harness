@@ -4,7 +4,7 @@ The live post-delivery activation record. Keep it at `docs/ACTIVATION.md`. Recor
 
 ## Record
 
-- Schema: product-activation/1
+- Schema: product-activation/2
 - Product: <fill>
 - Activation owner: <fill>
 - Release reference: <fill>
@@ -36,9 +36,9 @@ The live post-delivery activation record. Keep it at `docs/ACTIVATION.md`. Recor
 
 Add one row for every PRD metric and every required `TEST-*` expected signal. Preserve each metric name and TEST ID exactly.
 
-| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source ID | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| <exact PRD metric name or TEST-ID> | <exact PRD definition or test obligation> | <exact PRD baseline or none recorded> | <exact PRD target / guardrail or n/a reason> | <exact PRD measurement window or test type> | <exact required TEST expected signal or n/a reason> | <release-target-id> | pending | planned |
+| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source / method | Owner | Source ID | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| <exact PRD metric name or TEST-ID> | <exact PRD definition or test obligation> | <exact PRD baseline or none recorded> | <exact PRD target / guardrail or n/a reason> | <exact PRD measurement window or test type> | <exact required TEST expected signal or n/a reason> | <release-target-id> | <exact PRD source / method> | <exact PRD owner> | pending | planned |
 
 ## Measurement Sources
 

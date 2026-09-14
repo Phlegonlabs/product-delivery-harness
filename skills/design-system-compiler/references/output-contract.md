@@ -22,7 +22,7 @@ Include only:
 
 Keep it the sole structured authority for:
 
-- platform, styling mechanism, enforcement mode, token sources, and primitive sources;
+- platform, stack-bound rendering model/component foundation/styling semantics, styling mechanism, enforcement mode, token sources, and primitive sources;
 - `sourceBindings` for current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target bytes;
 - exactly one responsive verification set, copied exactly from the approved PRD and wireframe: at least three ascending web `viewports` or at least two native/desktop `sizeClasses`;
 - only the tokens the product uses;

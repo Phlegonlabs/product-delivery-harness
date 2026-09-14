@@ -158,8 +158,16 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                 "| OPT-MOB-01 | Mobile or desktop | Native SwiftUI iOS bundle | iOS companion | Owner maintains native client | approved |\n"
                 "| OPT-MOB-02 | Mobile or desktop | Flutter bundle | Multi-platform reach | Adds cross-platform runtime | rejected |",
             )
-            insert_at = arch_stack.find("\n## ", arch_stack.find("## Frontend Technology Decision") + 1)
-            stack.write_text(arch_stack[:insert_at] + mobile_section + arch_stack[insert_at:], encoding="utf-8")
+            mobile_start = arch_stack.find("## Mobile/Desktop Technology Decision")
+            mobile_end = arch_stack.find("\n## ", mobile_start + 1)
+            if mobile_start >= 0:
+                if mobile_end < 0:
+                    mobile_end = len(arch_stack)
+                arch_stack = arch_stack[:mobile_start] + mobile_section.lstrip("\n") + arch_stack[mobile_end:]
+            else:
+                backend_start = arch_stack.find("## Backend and Data Technology Decision")
+                arch_stack = arch_stack[:backend_start] + mobile_section.lstrip("\n") + "\n" + arch_stack[backend_start:]
+            stack.write_text(arch_stack, encoding="utf-8")
         else:
             # Browser-extension hybrids remain on the approved browser stack.
             pass
@@ -269,6 +277,11 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
             if receipt["method"] != "sandboxed-offline-browser":
                 for key in ("sandbox", "console", "network", "navigation"):
                     output.pop(key, None)
+            else:
+                output.setdefault("popups", [])
+                output.setdefault("forms", [])
+                output.setdefault("popupAttempts", len(output["popups"]))
+                output.setdefault("formAttempts", len(output["forms"]))
             output.update({"check": check_name, "subject": reviewed, "matrix": receipt["matrix"], "results": receipt["results"]})
             output_path.write_text(json.dumps(output), encoding="utf-8")
             receipt["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
@@ -325,6 +338,20 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                 "surfaceClass": second_class,
                 "captureMode": second_mode,
                 "responsive": {"kind": second_kind, "targets": second_targets},
+            },
+        }
+        registry["stackSemantics"] = {
+            "UI-001": {
+                "platform": "web",
+                "renderingModel": "SPA",
+                "componentFoundation": "shadcn/ui owned source",
+                "stylingMechanism": "Tailwind CSS",
+            },
+            second_id: {
+                "platform": "ios" if platform == "ios" else "web",
+                "renderingModel": "Native" if platform == "ios" else "SPA",
+                "componentFoundation": "SwiftUI" if platform == "ios" else "shadcn/ui owned source",
+                "stylingMechanism": "platform theme" if platform == "ios" else "Tailwind CSS",
             },
         }
         registry["stateMatrix"] = ["ready"]

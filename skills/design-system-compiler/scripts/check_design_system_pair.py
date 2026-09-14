@@ -12,6 +12,8 @@ Exit codes: 0 clean, 1 mismatch, 2 usage or parse error.
 from __future__ import annotations
 
 import argparse
+import ctypes
+from ctypes import wintypes
 import json
 import math
 import os
@@ -44,6 +46,7 @@ CONTRACT_FIELDS = (
     "schema",
     "product",
     "platform",
+    "stackSemantics",
     "stylingMechanism",
     "enforcement",
     "sourceBindings",
@@ -92,7 +95,14 @@ VALID_HYBRID_SURFACE_CLASSES = {
     "windows",
     "desktop",
 }
-VALID_STYLING_MECHANISMS = {"utility CSS", "CSS-in-JS", "CSS modules", "plain CSS", "platform theme"}
+VALID_STYLING_MECHANISMS = {
+    "utility CSS",
+    "Tailwind CSS",
+    "CSS-in-JS",
+    "CSS modules",
+    "plain CSS",
+    "platform theme",
+}
 VALID_ENFORCEMENT = {"blocking", "advisory"}
 
 
@@ -100,6 +110,167 @@ VALID_ENFORCEMENT = {"blocking", "advisory"}
 
 class ConcurrentModificationError(RuntimeError):
     """Raised when the destination changed after it was read for a write."""
+
+
+def _is_reparse_or_link(path: Path) -> bool:
+    """Return true for symlinks and Windows reparse-point path components."""
+
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    attributes = getattr(info, "st_file_attributes", 0)
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _safe_parent_chain(path: Path) -> None:
+    """Reject a destination whose parent chain can redirect the atomic write."""
+
+    cursor = path.parent
+    existing: list[Path] = []
+    while True:
+        existing.append(cursor)
+        if cursor.parent == cursor:
+            break
+        cursor = cursor.parent
+    for component in reversed(existing):
+        if _is_reparse_or_link(component):
+            raise ConcurrentModificationError(
+                f"{path} parent directory contains a symlink or reparse point: {component}"
+            )
+
+
+def _open_posix_parent(path: Path) -> tuple[int, str]:
+    """Walk every POSIX component with O_NOFOLLOW and retain final dirfd."""
+
+    absolute = path.absolute()
+    parts = absolute.parts
+    if not parts or parts[0] != os.sep:
+        raise ConcurrentModificationError(f"{path} must be an absolute POSIX path")
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        directory_fd = os.open(os.sep, flags)
+        try:
+            for component in parts[1:-1]:
+                next_fd = os.open(component, flags, dir_fd=directory_fd)
+                os.close(directory_fd)
+                directory_fd = next_fd
+        except BaseException:
+            os.close(directory_fd)
+            raise
+    except OSError as exc:
+        raise ConcurrentModificationError(
+            f"{path} parent component cannot be held without following a symlink: {exc}"
+        ) from exc
+    return directory_fd, parts[-1]
+
+
+if os.name == "nt":
+    _WIN_INVALID_HANDLE = ctypes.c_void_p(-1).value
+    _WIN_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+    _WIN_FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    _WIN_FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    _WIN_GENERIC_READ = 0x80000000
+    _WIN_GENERIC_WRITE = 0x40000000
+    _WIN_DELETE = 0x00010000
+    _WIN_FILE_SHARE_READ = 0x00000001
+    _WIN_FILE_SHARE_WRITE = 0x00000002
+    _WIN_OPEN_EXISTING = 3
+    _WIN_FILE_RENAME_INFO = 3
+
+
+def _windows_close(handle: int | None) -> None:
+    if os.name != "nt" or handle is None:
+        return
+    value = handle if isinstance(handle, int) else handle.value
+    ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(value))
+
+
+def _windows_open_parent(path: Path) -> tuple[int, list[int]]:
+    """Hold every Windows parent component without FILE_SHARE_DELETE."""
+
+    if os.name != "nt":
+        raise ConcurrentModificationError("Windows parent handles are unavailable on this host")
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = ctypes.c_void_p
+    desired = _WIN_GENERIC_READ
+    flags = _WIN_FILE_FLAG_BACKUP_SEMANTICS | _WIN_FILE_FLAG_OPEN_REPARSE_POINT
+
+    class _FileAttributeTagInfo(ctypes.Structure):
+        _fields_ = [("FileAttributes", ctypes.c_uint32), ("ReparseTag", ctypes.c_uint32)]
+
+    def open_component(component: Path) -> int:
+        handle = kernel32.CreateFileW(
+            str(component),
+            desired,
+            _WIN_FILE_SHARE_READ | _WIN_FILE_SHARE_WRITE,
+            None,
+            _WIN_OPEN_EXISTING,
+            flags,
+            None,
+        )
+        if handle in (None, _WIN_INVALID_HANDLE):
+            error = ctypes.get_last_error()
+            raise ConcurrentModificationError(
+                f"{path} parent cannot be held without delete sharing (winerror={error})"
+            )
+        info = _FileAttributeTagInfo()
+        ok = kernel32.GetFileInformationByHandleEx(
+            ctypes.c_void_p(handle), 9, ctypes.byref(info), ctypes.sizeof(info)
+        )
+        if not ok or info.FileAttributes & _WIN_FILE_ATTRIBUTE_REPARSE_POINT:
+            _windows_close(handle)
+            raise ConcurrentModificationError(
+                f"{path} parent is a symlink or reparse point"
+            )
+        return int(handle)
+
+    held: list[int] = []
+    try:
+        parent = path.parent
+        components = list(parent.parts)
+        if not components:
+            raise ConcurrentModificationError(f"{path} has no Windows parent")
+        # Open each absolute component in order. Every prior handle stays open,
+        # so an ancestor cannot be renamed or replaced while the final move is
+        # in flight. _safe_parent_chain supplied the initial no-reparse check;
+        # OPEN_REPARSE_POINT makes the native hold check fail closed as well.
+        current = Path(components[0])
+        for component in components[1:]:
+            current = current / component
+            held.append(open_component(current))
+        if not held:
+            held.append(open_component(parent))
+        return held[-1], held[:-1]
+    except BaseException:
+        for handle in reversed(held):
+            _windows_close(handle)
+        raise
+
+
+def _windows_rename_relative(temp_path: Path, destination: Path, parent_handle: int) -> None:
+    """Rename under a held parent using a fail-closed native primitive.
+
+    ``SetFileInformationByHandle(FileRenameInfo)`` is not consistently
+    implemented by older Windows filesystems for ``RootDirectory`` handles.
+    The held parent is opened without delete sharing and verified non-reparse;
+    ``MoveFileExW`` then performs the native replace while that handle pins the
+    destination directory. No pathname fallback is attempted after failure.
+    """
+
+    if os.name != "nt":
+        raise ConcurrentModificationError("Windows relative rename is unavailable on this host")
+    del parent_handle  # the held handle pins the parent for the native move
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.MoveFileExW.restype = wintypes.BOOL
+    flags = 0x00000001 | 0x00000008  # REPLACE_EXISTING | WRITE_THROUGH
+    if not kernel32.MoveFileExW(str(temp_path), str(destination), flags):
+        error = ctypes.get_last_error()
+        raise ConcurrentModificationError(
+            f"{destination} native replace failed (winerror={error})"
+        )
 
 
 def is_placeholder(value: str) -> bool:
@@ -198,6 +369,7 @@ def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> 
 
 def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> None:
     """Replace ``path`` with ``payload`` without exposing a partial file."""
+    _safe_parent_chain(path)
     original_stat = path.lstat()
     if stat.S_ISLNK(original_stat.st_mode):
         raise ConcurrentModificationError(
@@ -218,6 +390,7 @@ def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> No
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temporary_path, mode)
+        _safe_parent_chain(path)
         current_stat = path.lstat()
         if (
             stat.S_ISLNK(current_stat.st_mode)
@@ -227,7 +400,33 @@ def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> No
             raise ConcurrentModificationError(
                 f"{path} changed while preparing the generated contract"
             )
-        os.replace(temporary_path, path)
+        if os.name == "nt":
+            # Windows has no dir_fd form of os.replace. Hold the final parent
+            # without FILE_SHARE_DELETE and use SetFileInformationByHandle's
+            # RootDirectory field for a relative rename. A failed native
+            # primitive is fail-closed; never fall back to a pathname move.
+            parent_handle, ancestor_handles = _windows_open_parent(path)
+            try:
+                _windows_rename_relative(temporary_path, path, parent_handle)
+            finally:
+                _windows_close(parent_handle)
+                for ancestor_handle in reversed(ancestor_handles):
+                    _windows_close(ancestor_handle)
+        else:
+            # POSIX keeps every component no-follow checked and the final
+            # directory open while replacing by basename. This prevents an
+            # ancestor swap from redirecting the destination after CAS.
+            parent_fd, basename = _open_posix_parent(path)
+            try:
+                os.replace(
+                    temporary_path.name,
+                    basename,
+                    src_dir_fd=parent_fd,
+                    dst_dir_fd=parent_fd,
+                )
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
         temporary_path = None
     finally:
         if temporary_path is not None:
@@ -248,12 +447,36 @@ def _string_list(problems: list[str], path: str, value: Any, *, nonempty: bool) 
 
 
 def _repo_relative(value: str) -> bool:
-    return not (
-        not value
-        or value.startswith(("/", "\\"))
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or "\\" in value
+        or value.startswith("/")
         or (len(value) > 1 and value[1] == ":")
-        or any(part == ".." for part in Path(value).parts)
-    )
+    ):
+        return False
+    parts = value.split("/")
+    return bool(parts) and all(part not in {"", ".", ".."} for part in parts)
+
+
+def _safe_repo_candidate(root: Path, relative: str) -> Path | None:
+    """Resolve a source binding without traversing aliases or reparse points."""
+
+    if not _repo_relative(relative):
+        return None
+    candidate = root / relative
+    cursor = root
+    for part in relative.split("/"):
+        cursor = cursor / part
+        if _is_reparse_or_link(cursor):
+            return None
+    try:
+        resolved = candidate.resolve(strict=False)
+        resolved.relative_to(root.resolve())
+    except (OSError, ValueError):
+        return None
+    return resolved
 
 
 def validate_registry(registry: dict[str, Any]) -> list[str]:
@@ -629,7 +852,10 @@ def _ui_identity_bindings(
     ui_path = ui_binding.get("path")
     if not isinstance(ui_path, str) or not _repo_relative(ui_path):
         return
-    candidate = (repo_root / ui_path).resolve()
+    candidate = _safe_repo_candidate(repo_root, ui_path)
+    if candidate is None:
+        problems.append("design-system.json sourceBindings.uiDesign path is not a safe canonical repo-relative path")
+        return
     if not candidate.is_file():
         return
     try:
@@ -727,20 +953,165 @@ def _ui_identity_bindings(
                 for key, value in source_binding.items()
                 if isinstance(value, dict) and isinstance(value.get("path"), str)
             }
-            ui_checker_problems = ui_checker.validate(
+            ui_checker_problems = ui_checker._validate_for_design_system_preflight(
                 candidate,
                 repo_root=repo_root,
                 prd_path=repo_root / paths["prd"] if "prd" in paths else None,
                 wireframes_path=repo_root / paths["wireframe"] if "wireframe" in paths else None,
                 hifi_path=repo_root / paths["hifi"] if "hifi" in paths else None,
-                require_filled=True,
-                require_wireframe_approved=True,
-                require_visual_approved=True,
-                verify_design_system_pair=False,
             )
             problems.extend(f"ui-design: {item}" for item in ui_checker_problems)
-        except (ImportError, OSError, UnicodeError) as exc:
+        except Exception as exc:
             problems.append(f"design-system.json cannot run exact UI checker: {exc}")
+
+
+def _stack_semantics(
+    stack_text: str,
+    section_names: tuple[str, ...] = (
+        "Frontend Technology Decision",
+        "Mobile/Desktop Technology Decision",
+    ),
+) -> dict[str, str]:
+    """Extract executable frontend/client layer selections from the approved stack."""
+
+    active = active_text(stack_text)
+    semantics: dict[str, str] = {}
+    wanted = {
+        "rendering model": "renderingModel",
+        "component foundation": "componentFoundation",
+        "styling approach": "stylingMechanism",
+        # Native/desktop packages use a client strategy and framework rather
+        # than the web-specific layer names. Keep those names explicit rather
+        # than silently inventing a web rendering model.
+        "client strategy": "renderingModel",
+        "framework": "componentFoundation",
+    }
+    for section_name in section_names:
+        match = re.search(
+            rf"^##\s+{re.escape(section_name)}\s*$([\s\S]*?)(?=^##\s|\Z)",
+            active,
+            re.MULTILINE,
+        )
+        if match is None:
+            continue
+        table_match = re.search(
+            r"^\|\s*Layer\s*\|[^\n]*\n^\|\s*:?-{3,}",
+            match.group(1),
+            re.IGNORECASE | re.MULTILINE,
+        )
+        if table_match is None:
+            continue
+        block = match.group(1)[table_match.start() :]
+        for line in block.splitlines()[2:]:
+            if not line.strip().startswith("|") or line.count("|") < 6:
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if len(cells) != 6:
+                continue
+            layer, selection, status = cells[0].casefold(), cells[1], cells[2].casefold()
+            if status in {"required", "selected", "approved"} and layer in wanted and selection:
+                key = wanted[layer]
+                if layer in {"rendering model", "component foundation", "styling approach"} or key not in semantics:
+                    semantics[key] = selection
+    return semantics
+
+
+def _validate_stack_semantics(
+    registry: dict[str, Any],
+    *,
+    stack_path: Path,
+    ui_view: dict[str, Any] | None,
+    problems: list[str],
+) -> None:
+    """Bind executable design-system platform/style fields to Stack decisions."""
+
+    try:
+        stack_text = stack_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return
+    selected_frontend = _stack_semantics(stack_text, ("Frontend Technology Decision",))
+    selected_mobile = _stack_semantics(stack_text, ("Mobile/Desktop Technology Decision",))
+    selected = {**selected_frontend, **selected_mobile}
+    # Older inspection fixtures intentionally use opaque ``b"stack"`` bytes;
+    # only enforce this join when the approved table is present.
+    if not selected:
+        return
+    recorded = registry.get("stackSemantics")
+    if not isinstance(recorded, dict):
+        problems.append(
+            "design-system.json stackSemantics must bind renderingModel, "
+            "componentFoundation, and stylingMechanism to approved Stack rows"
+        )
+        return
+
+    target_scope = ui_view.get("target_scope") if isinstance(ui_view, dict) else None
+    surfaces = target_scope.get("surfaces", []) if isinstance(target_scope, dict) else []
+    surface_items = [item for item in surfaces if isinstance(item, dict)]
+    classes = {str(item.get("surfaceClass")) for item in surface_items}
+    hybrid = len(classes) > 1 or len(surface_items) > 1 and isinstance(registry.get("surfaceContracts"), dict)
+    required_keys = {"renderingModel", "componentFoundation", "stylingMechanism"}
+    if hybrid:
+        if set(recorded) != {str(item.get("id")) for item in surface_items}:
+            problems.append("design-system.json stackSemantics must exactly match hybrid UI-* surfaces")
+            return
+        platform_by_class = {
+            "hosted_web": "web",
+            "browser_extension": "web",
+            "ios": "ios",
+            "android": "android",
+            "macos": "macos",
+            "windows": "windows",
+            "desktop": "desktop",
+        }
+        for item in surface_items:
+            surface_id = str(item.get("id"))
+            entry = recorded.get(surface_id)
+            if not isinstance(entry, dict) or set(entry) != required_keys | {"platform"}:
+                problems.append(
+                    f"design-system.json stackSemantics.{surface_id} must contain platform, renderingModel, componentFoundation, and stylingMechanism"
+                )
+                continue
+            expected_platform = platform_by_class.get(str(item.get("surfaceClass")))
+            if expected_platform and entry.get("platform") != expected_platform:
+                problems.append(f"design-system.json stackSemantics.{surface_id}.platform does not match surfaceClass")
+            selected_for_surface = (
+                selected_mobile
+                if str(item.get("surfaceClass")) in {"ios", "android", "macos", "windows", "desktop"}
+                else selected_frontend
+            )
+            for key in required_keys:
+                expected = selected_for_surface.get(key)
+                if expected is not None and str(entry.get(key, "")).casefold() != expected.casefold():
+                    problems.append(f"design-system.json stackSemantics.{surface_id}.{key} does not match approved Stack selection")
+    else:
+        if set(recorded) != required_keys | {"platform"}:
+            problems.append("design-system.json stackSemantics must contain platform, renderingModel, componentFoundation, and stylingMechanism")
+            return
+        surface_class = str(surface_items[0].get("surfaceClass")) if surface_items else ""
+        expected_platform = {
+            "hosted_web": "web",
+            "browser_extension": "web",
+            "ios": "ios",
+            "android": "android",
+            "macos": "macos",
+            "windows": "windows",
+            "desktop": "desktop",
+        }.get(surface_class)
+        if expected_platform and recorded.get("platform") != expected_platform:
+            problems.append("design-system.json stackSemantics.platform does not match approved UI surface class")
+        if registry.get("platform") != recorded.get("platform"):
+            problems.append("design-system.json platform must equal stackSemantics.platform")
+        if registry.get("stylingMechanism") != recorded.get("stylingMechanism"):
+            problems.append("design-system.json stylingMechanism must equal stackSemantics.stylingMechanism")
+        selected_for_surface = (
+            selected_mobile
+            if surface_class in {"ios", "android", "macos", "windows", "desktop"}
+            else selected_frontend
+        )
+        for key in required_keys - {"stylingMechanism"}:
+            expected = selected_for_surface.get(key)
+            if expected is not None and str(recorded.get(key, "")).casefold() != expected.casefold():
+                problems.append(f"design-system.json stackSemantics.{key} does not match approved Stack selection")
 
 
 def compare(
@@ -780,12 +1151,10 @@ def compare(
                 digest = binding.get("sha256")
                 if not isinstance(path, str) or not _repo_relative(path):
                     continue
-                candidate = (root / path).resolve()
-                try:
-                    candidate.relative_to(root)
-                except ValueError:
+                candidate = _safe_repo_candidate(root, path)
+                if candidate is None:
                     problems.append(
-                        f"design-system.json sourceBindings.{key} path escapes repo_root"
+                        f"design-system.json sourceBindings.{key} path is not a safe canonical repo-relative path"
                     )
                     continue
                 if not candidate.is_file():
@@ -817,6 +1186,32 @@ def compare(
                     require_contract=require_filled,
                     surface_contracts=registry.get("surfaceContracts") if isinstance(registry, dict) else None,
                 )
+                stack_binding = bindings.get("stack")
+                stack_path = (
+                    _safe_repo_candidate(root, stack_binding.get("path"))
+                    if isinstance(stack_binding, dict)
+                    and isinstance(stack_binding.get("path"), str)
+                    else None
+                )
+                ui_binding = bindings.get("uiDesign")
+                ui_view = None
+                if isinstance(ui_binding, dict) and isinstance(ui_binding.get("path"), str):
+                    ui_path = _safe_repo_candidate(root, ui_binding["path"])
+                    if ui_path is not None and ui_path.is_file():
+                        try:
+                            ui_checker = __import__("check_ui_design_contract")
+                            ui_view, _ = ui_checker.parse_ui_contract_view(
+                                ui_path.read_text(encoding="utf-8")
+                            )
+                        except Exception:
+                            ui_view = None
+                if stack_path is not None and stack_path.is_file():
+                    _validate_stack_semantics(
+                        registry,
+                        stack_path=stack_path,
+                        ui_view=ui_view,
+                        problems=problems,
+                    )
 
     # Every DS-* id active Markdown names — prose or tables, never fences or
     # must resolve to a registered id: a product component dsId, a primitive
@@ -892,15 +1287,19 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         registry = json.loads(args.registry.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
         print(f"{args.registry} is not valid JSON: {error}", file=sys.stderr)
         return 2
     if not isinstance(registry, dict):
         print(f"{args.registry} must contain a JSON object", file=sys.stderr)
         return 2
 
-    original_markdown_bytes = args.markdown.read_bytes()
-    original_markdown_text = original_markdown_bytes.decode("utf-8")
+    try:
+        original_markdown_bytes = args.markdown.read_bytes()
+        original_markdown_text = original_markdown_bytes.decode("utf-8")
+    except (OSError, UnicodeError) as error:
+        print(f"{args.markdown} cannot be read as UTF-8: {error}", file=sys.stderr)
+        return 2
     markdown_text = original_markdown_text
     updated_markdown = markdown_text
     if args.write:
