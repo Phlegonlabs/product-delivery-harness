@@ -380,6 +380,31 @@ class ParityCaptureTests(unittest.TestCase):
         finally:
             os.close(descriptor)
 
+    @unittest.skipUnless(os.name != "nt", "descriptor launcher fixture is POSIX-only")
+    def test_posix_symlink_launcher_fails_closed_and_resolved_inode_stays_bound(self) -> None:
+        original = self.root / "original"
+        replacement = self.root / "replacement"
+        link = self.root / "agent-browser"
+        original.write_text("#!/bin/sh\nprintf original\n", encoding="utf-8")
+        replacement.write_text("#!/bin/sh\nprintf replacement\n", encoding="utf-8")
+        original.chmod(0o755)
+        replacement.chmod(0o755)
+        try:
+            link.symlink_to(original)
+        except OSError as exc:
+            self.skipTest(f"symlink unavailable: {exc}")
+        with self.assertRaises((OSError, RuntimeError)):
+            parity_capture._bind_posix_launcher(link)
+        bound, descriptor = parity_capture._bind_posix_launcher(original)
+        try:
+            os.replace(replacement, original)
+            completed = subprocess.run(
+                [bound], pass_fds=(descriptor,), capture_output=True, text=True, check=False
+            )
+            self.assertEqual("original\n", completed.stdout)
+        finally:
+            os.close(descriptor)
+
     def test_windows_npm_shim_resolves_to_direct_node_argv(self) -> None:
         npm_bin = self.root / "npm-bin"
         javascript = (

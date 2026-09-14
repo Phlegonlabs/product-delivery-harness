@@ -539,6 +539,50 @@ class InstallScriptTests(unittest.TestCase):
         )
 
     @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
+    def test_powershell_short_alias_normalizes_stage_manifest_and_rollback(self) -> None:
+        """Exercise Get-Item FullName normalization through an 8.3 alias."""
+
+        import ctypes
+
+        self.seed_managed_copies()
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetShortPathNameW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+        kernel32.GetShortPathNameW.restype = ctypes.c_uint32
+
+        def short_path(path: Path) -> Path:
+            buffer = ctypes.create_unicode_buffer(32768)
+            length = kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
+            if not length or buffer.value.casefold() == str(path).casefold():
+                self.skipTest("8.3 short-name generation is disabled on this filesystem")
+            return Path(buffer.value)
+
+        destination_alias = short_path(self.destination)
+        self.backup_root.mkdir(parents=True, exist_ok=True)
+        backup_alias = short_path(self.backup_root)
+        common = [
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            str(REPO_ROOT / "install.ps1"), "-Destination", str(destination_alias),
+            "-BackupRoot", str(backup_alias),
+        ]
+        failed = subprocess.run(
+            [POWERSHELL, *common], capture_output=True, text=True,
+            cwd=self.home, timeout=180,
+            env={**os.environ, "PDH_INSTALL_FAIL_AFTER": "delivery-harness"},
+        )
+        self.assertNotEqual(0, failed.returncode, failed.stderr or failed.stdout)
+        self.assert_old_copies_restored()
+
+        succeeded = subprocess.run(
+            [POWERSHELL, *common], capture_output=True, text=True,
+            cwd=self.home, timeout=180,
+            env={**os.environ, "PDH_INSTALL_FAIL_AFTER": ""},
+        )
+        self.assertEqual(0, succeeded.returncode, succeeded.stderr or succeeded.stdout)
+        self.assert_full_install()
+        backups = [child for child in self.backup_root.iterdir() if child.is_dir()]
+        self.assertEqual(1, len(backups))
+
+    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
     def test_powershell_rejects_destination_and_backup_junctions_before_mutation(self) -> None:
         command_prefix = [
             POWERSHELL,

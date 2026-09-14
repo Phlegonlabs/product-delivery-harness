@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import os
+import ctypes
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -265,6 +266,37 @@ class HarnessGitTests(unittest.TestCase):
                         return_value=subprocess.CompletedProcess([str(tool)], 0, output, ""),
                     ):
                         self.assertTrue(module._windows_parent_user_writable(Path(temp)))
+
+    @unittest.skipUnless(os.name == "nt", "Windows restricted-token fixture only")
+    def test_restricted_probe_token_disables_enabled_administrators(self) -> None:
+        import harness_git as module
+        from ctypes import wintypes
+
+        sid_buffer = ctypes.create_string_buffer(b"fixture-admin-sid")
+        get_info = Mock()
+
+        def get_token_information(_token, _kind, buffer, length, returned):
+            if buffer is None:
+                returned._obj.value = 64
+                return False
+            ctypes.c_uint32.from_buffer(buffer).value = 1
+            ctypes.c_void_p.from_buffer(buffer, 8).value = ctypes.addressof(sid_buffer)
+            ctypes.c_uint32.from_buffer(buffer, 8 + ctypes.sizeof(ctypes.c_void_p)).value = 4
+            return True
+
+        get_info.side_effect = get_token_information
+        convert_sid = Mock(side_effect=lambda _sid, output: (setattr(output._obj, "value", "S-1-5-32-544") or True))
+        create_restricted = Mock(side_effect=lambda *_args: (setattr(_args[-1]._obj, "value", 100) or True))
+        duplicate = Mock(side_effect=lambda *_args: (setattr(_args[-1]._obj, "value", 200) or True))
+        advapi = type("FakeAdvapi", (), {})()
+        advapi.GetTokenInformation = get_info
+        advapi.ConvertSidToStringSidW = convert_sid
+        advapi.CreateRestrictedToken = create_restricted
+        advapi.DuplicateTokenEx = duplicate
+        kernel32 = type("FakeKernel", (), {"LocalFree": lambda *_: None, "CloseHandle": lambda *_: None})()
+        token = module._windows_restricted_probe_token(advapi, kernel32, wintypes.HANDLE(42))
+        self.assertEqual(200, token.value)
+        create_restricted.assert_called_once()
 
     @unittest.skipUnless(os.name == "nt", "Windows owner/access fixture only")
     def test_program_files_path_does_not_bypass_native_owner_access_check(self) -> None:
