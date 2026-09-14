@@ -332,10 +332,32 @@ def prior_append_findings(prior_text: str, current_text: str) -> list[str]:
     """Enforce append-only preservation of a prior outcome's historical rows."""
 
     findings: list[str] = []
-    if _schema(prior_text) == "outcome-review/2" or _schema(current_text) == "outcome-review/2":
-        if _schema(current_text) != "outcome-review/2":
-            findings.append("Prior outcome: --prior-outcome appends require current Schema outcome-review/2")
-            return findings
+    schema2_history = (
+        _schema(prior_text) == "outcome-review/2"
+        or _schema(current_text) == "outcome-review/2"
+    )
+    if schema2_history and _schema(current_text) != "outcome-review/2":
+        findings.append(
+            "Prior outcome: --prior-outcome appends require current Schema outcome-review/2"
+        )
+
+    # Every retained outcome family is immutable in both schema versions.  Keep
+    # this pass outside the typed Verdict History branch so schema-2 cannot
+    # bypass target/source/measurement/follow-up preservation.
+    for heading in IMMUTABLE_HISTORY_SECTIONS:
+        prior_rows = _raw_table_rows(prior_text, heading)
+        if not prior_rows:
+            continue
+        current_rows = _raw_table_rows(current_text, heading)
+        if len(current_rows) < len(prior_rows):
+            findings.append(f"Prior outcome: {heading} deleted historical row(s)")
+            continue
+        if current_rows[: len(prior_rows)] != prior_rows:
+            findings.append(
+                f"Prior outcome: {heading} historical rows must remain byte-identical and ordered"
+            )
+
+    if schema2_history and _schema(current_text) == "outcome-review/2":
         if _schema(prior_text) == "outcome-review/2":
             prior_record = _fields(_section(prior_text, "## Record") or [])
             findings.extend(
@@ -367,27 +389,15 @@ def prior_append_findings(prior_text: str, current_text: str) -> list[str]:
                 findings.append(
                     "Prior outcome: Verdict History last row must match the prior outcome digest and authoritative Verdict section"
                 )
-        return findings
-    for heading in IMMUTABLE_HISTORY_SECTIONS:
-        prior_rows = _raw_table_rows(prior_text, heading)
-        if not prior_rows:
-            continue
-        current_rows = _raw_table_rows(current_text, heading)
-        if len(current_rows) < len(prior_rows):
-            findings.append(f"Prior outcome: {heading} deleted historical row(s)")
-            continue
-        if current_rows[: len(prior_rows)] != prior_rows:
-            findings.append(
-                f"Prior outcome: {heading} historical rows must remain byte-identical and ordered"
-            )
-    prior_verdict = _authoritative_verdict(prior_text)
-    current_verdict_lines = {
-        line.strip()
-        for line in (_section(current_text, "## Verdict") or [])
-        if line.strip().startswith("Verdict:")
-    }
-    if prior_verdict is not None and f"Verdict: {prior_verdict[0]} — {prior_verdict[1]}" not in current_verdict_lines:
-        findings.append("Prior outcome: prior verdict history must remain present")
+    elif not schema2_history:
+        prior_verdict = _authoritative_verdict(prior_text)
+        current_verdict_lines = {
+            line.strip()
+            for line in (_section(current_text, "## Verdict") or [])
+            if line.strip().startswith("Verdict:")
+        }
+        if prior_verdict is not None and f"Verdict: {prior_verdict[0]} — {prior_verdict[1]}" not in current_verdict_lines:
+            findings.append("Prior outcome: prior verdict history must remain present")
     return findings
 
 

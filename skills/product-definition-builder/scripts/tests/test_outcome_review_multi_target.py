@@ -154,8 +154,8 @@ def schema2_multi_target_outcome() -> str:
     return outcome.replace("\n## Activation Sources", history + "\n## Activation Sources", 1)
 
 
-def append_schema2_multi_history(prior: str) -> str:
-    current = schema2_multi_target_outcome()
+def append_schema2_multi_history(prior: str, *, current: str | None = None) -> str:
+    current = current or schema2_multi_target_outcome()
     prior_digest = hashlib.sha256(prior.encode("utf-8")).hexdigest()
     details = check_outcome_review._authoritative_verdict(prior)
     assert details is not None
@@ -167,6 +167,16 @@ def append_schema2_multi_history(prior: str) -> str:
         1,
     )
     return current.replace("| none | none | none | none |", row, 1)
+
+
+def replace_in_section(text: str, heading: str, old: str, new: str) -> str:
+    start = text.index(heading)
+    end = text.find("\n## ", start + len(heading))
+    if end == -1:
+        end = len(text)
+    section = text[start:end]
+    assert old in section
+    return text[:start] + section.replace(old, new, 1) + text[end:]
 
 
 def incident_multi_target_outcome() -> str:
@@ -207,6 +217,34 @@ class MultiTargetOutcomeReviewTests(unittest.TestCase):
         current = append_schema2_multi_history(prior)
         self.assertEqual([], check_outcome_review.prior_append_findings(prior, current))
         self.assertEqual([], self.check(current))
+
+    def test_schema2_prior_append_checks_target_history_families(self) -> None:
+        families = {
+            "## Target Reviews": next(
+                line for line in schema2_multi_target_outcome().splitlines()
+                if line.startswith("| api-prod | " + SHA)
+            ),
+            "## Target Measurements": "| Completion | api-prod | 0 | 90% | 2026-08-02 | 2026-09-01 | observed api-prod | MS-001 |",
+        }
+        for heading, row in families.items():
+            for mutation in ("delete", "rewrite", "reorder"):
+                with self.subTest(heading=heading, mutation=mutation):
+                    prior = schema2_multi_target_outcome()
+                    if mutation == "reorder":
+                        extra = row.replace("| api-prod |", "| appended-prod |", 1)
+                        prior = replace_in_section(prior, heading, row, row + "\n" + extra)
+                        current = append_schema2_multi_history(prior, current=prior)
+                        current = replace_in_section(current, heading, row + "\n" + extra, extra + "\n" + row)
+                    else:
+                        current = append_schema2_multi_history(prior, current=prior)
+                        if mutation == "delete":
+                            current = replace_in_section(current, heading, row + "\n", "")
+                        else:
+                            current = replace_in_section(
+                                current, heading, row, row.replace("| ", "| rewritten ", 1)
+                            )
+                    findings = "\n".join(check_outcome_review.prior_append_findings(prior, current))
+                    self.assertIn(f"Prior outcome: {heading}", findings)
 
     def test_rotating_first_target_is_rejected(self) -> None:
         rotated = multi_target_outcome().replace(

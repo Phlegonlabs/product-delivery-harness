@@ -121,6 +121,16 @@ def append_schema2_history(prior: str, *, current: str | None = None) -> str:
     )
 
 
+def replace_in_section(text: str, heading: str, old: str, new: str) -> str:
+    start = text.index(heading)
+    end = text.find("\n## ", start + len(heading))
+    if end == -1:
+        end = len(text)
+    section = text[start:end]
+    assert old in section
+    return text[:start] + section.replace(old, new, 1) + text[end:]
+
+
 class OutcomeReviewTests(unittest.TestCase):
     def check(self, outcome: str) -> list[str]:
         # Outcome tests isolate the Outcome contract; the activation gate is
@@ -408,6 +418,36 @@ class OutcomeReviewTests(unittest.TestCase):
         )
         findings = "\n".join(self.check(broken))
         self.assertIn("duplicate none placeholder rows", findings)
+
+    def test_schema2_prior_append_checks_every_immutable_history_family(self) -> None:
+        families = {
+            "## Activation Sources": "| MS-001 | web-prod@" + SHA + "#" + ARTIFACT + " | analytics owner | 2026-09-07T18:02:00Z | EVID-004 bounded verified query |",
+            "## Measurements": "| Activation rate | none recorded | 70% in 14 days | 2026-09-07 | 2026-09-09 | 72% | MS-001 |",
+            "## Feedback": "| Setup completion exceeded target | MS-001 | 72% |",
+            "## Incident Response": "| none | n/a | n/a | n/a | n/a | n/a |",
+            "## Open Follow-ups": "| none | none |",
+        }
+        for heading, row in families.items():
+            for mutation in ("delete", "rewrite", "reorder"):
+                with self.subTest(heading=heading, mutation=mutation):
+                    prior = schema2_outcome()
+                    current_source = prior
+                    if mutation == "reorder":
+                        extra = row.replace("| ", "| appended ", 1)
+                        prior = replace_in_section(prior, heading, row, row + "\n" + extra)
+                        current_source = prior
+                        current = append_schema2_history(prior, current=current_source)
+                        current = replace_in_section(current, heading, row + "\n" + extra, extra + "\n" + row)
+                    else:
+                        current = append_schema2_history(prior, current=current_source)
+                        if mutation == "delete":
+                            current = replace_in_section(current, heading, row + "\n", "")
+                        else:
+                            current = replace_in_section(
+                                current, heading, row, row.replace("| ", "| rewritten ", 1)
+                            )
+                    findings = "\n".join(check_outcome_review.prior_append_findings(prior, current))
+                    self.assertIn(f"Prior outcome: {heading}", findings)
 
     def test_prior_outcome_history_allows_only_ordered_append_rows(self) -> None:
         prior = valid_outcome()
