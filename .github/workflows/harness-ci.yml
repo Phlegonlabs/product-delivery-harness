@@ -114,6 +114,10 @@ jobs:
       - name: Verify PowerShell installer syntax and dependency check route
         shell: pwsh
         run: |-
+          # GitHub's pwsh shell forces ErrorActionPreference to Stop, which
+          # kills this step on the first captured stderr record from the
+          # dependency check; the explicit throws below decide failure.
+          $ErrorActionPreference = "Continue"
           $tokens = $null
           $errors = $null
           [void][System.Management.Automation.Language.Parser]::ParseFile(

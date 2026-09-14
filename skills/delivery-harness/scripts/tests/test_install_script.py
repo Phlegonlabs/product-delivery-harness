@@ -539,6 +539,7 @@ class InstallScriptTests(unittest.TestCase):
         )
 
     @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
+    @unittest.skipIf(os.name != "nt", "GetShortPathNameW 8.3 aliases are Windows-only")
     def test_powershell_short_alias_normalizes_stage_manifest_and_rollback(self) -> None:
         """Exercise Get-Item FullName normalization through an 8.3 alias."""
 
