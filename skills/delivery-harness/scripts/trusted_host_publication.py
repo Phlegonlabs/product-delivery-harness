@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from harness_git import git_environment, git_executable
+from harness_git import git_environment, git_executable, _windows_parent_user_writable
 from push_archived_candidate import (
     EXECUTION_EVIDENCE_NAMESPACE,
     EXECUTION_EVIDENCE_PROTOCOL,
@@ -54,6 +54,150 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _reserve_output(path: Path) -> tuple[int, tuple[int, int, int]]:
+    """Create one exclusive output reservation and retain its inode identity."""
+
+    try:
+        if os.name == "nt":
+            import ctypes
+            import msvcrt
+            from ctypes import wintypes
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CreateFileW.restype = wintypes.HANDLE
+            handle = kernel32.CreateFileW(
+                str(path),
+                0xC0000000,  # GENERIC_READ | GENERIC_WRITE
+                0,  # deny concurrent write/delete/replacement
+                None,
+                1,  # CREATE_NEW
+                0x00000080 | 0x00200000,  # NORMAL | OPEN_REPARSE_POINT
+                None,
+            )
+            if handle in (None, wintypes.HANDLE(-1).value):
+                raise OSError(ctypes.get_last_error(), "CreateFileW CREATE_NEW failed")
+            fd = msvcrt.open_osfhandle(int(handle), os.O_RDWR | getattr(os, "O_BINARY", 0))
+        else:
+            flags = os.O_CREAT | os.O_EXCL | os.O_RDWR
+            fd = os.open(path, flags, 0o600)
+        info = os.fstat(fd)
+    except OSError as exc:
+        raise RuntimeError(f"cannot reserve exclusive output {path}: {exc}") from exc
+    return fd, (int(info.st_dev), int(info.st_ino), int(info.st_size))
+
+
+def _assert_reserved_output(path: Path, fd: int, identity: tuple[int, int, int]) -> None:
+    try:
+        current = path.stat()
+        held = os.fstat(fd)
+    except OSError as exc:
+        raise RuntimeError(f"reserved output changed or disappeared: {path}") from exc
+    if (int(current.st_dev), int(current.st_ino), int(current.st_size)) != (
+        identity[0], identity[1], int(held.st_size)
+    ):
+        raise RuntimeError(f"reserved output was replaced before publication: {path}")
+
+
+def _write_reserved_output(fd: int, payload: bytes) -> None:
+    os.ftruncate(fd, 0)
+    os.lseek(fd, 0, os.SEEK_SET)
+    view = memoryview(payload)
+    while view:
+        written = os.write(fd, view)
+        view = view[written:]
+    os.fsync(fd)
+
+
+def _validate_one_line_issuer(value: object) -> str:
+    if not isinstance(value, str) or not value.strip() or value != value.strip() or any(
+        character in value for character in "\r\n"
+    ) or len(value) > 200:
+        raise RuntimeError("trusted-host issuer must be one substantive line")
+    if not any(character.isalnum() for character in value):
+        raise RuntimeError("trusted-host issuer must contain an alphanumeric identity")
+    return value
+
+
+def _validate_signing_key(path: Path, root: Path) -> Path:
+    key = path.resolve(strict=True)
+    if not key.is_file() or path.is_symlink():
+        raise RuntimeError("machine signing key must be a regular non-reparse file")
+    try:
+        key.relative_to(root.resolve())
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError("machine signing key must stay outside the repository")
+    if os.name != "nt":
+        for component in (key, *key.parents):
+            info = component.stat()
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise RuntimeError("machine signing key path must be root-owned and not writable by group/other")
+        if key.stat().st_mode & 0o077:
+            raise RuntimeError("machine signing key must be mode 0600 or stricter")
+    elif _windows_parent_user_writable(key.parent):
+        raise RuntimeError("machine signing key parent ACL is user-writable")
+    return key
+
+
+def _challenge_sign_and_verify(
+    payload: bytes,
+    *,
+    key: Path,
+    verifier: Path,
+    verifier_sha256: str,
+    signers: Path,
+    principal: str,
+    output_dir: Path,
+) -> None:
+    """Prove the key, verifier, policy, principal, and namespace before push."""
+
+    challenge_dir = Path(tempfile.mkdtemp(prefix="trusted-host-challenge-", dir=output_dir))
+    signature = challenge_dir / "challenge.sig"
+    try:
+        _sign_payload(
+            payload,
+            key,
+            verifier,
+            verifier_sha256,
+            output_dir=challenge_dir,
+            signature_path=signature,
+        )
+        env = git_environment()
+        verified = subprocess.run(
+            [
+                str(verifier),
+                "-Y",
+                "verify",
+                "-f",
+                str(signers),
+                "-I",
+                principal,
+                "-n",
+                EXECUTION_EVIDENCE_NAMESPACE,
+                "-s",
+                str(signature),
+            ],
+            input=payload,
+            capture_output=True,
+            timeout=30,
+            check=False,
+            env=env,
+        )
+        if verified.returncode != 0:
+            detail = verified.stderr.decode(errors="replace") if isinstance(verified.stderr, bytes) else str(verified.stderr)
+            raise RuntimeError(detail.strip() or "machine challenge signature verification failed")
+    finally:
+        try:
+            signature.unlink()
+        except OSError:
+            pass
+        try:
+            challenge_dir.rmdir()
+        except OSError:
+            pass
 
 
 def _remote_head(url: str, branch_ref: str, *, cwd: Path) -> str | None:
@@ -160,11 +304,89 @@ def execute(args: argparse.Namespace) -> int:
         candidate_a=request["candidate_a"],
     )
     _request_matches_authority(request, authority)
-    url = _pre_push_recheck(root, request, authority)
-    policy = _discover_machine_trust_policy(root=Path.cwd())
+    issuer = _validate_one_line_issuer(args.trusted_host_issuer)
+    evidence_path = args.evidence_out.resolve(strict=False)
+    if evidence_path.exists():
+        raise RuntimeError("evidence output already exists; refusing to overwrite")
+    signature_path = evidence_path.with_suffix(".sig")
+    if signature_path.exists():
+        raise RuntimeError("signature output already exists; refusing to overwrite")
     try:
+        evidence_path.relative_to(root.resolve())
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError("evidence output must stay outside the repository")
+    signing_key = _validate_signing_key(Path(args.signing_key), root)
+    verifier = Path(_discover_os_managed_verifier(root=root)).resolve(strict=True)
+    if str(verifier) != str(Path(request["signature_verifier_path"]).resolve(strict=True)):
+        raise RuntimeError("OS-managed signature verifier path does not match request")
+    if _sha256_file(verifier) != request["signature_verifier_sha256"]:
+        raise RuntimeError("OS-managed signature verifier hash does not match request")
+    policy = _discover_machine_trust_policy(root=Path.cwd())
+    evidence_fd: int | None = None
+    signature_fd: int | None = None
+    evidence_reserved = False
+    signature_reserved = False
+    evidence_written = False
+    signature_written = False
+    private_signature_path = evidence_path.parent / f".publication-private-{secrets.token_hex(8)}.sig"
+    try:
+        evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        evidence_fd, evidence_identity = _reserve_output(evidence_path)
+        evidence_reserved = True
+        try:
+            signature_fd, signature_identity = _reserve_output(signature_path)
+            signature_reserved = True
+        except Exception:
+            try:
+                _assert_reserved_output(evidence_path, evidence_fd, evidence_identity)
+                evidence_path.unlink()
+            except (OSError, RuntimeError):
+                pass
+            finally:
+                os.close(evidence_fd)
+                evidence_fd = None
+            raise
         if policy.policy_id != request["trust_policy_id"] or policy.allowed_signers_sha256 != request["trust_policy_sha256"] or policy.principal != request["trusted_host_principal"]:
             raise RuntimeError("machine trust policy changed since request creation")
+        challenge_payload = json.dumps(
+            {
+                "protocol": "trusted-host-publication-challenge-v1",
+                "request_sha256": request["request_sha256"],
+                "attempt_sha256": attempt.get("attempt_sha256") or _digest(attempt),
+                "execution_nonce": request["execution_nonce"],
+                "principal": policy.principal,
+                "namespace": EXECUTION_EVIDENCE_NAMESPACE,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        _challenge_sign_and_verify(
+            challenge_payload,
+            key=signing_key,
+            verifier=verifier,
+            verifier_sha256=request["signature_verifier_sha256"],
+            signers=policy.allowed_signers_path,
+            principal=policy.principal,
+            output_dir=evidence_path.parent,
+        )
+        assert evidence_fd is not None and signature_fd is not None
+        _assert_reserved_output(evidence_path, evidence_fd, evidence_identity)
+        _assert_reserved_output(signature_path, signature_fd, signature_identity)
+        # Re-read the immutable request/attempt and remote state only after the
+        # challenge has proven the key/policy/verifier; this is the final
+        # pre-side-effect boundary.
+        request = _load_request(request_path, root)
+        attempt = _load_attempt(request, root)
+        authority = verify_archive_candidate(
+            root,
+            archive_path=root / request["archive_path"],
+            candidate_a=request["candidate_a"],
+        )
+        _request_matches_authority(request, authority)
+        url = _pre_push_recheck(root, request, authority)
         push_argv = _execution_argv(request)
         executable_argv = [git_executable(), *push_argv[1:]]
         env = git_environment()
@@ -176,9 +398,6 @@ def execute(args: argparse.Namespace) -> int:
         readback = _remote_head(url, request["branch_ref"], cwd=Path.cwd())
         if readback != request["candidate_a"]:
             raise RuntimeError("trusted-host remote readback does not equal candidate A")
-        issuer = args.trusted_host_issuer.strip()
-        if not issuer or len(issuer) > 200 or any(character in issuer for character in "\r\n"):
-            raise RuntimeError("trusted-host issuer must be one non-empty line")
         payload = {
             "protocol": EXECUTION_EVIDENCE_PROTOCOL,
             "request_sha256": request["request_sha256"],
@@ -210,32 +429,56 @@ def execute(args: argparse.Namespace) -> int:
             },
             "executed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
-        signature_path = args.evidence_out.parent / f"publication-{secrets.token_hex(8)}.sig"
         payload["authentication_proof"]["signature_path"] = str(signature_path)
-        signing_key = Path(args.signing_key).resolve(strict=True)
-        try:
-            signing_key.relative_to(root)
-        except ValueError:
-            pass
-        else:
-            raise RuntimeError("machine signing key must stay outside the repository")
-        verifier = Path(request["signature_verifier_path"]).resolve(strict=True)
-        signature_path, signature_sha = _sign_payload(
+        _, signature_sha = _sign_payload(
             json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8"),
             signing_key,
             verifier,
             request["signature_verifier_sha256"],
-            output_dir=args.evidence_out.parent,
-            signature_path=signature_path,
+            output_dir=evidence_path.parent,
+            signature_path=private_signature_path,
         )
-        payload["authentication_proof"]["signature_sha256"] = signature_sha
+        signature_bytes = private_signature_path.read_bytes()
+        _assert_reserved_output(evidence_path, evidence_fd, evidence_identity)
+        _assert_reserved_output(signature_path, signature_fd, signature_identity)
+        _write_reserved_output(signature_fd, signature_bytes)
+        signature_written = True
+        try:
+            private_signature_path.unlink()
+        except OSError:
+            pass
+        payload["authentication_proof"]["signature_path"] = str(signature_path)
+        payload["authentication_proof"]["signature_sha256"] = hashlib.sha256(signature_bytes).hexdigest()
         payload["evidence_sha256"] = _digest(payload)
-        args.evidence_out.parent.mkdir(parents=True, exist_ok=True)
-        with args.evidence_out.open("x", encoding="utf-8", newline="\n") as handle:
-            json.dump(payload, handle, sort_keys=True, indent=2, ensure_ascii=False)
-            handle.write("\n")
+        evidence_bytes = (json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+        _write_reserved_output(evidence_fd, evidence_bytes)
+        evidence_written = True
     finally:
         policy.cleanup()
+        if signature_reserved and not signature_written and signature_path.exists():
+            try:
+                _assert_reserved_output(signature_path, signature_fd, signature_identity)
+                signature_path.unlink()
+            except OSError:
+                pass
+            except RuntimeError:
+                pass
+        if evidence_reserved and not evidence_written and evidence_path.exists():
+            try:
+                _assert_reserved_output(evidence_path, evidence_fd, evidence_identity)
+                evidence_path.unlink()
+            except OSError:
+                pass
+            except RuntimeError:
+                pass
+        try:
+            private_signature_path.unlink()
+        except OSError:
+            pass
+        if signature_fd is not None:
+            os.close(signature_fd)
+        if evidence_fd is not None:
+            os.close(evidence_fd)
     print(args.evidence_out)
     return 0
 

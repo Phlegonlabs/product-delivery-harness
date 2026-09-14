@@ -11,6 +11,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_product_package  # noqa: E402
+import contract_utils  # noqa: E402
 from git_evidence import GitEvidenceError, verify_revision_path  # noqa: E402
 from prd_ui_contract import validate_prd_wireframe_data  # noqa: E402
 
@@ -97,7 +98,8 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
 <!-- product-definition-approval:start -->
 ### Product Definition Approval
 - Package mode: {mode}
-- Package revision: PD-R1
+- Package revision: PD-R1@sha256:e8bb1cd27acddeb3fd2be4ed21ad941d2a86e333767ad980c0bbc8441658cba4
+- Package digest: sha256:e8bb1cd27acddeb3fd2be4ed21ad941d2a86e333767ad980c0bbc8441658cba4
 - Decision: approved
 - Decision owner: Owner
 - Decided on: 2026-09-12
@@ -185,6 +187,10 @@ def valid_stack(*, status: str = "Approved", decision: str = "approved") -> str:
 - Approved areas: frontend
 - Delegated choices: none
 - Open areas: none
+- Checkpoint digest: sha256:f9b21aca0ae23212aaa44b326c778e566dd5ac5b133fa4ef5da088ec48a9ada3
+- Applicable areas: none
+- Resolved areas: none
+- Approved option map: OPT-FE-01=frontend
 <!-- stack-decision-checkpoint:end -->
 
 ### Coherent Options Presented
@@ -309,6 +315,39 @@ def release_architecture(
     )
 
 
+def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple[str, str, str]:
+    """Render fixture approval fields from the exact candidate bytes."""
+
+    zero = "0" * 64
+    prd = re.sub(r"- Package revision:.*", f"- Package revision: PD-R1@sha256:{zero}", prd, count=1)
+    prd = re.sub(r"- Package digest:.*", f"- Package digest: sha256:{zero}", prd, count=1)
+    stack = re.sub(r"- Checkpoint digest:.*", f"- Checkpoint digest: sha256:{zero}", stack, count=1)
+    contract, _ = check_product_package.parse_release_targets(architecture)
+    areas = check_product_package.release_area_requirements(contract.targets)
+    ui_surfaces, _ = check_product_package.parse_prd_ui_contract(prd, require_responsive=True)
+    for surface in ui_surfaces.values():
+        areas.add("mobile or desktop" if surface.get("responsiveKind") == "sizeClasses" else "frontend")
+    if "AI and Automation Gate: required" in prd:
+        areas.add("ai or automation")
+    if "Data and Trust Gate: required" in prd:
+        areas.add("backend or data")
+    if "Monetization Infrastructure Gate | required" in prd or "Partner Channel Gate | required" in prd:
+        areas.add("commercial")
+    area_value = ", ".join(sorted(areas)) if areas else "none"
+    stack = re.sub(r"- Applicable areas:.*", f"- Applicable areas: {area_value}", stack, count=1)
+    stack = re.sub(r"- Resolved areas:.*", f"- Resolved areas: {area_value}", stack, count=1)
+    approved_map = ["OPT-FE-01=frontend"] if "OPT-FE-01" in stack else []
+    if "OPT-MOB-01" in stack and "| approved |" in stack:
+        approved_map.append("OPT-MOB-01=mobile or desktop")
+    stack = re.sub(
+        r"- Approved option map:.*",
+        "- Approved option map: " + (", ".join(approved_map) or "none"),
+        stack,
+        count=1,
+    )
+    return contract_utils.finalize_approval_digests(prd, architecture, stack)
+
+
 class ProductPackageCheckerTests(unittest.TestCase):
     def validate(
         self,
@@ -327,10 +366,15 @@ class ProductPackageCheckerTests(unittest.TestCase):
                 if "<!-- ui-surface-contract:start -->" in selected_prd
                 else valid_architecture()
             )
+        selected_stack = stack if stack is not None else valid_stack()
+        if require_approved:
+            selected_prd, selected_architecture, selected_stack = strictize_approved_package(
+                selected_prd, selected_architecture, selected_stack
+            )
         return check_product_package.validate_texts(
             selected_prd,
             selected_architecture,
-            stack if stack is not None else valid_stack(),
+            selected_stack,
             require_filled=True,
             require_approved=require_approved,
             repo_root=repo_root,
@@ -338,6 +382,69 @@ class ProductPackageCheckerTests(unittest.TestCase):
 
     def test_approved_package_passes(self) -> None:
         self.assertEqual([], self.validate())
+
+    def test_strict_approval_requires_digests_structured_revision_and_identities(self) -> None:
+        prd = valid_prd()
+        architecture = valid_architecture().replace("# Architecture: Fixture", "# Architecture", 1)
+        stack = valid_stack().replace("# Stack Decisions: Fixture", "# Stack Decisions", 1)
+        prd = re.sub(r"^- Package revision:.*\n", "- Package revision: PD-R1\n", prd, flags=re.MULTILINE)
+        prd = re.sub(r"^- Package digest:.*\n", "", prd, flags=re.MULTILINE)
+        stack = re.sub(r"^- Checkpoint digest:.*\n", "", stack, flags=re.MULTILINE)
+        findings = check_product_package.validate_texts(
+            prd, architecture, stack, require_filled=True, require_approved=True
+        )
+        joined = "\n".join(findings)
+        self.assertIn("Package digest", joined)
+        self.assertIn("non-empty canonical product identity", joined)
+        self.assertIn("Checkpoint digest", joined)
+
+    def test_strict_approval_digest_binds_exact_approved_bytes(self) -> None:
+        prd, architecture, stack = strictize_approved_package(
+            valid_prd(), valid_architecture(), valid_stack()
+        )
+        mutated = prd.replace(
+            "Delivery owners need one observable way",
+            "Delivery owners need a different observable way",
+            1,
+        )
+        findings = check_product_package.validate_texts(
+            mutated, architecture, stack, require_filled=True, require_approved=True
+        )
+        self.assertIn("Package digest does not match", "\n".join(findings))
+
+    def test_strict_approval_requires_exact_applicable_resolved_areas_and_option_map(self) -> None:
+        prd, architecture, stack = strictize_approved_package(
+            valid_prd(), valid_architecture(), valid_stack()
+        )
+        wrong_areas = stack.replace("- Applicable areas: none", "- Applicable areas: frontend", 1)
+        wrong_map = stack.replace("- Approved option map: OPT-FE-01=frontend", "- Approved option map: OPT-FE-02=frontend", 1)
+        for candidate, expected in (
+            (wrong_areas, "Applicable areas must exactly match"),
+            (wrong_map, "Approved option map does not exactly match"),
+        ):
+            with self.subTest(expected=expected):
+                findings = check_product_package.validate_texts(
+                    prd, architecture, candidate, require_filled=True, require_approved=True
+                )
+                self.assertIn(expected, "\n".join(findings))
+
+    def test_strict_approval_requires_exact_open_assumption_and_question_references(self) -> None:
+        prd = valid_prd().replace(
+            "| --- | --- | --- | --- | --- | --- |\n## Open Questions",
+            "| --- | --- | --- | --- | --- | --- |\n| data assumption | impact | owner validation | Owner | 2026-09-12 | accepted |\n## Open Questions",
+            1,
+        ).replace(
+            "| --- | --- | --- | --- | --- | --- |\n## Test Obligations",
+            "| --- | --- | --- | --- | --- | --- |\n| launch question | why it matters | Owner | 2026-09-12 | No | open |\n## Test Obligations",
+            1,
+        )
+        prd, architecture, stack = strictize_approved_package(
+            prd, valid_architecture(), valid_stack()
+        )
+        findings = check_product_package.validate_texts(
+            prd, architecture, stack, require_filled=True, require_approved=True
+        )
+        self.assertIn("must reference every applicable row", "\n".join(findings))
 
     def test_code_and_outer_comments_cannot_supply_contracts(self) -> None:
         fenced = valid_prd().replace(

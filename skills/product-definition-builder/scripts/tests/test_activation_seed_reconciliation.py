@@ -381,6 +381,9 @@ class ProductDefinitionActivationSeedTests(unittest.TestCase):
             + "\n"
         )
         prd = product_fixtures.valid_prd()
+        prd, architecture, stack = product_fixtures.strictize_approved_package(
+            prd, architecture, stack
+        )
         contract, target_findings = parse_release_targets(architecture)
         self.assertEqual([], target_findings)
         self.assertEqual(

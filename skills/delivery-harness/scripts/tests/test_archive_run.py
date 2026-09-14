@@ -347,6 +347,23 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertEqual(b"filtered bytes\n", filtered)
         self.assertEqual(before, after)
 
+    def test_documents_exact_commit_boundary_edit_is_preserved(self) -> None:
+        documents = self.root / "docs" / "DOCUMENTS.md"
+        original = documents.read_bytes()
+
+        def inject_boundary_edit(root: Path, path: Path) -> None:
+            path.write_bytes(b"injected at replace boundary\n")
+
+        with patch.object(archive_run, "_documents_before_commit", side_effect=inject_boundary_edit):
+            with self.assertRaisesRegex(OSError, "version changed at commit boundary"):
+                archive_run._atomic_write_documents(
+                    self.root,
+                    documents,
+                    b"transaction output\n",
+                    expected_bytes=original,
+                )
+        self.assertEqual(b"injected at replace boundary\n", documents.read_bytes())
+
     def test_empty_optional_evidence_directory_is_skipped(self) -> None:
         empty = self.goal / "evidence"
         for child in empty.iterdir():
@@ -399,13 +416,19 @@ class ArchiveRunTests(unittest.TestCase):
         target = self.goal / "archived" / "20260101-000000-recovery"
         target.mkdir(parents=True)
         source = self.goal / "PLAN.md"
+        run_source = self.goal / "RUN.md"
         destination = target / "PLAN.md"
+        run_destination = target / "RUN.md"
         source.rename(destination)
+        run_source.rename(run_destination)
         journal = {
             "protocol": archive_run.ARCHIVE_JOURNAL_PROTOCOL,
             "phase": "moving",
             "archive_path": "docs/goal/archived/20260101-000000-recovery",
-            "moves": [{"source": "docs/goal/PLAN.md", "destination": "docs/goal/archived/20260101-000000-recovery/PLAN.md"}],
+            "moves": [
+                {"source": "docs/goal/PLAN.md", "destination": "docs/goal/archived/20260101-000000-recovery/PLAN.md"},
+                {"source": "docs/goal/RUN.md", "destination": "docs/goal/archived/20260101-000000-recovery/RUN.md"},
+            ],
             "moved": [],
             "documents_before_b64": None,
             "documents_before_identity": None,
@@ -417,11 +440,67 @@ class ArchiveRunTests(unittest.TestCase):
         )
         self.assertEqual(0, archive_run.recover_archive(self.root, target))
         self.assertTrue(source.exists())
+        self.assertTrue(run_source.exists())
         self.assertFalse(target.exists())
-        # A second recovery is a no-op and cannot touch the recovered source.
+        # A second recovery is a no-op and cannot touch the recovered sources.
         self.assertEqual(0, archive_run.recover_archive(self.root, target))
         self.assertTrue(source.exists())
+        self.assertTrue(run_source.exists())
 
+    def test_recovery_rejects_malicious_journal_paths_before_mutation(self) -> None:
+        variants = (
+            (".git/hooks/pre-commit", "20260101-000000-recover-git"),
+            ("docs/goal/PLAN.md", "20260101-000000-recover-wrong-destination"),
+            ("docs/goal/PLAN.md", "20260101-000000-recover-duplicate"),
+        )
+        for source, slug in variants:
+            with self.subTest(source=source, slug=slug):
+                target = self.goal / "archived" / slug
+                target.mkdir(parents=True)
+                if "wrong-destination" in slug:
+                    rows = [
+                        {"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
+                        {"source": "docs/goal/RUN.md", "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
+                    ]
+                elif "duplicate" in slug:
+                    rows = [
+                        {"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/PLAN.md"},
+                        {"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/PLAN.md"},
+                    ]
+                else:
+                    rows = [{"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/pre-commit"}]
+                journal = {
+                    "protocol": archive_run.ARCHIVE_JOURNAL_PROTOCOL,
+                    "phase": "moving",
+                    "archive_path": target.relative_to(self.root).as_posix(),
+                    "moves": rows,
+                    "moved": [],
+                    "anchor_path": None,
+                }
+                (target / archive_run.ARCHIVE_JOURNAL_NAME).write_text(json.dumps(journal), encoding="utf-8")
+                self.assertEqual(1, archive_run.recover_archive(self.root, target))
+                self.assertTrue(target.exists())
+                self.assertTrue((target / archive_run.ARCHIVE_JOURNAL_NAME).exists())
+
+    def test_recovery_journal_must_match_closed_receipt_mapping(self) -> None:
+        result = self.archive("--apply", "--stamp", "20260101-000000")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        target = self.archived_dir()
+        journal = {
+            "protocol": archive_run.ARCHIVE_JOURNAL_PROTOCOL,
+            "phase": "moving",
+            "archive_path": target.relative_to(self.root).as_posix(),
+            "moves": [
+                {"source": "docs/goal/PLAN.md", "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
+                {"source": "docs/goal/RUN.md", "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
+            ],
+            "moved": [],
+            "anchor_path": None,
+        }
+        (target / archive_run.ARCHIVE_JOURNAL_NAME).write_text(json.dumps(journal), encoding="utf-8")
+        self.assertEqual(1, archive_run.recover_archive(self.root, target))
+        self.assertTrue(target.exists())
+        self.assertTrue((target / archive_run.ARCHIVE_RECEIPT_NAME).exists())
     def test_failed_archive_does_not_remove_a_preexisting_archived_parent(self) -> None:
         archived = self.goal / "archived"
         archived.mkdir()

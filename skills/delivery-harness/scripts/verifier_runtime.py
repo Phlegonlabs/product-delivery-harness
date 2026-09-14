@@ -29,6 +29,7 @@ from harness_git import (
     reject_object_substitution,
     run_git,
     windows_machine_roots,
+    windows_parent_user_writable,
 )
 
 
@@ -313,28 +314,6 @@ def _path_within(path: Path, root: Path) -> bool:
     return True
 
 
-def _windows_parent_user_writable(path: Path) -> bool:
-    command = shutil.which("icacls")
-    if not command:
-        return True
-    try:
-        result = subprocess.run(
-            [command, str(path)], capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=10, check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return True
-    if result.returncode != 0:
-        return True
-    for line in result.stdout.splitlines()[1:]:
-        principal = line.strip().casefold()
-        if principal.startswith(("builtin\\users", "everyone", "authenticated users")) and any(
-            token in principal for token in ("(w)", "(m)", "(f)", "(d)")
-        ):
-            return True
-    return False
-
-
 def _runtime_trust(executable: Path, runtime: str) -> dict[str, Any]:
     """Return machine-bound proof for a native sandbox runtime executable.
 
@@ -372,7 +351,7 @@ def _runtime_trust(executable: Path, runtime: str) -> dict[str, Any]:
         # Windows stat does not expose a portable ACL matrix.  Refuse a
         # user-writable parent where Python can observe one and retain the
         # reparse/non-user path proof for the native Windows handle binder.
-        if _windows_parent_user_writable(canonical.parent):
+        if windows_parent_user_writable(canonical.parent):
             raise VerifierRuntimeError("sandbox runtime parent is user-writable")
     else:
         allowed_roots = (Path("/usr").resolve(), Path("/bin").resolve(), Path("/opt").resolve())

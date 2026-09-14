@@ -186,6 +186,20 @@ class MultiTargetOutcomeReviewTests(unittest.TestCase):
         findings = "\n".join(self.check(rotated))
         self.assertIn("must equal the first target-set entry", findings)
 
+    def test_prior_multi_target_history_preserves_target_source_measurement_incident_and_followup_rows(self) -> None:
+        prior = multi_target_outcome()
+        appended = prior.replace(
+            "\n## Incident Response",
+            "| API follow-up observation | api-prod | MS-001 | appended bounded observation |\n\n## Incident Response",
+            1,
+        )
+        self.assertEqual([], check_outcome_review.prior_append_findings(prior, appended))
+        target_row = next(line for line in prior.splitlines() if line.startswith("| api-prod | " + SHA))
+        deleted = prior.replace(target_row + "\n", "", 1)
+        self.assertIn("Target Reviews deleted historical row", "\n".join(check_outcome_review.prior_append_findings(prior, deleted)))
+        rewritten = prior.replace("| Completion | api-prod | 0 | 90% |", "| Completion | api-prod | 1 | 90% |", 1)
+        self.assertIn("Target Measurements historical rows", "\n".join(check_outcome_review.prior_append_findings(prior, rewritten)))
+
     def test_multi_target_legacy_measurements_cannot_be_placeholder_projection(self) -> None:
         placeholder = multi_target_outcome().replace(
             "| Completion | 0 | 90% | 2026-09-08 | 2026-09-09 | observed api-prod | MS-001 |",

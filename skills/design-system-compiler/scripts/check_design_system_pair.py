@@ -12,6 +12,7 @@ Exit codes: 0 clean, 1 mismatch, 2 usage or parse error.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import ctypes
 from ctypes import wintypes
 import json
@@ -24,6 +25,11 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -273,6 +279,53 @@ def _windows_rename_relative(temp_path: Path, destination: Path, parent_handle: 
         )
 
 
+def _destination_lock_path(path: Path) -> Path:
+    token = hashlib.sha256(str(path.absolute()).casefold().encode("utf-8")).hexdigest()
+    directory = Path(tempfile.gettempdir()) / "product-delivery-harness-ds-locks"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / f"{token}.lock"
+
+
+@contextmanager
+def _destination_lock(path: Path):
+    """Serialize compliant writers with a stable host-local version token."""
+
+    lock_path = _destination_lock_path(path)
+    handle = lock_path.open("a+b")
+    try:
+        if os.name == "nt":
+            handle.seek(0)
+            if handle.tell() == 0:
+                handle.write(b"0")
+                handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            if os.name == "nt":
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
+
+
+def _destination_version_token(path: Path) -> tuple[int, int, int, int, str]:
+    info = path.stat()
+    content = hashlib.sha256(path.read_bytes()).hexdigest()
+    return (
+        int(info.st_dev),
+        int(info.st_ino),
+        int(info.st_size),
+        int(info.st_mtime_ns),
+        content,
+    )
+
+
 def is_placeholder(value: str) -> bool:
     """True for a `<...>`-shaped template slot nobody has filled in yet."""
     return bool(PLACEHOLDER_RE.match(value.strip()))
@@ -367,10 +420,11 @@ def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> 
     )
 
 
-def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> None:
+def _write_bytes_atomic_unlocked(path: Path, payload: bytes, expected_bytes: bytes) -> None:
     """Replace ``path`` with ``payload`` without exposing a partial file."""
     _safe_parent_chain(path)
     original_stat = path.lstat()
+    destination_version_token = _destination_version_token(path)
     if stat.S_ISLNK(original_stat.st_mode):
         raise ConcurrentModificationError(
             f"{path} must not be a symbolic link for --write"
@@ -396,6 +450,7 @@ def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> No
             stat.S_ISLNK(current_stat.st_mode)
             or not os.path.samestat(original_stat, current_stat)
             or path.read_bytes() != expected_bytes
+            or _destination_version_token(path) != destination_version_token
         ):
             raise ConcurrentModificationError(
                 f"{path} changed while preparing the generated contract"
@@ -407,6 +462,10 @@ def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> No
             # primitive is fail-closed; never fall back to a pathname move.
             parent_handle, ancestor_handles = _windows_open_parent(path)
             try:
+                if _destination_version_token(path) != destination_version_token:
+                    raise ConcurrentModificationError(
+                        f"{path} changed before the native replace"
+                    )
                 _windows_rename_relative(temporary_path, path, parent_handle)
             finally:
                 _windows_close(parent_handle)
@@ -418,6 +477,10 @@ def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> No
             # ancestor swap from redirecting the destination after CAS.
             parent_fd, basename = _open_posix_parent(path)
             try:
+                if _destination_version_token(path) != destination_version_token:
+                    raise ConcurrentModificationError(
+                        f"{path} changed before the dirfd replace"
+                    )
                 os.replace(
                     temporary_path.name,
                     basename,
@@ -434,6 +497,13 @@ def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> No
                 temporary_path.unlink()
             except FileNotFoundError:
                 pass
+
+
+def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> None:
+    """CAS write serialized by the shared destination version lock."""
+
+    with _destination_lock(path):
+        _write_bytes_atomic_unlocked(path, payload, expected_bytes)
 
 
 def _string_list(problems: list[str], path: str, value: Any, *, nonempty: bool) -> None:
@@ -1071,6 +1141,19 @@ def _validate_stack_semantics(
                     f"design-system.json stackSemantics.{surface_id} must contain platform, renderingModel, componentFoundation, and stylingMechanism"
                 )
                 continue
+            target_semantics = item.get("stackSemantics")
+            if not isinstance(target_semantics, dict) or set(target_semantics) != required_keys | {"platform"}:
+                problems.append(
+                    f"design-system.json stackSemantics.{surface_id} requires the normalized UI Approved target stackSemantics authority"
+                )
+            elif any(
+                str(entry.get(key, "")).strip().casefold()
+                != str(target_semantics.get(key, "")).strip().casefold()
+                for key in required_keys | {"platform"}
+            ):
+                problems.append(
+                    f"design-system.json stackSemantics.{surface_id} does not exactly equal ui-design Approved target stackSemantics"
+                )
             expected_platform = platform_by_class.get(str(item.get("surfaceClass")))
             if expected_platform and entry.get("platform") != expected_platform:
                 problems.append(f"design-system.json stackSemantics.{surface_id}.platform does not match surfaceClass")
@@ -1081,7 +1164,11 @@ def _validate_stack_semantics(
             )
             for key in required_keys:
                 expected = selected_for_surface.get(key)
-                if expected is not None and str(entry.get(key, "")).casefold() != expected.casefold():
+                if expected is None:
+                    problems.append(
+                        f"design-system.json stackSemantics.{surface_id}.{key} has no approved Stack selection"
+                    )
+                elif str(entry.get(key, "")).casefold() != expected.casefold():
                     problems.append(f"design-system.json stackSemantics.{surface_id}.{key} does not match approved Stack selection")
     else:
         if set(recorded) != required_keys | {"platform"}:
@@ -1103,14 +1190,28 @@ def _validate_stack_semantics(
             problems.append("design-system.json platform must equal stackSemantics.platform")
         if registry.get("stylingMechanism") != recorded.get("stylingMechanism"):
             problems.append("design-system.json stylingMechanism must equal stackSemantics.stylingMechanism")
+        if surface_items:
+            target_semantics = surface_items[0].get("stackSemantics")
+            if not isinstance(target_semantics, dict) or set(target_semantics) != required_keys | {"platform"}:
+                problems.append("design-system.json stackSemantics requires the normalized UI Approved target stackSemantics authority")
+            elif any(
+                str(recorded.get(key, "")).strip().casefold()
+                != str(target_semantics.get(key, "")).strip().casefold()
+                for key in required_keys | {"platform"}
+            ):
+                problems.append("design-system.json stackSemantics does not exactly equal ui-design Approved target stackSemantics")
         selected_for_surface = (
             selected_mobile
             if surface_class in {"ios", "android", "macos", "windows", "desktop"}
             else selected_frontend
         )
-        for key in required_keys - {"stylingMechanism"}:
+        for key in required_keys:
             expected = selected_for_surface.get(key)
-            if expected is not None and str(recorded.get(key, "")).casefold() != expected.casefold():
+            if expected is None:
+                problems.append(
+                    f"design-system.json stackSemantics.{key} has no approved Stack selection"
+                )
+            elif str(recorded.get(key, "")).casefold() != expected.casefold():
                 problems.append(f"design-system.json stackSemantics.{key} does not match approved Stack selection")
 
 

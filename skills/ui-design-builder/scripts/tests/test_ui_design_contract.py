@@ -104,7 +104,7 @@ HiFi blocks or disputes: none
 Decision: {visual}
 Decision owner: Product owner
 Decided on: 2026-09-13
-Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=surfaces=[{{"id":"UI-001","route":"/home","states":["ready"]}}]|routes=["/home"]|states=["ready"]|responsive={{"kind":"viewports","targets":[390,768,1200]}}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser
+Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=surfaces=[{{"id":"UI-001","route":"/home","states":["ready"],"stackSemantics":{{"platform":"web","renderingModel":"SPA","componentFoundation":"shadcn/ui owned source","stylingMechanism":"Tailwind CSS"}}}}]|routes=["/home"]|states=["ready"]|responsive={{"kind":"viewports","targets":[390,768,1200]}}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser
 
 ## Design System Need Gate
 
@@ -143,10 +143,15 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
     approval_end = product_text.index("<!-- product-definition-approval:end -->") + len("<!-- product-definition-approval:end -->")
     product_text = product_text[:approval_end] + "\n" + ui_contract(copy="approved — owner-approved copy") + product_text[approval_end:]
     data = wireframe_data()
+    architecture_text = __import__("test_product_package_checker").release_architecture()
+    stack_text = valid_stack()
+    product_text, architecture_text, stack_text = __import__(
+        "test_product_package_checker"
+    ).strictize_approved_package(product_text, architecture_text, stack_text)
     for path, content in (
         (product, product_text),
-        (architecture, __import__("test_product_package_checker").release_architecture()),
-        (stack, valid_stack()),
+        (architecture, architecture_text),
+        (stack, stack_text),
         (wireframe, render_html(data)),
     ):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -416,6 +421,38 @@ class UiDesignContractTests(unittest.TestCase):
         problems = []
         checker._target_scope(invalid, "Approved target", problems)
         self.assertTrue(any("hybrid surfaces require" in item for item in problems))
+
+    def test_stack_semantics_join_rejects_each_executable_mutation(self):
+        from test_product_package_checker import valid_stack
+
+        base = {
+            "surfaces": [{
+                "id": "UI-001",
+                "surfaceClass": "hosted_web",
+                "stackSemantics": {
+                    "platform": "web",
+                    "renderingModel": "SPA",
+                    "componentFoundation": "shadcn/ui owned source",
+                    "stylingMechanism": "Tailwind CSS",
+                },
+            }]
+        }
+        problems: list[str] = []
+        checker._validate_stack_semantics_join(base, stack_text=valid_stack(), problems=problems)
+        self.assertEqual([], problems)
+        for key, value in (
+            ("platform", "ios"),
+            ("renderingModel", "SSR"),
+            ("componentFoundation", "Other UI"),
+            ("stylingMechanism", "plain CSS"),
+        ):
+            candidate = json.loads(json.dumps(base))
+            candidate["surfaces"][0]["stackSemantics"][key] = value
+            findings: list[str] = []
+            checker._validate_stack_semantics_join(
+                candidate, stack_text=valid_stack(), problems=findings
+            )
+            self.assertTrue(findings, key)
 
     def test_full_validate_not_required_publication_round_trip(self):
         with tempfile.TemporaryDirectory() as temp:

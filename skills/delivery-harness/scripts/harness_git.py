@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import hashlib
 import shutil
 import stat
 import subprocess
@@ -129,6 +130,8 @@ def windows_machine_roots() -> tuple[Path, ...]:
 
     if os.name != "nt":
         return ()
+
+
     try:
         import ctypes
         from ctypes import wintypes
@@ -144,6 +147,22 @@ def windows_machine_roots() -> tuple[Path, ...]:
         return (windows, (drive / "Program Files").resolve())
     except (AttributeError, OSError, ValueError):
         return ()
+
+
+def windows_icacls_path() -> tuple[Path, str] | None:
+    """Bind the ACL inspector to System32; never resolve it from PATH."""
+
+    roots = windows_machine_roots()
+    if not roots:
+        return None
+    candidate = roots[0] / "System32" / "icacls.exe"
+    try:
+        resolved = candidate.resolve(strict=True)
+        if not resolved.is_file() or _path_has_reparse_or_link(resolved):
+            return None
+        return resolved, hashlib.sha256(resolved.read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def _trusted_executable(path: Path, label: str) -> Path:
@@ -188,12 +207,13 @@ def _is_within(path: Path, root: Path) -> bool:
 def _windows_parent_user_writable(path: Path) -> bool:
     """Inspect broad Users/Everyone ACLs without treating an admin token as a user write."""
 
-    command = shutil.which("icacls")
-    if not command:
+    bound = windows_icacls_path()
+    if bound is None:
         return True
+    command, expected_hash = bound
     try:
         result = subprocess.run(
-            [command, str(path)],
+            [str(command), str(path)],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -205,13 +225,47 @@ def _windows_parent_user_writable(path: Path) -> bool:
         return True
     if result.returncode != 0:
         return True
-    for line in result.stdout.splitlines()[1:]:
-        principal = line.strip().casefold()
-        if not principal.startswith(("builtin\\users", "everyone", "authenticated users")):
-            continue
-        if any(token in principal for token in ("(w)", "(m)", "(f)", "(d)")):
+    try:
+        if hashlib.sha256(command.read_bytes()).hexdigest() != expected_hash:
             return True
-    return False
+    except OSError:
+        return True
+    saw_acl = False
+    trusted_write_principals = ("builtin\\administrators", "nt authority\\system", "nt service\\trustedinstaller", "creator owner")
+    for line in result.stdout.splitlines():
+        rights_match = re.search(r"((?:\([A-Za-z,]+\))+)$", line.strip())
+        if not rights_match:
+            continue
+        rights = rights_match.group(1)
+        principal = line.strip()[: rights_match.start()].rstrip(" :")
+        lowered_principal = principal.casefold()
+        for marker in ("nt service\\", "nt authority\\", "builtin\\", "application package authority\\"):
+            marker_index = lowered_principal.find(marker)
+            if marker_index >= 0:
+                principal = principal[marker_index:]
+                break
+        else:
+            principal = "creator owner" if lowered_principal.endswith("creator owner") else principal.rsplit(" ", 1)[-1]
+        saw_acl = True
+        principal = principal.casefold()
+        rights_tokens = {
+            token.casefold()
+            for group in re.findall(r"\(([^)]*)\)", rights)
+            for token in group.split(",")
+        }
+        grants_write = bool(
+            rights_tokens
+            & {"w", "m", "f", "d", "gw", "ga", "wd", "ad", "wea", "wa", "dc", "de", "wdac", "wo"}
+        )
+        if "deny" not in rights_tokens and grants_write and not principal.startswith(trusted_write_principals):
+            return True
+    return not saw_acl
+
+
+def windows_parent_user_writable(path: Path) -> bool:
+    """Shared effective-access policy for trusted Windows parent directories."""
+
+    return _windows_parent_user_writable(path)
 
 
 def git_executable(environment: Mapping[str, str] | None = None) -> str:

@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -360,6 +361,24 @@ class ParityCaptureTests(unittest.TestCase):
                 [str(self.root / "agent-browser.cmd")],
                 arguments,
             )
+
+    @unittest.skipUnless(os.name != "nt", "descriptor launcher fixture is POSIX-only")
+    def test_posix_launcher_binding_survives_path_replacement(self) -> None:
+        launcher = self.root / "launcher"
+        replacement = self.root / "replacement"
+        launcher.write_text("#!/bin/sh\nprintf old\n", encoding="utf-8")
+        replacement.write_text("#!/bin/sh\nprintf new\n", encoding="utf-8")
+        launcher.chmod(0o755)
+        replacement.chmod(0o755)
+        bound, descriptor = parity_capture._bind_posix_launcher(launcher)
+        try:
+            os.replace(replacement, launcher)
+            completed = subprocess.run(
+                [bound], pass_fds=(descriptor,), capture_output=True, text=True, check=False
+            )
+            self.assertEqual("old\n", completed.stdout)
+        finally:
+            os.close(descriptor)
 
     def test_windows_npm_shim_resolves_to_direct_node_argv(self) -> None:
         npm_bin = self.root / "npm-bin"

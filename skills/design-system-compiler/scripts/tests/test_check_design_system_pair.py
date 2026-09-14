@@ -256,25 +256,42 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 stack_path=path,
                 ui_view={
                     "target_scope": {
-                        "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web"}]
+                        "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web", "stackSemantics": {
+                            "platform": "web",
+                            "renderingModel": "SPA",
+                            "componentFoundation": "shadcn/ui",
+                            "stylingMechanism": "Tailwind CSS",
+                        }}]
                     }
                 },
                 problems=problems,
             )
             self.assertEqual([], problems)
-            registry_data["stackSemantics"]["renderingModel"] = "SSR"
-            problems = []
-            checker._validate_stack_semantics(
-                registry_data,
-                stack_path=path,
-                ui_view={
-                    "target_scope": {
-                        "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web"}]
-                    }
-                },
-                problems=problems,
-            )
-            self.assertTrue(any("renderingModel" in item for item in problems))
+            for key, value in (
+                ("platform", "ios"),
+                ("renderingModel", "SSR"),
+                ("componentFoundation", "Other UI"),
+                ("stylingMechanism", "plain CSS"),
+            ):
+                mutated = json.loads(json.dumps(registry_data))
+                mutated["stackSemantics"][key] = value
+                problems = []
+                checker._validate_stack_semantics(
+                    mutated,
+                    stack_path=path,
+                    ui_view={
+                        "target_scope": {
+                            "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web", "stackSemantics": {
+                                "platform": "web",
+                                "renderingModel": "SPA",
+                                "componentFoundation": "shadcn/ui",
+                                "stylingMechanism": "Tailwind CSS",
+                            }}]
+                        }
+                    },
+                    problems=problems,
+                )
+                self.assertTrue(problems, key)
 
     def run_pair(
         self,
@@ -1190,6 +1207,40 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 checker.compare = original_compare
 
             self.assertEqual(2, code)
+            self.assertEqual(concurrent_edit, md.read_bytes())
+
+    def test_write_rejects_destination_change_at_native_commit_boundary(self) -> None:
+        markdown = b"# Original\n"
+        concurrent_edit = b"# Concurrent at commit\n"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            md.write_bytes(markdown)
+            original_open = (
+                checker._windows_open_parent
+                if os.name == "nt"
+                else checker._open_posix_parent
+            )
+
+            def mutate_then_open(path: Path):
+                md.write_bytes(concurrent_edit)
+                return original_open(path)
+
+            if os.name == "nt":
+                checker._windows_open_parent = mutate_then_open
+            else:
+                checker._open_posix_parent = mutate_then_open
+            try:
+                with self.assertRaisesRegex(
+                    checker.ConcurrentModificationError,
+                    "changed before the (native|dirfd) replace",
+                ):
+                    checker._write_bytes_atomic(md, b"# Replacement\n", markdown)
+            finally:
+                if os.name == "nt":
+                    checker._windows_open_parent = original_open
+                else:
+                    checker._open_posix_parent = original_open
             self.assertEqual(concurrent_edit, md.read_bytes())
 
     def test_replace_and_extract_reject_inverse_and_unmatched_markers(self) -> None:

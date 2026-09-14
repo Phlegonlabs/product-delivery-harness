@@ -249,5 +249,22 @@ class HarnessGitTests(unittest.TestCase):
         self.assertNotIn(Path(tempfile.gettempdir()).resolve() / "fake-programs", roots)
         self.assertNotIn(Path(tempfile.gettempdir()).resolve() / "fake-system", roots)
 
+    @unittest.skipUnless(os.name == "nt", "Windows ACL fixture only")
+    def test_windows_custom_group_write_ace_fails_closed(self) -> None:
+        import harness_git as module
+
+        with tempfile.TemporaryDirectory() as temp:
+            tool = Path(temp) / "icacls.exe"
+            tool.write_bytes(b"trusted")
+            for rights in ("(I)(F)", "(I)(WD,AD)", "(I)(GW)"):
+                with self.subTest(rights=rights):
+                    output = f"C:\\Program Files\\Git\\cmd CUSTOM\\BuildUsers:{rights}\n"
+                    with patch.object(module, "windows_icacls_path", return_value=(tool, __import__("hashlib").sha256(tool.read_bytes()).hexdigest())), patch.object(
+                        module.subprocess,
+                        "run",
+                        return_value=subprocess.CompletedProcess([str(tool)], 0, output, ""),
+                    ):
+                        self.assertTrue(module._windows_parent_user_writable(Path(temp)))
+
 if __name__ == "__main__":
     unittest.main()

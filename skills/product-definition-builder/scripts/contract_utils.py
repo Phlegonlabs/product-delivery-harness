@@ -114,3 +114,29 @@ def safe_read_text(path: Path) -> tuple[str | None, str | None]:
         return path.read_text(encoding="utf-8"), None
     except (OSError, UnicodeError) as exc:
         return None, f"cannot read UTF-8 file {path}: {exc}"
+
+
+def finalize_approval_digests(
+    prd_text: str,
+    architecture_text: str,
+    stack_text: str,
+    *,
+    revision: str = "PD-R1",
+) -> tuple[str, str, str]:
+    """Bind Product/Stack approval fields to the exact candidate bytes.
+
+    Callers must provide the applicable-area and option-map fields before this
+    helper runs.  The marker blocks are excluded from both canonical payloads,
+    so the resulting fields do not form a self-referential hash.
+    """
+
+    zero = "0" * 64
+    prd = re.sub(r"^- Package revision:.*$", f"- Package revision: {revision}@sha256:{zero}", prd_text, count=1, flags=re.MULTILINE)
+    prd = re.sub(r"^- Package digest:.*$", f"- Package digest: sha256:{zero}", prd, count=1, flags=re.MULTILINE)
+    stack = re.sub(r"^- Checkpoint digest:.*$", f"- Checkpoint digest: sha256:{zero}", stack_text, count=1, flags=re.MULTILINE)
+    stack_digest = sha256_text(canonical_stack_bytes(stack))
+    stack = re.sub(r"^- Checkpoint digest:.*$", f"- Checkpoint digest: sha256:{stack_digest}", stack, count=1, flags=re.MULTILINE)
+    package_digest = sha256_text(canonical_product_bytes(prd, architecture_text, stack))
+    prd = re.sub(r"^- Package revision:.*$", f"- Package revision: {revision}@sha256:{package_digest}", prd, count=1, flags=re.MULTILINE)
+    prd = re.sub(r"^- Package digest:.*$", f"- Package digest: sha256:{package_digest}", prd, count=1, flags=re.MULTILINE)
+    return prd, architecture_text, stack

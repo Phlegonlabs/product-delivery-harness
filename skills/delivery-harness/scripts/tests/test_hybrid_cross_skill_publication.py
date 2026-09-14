@@ -25,6 +25,7 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR, UI_TESTS_DIR, PDB_TESTS_DIR, DS_SCRIPT
 from harness_contract_join import validate_frozen_contract_joins  # noqa: E402
 from manifest_fixtures import valid_plan, valid_run  # noqa: E402
 from test_ui_design_contract import materialize_publication  # noqa: E402
+from test_product_package_checker import strictize_approved_package  # noqa: E402
 from test_wireframe_contract import render_html  # noqa: E402
 from check_design_system_pair import replace_generated_contract  # noqa: E402
 import check_ui_design_contract  # noqa: E402
@@ -150,6 +151,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
 | Backend/API integration | n/a — local-only fixture | Approved | Owner decision | No API scope | Revisit with a PRD delta |
 | Distribution mechanism | App Store | Approved | Owner decision | Named production channel | Store review is manual |
 | Testing | XCTest | Approved | Owner decision | Native coverage | Keep smoke matrix current |
+| Styling approach | platform theme | Approved | Owner decision | Uses native platform styling | Keep platform tokens current |
 """
             arch_stack = stack.read_text(encoding="utf-8")
             arch_stack = arch_stack.replace(
@@ -171,6 +173,15 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
         else:
             # Browser-extension hybrids remain on the approved browser stack.
             pass
+
+        refreshed_prd, refreshed_architecture, refreshed_stack = strictize_approved_package(
+            product.read_text(encoding="utf-8"),
+            architecture.read_text(encoding="utf-8"),
+            stack.read_text(encoding="utf-8"),
+        )
+        product.write_text(refreshed_prd, encoding="utf-8")
+        architecture.write_text(refreshed_architecture, encoding="utf-8")
+        stack.write_text(refreshed_stack, encoding="utf-8")
 
         data = json.loads(re.search(r'<script id="wireframe-data" type="application/json">([\s\S]*?)</script>', wireframe.read_text(encoding="utf-8")).group(1))
         second_screen = copy.deepcopy(data["screens"][0])
@@ -290,8 +301,8 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
         ui = root / "docs/design/ui-design.md"
         ui_text = ui.read_text(encoding="utf-8")
         scope_surfaces = [
-            {"id": "UI-001", "route": "/home", "states": ["ready"], "releaseSurface": "web-app", "surfaceClass": "hosted_web", "captureMode": "hosted-browser", "responsive": {"kind": "viewports", "targets": [390, 768, 1200]}},
-            {"id": second_id, "route": second_route, "states": ["ready"], "releaseSurface": second_surface, "surfaceClass": second_class, "captureMode": second_mode, "responsive": {"kind": second_kind, "targets": second_targets}},
+            {"id": "UI-001", "route": "/home", "states": ["ready"], "releaseSurface": "web-app", "surfaceClass": "hosted_web", "captureMode": "hosted-browser", "responsive": {"kind": "viewports", "targets": [390, 768, 1200]}, "stackSemantics": {"platform": "web", "renderingModel": "SPA", "componentFoundation": "shadcn/ui owned source", "stylingMechanism": "Tailwind CSS"}},
+            {"id": second_id, "route": second_route, "states": ["ready"], "releaseSurface": second_surface, "surfaceClass": second_class, "captureMode": second_mode, "responsive": {"kind": second_kind, "targets": second_targets}, "stackSemantics": {"platform": "ios" if platform == "ios" else "web", "renderingModel": "Native" if platform == "ios" else "SPA", "componentFoundation": "SwiftUI" if platform == "ios" else "shadcn/ui owned source", "stylingMechanism": "platform theme" if platform == "ios" else "Tailwind CSS"}},
         ]
         target_scope = (
             f"Approved target: docs/design/ui-references/run-1/index.html @ sha256:{hashlib.sha256(hifi.read_bytes()).hexdigest()}; "

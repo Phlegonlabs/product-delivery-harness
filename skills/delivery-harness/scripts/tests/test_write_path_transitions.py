@@ -176,6 +176,28 @@ class WritePathTransitionTests(unittest.TestCase):
                 run_path, self.run, expected_text=run_path.read_text(encoding="utf-8")
             )
 
+    def test_run_document_commit_boundary_preserves_concurrent_edit(self) -> None:
+        run_path = self.root / "RUN.md"
+        original = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        concurrent = "# concurrent user edit\n"
+        run_path.write_text(original, encoding="utf-8")
+
+        def edit_at_commit_boundary(_path: Path) -> None:
+            run_path.write_text(concurrent, encoding="utf-8")
+
+        with mock.patch.object(
+            harness_transition,
+            "_run_replace_commit_boundary",
+            side_effect=edit_at_commit_boundary,
+        ):
+            with self.assertRaisesRegex(ManifestError, "commit boundary"):
+                harness_transition._replace_run_document(
+                    run_path, self.run, expected_text=original
+                )
+        self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
+
     def _sync_plan_digest(self) -> None:
         digest = plan_digest(self.plan)
         self.run["plan"]["digest_sha256"] = digest

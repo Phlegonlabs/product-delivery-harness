@@ -1574,6 +1574,14 @@ def validate_texts(
         "stack-decisions": product_identity(stack_text, kind="stack"),
     }
     explicit_identities = {value for value in identities.values() if value}
+    if require_approved:
+        for label, identity in identities.items():
+            if not identity:
+                _add(
+                    problems,
+                    "package",
+                    f"{label} must contain a non-empty canonical product identity",
+                )
     if len(explicit_identities) > 1:
         _add(
             problems,
@@ -2406,10 +2414,12 @@ def validate_texts(
             problems=problems,
             require_filled=require_filled,
         )
+        if require_approved and "package digest" not in product_fields:
+            _add(problems, "prd approval", "missing required field 'Package digest'")
         package_digest = product_fields.get("package digest", "")
         package_revision = product_fields.get("package revision", "")
         revision_digest = re.search(r"@(?P<digest>sha256:[0-9a-f]{64})$", package_revision, re.I)
-        if package_digest or revision_digest:
+        if require_approved:
             expected_digest = sha256_text(
                 canonical_product_bytes(prd_text, architecture_text, stack_text)
             )
@@ -2428,6 +2438,20 @@ def validate_texts(
                     "prd approval",
                     "Package digest does not match the approved PRD/architecture/stack bytes",
                 )
+            if require_approved and revision_digest is None:
+                _add(
+                    problems,
+                    "prd approval",
+                    "Package revision must include @sha256:<64 lowercase hex>",
+                )
+            elif revision_digest is not None and supplied_digest is not None:
+                revision_value = parse_digest(revision_digest.group("digest"))
+                if revision_value != supplied_digest:
+                    _add(
+                        problems,
+                        "prd approval",
+                        "Package revision digest must equal Package digest",
+                    )
         elif require_approved and package_revision and not re.fullmatch(
             r"PD-R[0-9]+", package_revision, re.I
         ):
@@ -2440,6 +2464,23 @@ def validate_texts(
                     problems,
                     "prd approval",
                     "Accepted assumptions and non-blocking questions must use assumption:<id> or question:<id> references",
+                )
+        if require_approved:
+            expected_refs: list[str] = []
+            for row in _find_table(assumptions or "", ASSUMPTIONS_HEADER) or []:
+                if len(row) == len(ASSUMPTIONS_HEADER) and row[0].strip():
+                    expected_refs.append(f"assumption:{row[0].strip().casefold()}")
+            for row in _find_table(open_questions or "", OPEN_QUESTIONS_HEADER) or []:
+                if len(row) == len(OPEN_QUESTIONS_HEADER) and row[0].strip() and row[4].casefold() == "no":
+                    expected_refs.append(f"question:{row[0].strip().casefold()}")
+            accepted_lower = accepted_refs.casefold()
+            missing_refs = [ref for ref in expected_refs if ref not in accepted_lower]
+            if missing_refs:
+                _add(
+                    problems,
+                    "prd approval",
+                    "Accepted assumptions and non-blocking questions must reference every applicable row: "
+                    + ", ".join(missing_refs),
                 )
         decision = product_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
@@ -2663,13 +2704,18 @@ def validate_texts(
                 "Approved areas",
                 "Delegated choices",
                 "Open areas",
+                *(
+                    ("Checkpoint digest", "Applicable areas", "Resolved areas", "Approved option map")
+                    if require_approved
+                    else ()
+                ),
             ),
             path="stack checkpoint",
             problems=problems,
             require_filled=require_filled,
         )
         checkpoint_digest = stack_fields.get("checkpoint digest", "")
-        if checkpoint_digest:
+        if checkpoint_digest and require_approved:
             expected_checkpoint = sha256_text(canonical_stack_bytes(stack_text))
             supplied_checkpoint = parse_digest(checkpoint_digest)
             if supplied_checkpoint is None:
@@ -2727,9 +2773,6 @@ def validate_texts(
         open_areas = stack_fields.get("open areas", "").casefold()
         if require_approved and open_areas not in {"none", "n/a"}:
             _add(problems, "stack checkpoint", "Open areas must be none")
-        required_stack_areas.update(
-            _stack_areas(stack_fields.get("approved areas", ""))
-        )
 
     approved_stack_areas = _validate_stack_tables(
         stack_text,
@@ -2755,12 +2798,33 @@ def validate_texts(
                 "stack-decisions",
                 "non-public release targets require a substantive CLI and Toolchain Decision",
             )
+    if require_approved:
+        applicable_value = stack_fields.get("applicable areas", "") if stack_block is not None else ""
+        resolved_value = stack_fields.get("resolved areas", "") if stack_block is not None else ""
+        applicable = _stack_areas(applicable_value)
+        resolved = _stack_areas(resolved_value)
+        if applicable != required_stack_areas:
+            _add(
+                problems,
+                "stack checkpoint",
+                "Applicable areas must exactly match release-surface and gate applicability",
+            )
+        if resolved != applicable:
+            _add(problems, "stack checkpoint", "Resolved areas must exactly match Applicable areas")
+        if not checkpoint_option_map.strip():
+            _add(problems, "stack checkpoint", "Approved option map must not be empty")
     option_rows = _find_table(stack_text, STACK_OPTIONS_HEADER)
     if approved_stack_areas and not option_rows:
         _add(
             problems,
             "stack-decisions",
             "Approved layers require a non-empty Coherent Options Presented table",
+        )
+    elif require_approved and checkpoint_option_map and not option_rows:
+        _add(
+            problems,
+            "stack-decisions",
+            "Approved option map requires a non-empty Coherent Options Presented table",
         )
     elif option_rows:
         _validate_table_rows(
@@ -2835,14 +2899,11 @@ def validate_texts(
                 if len(ids) != 1:
                     continue
                 option_id = next(iter(ids))
-                # An approved option is a bundle; bind it to every layer whose
-                # authority/evidence explicitly names the option id.
-                for section_name in STACK_SECTION_LAYERS:
-                    section = _section(stack_text, f"## {section_name}") or ""
-                    recorded = _subsection(section, "### Recorded or Approved Stack") or ""
-                    for layer_row in _find_table(recorded, STACK_LAYER_HEADER) or []:
-                        if len(layer_row) == len(STACK_LAYER_HEADER) and option_id in layer_row[3].upper():
-                            actual_map.setdefault(option_id, set()).add(layer_row[0].casefold())
+                # An approved option is a coherent bundle; its declared area
+                # is the machine-checked layer binding.  This keeps the map
+                # stable without requiring every layer evidence cell to repeat
+                # the option ID.
+                actual_map[option_id] = _stack_areas(row[1])
             if expected_map != actual_map:
                 _add(
                     problems,

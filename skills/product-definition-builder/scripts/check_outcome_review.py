@@ -175,6 +175,61 @@ def _duplicate_fields(lines: list[str]) -> list[str]:
     return sorted(name for name, count in Counter(names).items() if count > 1)
 
 
+IMMUTABLE_HISTORY_SECTIONS = (
+    "## Activation Sources",
+    "## Measurements",
+    "## Target Reviews",
+    "## Target Measurements",
+    "## Feedback",
+    "## Incident Response",
+    "## Open Follow-ups",
+)
+
+
+def _raw_table_rows(text: str, heading: str) -> list[str]:
+    """Return active table data rows exactly as authored, excluding header/separator."""
+
+    section = _section(text, heading)
+    if section is None:
+        return []
+    table_lines = [line.strip() for line in section if line.strip().startswith("|")]
+    if len(table_lines) < 2:
+        return []
+    return [
+        line
+        for line in table_lines[1:]
+        if not all(set(cell.strip()) <= {"-", ":", " "} for cell in line.strip("|").split("|"))
+    ]
+
+
+def prior_append_findings(prior_text: str, current_text: str) -> list[str]:
+    """Enforce append-only preservation of a prior outcome's historical rows."""
+
+    findings: list[str] = []
+    for heading in IMMUTABLE_HISTORY_SECTIONS:
+        prior_rows = _raw_table_rows(prior_text, heading)
+        if not prior_rows:
+            continue
+        current_rows = _raw_table_rows(current_text, heading)
+        if len(current_rows) < len(prior_rows):
+            findings.append(f"Prior outcome: {heading} deleted historical row(s)")
+            continue
+        if current_rows[: len(prior_rows)] != prior_rows:
+            findings.append(
+                f"Prior outcome: {heading} historical rows must remain byte-identical and ordered"
+            )
+    prior_verdict_lines = [
+        line.strip()
+        for line in (active_text(prior_text).splitlines())
+        if line.strip().startswith("Verdict:")
+    ]
+    if prior_verdict_lines and not any(
+        line in active_text(current_text).splitlines() for line in prior_verdict_lines
+    ):
+        findings.append("Prior outcome: prior verdict history must remain present")
+    return findings
+
+
 def _rows(text: str, heading: str, expected: tuple[str, ...]) -> tuple[list[list[str]], bool]:
     section = _section(text, heading)
     if section is None:
@@ -1208,6 +1263,11 @@ def main(argv: list[str] | None = None) -> int:
         prior_digest = hashlib.sha256((prior_text or "").encode("utf-8")).hexdigest()
         if f"Prior outcome sha256: {prior_digest}" not in (current_text or ""):
             print("Record: --prior-outcome requires an exact Prior outcome sha256 line", file=sys.stderr)
+            return 1
+        prior_history_findings = prior_append_findings(prior_text or "", current_text or "")
+        if prior_history_findings:
+            for finding in prior_history_findings:
+                print(finding, file=sys.stderr)
             return 1
     if args.stack_decisions is None and args.require_lifecycle:
         print("--require-lifecycle requires --stack-decisions", file=sys.stderr)

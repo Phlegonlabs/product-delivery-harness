@@ -99,6 +99,21 @@ VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive"}
 VALID_WIREFRAME_DECISIONS = {"draft", "approved", "revision_requested", "blocked"}
 VALID_DIRECTION_DECISIONS = {"approved", "selected", "mixed-and-approved"}
 VALID_DIRECTION_MODES = {"one recommended direction", "three comparable directions"}
+STACK_SEMANTIC_KEYS = {
+    "platform",
+    "renderingModel",
+    "componentFoundation",
+    "stylingMechanism",
+}
+STACK_PLATFORM_BY_SURFACE_CLASS = {
+    "hosted_web": "web",
+    "browser_extension": "web",
+    "ios": "ios",
+    "android": "android",
+    "macos": "macos",
+    "windows": "windows",
+    "desktop": "desktop",
+}
 NON_HUMAN_TOKEN_RE = re.compile(
     r"(?<!\w)(?:ai|agent|assistant|automation|automated|model|bot|claude|codex|"
     r"system|machine)(?!\w)",
@@ -574,6 +589,7 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
         "releaseSurface",
         "captureMode",
         "responsive",
+        "stackSemantics",
     }
     if (
         not isinstance(surfaces, list)
@@ -617,6 +633,12 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
             _add(problems, f"{label} releaseSurface must be a non-empty string")
         if "captureMode" in item and item["captureMode"] not in {"hosted-browser", "browser-extension", "native", "desktop"}:
             _add(problems, f"{label} surface captureMode is invalid")
+        if "stackSemantics" in item and (
+            not isinstance(item["stackSemantics"], dict)
+            or set(item["stackSemantics"]) != STACK_SEMANTIC_KEYS
+            or any(not isinstance(item["stackSemantics"].get(key), str) or not item["stackSemantics"][key].strip() for key in STACK_SEMANTIC_KEYS)
+        ):
+            _add(problems, f"{label} surface stackSemantics must contain exactly four non-empty string fields")
         if "responsive" in item:
             item_responsive = item["responsive"]
             if not isinstance(item_responsive, dict) or set(item_responsive) != {"kind", "targets"}:
@@ -963,6 +985,92 @@ def _read_wireframe_data(path: Path, problems: list[str]) -> dict[str, Any] | No
     return value
 
 
+def _approved_stack_semantics(stack_text: str) -> dict[str, dict[str, str]]:
+    """Normalize executable Stack layer selections by target family."""
+
+    active = active_text(stack_text)
+    layer_map = {
+        "rendering model": "renderingModel",
+        "component foundation": "componentFoundation",
+        "styling approach": "stylingMechanism",
+        "client strategy": "renderingModel",
+        "framework": "componentFoundation",
+    }
+    sections = {
+        "frontend": "Frontend Technology Decision",
+        "mobile": "Mobile/Desktop Technology Decision",
+    }
+    result: dict[str, dict[str, str]] = {}
+    for family, heading in sections.items():
+        match = re.search(
+            rf"^##\s+{re.escape(heading)}\s*$([\s\S]*?)(?=^##\s|\Z)",
+            active,
+            re.MULTILINE,
+        )
+        if match is None:
+            continue
+        rows = re.findall(
+            r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|",
+            match.group(1),
+            re.MULTILINE,
+        )
+        values: dict[str, str] = {}
+        for layer, selection, status in rows:
+            key = layer.strip().casefold()
+            if key not in layer_map or status.strip().casefold() not in {"required", "selected", "approved"}:
+                continue
+            normalized_key = layer_map[key]
+            if key in {"rendering model", "component foundation", "styling approach"} or normalized_key not in values:
+                values[normalized_key] = selection.strip()
+        if values:
+            result[family] = values
+    return result
+
+
+def _validate_stack_semantics_join(
+    scope: dict[str, Any],
+    *,
+    stack_text: str,
+    problems: list[str],
+) -> None:
+    """Require Approved target stackSemantics to equal approved Stack rows."""
+
+    approved = _approved_stack_semantics(stack_text)
+    if not approved:
+        _add(problems, "Approved target stackSemantics cannot be derived from approved Stack selections")
+        return
+    surfaces = scope.get("surfaces") if isinstance(scope.get("surfaces"), list) else []
+    for surface in surfaces:
+        if not isinstance(surface, dict):
+            continue
+        surface_id = surface.get("id")
+        surface_class = str(surface.get("surfaceClass", "")).casefold()
+        family = "mobile" if surface_class in {"ios", "android", "macos", "windows", "desktop"} else "frontend"
+        selected = approved.get(family)
+        if selected is None:
+            _add(problems, f"Approved target surface {surface_id} has no approved {family} Stack selections")
+            continue
+        recorded = surface.get("stackSemantics")
+        if not isinstance(recorded, dict) or set(recorded) != STACK_SEMANTIC_KEYS:
+            _add(
+                problems,
+                f"Approved target surface {surface_id} stackSemantics must contain exactly "
+                "platform, renderingModel, componentFoundation, and stylingMechanism",
+            )
+            continue
+        expected_platform = STACK_PLATFORM_BY_SURFACE_CLASS.get(surface_class)
+        if expected_platform and recorded.get("platform") != expected_platform:
+            _add(problems, f"Approved target surface {surface_id} stackSemantics.platform does not match surfaceClass")
+        for key in ("renderingModel", "componentFoundation", "stylingMechanism"):
+            value = recorded.get(key)
+            if not isinstance(value, str) or not value.strip():
+                _add(problems, f"Approved target surface {surface_id} stackSemantics.{key} must be non-empty")
+            elif key not in selected:
+                _add(problems, f"Approved Stack has no executable selection for {key} on surface {surface_id}")
+            elif value.strip().casefold() != selected[key].strip().casefold():
+                _add(problems, f"Approved target surface {surface_id} stackSemantics.{key} does not match approved Stack selection")
+
+
 def _validate_target_scope_join(
     scope: dict[str, Any],
     *,
@@ -980,6 +1088,7 @@ def _validate_target_scope_join(
     wireframe_data = _read_wireframe_data(wireframes_path, problems)
     if wireframe_data is None:
         return
+    _validate_stack_semantics_join(scope, stack_text=stack_text, problems=problems)
     prd_surfaces, prd_findings = parse_prd_ui_contract(
         prd_text,
         require_responsive=True,

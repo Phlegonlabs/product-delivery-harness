@@ -353,6 +353,34 @@ class OutcomeReviewTests(unittest.TestCase):
             self.assertEqual(1, rewritten.returncode)
             self.assertIn("Prior outcome sha256", rewritten.stderr)
 
+    def test_prior_outcome_history_allows_only_ordered_append_rows(self) -> None:
+        prior = valid_outcome()
+        appended_row = "| Setup completion was independently sampled | MS-001 | second bounded observation |"
+        appended = prior.replace(
+            "| Setup completion exceeded target | MS-001 | 72% |",
+            "| Setup completion exceeded target | MS-001 | 72% |\n" + appended_row,
+            1,
+        )
+        self.assertEqual([], check_outcome_review.prior_append_findings(prior, appended))
+        deleted = prior.replace("| Setup completion exceeded target | MS-001 | 72% |\n", "", 1)
+        self.assertIn("deleted historical row", "\n".join(check_outcome_review.prior_append_findings(prior, deleted)))
+        rewritten = prior.replace("| Setup completion exceeded target | MS-001 | 72% |", "| Setup completion exceeded target | MS-001 | 71% |", 1)
+        self.assertIn("byte-identical and ordered", "\n".join(check_outcome_review.prior_append_findings(prior, rewritten)))
+
+    def test_prior_outcome_history_rejects_row_reorder_and_verdict_rewrite(self) -> None:
+        first = "| Setup completion exceeded target | MS-001 | 72% |"
+        second = "| Setup completion remained stable | MS-001 | bounded sample |"
+        prior = valid_outcome().replace(first, first + "\n" + second, 1)
+        reordered = prior.replace(first + "\n" + second, second + "\n" + first, 1)
+        findings = "\n".join(check_outcome_review.prior_append_findings(prior, reordered))
+        self.assertIn("byte-identical and ordered", findings)
+        verdict_rewritten = valid_outcome().replace(
+            "Verdict: no_change — measured outcomes met the reviewed target",
+            "Verdict: enhancement — changed result",
+            1,
+        )
+        self.assertIn("prior verdict history", "\n".join(check_outcome_review.prior_append_findings(valid_outcome(), verdict_rewritten)))
+
 
 if __name__ == "__main__":
     unittest.main()

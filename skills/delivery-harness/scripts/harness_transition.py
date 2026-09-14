@@ -2270,6 +2270,42 @@ def _read_bound_posix(parent_fd: int, name: str) -> str:
         raise
 
 
+def _run_document_version_token(
+    path: Path, *, parent_fd: int | None = None
+) -> tuple[int, int, int, int, str]:
+    """Bind RUN identity and bytes to the destination used by the commit primitive."""
+
+    if parent_fd is None:
+        info = path.stat(follow_symlinks=False)
+        payload = path.read_bytes()
+    else:
+        info = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path.name, flags, dir_fd=parent_fd)
+        try:
+            with os.fdopen(descriptor, "rb") as handle:
+                payload = handle.read()
+        except Exception:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+            raise
+    return (
+        int(info.st_dev),
+        int(info.st_ino),
+        int(info.st_size),
+        int(info.st_mtime_ns),
+        hashlib.sha256(payload).hexdigest(),
+    )
+
+
+def _run_replace_commit_boundary(path: Path) -> None:
+    """Deterministic race hook; production keeps this a no-op."""
+
+    del path
+
+
 def _open_posix_parent_chain(path: Path) -> list[int]:
     """Open every parent component with O_NOFOLLOW and retain all handles."""
 
@@ -2440,6 +2476,7 @@ def _replace_run_document(
     if path.exists() and _is_reparse(path):
         raise ManifestError("RUN.md must not be a symlink or reparse point")
     text = path.read_text(encoding="utf-8")
+    destination_version = _run_document_version_token(path)
     if expected_text is not None and text != expected_text:
         raise ManifestError(
             "RUN.md changed during this transition; re-load the manifest and retry"
@@ -2485,6 +2522,15 @@ def _replace_run_document(
         if expected_text is not None and current != expected_text:
             raise ManifestError(
                 "RUN.md changed during this transition; re-load the manifest and retry"
+            )
+        _run_replace_commit_boundary(path)
+        current_version = _run_document_version_token(
+            path,
+            parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
+        )
+        if current_version != destination_version:
+            raise ManifestError(
+                "RUN.md changed at the commit boundary; concurrent bytes were preserved"
             )
         if os.name != "nt":
             os.replace(

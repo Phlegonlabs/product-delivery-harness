@@ -32,7 +32,12 @@ import manifest_fixtures as mf  # noqa: E402
 from harness_schema import archive_first_required, parse_harness_version  # noqa: E402
 from push_integration_branch import push_authorized_head  # noqa: E402
 from harness_core import ManifestError  # noqa: E402
-from test_product_package_checker import release_architecture, valid_prd, valid_stack  # noqa: E402
+from test_product_package_checker import (  # noqa: E402
+    release_architecture,
+    strictize_approved_package,
+    valid_prd,
+    valid_stack,
+)
 
 while str(PDB_TESTS) in sys.path:
     sys.path.remove(str(PDB_TESTS))
@@ -81,10 +86,13 @@ class ArchiveFirstPushTests(unittest.TestCase):
         root.mkdir(exist_ok=True)
         product = root / "docs/product"
         product.mkdir(parents=True)
+        approved_prd, approved_architecture, approved_stack = strictize_approved_package(
+            valid_prd(), release_architecture(), valid_stack()
+        )
         files = {
-            "PRD.md": valid_prd(),
-            "architecture.md": release_architecture(),
-            "stack-decisions.md": valid_stack(),
+            "PRD.md": approved_prd,
+            "architecture.md": approved_architecture,
+            "stack-decisions.md": approved_stack,
         }
         for name, text in files.items():
             (product / name).write_text(text, encoding="utf-8")

@@ -11,6 +11,6 @@ Freeze the source paths and current SHA-256 values in `sourceBindings`, Product 
 
 Publish or archive the Markdown and JSON files together. Never publish half a pair, silently overwrite a current pair, delete an old pair, or leave `ui-design.md` pointing to an archived source. Archive a superseded pair under `docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/` only after disclosing the exact move and receiving authorization.
 
-Generated Markdown writes preserve CAS bytes, file mode, and fsync durability. The writer walks POSIX parents with no-follow dirfds and holds a Windows non-reparse parent handle without delete sharing; replacement is native and fail-closed if that binding cannot be maintained.
+Generated Markdown writes preserve CAS bytes, file mode, and fsync durability. Compliant writers share a host-local destination lock/version token across the compare-to-commit window. The writer walks POSIX parents with no-follow dirfds and holds a Windows non-reparse parent handle without delete sharing; replacement is native and fail-closed if that binding or the destination token cannot be maintained.
 
 UI references remain owned by `ui-design-builder`; Design System Compiler never republishes them. Product Definition artifacts remain under `docs/product/` and are never moved into design staging.

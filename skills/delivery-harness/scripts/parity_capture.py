@@ -33,7 +33,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_core import ManifestError, load_plan  # noqa: E402
 from harness_ui_evidence import _state_marker  # noqa: E402
-from harness_git import windows_machine_roots  # noqa: E402
+from harness_git import windows_machine_roots, windows_parent_user_writable  # noqa: E402
 
 DEFAULT_OUT = Path("docs/goal/evidence/parity")
 VIEWPORT_HEIGHT = 1000
@@ -202,7 +202,7 @@ def _trusted_launcher_path(path: Path, label: str) -> Path:
 
     try:
         resolved = path.resolve(strict=True)
-        info = resolved.stat()
+        resolved.stat()
     except OSError as exc:
         raise RuntimeError(f"{label} is unavailable: {path}") from exc
     if not resolved.is_file() or path.is_symlink():
@@ -223,16 +223,35 @@ def _trusted_launcher_path(path: Path, label: str) -> Path:
         roots = list(windows_machine_roots())
         if not any(_path_within(resolved, root) for root in roots):
             raise RuntimeError(f"{label} must come from Program Files or Windows system directories")
-        if _windows_parent_user_writable(resolved.parent):
+        if windows_parent_user_writable(resolved.parent):
             raise RuntimeError(f"{label} parent is user-writable: {resolved.parent}")
         if resolved.suffix.casefold() not in {".exe", ".com", ".js", ".py", ".cmd", ".bat"}:
             raise RuntimeError(f"{label} has an unsupported executable type")
     else:
-        if info.st_uid != 0 or info.st_mode & 0o022:
-            raise RuntimeError(f"{label} must be root-owned and not writable by group/other")
+        for component in (resolved, *resolved.parents):
+            component_info = component.stat()
+            if component_info.st_uid != 0 or component_info.st_mode & 0o022:
+                raise RuntimeError(f"{label} path must be root-owned and not writable by group/other")
         if not any(_path_within(resolved, root) for root in (Path("/usr"), Path("/bin"), Path("/opt"))):
             raise RuntimeError(f"{label} must come from an OS-protected install path")
     return resolved
+
+
+def _bind_posix_launcher(path: Path, *, executable: bool = True) -> tuple[str, int]:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+        info = os.fstat(fd)
+        if not os.path.isfile(path) or (executable and not (info.st_mode & 0o111)):
+            os.close(fd)
+            raise RuntimeError(f"launcher is not executable: {path}")
+        for candidate in (f"/proc/self/fd/{fd}", f"/dev/fd/{fd}"):
+            if Path(candidate).exists():
+                return candidate, fd
+        os.close(fd)
+    except OSError as exc:
+        raise RuntimeError(f"cannot bind launcher identity: {path}") from exc
+    raise RuntimeError(f"descriptor-backed launcher path is unavailable: {path}")
 
 
 def _path_within(path: Path, root: Path) -> bool:
@@ -241,28 +260,6 @@ def _path_within(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
-
-
-def _windows_parent_user_writable(path: Path) -> bool:
-    command = shutil.which("icacls")
-    if not command:
-        return True
-    try:
-        result = subprocess.run(
-            [command, str(path)], capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=10, check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return True
-    if result.returncode != 0:
-        return True
-    for line in result.stdout.splitlines()[1:]:
-        principal = line.strip().casefold()
-        if principal.startswith(("builtin\\users", "everyone", "authenticated users")) and any(
-            token in principal for token in ("(w)", "(m)", "(f)", "(d)")
-        ):
-            return True
-    return False
 
 
 def _resolve_cli() -> list[str] | None:
@@ -306,16 +303,39 @@ def _run_browser(
         or any(item.casefold().endswith((".cmd", ".bat")) for item in cli)
     ):
         raise RuntimeError("agent-browser must use a direct native or Node argv")
-    command = [*cli, *argv]
-    return subprocess.run(
-        command,
-        input=stdin,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-    )
+    bound: list[str] = []
+    descriptors: list[int] = []
+    try:
+        if os.name != "nt":
+            for index, item in enumerate(cli):
+                if index == 0 or item.endswith((".js", ".py")):
+                    launch, descriptor = _bind_posix_launcher(
+                        Path(item), executable=(index == 0)
+                    )
+                    bound.append(launch)
+                    descriptors.append(descriptor)
+                else:
+                    bound.append(item)
+        else:
+            bound = list(cli)
+        command = [*bound, *argv]
+        options: dict[str, Any] = {
+            "input": stdin,
+            "capture_output": True,
+            "text": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+            "timeout": timeout,
+        }
+        if descriptors:
+            options["pass_fds"] = tuple(descriptors)
+        return subprocess.run(command, **options)
+    finally:
+        for descriptor in descriptors:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
 
 
 def _token(value: str) -> str:

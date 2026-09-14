@@ -78,6 +78,78 @@ ARCHIVE_ANCHOR_KEYS = {
 }
 
 _LAST_DOCUMENT_WRITE_STATE: dict[str, object] | None = None
+_ACTIVE_DOCUMENT_LOCK: "_DocumentLock | None" = None
+
+
+class _DocumentLock:
+    """Stable cross-process lock for one checkout's DOCUMENTS transaction."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root.resolve()
+        token = hashlib.sha256(str(self.root).encode("utf-8")).hexdigest()[:32]
+        self.path = Path(tempfile.gettempdir()) / f"product-delivery-harness-documents-{token}.lock"
+        self.fd: int | None = None
+        self._reentrant = False
+
+    def acquire(self) -> None:
+        global _ACTIVE_DOCUMENT_LOCK
+        if _ACTIVE_DOCUMENT_LOCK is not None:
+            if _ACTIVE_DOCUMENT_LOCK.root != self.root:
+                raise OSError("another DOCUMENTS transaction is active in this process")
+            self._reentrant = True
+            return
+        self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                os.lseek(self.fd, 0, os.SEEK_SET)
+                msvcrt.locking(self.fd, msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(self.fd, fcntl.LOCK_EX)
+            _ACTIVE_DOCUMENT_LOCK = self
+        except Exception:
+            os.close(self.fd)
+            self.fd = None
+            raise
+
+    def release(self) -> None:
+        global _ACTIVE_DOCUMENT_LOCK
+        if self._reentrant:
+            self._reentrant = False
+            return
+        if self.fd is None:
+            return
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                os.lseek(self.fd, 0, os.SEEK_SET)
+                msvcrt.locking(self.fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(self.fd, fcntl.LOCK_UN)
+        finally:
+            os.close(self.fd)
+            self.fd = None
+            if _ACTIVE_DOCUMENT_LOCK is self:
+                _ACTIVE_DOCUMENT_LOCK = None
+
+
+def _documents_version(root: Path, documents: Path) -> tuple[tuple[int, int, int], str] | None:
+    identity = _safe_documents_identity(root, documents)
+    if identity is None:
+        return None
+    return identity, _sha256_bytes(documents.read_bytes())
+
+
+def _documents_before_commit(root: Path, documents: Path) -> None:
+    """Testing/coordination hook immediately before the final CAS check."""
+
+    return None
 
 _UTC_RFC3339_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
@@ -163,6 +235,91 @@ def _validate_utc_timestamp(value: object, label: str) -> None:
         raise ValueError(f"{label} must be an RFC3339 UTC timestamp ending in Z") from exc
     if parsed.tzinfo != timezone.utc:
         raise ValueError(f"{label} must be an RFC3339 UTC timestamp ending in Z")
+
+
+_ARCHIVE_TRANSACTION_SOURCES = {
+    "docs/goal/PLAN.md",
+    "docs/goal/RUN.md",
+    "docs/goal/DECISIONS.md",
+    "docs/goal/REFINEMENT_BACKLOG.md",
+    "docs/goal/evidence",
+    "docs/tasks.md",
+}
+
+
+def _transaction_source_key(source: object) -> str | None:
+    if not isinstance(source, str):
+        return None
+    if source == "docs/goal/evidence" or source.startswith("docs/goal/evidence/"):
+        return "docs/goal/evidence"
+    return source if source in _ARCHIVE_TRANSACTION_SOURCES else None
+
+
+def _transaction_destination(archive_path: str, source: str) -> str:
+    if source == "docs/goal/evidence":
+        return f"{archive_path}/evidence"
+    return f"{archive_path}/{Path(source).name}"
+
+
+def _validate_archive_transaction_moves(
+    archive_path: str,
+    moves: object,
+    *,
+    receipt: dict[str, object] | None = None,
+) -> list[str]:
+    """Validate journal moves before opening or mutating any recovery path."""
+
+    errors: list[str] = []
+    if not isinstance(moves, list) or not moves:
+        return ["archive transaction journal moves must be a non-empty list"]
+    seen_sources: set[str] = set()
+    seen_destinations: set[str] = set()
+    journal_pairs: set[tuple[str, str]] = set()
+    for index, item in enumerate(moves):
+        if not isinstance(item, dict) or set(item) != {"source", "destination"}:
+            errors.append(f"archive transaction journal move {index} has invalid fields")
+            continue
+        source = item.get("source")
+        destination = item.get("destination")
+        source_key = _transaction_source_key(source)
+        if source_key is None or not _canonical_repo_path(source_key):
+            errors.append(f"archive transaction journal move {index} source is outside the coordination set")
+            continue
+        if source != source_key:
+            errors.append(f"archive transaction journal move {index} source must name a top-level coordination entry")
+            continue
+        if not _canonical_repo_path(destination, prefix=f"{archive_path}/"):
+            errors.append(f"archive transaction journal move {index} destination is outside archive_path")
+            continue
+        expected_destination = _transaction_destination(archive_path, source_key)
+        if destination != expected_destination:
+            errors.append(f"archive transaction journal move {index} destination does not match source")
+        if source_key in seen_sources:
+            errors.append(f"archive transaction journal move {index} duplicates source")
+        if destination in seen_destinations:
+            errors.append(f"archive transaction journal move {index} duplicates destination")
+        seen_sources.add(source_key)
+        seen_destinations.add(destination)
+        journal_pairs.add((source_key, destination))
+    required = {"docs/goal/PLAN.md", "docs/goal/RUN.md"}
+    if not required.issubset(seen_sources):
+        errors.append("archive transaction journal moves must include PLAN.md and RUN.md")
+    if receipt is not None:
+        receipt_path = receipt.get("archive_path")
+        if receipt_path != archive_path:
+            errors.append("archive transaction journal archive_path does not match receipt")
+        receipt_moves = receipt.get("moves")
+        receipt_pairs: set[tuple[str, str]] = set()
+        if isinstance(receipt_moves, list):
+            for row in receipt_moves:
+                if isinstance(row, dict):
+                    source_key = _transaction_source_key(row.get("source"))
+                    destination = row.get("destination")
+                    if source_key is not None and isinstance(destination, str):
+                        receipt_pairs.add((source_key, _transaction_destination(archive_path, source_key)))
+        if journal_pairs != receipt_pairs:
+            errors.append("archive transaction journal moves do not match receipt coordination sources")
+    return errors
 
 
 def _canonical_branch(value: object) -> str | None:
@@ -251,19 +408,34 @@ def _atomic_write_documents(
     value: bytes,
     *,
     expected_bytes: bytes | None = None,
+    _lock_already_held: bool = False,
 ) -> tuple[int, int, int]:
     """Write DOCUMENTS.md atomically after an immediate identity recheck."""
+
+    if not _lock_already_held and _ACTIVE_DOCUMENT_LOCK is None:
+        lock = _DocumentLock(root)
+        lock.acquire()
+        try:
+            return _atomic_write_documents(
+                root,
+                documents,
+                value,
+                expected_bytes=expected_bytes,
+                _lock_already_held=True,
+            )
+        finally:
+            lock.release()
 
     initial = _safe_documents_identity(root, documents)
     if initial is None:
         raise OSError(f"{DOCUMENTS_PATH.as_posix()} disappeared before write")
-    if expected_bytes is not None:
-        try:
-            current_bytes = documents.read_bytes()
-        except OSError as exc:
-            raise OSError(f"cannot read {DOCUMENTS_PATH.as_posix()} before write") from exc
-        if current_bytes != expected_bytes:
-            raise OSError(f"{DOCUMENTS_PATH.as_posix()} content changed before write")
+    try:
+        initial_bytes = documents.read_bytes()
+    except OSError as exc:
+        raise OSError(f"cannot read {DOCUMENTS_PATH.as_posix()} before write") from exc
+    if expected_bytes is not None and initial_bytes != expected_bytes:
+        raise OSError(f"{DOCUMENTS_PATH.as_posix()} content changed before write")
+    initial_version = (initial, _sha256_bytes(initial_bytes))
     parent = documents.parent
     parent_fd: int | None = None
     if os.name != "nt":
@@ -295,11 +467,16 @@ def _atomic_write_documents(
         fd = -1
         # The path may have been swapped after preflight.  Never replace a
         # different inode or a newly introduced link.
-        current = _safe_documents_identity(root, documents)
-        if current != initial:
-            raise OSError(f"{DOCUMENTS_PATH.as_posix()} identity changed before atomic replace")
-        if expected_bytes is not None and documents.read_bytes() != expected_bytes:
-            raise OSError(f"{DOCUMENTS_PATH.as_posix()} content changed before atomic replace")
+        current_version = _documents_version(root, documents)
+        if current_version != initial_version:
+            raise OSError(f"{DOCUMENTS_PATH.as_posix()} version changed before atomic replace")
+        _documents_before_commit(root, documents)
+        # The hook is intentionally followed by a second token comparison:
+        # an injected last-read→replace edit is preserved instead of being
+        # overwritten by the transaction's temporary file.
+        current_version = _documents_version(root, documents)
+        if current_version != initial_version:
+            raise OSError(f"{DOCUMENTS_PATH.as_posix()} version changed at commit boundary")
         if parent_fd is not None:
             os.replace(
                 temporary_name,
@@ -1112,7 +1289,9 @@ class _ArchiveMutationGuard:
         self.target_fd: int | None = None
         self.anchor_parent_fd: int | None = None
         self.archived_created = False
+        self.documents_lock = _DocumentLock(self.root)
         try:
+            self.documents_lock.acquire()
             self._prepare()
         except Exception:
             if self.archived_created:
@@ -1516,6 +1695,7 @@ class _ArchiveMutationGuard:
                 except OSError:
                     pass
                 self.target_fd = None
+        self.documents_lock.release()
 
 
 def _rollback_archive(
@@ -1698,15 +1878,25 @@ def recover_archive(root: Path, target: Path | None = None) -> int:
             moves = journal.get("moves")
             if not isinstance(moves, list) or not moves:
                 raise ValueError("archive transaction journal moves are missing")
+            receipt_value: dict[str, object] | None = None
+            receipt_path = current_target / ARCHIVE_RECEIPT_NAME
+            if receipt_path.exists():
+                receipt_value = json.loads(receipt_path.read_text(encoding="utf-8"))
+                receipt_errors = validate_archive_receipt(receipt_value)
+                if receipt_errors:
+                    raise ValueError(
+                        "archive transaction receipt is invalid: " + "; ".join(receipt_errors)
+                    )
+            move_errors = _validate_archive_transaction_moves(
+                archive_rel,
+                moves,
+                receipt=receipt_value,
+            )
+            if move_errors:
+                raise ValueError("; ".join(move_errors))
             move_paths: list[Path] = []
             for item in moves:
-                if not isinstance(item, dict):
-                    raise ValueError("archive transaction journal move is malformed")
-                source = item.get("source")
-                destination = item.get("destination")
-                if not _canonical_repo_path(source) or not _canonical_repo_path(destination):
-                    raise ValueError("archive transaction journal move path is not canonical")
-                move_paths.append(Path(source))
+                move_paths.append(Path(str(item["source"])))
             anchor_value = journal.get("anchor_path")
             anchor_candidate = None
             if isinstance(anchor_value, str) and anchor_value:
@@ -1724,14 +1914,6 @@ def recover_archive(root: Path, target: Path | None = None) -> int:
             guard.bind_existing_target()
             phase = journal.get("phase")
             if phase == "documents_written":
-                receipt_path = current_target / ARCHIVE_RECEIPT_NAME
-                receipt_value = json.loads(receipt_path.read_text(encoding="utf-8"))
-                receipt_errors = validate_archive_receipt(receipt_value)
-                if receipt_errors:
-                    raise ValueError(
-                        "cannot finalize a journaled archive with an invalid receipt: "
-                        + "; ".join(receipt_errors)
-                    )
                 guard.remove_journal()
                 guard.close()
                 continue
@@ -1885,10 +2067,8 @@ def archive(
         return 0
 
     documents_path = root / DOCUMENTS_PATH
-    documents_snapshot = (
-        documents_path.read_bytes() if documents_path.is_file() else None
-    )
-    documents_initial_identity = _safe_documents_identity(root, documents_path)
+    documents_snapshot: bytes | None = None
+    documents_initial_identity: tuple[int, int, int] | None = None
     global _LAST_DOCUMENT_WRITE_STATE
     _LAST_DOCUMENT_WRITE_STATE = None
     moved: list[tuple[Path, Path]] = []
@@ -1898,6 +2078,12 @@ def archive(
     except Exception as exc:  # noqa: BLE001 - fail closed before any mutation
         print(f"error: archive filesystem identity guard failed: {exc}", file=sys.stderr)
         return 1
+    # Capture DOCUMENTS only after the transaction-wide lock is held.  Every
+    # compliant writer therefore serializes on this same destination token.
+    documents_initial_identity = _safe_documents_identity(root, documents_path)
+    documents_snapshot = (
+        documents_path.read_bytes() if documents_initial_identity is not None else None
+    )
     # The first preflight was only a snapshot.  Re-read branch, HEAD, main,
     # ancestry, and cleanliness while directory identities are held and just
     # before any anchor/target write.  A concurrent ref update therefore fails
@@ -2052,6 +2238,13 @@ def archive(
 
 
 def _update_documents(root: Path) -> None:
+    if _ACTIVE_DOCUMENT_LOCK is None:
+        lock = _DocumentLock(root)
+        lock.acquire()
+        try:
+            return _update_documents(root)
+        finally:
+            lock.release()
     global _LAST_DOCUMENT_WRITE_STATE
     _LAST_DOCUMENT_WRITE_STATE = None
     documents = root / DOCUMENTS_PATH

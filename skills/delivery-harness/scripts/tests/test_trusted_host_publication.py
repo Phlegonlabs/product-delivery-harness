@@ -25,6 +25,17 @@ import trusted_host_publication as subject  # noqa: E402
 
 
 class TrustedHostPublicationTests(unittest.TestCase):
+    def test_reserved_output_replacement_is_detected_and_attacker_bytes_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "evidence.json"
+            fd, identity = subject._reserve_output(path)
+            os.close(fd)
+            path.unlink()
+            path.write_text("attacker", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "reserved output"):
+                subject._assert_reserved_output(path, fd, identity)
+            self.assertEqual("attacker", path.read_text(encoding="utf-8"))
+
     def test_windows_hklm_policy_mock_readback_binds_principal_and_hash(self) -> None:
         class FakeKey:
             def __enter__(self) -> "FakeKey":
@@ -83,6 +94,67 @@ class TrustedHostPublicationTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "HARNESS_TRUSTED_HOST"):
                     subject.execute(args)
                 run.assert_not_called()
+
+    def test_invalid_issuer_is_rejected_before_any_push_subprocess(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            request_path = root / "request.json"
+            attempt_path = root / "attempt.json"
+            evidence_path = root / "evidence.json"
+            key = root / "machine-key"
+            verifier = root / "ssh-keygen"
+            key.write_text("fixture", encoding="utf-8")
+            verifier.write_bytes(b"verifier")
+            request = {
+                "attempt_path": str(attempt_path),
+                "execution_evidence_path": str(evidence_path),
+                "archive_path": "docs/goal/archived/A",
+                "candidate_a": "a" * 40,
+                "signature_verifier_path": str(verifier),
+                "signature_verifier_sha256": hashlib.sha256(verifier.read_bytes()).hexdigest(),
+            }
+            attempt = {"attempt_sha256": "b" * 64}
+            args = subject.argparse.Namespace(
+                request=request_path,
+                attempt=attempt_path,
+                evidence_out=evidence_path,
+                signing_key=key,
+                trusted_host_issuer="\n",
+            )
+            with (
+                patch.dict(os.environ, {"HARNESS_TRUSTED_HOST": "1"}, clear=True),
+                patch.object(subject, "_root", return_value=root),
+                patch.object(subject, "_load_request", return_value=request),
+                patch.object(subject, "_load_attempt", return_value=attempt),
+                patch.object(subject, "verify_archive_candidate", return_value={}),
+                patch.object(subject, "_request_matches_authority"),
+                patch.object(subject.subprocess, "run") as run,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "issuer"):
+                    subject.execute(args)
+            run.assert_not_called()
+
+    def test_preexisting_evidence_output_is_rejected_before_any_push_subprocess(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            request_path = root / "request.json"
+            attempt_path = root / "attempt.json"
+            evidence_path = root / "evidence.json"
+            evidence_path.write_text("old", encoding="utf-8")
+            request = {"attempt_path": str(attempt_path), "execution_evidence_path": str(evidence_path), "archive_path": "docs/goal/archived/A", "candidate_a": "a" * 40}
+            args = subject.argparse.Namespace(request=request_path, attempt=attempt_path, evidence_out=evidence_path, signing_key=root / "key", trusted_host_issuer="trusted-host-01")
+            with (
+                patch.dict(os.environ, {"HARNESS_TRUSTED_HOST": "1"}, clear=True),
+                patch.object(subject, "_root", return_value=root),
+                patch.object(subject, "_load_request", return_value=request),
+                patch.object(subject, "_load_attempt", return_value={}),
+                patch.object(subject, "verify_archive_candidate", return_value={}),
+                patch.object(subject, "_request_matches_authority"),
+                patch.object(subject.subprocess, "run") as run,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "already exists"):
+                    subject.execute(args)
+            run.assert_not_called()
 
     def test_invalid_request_is_rejected_before_attempt_or_push(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
