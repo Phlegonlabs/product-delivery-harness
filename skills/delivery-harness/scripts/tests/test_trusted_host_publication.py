@@ -36,6 +36,7 @@ class TrustedHostPublicationTests(unittest.TestCase):
                 subject._assert_reserved_output(path, fd, identity)
             self.assertEqual("attacker", path.read_text(encoding="utf-8"))
 
+    @unittest.skipIf(os.name != "nt", "simulated HKLM policy needs native Windows pathlib")
     def test_windows_hklm_policy_mock_readback_binds_principal_and_hash(self) -> None:
         class FakeKey:
             def __enter__(self) -> "FakeKey":
