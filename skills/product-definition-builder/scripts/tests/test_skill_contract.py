@@ -1894,6 +1894,8 @@ async function agent(_prompt, options) {
         self.assertIn("windows", skill)
         self.assertIn("including hybrids", skill)
         self.assertIn("check_activation.py --activation", skill)
+        self.assertIn("--architecture <staged architecture.md>", skill)
+        self.assertIn("never falls back to a bundled default", skill)
         self.assertIn("creates it only when absent", contract)
         self.assertIn("never stages, overwrites, archives, resets", contract)
         self.assertIn("Exclude it from the superseded-document inventory", lifecycle)

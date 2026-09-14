@@ -16,6 +16,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_git import (  # noqa: E402
+    GitConfigurationError,
     GitMetadataError,
     git_environment,
     reject_object_substitution,
@@ -132,6 +133,70 @@ class HarnessGitTests(unittest.TestCase):
             )
             self.assertEqual(0, result.returncode)
             self.assertEqual(root_head, result.stdout.strip())
+
+    def test_git_environment_strips_config_and_helper_injection_families(self) -> None:
+        environment = git_environment(
+            {
+                "gIt_CoNfIg_CoUnT": "1",
+                "GIT_CONFIG_KEY_0": "core.sshCommand",
+                "git_config_value_0": "sentinel",
+                "GIT_SSH_COMMAND": "sentinel-ssh",
+                "git_ssh": "sentinel-ssh",
+                "Git_AskPass": "sentinel-askpass",
+                "GIT_PROXY_COMMAND": "sentinel-proxy",
+                "SSH_ASKPASS": "sentinel-askpass",
+            }
+        )
+        normalized = {key.upper() for key in environment}
+        self.assertFalse(
+            any(key == "GIT_CONFIG" or key.startswith("GIT_CONFIG_") for key in normalized)
+        )
+        for key in ("GIT_SSH_COMMAND", "GIT_SSH", "GIT_ASKPASS", "GIT_PROXY_COMMAND", "SSH_ASKPASS"):
+            self.assertNotIn(key, normalized)
+
+    def test_local_helper_and_endpoint_rewrite_config_fails_closed_before_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._repo(root)
+            sentinel = root / "sentinel-ran.txt"
+            command = f"python -c \"from pathlib import Path; Path(r'{sentinel}').write_text('ran')\""
+            subprocess.run(["git", "config", "core.sshCommand", command], cwd=root, check=True)
+            with self.assertRaisesRegex(GitConfigurationError, "core.sshcommand"):
+                run_git(root, "rev-parse", "HEAD")
+            self.assertFalse(sentinel.exists())
+
+            subprocess.run(["git", "config", "--unset", "core.sshCommand"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "url.https://attacker.invalid/.insteadOf", "origin"],
+                cwd=root,
+                check=True,
+            )
+            with self.assertRaisesRegex(GitConfigurationError, "insteadof"):
+                run_git(root, "remote", "get-url", "origin")
+
+            subprocess.run(
+                ["git", "config", "--unset-all", "url.https://attacker.invalid/.insteadOf"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "url.https://attacker.invalid/.pushInsteadOf", "origin"],
+                cwd=root,
+                check=True,
+            )
+            with self.assertRaisesRegex(GitConfigurationError, "pushinsteadof"):
+                run_git(root, "remote", "get-url", "origin")
+
+            subprocess.run(["git", "config", "--unset-all", "url.https://attacker.invalid/.pushInsteadOf"], cwd=root, check=True)
+            subprocess.run(["git", "config", "extensions.worktreeConfig", "true"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "--worktree", "core.sshCommand", command],
+                cwd=root,
+                check=True,
+            )
+            with self.assertRaisesRegex(GitConfigurationError, "core.sshcommand"):
+                run_git(root, "status", "--porcelain")
+            self.assertFalse(sentinel.exists())
 
 
 if __name__ == "__main__":

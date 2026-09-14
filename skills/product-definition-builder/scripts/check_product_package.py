@@ -7,7 +7,6 @@ import argparse
 import datetime
 import hashlib
 import re
-import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -15,6 +14,7 @@ from pathlib import Path
 from markdown_contract import active_markdown_lines, active_text, active_machine_block
 from prd_ui_contract import parse_prd_ui_contract
 from release_targets import parse_release_targets
+from git_evidence import GitEvidenceError, verify_revision_path
 
 
 PRODUCT_APPROVAL_START = "<!-- product-definition-approval:start -->"
@@ -972,32 +972,14 @@ def _verify_selected_evidence(
             )
         return
     try:
-        commit = subprocess.run(
-            ["git", "cat-file", "-e", f"{revision}^{{commit}}"],
-            cwd=root,
-            capture_output=True,
-            timeout=10,
-        )
-        blob = subprocess.run(
-            ["git", "cat-file", "-e", f"{revision}:{relative}"],
-            cwd=root,
-            capture_output=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
+        verify_revision_path(root, revision, relative)
+    except GitEvidenceError as exc:
         _add(
             problems,
             "stack-decisions",
-            f"Selected layer {label!r} repository revision cannot be verified: {exc}",
+            f"Selected layer {label!r} repository revision cannot be verified safely: {exc}",
         )
         return
-    if commit.returncode != 0 or blob.returncode != 0:
-        _add(
-            problems,
-            "stack-decisions",
-            f"Selected layer {label!r} repository revision/path is not real: "
-            f"{revision}:{relative}",
-        )
 
 
 def _validate_stack_tables(
@@ -1505,6 +1487,18 @@ def validate_texts(
                 problems,
                 f"prd.{surface_id}.captureMode",
                 f"must be {expected_capture!r} for surfaceClass {surface_class!r}",
+            )
+        expected_responsive = (
+            "sizeClasses"
+            if capture_mode in {"native", "desktop"}
+            else "viewports"
+        )
+        responsive_kind = surface.get("responsiveKind")
+        if responsive_kind and responsive_kind != expected_responsive:
+            _add(
+                problems,
+                f"prd.{surface_id}.responsive",
+                f"must use {expected_responsive!r} responsive data for captureMode {capture_mode!r}",
             )
     if require_filled:
         _validate_architecture_sections(architecture_text, problems=problems)

@@ -105,14 +105,17 @@ def _git_common_dir(root: Path) -> Path:
 def _worker_dirty(root: Path) -> bool | None:
     """Observe dirty state; a failed Git status is unknown, never clean."""
 
-    completed = run_git(
-        root,
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-        text=True,
-        timeout=30,
-    )
+    try:
+        completed = run_git(
+            root,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            text=True,
+            timeout=30,
+        )
+    except (GitMetadataError, OSError):
+        return None
     if completed.returncode != 0:
         return None
     return bool(completed.stdout.strip())

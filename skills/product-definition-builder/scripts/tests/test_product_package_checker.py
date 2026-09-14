@@ -1,3 +1,4 @@
+import os
 import subprocess
 import re
 import sys
@@ -10,6 +11,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_product_package  # noqa: E402
+from git_evidence import GitEvidenceError, verify_revision_path  # noqa: E402
 from prd_ui_contract import validate_prd_wireframe_data  # noqa: E402
 
 
@@ -961,6 +963,85 @@ class ProductPackageCheckerTests(unittest.TestCase):
             self.validate(prd=prd, architecture=architecture, stack=stack),
         )
 
+    def test_capture_mode_requires_matching_responsive_kind_for_web_ios_and_extension(self) -> None:
+        web_prd = valid_prd().replace(
+            "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",
+            "UI design: pending explicit ui-design-builder request\nUI decision owner: Product owner",
+        ).replace(
+            "not_required — the fixture exposes no shipped user interface.",
+            "| ID | User / task | Requirement | Success and failure signal | Evidence status |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| UX-001 | Owner reviews status | Show completion and recovery | Success is visible; failure offers retry | prototype-reviewed |",
+        ) + ui_contract()
+        web_bad = web_prd.replace(
+            "- `responsive`: viewports: 390, 768, 1200",
+            "- `responsive`: sizeClasses: compact, regular",
+        )
+        self.assertTrue(
+            any("responsive" in finding and "viewports" in finding for finding in self.validate(prd=web_bad))
+        )
+
+        native_surface = """
+### UI-002 — Native home
+- `route`: /native-home
+- `releaseSurface`: ios-app
+- `surfaceClass`: ios
+- `captureMode`: native
+- Main purpose: Let the owner inspect the same fixture on iOS.
+- Content responsibilities: Show completion state with source: fixture record; order: status then recovery; format: text; count: one; length: bounded; fallback: unavailable message.
+- Actions and transitions: Refresh the record, show success feedback, and show a recoverable failure state.
+- `states`: ready
+- `responsive`: viewports: 390, 768, 1200
+- `copy`: draft — product responsibility is draft
+- Responsive obligations: Never drop status or recovery actions.
+- Accessibility: Preserve headings, labels, focus order, announcements, and meaningful alternative text.
+- SEO metadata: n/a — native app surface.
+- Trace IDs: PRD-001, UX-001, ARCH-001, TEST-001
+"""
+        ios_contract = ui_contract().replace(
+            "<!-- ui-surface-contract:end -->",
+            native_surface + "\n<!-- ui-surface-contract:end -->",
+        )
+        ios_prd = web_prd[: -len(ui_contract())] + ios_contract
+        ios_targets = "\n".join(
+            (
+                release_target("ios-development", surface="ios-app", suffix="ios", provider="TestFlight", stage="development", release_name="fixture-ios-dev"),
+                release_target("ios-production", surface="ios-app", suffix="ios", provider="App Store", stage="production", release_name="fixture-ios"),
+            )
+        )
+        ios_architecture = release_architecture(expected="web-app, ios-app", extra_targets=ios_targets)
+        ios_findings = self.validate(prd=ios_prd, architecture=ios_architecture)
+        self.assertTrue(
+            any(
+                "prd.UI-002.responsive" in finding and "sizeClasses" in finding
+                for finding in ios_findings
+            ),
+            ios_findings,
+        )
+
+        extension_prd = web_prd.replace(
+            "releaseSurface`: web-app", "releaseSurface`: browser-extension"
+        ).replace(
+            "surfaceClass`: hosted_web", "surfaceClass`: browser_extension"
+        ).replace(
+            "captureMode`: hosted-browser", "captureMode`: browser-extension"
+        ).replace(
+            "viewports: 390, 768, 1200", "sizeClasses: compact, regular"
+        )
+        extension_target = "\n".join(
+            (
+                release_target("extension-development", surface="browser-extension", suffix="extension", provider="Chrome", stage="development", release_name="fixture-extension-dev"),
+                release_target("extension-production", surface="browser-extension", suffix="extension", provider="Chrome", stage="production", release_name="fixture-extension"),
+            )
+        )
+        extension_architecture = release_architecture(expected="browser-extension", extra_targets=extension_target)
+        self.assertTrue(
+            any(
+                "responsive" in finding and "viewports" in finding
+                for finding in self.validate(prd=extension_prd, architecture=extension_architecture)
+            )
+        )
+
     def test_release_target_typed_surface_and_discoverability_are_closed(self) -> None:
         architecture = release_architecture().replace(
             "- Surface class: hosted_web", "- Surface class: guessed_web"
@@ -1206,6 +1287,76 @@ class ProductPackageCheckerTests(unittest.TestCase):
         self.assertTrue(
             any("duplicate technology decision section" in item for item in self.validate(stack=duplicate))
         )
+
+    def test_selected_evidence_rejects_replacements_grafts_and_identity_env(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "package.json").write_text("{}\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"], cwd=root, check=True
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Product Test"], cwd=root, check=True
+            )
+            subprocess.run(["git", "add", "package.json"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+            revision = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+
+            with self.assertRaisesRegex(GitEvidenceError, "replacement refs"):
+                subprocess.run(
+                    ["git", "update-ref", f"refs/replace/{revision}", revision],
+                    cwd=root,
+                    check=True,
+                )
+                verify_revision_path(root, revision, "package.json")
+
+            subprocess.run(
+                ["git", "update-ref", "-d", f"refs/replace/{revision}"],
+                cwd=root,
+                check=True,
+            )
+            git_dir = Path(
+                subprocess.check_output(
+                    ["git", "rev-parse", "--absolute-git-dir"], cwd=root, text=True
+                ).strip()
+            )
+            graft = git_dir / "info" / "grafts"
+            graft.parent.mkdir(parents=True, exist_ok=True)
+            graft.write_text("# adversarial graft\n", encoding="utf-8")
+            with self.assertRaisesRegex(GitEvidenceError, "graft metadata"):
+                verify_revision_path(root, revision, "package.json")
+
+            graft.unlink()
+            alternate = Path(directory).parent / f"alternate-{root.name}"
+            subprocess.run(["git", "init", "-q", str(alternate)], check=True)
+            other_git = subprocess.check_output(
+                ["git", "rev-parse", "--absolute-git-dir"],
+                cwd=alternate,
+                text=True,
+            ).strip()
+            with self.assertRaisesRegex(GitEvidenceError, "identity environment"):
+                verify_revision_path(
+                    root,
+                    revision,
+                    "package.json",
+                    environment={**os.environ, "GIT_DIR": other_git},
+                )
+            # Git's numbered config injection protocol is removed before the
+            # exact-SHA read; it cannot select an attacker URL/config file.
+            verify_revision_path(
+                root,
+                revision,
+                "package.json",
+                environment={
+                    **os.environ,
+                    "GIT_CONFIG_COUNT": "1",
+                    "GIT_CONFIG_KEY_0": "url.https://attacker.invalid/.insteadOf",
+                    "GIT_CONFIG_VALUE_0": "origin",
+                },
+            )
 
     def test_owner_status_and_research_provenance_are_closed(self) -> None:
         metric_ai = valid_prd().replace(

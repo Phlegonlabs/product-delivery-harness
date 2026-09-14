@@ -1,5 +1,7 @@
 """Contract tests for the UI Design Builder skill."""
 
+import shutil
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -15,6 +17,77 @@ class UiDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("qaGeneration", template)
         self.assertIn("generation !== qaGeneration", template)
         self.assertIn("canvas.isConnected", template)
+
+    def test_wireframe_runtime_executes_hybrid_fallback_and_stale_qa_guard(self):
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required for wireframe runtime validation")
+        template = SKILL_ROOT / "assets" / "templates" / "WIREFRAMES.template.html"
+        runner = r'''
+const fs = require("fs");
+const vm = require("vm");
+const html = fs.readFileSync(process.argv[1], "utf8");
+const slice = (startMarker, endMarker) => {
+  const start = html.indexOf(startMarker);
+  const end = html.indexOf(endMarker, start);
+  if (start < 0 || end < 0) throw new Error(`missing runtime marker ${startMarker}`);
+  return html.slice(start, end);
+};
+const fixture = {
+  responsiveBySurface: {
+    "UI-WEB": {kind: "viewports", targets: [390, 1200], canvasWidths: {"390": 390, "1200": 1200}},
+    "UI-IOS": {kind: "sizeClasses", targets: ["compact", "regular"], canvasWidths: {compact: 390, regular: 768}}
+  },
+  screens: [
+    {id: "UI-WEB", regions: [{id: "W1"}, {id: "W2"}], responsiveLayouts: {"390": {order: ["W1", "W2"]}, "1200": {order: ["W2", "W1"]}}},
+    {id: "UI-IOS", regions: [{id: "I1"}], responsiveLayouts: {compact: {order: ["I1"]}, regular: {order: ["I1"]}}}
+  ]
+};
+const callbacks = [];
+const context = {
+  data: fixture,
+  state: {page: "UI-WEB", responsiveTarget: "1200", screenState: "ready"},
+  requestAnimationFrame: callback => callbacks.push(callback),
+  getComputedStyle: () => ({overflowX: "visible", overflowY: "visible"}),
+  window: {},
+  console
+};
+vm.createContext(context);
+const program = [
+  slice("const responsiveSpecFor", "const initialPage"),
+  "const currentScreen = () => data.screens.find((screen) => screen.id === state.page);",
+  slice("const targetFor", "const appendList"),
+  slice("const rectanglesOverlap", "const renderScreenFlows"),
+  "globalThis.api = {responsiveSpecFor, targetFor, activeLayout, regionOrder, runLayoutQa};"
+].join("\n");
+vm.runInContext(program, context);
+const web = fixture.screens[0];
+const ios = fixture.screens[1];
+if (context.api.targetFor(ios, "1200") !== "regular") throw new Error("native fallback did not use target-local default");
+if (context.api.activeLayout(ios, "1200") !== ios.responsiveLayouts.regular) throw new Error("native layout used a web target");
+if (context.api.regionOrder(web, "1200").map(item => item.id).join(",") !== "W2,W1") throw new Error("target-local region order failed");
+const canvas = {isConnected: true, scrollWidth: 768, clientWidth: 768, querySelectorAll: () => []};
+const shell = {isConnected: true, width: 1200, getBoundingClientRect() { return {width: this.width}; }};
+const panel = {isConnected: true, setAttribute() {}, textContent: ""};
+context.api.runLayoutQa(canvas, shell, panel, web);
+context.state.page = "UI-IOS";
+context.state.responsiveTarget = "regular";
+shell.width = 768;
+context.api.runLayoutQa(canvas, shell, panel, ios);
+callbacks[0]();
+if (context.window.wireframeQaResults) throw new Error("stale QA callback wrote a result");
+callbacks[1]();
+const keys = Object.keys(context.window.wireframeQaResults || {});
+if (keys.length !== 1 || keys[0] !== "UI-IOS|regular|ready") throw new Error(`wrong QA key ${keys.join(",")}`);
+if (context.window.wireframeQaResults[keys[0]].status !== "pass") throw new Error("current QA callback did not pass");
+'''
+        completed = subprocess.run(
+            [node, "-e", runner, str(template)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
 
     def read(self, relative: str) -> str:
         return (SKILL_ROOT / relative).read_text(encoding="utf-8")

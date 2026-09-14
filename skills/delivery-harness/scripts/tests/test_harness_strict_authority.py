@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -22,7 +23,12 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR, UI_TESTS_DIR, PDB_TESTS_DIR, DS_TESTS_
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
 
-from harness_contract_join import _strict_ui_surface_errors, validate_frozen_contract_joins  # noqa: E402
+from harness_contract_join import (  # noqa: E402
+    _PRD_UI_CONTRACT_PARSERS,
+    _load_canonical_prd_ui_contract_parser,
+    _strict_ui_surface_errors,
+    validate_frozen_contract_joins,
+)
 from harness_manifest import validate_current_plan_run  # noqa: E402
 from manifest_fixtures import valid_plan, valid_run  # noqa: E402
 from check_design_system_pair import replace_generated_contract  # noqa: E402
@@ -215,6 +221,89 @@ class StrictAuthorityJoinTests(unittest.TestCase):
             errors = validate_frozen_contract_joins(plan, root, run=run)
             self.assertTrue(any("canonical kind" in error for error in errors))
             self.assertTrue(any("--repo-root" in error for error in validate_current_plan_run(plan, run)))
+
+    def test_strict_prd_join_ignores_fenced_and_commented_ui_examples(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, run = self._headless_fixture(root)
+            prd_path = root / "docs/product/PRD.md"
+            prd_path.write_text(
+                prd_path.read_text(encoding="utf-8")
+                + """
+
+```markdown
+### UI-GHOST — fenced example
+- `route`: /ghost
+- `states`: [ready]
+- `responsive`: viewports: [390, 768, 1200]
+```
+
+<!--
+### UI-COMMENT — commented example
+- `route`: /comment
+- `states`: [ready]
+- `responsive`: viewports: [390, 768, 1200]
+-->
+""",
+                encoding="utf-8",
+            )
+            plan["sources"][0]["content_sha256"] = hashlib.sha256(
+                prd_path.read_bytes()
+            ).hexdigest()
+            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=run))
+
+    def test_strict_prd_join_rejects_an_active_ghost_ui_heading(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, run = self._headless_fixture(root)
+            prd_path = root / "docs/product/PRD.md"
+            prd_path.write_text(
+                prd_path.read_text(encoding="utf-8")
+                + """
+
+### UI-GHOST — active unsupported surface
+- `route`: /ghost
+- `states`: [ready]
+- `responsive`: viewports: [390, 768, 1200]
+""",
+                encoding="utf-8",
+            )
+            plan["sources"][0]["content_sha256"] = hashlib.sha256(
+                prd_path.read_bytes()
+            ).hexdigest()
+            errors = validate_frozen_contract_joins(plan, root, run=run)
+            self.assertTrue(
+                any("exactly one matched ui-surface-contract boundary pair" in error for error in errors),
+                errors,
+            )
+
+    def test_canonical_prd_parser_loader_ignores_poisoned_same_name_module(self) -> None:
+        sibling = Path(__file__).resolve().parents[3] / "product-definition-builder" / "scripts"
+        poisoned = types.ModuleType("prd_ui_contract")
+        poisoned.__file__ = str(sibling / "poisoned.py")
+        poisoned.parse_prd_ui_contract = lambda _text: ({"UI-GHOST": {}}, [])
+        previous = sys.modules.get("prd_ui_contract")
+        _PRD_UI_CONTRACT_PARSERS.pop(sibling.resolve(), None)
+        sys.modules["prd_ui_contract"] = poisoned
+        try:
+            parser = _load_canonical_prd_ui_contract_parser(sibling)
+            self.assertIsNotNone(parser)
+            entries, errors = parser(
+                """
+```markdown
+### UI-GHOST — fenced example
+```
+"""
+            )
+            self.assertEqual({}, entries)
+            self.assertEqual([], errors)
+            self.assertNotEqual(parser, poisoned.parse_prd_ui_contract)
+        finally:
+            if previous is None:
+                sys.modules.pop("prd_ui_contract", None)
+            else:
+                sys.modules["prd_ui_contract"] = previous
+            _PRD_UI_CONTRACT_PARSERS.pop(sibling.resolve(), None)
 
     def test_source_revision_drift_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

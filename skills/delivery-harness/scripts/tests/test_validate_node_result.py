@@ -25,7 +25,7 @@ from harness_manifest import plan_digest  # noqa: E402
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
 from test_harness_manifest import authorize_execution  # noqa: E402
 from manifest_fixtures import manifest_markdown  # noqa: E402
-from test_harness_strict_authority import StrictAuthorityJoinTests  # noqa: E402
+import test_harness_strict_authority as strict_authority_fixtures  # noqa: E402
 from validate_node_result import main as validate_node_result_main, validate_node_result  # noqa: E402
 
 
@@ -77,7 +77,7 @@ class ValidateNodeResultTests(unittest.TestCase):
     def test_cli_accepts_repo_root_for_current_harness_038_pair(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            plan, _run = StrictAuthorityJoinTests._headless_fixture(root)
+            plan, _run = strict_authority_fixtures.StrictAuthorityJoinTests._headless_fixture(root)
             plan["security_review"] = {
                 "status": "not_applicable",
                 "skill_slot": "code_security_verification",
@@ -87,7 +87,7 @@ class ValidateNodeResultTests(unittest.TestCase):
                 mission["write_scope"] = ["docs/fixture.md"]
                 for task in mission["tasks"]:
                     task["write_scope"] = ["docs/fixture.md"]
-            run = StrictAuthorityJoinTests._run(plan)
+            run = strict_authority_fixtures.StrictAuthorityJoinTests._run(plan)
             subprocess.run(["git", "init", "-q", "-b", "codex/test"], cwd=root, check=True)
             subprocess.run(
                 ["git", "config", "user.email", "test@example.invalid"],

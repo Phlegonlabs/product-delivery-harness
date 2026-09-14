@@ -541,6 +541,9 @@ class VerifierRuntimeTests(unittest.TestCase):
         runtime_b = self.root / "runtime-b"
         runtime_a.write_bytes(b"runtime-a")
         runtime_b.write_bytes(b"runtime-b")
+        if os.name != "nt":
+            runtime_a.chmod(0o755)
+            runtime_b.chmod(0o755)
         policy = container_execution()["sandbox"]
         preflight = {
             "runtime": "docker",
@@ -571,6 +574,8 @@ class VerifierRuntimeTests(unittest.TestCase):
         runtime = self.root / "runtime"
         original = b"trusted-runtime"
         runtime.write_bytes(original)
+        if os.name != "nt":
+            runtime.chmod(0o755)
         policy = container_execution()["sandbox"]
         version_output = "version-a"
         preflight = {
@@ -650,6 +655,165 @@ class VerifierRuntimeTests(unittest.TestCase):
                     5,
                     sandbox_preflight=preflight,
                 )
+
+    def test_container_command_preserves_hidden_cwd_segments(self) -> None:
+        patch.stopall()
+        from verifier_runtime import _run_container_verifier
+
+        runtime = self.root / "runtime"
+        runtime.write_bytes(b"trusted-runtime")
+        if os.name != "nt":
+            runtime.chmod(0o755)
+        policy = container_execution()["sandbox"]
+        assert isinstance(policy, dict)
+        preflight = {
+            "runtime": "docker",
+            "image": policy["image"],
+            "repo_digest": policy["image"],
+            "runtime_probe": {
+                "executable": str(runtime.resolve()),
+                "executable_sha256": hashlib.sha256(runtime.read_bytes()).hexdigest(),
+                "version_output_sha256": hashlib.sha256(b"version").hexdigest(),
+            },
+        }
+        (self.root / ".github" / "workflows").mkdir(parents=True)
+        (self.root / ".hidden").mkdir()
+        calls: list[list[str]] = []
+
+        def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            calls.append(command)
+            if len(command) == 2 and command[1] == "version":
+                return subprocess.CompletedProcess(command, 0, "version", "")
+            if len(command) > 2 and command[1:3] == ["image", "inspect"]:
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps([policy["image"]]), ""
+                )
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with patch("verifier_runtime.shutil.which", return_value=str(runtime)), patch(
+            "verifier_runtime.subprocess.run", side_effect=fake_run
+        ):
+            for declared_cwd, expected in (
+                (".github/workflows", "/workspace/.github/workflows"),
+                ("./.hidden", "/workspace/.hidden"),
+            ):
+                calls.clear()
+                _run_container_verifier(
+                    self.checkout,
+                    self.root,
+                    declared_cwd,
+                    ["python", "-c", "pass"],
+                    policy,
+                    5,
+                    sandbox_preflight=preflight,
+                )
+                self.assertEqual(len(calls), 3, calls)
+                self.assertEqual(calls[0][1], "version")
+                self.assertEqual(calls[1][1:3], ["image", "inspect"])
+                self.assertEqual(calls[2][1], "run")
+                workdir_index = calls[2].index("--workdir")
+                self.assertEqual(calls[2][workdir_index + 1], expected)
+                self.assertTrue(
+                    any(
+                        item.startswith("type=bind,src=")
+                        and item.endswith(",dst=/workspace,readonly")
+                        for item in calls[2]
+                    )
+                )
+
+    def test_runtime_binding_survives_replace_restore_sentinel_during_run(self) -> None:
+        patch.stopall()
+        from verifier_runtime import _run_container_verifier
+
+        runtime = self.root / "runtime"
+        replacement = self.root / "runtime.replacement"
+        sentinel = self.root / "runtime.sentinel"
+        original = b"trusted-runtime"
+        runtime.write_bytes(original)
+        replacement.write_bytes(b"substituted-runtime")
+        if os.name != "nt":
+            runtime.chmod(0o755)
+            replacement.chmod(0o755)
+        policy = container_execution()["sandbox"]
+        assert isinstance(policy, dict)
+        preflight = {
+            "runtime": "docker",
+            "image": policy["image"],
+            "repo_digest": policy["image"],
+            "runtime_probe": {
+                "executable": str(runtime.resolve()),
+                "executable_sha256": hashlib.sha256(original).hexdigest(),
+                "version_output_sha256": hashlib.sha256(b"version").hexdigest(),
+            },
+        }
+        commands: list[list[str]] = []
+        replacement_denied = False
+
+        def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+            nonlocal replacement_denied
+            commands.append(command)
+            if len(command) == 2 and command[1] == "version":
+                return subprocess.CompletedProcess(command, 0, "version", "")
+            if len(command) > 2 and command[1:3] == ["image", "inspect"]:
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps([policy["image"]]), ""
+                )
+            # POSIX exercises descriptor pinning by replacing the directory
+            # entry while the descriptor-backed command is in flight. Windows
+            # exercises the native handle's no-delete sharing by observing the
+            # expected replacement failure and leaves the original in place.
+            try:
+                os.replace(runtime, sentinel)
+                os.replace(replacement, runtime)
+                os.replace(runtime, replacement)
+                os.replace(sentinel, runtime)
+            except PermissionError:
+                replacement_denied = True
+                if sentinel.exists():
+                    os.replace(sentinel, runtime)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with patch("verifier_runtime.shutil.which", return_value=str(runtime)), patch(
+            "verifier_runtime.subprocess.run", side_effect=fake_run
+        ):
+            completed, _attestation = _run_container_verifier(
+                self.checkout,
+                self.root,
+                ".",
+                ["python", "-c", "pass"],
+                policy,
+                5,
+                sandbox_preflight=preflight,
+            )
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertFalse(sentinel.exists())
+        self.assertEqual(len(commands), 3)
+        if os.name == "nt":
+            self.assertTrue(replacement_denied)
+            self.assertEqual(commands[2][0], str(runtime))
+        else:
+            self.assertTrue(
+                commands[2][0].startswith(("/proc/self/fd/", "/dev/fd/"))
+            )
+            self.assertNotEqual(commands[2][0], str(runtime))
+
+    @unittest.skipUnless(os.name != "nt", "descriptor-backed execution is POSIX-only")
+    def test_posix_runtime_descriptor_executes_original_inode(self) -> None:
+        from verifier_runtime import _RuntimeExecutableBinding
+
+        runtime = self.root / "runtime.sh"
+        runtime.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        runtime.chmod(0o755)
+        with _RuntimeExecutableBinding(runtime) as binding:
+            completed = subprocess.run(
+                [binding.launch_path],
+                pass_fds=binding.pass_fds,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
     def test_git_guard_rejects_changes_to_an_ignored_coordination_file(self) -> None:
         subprocess.run(

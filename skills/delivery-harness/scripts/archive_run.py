@@ -806,12 +806,350 @@ def _move_entry(source: Path, destination: Path) -> None:
     shutil.move(str(source), str(destination))
 
 
+class _ArchiveMutationGuard:
+    """Bind archive parent/source identities for the whole mutation window.
+
+    Windows holds no-delete directory handles with OPEN_REPARSE_POINT, which
+    prevents a concurrent rename/junction replacement while path operations
+    run.  POSIX uses O_DIRECTORY|O_NOFOLLOW descriptors and descriptor-relative
+    rename/mkdir calls.  If either primitive cannot be established, archival
+    fails closed before writing a receipt or moving a source.
+    """
+
+    def __init__(self, root: Path, moves: list[Path], target: Path, anchor_path: Path | None = None) -> None:
+        self.root = root.resolve()
+        self.moves = moves
+        self.target = target
+        self.anchor_path = anchor_path.resolve() if anchor_path is not None else None
+        self.handles: list[object] = []
+        self.parent_handles: dict[Path, object] = {}
+        self.parent_identities: dict[Path, tuple[int, int, int]] = {}
+        self.source_parent_fds: dict[Path, int] = {}
+        self.archived_parent: Path = target.parent
+        self.target_handle: object | None = None
+        self.target_fd: int | None = None
+        self.anchor_parent_fd: int | None = None
+        self.archived_created = False
+        try:
+            self._prepare()
+        except Exception:
+            self.close()
+            raise
+
+    def _prepare(self) -> None:
+        if os.name == "nt":
+            self._prepare_windows()
+        else:
+            self._prepare_posix()
+
+    def _check_posix_identities(self) -> None:
+        if os.name == "nt":
+            return
+        for relative, fd in self.source_parent_fds.items():
+            path = relative if relative.is_absolute() else self.root / relative
+            current = os.stat(path, follow_symlinks=False)
+            held = os.fstat(fd)
+            if (current.st_dev, current.st_ino) != (held.st_dev, held.st_ino):
+                raise OSError(f"archive directory identity changed: {path}")
+
+    def _reject_tree_reparse(self, path: Path) -> None:
+        if path.is_symlink():
+            raise OSError(f"archive source is a symlink/reparse point: {path}")
+        if path.is_dir():
+            for child in path.rglob("*"):
+                if child.is_symlink():
+                    raise OSError(f"archive source contains a symlink/reparse point: {child}")
+
+    def _prepare_posix(self) -> None:
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        root_fd = os.open(self.root, flags)
+        self.source_parent_fds[Path(".")] = root_fd
+        docs_fd = os.open("docs", flags, dir_fd=root_fd)
+        self.source_parent_fds[Path("docs")] = docs_fd
+        goal_fd = os.open("goal", flags, dir_fd=docs_fd)
+        self.source_parent_fds[Path("docs/goal")] = goal_fd
+        try:
+            archived_fd = os.open("archived", flags, dir_fd=goal_fd)
+        except FileNotFoundError:
+            os.mkdir("archived", dir_fd=goal_fd)
+            self.archived_created = True
+            archived_fd = os.open("archived", flags, dir_fd=goal_fd)
+        self.source_parent_fds[Path("docs/goal/archived")] = archived_fd
+        archived = self.root / "docs/goal/archived"
+        self.archived_parent = archived
+        if self.anchor_path is not None:
+            self.anchor_parent_fd = os.open(self.anchor_path.parent, flags)
+            self.source_parent_fds[self.anchor_path.parent] = self.anchor_parent_fd
+        for source in self.moves:
+            source_path = self.root / source
+            self._reject_tree_reparse(source_path)
+        self.target_fd = None
+
+    def _windows_handle(self, path: Path, *, directory: bool, delete_access: bool = False) -> object:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateFileW.restype = wintypes.HANDLE
+        kernel32.GetFileAttributesW.restype = wintypes.DWORD
+        attrs = kernel32.GetFileAttributesW(str(path))
+        invalid_attrs = wintypes.DWORD(-1).value
+        if attrs == invalid_attrs:
+            raise OSError(ctypes.get_last_error(), f"cannot inspect archive path: {path}")
+        if attrs & 0x400:
+            raise OSError(f"archive path is a reparse point: {path}")
+        flags = 0x02000000 | (0x00200000 if directory else 0)
+        desired = 0x80000000 | (0x00010000 if delete_access else 0)
+        handle = kernel32.CreateFileW(str(path), desired, 0x00000001 | 0x00000002, None, 3, flags, None)
+        if handle in (None, wintypes.HANDLE(-1).value):
+            raise OSError(ctypes.get_last_error(), f"cannot hold archive path: {path}")
+        self.handles.append((kernel32, handle))
+        return handle
+
+    def _windows_identity(self, handle: object) -> tuple[int, int, int]:
+        import ctypes
+
+        class FileInfo(ctypes.Structure):
+            _fields_ = [
+                ("attributes", ctypes.c_uint32),
+                ("created_low", ctypes.c_uint32), ("created_high", ctypes.c_uint32),
+                ("accessed_low", ctypes.c_uint32), ("accessed_high", ctypes.c_uint32),
+                ("written_low", ctypes.c_uint32), ("written_high", ctypes.c_uint32),
+                ("volume", ctypes.c_uint32), ("size_high", ctypes.c_uint32),
+                ("size_low", ctypes.c_uint32), ("links", ctypes.c_uint32),
+                ("index_high", ctypes.c_uint32), ("index_low", ctypes.c_uint32),
+            ]
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        info = FileInfo()
+        if not kernel32.GetFileInformationByHandle(handle, ctypes.byref(info)):
+            raise OSError(ctypes.get_last_error(), "cannot read archive handle identity")
+        return (int(info.volume), int(info.index_high), int(info.index_low))
+
+    def _windows_rename_bound(self, source: Path, destination: Path) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateFileW.restype = wintypes.HANDLE
+        kernel32.SetFileInformationByHandle.restype = wintypes.BOOL
+        source_handle = kernel32.CreateFileW(
+            str(source), 0x80000000 | 0x00010000,
+            0x00000001 | 0x00000002, None, 3,
+            # BACKUP_SEMANTICS opens directories; OPEN_REPARSE_POINT is
+            # unconditional so a leaf swapped to a link is renamed as that
+            # link and never followed to an external target.
+            0x02000000 | 0x00200000, None,
+        )
+        if source_handle in (None, wintypes.HANDLE(-1).value):
+            raise OSError(ctypes.get_last_error(), f"cannot hold source for handle-bound rename: {source}")
+        try:
+            destination_parent = destination.parent
+            destination_handle = (
+                self.target_handle
+                if destination_parent == self.target
+                else self.parent_handles.get(destination_parent)
+            )
+            if destination_handle is None:
+                raise OSError(f"destination parent is not held: {destination_parent}")
+            name_bytes = str(destination).encode("utf-16-le")
+            class RenameInfo(ctypes.Structure):
+                _fields_ = [
+                    ("replace", wintypes.BOOLEAN),
+                    ("root", wintypes.HANDLE),
+                    ("length", wintypes.DWORD),
+                    ("name", wintypes.WCHAR * 1),
+                ]
+            name_offset = RenameInfo.name.offset
+            buffer = ctypes.create_string_buffer(name_offset + len(name_bytes) + ctypes.sizeof(wintypes.WCHAR))
+            info = ctypes.cast(buffer, ctypes.POINTER(RenameInfo)).contents
+            info.replace = 0
+            info.root = None
+            info.length = len(name_bytes)
+            ctypes.memmove(ctypes.addressof(buffer) + name_offset, name_bytes, len(name_bytes))
+            if not kernel32.SetFileInformationByHandle(
+                source_handle, 3, ctypes.byref(buffer), ctypes.sizeof(buffer)
+            ):
+                raise OSError(ctypes.get_last_error(), f"handle-bound rename failed: {source}")
+        finally:
+            kernel32.CloseHandle(source_handle)
+
+    def _check_windows_identities(self) -> None:
+        if os.name != "nt":
+            return
+        for path, held in self.parent_handles.items():
+            current = self._windows_handle(path, directory=True)
+            identity = self._windows_identity(current)
+            kernel32, handle = self.handles.pop()
+            kernel32.CloseHandle(handle)
+            if identity != self.parent_identities[path]:
+                raise OSError(f"archive directory identity changed: {path}")
+
+    def _prepare_windows(self) -> None:
+        self.parent_handles[self.root] = self._windows_handle(self.root, directory=True)
+        self.parent_identities[self.root] = self._windows_identity(self.parent_handles[self.root])
+        docs = self.root / "docs"
+        self.parent_handles[docs] = self._windows_handle(docs, directory=True)
+        self.parent_identities[docs] = self._windows_identity(self.parent_handles[docs])
+        goal = self.root / GOAL_DIR
+        self.parent_handles[goal] = self._windows_handle(goal, directory=True)
+        self.parent_identities[goal] = self._windows_identity(self.parent_handles[goal])
+        archived = goal / "archived"
+        if not archived.exists():
+            archived.mkdir()
+            self.archived_created = True
+        self.parent_handles[archived] = self._windows_handle(archived, directory=True)
+        self.parent_identities[archived] = self._windows_identity(self.parent_handles[archived])
+        self.archived_parent = archived
+        if self.anchor_path is not None:
+            self.parent_handles[self.anchor_path.parent] = self._windows_handle(self.anchor_path.parent, directory=True)
+            self.parent_identities[self.anchor_path.parent] = self._windows_identity(self.parent_handles[self.anchor_path.parent])
+        for source in self.moves:
+            source_path = self.root / source
+            self._reject_tree_reparse(source_path)
+            parent = source_path.parent.resolve()
+            if parent not in self.parent_handles:
+                self.parent_handles[parent] = self._windows_handle(parent, directory=True)
+                self.parent_identities[parent] = self._windows_identity(self.parent_handles[parent])
+
+    def create_target(self) -> None:
+        self._check_windows_identities()
+        self._check_posix_identities()
+        if self.target.exists():
+            raise FileExistsError(f"archive destination already exists: {self.target}")
+        if os.name == "nt":
+            self.target.mkdir()
+            self.target_handle = self._windows_handle(self.target, directory=True, delete_access=True)
+        else:
+            archived_fd = self.source_parent_fds[Path("docs/goal/archived")]
+            os.mkdir(self.target.name, dir_fd=archived_fd)
+            self.target_fd = os.open(
+                self.target.name,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=archived_fd,
+            )
+
+    def move(self, source: Path, destination: Path) -> None:
+        if os.name == "nt":
+            self._check_windows_identities()
+            if source.is_symlink() or (source.exists() and source.stat().st_file_attributes & 0x400):
+                raise OSError(f"archive source became a reparse point: {source}")
+            self._windows_rename_bound(source, destination)
+            return
+        self._check_posix_identities()
+        if source.is_symlink():
+            raise OSError(f"archive source became a symlink: {source}")
+        source_rel = source.relative_to(self.root).parent
+        destination_rel = destination.relative_to(self.root).parent
+        source_fd = self.target_fd if source == self.target / source.name else self.source_parent_fds.get(source_rel)
+        destination_fd = self.target_fd if destination.parent == self.target else self.source_parent_fds.get(destination_rel)
+        if source_fd is None or destination_fd is None:
+            raise OSError("archive target descriptor is not held")
+        os.rename(source.name, destination.name, src_dir_fd=source_fd, dst_dir_fd=destination_fd)
+
+    def write_receipt(self, root: Path, receipt: dict[str, object]) -> None:
+        if os.name == "nt" or self.target_fd is None:
+            _write_archive_receipt(self.target / ARCHIVE_RECEIPT_NAME, receipt)
+            return
+        self._check_posix_identities()
+        fd = os.open(
+            ARCHIVE_RECEIPT_NAME,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=self.target_fd,
+        )
+        try:
+            payload = json.dumps(receipt, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+            os.write(fd, payload.encode("utf-8"))
+        finally:
+            os.close(fd)
+
+    def write_anchor(self, anchor: dict[str, object]) -> None:
+        if self.anchor_path is None:
+            raise OSError("archive anchor path is not bound")
+        if os.name == "nt" or self.anchor_parent_fd is None:
+            _write_closed_anchor(self.anchor_path, anchor, self.root)
+            return
+        self._check_posix_identities()
+        fd = os.open(
+            self.anchor_path.name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=self.anchor_parent_fd,
+        )
+        try:
+            payload = json.dumps(anchor, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+            os.write(fd, payload.encode("utf-8"))
+        finally:
+            os.close(fd)
+
+    def release_target_handle(self) -> None:
+        if os.name != "nt" or self.target_handle is None:
+            return
+        remaining: list[object] = []
+        for kernel32, handle in self.handles:
+            if handle == self.target_handle:
+                kernel32.CloseHandle(handle)
+            else:
+                remaining.append((kernel32, handle))
+        self.handles = remaining
+        self.target_handle = None
+
+    def remove_target(self) -> None:
+        if os.name == "nt":
+            if self.target_handle is None:
+                raise OSError("archive target handle is not held")
+            receipt_path = self.target / ARCHIVE_RECEIPT_NAME
+            if receipt_path.exists():
+                receipt_path.unlink()
+            import ctypes
+            from ctypes import wintypes
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            class Disposition(ctypes.Structure):
+                _fields_ = [("delete", wintypes.BOOLEAN)]
+            info = Disposition(1)
+            if not kernel32.SetFileInformationByHandle(
+                self.target_handle, 4, ctypes.byref(info), ctypes.sizeof(info)
+            ):
+                raise OSError(ctypes.get_last_error(), "handle-bound archive target removal failed")
+            for kernel, handle in self.handles:
+                if handle == self.target_handle:
+                    kernel.CloseHandle(handle)
+            self.handles = [(kernel, handle) for kernel, handle in self.handles if handle != self.target_handle]
+            self.target_handle = None
+            return
+        if self.target_fd is None:
+            raise OSError("archive target descriptor is not held")
+        os.unlink(ARCHIVE_RECEIPT_NAME, dir_fd=self.target_fd)
+        archived_fd = self.source_parent_fds[Path("docs/goal/archived")]
+        os.rmdir(self.target.name, dir_fd=archived_fd)
+
+    def close(self) -> None:
+        if os.name == "nt":
+            for kernel32, handle in reversed(self.handles):
+                kernel32.CloseHandle(handle)
+            self.handles.clear()
+        else:
+            for fd in reversed(list(self.source_parent_fds.values())):
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            self.source_parent_fds.clear()
+            if self.target_fd is not None:
+                try:
+                    os.close(self.target_fd)
+                except OSError:
+                    pass
+                self.target_fd = None
+
+
 def _rollback_archive(
     root: Path,
     moved: list[tuple[Path, Path]],
     documents_snapshot: bytes | None,
     target: Path,
     anchor_path: Path | None = None,
+    mutation_guard: _ArchiveMutationGuard | None = None,
 ) -> list[str]:
     """Restore the pre-archive layout; retain archive copies only if a restore fails."""
 
@@ -847,18 +1185,30 @@ def _rollback_archive(
                     f"cannot restore {source.as_posix()} because the source path reappeared"
                 )
             else:
-                shutil.move(str(destination), str(source))
+                if mutation_guard is not None:
+                    mutation_guard.move(destination, source)
+                else:
+                    shutil.move(str(destination), str(source))
         except OSError as exc:
             problems.append(
                 f"could not restore {source.as_posix()}; recoverable copy retained at "
                 f"{destination}: {exc}"
             )
+    if mutation_guard is not None:
+        archived_parent = mutation_guard.archived_parent
+        archived_created = mutation_guard.archived_created
+    else:
+        archived_parent = None
+        archived_created = False
     if not problems and target.exists():
         try:
-            receipt_path = target / ARCHIVE_RECEIPT_NAME
-            if receipt_path.exists():
-                receipt_path.unlink()
-            target.rmdir()
+            if mutation_guard is not None:
+                mutation_guard.remove_target()
+            else:
+                receipt_path = target / ARCHIVE_RECEIPT_NAME
+                if receipt_path.exists():
+                    receipt_path.unlink()
+                target.rmdir()
         except OSError as exc:
             problems.append(f"could not remove the empty failed archive target: {exc}")
     if not problems and target.parent.exists():
@@ -873,6 +1223,13 @@ def _rollback_archive(
             anchor_path.unlink()
         except OSError as exc:
             problems.append(f"could not remove newly created archive anchor: {exc}")
+    if mutation_guard is not None:
+        mutation_guard.close()
+    if not problems and archived_created and archived_parent is not None and archived_parent.exists():
+        try:
+            archived_parent.rmdir()
+        except OSError as exc:
+            problems.append(f"could not remove newly created archive parent: {exc}")
     return problems
 
 
@@ -995,6 +1352,12 @@ def archive(
         documents_path.read_bytes() if documents_path.is_file() else None
     )
     moved: list[tuple[Path, Path]] = []
+    mutation_guard: _ArchiveMutationGuard | None = None
+    try:
+        mutation_guard = _ArchiveMutationGuard(root, moves, target, anchor_path)
+    except Exception as exc:  # noqa: BLE001 - fail closed before any mutation
+        print(f"error: archive filesystem identity guard failed: {exc}", file=sys.stderr)
+        return 1
     anchor_nonce = secrets.token_hex(32) if anchor_path is not None else None
     archive_receipt = _build_archive_receipt(
         root, plan, run, moves, target,
@@ -1008,6 +1371,7 @@ def archive(
     if receipt_errors:
         for problem in receipt_errors:
             print(f"error: {problem}", file=sys.stderr)
+        mutation_guard.close()
         return 1
     archive_anchor = (
         _build_archive_anchor(root, archive_receipt, anchor_path=anchor_path, nonce=anchor_nonce)
@@ -1019,18 +1383,19 @@ def archive(
         if anchor_errors:
             for problem in anchor_errors:
                 print(f"error: {problem}", file=sys.stderr)
+            mutation_guard.close()
             return 1
     anchor_created = False
     try:
         if archive_anchor is not None and anchor_path is not None:
-            _write_closed_anchor(anchor_path, archive_anchor, root)
+            mutation_guard.write_anchor(archive_anchor)
             anchor_created = True
-        target.mkdir(parents=True)
-        _write_archive_receipt(target / ARCHIVE_RECEIPT_NAME, archive_receipt)
+        mutation_guard.create_target()
+        mutation_guard.write_receipt(root, archive_receipt)
         for source in moves:
             source_path = root / source
             destination_path = target / source.name
-            _move_entry(source_path, destination_path)
+            mutation_guard.move(source_path, destination_path)
             moved.append((source_path, destination_path))
         _update_documents(root)
     except Exception as exc:  # noqa: BLE001 - every apply failure must roll back
@@ -1038,6 +1403,7 @@ def archive(
         rollback_problems = _rollback_archive(
             root, moved, documents_snapshot, target,
             anchor_path if anchor_created else None,
+            mutation_guard,
         )
         if rollback_problems:
             for problem in rollback_problems:
@@ -1047,7 +1413,10 @@ def archive(
                 "rolled back every moved entry after the failure",
                 file=sys.stderr,
             )
+        mutation_guard.close()
         return 1
+
+    mutation_guard.close()
 
     print(f"archived {len(moves)} entries; never deleted anything")
     return 0

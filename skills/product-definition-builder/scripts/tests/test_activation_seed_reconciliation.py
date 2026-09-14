@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import sys
+import subprocess
+import tempfile
 import unittest
+import importlib.util
+import re
 from pathlib import Path
 
 
@@ -17,8 +21,25 @@ for path in (PDB_SCRIPTS, ACTIVATION_SCRIPTS, ACTIVATION_TESTS):
 
 import check_product_package  # noqa: E402
 import check_activation  # noqa: E402
-import test_check_activation as activation_fixtures  # noqa: E402
-import test_product_package_checker as product_fixtures  # noqa: E402
+
+
+def _load_fixture_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load fixture module {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+activation_fixtures = _load_fixture_module(
+    "_activation_seed_activation_fixtures",
+    ACTIVATION_TESTS / "test_check_activation.py",
+)
+product_fixtures = _load_fixture_module(
+    "_activation_seed_product_fixtures",
+    PDB_TESTS / "test_product_package_checker.py",
+)
 from release_targets import parse_release_targets  # noqa: E402
 
 # Keep cross-skill fixture imports from changing later unittest discovery.
@@ -233,6 +254,83 @@ def activation_for_hybrid_targets() -> str:
 """
 
 
+def _replace_section(text: str, heading: str, replacement: str) -> str:
+    start = text.index(heading)
+    after = text[start + len(heading):]
+    next_heading = re.search(r"\n## ", after)
+    end = start + len(heading) + (next_heading.start() if next_heading else len(after))
+    return text[:start] + heading + "\n" + replacement.rstrip() + "\n" + text[end:]
+
+
+def seeded_activation_for_hybrid_targets() -> str:
+    """Create-once seed: target/profile authority present, actions pending."""
+
+    text = activation_for_hybrid_targets()
+    text = text.replace("- Status: handoff_ready", "- Status: seeded", 1)
+    text = text.replace(" | verified |", " | planned |")
+    text = text.replace(" | deployed | ready |", " | pending | pending |")
+    text = text.replace(
+        "| CAP-001 | browser | available | read, write, readback | "
+        + ", ".join(PRODUCTION)
+        + " | production | 2026-09-12T17:55:00Z | owner-approved release consoles and artifact read-back available |",
+        "| CAP-001 | unselected | unobserved | n/a | pending | pending | pending | pending |",
+    )
+    text = re.sub(
+        r"^\| MS-001 \|.*$",
+        "| MS-001 | pending | pending | pending | first_party | unselected;pending | pending@pending#pending | Analytics owner | planned | none |",
+        text,
+        flags=re.MULTILINE,
+    )
+    text = _replace_section(
+        text,
+        "## Verification Evidence",
+        "| Evidence ID | Item ID | Kind | Route / action / release binding | Checked | Result | Reference |\n"
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    )
+    task_fields = (
+        "Release bindings",
+        "Target",
+        "Environment",
+        "Precondition",
+        "Desired state",
+        "Execution route",
+        "Execution capability",
+        "Read-back route",
+        "Read-back capability",
+        "Authorization",
+        "Authorization source",
+        "Action digest",
+        "Authorized digest",
+        "Status",
+        "Verification",
+        "Evidence IDs",
+        "Blocker / N/A reason",
+        "Updated",
+    )
+    for field in task_fields:
+        value = "pending@pending#pending" if field == "Release bindings" else "unselected" if field in {"Execution route", "Read-back route"} else "none" if field == "Evidence IDs" else "pending"
+        text = re.sub(rf"^- {re.escape(field)}:.*$", f"- {field}: {value}", text, flags=re.MULTILINE)
+    text = text.replace("- Status: pending", "- Status: seeded", 1)
+    text = text.replace(
+        "| CAP-001 | unselected | unobserved | n/a | pending | pending | pending | pending |",
+        f"| CAP-001 | browser | unobserved | n/a | {', '.join(PRODUCTION)} | production | pending | pending |",
+    )
+    capability_scope = ", ".join(PRODUCTION)
+    text = text.replace(
+        "| MS-001 | pending | pending | pending | first_party | unselected;pending | pending@pending#pending | Analytics owner | planned | none |",
+        f"| MS-001 | {capability_scope} | production | pending release-source query | first_party | browser;CAP-001 | pending@pending#pending | Analytics owner | planned | none |",
+    )
+    for target, (_class, suffix, provider, _artifact, _availability) in PRODUCTION.items():
+        text = re.sub(
+            rf"^\| {re.escape(target)} \| production \|.*$",
+            f"| {target} | production | {provider};fixture-{suffix}-production-track | pending | pending | pending | pending | pending | none | none |",
+            text,
+            flags=re.MULTILINE,
+        )
+    text = re.sub(r"\| (Completion|TEST-001|TEST-002) \|([^\n]+?)\| MS-001 \| planned \|", r"| \1 |\2| pending | planned |", text)
+    return text
+
+
 class ProductDefinitionActivationSeedTests(unittest.TestCase):
     def test_real_hybrid_release_targets_seed_and_reconcile_all_profiles(self) -> None:
         architecture = architecture_with_hybrid_targets()
@@ -264,6 +362,73 @@ class ProductDefinitionActivationSeedTests(unittest.TestCase):
             require_ready=tuple(PRODUCTION),
         )
         self.assertEqual([], findings)
+
+    def test_documented_seed_command_uses_staged_architecture_and_deployment(self) -> None:
+        architecture = architecture_with_hybrid_targets()
+        activation = seeded_activation_for_hybrid_targets()
+        deployment = deployment_for_hybrid_targets()
+        prd = product_fixtures.valid_prd()
+        checker = ACTIVATION_SCRIPTS / "check_activation.py"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = {
+                "ACTIVATION.md": activation,
+                "PRD.md": prd,
+                "architecture.md": architecture,
+                "DEPLOYMENT.md": deployment,
+            }
+            for name, content in paths.items():
+                (root / name).write_text(content, encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(checker),
+                    "--activation",
+                    str(root / "ACTIVATION.md"),
+                    "--prd",
+                    str(root / "PRD.md"),
+                    "--architecture",
+                    str(root / "architecture.md"),
+                    "--deployment",
+                    str(root / "DEPLOYMENT.md"),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_seed_rejects_invented_or_omitted_target_and_profile(self) -> None:
+        architecture = architecture_with_hybrid_targets()
+        deployment = deployment_for_hybrid_targets()
+        prd = product_fixtures.valid_prd()
+        valid = seeded_activation_for_hybrid_targets()
+        invented = valid.replace("| api-prod | production |", "| invented-prod | production |", 1)
+        omitted = valid.replace(
+            "| api-prod | production | Cloudflare;fixture-api-production-track | pending | pending | pending | pending | pending | none | none |",
+            "",
+            1,
+        )
+        missing_profile = valid.replace(
+            "| macos | yes | macOS production target requires signed artifact reconciliation | macOS owner |\n",
+            "",
+            1,
+        )
+        for label, candidate, expected in (
+            ("invented", invented, "not an architecture release target"),
+            ("omitted", omitted, "needs a readiness or concrete n/a row"),
+            ("profile", missing_profile, "require profile 'macos'"),
+        ):
+            with self.subTest(label):
+                findings = check_activation.check_activation_text(
+                    candidate,
+                    prd_text=prd,
+                    architecture_text=architecture,
+                    deployment_text=deployment,
+                    require_verified_sources=True,
+                    require_ready=tuple(PRODUCTION),
+                )
+                self.assertIn(expected, "\n".join(findings))
 
 
 if __name__ == "__main__":

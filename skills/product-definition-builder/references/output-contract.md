@@ -410,7 +410,7 @@ The seed must:
 - add exactly one Outcome Coverage row for every `## Metrics` metric and every `TEST-*` row marked `Required: Yes`, repeating the exact structured definition/obligation, baseline, target/guardrail, measurement window, and expected-signal values, scoped to that supported Activation target subset;
 - leave implementation-owned actions, routes, accounts, queries, release bindings, sources, evidence, authorization, and readiness visibly pending;
 - contain secret names only and no secret values; and
-- pass `product-activation/scripts/check_activation.py --activation <staged path> --prd <staged PRD.md>` before publication.
+- pass `python skills/product-activation/scripts/check_activation.py --activation <staged ACTIVATION.md> --prd <staged PRD.md> --architecture <staged architecture.md> --deployment <staged DEPLOYMENT.md>` before publication; the architecture and deployment inputs are the only release-target authority and must be staged together.
 
 Publish a new seed flat at `docs/ACTIVATION.md` in the same approved move as the product package. Once the path exists, `product-activation` owns it. Product Definition reads it for context but never stages, overwrites, archives, resets, or treats its operational status as product approval.
 
@@ -418,14 +418,30 @@ Publish a new seed flat at `docs/ACTIVATION.md` in the same approved move as the
 
 Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal.
 
-Use `assets/templates/OUTCOME_REVIEW.template.md` and validate it with `scripts/check_outcome_review.py`. One review binds one exact production architecture target:
+Use `assets/templates/OUTCOME_REVIEW.template.md` and validate it with `scripts/check_outcome_review.py`. A single-target review keeps its original fields. A product with multiple production targets records an ordered `Production release targets: target-set: <id>, <id>, ...` field, one immutable row per target in `## Target Reviews`, and target-bound signal rows in `## Target Measurements`; the top-level `Verdict` is the deterministic aggregate (`incident` if any target is incident, otherwise `enhancement` if any target is enhancement, otherwise `no_change`). Separate target rows prevent one target's SHA, artifact, deployment, or measurement source from overwriting another target.
 
 ```markdown
 # Outcome Review: [Product Name]
 
 ## Record
 Schema: outcome-review/1
-Product, human outcome owner, production release target, full Release SHA, exact artifact/build identity, exact Deployment identity and checked time, Deployment PASS, `docs/ACTIVATION.md`, lowercase SHA-256 of the current Activation bytes, real Reviewed date, and closed verdict.
+Product, human outcome owner, production release target, full Release SHA, exact artifact/build identity, exact Deployment identity and checked time, Deployment PASS, `docs/ACTIVATION.md`, lowercase SHA-256 of the current Activation bytes, real Reviewed date, and closed verdict. A multi-target Record also adds `Production release targets: target-set: ...` and keeps the legacy primary fields bound to the first ordered target.
+
+For a multi-target review, add these ordered target and per-signal tables:
+
+```markdown
+## Target Reviews
+| Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| [production target] | [full SHA] | [artifact] | [release;channel;artifact] | [RFC3339] | PASS | [MS IDs] | [enum] |
+
+## Target Measurements
+| Signal | Release target | Baseline | Target | Window start | Window end | Actual | Source ID |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| [PRD metric or required TEST] | [target] | [baseline] | [target] | [date] | [date] | [actual] | [MS-*] |
+```
+
+The target set for each signal is the exact `Release targets` value in Activation Outcome Coverage for that signal. Do not synthesize a full signal-by-target cross-product when Activation scopes a signal to only some production targets.
 
 ## Activation Sources
 Every matching verified `MS-*` source and only those sources. Each row repeats the exact target@SHA#artifact binding, human owner, verification time, and non-secret evidence.
@@ -439,6 +455,8 @@ Every matching verified `MS-*` source and only those sources. Each row repeats t
 | Fact | Source ID | Observed |
 | --- | --- | --- |
 | [Post-deployment fact] | [MS-*] | [bounded non-secret observation] |
+
+For a multi-target review, use `Fact | Release target | Source ID | Observed` instead. Every feedback fact must name the target and a verified source bound to that target; it may not implicitly reuse the primary target's source set.
 
 ## Incident Response
 | Incident | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence |
@@ -459,7 +477,7 @@ Rules:
 - Run `python skills/product-definition-builder/scripts/check_outcome_review.py --outcome docs/product/outcome-review.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md`.
 - Record actual against target for every `PRD.md` `## Metrics` metric and every required `TEST-*` expected signal; baseline, target/expected signal, and (when present) numeric measurement-window duration must exactly join the PRD row. An empty or duplicate Measurements table means the review is not done.
 - The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
-- The review cannot mix targets or releases and is production-only. It joins the production architecture target, current Deployment PASS identity, Activation SHA-256, and only verified `MS-*` sources whose exact target, deployed SHA, artifact/build identity, human owner, Activation evidence IDs, and latest PASS evidence timestamp match.
+- A single-target review cannot mix targets or releases and is production-only. A multi-target review keeps the ordered target set explicit, joins every target row to its own current Deployment PASS identity and verified `MS-*` sources, and repeats every PRD metric and required `TEST-*` signal per target in `Target Measurements`. No target's SHA, artifact, source, or actual may be reused implicitly for another target. All reviewed targets must be production architecture targets, and the aggregate verdict follows the closed deterministic severity order.
 - An incident requires typed containment, a human owner, and explicit concrete routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
 - The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
 
@@ -586,7 +604,7 @@ Coverage matrix. Fill it last and read it only when checking that a requirement 
 
 Every decision in this file uses the same shape: drivers, coherent bundles presented to the owner, then resolved layers with status and authority/evidence on every row. The shared `Alternatives Considered` and `Unresolved Decision Protocol` tables cover all decisions.
 
-Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation; `Recommended` is evidence-backed advice not yet accepted and is non-executable; `Provisional` is a leading choice pending named evidence. Only `Required`, `Selected`, and `Approved` are executable. A section may mix statuses. `Authority / evidence` cites the source that justifies the row. A `Selected` row uses `repository:<repo-relative-path>@<40-character-commit-SHA>` when the path is bound to a real Git revision, or `repository:<repo-relative-path>@sha256:<64-character-current-content-hash>` for current non-Git evidence; the checker resolves the path and revision/hash under `--repo-root`. Authority is not another status label, and recommendation text alone is not approval.
+Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation; `Recommended` is evidence-backed advice not yet accepted and is non-executable; `Provisional` is a leading choice pending named evidence. Only `Required`, `Selected`, and `Approved` are executable. A section may mix statuses. `Authority / evidence` cites the source that justifies the row. A `Selected` row uses `repository:<repo-relative-path>@<40-character-commit-SHA>` when the path is bound to a real Git revision, or `repository:<repo-relative-path>@sha256:<64-character-current-content-hash>` for current non-Git evidence; the checker resolves the path and revision/hash under `--repo-root` through a standalone exact-SHA Git boundary that disables config injection, rejects repository identity overrides, and fails closed on replace refs or grafts. Authority is not another status label, and recommendation text alone is not approval.
 
 Use this structure:
 

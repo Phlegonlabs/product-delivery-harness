@@ -1,6 +1,6 @@
 # Outcome Review
 
-This strict post-deployment record is written only after the real measurement window closes. It is bound to one production architecture target, one release SHA and artifact/build identity, a current deployment PASS, and the exact SHA-256 of the Activation document used for evidence.
+This strict post-deployment record is written only after the real measurement window closes. A single-target record binds one production architecture target, release SHA/artifact, deployment PASS, and Activation SHA. A multi-target record adds an ordered target set plus immutable per-target reviews and target-bound measurements; its top-level verdict is a deterministic aggregate and no target identity overwrites another.
 
 ## Record
 
@@ -8,6 +8,7 @@ This strict post-deployment record is written only after the real measurement wi
 - Product: <fill>
 - Outcome owner: <human owner>
 - Production release target: <architecture release-target-id>
+- Production release targets: <omit for single target; otherwise `target-set: <id>, <id>, ...` in review order>
 - Release SHA: <full lowercase Git SHA>
 - Artifact / build identity: <exact artifact, build, or deployment identity>
 - Deployment identity: <release-name;exact-channel;artifact/build-identity>
@@ -32,11 +33,29 @@ List every verified `MS-*` source from Activation whose target, SHA, and artifac
 | --- | --- | --- | --- | --- | --- | --- |
 | <PRD metric or required TEST-ID> | <exact PRD baseline or none recorded> | <exact PRD target / expected signal> | <YYYY-MM-DD> | <YYYY-MM-DD> | <measured value> | MS-001 |
 
+## Target Reviews
+
+Include this section when `Production release targets` names more than one target. Keep one row per production target in the declared order. Each row must use its own SHA, artifact, deployment identity, verified Activation source IDs, and per-target verdict.
+
+| Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| <production target> | <full lowercase Git SHA> | <artifact> | <release-name;channel;artifact> | <RFC3339> | PASS | <MS IDs> | <no_change / enhancement / incident> |
+
+## Target Measurements
+
+Include this section for a multi-target review. Repeat every PRD metric and required `TEST-*` signal for every target; each row names the exact target and matching `MS-*` source.
+
+| Signal | Release target | Baseline | Target | Window start | Window end | Actual | Source ID |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| <PRD metric or required TEST-ID> | <production target> | <exact baseline> | <exact target / expected signal> | <YYYY-MM-DD> | <YYYY-MM-DD> | <measured value> | MS-001 |
+
 ## Feedback
 
 | Fact | Source ID | Observed |
 | --- | --- | --- |
 | <post-deployment fact> | MS-001 | <bounded non-secret observation> |
+
+For a multi-target record use `Fact | Release target | Source ID | Observed` and bind each fact to a verified source for that exact target.
 
 ## Incident Response
 

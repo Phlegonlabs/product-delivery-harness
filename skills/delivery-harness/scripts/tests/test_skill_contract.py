@@ -1,3 +1,4 @@
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -1238,11 +1239,16 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # authoring skill, and a hand-edited half-pair is a stop condition.
         # The command must be runnable (both required args) and read-only.
         for content in (contract, verification):
-            self.assertIn(
-                "check_design_system_pair.py --markdown <design-system.md>"
-                " --registry <design-system.json> --require-filled",
+            commands = re.findall(
+                r"`python skills/design-system-compiler/scripts/check_design_system_pair\.py [^`]+`",
                 content,
             )
+            self.assertEqual(1, len(commands), commands)
+            self.assertIn("--markdown <design-system.md>", commands[0])
+            self.assertIn("--registry <design-system.json>", commands[0])
+            self.assertIn("--repo-root <repository-root>", commands[0])
+            self.assertIn("--require-filled", commands[0])
+            self.assertNotIn("--registry <design-system.json> --require-filled", commands[0])
             self.assertIn("--write", content)
         self.assertIn("Design-system pair check", verification)
         # execution-task-decomposition.md points at this stop condition; keep
@@ -1254,6 +1260,23 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # fitness; type appropriateness must stay a judgment stop.
         self.assertIn("without comparing `review.type` to the write scope", contract)
         self.assertNotIn("as applicable) covering it", contract)
+
+    def test_both_documented_schema2_pair_commands_bind_repo_root(self) -> None:
+        expected = (
+            "python skills/design-system-compiler/scripts/check_design_system_pair.py "
+            "--markdown <design-system.md> --registry <design-system.json> "
+            "--repo-root <repository-root> --require-filled"
+        )
+        commands: list[str] = []
+        for relative_path in (
+            "references/contract-and-traceability.md",
+            "references/verification-gates.md",
+        ):
+            content = self.read(relative_path)
+            found = re.findall(rf"`({re.escape(expected)})`", content)
+            self.assertEqual([expected], found, relative_path)
+            commands.extend(found)
+        self.assertEqual([expected, expected], commands)
 
     def test_schema_v5_graph_is_first_class(self) -> None:
         skill = self.read("SKILL.md")

@@ -7,20 +7,20 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 ## Purpose
 
-Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN state, runtime probing, workers, worktrees, and graph scheduling only when coordination requires them.
+Use the least ceremony that preserves safety. Keep work direct; add PLAN/RUN state, probing, workers, worktrees, and graph scheduling only when coordination requires them.
 
 Keep upstream ownership separate:
 
 - `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, including complete frontend and backend architecture and technology decisions.
-- `ui-design-builder` owns `docs/design/ui-design.md`, UI Design Intake, pre-structure Copy Freeze, approved `wireframes.html`, Style Integration, Impeccable review, PRD-bound scores, Visual Approval, and the HiFi target. `design-system-compiler`, with `frontend-design`, owns the design-system pair only when the Design System Need Gate is `required`.
-- This skill implements approved product/stack sources, `ui-design.md`, copy-frozen `wireframes.html`, and the active visual source. It preserves approved copy and dynamic display contracts. UI owner approval proves direction conformance, not representative-user usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents neither product, copy, stack, nor design decisions.
+- `ui-design-builder` owns `docs/design/ui-design.md`, UI Design Intake, approved `wireframes.html`, Style Integration, Impeccable review, PRD-bound scores, Visual Approval, and the HiFi target. `design-system-compiler`, with `frontend-design`, owns the design-system pair only when the Design System Need Gate is `required`.
+- This skill implements approved product/stack sources, `ui-design.md`, copy-frozen `wireframes.html`, and the active visual source. It preserves approved copy and dynamic display contracts. UI approval proves direction conformance, not representative-user usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents no product, copy, stack, or design decisions.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
 
-Before loading a task skill, adapter, planner, scheduler, or worker, run one bounded parent-only, read-only scope scan.
+Before loading task-specific tooling, run one bounded parent-only scope scan.
 
-Classify work as `small` when one parent writer can own one bounded outcome, work in one implementation branch or checkout, and verify it with one coherent local sequence. A high file count, several languages, a long test command, or difficult reasoning does not make work `large` by itself.
+Classify work as `small` when one parent writer can own one bounded outcome in one checkout and verify it with one coherent local sequence. A high file count, language count, test duration, or reasoning difficulty does not make work `large` by itself.
 
 Classify work as `large` only when at least one condition is true:
 
@@ -94,7 +94,7 @@ For small work:
 
 For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates. Stop after two failed repair attempts and report the remaining gap.
 
-For a self-contained feature inside an existing codebase, offer `/feature-dev` as an optional richer implementation loop. It does not change authorization, ownership, or verification rules.
+For a self-contained feature, offer `/feature-dev` as an optional richer loop; it does not change authorization, ownership, or verification.
 
 ## Managed Route
 
@@ -219,6 +219,6 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 ### 6. Complete
 
-Harness 0.38 RUNs close `local_only` at C after all gates and security pass. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back failure; commit only bookkeeping as A and reverify it. A current RUN never pushes. Under a new instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, and receipt external, returns a trusted-host no-force argv, and never invokes `git push`; a human/trusted host publishes and recovery reads A back. Candidate gates and separately authorized exact-A `main` promotion follow.
+Harness 0.38 RUNs close `local_only` at C after all gates and security pass. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back failure; commit only bookkeeping as A and reverify it. A current RUN never pushes. Under a new instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, receipt, and trusted-host evidence external, binds the canonical URL plus pinned signer policy and verifier digest, returns a URL-only no-force argv, and never invokes `git push`; a trusted host reloads and revalidates the request with sanitized config, signs evidence, publishes, and recovery verifies it before reading A back. Candidate gates and separately authorized exact-A `main` promotion follow.
 
 `product-activation`, outcome review, and SEO follow required promotion and production verification; no RUN grant authorizes them.

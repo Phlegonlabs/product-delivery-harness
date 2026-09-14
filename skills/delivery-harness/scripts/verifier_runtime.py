@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import io
 import tarfile
 import tempfile
@@ -14,7 +15,9 @@ import os
 import platform
 import re
 import shutil
+import stat
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Mapping
@@ -77,6 +80,220 @@ BATCH_JOB_OPTIONAL_FIELDS = {
 
 class VerifierRuntimeError(ValueError):
     """Raised when verifier execution inputs are unsafe or malformed."""
+
+
+# Runtime probes, image inspection, and the actual container invocation must
+# share one process-local critical section.  The lock does not provide the
+# filesystem guarantee by itself; ``_RuntimeExecutableBinding`` below holds a
+# descriptor (POSIX) or a delete/write-denying handle (Windows) for the whole
+# sequence so a path replacement cannot retarget the executable between the
+# hash checks and ``subprocess.run``.
+_RUNTIME_EXECUTION_LOCK = threading.RLock()
+
+
+def _hash_runtime_fd(file_descriptor: int) -> str:
+    """Hash a held runtime descriptor without reopening its mutable path."""
+
+    try:
+        original_offset = os.lseek(file_descriptor, 0, os.SEEK_CUR)
+        os.lseek(file_descriptor, 0, os.SEEK_SET)
+        digest = hashlib.sha256()
+        while True:
+            chunk = os.read(file_descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+        os.lseek(file_descriptor, original_offset, os.SEEK_SET)
+    except OSError as exc:
+        raise VerifierRuntimeError(
+            f"cannot hash bound sandbox runtime executable: {exc}"
+        ) from exc
+    return digest.hexdigest()
+
+
+class _RuntimeExecutableBinding:
+    """Bind one runtime executable to the process that will invoke it.
+
+    On POSIX, the child receives the inherited descriptor and executes through
+    ``/proc/self/fd`` (or ``/dev/fd``), which pins the opened inode even if its
+    directory entry is replaced.  Windows has no portable descriptor path, so
+    a native ``CreateFileW`` handle is held without delete/write sharing while
+    the path is executed.  Both routes fail closed when the platform cannot
+    provide the required binding.
+    """
+
+    def __init__(self, executable: Path) -> None:
+        self.executable = executable
+        self.file_descriptor: int | None = None
+        self.handle: int | None = None
+        self.launch_path = str(executable)
+        self.pass_fds: tuple[int, ...] = ()
+        self._close_handle: Any = None
+
+    def __enter__(self) -> "_RuntimeExecutableBinding":
+        if os.name == "nt":
+            self._open_windows_handle()
+            return self
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        try:
+            descriptor = os.open(str(self.executable), flags)
+        except OSError as exc:
+            raise VerifierRuntimeError(
+                f"cannot bind sandbox runtime executable: {exc}"
+            ) from exc
+        try:
+            descriptor_stat = os.fstat(descriptor)
+        except OSError as exc:
+            os.close(descriptor)
+            raise VerifierRuntimeError(
+                f"cannot inspect bound sandbox runtime executable: {exc}"
+            ) from exc
+        if not stat.S_ISREG(descriptor_stat.st_mode):
+            os.close(descriptor)
+            raise VerifierRuntimeError(
+                "sandbox runtime executable must be a regular file"
+            )
+        if not descriptor_stat.st_mode & (
+            stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+        ):
+            os.close(descriptor)
+            raise VerifierRuntimeError(
+                "sandbox runtime executable must have an execute bit"
+            )
+        candidates = (f"/proc/self/fd/{descriptor}", f"/dev/fd/{descriptor}")
+        launch_path = next((candidate for candidate in candidates if Path(candidate).exists()), None)
+        if launch_path is None:
+            os.close(descriptor)
+            raise VerifierRuntimeError(
+                "sandbox runtime executable requires a descriptor-backed launch path"
+            )
+        self.file_descriptor = descriptor
+        self.launch_path = launch_path
+        self.pass_fds = (descriptor,)
+        return self
+
+    def _open_windows_handle(self) -> None:
+        win_dll = getattr(ctypes, "WinDLL", None)
+        if win_dll is None:
+            raise VerifierRuntimeError(
+                "sandbox runtime executable requires native Windows handle protection"
+            )
+        kernel32 = win_dll("kernel32", use_last_error=True)
+        create_file = kernel32.CreateFileW
+        create_file.argtypes = [
+            ctypes.c_wchar_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+        ]
+        create_file.restype = ctypes.c_void_p
+        # GENERIC_READ | GENERIC_EXECUTE; share read only.  In particular,
+        # omitting FILE_SHARE_DELETE prevents os.replace()/rename from
+        # retargeting the path while this handle is held.  OPEN_REPARSE_POINT
+        # lets us inspect the opened entry before accepting it; a reparse
+        # point is rejected instead of silently following a mutable link.
+        handle = create_file(
+            str(self.executable),
+            0x80000000 | 0x20000000,
+            0x00000001,
+            None,
+            3,  # OPEN_EXISTING
+            0x00000080 | 0x00200000,  # FILE_ATTRIBUTE_NORMAL | OPEN_REPARSE_POINT
+            None,
+        )
+        invalid = ctypes.c_void_p(-1).value
+        if handle is None or handle == invalid:
+            error = ctypes.get_last_error()
+            raise VerifierRuntimeError(
+                f"cannot bind sandbox runtime executable handle (winerror {error})"
+            )
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = [ctypes.c_void_p]
+        close_handle.restype = ctypes.c_int
+        get_attributes = kernel32.GetFileAttributesW
+        get_attributes.argtypes = [ctypes.c_wchar_p]
+        get_attributes.restype = ctypes.c_uint32
+        attributes = get_attributes(str(self.executable))
+        if attributes == 0xFFFFFFFF or attributes & 0x00000010 or attributes & 0x00000400:
+            close_handle(handle)
+            raise VerifierRuntimeError(
+                "sandbox runtime executable must be a non-reparse regular file"
+            )
+        get_final_path = kernel32.GetFinalPathNameByHandleW
+        get_final_path.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32]
+        get_final_path.restype = ctypes.c_uint32
+        buffer_size = 512
+        final_path = ""
+        while buffer_size <= 32768:
+            buffer = ctypes.create_unicode_buffer(buffer_size)
+            length = get_final_path(handle, buffer, buffer_size, 0)
+            if length == 0:
+                break
+            if length < buffer_size - 1:
+                final_path = buffer.value
+                break
+            buffer_size *= 2
+        if not final_path:
+            close_handle(handle)
+            raise VerifierRuntimeError(
+                "cannot resolve bound sandbox runtime executable handle"
+            )
+        normalized_final = final_path.removeprefix("\\\\?\\").casefold()
+        normalized_expected = str(self.executable.resolve()).casefold()
+        if normalized_final != normalized_expected:
+            close_handle(handle)
+            raise VerifierRuntimeError(
+                "sandbox runtime executable handle path differs from preflight path"
+            )
+        self.handle = int(handle)
+        self._close_handle = close_handle
+
+    def sha256(self) -> str:
+        if self.file_descriptor is not None:
+            return _hash_runtime_fd(self.file_descriptor)
+        try:
+            return _sha256_bytes(self.executable.read_bytes())
+        except OSError as exc:
+            raise VerifierRuntimeError(
+                f"cannot hash bound sandbox runtime executable: {exc}"
+            ) from exc
+
+    def __exit__(self, _exc_type: Any, _exc: Any, _traceback: Any) -> None:
+        if self.file_descriptor is not None:
+            os.close(self.file_descriptor)
+            self.file_descriptor = None
+        if self.handle is not None and self._close_handle is not None:
+            self._close_handle(ctypes.c_void_p(self.handle))
+            self.handle = None
+
+
+def _run_bound_runtime(
+    binding: _RuntimeExecutableBinding,
+    arguments: list[str],
+    *,
+    env: Mapping[str, str],
+    timeout: float,
+) -> subprocess.CompletedProcess[str]:
+    """Invoke a runtime through its held descriptor/handle binding."""
+
+    command = [binding.launch_path, *arguments]
+    options: dict[str, Any] = {
+        "capture_output": True,
+        "text": True,
+        "env": env,
+        "check": False,
+        "timeout": timeout,
+    }
+    if binding.pass_fds and os.name != "nt":
+        options["pass_fds"] = binding.pass_fds
+    return subprocess.run(command, **options)
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -969,113 +1186,94 @@ def _run_container_verifier(
     checked_preflight = _validated_sandbox_preflight(policy, sandbox_preflight)
     runtime_probe = checked_preflight["runtime_probe"]
     bound_executable = Path(runtime_probe["executable"])
-    executable = shutil.which(runtime)
-    if executable is None:
-        raise VerifierRuntimeError(
-            f"container sandbox runtime {runtime!r} is unavailable; run the sandbox preflight again and defer the gate"
-        )
-    if os.path.normcase(str(Path(executable).resolve())) != os.path.normcase(
-        str(bound_executable)
-    ):
-        raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
-    try:
-        executable_hash = _sha256_bytes(bound_executable.read_bytes())
-    except OSError as exc:
-        raise VerifierRuntimeError(
-            f"cannot read sandbox runtime executable: {exc}"
-        ) from exc
-    if executable_hash != runtime_probe["executable_sha256"]:
-        raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
-    probe_env = {"PATH": os.environ.get("PATH", "")}
-    if os.name == "nt" and os.environ.get("SystemRoot"):
-        probe_env["SystemRoot"] = os.environ["SystemRoot"]
-    probe = subprocess.run(
-        [str(bound_executable), "version"],
-        capture_output=True,
-        text=True,
-        env=probe_env,
-        check=False,
-        timeout=30,
-    )
-    if probe.returncode != 0:
-        raise VerifierRuntimeError("container sandbox runtime probe failed")
-    if _sha256_bytes(probe.stdout.encode("utf-8")) != runtime_probe[
-        "version_output_sha256"
-    ]:
-        raise VerifierRuntimeError("sandbox runtime version output changed since preflight")
-    inspect = subprocess.run(
-        [str(bound_executable), "image", "inspect", "--format", "{{json .RepoDigests}}", image],
-        capture_output=True,
-        text=True,
-        env=probe_env,
-        check=False,
-        timeout=60,
-    )
-    if inspect.returncode != 0 or not inspect.stdout.strip():
-        raise VerifierRuntimeError("pinned container image is unavailable or unverified")
-    pinned_digest = image.rsplit("@", 1)[-1]
-    try:
-        repo_digests = json.loads(inspect.stdout)
-    except json.JSONDecodeError as exc:
-        raise VerifierRuntimeError("container image probe returned invalid RepoDigests JSON") from exc
-    if not isinstance(repo_digests, list) or any(not isinstance(item, str) for item in repo_digests):
-        raise VerifierRuntimeError("container image probe returned malformed RepoDigests")
-    matched_repo_digest = next(
-        (item for item in repo_digests if item.endswith("@" + pinned_digest)),
-        None,
-    )
-    if matched_repo_digest is None:
-        raise VerifierRuntimeError("container image probe did not attest the pinned digest")
-    if checked_preflight["repo_digest"] != matched_repo_digest:
-        raise VerifierRuntimeError("container image RepoDigest changed since preflight")
-    try:
-        immediate_hash = _sha256_bytes(bound_executable.read_bytes())
-    except OSError as exc:
-        raise VerifierRuntimeError(
-            f"cannot recheck sandbox runtime executable: {exc}"
-        ) from exc
-    if immediate_hash != runtime_probe["executable_sha256"]:
-        raise VerifierRuntimeError(
-            "sandbox runtime executable changed immediately before execution"
-        )
-    workdir = "/workspace" + ("/" + declared_cwd.strip("./") if declared_cwd != "." else "")
-    command = [
-        str(bound_executable),
-        "run",
-        "--rm",
-        "--pull=never",
-        "--network=none",
-        "--read-only",
-        "--cap-drop=ALL",
-        "--security-opt=no-new-privileges:true",
-        f"--user={policy['user']}",
-        f"--memory={policy['memory']}",
-        f"--cpus={policy['cpus']}",
-        f"--pids-limit={policy['pids_limit']}",
-        "--mount",
-        f"type=bind,src={snapshot_root},dst=/workspace,readonly",
-    ]
-    for tmpfs in policy["tmpfs"]:
-        command.extend(["--tmpfs", str(tmpfs)])
-    command.extend(["--workdir", workdir, image, *argv])
-    completed = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        env=probe_env,
-        check=False,
-        timeout=timeout_seconds,
-    )
-    try:
-        final_hash = _sha256_bytes(bound_executable.read_bytes())
-    except OSError as exc:
-        raise VerifierRuntimeError(
-            f"cannot recheck sandbox runtime executable after execution: {exc}"
-        ) from exc
-    if final_hash != runtime_probe["executable_sha256"]:
-        raise VerifierRuntimeError(
-            "sandbox runtime executable changed during execution"
-        )
+    with _RUNTIME_EXECUTION_LOCK:
+        executable = shutil.which(runtime)
+        if executable is None:
+            raise VerifierRuntimeError(
+                f"container sandbox runtime {runtime!r} is unavailable; run the sandbox preflight again and defer the gate"
+            )
+        if os.path.normcase(str(Path(executable).resolve())) != os.path.normcase(
+            str(bound_executable)
+        ):
+            raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
+        with _RuntimeExecutableBinding(bound_executable) as binding:
+            if binding.sha256() != runtime_probe["executable_sha256"]:
+                raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
+            probe_env = {"PATH": os.environ.get("PATH", "")}
+            if os.name == "nt" and os.environ.get("SystemRoot"):
+                probe_env["SystemRoot"] = os.environ["SystemRoot"]
+            probe = _run_bound_runtime(
+                binding,
+                ["version"],
+                env=probe_env,
+                timeout=30,
+            )
+            if probe.returncode != 0:
+                raise VerifierRuntimeError("container sandbox runtime probe failed")
+            if _sha256_bytes(probe.stdout.encode("utf-8")) != runtime_probe[
+                "version_output_sha256"
+            ]:
+                raise VerifierRuntimeError("sandbox runtime version output changed since preflight")
+            inspect = _run_bound_runtime(
+                binding,
+                ["image", "inspect", "--format", "{{json .RepoDigests}}", image],
+                env=probe_env,
+                timeout=60,
+            )
+            if inspect.returncode != 0 or not inspect.stdout.strip():
+                raise VerifierRuntimeError("pinned container image is unavailable or unverified")
+            pinned_digest = image.rsplit("@", 1)[-1]
+            try:
+                repo_digests = json.loads(inspect.stdout)
+            except json.JSONDecodeError as exc:
+                raise VerifierRuntimeError("container image probe returned invalid RepoDigests JSON") from exc
+            if not isinstance(repo_digests, list) or any(not isinstance(item, str) for item in repo_digests):
+                raise VerifierRuntimeError("container image probe returned malformed RepoDigests")
+            matched_repo_digest = next(
+                (item for item in repo_digests if item.endswith("@" + pinned_digest)),
+                None,
+            )
+            if matched_repo_digest is None:
+                raise VerifierRuntimeError("container image probe did not attest the pinned digest")
+            if checked_preflight["repo_digest"] != matched_repo_digest:
+                raise VerifierRuntimeError("container image RepoDigest changed since preflight")
+            if binding.sha256() != runtime_probe["executable_sha256"]:
+                raise VerifierRuntimeError(
+                    "sandbox runtime executable changed immediately before execution"
+                )
+            # ``Path.as_posix`` in _validated_inputs normalizes one leading
+            # ``./``.  Keep every other leading dot and slash exactly: a
+            # hidden directory must remain ``/workspace/.hidden``.
+            normalized_cwd = Path(declared_cwd).as_posix()
+            workdir = "/workspace" if normalized_cwd == "." else f"/workspace/{normalized_cwd}"
+            arguments = [
+                "run",
+                "--rm",
+                "--pull=never",
+                "--network=none",
+                "--read-only",
+                "--cap-drop=ALL",
+                "--security-opt=no-new-privileges:true",
+                f"--user={policy['user']}",
+                f"--memory={policy['memory']}",
+                f"--cpus={policy['cpus']}",
+                f"--pids-limit={policy['pids_limit']}",
+                "--mount",
+                f"type=bind,src={snapshot_root},dst=/workspace,readonly",
+            ]
+            for tmpfs in policy["tmpfs"]:
+                arguments.extend(["--tmpfs", str(tmpfs)])
+            arguments.extend(["--workdir", workdir, image, *argv])
+            completed = _run_bound_runtime(
+                binding,
+                arguments,
+                env=probe_env,
+                timeout=timeout_seconds,
+            )
+            if binding.sha256() != runtime_probe["executable_sha256"]:
+                raise VerifierRuntimeError(
+                    "sandbox runtime executable changed during execution"
+                )
     return completed, {
         "runtime": runtime,
         "runtime_probe": copy_json(runtime_probe),

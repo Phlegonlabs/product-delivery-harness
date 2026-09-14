@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import inspect
 import json
 import math
@@ -494,8 +495,26 @@ def _plan_surfaces(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
     }
 
 
-def validate_plan_prd_text(plan: dict[str, Any], prd_text: str) -> list[str]:
-    prd_surfaces, errors = parse_prd_ui_contract(prd_text)
+def validate_plan_prd_text(
+    plan: dict[str, Any],
+    prd_text: str,
+    *,
+    parser: Any | None = None,
+) -> list[str]:
+    """Join PLAN surfaces to PRD UI anchors using the selected parser.
+
+    Legacy schema joins keep the local compatibility parser.  Harness 0.38
+    passes the sibling Product Definition Builder parser explicitly so fenced
+    or commented examples cannot become executable UI authority.
+    """
+
+    parse = parser or parse_prd_ui_contract
+    parsed = parse(prd_text)
+    if not isinstance(parsed, tuple) or len(parsed) != 2:
+        raise ValueError("canonical PRD UI parser returned an invalid result")
+    prd_surfaces, errors = parsed
+    if not isinstance(prd_surfaces, dict) or not isinstance(errors, list):
+        raise ValueError("canonical PRD UI parser returned invalid surfaces/errors")
     plan_surfaces = _plan_surfaces(plan)
     prd_ids = set(prd_surfaces)
     plan_ids = set(plan_surfaces)
@@ -868,12 +887,74 @@ _FULL_UI_DESIGN_CHECKERS: dict[Path, Any] = {}
 _FULL_PRODUCT_PACKAGE_CHECKERS: dict[Path, Any] = {}
 _FULL_DESIGN_SYSTEM_CHECKERS: dict[Path, Any] = {}
 _UI_CONTRACT_VIEWS: dict[Path, Any] = {}
+_PRD_UI_CONTRACT_PARSERS: dict[Path, Any] = {}
 
 
 def sibling_builder_scripts_dir() -> Path:
     """The product-definition-builder scripts dir shipped next to this skill."""
 
     return Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
+
+
+def _load_canonical_prd_ui_contract_parser(sibling_scripts: Path) -> Any:
+    """Load the Product Definition Builder's active-Markdown UI parser safely.
+
+    Harness can be installed without its sibling skills.  The strict 0.38
+    authority join therefore fails closed when this parser is unavailable;
+    it must never fall back to the legacy regex parser for an executable join.
+    """
+
+    key = sibling_scripts.resolve()
+    if key in _PRD_UI_CONTRACT_PARSERS:
+        return _PRD_UI_CONTRACT_PARSERS[key]
+    parser: Any = None
+    parser_path = key / "prd_ui_contract.py"
+    markdown_path = key / "markdown_contract.py"
+    if parser_path.is_file() and markdown_path.is_file():
+        # The sibling parser uses a top-level ``markdown_contract`` import.
+        # Load both files under private names and temporarily bind that import
+        # to the verified sibling module.  This avoids accepting a poisoned
+        # same-name module already present in the host process.
+        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
+        markdown_name = f"_harness_prd_markdown_contract_{tag}"
+        parser_name = f"_harness_prd_ui_contract_{tag}"
+        previous_markdown = sys.modules.get("markdown_contract")
+        try:
+            markdown_spec = importlib.util.spec_from_file_location(
+                markdown_name, markdown_path
+            )
+            parser_spec = importlib.util.spec_from_file_location(
+                parser_name, parser_path
+            )
+            if (
+                markdown_spec is None
+                or markdown_spec.loader is None
+                or parser_spec is None
+                or parser_spec.loader is None
+            ):
+                raise ImportError("canonical PRD parser module spec is unavailable")
+            markdown_module = importlib.util.module_from_spec(markdown_spec)
+            parser_module = importlib.util.module_from_spec(parser_spec)
+            sys.modules[markdown_name] = markdown_module
+            sys.modules["markdown_contract"] = markdown_module
+            markdown_spec.loader.exec_module(markdown_module)
+            sys.modules[parser_name] = parser_module
+            parser_spec.loader.exec_module(parser_module)
+            loaded_path = Path(str(getattr(parser_module, "__file__", ""))).resolve()
+            if loaded_path != parser_path.resolve():
+                raise ImportError("canonical PRD parser path does not match sibling source")
+            parser = getattr(parser_module, "parse_prd_ui_contract", None)
+        except Exception:
+            parser = None
+        finally:
+            if previous_markdown is None:
+                sys.modules.pop("markdown_contract", None)
+            else:
+                sys.modules["markdown_contract"] = previous_markdown
+            sys.modules.pop(markdown_name, None)
+            sys.modules.pop(parser_name, None)
+    _PRD_UI_CONTRACT_PARSERS[key] = parser
+    return parser
 
 
 def sibling_ui_design_scripts_dir() -> Path:
@@ -1367,7 +1448,24 @@ def _validate_strict_frozen_contract_joins(
         errors.append(f"product package: core artifact is not valid UTF-8 ({exc})")
         return sorted(set(errors))
 
-    errors.extend(validate_plan_prd_text(plan, prd_text))
+    canonical_prd_parser = _load_canonical_prd_ui_contract_parser(
+        sibling_builder_scripts_dir()
+    )
+    if canonical_prd_parser is None:
+        errors.append(
+            "prd: canonical active-Markdown UI contract parser is unavailable — "
+            "install product-definition-builder next to delivery-harness"
+        )
+    else:
+        try:
+            errors.extend(
+                validate_plan_prd_text(plan, prd_text, parser=canonical_prd_parser)
+            )
+        except Exception as exc:
+            errors.append(
+                "prd: canonical active-Markdown UI contract parser failed safely: "
+                f"{type(exc).__name__}: {exc}"
+            )
     errors.extend(
         full_product_package_checker_errors(
             resolved["prd"], resolved["architecture"], resolved["stack"], repo_root=root

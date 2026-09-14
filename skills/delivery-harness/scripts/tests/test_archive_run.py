@@ -334,16 +334,16 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertFalse((self.goal / "archived").exists())
 
     def test_a_move_failure_rolls_back_every_moved_entry(self) -> None:
-        real_move = archive_run._move_entry
+        real_move = archive_run._ArchiveMutationGuard.move
 
-        def fail_on_run(source: Path, destination: Path) -> None:
+        def fail_on_run(guard: archive_run._ArchiveMutationGuard, source: Path, destination: Path) -> None:
             if source.name == "RUN.md":
                 raise OSError("injected RUN.md move failure")
-            real_move(source, destination)
+            real_move(guard, source, destination)
 
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with patch.object(archive_run, "_move_entry", side_effect=fail_on_run):
+        with patch.object(archive_run._ArchiveMutationGuard, "move", autospec=True, side_effect=fail_on_run):
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 code = archive_run.archive(
                     self.root,
@@ -549,6 +549,82 @@ class ArchiveRunTests(unittest.TestCase):
         result = self.archive("--apply")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertIn("run-20260911-demo", self.archived_dir().name)
+
+    @unittest.skipUnless(os.name == "nt", "requires Windows directory sharing semantics")
+    def test_archive_parent_swap_after_preflight_cannot_escape_checkout(self) -> None:
+        external = self.root.parent / f"archive-external-{self.root.name}"
+        external.mkdir()
+        original_init = archive_run._ArchiveMutationGuard.__init__
+        attempted = {"blocked": False}
+        backup = self.goal / "archived-original"
+
+        def swap_after_guard(guard: archive_run._ArchiveMutationGuard, root: Path, moves: list[Path], target: Path, anchor_path: Path | None = None) -> None:
+            original_init(guard, root, moves, target, anchor_path)
+            archived = self.goal / "archived"
+            try:
+                archived.rename(backup)
+            except OSError:
+                attempted["blocked"] = True
+                guard.close()
+                raise
+            archived.mkdir()
+            attempted["blocked"] = True
+
+        with patch.object(archive_run._ArchiveMutationGuard, "__init__", swap_after_guard):
+            result = archive_run.archive(
+                self.root,
+                slug="run-20260911-demo",
+                apply=True,
+                stamp="20260101-000000",
+                expected_main=self.expected_main,
+                main_ref="refs/heads/main",
+            )
+        if (self.goal / "archived").exists() and not any((self.goal / "archived").iterdir()):
+            (self.goal / "archived").rmdir()
+        if backup.exists() and not (self.goal / "archived").exists():
+            backup.rename(self.goal / "archived")
+        self.assertEqual(1, result)
+        self.assertTrue(attempted["blocked"])
+        self.assertFalse(any(external.iterdir()))
+        self.assertTrue((self.goal / "PLAN.md").exists())
+        self.assertTrue((self.goal / "RUN.md").exists())
+        self.assertFalse((self.goal / "archived" / "20260101-000000-run-20260911-demo").exists())
+
+    @unittest.skipUnless(os.name == "nt", "requires Windows directory sharing semantics")
+    def test_rollback_target_swap_is_blocked_before_handle_bound_cleanup(self) -> None:
+        original_update = archive_run._update_documents
+        original_remove = archive_run._ArchiveMutationGuard.remove_target
+        blocked = {"value": False}
+
+        def fail_documents(root: Path) -> None:
+            original_update(root)
+            raise OSError("injected rollback")
+
+        def guarded_remove(guard: archive_run._ArchiveMutationGuard) -> None:
+            backup = guard.target.with_name(guard.target.name + "-backup")
+            try:
+                guard.target.rename(backup)
+            except OSError:
+                blocked["value"] = True
+            else:
+                backup.rename(guard.target)
+                raise AssertionError("rollback target replacement was not blocked")
+            original_remove(guard)
+
+        with patch.object(archive_run, "_update_documents", side_effect=fail_documents):
+            with patch.object(archive_run._ArchiveMutationGuard, "remove_target", autospec=True, side_effect=guarded_remove):
+                result = archive_run.archive(
+                    self.root,
+                    slug="rollback-target",
+                    apply=True,
+                    stamp="20260101-000000",
+                    expected_main=self.expected_main,
+                    main_ref="refs/heads/main",
+                )
+        self.assertEqual(1, result)
+        self.assertTrue(blocked["value"])
+        self.assertTrue((self.goal / "PLAN.md").exists())
+        self.assertFalse((self.goal / "archived" / "20260101-000000-rollback-target").exists())
 
 
 if __name__ == "__main__":

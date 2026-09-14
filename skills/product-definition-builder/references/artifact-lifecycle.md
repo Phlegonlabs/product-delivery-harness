@@ -68,7 +68,7 @@ Exclude:
 
   `research-assessment.md` follows the same rule: archive it with the rest of the package, never while keeping a `PRD.md` that cites its `RA-*` IDs, and — when this run's research-first assessment was skipped — leave the prior one published, since nothing replaces it.
 
-  `outcome-review.md` is a post-deployment record, not part of the drafting package. A superseded review archives with the rest of the package; a package that ships without a new review leaves the prior one published, since it still describes the last observed outcome.
+  `outcome-review.md` is a post-deployment record, not part of the drafting package. A superseded review archives with the rest of the package; a package that ships without a new review leaves the prior one published, since it still describes the last observed outcome. Multi-target reviews keep an ordered per-target review set and target-bound measurements in one immutable record with one deterministic aggregate verdict; a later target review never overwrites another target's file or source.
 
   `docs/ACTIVATION.md` is an operational record outside `docs/product/`. Exclude it from the superseded-document inventory. If it exists, preserve it byte-for-byte and let `product-activation` reconcile it after delivery.
 - Any ambiguous candidate. Leave it in place and mention it to the user instead of guessing.
@@ -78,9 +78,9 @@ Record the candidate paths before creating staged artifacts. Do not archive or o
 ## Stage and Validate
 
 1. Create a run-specific staging directory under `docs/product/.prd-staging/` — unless Detect Enhancement Mode found a staged package for this product and the user chose to resume it, in which case reuse that directory instead of opening a second one.
-2. Write the core Markdown candidate there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` and the create-once `ACTIVATION.md` seed when applicable. Do not prepare UI wireframe data.
+2. Write the core Markdown candidate there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` and the create-once `ACTIVATION.md` seed when applicable. Do not prepare UI wireframe data. The staged Activation seed is validated against the staged PRD, architecture, and Deployment records, never a published or caller-selected architecture path.
 3. Complete market reconciliation, Stack Decision Checkpoint, and Product Definition Approval. A substantive approved-content revision reopens approval.
-4. Run `python <product-definition-builder-root>/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`.
+4. Run `python <product-definition-builder-root>/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`, then run the canonical seed check `python skills/product-activation/scripts/check_activation.py --activation <staged ACTIVATION.md> --prd <staged PRD.md> --architecture <staged architecture.md> --deployment <staged DEPLOYMENT.md>` when the seed applies. Do not add `--require-filled` to a create-once seed: pending action/evidence fields are intentional. A seed with an invented, omitted, or profile-incomplete target fails before publication.
 5. Run the output-contract quality checklist against the complete staged files.
 6. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
 
