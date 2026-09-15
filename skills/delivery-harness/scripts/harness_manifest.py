@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
@@ -43,6 +44,8 @@ from harness_schema import (
     is_current_pair,
     is_valid_provider_id,
     run_required_harness_version,
+    archive_first_required,
+    required_harness_version,
     runtime_driver_priority,
     RUNTIME_REVIEW_TYPES,
     RUNTIME_REASONING_EFFORTS,
@@ -90,6 +93,7 @@ from harness_core import (
     plan_digest,
     resolve_runtime_options,
     route_runtime_driver,
+    sandbox_execution_binding_errors,
     scope_contains,
     scope_overlap,
     topological_levels,
@@ -180,6 +184,8 @@ def _is_reconciled_interrupted_review(
 
 
 PRODUCT_DESIGN_SOURCE_PATHS = (
+    "docs/design/design-system.md",
+    "docs/design/design-system.json",
     "docs/product/design-system.md",
     "docs/product/design-system.json",
 )
@@ -192,6 +198,7 @@ PRODUCT_DESIGN_SOURCE_KINDS = {
     "design system machine",
 }
 PRODUCT_WIREFRAME_SOURCE_PATHS = (
+    "docs/design/wireframes.html",
     "docs/product/wireframes.html",
 )
 PRODUCT_WIREFRAME_SOURCE_FILENAMES = {"wireframes.html"}
@@ -423,7 +430,10 @@ def _is_product_staging_location(value: Any) -> bool:
     normalized = value.replace("\\", "/").removeprefix("./").strip("/").lower()
     parts = normalized.split("/")
     for index in range(len(parts) - 2):
-        if parts[index : index + 3] == ["docs", "product", ".prd-staging"]:
+        if parts[index : index + 3] in (
+            ["docs", "product", ".prd-staging"],
+            ["docs", "design", ".ui-staging"],
+        ):
             return True
     return False
 
@@ -468,7 +478,9 @@ def _scope_includes_staged_product_source(
     normalized = scope.replace("\\", "/").removeprefix("./").strip("/").lower()
     parts = normalized.split("/")
     staging_index = next(
-        index for index, part in enumerate(parts) if part == ".prd-staging"
+        index
+        for index, part in enumerate(parts)
+        if part in {".prd-staging", ".ui-staging"}
     )
     tree_scope = parts[-1] == "**"
     tail = parts[staging_index + 1 : -1] if tree_scope else parts[staging_index + 1 :]
@@ -519,6 +531,7 @@ def _validate_verifier_group(
     *,
     selection_scopes: list[str] | None,
     cache_allowed: bool,
+    execution_required: bool = True,
 ) -> set[str]:
     """Run ``_validate_verifier`` over one verifier list and return its IDs.
 
@@ -533,6 +546,7 @@ def _validate_verifier_group(
             verifier,
             selection_scopes=selection_scopes,
             cache_allowed=cache_allowed,
+            execution_required=execution_required,
         )
         if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
             if verifier["id"] in ids:
@@ -717,10 +731,30 @@ def _validate_plan_ui_surfaces(
         _add(errors, "plan.ui_surfaces", "must be a list")
     else:
         seen_ui: set[str] = set()
-        ui_keys = {"id", "trace_ids", "route", "breakpoints", "states", "evidence_gate"}
+        ui_keys = {
+            "id",
+            "trace_ids",
+            "route",
+            "breakpoints",
+            "states",
+            "evidence_gate",
+        }
         for index, surface in enumerate(plan["ui_surfaces"]):
             path = f"plan.ui_surfaces[{index}]"
-            if not _keys(errors, path, surface, ui_keys):
+            if not _keys(
+                errors,
+                path,
+                surface,
+                ui_keys,
+                {
+                    # Required by the 0.38 UI authority join; optional here so
+                    # older PLAN-v6 manifests remain readable until paired
+                    # with that RUN.
+                    "capture_mode",
+                    "surface_class",
+                    "release_surface",
+                },
+            ):
                 continue
             if not _nonempty_string(surface["id"]):
                 _add(errors, f"{path}.id", "must be a non-empty string")
@@ -756,6 +790,16 @@ def _validate_plan_ui_surfaces(
             _strings(errors, f"{path}.states", surface["states"], nonempty=True)
             if surface["evidence_gate"] not in {"required", "optional", "n/a"}:
                 _add(errors, f"{path}.evidence_gate", "has an unsupported value")
+            if "capture_mode" in surface and surface["capture_mode"] not in {
+                "hosted-browser",
+                "browser-extension",
+                "native",
+                "desktop",
+            }:
+                _add(errors, f"{path}.capture_mode", "has an unsupported value")
+            for optional_name in ("surface_class", "release_surface"):
+                if optional_name in surface and not _nonempty_string(surface[optional_name]):
+                    _add(errors, f"{path}.{optional_name}", "must be a non-empty string")
 
 
 def _validate_plan_risks(errors: list[str], plan: dict[str, Any]) -> None:
@@ -790,6 +834,11 @@ def _validate_plan_verifier_groups(
     their own IDs into the same set later.
     """
     declared_verifier_ids: set[str] = set()
+    # PLAN-v6 is the current executable contract.  Older graph plans stay
+    # readable for recovery; their historical verifier shape is not an
+    # authorization to launch a new runtime request (verifier_runtime still
+    # fails closed if it is handed one).
+    execution_required = plan.get("schema_version") == 6
     singleton_no_batch = _is_single_mission_v5_without_batch_verifiers(plan)
     # A batch or final gate asks "did the whole candidate regress", so it may
     # select against the union of every mission write scope — never against one
@@ -819,6 +868,7 @@ def _validate_plan_verifier_groups(
                 plan[group],
                 selection_scopes=plan_write_union or None,
                 cache_allowed=False,
+                execution_required=execution_required,
             )
             declared_verifier_ids.update(group_ids)
             if plan[group] and not has_always:
@@ -836,6 +886,7 @@ def _validate_plan_missions(
     traces: dict[str, dict[str, Any]],
     sources: dict[str, dict[str, Any]],
     declared_verifier_ids: set[str],
+    execution_required: bool,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, tuple[str, dict[str, Any], str]]]:
     """Validate plan.missions and their verifier groups.
 
@@ -982,11 +1033,11 @@ def _validate_plan_missions(
             )
             for scope in mission_write
         )
-        if wireframe_source_scope and "product-definition-builder" not in required_skills:
+        if wireframe_source_scope and "ui-design-builder" not in required_skills:
             _add(
                 errors,
                 f"{mission_path}.required_skills",
-                "wireframe-source write scope must include 'product-definition-builder'",
+                "wireframe-source write scope must include 'ui-design-builder'",
             )
         if "stop_conditions" in mission:
             _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
@@ -1003,6 +1054,7 @@ def _validate_plan_missions(
                         mission_write if verifier_group == "worker_verifiers" else None
                     ),
                     cache_allowed=verifier_group != "integration_verifiers",
+                    execution_required=execution_required,
                 )
                 declared_verifier_ids.update(mission_verifier_ids)
         if not isinstance(mission["tasks"], list) or not mission["tasks"]:
@@ -1029,6 +1081,7 @@ def _validate_plan_tasks(
     task_records: dict[str, tuple[str, dict[str, Any], str]],
     traces: dict[str, dict[str, Any]],
     declared_verifier_ids: set[str],
+    execution_required: bool,
 ) -> None:
     """Validate per-task records, task graph, and planned-trace coverage.
 
@@ -1176,6 +1229,7 @@ def _validate_plan_tasks(
                     task["verifiers"],
                     selection_scopes=task_scopes,
                     cache_allowed=True,
+                    execution_required=execution_required,
                 )
             )
 
@@ -1255,6 +1309,7 @@ def _validate_plan_security_review(
         "plan.security_review",
         policy,
         {"status", "skill_slot", "reason"},
+        {"required_checks"},
     ):
         return
     status = policy["status"]
@@ -1272,6 +1327,15 @@ def _validate_plan_security_review(
             errors,
             "plan.security_review.skill_slot",
             "must equal code_security_verification",
+        )
+    required_checks = policy.get("required_checks", [])
+    if not isinstance(required_checks, list) or any(
+        not isinstance(item, str) or not item.strip() for item in required_checks
+    ) or len(required_checks) != len(set(required_checks)):
+        _add(
+            errors,
+            "plan.security_review.required_checks",
+            "must be a unique list of non-empty check IDs",
         )
     reason = policy["reason"]
     if status == "required":
@@ -1300,6 +1364,264 @@ def _validate_plan_security_review(
                 "plan.required_reviews",
                 "must omit security when plan.security_review is not_applicable",
             )
+
+
+def _validate_plan_required_checks(errors: list[str], plan: dict[str, Any]) -> None:
+    """Bind PLAN security required-check IDs to the executable graph.
+
+    ``security_review.required_checks`` is a PLAN declaration, not a free-form
+    evidence label.  Each ID must resolve to exactly one deterministic batch or
+    final verifier node executed by the parent (``local_command`` or
+    ``harness_parent``), and that node must be on a dependency path into every
+    security review node.  Result-time checks are validated separately against
+    the retained execution at the current head.
+    """
+
+    policy = plan.get("security_review")
+    if not isinstance(policy, dict) or policy.get("status") != "required":
+        return
+    required = policy.get("required_checks", [])
+    if not isinstance(required, list) or any(
+        not isinstance(item, str) or not item.strip() for item in required
+    ):
+        # _validate_plan_security_review reports the shape error; avoid noisy
+        # follow-on graph errors until IDs are structurally usable.
+        return
+
+    graph = plan.get("graph")
+    if not isinstance(graph, dict):
+        if required:
+            _add(
+                errors,
+                "plan.security_review.required_checks",
+                "requires a v4+ graph with parent-executed verifier nodes",
+            )
+        return
+    graph_nodes = [
+        node for node in graph.get("nodes", []) if isinstance(node, dict)
+    ]
+    security_nodes = [
+        node
+        for node in graph_nodes
+        if node.get("kind") == "verifier"
+        and isinstance(node.get("review"), dict)
+        and node["review"].get("type") == "security"
+    ]
+    if not security_nodes:
+        _add(
+            errors,
+            "plan.security_review.required_checks",
+            "requires at least one security review graph node",
+        )
+        return
+    dependency_edges = [
+        edge
+        for edge in graph.get("edges", [])
+        if isinstance(edge, dict) and edge.get("kind") == "dependency"
+    ]
+    owners = _verifier_owners(plan)
+    for check_id in required:
+        owner = owners.get(check_id)
+        if owner is None:
+            _add(
+                errors,
+                "plan.security_review.required_checks",
+                f"unknown verifier ID {check_id!r}",
+            )
+            continue
+        if owner[0] not in {"batch", "final"}:
+            _add(
+                errors,
+                "plan.security_review.required_checks",
+                f"{check_id!r} must be owned by a batch or final verifier, not {owner[0]}",
+            )
+            continue
+        matching_nodes = [
+            node
+            for node in graph_nodes
+            if node.get("kind") == "verifier" and node.get("ref") == check_id
+        ]
+        executable_nodes = [
+            node
+            for node in matching_nodes
+            if node.get("executor") in {"local_command", "harness_parent"}
+        ]
+        if len(executable_nodes) != 1:
+            _add(
+                errors,
+                "plan.security_review.required_checks",
+                f"{check_id!r} must resolve to exactly one local_command or harness_parent graph verifier",
+            )
+            continue
+        check_node_id = executable_nodes[0].get("id")
+        reachable: set[str] = {check_node_id}
+        changed = True
+        while changed:
+            changed = False
+            for edge in dependency_edges:
+                if edge.get("from") in reachable and edge.get("to") not in reachable:
+                    reachable.add(edge["to"])
+                    changed = True
+        missing_security = sorted(
+            str(node.get("id"))
+            for node in security_nodes
+            if node.get("id") not in reachable
+        )
+        if missing_security:
+            _add(
+                errors,
+                "plan.security_review.required_checks",
+                f"{check_id!r} must precede every security node; missing path to "
+                + ", ".join(missing_security),
+            )
+
+
+def _security_not_applicable_scope_errors(plan: dict[str, Any]) -> list[str]:
+    """Require a demonstrably documentation-only, non-executable delivery."""
+
+    policy = plan.get("security_review")
+    if not isinstance(policy, dict) or policy.get("status") != "not_applicable":
+        return []
+    errors: list[str] = []
+    reason = str(policy.get("reason") or "").lower()
+    if not any(marker in reason for marker in ("documentation-only", "docs-only", "documentation only")):
+        errors.append(
+            "plan.security_review.reason: not_applicable requires an explicit documentation-only classification"
+        )
+    unsafe_fragments = (
+        "src/", "app/", "lib/", "scripts/", ".github/", "package.json",
+        "pyproject.toml", "requirements", ".yml", ".yaml", ".json", ".js",
+        ".ts", ".tsx", ".py", ".css", ".html",
+    )
+    for mission in plan.get("missions", []):
+        if not isinstance(mission, dict):
+            continue
+        for scope in mission.get("write_scope", []):
+            if not isinstance(scope, str):
+                continue
+            normalized = scope.replace("\\", "/").lower()
+            documentation_scope = (
+                not normalized.endswith("/**")
+                and (normalized.startswith("docs/") or normalized.startswith("readme"))
+                and normalized.endswith((".md", ".mdx", ".rst", ".txt"))
+            )
+            if not documentation_scope or any(fragment in normalized for fragment in unsafe_fragments):
+                errors.append(
+                    f"plan.security_review: not_applicable is unsafe for executable scope {scope!r}"
+                )
+    for source in plan.get("sources", []):
+        if not isinstance(source, dict) or not isinstance(source.get("location"), str):
+            continue
+        source_kind = str(source.get("kind") or "").lower()
+        if source_kind in {
+            "wireframe",
+            "ui design",
+            "design system",
+            "design system machine",
+            "prior archive candidate",
+        }:
+            continue
+        location = source["location"].replace("\\", "/").lower()
+        if "://" not in location and not (
+            not location.endswith("/**")
+            and (location.startswith("docs/") or location.startswith("readme"))
+            and location.endswith((".md", ".mdx", ".rst", ".txt"))
+        ):
+            errors.append(
+                f"plan.security_review: not_applicable is unsafe for executable source {source['location']!r}"
+            )
+    return sorted(set(errors))
+
+
+def _security_required_check_errors(
+    plan: dict[str, Any], run: dict[str, Any], result: dict[str, Any], head_sha: str | None
+) -> list[str]:
+    required = (
+        plan.get("security_review", {}).get("required_checks", [])
+        if isinstance(plan.get("security_review"), dict)
+        else []
+    )
+    errors: list[str] = []
+    checks = result.get("checks") if isinstance(result, dict) else None
+    check_map = {
+        item.get("id"): item
+        for item in checks
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    } if isinstance(checks, list) else {}
+    predeclared = set(required)
+    reported = set(check_map)
+    if predeclared != reported:
+        errors.append(
+            "security result checks must exactly equal PLAN security_review.required_checks"
+        )
+    required = sorted(predeclared | reported)
+    if not required:
+        return []
+    owners = _verifier_owners(plan)
+    executions = run.get("verifier_executions", [])
+    graph_nodes = [node for node in plan.get("graph", {}).get("nodes", []) if isinstance(node, dict)]
+    security_node_ids = {
+        node.get("id")
+        for node in graph_nodes
+        if isinstance(node.get("review"), dict) and node["review"].get("type") == "security"
+    }
+    dependency_edges = [
+        edge for edge in plan.get("graph", {}).get("edges", [])
+        if isinstance(edge, dict) and edge.get("kind") == "dependency"
+    ]
+    for check_id in required:
+        owner = owners.get(check_id)
+        if owner is None or owner[0] not in {"batch", "final"}:
+            errors.append(
+                f"security required check {check_id!r} is not a declared batch/final verifier"
+            )
+            continue
+        check_node_ids = {
+            node.get("id")
+            for node in graph_nodes
+            if node.get("kind") == "verifier"
+            and node.get("ref") == check_id
+            and node.get("executor") in {"local_command", "harness_parent"}
+        }
+        if len(check_node_ids) != 1:
+            errors.append(
+                f"security required check {check_id!r} must resolve to exactly one graph verifier node"
+            )
+        else:
+            reachable = set(check_node_ids)
+            changed = True
+            while changed:
+                changed = False
+                for edge in dependency_edges:
+                    if edge.get("from") in reachable and edge.get("to") not in reachable:
+                        reachable.add(edge.get("to"))
+                        changed = True
+            missing_security = sorted(security_node_ids - reachable)
+            if missing_security:
+                errors.append(
+                    f"security required check {check_id!r} does not precede every security node: "
+                    + ", ".join(missing_security)
+                )
+        check = check_map.get(check_id)
+        if not isinstance(check, dict):
+            errors.append(f"security result is missing required check {check_id!r}")
+            continue
+        matches = [
+            execution
+            for execution in executions
+            if isinstance(execution, dict)
+            and execution.get("verifier_id") == check_id
+            and execution.get("status") == "PASS"
+            and execution.get("exit_code") == 0
+            and execution.get("execution_key") == check.get("execution_key")
+            and isinstance(execution.get("context"), dict)
+            and execution["context"].get("head_sha") == head_sha
+        ]
+        if len(matches) != 1:
+            errors.append(
+                f"security required check {check_id!r} must match one PASS execution at the current head"
+            )
+    return errors
 
 
 UI_IMPACT_SUMMARY_REQUIRED_VERSION = (0, 35, 0)
@@ -1401,9 +1723,8 @@ def validate_plan(
 ) -> list[str]:
     """Return deterministic validation errors for a harness_plan object.
 
-    The optional repository binding is intentionally opt-in. Legacy callers
-    and the public shape-only validator retain their historical behavior when
-    ``repo_root`` is omitted.
+    Repository binding reads immutable source revisions. Older schema versions
+    retain their historical shape-only compatibility path.
     """
 
     errors: list[str] = []
@@ -1469,22 +1790,73 @@ def validate_plan(
     _validate_plan_risks(errors, plan)
 
     declared_verifier_ids = _validate_plan_verifier_groups(errors, plan)
+    execution_required = schema_version == 6
 
     if not isinstance(plan["missions"], list) or not plan["missions"]:
         _add(errors, "plan.missions", "must be a non-empty list")
         return sorted(set(errors))
     missions, task_records = _validate_plan_missions(
-        errors, plan, traces, sources, declared_verifier_ids
+        errors,
+        plan,
+        traces,
+        sources,
+        declared_verifier_ids,
+        execution_required,
     )
 
-    _validate_plan_tasks(errors, plan, missions, task_records, traces, declared_verifier_ids)
+    _validate_plan_tasks(
+        errors,
+        plan,
+        missions,
+        task_records,
+        traces,
+        declared_verifier_ids,
+        execution_required,
+    )
 
     _validate_plan_graph(errors, plan, missions, declared_verifier_ids, required_reviews)
+    # Required security checks are graph-bound PLAN declarations.  Validate
+    # them only after verifier groups and graph structure are known so unknown
+    # IDs, wrong owners, executors, and missing dependency paths are rejected
+    # before any RUN evidence can claim them.
+    _validate_plan_required_checks(errors, plan)
 
     _validate_global_verifier_ids(errors, plan)
+    errors.extend(_security_not_applicable_scope_errors(plan))
     if plan.get("schema_version") in {5, 6} and repo_root is not None:
         errors.extend(validate_plan_sources(plan, repo_root))
     return sorted(set(errors))
+
+
+def _archive_first_state_errors(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
+    """Apply archive-first state gates to current RUN-v11 only."""
+
+    if run.get("schema_version") != 11:
+        return []
+    version = required_harness_version(run)
+    errors: list[str] = []
+    if version is None:
+        push = run.get("authorizations", {}).get("push") if isinstance(run.get("authorizations"), dict) else None
+        if isinstance(push, dict) and push.get("authorized") is True:
+            errors.append("run.authorizations.push: missing or malformed required_harness_version cannot authorize push")
+        return errors
+    if not archive_first_required(run):
+        return errors
+    landing = run.get("landing")
+    if isinstance(landing, dict):
+        if landing.get("mode") != "local_only":
+            errors.append("run.landing.mode: archive-first RUN-v11 must remain local_only")
+        if landing.get("pushed_head_sha") is not None:
+            errors.append("run.landing.pushed_head_sha: archive-first RUN-v11 must remain null")
+    push = run.get("authorizations", {}).get("push") if isinstance(run.get("authorizations"), dict) else None
+    if isinstance(push, dict) and push.get("authorized") is True:
+        errors.append("run.authorizations.push: archive-first RUN-v11 must keep push authorization false")
+    graph = plan.get("graph") if isinstance(plan, dict) else None
+    for node in graph.get("nodes", []) if isinstance(graph, dict) else []:
+        if isinstance(node, dict) and node.get("kind") == "lifecycle" and node.get("ref") == "push":
+            errors.append("plan.graph: archive-first RUN-v11 cannot contain a push lifecycle node")
+            break
+    return errors
 
 
 def _validate_landing(
@@ -1997,6 +2369,17 @@ def _validate_verifier_executions(
         return
 
     verifier_owners = _verifier_owners(plan)
+    strict_sandbox_binding = version_at_least(
+        run_required_harness_version(run), (0, 38, 0)
+    )
+    observed_sandbox = run.get("observed", {}).get("sandbox", {})
+    observed_sandbox_entries = (
+        observed_sandbox.get("entries", [])
+        if isinstance(observed_sandbox, dict)
+        else []
+    )
+    if not isinstance(observed_sandbox_entries, list):
+        observed_sandbox_entries = []
 
     attempt_log = run.get("attempt_log")
     attempt_items = attempt_log if isinstance(attempt_log, list) else []
@@ -2008,6 +2391,7 @@ def _validate_verifier_executions(
     attempt_ids = set(attempts_by_id)
     mission_states = run.get("mission_states")
     mission_state_items = mission_states.values() if isinstance(mission_states, dict) else []
+    task_states = run.get("task_states") if isinstance(run.get("task_states"), dict) else {}
     lease_ids = {
         state.get("lease_id")
         for state in mission_state_items
@@ -2048,11 +2432,11 @@ def _validate_verifier_executions(
     seen_execution_ids: set[str] = set()
     for index, item in enumerate(value):
         path = f"run.verifier_executions[{index}]"
-        optional_entry_keys = (
-            {"reservation", "dispatch_attestation"}
-            if run.get("schema_version") == 11
-            else set()
-        )
+        optional_entry_keys = {"sandbox_attestation"}
+        if run.get("schema_version") == 11:
+            optional_entry_keys.update(
+                {"reservation", "dispatch_attestation", "git_guard_attestation"}
+            )
         if not _keys(errors, path, item, entry_keys, optional_entry_keys):
             continue
         execution_id = item["execution_id"]
@@ -2122,6 +2506,7 @@ def _validate_verifier_executions(
                             "must match the persisted node-attempt reservation",
                         )
         dispatch_attestation = item.get("dispatch_attestation")
+        git_guard_attestation = item.get("git_guard_attestation")
         if reservation is not None and dispatch_attestation is None:
             _add(
                 errors,
@@ -2215,6 +2600,187 @@ def _validate_verifier_executions(
                         f"{path}.dispatch_attestation",
                         "must match the persisted verifier request and checkout",
                     )
+        if (
+            run.get("schema_version") == 11
+            and item.get("protocol") == "harness-verifier-execution-v2"
+            and item.get("layer") in {"task", "worker"}
+        ):
+            if not isinstance(git_guard_attestation, dict):
+                _add(
+                    errors,
+                    f"{path}.git_guard_attestation",
+                    "is required for current task/worker verifier evidence",
+                )
+            else:
+                if set(git_guard_attestation) != {
+                    "checkout_root",
+                    "git_guard",
+                    "isolation_mode",
+                    "source_head_sha",
+                    "sandbox_attestation",
+                    "tracked_files",
+                    "protected_path_sha256",
+                    "protected_path_stats",
+                }:
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation",
+                        "must retain the complete live git_guard snapshot",
+                    )
+                if git_guard_attestation.get("isolation_mode") != "container":
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation.isolation_mode",
+                        "current task/worker evidence must use container isolation",
+                    )
+                if not isinstance(git_guard_attestation.get("sandbox_attestation"), dict):
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation.sandbox_attestation",
+                        "must retain the machine-verifiable sandbox attestation",
+                    )
+                else:
+                    sandbox_attestation = git_guard_attestation["sandbox_attestation"]
+                    required_sandbox_keys = {
+                        "runtime",
+                        "runtime_probe",
+                        "image",
+                        "image_probe",
+                        "policy",
+                        "mount",
+                        "network",
+                    }
+                    if set(sandbox_attestation) != required_sandbox_keys:
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.sandbox_attestation",
+                            "must retain the complete container sandbox attestation",
+                        )
+                    declared_execution = (
+                        declaration.get("execution")
+                        if isinstance(declaration, dict)
+                        else None
+                    )
+                    declared_sandbox = (
+                        declared_execution.get("sandbox")
+                        if isinstance(declared_execution, dict)
+                        else None
+                    )
+                    if sandbox_attestation.get("policy") != declared_sandbox:
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.sandbox_attestation.policy",
+                            "must exactly match the declared sandbox policy",
+                        )
+                    elif isinstance(declared_sandbox, dict):
+                        if sandbox_attestation.get("runtime") != declared_sandbox.get("runtime"):
+                            _add(
+                                errors,
+                                f"{path}.git_guard_attestation.sandbox_attestation.runtime",
+                                "must match the declared sandbox runtime",
+                            )
+                        if sandbox_attestation.get("image") != declared_sandbox.get("image"):
+                            _add(
+                                errors,
+                                f"{path}.git_guard_attestation.sandbox_attestation.image",
+                                "must match the declared sandbox image",
+                            )
+                        for probe_key in ("runtime_probe", "image_probe"):
+                            probe_value = sandbox_attestation.get(probe_key)
+                            valid_probe = isinstance(probe_value, str) and bool(probe_value.strip())
+                            if probe_key == "runtime_probe" and isinstance(probe_value, dict):
+                                valid_probe = {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(probe_value) and not (set(probe_value) - {"executable", "executable_sha256", "version_output_sha256", "trust"}) and isinstance(probe_value.get("executable"), str) and bool(probe_value["executable"].strip()) and SHA256_RE.fullmatch(str(probe_value.get("executable_sha256"))) is not None and SHA256_RE.fullmatch(str(probe_value.get("version_output_sha256"))) is not None and isinstance(probe_value.get("trust"), dict)
+                            if not valid_probe:
+                                _add(
+                                    errors,
+                                    f"{path}.git_guard_attestation.sandbox_attestation.{probe_key}",
+                                    "must contain a non-empty runtime probe result",
+                                )
+                        digest = str(declared_sandbox.get("image", "")).rsplit("@", 1)[-1]
+                        if digest and re.fullmatch(
+                            r"[A-Za-z0-9][A-Za-z0-9._:/-]*@" + re.escape(digest),
+                            str(sandbox_attestation.get("image_probe", "")),
+                        ) is None:
+                            _add(
+                                errors,
+                                f"{path}.git_guard_attestation.sandbox_attestation.image_probe",
+                                "must attest the exact pinned image digest",
+                            )
+                    mount = sandbox_attestation.get("mount")
+                    if mount != {
+                        "source": "git_archive",
+                        "destination": "/workspace",
+                        "read_only": True,
+                    }:
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.sandbox_attestation.mount",
+                            "must attest the exact read-only Git archive mount",
+                        )
+                    if sandbox_attestation.get("network") != "none":
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.sandbox_attestation.network",
+                            "must attest a disabled network",
+                        )
+                if git_guard_attestation.get("source_head_sha") != item.get("context", {}).get("head_sha"):
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation.source_head_sha",
+                        "must equal verifier context.head_sha",
+                    )
+                guard = git_guard_attestation.get("git_guard")
+                if not isinstance(guard, dict) or set(guard) != {
+                    "expected_branch",
+                    "expected_head_sha",
+                    "ignored_paths",
+                }:
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation.git_guard",
+                        "must contain the exact branch, head, and ignored paths",
+                    )
+                else:
+                    context_head = item.get("context", {}).get("head_sha")
+                    if guard.get("expected_head_sha") != context_head:
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.git_guard.expected_head_sha",
+                            "must equal verifier context.head_sha",
+                        )
+                    if not isinstance(guard.get("ignored_paths"), list):
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.git_guard.ignored_paths",
+                            "must be an array",
+                        )
+                if not isinstance(git_guard_attestation.get("tracked_files"), dict):
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation.tracked_files",
+                        "must retain tracked file identity/hash snapshots",
+                    )
+                else:
+                    for relative, snapshot in git_guard_attestation["tracked_files"].items():
+                        if not isinstance(relative, str) or not isinstance(snapshot, dict):
+                            _add(
+                                errors,
+                                f"{path}.git_guard_attestation.tracked_files",
+                                "each tracked file must retain stat and sha256 data",
+                            )
+                            continue
+                        if not isinstance(snapshot.get("stat"), list) or len(snapshot["stat"]) != 6:
+                            _add(
+                                errors,
+                                f"{path}.git_guard_attestation.tracked_files.{relative}",
+                                "stat must contain device, inode, size, mtime, ctime, and mode",
+                            )
+                        if not isinstance(snapshot.get("sha256"), str) or SHA256_RE.fullmatch(snapshot["sha256"]) is None:
+                            _add(
+                                errors,
+                                f"{path}.git_guard_attestation.tracked_files.{relative}.sha256",
+                                "must be a lowercase SHA-256 digest",
+                            )
         if item["layer"] == "mission_integration" and (
             not _nonempty_string(item["mission_id"])
             or any(item[key] is not None for key in ("task_id", "attempt_id", "lease_id"))
@@ -2282,6 +2848,12 @@ def _validate_verifier_executions(
             "harness-verifier-execution-v2",
         }:
             _add(errors, f"{path}.protocol", "has an unsupported value")
+        if strict_sandbox_binding and protocol != "harness-verifier-execution-v2":
+            _add(
+                errors,
+                f"{path}.protocol",
+                "Harness 0.38 verifier evidence must use execution protocol v2",
+            )
         execution_key = item["execution_key"]
         if not isinstance(execution_key, str) or SHA256_RE.fullmatch(execution_key) is None:
             _add(errors, f"{path}.execution_key", "must be a lowercase SHA-256 digest")
@@ -2321,7 +2893,24 @@ def _validate_verifier_executions(
                     "lease_id",
                 }
             )
-        if _keys(errors, f"{path}.key_document", key_document, key_document_keys):
+        else:
+            key_document_keys.add("read_only")
+            key_document_keys.add("execution")
+            if strict_sandbox_binding:
+                key_document_keys.add("sandbox_preflight")
+        optional_key_document_keys = (
+            {"sandbox_preflight"}
+            if protocol == "harness-verifier-execution-v2"
+            and not strict_sandbox_binding
+            else set()
+        )
+        if _keys(
+            errors,
+            f"{path}.key_document",
+            key_document,
+            key_document_keys,
+            optional_key_document_keys,
+        ):
             encoded = json.dumps(
                 key_document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
             ).encode("utf-8")
@@ -2414,12 +3003,18 @@ def _validate_verifier_executions(
         # that run_verifier copies into the retained record verbatim. They must
         # be accepted here or a run that uses them emits evidence its own
         # validator rejects.
+        verifier_required_keys = {"id", "cwd", "argv", "pass_signal", "cache"}
+        verifier_optional_keys = {"read_only"}
+        if plan.get("schema_version") == 6:
+            verifier_required_keys.add("execution")
+        else:
+            verifier_optional_keys.add("execution")
         if not _keys(
             errors,
             f"{path}.verifier",
             normalized_verifier,
-            {"id", "cwd", "argv", "pass_signal", "cache"},
-            {"execution"},
+            verifier_required_keys,
+            verifier_optional_keys,
         ):
             # A malformed verifier reports its key errors here and skips the
             # field reads below instead of crashing on a non-dict shape.
@@ -2436,6 +3031,13 @@ def _validate_verifier_executions(
             or normalized_verifier["argv"] != declaration.get("argv")
             or normalized_verifier["pass_signal"] != declaration.get("pass_signal")
             or normalized_verifier["cache"] != declared_cache
+            or normalized_verifier.get("read_only", False)
+            != declaration.get("read_only", False)
+            or (
+                plan.get("schema_version") == 6
+                and normalized_verifier.get("execution")
+                != declaration.get("execution")
+            )
         ):
             _add(errors, f"{path}.verifier", "must exactly match the PLAN verifier declaration")
         if _keys(
@@ -2480,6 +3082,59 @@ def _validate_verifier_executions(
                 f"{path}.verifier.pass_signal",
                 "must be a non-empty string",
             )
+        if isinstance(key_document, dict) and key_document.get("read_only", False) != normalized_verifier.get("read_only", False):
+            _add(
+                errors,
+                f"{path}.key_document.read_only",
+                "must encode the verifier read_only declaration",
+            )
+        if protocol == "harness-verifier-execution-v2" and isinstance(key_document, dict):
+            expected_execution = normalized_verifier.get("execution")
+            if key_document.get("execution") != expected_execution:
+                _add(
+                    errors,
+                    f"{path}.key_document.execution",
+                    "must encode the verifier execution isolation policy",
+                )
+            if strict_sandbox_binding:
+                declared_sandbox = (
+                    expected_execution.get("sandbox")
+                    if isinstance(expected_execution, dict)
+                    else None
+                )
+                preflight = key_document.get("sandbox_preflight")
+                attestation = item.get("sandbox_attestation")
+                for issue in sandbox_execution_binding_errors(
+                    declared_sandbox,
+                    preflight,
+                    attestation,
+                ):
+                    _add(errors, f"{path}.sandbox_attestation", issue)
+                matches = [
+                    entry
+                    for entry in observed_sandbox_entries
+                    if isinstance(entry, dict)
+                    and isinstance(preflight, dict)
+                    and entry.get("runtime") == preflight.get("runtime")
+                    and entry.get("image") == preflight.get("image")
+                ]
+                if len(matches) != 1 or matches[0] != preflight:
+                    _add(
+                        errors,
+                        f"{path}.key_document.sandbox_preflight",
+                        "must equal the current PLAN-bound RUN sandbox observation",
+                    )
+                nested = (
+                    item.get("git_guard_attestation", {}).get("sandbox_attestation")
+                    if isinstance(item.get("git_guard_attestation"), dict)
+                    else None
+                )
+                if nested is not None and nested != attestation:
+                    _add(
+                        errors,
+                        f"{path}.git_guard_attestation.sandbox_attestation",
+                        "must equal the retained top-level sandbox attestation",
+                    )
         if isinstance(key_document, dict) and any(
             key_document.get(key) != normalized_verifier[key]
             for key in ("cwd", "argv", "pass_signal")
@@ -2537,11 +3192,18 @@ def _validate_verifier_executions(
                         f"{path}.context.batch_base_sha",
                         "must match the retained worker batch base",
                     )
-                if context["head_sha"] != bound_worker.get("worker_head_sha"):
+                expected_worker_head = bound_worker.get("worker_head_sha")
+                if item.get("layer") == "task":
+                    task_state = task_states.get(item.get("task_id"))
+                    if isinstance(task_state, dict) and is_full_sha(
+                        task_state.get("commit_sha")
+                    ):
+                        expected_worker_head = task_state.get("commit_sha")
+                if context["head_sha"] != expected_worker_head:
                     _add(
                         errors,
                         f"{path}.context.head_sha",
-                        "must match the retained worker head",
+                        "must match the task checkpoint or retained worker head",
                     )
                 if context["checkout_role"] != "worker":
                     _add(errors, f"{path}.context.checkout_role", "must equal worker")
@@ -3029,7 +3691,7 @@ def _validate_v10_execution_records(
                     layer=layer,
                     mission_id=mission_id,
                     task_id=task_id,
-                    head_sha=worker.get("worker_head_sha"),
+                    head_sha=task_state.get("commit_sha"),
                     lease_id=worker.get("lease_id"),
                 )
             ):
@@ -3195,6 +3857,7 @@ def _validate_run_attempt_log(
                     "node_id",
                     "node_dispatch",
                     "verifier_dispatch",
+                    "push_receipt",
                 }
                 if schema_version == 11
                 else set()
@@ -3292,12 +3955,38 @@ def _validate_run_attempt_log(
                             )
                     dispatch = attempt.get("node_dispatch")
                     verifier_dispatch = attempt.get("verifier_dispatch")
+                    push_receipt = attempt.get("push_receipt")
+                    if push_receipt is not None and not (
+                        node is not None
+                        and node.get("kind") == "lifecycle"
+                        and node.get("ref") == "push"
+                        and schema_version == 11
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.push_receipt",
+                            "is only allowed for current push lifecycle attempts",
+                        )
                     if node is not None and node.get("kind") == "lifecycle":
+                        dispatch_keys = {"target", "authorized_head_sha"}
+                        if node.get("ref") == "push" and schema_version == 11:
+                            dispatch_keys.update(
+                                {
+                                    "remote",
+                                    "push_endpoint_kind",
+                                    "push_endpoint_summary",
+                                    "push_url_sha256",
+                                    "branch",
+                                    "branch_ref",
+                                    "request_sha256",
+                                    "push_request",
+                                }
+                            )
                         if not _keys(
                             errors,
                             f"{path}.node_dispatch",
                             dispatch,
-                            {"target", "authorized_head_sha"},
+                            dispatch_keys,
                         ):
                             dispatch = None
                         if isinstance(dispatch, dict):
@@ -3331,12 +4020,113 @@ def _validate_run_attempt_log(
                                     f"{path}.node_dispatch.authorized_head_sha",
                                     "push lifecycle attempts require a full authorized head SHA",
                                 )
+                            if node.get("ref") == "push" and schema_version == 11:
+                                if not _nonempty_string(dispatch.get("remote")):
+                                    _add(
+                                        errors,
+                                        f"{path}.node_dispatch.remote",
+                                        "must be a non-empty recorded landing remote",
+                                    )
+                                if not _nonempty_string(dispatch.get("branch")) or not _nonempty_string(dispatch.get("branch_ref")):
+                                    _add(
+                                        errors,
+                                        f"{path}.node_dispatch.branch",
+                                        "must record the exact integration branch",
+                                    )
+                                if not isinstance(dispatch.get("request_sha256"), str) or SHA256_RE.fullmatch(dispatch.get("request_sha256")) is None:
+                                    _add(
+                                        errors,
+                                        f"{path}.node_dispatch.request_sha256",
+                                        "must be a lowercase SHA-256 digest",
+                                    )
+                                request = dispatch.get("push_request")
+                                if not isinstance(request, dict):
+                                    _add(
+                                        errors,
+                                        f"{path}.node_dispatch.push_request",
+                                        "must be an object",
+                                    )
+                                else:
+                                    request_digest = hashlib.sha256(
+                                        json.dumps(
+                                            request,
+                                            sort_keys=True,
+                                            separators=(",", ":"),
+                                            ensure_ascii=False,
+                                        ).encode("utf-8")
+                                    ).hexdigest()
+                                    if request_digest != dispatch.get("request_sha256"):
+                                        _add(
+                                            errors,
+                                            f"{path}.node_dispatch.request_sha256",
+                                            "must match the persisted push request",
+                                        )
+                                    for key in ("run_id", "node_id", "attempt_id", "branch", "branch_ref", "head_sha", "remote", "remote_ref", "push_endpoint_kind", "push_endpoint_summary", "push_url_sha256"):
+                                        expected = run.get("run_id") if key == "run_id" else attempt.get("node_id") if key == "node_id" else attempt.get("attempt_id") if key == "attempt_id" else dispatch.get(key)
+                                        if request.get(key) != expected:
+                                            _add(
+                                                errors,
+                                                f"{path}.node_dispatch.push_request.{key}",
+                                                "must match the reserved push identity",
+                                            )
                     elif dispatch is not None:
                         _add(
                             errors,
                             f"{path}.node_dispatch",
                             "is only allowed for lifecycle node attempts",
                         )
+                    if isinstance(push_receipt, dict):
+                        for key in (
+                            "protocol",
+                            "status",
+                            "run_id",
+                            "node_id",
+                            "attempt_id",
+                            "branch_ref",
+                            "head_sha",
+                            "remote",
+                            "remote_ref",
+                            "push_endpoint_kind",
+                            "push_endpoint_summary",
+                            "push_url_sha256",
+                            "readback_head_sha",
+                        ):
+                            if not _nonempty_string(push_receipt.get(key)):
+                                _add(
+                                    errors,
+                                    f"{path}.push_receipt.{key}",
+                                    "must be a non-empty string",
+                                )
+                        if push_receipt.get("protocol") != "harness-push-receipt-v1":
+                            _add(
+                                errors,
+                                f"{path}.push_receipt.protocol",
+                                "must use harness-push-receipt-v1",
+                            )
+                        if push_receipt.get("status") != "PASS":
+                            _add(
+                                errors,
+                                f"{path}.push_receipt.status",
+                                "must be PASS",
+                            )
+                        if push_receipt.get("node_id") != attempt.get("node_id") or push_receipt.get("attempt_id") != attempt.get("attempt_id"):
+                            _add(
+                                errors,
+                                f"{path}.push_receipt",
+                                "must bind the reserved node attempt",
+                            )
+                        if isinstance(dispatch, dict) and (
+                            push_receipt.get("push_endpoint_kind") != dispatch.get("push_endpoint_kind")
+                            or push_receipt.get("push_endpoint_summary")
+                            != dispatch.get("push_endpoint_summary")
+                            or push_receipt.get("push_url_sha256")
+                            != dispatch.get("push_url_sha256")
+                        ):
+                            _add(
+                                errors,
+                                f"{path}.push_receipt",
+                                "must bind the frozen push URL",
+                            )
                     if (
                         node is not None
                         and node.get("kind") == "verifier"
@@ -3493,7 +4283,13 @@ def _validate_run_observed(
 ) -> None:
     """Validate run.observed (moved verbatim from validate_run)."""
     observed = run["observed"]
-    if _keys(errors, "run.observed", observed, {"captured_at", "git", "runtime"}):
+    if _keys(
+        errors,
+        "run.observed",
+        observed,
+        {"captured_at", "git", "runtime"},
+        {"sandbox"},
+    ):
         _optional_string(errors, "run.observed.captured_at", observed["captured_at"])
         git = observed["git"]
         observed_git_keys = {
@@ -3534,8 +4330,14 @@ def _validate_run_observed(
                         _optional_sha(errors, f"{path}.head_sha", worktree["head_sha"])
                         if worktree["managed_by"] not in {"parent", "app"}:
                             _add(errors, f"{path}.managed_by", "must be parent or app")
-                        if not isinstance(worktree["dirty"], bool):
-                            _add(errors, f"{path}.dirty", "must be boolean")
+                        if worktree["dirty"] is not None and not isinstance(
+                            worktree["dirty"], bool
+                        ):
+                            _add(
+                                errors,
+                                f"{path}.dirty",
+                                "must be boolean or null",
+                            )
         observed_runtime = observed["runtime"]
         if _keys(errors, "run.observed.runtime", observed_runtime, {"available_worker_slots", "isolation_capacity", "completion_channel_available"}):
             for key in ("available_worker_slots", "isolation_capacity"):
@@ -3543,6 +4345,110 @@ def _validate_run_observed(
                     _add(errors, f"run.observed.runtime.{key}", "must be a non-negative integer")
             if not isinstance(observed_runtime["completion_channel_available"], bool):
                 _add(errors, "run.observed.runtime.completion_channel_available", "must be boolean")
+        sandbox = observed.get("sandbox")
+        if sandbox is not None and _keys(
+            errors,
+            "run.observed.sandbox",
+            sandbox,
+            {"status", "plan_revision", "plan_digest_sha256", "captured_at", "entries"},
+            {"errors", "host"},
+        ):
+            if sandbox["status"] not in {"unobserved", "available", "unavailable"}:
+                _add(errors, "run.observed.sandbox.status", "must be unobserved, available, or unavailable")
+            if sandbox["plan_revision"] is not None and (
+                not _is_int(sandbox["plan_revision"]) or sandbox["plan_revision"] < 1
+            ):
+                _add(errors, "run.observed.sandbox.plan_revision", "must be null or a positive integer")
+            if sandbox["plan_digest_sha256"] is not None:
+                if not isinstance(sandbox["plan_digest_sha256"], str) or SHA256_RE.fullmatch(sandbox["plan_digest_sha256"]) is None:
+                    _add(errors, "run.observed.sandbox.plan_digest_sha256", "must be null or a lowercase SHA-256 digest")
+            _optional_string(errors, "run.observed.sandbox.captured_at", sandbox["captured_at"])
+            host = sandbox.get("host")
+            if host is not None and _keys(
+                errors,
+                "run.observed.sandbox.host",
+                host,
+                {"system", "machine", "node_sha256"},
+            ):
+                if not _nonempty_string(host["system"]) or not _nonempty_string(host["machine"]):
+                    _add(errors, "run.observed.sandbox.host", "system and machine must be non-empty strings")
+                if SHA256_RE.fullmatch(str(host["node_sha256"])) is None:
+                    _add(errors, "run.observed.sandbox.host.node_sha256", "must be a lowercase SHA-256 digest")
+            entries = sandbox["entries"]
+            if not isinstance(entries, list):
+                _add(errors, "run.observed.sandbox.entries", "must be a list")
+            else:
+                seen_entries: set[tuple[str, str]] = set()
+                for index, entry in enumerate(entries):
+                    path = f"run.observed.sandbox.entries[{index}]"
+                    if not _keys(errors, path, entry, {"runtime", "image", "repo_digest", "runtime_probe"}):
+                        continue
+                    if entry["runtime"] not in {"docker", "podman"}:
+                        _add(errors, f"{path}.runtime", "must be docker or podman")
+                    image = entry["image"]
+                    if not isinstance(image, str) or re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", image
+                    ) is None or image.rsplit("@", 1)[-1] == "sha256:" + "0" * 64:
+                        _add(errors, f"{path}.image", "must be a non-placeholder pinned OCI reference")
+                    repo_digest = entry["repo_digest"]
+                    if not isinstance(repo_digest, str) or re.fullmatch(
+                        r"[^\s@]+@sha256:[0-9a-f]{64}", repo_digest
+                    ) is None:
+                        _add(errors, f"{path}.repo_digest", "must be a canonical RepoDigest without spaces")
+                    elif isinstance(image, str) and not repo_digest.endswith("@" + image.rsplit("@", 1)[-1]):
+                        _add(errors, f"{path}.repo_digest", "must attest the exact image digest")
+                    runtime_probe = entry["runtime_probe"]
+                    if not isinstance(runtime_probe, dict) or not {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(runtime_probe) or set(runtime_probe) - {"executable", "executable_sha256", "version_output_sha256", "trust"}:
+                        _add(errors, f"{path}.runtime_probe", "must contain executable and both SHA-256 probe digests")
+                    elif (
+                        not _nonempty_string(runtime_probe["executable"])
+                        or SHA256_RE.fullmatch(runtime_probe["executable_sha256"]) is None
+                        or SHA256_RE.fullmatch(runtime_probe["version_output_sha256"]) is None
+                    ):
+                        _add(errors, f"{path}.runtime_probe", "must contain a path and lowercase SHA-256 digests")
+                    key = (entry["runtime"], entry["image"])
+                    if key in seen_entries:
+                        _add(errors, path, "must not contain duplicate runtime/image entries")
+                    seen_entries.add(key)
+            if "errors" in sandbox:
+                _strings(errors, "run.observed.sandbox.errors", sandbox["errors"])
+
+
+def _validate_sandbox_observation_binding(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    """Validate retained sandbox evidence without treating staleness as malformed.
+
+    A PLAN revision, digest, or image change makes the observation stale. That is
+    a selector/accept-wave deferral until ``record-observation`` refreshes it; it
+    is not an invalid historical RUN shape.
+    """
+
+    if run.get("schema_version") != 11 or plan.get("schema_version") != 6:
+        return
+    observed = run.get("observed")
+    sandbox = observed.get("sandbox") if isinstance(observed, dict) else None
+    if not isinstance(sandbox, dict) or sandbox.get("status") != "available":
+        return
+    if sandbox.get("errors") != []:
+        _add(errors, "run.observed.sandbox.errors", "must be empty when status is available")
+    host = sandbox.get("host")
+    if not isinstance(host, dict) or set(host) != {"system", "machine", "node_sha256"}:
+        _add(errors, "run.observed.sandbox.host", "must retain the non-sensitive host fingerprint")
+    entries = sandbox.get("entries")
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        image = entry.get("image")
+        repo_digest = entry.get("repo_digest")
+        if isinstance(image, str) and isinstance(repo_digest, str):
+            pinned = image.rsplit("@", 1)[-1]
+            if not repo_digest.endswith("@" + pinned):
+                _add(
+                    errors,
+                    "run.observed.sandbox.entries",
+                    "repo_digest must exactly attest the pinned image digest",
+                )
 
 
 
@@ -4042,7 +4948,7 @@ def _validate_run_workers(
                 _add(
                     errors,
                     f"{path}.nested_subagent_policy",
-                    "must be omitted for flat dynamic-workflow orchestration",
+                    "must be omitted for flat Claude workflow-driver orchestration",
                 )
             if (
                 schema_version in {6, 7, 8, 9}
@@ -4742,6 +5648,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
         )
+    errors.extend(_archive_first_state_errors(plan, run))
     if schema_version in {10, 11} and isinstance(run.get("landing"), dict):
         v10_landing = run["landing"]
         continuity = v10_landing.get("continuity")
@@ -5181,7 +6088,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(
                     errors,
                     "run.runtime_capabilities.nested_subagents",
-                    "must be omitted for flat dynamic-workflow orchestration",
+                    "must be omitted for flat Claude workflow-driver orchestration",
                 )
         permission = runtime.get("permission_boundary")
         if permission is not None and _keys(
@@ -5318,6 +6225,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"run.runtime_capabilities.platform_lifecycle.{key}", "must be boolean")
 
     _validate_run_observed(errors, run, schema_version)
+    _validate_sandbox_observation_binding(errors, plan, run)
     integration = run["integration"]
     integration_optional_keys = {"retention"}
     integration_prior_heads: set[str] = set()
@@ -5684,9 +6592,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             expected_base_sha=worker.get("base_sha"),
                             expected_scope=node["review"].get("scope", []),
                             required_tools=node["review"].get("required_tools", []),
+                            required_checks=(
+                                plan.get("security_review", {}).get("required_checks", [])
+                                if isinstance(plan.get("security_review"), dict)
+                                else []
+                            ),
                             allowed_decisions=node.get("allowed_outcomes", []),
                         ):
                             _add(errors, f"{path}.security_result", issue)
+                        for issue in _security_required_check_errors(
+                            plan, run, security_result, worker.get("reviewed_sha")
+                        ):
+                            _add(errors, f"{path}.security_result.checks", issue)
                 elif security_result is not None:
                     _add(
                         errors,
@@ -5879,6 +6796,42 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.completion_channel", "has an unsupported value")
                 for key in ("task_thread_id", "report_path"):
                     _optional_string(errors, f"{path}.{key}", worker[key])
+                if (
+                    worker["completion_channel"] == "thread_poll"
+                    and worker["phase"] in {
+                        "worker_running",
+                        "worker_passed",
+                        "blocked",
+                        "worker_failed",
+                    }
+                    and not _nonempty_string(worker["task_thread_id"])
+                ):
+                    _add(
+                        errors,
+                        f"{path}.task_thread_id",
+                        "is required once a thread_poll review is launched or terminal",
+                    )
+                if (
+                    worker["worker_runtime"] == "app_task"
+                    and worker["phase"] != "leased"
+                    and _nonempty_string(worker["task_thread_id"])
+                ):
+                    target = f"task:{worker['task_thread_id']}"
+                    if any(
+                        not authorization_covers(
+                            run,
+                            "create_user_owned_tasks",
+                            mission_id,
+                            target,
+                            require_exact_target=True,
+                        )
+                        for mission_id in reviewed_mission_ids
+                    ):
+                        _add(
+                            errors,
+                            "run.authorizations.create_user_owned_tasks",
+                            f"must exactly authorize review target {target}",
+                        )
                 if worker["completion_channel"] == "report_file" and not _nonempty_string(
                     worker["report_path"]
                 ):
@@ -6524,9 +7477,18 @@ def _validate_required_security_closeout(
             expected_base_sha=batch_base,
             expected_scope=node["review"].get("scope", []),
             required_tools=node["review"].get("required_tools", []),
+            required_checks=(
+                plan.get("security_review", {}).get("required_checks", [])
+                if isinstance(plan.get("security_review"), dict)
+                else []
+            ),
             allowed_decisions=node.get("allowed_outcomes", []),
         ):
             _add(errors, f"{path}.security_result", issue)
+        for issue in _security_required_check_errors(
+            plan, run, current_worker["security_result"], integration_head
+        ):
+            _add(errors, f"{path}.security_result.checks", issue)
 
 
 def validate_current_plan_run(
@@ -6534,6 +7496,7 @@ def validate_current_plan_run(
     run: dict[str, Any],
     *,
     repo_root: str | Path | None = None,
+    require_repo_root: bool = False,
 ) -> list[str]:
     """Validate only the current PLAN-v6/RUN-v11 pair.
 
@@ -6548,6 +7511,17 @@ def validate_current_plan_run(
         return ["current PLAN/RUN validation requires PLAN v6 with RUN v11"]
     if not is_current_pair(plan, run):
         return ["current PLAN/RUN validation requires PLAN v6 with RUN v11"]
+    if require_repo_root and repo_root is None:
+        return [
+            "current PLAN/RUN validation requires --repo-root for immutable source validation"
+        ]
+    if (
+        repo_root is None
+        and version_at_least(run_required_harness_version(run), (0, 38, 0))
+    ):
+        return [
+            "current PLAN/RUN validation requires --repo-root for the Harness 0.38 authority join"
+        ]
     effective_repo_root = repo_root
     plan_errors = (
         validate_plan(plan)
@@ -6559,8 +7533,30 @@ def validate_current_plan_run(
         if effective_repo_root is None
         else validate_frozen_contract_joins(plan, effective_repo_root, run=run)
     )
+    evidence_errors: list[str] = []
+    integration_errors: list[str] = []
+    if effective_repo_root is not None:
+        # Current transition validation must bind every v0.38 UI artifact,
+        # parity baseline, and authority source to the accepted Git head and
+        # independently re-check the live integration ref.  Keep this inside
+        # the pair entrypoint so callers cannot validate the PLAN/RUN shape and
+        # accidentally skip immutable evidence.
+        evidence_errors = validate_ui_evidence_files(
+            plan, run, effective_repo_root
+        )
+        integration_errors = validate_integration_head_against_git(
+            run, effective_repo_root
+        )
     return sorted(
-        set([*plan_errors, *contract_errors, *validate_run(plan, run)])
+        set(
+            [
+                *plan_errors,
+                *contract_errors,
+                *validate_run(plan, run),
+                *evidence_errors,
+                *integration_errors,
+            ]
+        )
     )
 
 

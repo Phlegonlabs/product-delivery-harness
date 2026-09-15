@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+
+from check_skill_bindings import PIN_RE, bound_skill_name, parse_binding_contract
 
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "assets" / "templates"
@@ -16,6 +19,8 @@ UNRESOLVED_PLACEHOLDER_MARKERS = (
     "<bundled",
     "<or your own",
     "<hash of",
+    "<resolve",
+    "<full-tree",
     "<databases",
 )
 
@@ -24,9 +29,30 @@ def _present(path: Path) -> bool:
     return path.exists() or path.is_symlink()
 
 
+def _assert_no_reparse_components(path: Path) -> None:
+    current = Path(path)
+    while True:
+        try:
+            if current.is_symlink() or bool(
+                getattr(current.stat(), "st_file_attributes", 0) & 0x0400
+            ):
+                raise ValueError(f"context path contains a symlink or reparse point: {current}")
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise ValueError(f"cannot inspect context path {current}: {exc}") from exc
+        parent = current.parent
+        if parent == current:
+            return
+        current = parent
+
+
 def _write_new(path: Path, content: bytes) -> None:
+    _assert_no_reparse_components(path.parent)
     with path.open("xb") as handle:
         handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def inspect_context(root: Path) -> dict[str, object]:
@@ -51,11 +77,15 @@ def configure_context(
     agents_template: Path = DEFAULT_AGENTS_TEMPLATE,
     claude_template: Path = DEFAULT_CLAUDE_TEMPLATE,
 ) -> dict[str, object]:
-    resolved_root = root.resolve(strict=True)
+    try:
+        resolved_root = root.resolve(strict=True)
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(f"cannot resolve target root: {exc}") from exc
     if not resolved_root.is_dir():
         raise ValueError(f"target root is not a directory: {resolved_root}")
     resolved_agents_template = agents_template.resolve(strict=True)
     resolved_claude_template = claude_template.resolve(strict=True)
+    _assert_no_reparse_components(resolved_root)
     for template in (resolved_agents_template, resolved_claude_template):
         if not template.is_file():
             raise ValueError(f"context template is not a file: {template}")
@@ -86,12 +116,21 @@ def unresolved_placeholders(root: Path) -> list[str]:
     if not _present(agents):
         return []
     findings: list[str] = []
-    for number, line in enumerate(
-        agents.read_text(encoding="utf-8").splitlines(), start=1
-    ):
+    try:
+        text = agents.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(f"AGENTS.md is not valid UTF-8: {exc}") from exc
+    for number, line in enumerate(text.splitlines(), start=1):
         for marker in UNRESOLVED_PLACEHOLDER_MARKERS:
             if marker in line:
                 findings.append(f"line {number}: unresolved placeholder {marker!r}")
+    rows, binding_findings = parse_binding_contract(text)
+    findings.extend(f"skill bindings: {finding}" for finding in binding_findings)
+    for slot, cell, pin, number in rows:
+        if bound_skill_name(cell) is None or PIN_RE.fullmatch(pin) is None:
+            findings.append(
+                f"line {number}: unresolved Skill Bindings row for slot {slot!r}"
+            )
     return findings
 
 
@@ -135,7 +174,7 @@ def main() -> int:
             if args.check
             else configure_context(root, args.agents_template, args.claude_template)
         )
-    except (OSError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False))
         return 2
     unresolved: list[str] = []

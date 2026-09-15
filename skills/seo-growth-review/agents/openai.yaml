@@ -1,0 +1,4 @@
+interface:
+  display_name: "SEO Growth Review"
+  short_description: "Audit SEO and prioritize organic growth"
+  default_prompt: "Use $seo-growth-review to audit this production website and prioritize evidence-backed organic-search opportunities."

@@ -16,6 +16,7 @@ RUN's ``target_comparison`` records; this tool never edits RUN state.
 from __future__ import annotations
 
 import argparse
+import errno
 import html
 import json
 import os
@@ -33,11 +34,57 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_core import ManifestError, load_plan  # noqa: E402
 from harness_ui_evidence import _state_marker  # noqa: E402
+from harness_git import windows_machine_roots, windows_parent_user_writable  # noqa: E402
 
 DEFAULT_OUT = Path("docs/goal/evidence/parity")
 VIEWPORT_HEIGHT = 1000
 GEOMETRY_PROBE_LIMIT = 400
 OVERLAP_REPORT_LIMIT = 10
+
+
+def _capture_mode_errors(plan: dict[str, Any]) -> list[str]:
+    """Reject only malformed capture modes; mixed plans remain reportable.
+
+    ``parity_capture`` captures the hosted subset. Extension, native, and
+    desktop groups are returned as manual/platform work in the manifest.
+    """
+
+    errors: list[str] = []
+    for index, surface in enumerate(plan.get("ui_surfaces") or []):
+        if not isinstance(surface, dict) or "capture_mode" not in surface:
+            continue  # pre-0.38 plans retain the hosted-browser behavior
+        mode = surface.get("capture_mode")
+        if not isinstance(mode, str) or mode not in {
+            "hosted-browser",
+            "browser-extension",
+            "native",
+            "desktop",
+        }:
+            errors.append(
+                f"PLAN ui_surfaces[{index}].capture_mode is invalid: {mode!r}"
+            )
+            continue
+    return errors
+
+
+def _unsupported_surface_groups(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    groups: list[dict[str, Any]] = []
+    for surface in plan.get("ui_surfaces") or []:
+        if not isinstance(surface, dict):
+            continue
+        mode = surface.get("capture_mode", "hosted-browser")
+        if mode == "hosted-browser":
+            continue
+        groups.append(
+            {
+                "surface_id": surface.get("id"),
+                "route": surface.get("route"),
+                "capture_mode": mode,
+                "status": "manual_or_platform_tooling_required",
+                "reason": "parity_capture only captures hosted-browser surfaces",
+            }
+        )
+    return groups
 
 GEOMETRY_PROBE_JS = """
 (() => {
@@ -79,32 +126,228 @@ GEOMETRY_PROBE_JS = """
 )
 
 
-def _resolve_cli() -> str | None:
+def _direct_node_launcher(wrapper: Path) -> list[str] | None:
+    """Resolve a Windows npm/Volta shim to Node without invoking a shell."""
+
+    wrapper = _trusted_launcher_path(wrapper, "agent-browser launcher")
+    node = shutil.which("node.exe") or shutil.which("node")
+    package_root = wrapper.parent
+    javascript = package_root / "node_modules" / "agent-browser" / "bin" / "agent-browser.js"
+
+    volta = wrapper.parent / "volta.exe"
+    if not volta.is_file():
+        resolved_volta = shutil.which("volta.exe") or shutil.which("volta")
+        volta = Path(resolved_volta) if resolved_volta else volta
+    if volta.is_file():
+        try:
+            volta = _trusted_launcher_path(volta, "Volta launcher")
+        except RuntimeError:
+            volta = Path()
+        try:
+            package_probe = subprocess.run(
+                [str(volta.resolve()), "which", "agent-browser"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
+            node_probe = subprocess.run(
+                [str(volta.resolve()), "which", "node"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            package_probe = node_probe = None
+        if (
+            package_probe is not None
+            and node_probe is not None
+            and package_probe.returncode == 0
+            and node_probe.returncode == 0
+        ):
+            package_launcher = Path(package_probe.stdout.strip())
+            volta_node = Path(node_probe.stdout.strip())
+            candidate = (
+                package_launcher.parent
+                / "node_modules"
+                / "agent-browser"
+                / "bin"
+                / "agent-browser.js"
+            )
+            try:
+                trusted_node = _trusted_launcher_path(volta_node, "Node runtime")
+                trusted_candidate = _trusted_launcher_path(candidate, "agent-browser script")
+            except RuntimeError:
+                trusted_node = trusted_candidate = None
+            if trusted_node is not None and trusted_candidate is not None:
+                return [str(trusted_node), str(trusted_candidate)]
+
+    if node:
+        try:
+            node_path = _trusted_launcher_path(Path(node), "Node runtime")
+            script_path = _trusted_launcher_path(javascript, "agent-browser script")
+        except RuntimeError:
+            return None
+        if node_path.is_file() and script_path.is_file():
+            return [str(node_path), str(script_path)]
+    return None
+
+
+def _trusted_launcher_path(path: Path, label: str) -> Path:
+    """Bind a browser launcher to a non-reparse, machine-managed install."""
+
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.stat()
+    except OSError as exc:
+        raise RuntimeError(f"{label} is unavailable: {path}") from exc
+    # POSIX systems routinely expose the interpreter through a root-owned
+    # symlink (/usr/bin/python3 -> python3.13); the resolved target stays
+    # machine-managed, so only Windows rejects the link itself.
+    if not resolved.is_file() or (os.name == "nt" and path.is_symlink()):
+        raise RuntimeError(f"{label} must be a regular non-symlink file: {resolved}")
+    for current in (resolved, *resolved.parents):
+        try:
+            if current.is_symlink() or getattr(current.stat(), "st_file_attributes", 0) & 0x0400:
+                raise RuntimeError(f"{label} path contains a reparse point: {current}")
+        except OSError as exc:
+            raise RuntimeError(f"cannot inspect {label}: {exc}") from exc
+    try:
+        resolved.relative_to(Path.cwd().resolve())
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError(f"{label} must not come from the current repository/worktree")
+    if os.name == "nt":
+        roots = list(windows_machine_roots())
+        if not any(_path_within(resolved, root) for root in roots):
+            raise RuntimeError(f"{label} must come from Program Files or Windows system directories")
+        if windows_parent_user_writable(resolved.parent):
+            raise RuntimeError(f"{label} parent is user-writable: {resolved.parent}")
+        if resolved.suffix.casefold() not in {".exe", ".com", ".js", ".py", ".cmd", ".bat"}:
+            raise RuntimeError(f"{label} has an unsupported executable type")
+    else:
+        for component in (resolved, *resolved.parents):
+            component_info = component.stat()
+            if component_info.st_uid != 0 or component_info.st_mode & 0o022:
+                raise RuntimeError(f"{label} path must be root-owned and not writable by group/other")
+        if not any(_path_within(resolved, root) for root in (Path("/usr"), Path("/bin"), Path("/opt"))):
+            raise RuntimeError(f"{label} must come from an OS-protected install path")
+    return resolved
+
+
+def _bind_posix_launcher(path: Path, *, executable: bool = True) -> tuple[str, int]:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        try:
+            fd = os.open(path, flags)
+        except OSError as exc:
+            # A symlinked launcher (for example a distro /usr/bin/python3)
+            # raises ELOOP under O_NOFOLLOW; pin the resolved target instead
+            # so the bound descriptor still names the machine-managed inode.
+            if exc.errno != errno.ELOOP:
+                raise
+            fd = os.open(path.resolve(strict=True), flags)
+        info = os.fstat(fd)
+        if not os.path.isfile(path) or (executable and not (info.st_mode & 0o111)):
+            os.close(fd)
+            raise RuntimeError(f"launcher is not executable: {path}")
+        for candidate in (f"/proc/self/fd/{fd}", f"/dev/fd/{fd}"):
+            if Path(candidate).exists():
+                return candidate, fd
+        os.close(fd)
+    except OSError as exc:
+        raise RuntimeError(f"cannot bind launcher identity: {path}") from exc
+    raise RuntimeError(f"descriptor-backed launcher path is unavailable: {path}")
+
+
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _resolve_cli() -> list[str] | None:
     resolved = shutil.which("agent-browser")
-    return str(resolved) if resolved else None
+    if not resolved:
+        return None
+    try:
+        path = _trusted_launcher_path(Path(resolved), "agent-browser launcher")
+    except RuntimeError:
+        return None
+    if os.name == "nt":
+        if path.suffix.casefold() in {".cmd", ".bat"}:
+            # Shell wrappers are never executed.  Resolve to direct Node argv
+            # only when both Node and the package script are machine-bound.
+            try:
+                return _direct_node_launcher(path)
+            except RuntimeError:
+                return None
+        if path.suffix.casefold() == ".py":
+            try:
+                python_path = _trusted_launcher_path(Path(sys.executable), "Python runtime")
+            except RuntimeError:
+                return None
+            return [str(python_path), str(path)]
+        if path.suffix.casefold() not in {".exe", ".com"}:
+            return _direct_node_launcher(path)
+    return [str(path)]
 
 
 def _run_browser(
-    cli: str,
+    cli: list[str],
     argv: list[str],
     *,
     stdin: str | None = None,
     timeout: int = 90,
 ) -> subprocess.CompletedProcess[str]:
-    command = [cli, *argv]
-    # npm-global installs on Windows are .cmd shims; CreateProcess cannot
-    # execute them directly, so route through cmd /c like a shell would.
-    if os.name == "nt" and cli.lower().endswith((".cmd", ".bat")):
-        command = ["cmd", "/c", cli, *argv]
-    return subprocess.run(
-        command,
-        input=stdin,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-    )
+    if (
+        not isinstance(cli, list)
+        or not cli
+        or any(not isinstance(item, str) or not item for item in cli)
+        or any(item.casefold().endswith((".cmd", ".bat")) for item in cli)
+    ):
+        raise RuntimeError("agent-browser must use a direct native or Node argv")
+    bound: list[str] = []
+    descriptors: list[int] = []
+    try:
+        if os.name != "nt":
+            for index, item in enumerate(cli):
+                if index == 0 or item.endswith((".js", ".py")):
+                    launch, descriptor = _bind_posix_launcher(
+                        Path(item), executable=(index == 0)
+                    )
+                    bound.append(launch)
+                    descriptors.append(descriptor)
+                else:
+                    bound.append(item)
+        else:
+            bound = list(cli)
+        command = [*bound, *argv]
+        options: dict[str, Any] = {
+            "input": stdin,
+            "capture_output": True,
+            "text": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+            "timeout": timeout,
+        }
+        if descriptors:
+            options["pass_fds"] = tuple(descriptors)
+        return subprocess.run(command, **options)
+    finally:
+        for descriptor in descriptors:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
 
 
 def _token(value: str) -> str:
@@ -112,10 +355,14 @@ def _token(value: str) -> str:
     return token or "root"
 
 
-def _matrix(plan: dict[str, Any], only: str | None) -> list[dict[str, Any]]:
+def _matrix(
+    plan: dict[str, Any], only: str | None, *, hosted_only: bool = False
+) -> list[dict[str, Any]]:
     combos = []
     for surface in plan.get("ui_surfaces") or []:
         if not isinstance(surface, dict):
+            continue
+        if hosted_only and surface.get("capture_mode", "hosted-browser") != "hosted-browser":
             continue
         route = surface.get("route")
         if only and route != only:
@@ -147,7 +394,7 @@ def _route_map_load(path: Path | None) -> dict[str, Any]:
 
 
 def _navigate_reference(
-    cli: str, reference_url: str, route: str, entry: dict[str, Any]
+    cli: list[str], reference_url: str, route: str, entry: dict[str, Any]
 ) -> tuple[bool, str]:
     """Open the reference file and select the route; return (ok, method)."""
 
@@ -179,7 +426,7 @@ def _navigate_reference(
 
 
 def _shoot(
-    cli: str,
+    cli: list[str],
     *,
     viewport: tuple[str, int],
     screenshot: Path,
@@ -210,7 +457,7 @@ def _shoot(
 
 
 def _capture_app(
-    cli: str,
+    cli: list[str],
     url: str,
     *,
     viewport: tuple[str, int],
@@ -234,22 +481,32 @@ def _capture_app(
     )
 
 
-def _geometry_probe(cli: str) -> dict[str, Any] | None:
+def _geometry_probe(cli: list[str]) -> tuple[dict[str, Any] | None, str | None]:
     probed = _run_browser(
         cli, ["eval", "--stdin"], stdin=GEOMETRY_PROBE_JS, timeout=60
     )
     if probed.returncode != 0:
-        return None
+        reason = probed.stderr.strip() or f"browser eval exited {probed.returncode}"
+        return None, reason
     text = probed.stdout.strip()
     # The CLI prints the eval result; accept the last JSON-looking line.
     for line in reversed(text.splitlines()):
         line = line.strip()
         if line.startswith("{") and line.endswith("}"):
             try:
-                return json.loads(line)
+                result = json.loads(line)
             except json.JSONDecodeError:
                 continue
-    return None
+            if not isinstance(result, dict):
+                return None, "geometry probe returned a non-object JSON value"
+            overflow = result.get("overflowX")
+            overlaps = result.get("overlaps")
+            if not isinstance(overflow, (int, float)) or isinstance(overflow, bool):
+                return None, "geometry probe returned an invalid overflowX value"
+            if not isinstance(overlaps, list):
+                return None, "geometry probe returned an invalid overlaps value"
+            return result, None
+    return None, "geometry probe returned no valid JSON object"
 
 
 def _board(
@@ -264,6 +521,7 @@ def _board(
             f"{item['breakpoint']}px · {item['state']}"
         )
         geometry = item.get("geometry") or {}
+        geometry_error = item.get("geometry_error")
         findings = []
         if geometry.get("overflowX", 0) > 1:
             findings.append(f"horizontal overflow: {geometry['overflowX']}px")
@@ -272,6 +530,8 @@ def _board(
                 f"overlap {overlap.get('a')} × {overlap.get('b')} "
                 f"({overlap.get('px')}×{overlap.get('py')}px)"
             )
+        if geometry_error:
+            findings.append(f"geometry probe unavailable: {geometry_error}")
         findings_html = (
             "<ul>"
             + "".join(f"<li>{html.escape(str(f))}</li>" for f in findings)
@@ -311,7 +571,7 @@ def _board(
         ".verdict{margin-top:8px;font-family:monospace}"
         "</style></head><body>"
         "<h1>Parity board — design reference vs implementation</h1>"
-        "<p>Compare each pair item by item within the PRD handoff's recorded "
+        "<p>Compare each pair item by item within ui-design.md's recorded "
         "tolerance; record the verdict in RUN's target_comparison.</p>"
         + "".join(rows)
         + "</body></html>",
@@ -333,12 +593,31 @@ def capture(args: argparse.Namespace) -> int:
     try:
         plan = load_plan(plan_path)
         route_map = _route_map_load(args.route_map)
-    except (ManifestError, json.JSONDecodeError, OSError) as exc:
+    except (ManifestError, json.JSONDecodeError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    combos = _matrix(plan, args.only)
+    mode_errors = _capture_mode_errors(plan)
+    if mode_errors:
+        for problem in mode_errors:
+            print(f"error: {problem}", file=sys.stderr)
+        return 1
+
+    unsupported_groups = _unsupported_surface_groups(plan)
+    all_combos = _matrix(plan, None)
+    combos = _matrix(plan, args.only, hosted_only=True)
     if not combos:
+        if unsupported_groups:
+            print(
+                "no hosted-browser parity combinations; manual/platform groups "
+                "were reported and do not block this capture command"
+            )
+            for group in unsupported_groups:
+                print(
+                    f"manual/platform group {group['surface_id']}: "
+                    f"{group['capture_mode']} ({group['reason']})"
+                )
+            return 0
         print("error: no route x breakpoint x state combinations found", file=sys.stderr)
         return 1
 
@@ -354,6 +633,14 @@ def capture(args: argparse.Namespace) -> int:
     if version.returncode != 0:
         print(
             f"error: agent-browser not runnable: {version.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if not args.base_url:
+        print(
+            "error: --base-url is required for hosted-browser parity capture; "
+            "native, desktop, and browser-extension modes never use URL parity",
             file=sys.stderr,
         )
         return 1
@@ -435,27 +722,47 @@ def capture(args: argparse.Namespace) -> int:
                     f"{name} actual: {problem}" for problem in app_errors
                 )
                 continue
-            geometry = _geometry_probe(cli)
+            geometry, geometry_error = _geometry_probe(cli)
+            if geometry_error:
+                errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
             captured.append(
                 {
                     **combo,
                     "target": target.as_posix(),
                     "actual": actual.as_posix(),
                     "geometry": geometry,
+                    "geometry_error": geometry_error,
                 }
             )
             print(f"captured {name}")
 
     _run_browser(cli, ["close"], timeout=30)
+    if skipped:
+        errors.extend(
+            f"{item['route']} x {item['breakpoint']} x {item['state']}: "
+            f"{item['reason']}" for item in skipped
+        )
+    if not captured:
+        errors.append("no parity pairs were captured")
+    # Any unsupported platform surface makes a mixed board diagnostic only;
+    # a hosted subset can never turn the whole plan into a PASS.
+    partial = bool(args.only or unsupported_groups)
     manifest = {
+        "status": "FAIL" if errors else ("PARTIAL" if partial else "PASS"),
+        "gating_eligible": not partial and not errors,
         "session": session,
         "reference": args.reference.as_posix(),
+        "capture_mode": "hosted-browser",
         "base_url": base_url,
         "viewport_height": args.height or VIEWPORT_HEIGHT,
         "full_page": args.full_page,
         "reference_nav": nav_methods,
+        "required_combinations": len(all_combos),
+        "selected_combinations": len(combos),
+        "only_routes": [args.only] if args.only else [],
         "captured": captured,
         "skipped": skipped,
+        "unsupported_groups": unsupported_groups,
         "errors": errors,
     }
     (out_dir / "manifest.json").write_text(
@@ -465,12 +772,22 @@ def capture(args: argparse.Namespace) -> int:
     )
     board = _board(out_dir, captured, skipped)
     print(
-        f"done: {len(captured)} pairs captured, {len(skipped)} skipped, "
+        f"done: {len(captured)} of {len(combos)} selected pairs captured "
+        f"({len(all_combos)} full-plan required), "
+        f"{len(skipped)} skipped, "
         f"{len(errors)} errors; board: {board}"
     )
     for problem in errors:
         print(f"error: {problem}", file=sys.stderr)
-    return 1 if errors else 0
+    if errors:
+        return 1
+    if partial:
+        print(
+            "partial/platform diagnostic capture is not eligible for a parity gate",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -481,7 +798,7 @@ def main(argv: list[str] | None = None) -> int:
         help="approved design-reference HTML path",
     )
     parser.add_argument(
-        "--base-url", required=True, help="implemented app origin, e.g. http://localhost:3000"
+        "--base-url", help="implemented app origin for hosted-browser parity, e.g. http://localhost:3000"
     )
     parser.add_argument(
         "--route-map", type=Path, help="JSON mapping routes to reference selectors and state triggers"
@@ -503,7 +820,7 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.TimeoutExpired as exc:
         print(f"error: agent-browser timed out: {exc}", file=sys.stderr)
         return 1
-    except (ManifestError, OSError) as exc:
+    except (ManifestError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

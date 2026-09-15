@@ -1,18 +1,20 @@
 # Documents
 
-The manifest of every document this delivery flow produces or governs. Keep it at `docs/DOCUMENTS.md` and keep it current: add a row when a document is created, update its status when it is published or approved, and note archival instead of deleting the row. An unfilled row means the document has not been created yet — not that it is optional.
+The manifest of every document this delivery flow produces or governs. Keep it at `docs/DOCUMENTS.md` and keep it current: add a row when a document is created, update its status when it is published or approved, and note archival instead of deleting the row. Rows labeled `when required`, `when requested`, or `managed run` are conditional; once applicability is known, fill them with the artifact status or `n/a — <reason>`. An unfilled applicable row is missing work.
 
 | Document | Location | Stage | Owner | Canonical | Status |
 | --- | --- | --- | --- | --- | --- |
 | `AGENTS.md` | root | bootstrap | human + harness | shared governance | |
 | `CLAUDE.md` | root | bootstrap | human + harness | imports `AGENTS.md` | |
 | `PRD.md` | `docs/product/` | PRD | product-definition-builder + owner approval | product definition | |
-| `wireframes.html` | `docs/product/` | PRD (UI-bearing) | product-definition-builder + Wireframe Approval | structural projection | |
+| `ui-design.md` | `docs/design/` | Approved Product Definition (UI-bearing) | ui-design-builder + UI Design Intake / Visual Approval | UI decisions and evidence | |
+| `wireframes.html` | `docs/design/` | Approved PRD UI Surface Contract | ui-design-builder + Wireframe Approval | structural projection | |
+| `design-system.md` + `design-system.json` | `docs/design/` | Approved UI design when required | design-system-compiler | frozen visual contract | |
 | `architecture.md` | `docs/product/` | PRD | product-definition-builder | technical definition | |
 | `stack-decisions.md` | `docs/product/` | PRD | product-definition-builder | stack choices + rationale | |
 | `market-research.md` | `docs/product/` | PRD (gap pass) | product-definition-builder | sourced research | |
 | `implementation-plan.md` | `docs/product/` | PRD (when requested) | product-definition-builder | sequenced implementation outline | |
-| `design-system.md` / `design-system.json` | `docs/product/` | design (when required) | design-system-compiler | frozen design pair | |
+| `YYYY-MM-DD-<release-set>.md` | `docs/product/outcomes/` | post-release outcome (when requested) | product-definition-builder + owner | immutable outcome evidence and verdict | |
 | `docs/DEPLOYMENT.md` | `docs/` | PRD seed, implementation reconciliation, deployment check | product-definition-builder + delivery-harness + owner | name-only configuration handoff + deployment record | |
 | `docs/ACTIVATION.md` | `docs/` | create-once PRD seed, post-delivery activation | product-definition-builder seed + product-activation + owner | external action, measurement-source, and activation-readiness record | |
 | `docs/DOCUMENTS.md` | `docs/` | PRD seed, then owner | product-definition-builder + owner edits | this manifest | |
@@ -23,7 +25,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `REFINEMENT_BACKLOG.md` | `docs/goal/` | run closeout (when needed) | harness parent | deferred refinement items | |
 | `docs/goal/evidence/` | `docs/goal/evidence/` | verification | workers + parent | evidence artifacts (SHA-256 bound) | |
 | `docs/{product,design}/archived/` | `docs/*/archived/` | supersede | product-definition-builder / design pass | archived prior documents (move, never delete) | |
-| `docs/goal/archived/` | `docs/goal/archived/` | run closeout | harness parent | archived completed run coordination sets (move, never delete) | |
+| `docs/goal/archived/` | `docs/goal/archived/` | run closeout | harness parent | moved coordination set plus closed `ARCHIVE_RECEIPT.json` (never delete) | |
 
 Notes:
 
@@ -31,4 +33,5 @@ Notes:
 - `PLAN.md` and `RUN.md` exist only for the managed route; small direct work creates none of the run documents.
 - `tasks.md` is a rendered view: never edit it to change state — change RUN and re-render; its Update Log section is the one hand-maintained part, preserved verbatim by the renderer.
 - The PRD family and the run family never mix: a run references its PRD only through the frozen content hash in PLAN's sources, nothing under `docs/product/` ever enters `docs/goal/archived/`, and the PRD stays published as the living reference for later enhancement runs.
+- Harness 0.38 archival also creates one immutable `ARCHIVE_ANCHOR` at the exact absolute path supplied outside the checkout. It is not a repository document; `ARCHIVE_RECEIPT.json` records its identity, and archive-candidate publication requires the same file.
 - Evidence artifacts bind to exact SHAs with lowercase SHA-256 records; they are the only accepted proof for UI and verification gates.

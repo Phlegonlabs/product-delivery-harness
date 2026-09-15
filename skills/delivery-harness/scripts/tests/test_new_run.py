@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import sys
 import tempfile
 import unittest
@@ -12,18 +14,30 @@ from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = TESTS_DIR.parent
+PDB_TESTS_DIR = Path(__file__).resolve().parents[3] / "product-definition-builder" / "scripts" / "tests"
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+if str(PDB_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(PDB_TESTS_DIR))
 
 import new_run  # noqa: E402
+from test_product_package_checker import (  # noqa: E402
+    release_architecture,
+    strictize_approved_package,
+    valid_prd,
+    valid_stack,
+)
 from harness_manifest import (  # noqa: E402
     load_plan,
     load_run,
     plan_digest,
     validate_current_plan_run,
 )
+
+while str(PDB_TESTS_DIR) in sys.path:
+    sys.path.remove(str(PDB_TESTS_DIR))
 
 PLAN_TEMPLATE = SCRIPTS_DIR.parent / "assets" / "templates" / "HARNESS_PLAN.template.md"
 
@@ -34,19 +48,45 @@ class NewRunTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.dir = Path(self.tmp.name)
         self.plan = load_plan(PLAN_TEMPLATE)
+        self.plan_path = self.dir / "PLAN.md"
+        approved_prd, approved_architecture, approved_stack = strictize_approved_package(
+            valid_prd(), release_architecture(), valid_stack()
+        )
+        product_sources = {
+            "docs/product/PRD.md": approved_prd.encode("utf-8"),
+            "docs/product/architecture.md": approved_architecture.encode("utf-8"),
+            "docs/product/stack-decisions.md": approved_stack.encode("utf-8"),
+        }
+        for location, value in product_sources.items():
+            path = self.dir / location
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(value)
+        for source in self.plan["sources"]:
+            source["content_sha256"] = hashlib.sha256(
+                product_sources[source["location"]]
+            ).hexdigest()
+            source["source_revision"] = None
+            source["staged_revision"] = None
+        body = json.dumps({"harness_plan": self.plan}, indent=2, ensure_ascii=False)
+        template = PLAN_TEMPLATE.read_text(encoding="utf-8")
+        start = template.index("```json\n") + len("```json\n")
+        end = template.index("\n```", start)
+        self.plan_path.write_text(template[:start] + body + template[end:], encoding="utf-8")
 
     def generate(self) -> Path:
         out = self.dir / "RUN.md"
         code = new_run.main(
             [
                 "--plan",
-                str(PLAN_TEMPLATE),
+                str(self.plan_path),
                 "--run-id",
                 "RUN-test",
                 "--branch",
                 "refs/heads/test-run",
                 "--out",
                 str(out),
+                "--repo-root",
+                str(self.dir),
             ]
         )
         self.assertEqual(0, code)
@@ -55,7 +95,7 @@ class NewRunTests(unittest.TestCase):
     def test_generated_run_validates_against_its_plan(self) -> None:
         run = load_run(self.generate())
 
-        self.assertEqual([], validate_current_plan_run(self.plan, run))
+        self.assertEqual([], validate_current_plan_run(self.plan, run, repo_root=self.dir))
 
     def test_graph_and_mission_state_mirror_the_plan(self) -> None:
         run = load_run(self.generate())
@@ -103,7 +143,7 @@ class NewRunTests(unittest.TestCase):
 
         self.assertEqual(2, run["graph_state"]["graph_revision"])
         self.assertEqual(2, run["active_wave"]["plan_revision"])
-        self.assertEqual([], validate_current_plan_run(revised, run))
+        self.assertEqual([], validate_current_plan_run(revised, run, repo_root=self.dir))
 
     def test_seeded_coordination_paths_cover_closeout_rewrites(self) -> None:
         run = load_run(self.generate())
@@ -126,6 +166,15 @@ class NewRunTests(unittest.TestCase):
         self.assertEqual("draft", run["plan_readiness"])
         self.assertIsNone(run["integration"]["batch_base_sha"])
         self.assertIsNone(run["observed"]["captured_at"])
+        self.assertEqual("local_only", run["landing"]["mode"])
+        self.assertIsNone(run["landing"]["pushed_head_sha"])
+        self.assertFalse(run["authorizations"]["push"]["authorized"])
+        self.assertFalse(
+            any(
+                node.get("kind") == "lifecycle" and node.get("ref") == "push"
+                for node in self.plan["graph"]["nodes"]
+            )
+        )
         for key, entry in run["authorizations"].items():
             with self.subTest(action=key):
                 self.assertFalse(entry["authorized"])
@@ -138,13 +187,15 @@ class NewRunTests(unittest.TestCase):
         code = new_run.main(
             [
                 "--plan",
-                str(PLAN_TEMPLATE),
+                str(self.plan_path),
                 "--run-id",
                 "RUN-test",
                 "--branch",
                 "refs/heads/test-run",
                 "--out",
                 str(out),
+                "--repo-root",
+                str(self.dir),
             ]
         )
 
@@ -169,13 +220,15 @@ class NewRunTests(unittest.TestCase):
             code = new_run.main(
                 [
                     "--plan",
-                    str(PLAN_TEMPLATE),
+                    str(self.plan_path),
                     "--run-id",
                     "RUN-test",
                     "--branch",
                     "refs/heads/test-run",
                     "--out",
                     str(out),
+                    "--repo-root",
+                    str(self.dir),
                 ]
             )
 

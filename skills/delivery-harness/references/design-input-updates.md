@@ -6,10 +6,10 @@ Use this reference when the user provides a new or updated PRD, approved HTML wi
 
 Classify every visual source before planning or implementation:
 
-- **Design inspiration** is non-canonical evidence. It can influence implementation only after the PRD UI Design Pass inspects it and the human owner approves the resulting scoped target or principles. When the Design System Need Gate is `required`, `design-system-compiler` also compiles those approved consequences into the pair. A URL, screenshot, Figma frame, or market-research source is not implementation authority merely because it exists.
-- **Page-faithful target** is an explicit user requirement for visual conformance. Treat it as binding only after the user requests faithful matching and the readable source version, recorded routes, states, responsive scope, and acceptance tolerance are frozen. Preserve it as version-bound acceptance evidence; do not broaden it beyond the routes named in the handoff. The default UI Design Pass retains one connected all-screens HTML implementation reference under `docs/design/ui-references/<run-id>/`; superseded versions archive under `docs/design/archived/`. The harness reads either only through the PRD UI Design Handoff record, never by folder discovery.
+- **Design inspiration** is non-canonical evidence. It can influence implementation only after `ui-design-builder` inspects it and the human owner approves the resulting scoped target or principles. When the Design System Need Gate is `required`, `design-system-compiler` compiles those approved consequences into the pair. A URL, screenshot, Figma frame, or market-research source is not implementation authority merely because it exists.
+- **Page-faithful target** is an explicit user requirement for visual conformance. Treat it as binding only after the user requests faithful matching and the readable source version, routes, states, responsive scope, and tolerance are frozen. Preserve it as version-bound evidence; do not broaden it beyond `ui-design.md`. UI Design Builder retains one connected all-screens HTML reference under `docs/design/ui-references/<run-id>/`; superseded versions archive under `docs/design/archived/`. Harness reads it only through the approved UI design contract, never by folder discovery.
 
-Implementation always works from the route's `UI-*` entry in `PRD.md`, its approved interactive page in `wireframes.html`, and the active visual route in the UI Design Handoff. A `required` gate binds `design-system.md` and `design-system.json` together. A `not_required` gate binds the approved immutable page-faithful target instead. See `ui-implementation-contract.md`.
+Implementation always works from the route's `UI-*` entry in `PRD.md`, approved `ui-design.md`, its copy-frozen interactive page in `wireframes.html`, and the active visual route. Static strings, action labels, feedback, and alternate-state messages are implementation-bound; dynamic examples are illustrative while their approved source/order/format/count/length/fallback contracts bind implementation. A `required` gate binds `design-system.md` and `design-system.json` together. A `not_required` gate binds the approved immutable page-faithful target instead. See `ui-implementation-contract.md`.
 
 A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply a new visual direction, token, variant, component, motion pattern, or structure directly. Return target or direction changes to `product-definition-builder`; return formal pair changes to `design-system-compiler`. Resume only against the revised active source.
 
@@ -29,9 +29,9 @@ A `frontend-design` result produced or requested during implementation is a prop
 
 ```text
 Updated PRD: changed workflows, scope, roles, data, success criteria, non-goals
-Updated Builder UX Direction: changed experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, decision owner, or decision status
-Updated PRD UI surface contract: screen structure, navigation, page regions, content responsibilities, actions, and state coverage
-Updated approved wireframe: `wireframes.html` covering region order, grouping, element inventory, state placement, section labels, page switching, and responsive rearrangement tied to `UI-*`, with approval recorded in `PRD.md`
+Updated UI Design Intake: changed experience priority, guidance/control, density, interaction/layout, style, motion/media, references, validation depth, decision owner, or decision status
+Updated PRD UI surface contract: screen structure, navigation, page regions, content responsibilities, actions, state coverage, and per-screen copy status
+Updated approved wireframe: `wireframes.html` covering region order, grouping, element inventory, state placement, section labels, page switching, responsive rearrangement, exact static/action/feedback/alternate-state copy, dynamic display contracts, and Copy Freeze tied to `UI-*`, with approval recorded in `ui-design.md`
 Updated design system: tokens, typography, spacing, radius, color, added/removed primitives, changed closed variant sets, interaction states, motion variants, product components, content contracts, state matrix, responsive set
 Design inspiration: screenshot, image, Figma frame, website, named product, or visual reference used only for confirmed design principles
 Page-faithful target: version-bound screenshot, Figma frame, mockup, handoff spec, or page target the user explicitly requires the implementation to match
@@ -47,7 +47,7 @@ Treat readable `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.avif`, and `.svg` fil
 1. Record the exact repository-relative path and SHA-256 content hash in the parent checkpoint or plan intake notes.
 2. Open and inspect the source before claiming any visible mechanic. Mark unreadable or ambiguous files as blocked instead of inferring their contents.
 3. Classify it as design inspiration unless the user separately and explicitly requests page-faithful matching for a named route, state set, responsive scope, source version, and tolerance.
-4. Route it to the PRD UI Design Pass for inspection and owner confirmation. Only the accepted, frozen consequences in the UI Design Handoff may shape implementation; a required formal pair is compiled afterward.
+4. Route it to `ui-design-builder` for inspection and owner confirmation. Only accepted, frozen consequences in `ui-design.md` may shape implementation; a required formal pair is compiled afterward.
 
 Do not treat general assets, logos, README covers, test snapshots, `docs/goal/evidence/`, dependency caches, generated output, or build artifacts as design references merely because they are images. Include one only when the user identifies it as a design source or its in-scope design purpose is explicit. Keep discovered files in place; do not copy, move, rename, or publish them into the product package. No discovered image is code-side authority, and the absence of `docs/design/` is not a blocker.
 
@@ -66,16 +66,17 @@ Rules:
 - A delta can add, modify, or explicitly remove behavior.
 - Superseded requirements must be recorded; do not silently drop existing behavior.
 - A UI delta that changes visual values must record the styles, classes, and values it supersedes and name every call site where the implementation removes them. Carrying a superseded style into the accepted delta's implementation is a contract violation, not a compatibility nicety.
+- A user-visible wording or dynamic display-contract change is a `structure` copy delta. Return the affected PRD `` `copy` `` anchors plus schema-4 copy items and screen `copyStatus` to draft, re-check text reflow across every affected responsive target and state, and renew Product Definition Approval, Copy Freeze, and Wireframe Approval before implementation.
 - A backend or app delta must record the endpoints, business rules, queries, migrations, flags, jobs, and configuration it supersedes and name every call site where the implementation removes them — or record an explicit owner-accepted reason when a superseded surface is retained for compatibility. Silently carrying a superseded endpoint, rule, or flag forward alongside its replacement is a contract violation.
-- Design inspiration must return to the PRD UI Design Pass; only accepted, frozen consequences in the UI Design Handoff may enter implementation.
+- Design inspiration must return to `ui-design-builder`; only accepted, frozen consequences in `ui-design.md` may enter implementation.
 - Page-faithful targets must map to routes/screens, states, responsive breakpoints, source version, and acceptance tolerance.
 - Design-system deltas must map to affected components and variants.
 - A design-system delta must name every route that uses the changed entry. A delta that removes an entry must state what replaces it at each call site; an entry that disappears from `design-system.json` while a route still uses it is a break, not a cleanup.
-- When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. When it is `not_required`, a target change returns to the PRD UI Design Handoff and its human approval gate. A code-side "we already built it this way" is not an accepted delta.
+- When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. When it is `not_required`, a target change returns to `ui-design-builder` and Human Visual Approval. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
-- Wireframe deltas return to `product-definition-builder`, require renewed human-owner approval, and invalidate downstream visual-direction selection until reconciled.
-- A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated: raise the set to at least three ascending viewports and carry the new target through `PRD.md`, `wireframes.html`, the design-system pair when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` files stay readable at two targets; they are never a reason to keep a new package at two.
-- Builder UX Direction deltas must preserve their human owner and selected/provisional/assumed status, map to affected `UX-*`, `UI-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
+- Product behavior, wording, and dynamic display-contract deltas return to `product-definition-builder`. Copy Freeze, wireframe, style, motion/media, and HiFi-target deltas return to `ui-design-builder`, require renewed applicable human approval, and invalidate downstream visual sources until reconciled.
+- A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated: raise the set to at least three ascending viewports and carry the new target through `PRD.md`, `wireframes.html`, the design-system pair when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` stays readable at two targets and `wireframes/3` remains readable with its earlier media-intent shape; new work uses `wireframes/4`.
+- UI Design Intake deltas preserve their human owner, map to affected `UX-*`, `UI-*`, `MM-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
 ## Page-Faithful Target Matrix
 
@@ -106,7 +107,7 @@ When the product has a required design system, `design-system.json`'s `stateMatr
 
 ## New Build Flow
 
-For a new build with a provided PRD, approved UI Design Handoff, and optional required design system:
+For a new build with an approved Product Definition, `ui-design.md`, wireframe, HiFi target, and optional required design system:
 
 ```text
 M1 source intake and conflict resolution
@@ -152,10 +153,10 @@ This flow is primary whenever an updated input exists. When no updated PRD, desi
 Stop and ask when:
 
 - Updated PRD UI surface entries or wireframes conflict with other updated product requirements.
-- Builder UX Direction conflicts with observed user needs, accessibility, product requirements, or platform conventions and no validation decision resolves the conflict.
+- UI Design Intake conflicts with observed user needs, accessibility, product requirements, or platform conventions and no validation decision resolves the conflict.
 - An updated required design system conflicts with the approved page-faithful target.
 - A page-faithful target omits required states, breakpoints, source version, or tolerance.
-- A design inspiration source is being treated as code-side authority without an accepted, frozen PRD UI Design Handoff update.
+- A design inspiration source is being treated as code-side authority without an accepted, frozen `ui-design.md` update.
 - An in-scope route has no PRD UI surface entry, approved wireframe, or active visual source. In system-conformance mode, ask for an absent registry entry. In target-conformance mode, ask for missing target scope, state, responsive coverage, or tolerance. Do not improvise.
 - A required design-system route can only be implemented by leaving the pair. The fix is a formal delta, not a page-local exception. A target-conformance route that needs a broader system returns to the Design System Need Gate instead of growing one silently.
 - A conformance-mode `frontend-design` pass proposes a value, variant, component, motion pattern, or page structure the frozen active source does not contain. Record it as a delta and stop; do not treat skill output as implicit approval.

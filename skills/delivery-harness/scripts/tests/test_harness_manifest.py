@@ -30,6 +30,7 @@ from harness_manifest import (  # noqa: E402
     route_runtime_driver,
     scope_overlap,
     topological_levels,
+    validate_current_plan_run,
     validate_plan,
     validate_run,
     validate_ui_evidence_files,
@@ -49,6 +50,8 @@ from manifest_fixtures import (  # noqa: E402
     authorize_action,
     authorize_execution,
     codex_capability_probe,
+    container_execution,
+    sandbox_observation,
     current_version_gate,
     legacy_graph_plan,
     legacy_graph_run,
@@ -73,6 +76,8 @@ __all__ = [
     "authorize_action",
     "authorize_execution",
     "codex_capability_probe",
+    "container_execution",
+    "sandbox_observation",
     "current_version_gate",
     "legacy_graph_plan",
     "legacy_graph_run",
@@ -281,7 +286,7 @@ class PlanValidationTests(unittest.TestCase):
                     "frontend-design",
                 ]
                 if staging_scope.endswith("/**"):
-                    mission["required_skills"].append("product-definition-builder")
+                    mission["required_skills"].append("ui-design-builder")
                 self.assertEqual(validate_plan(plan), [])
 
         plan = valid_plan()
@@ -350,7 +355,7 @@ class PlanValidationTests(unittest.TestCase):
         ]
         self.assertEqual(validate_plan(plan), [])
 
-    def test_wireframe_source_write_scope_requires_product_definition_builder(self) -> None:
+    def test_wireframe_source_write_scope_requires_ui_design_builder(self) -> None:
         for wireframe_scope in (
             "docs/product/wireframes.html",
             "docs/product/.prd-staging/run-001/wireframes.html",
@@ -361,13 +366,13 @@ class PlanValidationTests(unittest.TestCase):
                 mission["write_scope"].append(wireframe_scope)
 
                 self.assert_error_contains(
-                    plan, "wireframe-source write scope must include 'product-definition-builder'"
+                    plan, "wireframe-source write scope must include 'ui-design-builder'"
                 )
 
-                mission["required_skills"] = ["product-definition-builder"]
+                mission["required_skills"] = ["ui-design-builder"]
                 self.assertEqual(validate_plan(plan), [])
 
-    def test_registered_custom_wireframe_source_requires_product_definition_builder(self) -> None:
+    def test_registered_custom_wireframe_source_requires_ui_design_builder(self) -> None:
         plan = valid_plan()
         plan["sources"].append(
             {
@@ -386,10 +391,10 @@ class PlanValidationTests(unittest.TestCase):
         mission["write_scope"].append("specs/custom/**")
 
         self.assert_error_contains(
-            plan, "wireframe-source write scope must include 'product-definition-builder'"
+            plan, "wireframe-source write scope must include 'ui-design-builder'"
         )
 
-        mission["required_skills"] = ["product-definition-builder"]
+        mission["required_skills"] = ["ui-design-builder"]
         self.assertEqual(validate_plan(plan), [])
 
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:
@@ -519,13 +524,11 @@ class PlanValidationTests(unittest.TestCase):
     def test_verifier_parallel_execution_metadata_is_resource_bounded(self) -> None:
         plan = valid_plan()
         verifier = plan["missions"][0]["worker_verifiers"][0]
-        verifier["execution"] = {
-            "parallel_safe": True,
-            "resources": [
-                {"key": "database:test", "access": "shared_read"},
-                {"key": "port:4173", "access": "exclusive"},
-            ],
-        }
+        verifier["execution"] = container_execution()
+        verifier["execution"]["resources"] = [
+            {"key": "database:test", "access": "shared_read"},
+            {"key": "port:4173", "access": "exclusive"},
+        ]
         self.assertEqual(validate_plan(plan), [])
 
         duplicate = copy.deepcopy(plan)
@@ -539,6 +542,29 @@ class PlanValidationTests(unittest.TestCase):
             "access"
         ] = "write"
         self.assert_error_contains(invalid_access, "must be shared_read or exclusive")
+
+    def test_current_plan_requires_explicit_container_verifier_policy(self) -> None:
+        plan = valid_plan()
+        plan["missions"][0]["tasks"][0]["verifiers"][0].pop("execution")
+        self.assert_error_contains(plan, "missing keys: execution")
+
+        plan = valid_plan()
+        plan["final_gates"][0]["execution"]["isolation"] = "live"
+        self.assert_error_contains(plan, "must equal container for every verifier runtime layer")
+
+    def test_legacy_plan_without_execution_remains_readable(self) -> None:
+        plan = legacy_plan()
+        for verifier_group in ("batch_verifiers", "final_gates"):
+            for verifier in plan[verifier_group]:
+                verifier.pop("execution", None)
+        for mission in plan["missions"]:
+            for group in ("worker_verifiers", "integration_verifiers"):
+                for verifier in mission[group]:
+                    verifier.pop("execution", None)
+            for task_entry in mission["tasks"]:
+                for verifier in task_entry["verifiers"]:
+                    verifier.pop("execution", None)
+        self.assertEqual([], validate_plan(plan))
 
 
 
@@ -719,12 +745,42 @@ class RunValidationTests(unittest.TestCase):
 
     def test_v2_verifier_execution_omits_logical_gate_attribution(self) -> None:
         plan = valid_plan()
+        sandbox_policy = {
+            "runtime": "docker",
+            "image": "fixture@sha256:" + "1" * 64,
+            "network": "none",
+            "read_only_rootfs": True,
+            "no_new_privileges": True,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never",
+        }
+        plan["missions"][0]["tasks"][0]["verifiers"][0]["read_only"] = True
+        plan["missions"][0]["tasks"][0]["verifiers"][0]["execution"] = {
+            "parallel_safe": True,
+            "resources": [],
+            "isolation": "container",
+            "sandbox": sandbox_policy,
+        }
         run = valid_closeout_run(plan)
         mark_complete(plan, run)
         execution = run["verifier_executions"][0]
         execution["protocol"] = "harness-verifier-execution-v2"
+        execution["verifier"]["read_only"] = True
+        execution["verifier"]["execution"] = {
+            "parallel_safe": True,
+            "resources": [],
+            "isolation": "container",
+            "sandbox": sandbox_policy,
+        }
         key_document = execution["key_document"]
         key_document["protocol"] = "harness-verifier-execution-v2"
+        key_document["read_only"] = True
+        key_document["execution"] = execution["verifier"]["execution"]
         for key in (
             "verifier_id",
             "layer",
@@ -744,8 +800,42 @@ class RunValidationTests(unittest.TestCase):
         ).hexdigest()
         execution["execution_key"] = execution_key
         execution["evidence_key"] = execution_key
+        execution["git_guard_attestation"] = {
+            "checkout_root": "C:/repo/worktrees/M1",
+            "git_guard": {
+                "expected_branch": "codex/m1",
+                "expected_head_sha": execution["context"]["head_sha"],
+                "ignored_paths": [],
+            },
+            "isolation_mode": "container",
+            "source_head_sha": execution["context"]["head_sha"],
+            "sandbox_attestation": {
+                "runtime": "docker",
+                "runtime_probe": "fixture",
+                "image": sandbox_policy["image"],
+                "image_probe": sandbox_policy["image"],
+                "policy": sandbox_policy,
+                "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
+                "network": "none",
+            },
+            "tracked_files": {},
+            "protected_path_sha256": {},
+            "protected_path_stats": {},
+        }
 
         self.assertEqual(validate_run(plan, run), [])
+        for field in ("policy", "mount", "network"):
+            tampered = copy.deepcopy(run)
+            attestation = tampered["verifier_executions"][0]["git_guard_attestation"]
+            if field == "policy":
+                attestation["sandbox_attestation"]["policy"]["image"] = "other@sha256:" + "f" * 64
+            elif field == "mount":
+                attestation["sandbox_attestation"]["mount"]["read_only"] = False
+            else:
+                attestation["sandbox_attestation"]["network"] = "host"
+            self.assertTrue(
+                any("sandbox_attestation" in error for error in validate_run(plan, tampered))
+            )
 
     def test_default_branch_observation_is_optional_without_a_schema_bump(self) -> None:
         plan = valid_plan()
@@ -757,6 +847,94 @@ class RunValidationTests(unittest.TestCase):
 
         run["observed"]["git"]["default_branch"] = 42
         self.assert_run_error_contains(plan, run, "default_branch")
+
+    def test_container_sandbox_policy_rejects_unsafe_fields(self) -> None:
+        plan = valid_plan()
+        verifier = plan["missions"][0]["tasks"][0]["verifiers"][0]
+        verifier["execution"] = {
+            "parallel_safe": True,
+            "resources": [],
+            "isolation": "container",
+            "sandbox": {
+                "runtime": "docker",
+                "image": "-bad@sha256:" + "0" * 64,
+                "network": "host",
+                "read_only_rootfs": False,
+                "no_new_privileges": False,
+                "cap_drop": [],
+                "tmpfs": ["relative"],
+                "memory": "secret",
+                "cpus": "all",
+                "pids_limit": "0",
+                "user": "0:0",
+                "pull": "always",
+            },
+        }
+        errors = validate_plan(plan)
+        self.assertTrue(any("sandbox" in error for error in errors))
+
+    def test_container_sandbox_rejects_unresolved_zero_digest(self) -> None:
+        plan = valid_plan()
+        verifier = plan["missions"][0]["tasks"][0]["verifiers"][0]
+        verifier["execution"]["sandbox"]["image"] = "fixture@sha256:" + "0" * 64
+        errors = validate_plan(plan)
+        self.assertTrue(any("observed non-zero RepoDigest" in error for error in errors))
+
+    def test_harness_038_execution_binds_observed_runtime_identity(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "not_applicable",
+            "skill_slot": "code_security_verification",
+            "reason": "sandbox identity fixture",
+        }
+        run = valid_closeout_run(plan)
+        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+        gate["required_harness_version"] = "0.38.0"
+        gate["harness_version"] = "0.38.0"
+        mark_complete(plan, run)
+        self.assertEqual([], validate_run(plan, run))
+
+        missing = copy.deepcopy(run)
+        missing["verifier_executions"][0].pop("sandbox_attestation")
+        self.assertTrue(
+            any(
+                "sandbox_attestation" in error
+                for error in validate_run(plan, missing)
+            )
+        )
+
+        substituted = copy.deepcopy(run)
+        execution = substituted["verifier_executions"][0]
+        execution["sandbox_attestation"]["runtime_probe"][
+            "executable_sha256"
+        ] = "f" * 64
+        self.assertTrue(
+            any(
+                "runtime identity differs from preflight" in error
+                for error in validate_run(plan, substituted)
+            )
+        )
+
+        stale = copy.deepcopy(run)
+        execution = stale["verifier_executions"][0]
+        execution["key_document"]["sandbox_preflight"]["runtime_probe"][
+            "version_output_sha256"
+        ] = "e" * 64
+        execution["execution_key"] = hashlib.sha256(
+            json.dumps(
+                execution["key_document"],
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        execution["evidence_key"] = execution["execution_key"]
+        self.assertTrue(
+            any(
+                "current PLAN-bound RUN sandbox observation" in error
+                for error in validate_run(plan, stale)
+            )
+        )
 
     def test_integration_branch_must_not_resolve_to_the_default_branch(self) -> None:
         plan = valid_plan()
@@ -827,6 +1005,36 @@ class RunValidationTests(unittest.TestCase):
             run,
             "cannot target retired development",
         )
+
+    def test_archive_first_v11_forces_local_landing_and_no_push_grant(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"]["required_harness_version"] = "0.38.0"
+        run["landing"]["mode"] = "integration_push"
+        run["authorizations"]["push"] = {
+            "authorized": True,
+            "source": "user: push archive candidate",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/codex/test"],
+            },
+            "expires_when": "run_complete",
+        }
+        errors = validate_run(plan, run)
+        self.assertTrue(any("archive-first RUN-v11 must remain local_only" in error for error in errors), errors)
+        self.assertTrue(any("must keep push authorization false" in error for error in errors), errors)
+
+    def test_archive_first_missing_version_pin_cannot_authorize_push(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"].pop("required_harness_version")
+        run["authorizations"]["push"]["authorized"] = True
+        errors = validate_run(plan, run)
+        self.assertTrue(any("missing or malformed required_harness_version" in error for error in errors), errors)
 
 
     def test_integration_retention_accepts_known_values_only(self) -> None:
@@ -1131,6 +1339,40 @@ class RunValidationTests(unittest.TestCase):
         run["integration"]["prior_head_shas"] = [SHA_B]
         self.assertEqual([], validate_run(plan, run))
 
+    def test_canonical_template_verifiers_declare_container_sandbox(self) -> None:
+        plan = load_plan(SCRIPTS_DIR.parent / "assets/templates/HARNESS_PLAN.template.md")
+        declarations: list[dict[str, object]] = []
+        declarations.extend(item for item in plan.get("batch_verifiers", []) if isinstance(item, dict))
+        declarations.extend(item for item in plan.get("final_gates", []) if isinstance(item, dict))
+        for mission in plan.get("missions", []):
+            if not isinstance(mission, dict):
+                continue
+            declarations.extend(
+                item
+                for item in mission.get("worker_verifiers", [])
+                if isinstance(item, dict)
+            )
+            declarations.extend(
+                item
+                for item in mission.get("integration_verifiers", [])
+                if isinstance(item, dict)
+            )
+            for task_entry in mission.get("tasks", []):
+                if isinstance(task_entry, dict):
+                    declarations.extend(
+                        item
+                        for item in task_entry.get("verifiers", [])
+                        if isinstance(item, dict)
+                    )
+
+        self.assertTrue(declarations)
+        for declaration in declarations:
+            execution = declaration.get("execution")
+            self.assertIsInstance(execution, dict, declaration.get("id"))
+            self.assertEqual(execution.get("isolation"), "container")
+            self.assertIsInstance(execution.get("sandbox"), dict)
+        self.assertEqual([], validate_plan(plan))
+
     def test_harness_028_run_requires_explicit_security_policy(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
@@ -1288,6 +1530,26 @@ class RunValidationTests(unittest.TestCase):
         self.assertFalse(
             any("breakpoints" in error for error in validate_plan(plan))
         )
+
+    def test_ui_surface_capture_mode_is_closed_but_legacy_optional(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["mobile", "desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        self.assertFalse(validate_plan(plan))
+        plan["ui_surfaces"][0]["capture_mode"] = "unsupported"
+        self.assertTrue(
+            any("capture_mode" in error for error in validate_plan(plan))
+        )
+        plan["ui_surfaces"][0]["capture_mode"] = "browser-extension"
+        self.assertFalse(validate_plan(plan))
 
     def test_complete_run_requires_ready_sources(self) -> None:
         plan = valid_plan()
@@ -1540,6 +1802,101 @@ class RunValidationTests(unittest.TestCase):
                 )
             )
 
+    def test_current_pair_validation_reads_immutable_ui_blobs_before_transition(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["390", "1200"],
+                "states": ["ready"],
+                "evidence_gate": "required",
+                "capture_mode": "hosted-browser",
+            }
+        ]
+        run = valid_run(plan)
+        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+        gate["required_harness_version"] = "0.38.0"
+        gate["harness_version"] = "0.38.0"
+        run["ui_evidence"] = [
+            {
+                "surface_id": "dashboard",
+                "route": "/dashboard",
+                "breakpoint": "390",
+                "state": "ready",
+                "artifact_path": "docs/goal/evidence/dashboard.png",
+                "artifact_sha256": "a" * 64,
+                "head_sha": SHA_A,
+                "status": "PASS",
+                "capture_method": "browser",
+                "layout_check": "pass",
+                "target_comparison": {
+                    "baseline": "html_target",
+                    "authority_sources": [
+                        {
+                            "path": "docs/design/ui-references/run-1/index.html",
+                            "sha256": "b" * 64,
+                        }
+                    ],
+                    "baseline_artifact": "docs/goal/evidence/dashboard-target.png",
+                    "baseline_artifact_sha256": "c" * 64,
+                    "verdict": "pass",
+                    "differences": [],
+                },
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "harness@example.invalid"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            actual = io.BytesIO()
+            Image.new("RGB", (2, 2), "white").save(actual, format="PNG")
+            actual_path = root / "docs" / "goal" / "evidence" / "dashboard.png"
+            actual_path.parent.mkdir(parents=True, exist_ok=True)
+            actual_path.write_bytes(actual.getvalue())
+            run["ui_evidence"][0]["artifact_sha256"] = hashlib.sha256(actual.getvalue()).hexdigest()
+            subprocess.run(["git", "add", "README.md", "docs"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "base"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            accepted_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            run["integration"]["integration_head_sha"] = accepted_sha
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
+            run["plan"]["digest_sha256"] = plan_digest(plan)
+            errors = validate_current_plan_run(plan, run, repo_root=root)
+
+        self.assertTrue(
+            any(
+                "target_comparison.baseline_artifact" in error
+                and "accepted Git commit" in error
+                for error in errors
+            ),
+            errors,
+        )
+
 
 
 
@@ -1548,7 +1905,7 @@ class RunValidationTests(unittest.TestCase):
         run = legacy_run(plan, 5)
         self.assertEqual(validate_run(plan, run), [])
 
-    def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
+    def test_schema_v6_routes_claude_workflow_driver(self) -> None:
         plan = legacy_plan()
         run = legacy_run(plan, 6)
         run["runtime_capabilities"] = {
@@ -1607,7 +1964,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "must be omitted for flat dynamic-workflow orchestration",
+            "must be omitted for flat Claude workflow-driver orchestration",
         )
 
     def test_schema_v10_routes_pi_subagents(self) -> None:

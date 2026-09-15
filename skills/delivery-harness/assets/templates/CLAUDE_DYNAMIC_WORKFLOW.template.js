@@ -221,7 +221,7 @@ const results = await pipeline(workflowArgs.missions, (mission) => {
 
   return agent(
     `${mission.worker_prompt}\n\n` +
-      `Claude Dynamic Workflow binding:\n` +
+      `Claude workflow-driver binding:\n` +
       `- Work only inside ${mission.worktree_path}.\n` +
       `- Mission ID: ${mission.mission_id}.\n` +
       `- Lease ID: ${mission.lease_id}.\n` +

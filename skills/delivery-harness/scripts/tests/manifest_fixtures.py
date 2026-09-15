@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -12,10 +13,18 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+# A canonical absolute executable (resolved interpreter) so sandbox
+# preflight fixtures satisfy the canonical-path validator on POSIX hosts
+# where the interpreter is a root-owned symlink.
+FIXTURE_RUNTIME_EXECUTABLE = str(Path(sys.executable).resolve())
+
+
 from harness_manifest import AUTHORIZATION_KEYS, plan_digest  # noqa: E402
 from harness_schema import (  # noqa: E402
     CURRENT_PLAN_SCHEMA_VERSION,
     CURRENT_RUN_SCHEMA_VERSION,
+    run_required_harness_version,
+    version_at_least,
 )
 
 
@@ -40,13 +49,13 @@ def wireframes_html(
     schema: str = "wireframes/2",
     viewports: list[int] | tuple[int, ...] = (390, 1200),
 ) -> str:
-    """A wireframes.html that passes product-definition-builder's full checker.
+    """A wireframes.html that passes ui-design-builder's full checker.
 
     Each screen dict carries the PLAN surface's ``id``, ``route``, and
     ``states``; the shell carries every reviewer marker and stays
-    self-contained. Pass ``schema="wireframes/3"`` with three viewports for
-    the current three-viewport web contract; the default stays at the
-    legacy wireframes/2 two-target shape.
+    self-contained. Pass ``schema="wireframes/4"`` with three viewports for
+    the current Copy Freeze contract; the default stays at the legacy
+    wireframes/2 two-target shape.
     """
 
     data_screens: list[dict[str, object]] = []
@@ -54,8 +63,7 @@ def wireframes_html(
         screen_id = str(screen["id"])
         region_id = f"{screen_id}-R1"
         states = [str(state) for state in (screen.get("states") or ["ready"])]
-        data_screens.append(
-            {
+        data_screen = {
                 "id": screen_id,
                 "name": f"{screen_id} screen",
                 "route": screen["route"],
@@ -100,7 +108,43 @@ def wireframes_html(
                     for state in states
                 ],
             }
-        )
+        if schema == "wireframes/4":
+            data_screen["copyStatus"] = "approved"
+            data_screen["regions"][0]["elements"] = [
+                {
+                    "kind": "static",
+                    "role": "body",
+                    "text": "Fixture element",
+                    "status": "approved",
+                    "source": "Fixture copy decision",
+                }
+            ]
+            data_screen["states"] = [
+                {
+                    "id": state,
+                    "label": state,
+                    "treatments": (
+                        {}
+                        if index == 0
+                        else {
+                            region_id: {
+                                "layout": "Show the alternate fixture state",
+                                "copy": [
+                                    {
+                                        "kind": "static",
+                                        "role": "status",
+                                        "text": f"Fixture {state} state",
+                                        "status": "approved",
+                                        "source": "Fixture copy decision",
+                                    }
+                                ],
+                            }
+                        }
+                    ),
+                }
+                for index, state in enumerate(states)
+            ]
+        data_screens.append(data_screen)
     data = {
         "schema": schema,
         "product": product,
@@ -110,6 +154,20 @@ def wireframes_html(
         "canvasWidths": {str(viewport): viewport for viewport in viewports},
         "screens": data_screens,
     }
+    if schema == "wireframes/4":
+        data["copyFreeze"] = {
+            "status": "approved",
+            "owner": "Fixture owner",
+            "locale": "en-US",
+            "approvedOn": "2026-09-12",
+        }
+    copy_shell = (
+        '<dialog id="copy-inventory"></dialog>\n'
+        '<aside id="inspector"></aside>\n'
+        '<div class="product-copy">copyFreeze</div>\n'
+        if schema == "wireframes/4"
+        else ""
+    )
     return (
         "<!doctype html>\n"
         '<html lang="en">\n'
@@ -118,7 +176,8 @@ def wireframes_html(
         '<nav id="page-list" aria-label="All pages"></nav>\n'
         '<div id="responsive-controls" data-responsive-target="390"></div>\n'
         '<div id="state-controls"></div>\n'
-        '<div data-layout-qa="pass"></div>\n'
+        + copy_shell
+        + '<div data-layout-qa="pass"></div>\n'
         "<h2>All pages</h2>\n"
         "<main></main>\n"
         "<script>\n"
@@ -163,12 +222,37 @@ def init_repo(root: Path, *files: str, default_branch: str = "main") -> str:
     return git(root, "rev-parse", "HEAD")
 
 
+def container_execution() -> dict[str, object]:
+    """Canonical fixture policy for every executable verifier layer."""
+
+    return {
+        "parallel_safe": True,
+        "resources": [],
+        "isolation": "container",
+        "sandbox": {
+            "runtime": "docker",
+            "image": "fixture@sha256:" + "1" * 64,
+            "network": "none",
+            "read_only_rootfs": True,
+            "no_new_privileges": True,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never",
+        },
+    }
+
+
 def verifier(identifier: str, *argv: str) -> dict[str, object]:
     return {
         "id": identifier,
         "cwd": ".",
         "argv": list(argv) or ["python3", "-m", "unittest"],
         "pass_signal": "exit 0",
+        "execution": container_execution(),
     }
 
 
@@ -447,6 +531,58 @@ def valid_plan() -> dict[str, object]:
     }
 
 
+def sandbox_observation(plan: dict[str, object]) -> dict[str, object]:
+    entries: dict[tuple[str, str], dict[str, str]] = {}
+    declarations: list[dict[str, object]] = []
+    for group in ("batch_verifiers", "final_gates"):
+        declarations.extend(item for item in plan.get(group, []) if isinstance(item, dict))
+    for mission in plan.get("missions", []):
+        if not isinstance(mission, dict):
+            continue
+        for group in ("worker_verifiers", "integration_verifiers"):
+            declarations.extend(item for item in mission.get(group, []) if isinstance(item, dict))
+        for task_entry in mission.get("tasks", []):
+            if isinstance(task_entry, dict):
+                declarations.extend(item for item in task_entry.get("verifiers", []) if isinstance(item, dict))
+    for declaration in declarations:
+        execution = declaration.get("execution")
+        policy = execution.get("sandbox") if isinstance(execution, dict) else None
+        if isinstance(policy, dict):
+            runtime = str(policy["runtime"])
+            image = str(policy["image"])
+            entries[(runtime, image)] = {
+                "runtime": runtime,
+                "image": image,
+                "repo_digest": image,
+                "runtime_probe": {
+                    "executable": FIXTURE_RUNTIME_EXECUTABLE,
+                    "executable_sha256": "a" * 64,
+                    "version_output_sha256": "b" * 64,
+                    "trust": {
+                        "path": FIXTURE_RUNTIME_EXECUTABLE,
+                        "runtime": runtime,
+                        "ownership": "fixture-machine-policy",
+                        "uid": 0,
+                        "mode": 493,
+                        "reparse": False,
+                    },
+                },
+            }
+    return {
+        "status": "available",
+        "plan_revision": plan["revision"],
+        "plan_digest_sha256": plan_digest(plan),
+        "captured_at": "fixture-observation",
+        "host": {
+            "system": platform.system(),
+            "machine": platform.machine(),
+            "node_sha256": hashlib.sha256(platform.node().encode("utf-8")).hexdigest(),
+        },
+        "entries": list(entries.values()),
+        "errors": [],
+    }
+
+
 def legacy_plan(schema_version: int = 2) -> dict[str, object]:
     """Build a valid non-graph PLAN using an explicitly supported old schema."""
     if schema_version not in {2, 3}:
@@ -553,7 +689,7 @@ def _valid_run(plan: dict[str, object]) -> dict[str, object]:
             },
         },
         "observed": {
-            "captured_at": None,
+            "captured_at": "fixture-observation",
             "git": {
                 "parent_worktree_path": "C:/repo/product-delivery-harness",
                 "parent_branch": "main",
@@ -566,6 +702,7 @@ def _valid_run(plan: dict[str, object]) -> dict[str, object]:
                 "isolation_capacity": 1,
                 "completion_channel_available": True,
             },
+            "sandbox": sandbox_observation(plan),
         },
         "integration": {
             "branch": "codex/test",
@@ -834,17 +971,25 @@ def mark_complete(plan: dict[str, object], run: dict[str, object]) -> None:
         )
     }
     authorize_execution(run, mission_ids, status="complete")
+    existing_version_gate = (
+        run.get("runtime_capabilities", {})
+        .get("runtime_adapter", {})
+        .get("version_gate")
+    )
+    runtime_adapter = {
+        "provider": "codex",
+        "available_drivers": ["subagents", "sequential_parent"],
+        "detection_source": "fallback",
+    }
+    if isinstance(existing_version_gate, dict):
+        runtime_adapter["version_gate"] = existing_version_gate
     run["runtime_capabilities"].update(
         {
             "worker_runtime": "subagent",
             "workspace_mode": "parent_managed_worktree",
             "completion_channel": "agent_result",
             "max_parallel_workers": len(mission_ids),
-            "runtime_adapter": {
-                "provider": "codex",
-                "available_drivers": ["subagents", "sequential_parent"],
-                "detection_source": "fallback",
-            },
+            "runtime_adapter": runtime_adapter,
         }
     )
     run["observed"]["runtime"].update(
@@ -1172,6 +1317,9 @@ def retained_gate_execution(
     head_sha: str | None = None,
     checkout_role: str = "integration",
 ) -> dict[str, object]:
+    strict_runtime = version_at_least(
+        run_required_harness_version(run), (0, 38, 0)
+    )
     changed_files: list[str] = []
     execution_head = head_sha or run["integration"]["integration_head_sha"]
     context = {
@@ -1201,10 +1349,16 @@ def retained_gate_execution(
         "cwd": declaration["cwd"],
         "argv": declaration["argv"],
         "pass_signal": declaration["pass_signal"],
+        "execution": declaration["execution"],
         "cache": declared_cache,
     }
+    protocol = (
+        "harness-verifier-execution-v2"
+        if strict_runtime
+        else "harness-verifier-execution-v1"
+    )
     key_document = {
-        "protocol": "harness-verifier-execution-v1",
+        "protocol": protocol,
         "verifier_id": declaration["id"],
         "layer": layer,
         "mission_id": mission_id,
@@ -1237,6 +1391,72 @@ def retained_gate_execution(
         },
         "environment_digests": {},
     }
+    sandbox_attestation: dict[str, object] | None = None
+    git_guard_attestation: dict[str, object] | None = None
+    if strict_runtime:
+        for logical_key in (
+            "verifier_id",
+            "layer",
+            "mission_id",
+            "task_id",
+            "attempt_id",
+            "lease_id",
+        ):
+            key_document.pop(logical_key)
+        observed_entries = run.get("observed", {}).get("sandbox", {}).get("entries", [])
+        policy = declaration["execution"]["sandbox"]
+        preflight = next(
+            entry
+            for entry in observed_entries
+            if entry.get("runtime") == policy.get("runtime")
+            and entry.get("image") == policy.get("image")
+        )
+        preflight = json.loads(json.dumps(preflight))
+        key_document.update(
+            {
+                "read_only": declaration.get("read_only", False),
+                "execution": declaration["execution"],
+                "sandbox_preflight": preflight,
+            }
+        )
+        sandbox_attestation = {
+            "runtime": preflight["runtime"],
+            "runtime_probe": json.loads(json.dumps(preflight["runtime_probe"])),
+            "image": preflight["image"],
+            "image_probe": preflight["repo_digest"],
+            "policy": json.loads(json.dumps(policy)),
+            "mount": {
+                "source": "git_archive",
+                "destination": "/workspace",
+                "read_only": True,
+            },
+            "network": "none",
+        }
+        if layer in {"task", "worker"}:
+            bound_worker = next(
+                worker
+                for worker in run.get("workers", [])
+                if worker.get("mission_id") == mission_id
+                and worker.get("lease_id") == lease_id
+            )
+            git_guard_attestation = {
+                "checkout_root": bound_worker["worktree_path"],
+                "git_guard": {
+                    "expected_branch": str(bound_worker["branch_ref"]).removeprefix(
+                        "refs/heads/"
+                    ),
+                    "expected_head_sha": execution_head,
+                    "ignored_paths": [],
+                },
+                "isolation_mode": "container",
+                "source_head_sha": execution_head,
+                "sandbox_attestation": json.loads(
+                    json.dumps(sandbox_attestation)
+                ),
+                "tracked_files": {},
+                "protected_path_sha256": {},
+                "protected_path_stats": {},
+            }
     execution_key = hashlib.sha256(
         json.dumps(
             key_document,
@@ -1254,7 +1474,7 @@ def retained_gate_execution(
         "task_id": task_id,
         "attempt_id": attempt_id,
         "lease_id": lease_id,
-        "protocol": "harness-verifier-execution-v1",
+        "protocol": protocol,
         "execution_key": execution_key,
         "evidence_key": execution_key,
         "key_document": key_document,
@@ -1269,6 +1489,16 @@ def retained_gate_execution(
         "stdout_sha256": empty_digest,
         "stderr_sha256": empty_digest,
         "evidence_paths": [],
+        **(
+            {"sandbox_attestation": sandbox_attestation}
+            if sandbox_attestation is not None
+            else {}
+        ),
+        **(
+            {"git_guard_attestation": git_guard_attestation}
+            if git_guard_attestation is not None
+            else {}
+        ),
     }
 
 

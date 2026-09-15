@@ -8,25 +8,25 @@ This design system is the frontend implementation contract. It contains only the
 
 ## Machine-Readable Companion
 
-Artifact: `docs/product/design-system.json`
+Artifact: `docs/design/design-system.json`
 
-`design-system.json` is the sole structured authority for token names, source paths, primitives, closed variant sets, product-component contracts, responsive verification, motion variants, and states. This Markdown file keeps the short human rationale and generated contract view.
+`design-system.json` is the sole structured authority for source bindings, stack-bound platform/rendering/component/styling semantics, token names, source paths, primitives, closed variant sets, product-component contracts, responsive verification, motion variants, and states. This Markdown file keeps the short human rationale and generated contract view.
 
-The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`. Verify with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.
+The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. Verify with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.
 
 ## Source Inputs
 
 | Source | Path / URL | Role |
 |---|---|---|
-| PRD | <path> | product scope and requirements |
-| PRD UI surface contract | <path and section> | screen structure, content, actions, states, and flows |
-| Approved wireframe | <wireframes.html path and PRD approval record> | structural all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
-| Approved UI Design Handoff | <PRD section, direction ID, target path/hash, scope, tolerance, and Design System Need Gate> | approved visual input and pair requirement |
-| Taste and preview evidence | <applicable / partially_applicable / n/a, Design Read and dials when applicable, preview manifest and approval> | frozen UI treatment and direction-review evidence |
+| PRD | JSON `sourceBindings.prd`: current path and SHA-256 | product scope and requirements |
+| PRD UI Surface Contract | JSON `sourceBindings.prd` section | product-owned routes, content responsibilities, actions, states, flows, and responsive obligations |
+| Approved wireframe | JSON `sourceBindings.wireframe`: current path and SHA-256 | structural all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
+| Approved UI design contract | JSON `sourceBindings.uiDesign`: current path and canonical UI approval SHA-256; `sourceBindings.hifi`: current path and SHA-256; direction ID, structured scope, tolerance, and Design System Need Gate | approved visual input and pair requirement |
+| Style Integration and HiFi evidence | <frontend-design direction, Impeccable critique/audit, H1-H9 result, target manifest and approval> | frozen UI treatment and direction-review evidence |
 
 ## Selected Visual Direction
 
-- Status: <selected / provisional / assumed>
+- Status: <selected>
 - Decision owner: <human product/design owner>
 - Direction ID: <VD-R1-01 or consolidated direction ID>
 - Approval or assumption: <record>

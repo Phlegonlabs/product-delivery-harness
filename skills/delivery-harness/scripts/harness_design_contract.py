@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 import math
 import re
+import sys
+from pathlib import Path
 from typing import Any
 
 
@@ -17,6 +19,7 @@ CONTRACT_FIELDS = (
     "platform",
     "stylingMechanism",
     "enforcement",
+    "surfaceContracts",
     "tokenSources",
     "primitiveSources",
     "viewports",
@@ -79,7 +82,22 @@ def _string_list(
 def validate_design_system_registry(registry: dict[str, Any]) -> list[str]:
     """Validate the machine contract with the compiler's executable rules."""
 
+    if registry.get("schema") == "design-system/2":
+        scripts = Path(__file__).resolve().parents[2] / "design-system-compiler" / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        try:
+            import check_design_system_pair
+            return check_design_system_pair.validate_registry(registry)
+        finally:
+            try:
+                sys.path.remove(str(scripts))
+            except ValueError:
+                pass
+
     problems: list[str] = []
+    if "surfaceContracts" in registry:
+        problems.append("design-system.json surfaceContracts requires design-system/2")
     if registry.get("schema") != "design-system/1":
         problems.append("design-system.json schema must be 'design-system/1'")
 
@@ -306,9 +324,36 @@ def _diff(expected: Any, actual: Any, path: str, problems: list[str]) -> None:
 
 
 def compare_design_system_pair(
-    markdown_text: str, registry: dict[str, Any]
+    markdown_text: str,
+    registry: dict[str, Any],
+    *,
+    repo_root: str | Path | None = None,
 ) -> list[str]:
-    """Require the same frozen-pair proof as the compiler's read-only gate."""
+    """Adapt legacy pair calls to the compiler's current schema-2 checker.
+
+    Schema-2 is owned by ``design-system-compiler``.  Keep this module's
+    schema-1 inspection behavior for historical manifests, but delegate every
+    current pair to the canonical checker so source bindings, generated
+    contracts, and namespaces cannot drift between skills.
+    """
+
+    if registry.get("schema") == "design-system/2":
+        scripts = Path(__file__).resolve().parents[2] / "design-system-compiler" / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        try:
+            import check_design_system_pair
+            return check_design_system_pair.compare(
+                markdown_text,
+                registry,
+                require_filled=True,
+                repo_root=Path(repo_root) if repo_root is not None else None,
+            )
+        finally:
+            try:
+                sys.path.remove(str(scripts))
+            except ValueError:
+                pass
 
     problems = validate_design_system_registry(registry)
     problems.extend(unfilled_placeholders(registry))

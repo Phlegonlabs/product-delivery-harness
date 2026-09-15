@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "profiles": {
+    "ui_design": {
+      "skills": [
+        {
+          "name": "frontend-design",
+          "source": "external",
+          "source_locator": "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+          "install": {
+            "kind": "codex_skill_installer",
+            "request": "Install frontend-design from https://github.com/anthropics/skills/tree/main/skills/frontend-design"
+          },
+          "sha256": "fd14eb2fcb59fde11d9e75501995f1a08f21beaedf0ec407c4d44a954dd0eef3",
+          "compatibility": {
+            "allowed_uses": ["visual_direction", "frontend_authoring"],
+            "forbidden_claims": ["compilation_mode", "conformance_mode", "read_only_review"]
+          }
+        }
+      ]
+    },
+    "frontend_implementation": {
+      "skills": [
+        {
+          "name": "frontend-design",
+          "source": "external",
+          "source_locator": "https://github.com/anthropics/skills/tree/main/skills/frontend-design",
+          "install": {
+            "kind": "codex_skill_installer",
+            "request": "Install frontend-design from https://github.com/anthropics/skills/tree/main/skills/frontend-design"
+          },
+          "sha256": "fd14eb2fcb59fde11d9e75501995f1a08f21beaedf0ec407c4d44a954dd0eef3",
+          "compatibility": {
+            "allowed_uses": ["visual_direction", "frontend_authoring"],
+            "forbidden_claims": ["compilation_mode", "conformance_mode", "read_only_review"]
+          }
+        }
+      ]
+    },
+    "authorized_ui_quality": {
+      "skills": [
+        {
+          "name": "impeccable",
+          "source": "external",
+          "source_locator": "https://github.com/pbakaus/impeccable",
+          "install": {
+            "kind": "command",
+            "argv": ["npx", "impeccable", "install"]
+          },
+          "sha256": "97f6246cccf374eb70b50b6b759e97a2a56b4bf8937489a259b32da5a161c7b7",
+          "compatibility": {
+            "allowed_uses": ["authorized_ui_quality_review"],
+            "execution": "explicit_authorization_required",
+            "side_effects": ["subagents", "browser", "local_server", "snapshot_write", "optional_binary_download"],
+            "forbidden_roles": ["harness_read_only_reviewer"]
+          }
+        }
+      ]
+    }
+  }
+}

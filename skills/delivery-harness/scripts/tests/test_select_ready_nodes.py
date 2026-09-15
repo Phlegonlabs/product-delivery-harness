@@ -44,6 +44,8 @@ from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
     codex_capability_probe,
+    container_execution,
+    sandbox_observation,
     current_version_gate,
     retained_gate_execution,
 )
@@ -204,11 +206,28 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
     )["harness_run"]
     plan["schema_version"] = 6
     plan["ui_surfaces"][0]["breakpoints"] = ["compact", "expanded"]
+    for group in ("batch_verifiers", "final_gates"):
+        for verifier in plan.get(group, []):
+            if isinstance(verifier, dict):
+                verifier["execution"] = container_execution()
+    for mission in plan.get("missions", []):
+        if not isinstance(mission, dict):
+            continue
+        for group in ("worker_verifiers", "integration_verifiers"):
+            for verifier in mission.get(group, []):
+                if isinstance(verifier, dict):
+                    verifier["execution"] = container_execution()
+        for task in mission.get("tasks", []):
+            if isinstance(task, dict):
+                for verifier in task.get("verifiers", []):
+                    if isinstance(verifier, dict):
+                        verifier["execution"] = container_execution()
     for node in plan["graph"]["nodes"]:
         review = node.get("review")
         if isinstance(review, dict):
             review["lineage_id"] = f"REVIEW-{node['id']}"
     run["schema_version"] = 11
+    run["observed"]["sandbox"] = sandbox_observation(plan)
     run["control"] = {
         "desired_state": "running",
         "requested_at": None,
@@ -264,6 +283,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
         }
     )
     run["observed"]["captured_at"] = "2026-07-26T00:00:00Z"
+    run["observed"]["sandbox"]["captured_at"] = run["observed"]["captured_at"]
     run["observed"]["runtime"].update(
         {
             "available_worker_slots": 2,
@@ -536,6 +556,71 @@ def configure_flat_app_task(
 
 
 class SelectReadyNodesTests(unittest.TestCase):
+    def test_missing_sandbox_preflight_defers_mission_dispatch(self) -> None:
+        plan = valid_graph_plan()
+        run = authorized_parent_run(plan)
+        run["observed"]["runtime"].update(
+            {
+                "available_worker_slots": 1,
+                "isolation_capacity": 1,
+                "completion_channel_available": True,
+            }
+        )
+        run["observed"].pop("sandbox", None)
+
+        selected = select_ready_nodes(plan, run)
+
+        self.assertTrue(
+            any(
+                "sandbox_preflight_missing" in item["reason_codes"]
+                for item in selected["deferred_nodes"]
+            ),
+            selected,
+        )
+
+    def test_stale_sandbox_preflight_defers_mission_dispatch(self) -> None:
+        plan = valid_graph_plan()
+        run = authorized_parent_run(plan)
+        run["observed"]["runtime"].update(
+            {
+                "available_worker_slots": 1,
+                "isolation_capacity": 1,
+                "completion_channel_available": True,
+            }
+        )
+        run["observed"]["sandbox"]["plan_digest_sha256"] = "f" * 64
+
+        selected = select_ready_nodes(plan, run)
+
+        self.assertTrue(
+            any(
+                "sandbox_preflight_stale" in item["reason_codes"]
+                for item in selected["deferred_nodes"]
+            ),
+            selected,
+        )
+
+    def test_forged_available_sandbox_observation_defers_dispatch(self) -> None:
+        plan, run = current_preintegration_review_state()
+        run["observed"]["sandbox"]["errors"] = ["forged: image probe passed"]
+
+        with self.assertRaises(GraphSelectionError):
+            select_ready_nodes(plan, run)
+
+    def test_host_changed_sandbox_observation_defers_dispatch(self) -> None:
+        plan, run = self._authorized_conflict_free_pair()
+        run["observed"]["sandbox"]["host"]["node_sha256"] = "f" * 64
+
+        selected = select_ready_nodes(plan, run)
+
+        self.assertTrue(
+            any(
+                "sandbox_preflight_stale" in item["reason_codes"]
+                for item in selected["deferred_nodes"]
+            ),
+            selected,
+        )
+
     def test_required_reviewer_tool_blocks_until_the_reviewer_session_proves_it(self) -> None:
         plan, run = current_preintegration_review_state()
         review_node = next(
@@ -1108,6 +1193,18 @@ class SelectReadyNodesTests(unittest.TestCase):
             }
         ]
         run["mission_states"]["M1"]["phase"] = "integrating"
+        run["authorizations"]["create_user_owned_tasks"] = {
+            "authorized": True,
+            "source": "user authorized the review task",
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["M1"],
+                "targets": ["task:THREAD-M1", "task:THREAD-REVIEW-M1"],
+            },
+            "expires_when": "run_complete",
+        }
 
         self.assertEqual([], validate_run(plan, run))
 

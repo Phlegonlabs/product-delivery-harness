@@ -15,9 +15,11 @@ from pathlib import Path
 SKILL_NAMES = (
     "delivery-harness",
     "product-definition-builder",
+    "ui-design-builder",
     "design-system-compiler",
     "code-security-review",
     "product-activation",
+    "seo-growth-review",
 )
 IGNORED_PARTS = {"__pycache__", "tests"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
@@ -35,7 +37,9 @@ def contract_digest(skills_root: str | Path | None = None) -> str:
     for skill_name in SKILL_NAMES:
         skill_root = root / skill_name
         if not skill_root.is_dir():
-            continue
+            raise FileNotFoundError(
+                f"required bundled skill directory is absent: {skill_root}"
+            )
         for path in sorted(item for item in skill_root.rglob("*") if item.is_file()):
             relative = path.relative_to(root)
             if any(part in IGNORED_PARTS for part in relative.parts):

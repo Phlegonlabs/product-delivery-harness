@@ -32,8 +32,9 @@ Use this for every deployable web, API, mobile, desktop, or browser-extension su
 For every target, record:
 
 - the stable surface identity and the stage-specific provider as separate fields;
+- a closed `Surface class` (`hosted_web`, `hosted_api`, `browser_extension`, `ios`, `android`, `macos`, `windows`, `worker`, `job`, `webhook`, `realtime`, `cli`, `agent`, or `other_nonpublic`) and explicit `Public discoverability: yes|no`; downstream gates must use these typed fields instead of guessing from names;
 - the explicit lowercase kebab-case surface suffix and provider-neutral release name, using the convention below;
-- the source policy: the exact candidate run branch/ref for the internally tested development release and remote `main` for production after same-SHA fast-forward, or another exact branch or ref rule, including a required signed tag, recorded explicitly;
+- the closed source policy: the exact candidate run branch/ref for the internally tested development release and `refs/heads/main` for production after same-SHA fast-forward; tags and alternative production refs are rejected;
 - artifact kind and exact signing/notarization requirement;
 - exact environment, channel, store track, tester group, update feed, or direct-download destination;
 - the ordered submission, promotion, review, or manual-approval path and its decision owner;

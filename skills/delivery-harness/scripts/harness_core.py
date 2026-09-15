@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Iterable
 
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_schema import (
     MODEL_TOKEN_RE,
     PLAN_HEADING,
@@ -405,6 +407,73 @@ def _validate_scope_list(
     return claims
 
 
+SANDBOX_POLICY_KEYS = {
+    "runtime",
+    "image",
+    "network",
+    "read_only_rootfs",
+    "no_new_privileges",
+    "cap_drop",
+    "tmpfs",
+    "memory",
+    "cpus",
+    "pids_limit",
+    "user",
+    "pull",
+}
+
+
+def normalize_sandbox_policy(value: Any) -> dict[str, Any]:
+    """Validate and normalize the machine-enforced container policy."""
+
+    if not isinstance(value, dict) or set(value) != SANDBOX_POLICY_KEYS:
+        raise ValueError("sandbox policy must contain the exact required keys")
+    runtime = value["runtime"]
+    image = value["image"]
+    if runtime not in {"docker", "podman"}:
+        raise ValueError("sandbox runtime must be docker or podman")
+    if not isinstance(image, str) or re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", image
+    ) is None:
+        raise ValueError("sandbox image must be a safe OCI reference pinned by @sha256 digest")
+    if image.rsplit("@", 1)[-1] == "sha256:" + "0" * 64:
+        raise ValueError(
+            "sandbox image digest must be an observed non-zero RepoDigest, not a template placeholder"
+        )
+    if value["network"] != "none":
+        raise ValueError("sandbox network must be none")
+    if value["read_only_rootfs"] is not True or value["no_new_privileges"] is not True:
+        raise ValueError("sandbox rootfs and no-new-privileges flags must be true")
+    if not isinstance(value["cap_drop"], list) or value["cap_drop"] != ["ALL"]:
+        raise ValueError("sandbox cap_drop must equal ['ALL']")
+    if not isinstance(value["tmpfs"], list) or not value["tmpfs"]:
+        raise ValueError("sandbox tmpfs must be a non-empty list")
+    for item in value["tmpfs"]:
+        if not isinstance(item, str) or re.fullmatch(
+            r"/[A-Za-z0-9._/-]+(?::[A-Za-z0-9_=,.-]+)?", item
+        ) is None or ".." in item.split(":", 1)[0].split("/"):
+            raise ValueError("sandbox tmpfs entries must be safe absolute container paths")
+    if not isinstance(value["memory"], str) or re.fullmatch(
+        r"[1-9][0-9]*(?:[bkmg])?", value["memory"].lower()
+    ) is None:
+        raise ValueError("sandbox memory must use a positive numeric grammar")
+    if not isinstance(value["cpus"], str) or re.fullmatch(
+        r"[1-9][0-9]*(?:\.[0-9]+)?", value["cpus"]
+    ) is None:
+        raise ValueError("sandbox cpus must use a positive numeric grammar")
+    if not isinstance(value["pids_limit"], str) or re.fullmatch(
+        r"[1-9][0-9]{0,5}", value["pids_limit"]
+    ) is None:
+        raise ValueError("sandbox pids_limit must be a positive bounded integer")
+    if not isinstance(value["user"], str) or re.fullmatch(
+        r"[1-9][0-9]*:[1-9][0-9]*", value["user"]
+    ) is None:
+        raise ValueError("sandbox user must be a non-root uid:gid")
+    if value["pull"] != "never":
+        raise ValueError("sandbox pull must be never")
+    return json.loads(json.dumps(value, sort_keys=True, ensure_ascii=False))
+
+
 def _validate_verifier(
     errors: list[str],
     path: str,
@@ -412,15 +481,22 @@ def _validate_verifier(
     *,
     selection_scopes: Iterable[str] | None = None,
     cache_allowed: bool = True,
+    execution_required: bool = True,
 ) -> None:
     required = {"id", "cwd", "argv", "pass_signal"}
-    optional = {"selection", "cache", "execution"}
+    optional = {"selection", "cache", "read_only"}
+    if execution_required:
+        required.add("execution")
+    else:
+        optional.add("execution")
     if not _keys(errors, path, value, required, optional):
         return
     for key in ("id", "cwd", "pass_signal"):
         if not _nonempty_string(value[key]):
             _add(errors, f"{path}.{key}", "must be a non-empty string")
     _strings(errors, f"{path}.argv", value["argv"], nonempty=True)
+    if "read_only" in value and not isinstance(value["read_only"], bool):
+        _add(errors, f"{path}.read_only", "must be boolean")
 
     selection = value.get("selection")
     if selection is not None:
@@ -492,11 +568,79 @@ def _validate_verifier(
                 _add(errors, f"{path}.pass_signal", "session_exact requires the literal pass signal exit 0")
 
     execution = value.get("execution")
-    if execution is not None:
-        execution_path = f"{path}.execution"
-        if _keys(errors, execution_path, execution, {"parallel_safe", "resources"}):
+    if execution is None and not execution_required:
+        return
+    execution_path = f"{path}.execution"
+    if _keys(
+        errors,
+        execution_path,
+        execution,
+        {"parallel_safe", "resources", "isolation", "sandbox"},
+    ):
             if not isinstance(execution["parallel_safe"], bool):
                 _add(errors, f"{execution_path}.parallel_safe", "must be boolean")
+            isolation = execution["isolation"]
+            if isolation != "container":
+                _add(
+                    errors,
+                    f"{execution_path}.isolation",
+                    "must equal container for every verifier runtime layer",
+                )
+            sandbox_path = f"{execution_path}.sandbox"
+            sandbox = execution["sandbox"]
+            try:
+                normalize_sandbox_policy(sandbox)
+            except ValueError as exc:
+                _add(errors, sandbox_path, str(exc))
+            if _keys(
+                errors,
+                sandbox_path,
+                sandbox,
+                {
+                    "runtime",
+                    "image",
+                    "network",
+                    "read_only_rootfs",
+                    "no_new_privileges",
+                    "cap_drop",
+                    "tmpfs",
+                    "memory",
+                    "cpus",
+                    "pids_limit",
+                    "user",
+                    "pull",
+                },
+            ):
+                    if sandbox["runtime"] not in {"docker", "podman"}:
+                        _add(errors, f"{sandbox_path}.runtime", "must be docker or podman")
+                    if not isinstance(sandbox["image"], str) or re.fullmatch(
+                        r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", sandbox["image"]
+                    ) is None:
+                        _add(errors, f"{sandbox_path}.image", "must be pinned by @sha256 digest")
+                    if sandbox["network"] != "none":
+                        _add(errors, f"{sandbox_path}.network", "must equal none")
+                    for flag in ("read_only_rootfs", "no_new_privileges"):
+                        if sandbox[flag] is not True:
+                            _add(errors, f"{sandbox_path}.{flag}", "must be true")
+                    if not isinstance(sandbox["cap_drop"], list) or "ALL" not in sandbox["cap_drop"]:
+                        _add(errors, f"{sandbox_path}.cap_drop", "must include ALL")
+                    if not isinstance(sandbox["tmpfs"], list) or not sandbox["tmpfs"] or any(
+                        not isinstance(item, str)
+                        or re.fullmatch(r"/[A-Za-z0-9._/-]+(?::[A-Za-z0-9_=,.-]+)?", item) is None
+                        or ".." in item.split(":", 1)[0].split("/")
+                        for item in sandbox["tmpfs"]
+                    ):
+                        _add(errors, f"{sandbox_path}.tmpfs", "must be a non-empty list")
+                    if not isinstance(sandbox["memory"], str) or re.fullmatch(r"[1-9][0-9]*(?:[bkmg])?", sandbox["memory"].lower()) is None:
+                        _add(errors, f"{sandbox_path}.memory", "must use a bounded numeric memory grammar")
+                    if not isinstance(sandbox["cpus"], str) or re.fullmatch(r"[1-9][0-9]*(?:\.[0-9]+)?", sandbox["cpus"]) is None:
+                        _add(errors, f"{sandbox_path}.cpus", "must use a numeric CPU grammar")
+                    if not isinstance(sandbox["pids_limit"], str) or re.fullmatch(r"[1-9][0-9]{0,5}", sandbox["pids_limit"]) is None:
+                        _add(errors, f"{sandbox_path}.pids_limit", "must use a bounded PID grammar")
+                    if not isinstance(sandbox["user"], str) or re.fullmatch(r"[1-9][0-9]*:[1-9][0-9]*", sandbox["user"]) is None:
+                        _add(errors, f"{sandbox_path}.user", "must be a non-root uid:gid")
+                    if sandbox["pull"] != "never":
+                        _add(errors, f"{sandbox_path}.pull", "must equal never")
             resources = execution["resources"]
             if not isinstance(resources, list):
                 _add(errors, f"{execution_path}.resources", "must be a list")
@@ -532,14 +676,17 @@ def read_git_blob(
     """Read one blob from a commit/ref without consulting the working tree."""
 
     try:
-        result = subprocess.run(
-            ["git", "show", "--no-ext-diff", "--format=", f"{revision}:{relative_path}"],
-            cwd=root,
-            capture_output=True,
+        reject_object_substitution(root)
+        result = run_git(
+            root,
+            "show",
+            "--no-ext-diff",
+            "--format=",
+            f"{revision}:{relative_path}",
             text=False,
             timeout=10,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (GitMetadataError, OSError, subprocess.SubprocessError) as exc:
         return None, str(exc)
     if result.returncode != 0:
         reason = result.stderr.decode("utf-8", errors="replace").lower()
@@ -559,6 +706,81 @@ def changed_files_digest(files: list[str]) -> str:
     return hashlib.sha256(
         json.dumps(files, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     ).hexdigest()
+
+
+def sandbox_execution_binding_errors(
+    policy: Any,
+    preflight: Any,
+    attestation: Any,
+) -> list[str]:
+    """Validate one container execution against its observed runtime identity."""
+
+    errors: list[str] = []
+    preflight_keys = {"runtime", "image", "repo_digest", "runtime_probe"}
+    probe_keys = {"executable", "executable_sha256", "version_output_sha256"}
+    attestation_keys = {
+        "runtime",
+        "runtime_probe",
+        "image",
+        "image_probe",
+        "policy",
+        "mount",
+        "network",
+    }
+    if not isinstance(policy, dict):
+        return ["declared container sandbox policy is missing"]
+    if not isinstance(preflight, dict) or set(preflight) != preflight_keys:
+        return ["sandbox preflight must retain the exact observed entry"]
+    if preflight.get("runtime") != policy.get("runtime"):
+        errors.append("sandbox preflight runtime differs from the declared policy")
+    if preflight.get("image") != policy.get("image"):
+        errors.append("sandbox preflight image differs from the declared policy")
+    image = preflight.get("image")
+    repo_digest = preflight.get("repo_digest")
+    if (
+        not isinstance(image, str)
+        or not isinstance(repo_digest, str)
+        or re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", repo_digest) is None
+        or not repo_digest.endswith("@" + image.rsplit("@", 1)[-1])
+    ):
+        errors.append("sandbox preflight RepoDigest does not attest the pinned image")
+    runtime_probe = preflight.get("runtime_probe")
+    if not isinstance(runtime_probe, dict) or not probe_keys.issubset(runtime_probe) or set(runtime_probe) - probe_keys - {"trust"}:
+        errors.append("sandbox preflight runtime identity is malformed")
+    else:
+        executable = runtime_probe.get("executable")
+        if not isinstance(executable, str) or not executable or not Path(executable).is_absolute():
+            errors.append("sandbox preflight executable is not an absolute path")
+        for key in ("executable_sha256", "version_output_sha256"):
+            if re.fullmatch(r"[0-9a-f]{64}", str(runtime_probe.get(key))) is None:
+                errors.append(f"sandbox preflight {key} is not a SHA-256 digest")
+        trust = runtime_probe.get("trust")
+        if not isinstance(trust, dict) or set(trust) != {"path", "runtime", "ownership", "uid", "mode", "reparse"}:
+            errors.append("sandbox preflight runtime trust proof is missing")
+        elif trust.get("path") != runtime_probe.get("executable") or trust.get("reparse") is not False:
+            errors.append("sandbox preflight runtime trust proof does not bind the executable")
+    if not isinstance(attestation, dict) or set(attestation) != attestation_keys:
+        errors.append("sandbox attestation must retain the complete execution identity")
+        return errors
+    if attestation.get("policy") != policy:
+        errors.append("sandbox attestation policy differs from the declaration")
+    if attestation.get("runtime") != preflight.get("runtime"):
+        errors.append("sandbox attestation runtime differs from preflight")
+    if attestation.get("image") != preflight.get("image"):
+        errors.append("sandbox attestation image differs from preflight")
+    if attestation.get("runtime_probe") != runtime_probe:
+        errors.append("sandbox attestation runtime identity differs from preflight")
+    if attestation.get("image_probe") != repo_digest:
+        errors.append("sandbox attestation RepoDigest differs from preflight")
+    if attestation.get("mount") != {
+        "source": "git_archive",
+        "destination": "/workspace",
+        "read_only": True,
+    }:
+        errors.append("sandbox attestation does not prove the read-only Git archive mount")
+    if attestation.get("network") != "none":
+        errors.append("sandbox attestation does not prove network isolation")
+    return errors
 
 
 def _optional_sha(errors: list[str], path: str, value: Any) -> None:

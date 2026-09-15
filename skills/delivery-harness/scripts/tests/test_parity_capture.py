@@ -6,10 +6,12 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
@@ -35,7 +37,14 @@ if argv[:1] == ["screenshot"]:
 if argv[:1] == ["eval"]:
     body = sys.stdin.read() if not sys.stdin.isatty() else ""
     if "overflowX" in body:
-        print('{"overflowX": 0, "scanned": 5, "overlaps": []}')
+        mode = os.environ.get("STUB_GEOMETRY_MODE", "pass")
+        if mode == "exit":
+            print("geometry unavailable", file=sys.stderr)
+            raise SystemExit(3)
+        if mode == "malformed":
+            print("not json")
+        else:
+            print('{"overflowX": 0, "scanned": 5, "overlaps": []}')
     elif "a[href=" in body:
         print(os.environ.get("STUB_PROBE_RESULT", "false"))
     else:
@@ -67,17 +76,25 @@ class ParityCaptureTests(unittest.TestCase):
 
         stub_dir = self.root / "bin"
         stub_dir.mkdir()
-        (stub_dir / "_stub_browser.py").write_text(STUB_PY, encoding="utf-8")
+        self.stub_py = stub_dir / "_stub_browser.py"
+        self.stub_py.write_text(STUB_PY, encoding="utf-8")
         stub_sh = stub_dir / "agent-browser"
         stub_sh.write_text(STUB_SH, encoding="utf-8")
         # shutil.which on POSIX requires the executable bit.
         stub_sh.chmod(0o755)
         (stub_dir / "agent-browser.bat").write_text(STUB_BAT, encoding="utf-8")
+        self._old_resolve_cli = parity_capture._resolve_cli
+        parity_capture._resolve_cli = lambda: [
+            sys.executable,
+            str(self.stub_py),
+        ]
+        self.addCleanup(self._restore_resolve_cli)
         self.log_path = self.root / "calls.jsonl"
         self._old_env = {
             "PATH": os.environ.get("PATH"),
             "STUB_LOG": os.environ.get("STUB_LOG"),
             "STUB_PROBE_RESULT": os.environ.get("STUB_PROBE_RESULT"),
+            "STUB_GEOMETRY_MODE": os.environ.get("STUB_GEOMETRY_MODE"),
         }
         os.environ["PATH"] = str(stub_dir) + os.pathsep + (self._old_env["PATH"] or "")
         os.environ["STUB_LOG"] = str(self.log_path)
@@ -110,6 +127,9 @@ class ParityCaptureTests(unittest.TestCase):
             else:
                 os.environ[key] = value
 
+    def _restore_resolve_cli(self) -> None:
+        parity_capture._resolve_cli = self._old_resolve_cli
+
     def run_main(self, *extra: str) -> tuple[int, str]:
         argv = [
             "--plan", str(self.plan),
@@ -128,10 +148,17 @@ class ParityCaptureTests(unittest.TestCase):
             return []
         return [json.loads(line) for line in self.log_path.read_text().splitlines()]
 
-    def test_captures_ready_pairs_skips_untriggered_and_na_states(self) -> None:
+    def test_captures_the_full_non_na_matrix(self) -> None:
         route_map = self.root / "route-map.json"
         route_map.write_text(
-            json.dumps({"/home": {"reference": {"selector": "#nav-home"}}}),
+            json.dumps(
+                {
+                    "/home": {
+                        "reference": {"selector": "#nav-home"},
+                        "states": {"empty": {"app_eval": "window.__setEmpty()"}},
+                    }
+                }
+            ),
             encoding="utf-8",
         )
         code, out = self.run_main("--route-map", str(route_map))
@@ -143,11 +170,12 @@ class ParityCaptureTests(unittest.TestCase):
             self.assertTrue(target.exists(), target)
             self.assertTrue(actual.exists(), actual)
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
-        self.assertEqual(3, len(manifest["captured"]))
-        self.assertEqual(3, len(manifest["skipped"]))
-        self.assertTrue(
-            all("no app_eval trigger for state 'empty'" in item["reason"] for item in manifest["skipped"])
-        )
+        self.assertEqual(6, len(manifest["captured"]))
+        self.assertEqual(0, len(manifest["skipped"]))
+        self.assertEqual(6, manifest["required_combinations"])
+        self.assertEqual(6, manifest["selected_combinations"])
+        self.assertEqual("PASS", manifest["status"])
+        self.assertTrue(manifest["gating_eligible"])
         self.assertNotIn("loading", {item["state"] for item in manifest["captured"] + manifest["skipped"]})
         self.assertEqual(
             "route-map selector #nav-home", manifest["reference_nav"]["/home"]
@@ -184,13 +212,34 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual(0, len(manifest["skipped"]))
         self.assertIn(["eval", "--stdin"], self.calls())
 
+    def test_a_skipped_required_state_combination_fails(self) -> None:
+        route_map = self.root / "route-map.json"
+        route_map.write_text(
+            json.dumps({"/home": {"reference": {"selector": "#nav-home"}}}),
+            encoding="utf-8",
+        )
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(1, code, out)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(3, len(manifest["captured"]))
+        self.assertEqual(3, len(manifest["skipped"]))
+        self.assertEqual("FAIL", manifest["status"])
+        self.assertTrue(
+            any(
+                "no app_eval trigger for state 'empty'" in problem
+                for problem in manifest["errors"]
+            )
+        )
+
     def test_reference_probe_failure_skips_with_reason(self) -> None:
         os.environ["STUB_PROBE_RESULT"] = "false"
         code, out = self.run_main()
-        self.assertEqual(0, code, out)
+        self.assertEqual(1, code, out)
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(0, len(manifest["captured"]))
         self.assertEqual(6, len(manifest["skipped"]))
+        self.assertEqual("FAIL", manifest["status"])
+        self.assertIn("no parity pairs were captured", manifest["errors"])
         # Ready reaches navigation and fails there; untriggered states are
         # skipped earlier for their missing app_eval trigger.
         reasons = [item["reason"] for item in manifest["skipped"]]
@@ -236,12 +285,164 @@ class ParityCaptureTests(unittest.TestCase):
             encoding="utf-8",
         )
         code, out = self.run_main("--route-map", str(route_map), "--only", "/settings")
-        self.assertEqual(0, code, out)
+        self.assertEqual(2, code, out)
         self.assertTrue((self.out / "settings-ready-390-target.png").exists())
         self.assertFalse((self.out / "home-ready-390-target.png").exists())
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual("PARTIAL", manifest["status"])
+        self.assertFalse(manifest["gating_eligible"])
+        self.assertEqual(2, manifest["required_combinations"])
+        self.assertEqual(1, manifest["selected_combinations"])
+        self.assertEqual(["/settings"], manifest["only_routes"])
+
+    def test_geometry_probe_nonzero_fails_the_capture(self) -> None:
+        os.environ["STUB_GEOMETRY_MODE"] = "exit"
+        route_map = self.root / "route-map.json"
+        route_map.write_text(
+            json.dumps(
+                {
+                    "/home": {
+                        "reference": {"selector": "#nav-home"},
+                        "states": {"empty": {"app_eval": "window.__setEmpty()"}},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(1, code, out)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual("FAIL", manifest["status"])
+        self.assertFalse(manifest["gating_eligible"])
+        self.assertTrue(
+            any("geometry unavailable" in problem for problem in manifest["errors"])
+        )
+        board = (self.out / "parity-board.html").read_text(encoding="utf-8")
+        self.assertIn("geometry probe unavailable", board)
+        self.assertNotIn("geometry probe: clean", board)
+
+    def test_geometry_probe_malformed_json_fails_the_capture(self) -> None:
+        os.environ["STUB_GEOMETRY_MODE"] = "malformed"
+        route_map = self.root / "route-map.json"
+        route_map.write_text(
+            json.dumps(
+                {
+                    "/home": {
+                        "reference": {"selector": "#nav-home"},
+                        "states": {"empty": {"app_eval": "window.__setEmpty()"}},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(1, code, out)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(
+            any("no valid JSON object" in problem for problem in manifest["errors"])
+        )
+
+    def test_browser_arguments_never_cross_a_windows_shell_boundary(self) -> None:
+        arguments = [
+            "open",
+            'http://example.invalid/?x=&whoami|echo^%PATH%<(test)>"quoted"',
+            "literal&(pipe|group)^<redirect>",
+        ]
+        sentinel = self.root / "injected.txt"
+        completed = parity_capture._run_browser(
+            [sys.executable, str(self.stub_py)],
+            [*arguments, str(sentinel)],
+        )
+        self.assertEqual(0, completed.returncode)
+        self.assertEqual([*arguments, str(sentinel)], self.calls()[-1])
+        self.assertFalse(sentinel.exists())
+        with self.assertRaisesRegex(RuntimeError, "direct native or Node argv"):
+            parity_capture._run_browser(
+                [str(self.root / "agent-browser.cmd")],
+                arguments,
+            )
+
+    @unittest.skipUnless(os.name != "nt", "descriptor launcher fixture is POSIX-only")
+    def test_posix_launcher_binding_survives_path_replacement(self) -> None:
+        launcher = self.root / "launcher"
+        replacement = self.root / "replacement"
+        launcher.write_text("#!/bin/sh\necho old\n", encoding="utf-8")
+        replacement.write_text("#!/bin/sh\necho new\n", encoding="utf-8")
+        launcher.chmod(0o755)
+        replacement.chmod(0o755)
+        bound, descriptor = parity_capture._bind_posix_launcher(launcher)
+        try:
+            os.replace(replacement, launcher)
+            completed = subprocess.run(
+                [bound], pass_fds=(descriptor,), capture_output=True, text=True, check=False
+            )
+            self.assertEqual("old\n", completed.stdout)
+        finally:
+            os.close(descriptor)
+
+    @unittest.skipUnless(os.name != "nt", "descriptor launcher fixture is POSIX-only")
+    def test_posix_symlink_launcher_fails_closed_and_resolved_inode_stays_bound(self) -> None:
+        original = self.root / "original"
+        replacement = self.root / "replacement"
+        link = self.root / "agent-browser"
+        original.write_text("#!/bin/sh\necho original\n", encoding="utf-8")
+        replacement.write_text("#!/bin/sh\necho replacement\n", encoding="utf-8")
+        original.chmod(0o755)
+        replacement.chmod(0o755)
+        try:
+            link.symlink_to(original)
+        except OSError as exc:
+            self.skipTest(f"symlink unavailable: {exc}")
+        bound, descriptor = parity_capture._bind_posix_launcher(link)
+        try:
+            os.replace(replacement, original)
+            completed = subprocess.run(
+                [bound], pass_fds=(descriptor,), capture_output=True, text=True, check=False
+            )
+            self.assertEqual("original\n", completed.stdout)
+        finally:
+            os.close(descriptor)
+
+    @unittest.skipIf(os.name != "nt", "Windows npm shim resolution needs native Windows pathlib")
+    def test_windows_npm_shim_resolves_to_direct_node_argv(self) -> None:
+        npm_bin = self.root / "npm-bin"
+        javascript = (
+            npm_bin
+            / "node_modules"
+            / "agent-browser"
+            / "bin"
+            / "agent-browser.js"
+        )
+        javascript.parent.mkdir(parents=True)
+        javascript.write_text("// fixture\n", encoding="utf-8")
+        wrapper = npm_bin / "agent-browser.cmd"
+        wrapper.write_text("@echo off\n", encoding="utf-8")
+        node = npm_bin / "node.exe"
+        node.write_bytes(b"fixture")
+
+        def which(name: str) -> str | None:
+            return {
+                "agent-browser": str(wrapper),
+                "node.exe": str(node),
+                "node": str(node),
+            }.get(name)
+
+        with patch.object(parity_capture.os, "name", "nt"), patch.object(
+            parity_capture.shutil, "which", side_effect=which
+        ), patch.object(
+            parity_capture,
+            "_trusted_launcher_path",
+            side_effect=lambda path, _label: path.resolve(),
+        ):
+            resolved = self._old_resolve_cli()
+        self.assertEqual(
+            [str(node.resolve()), str(javascript.resolve())],
+            resolved,
+        )
 
     def test_missing_cli_degrades_with_install_hint(self) -> None:
         os.environ["PATH"] = str(self.root / "nowhere")
+        parity_capture._resolve_cli = self._old_resolve_cli
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             code, _ = self.run_main()
@@ -261,6 +462,62 @@ class ParityCaptureTests(unittest.TestCase):
             )
         self.assertEqual(1, code)
         self.assertIn("reference HTML not found", stderr.getvalue())
+
+    def test_browser_extension_capture_reports_manual_platform_group(self) -> None:
+        self.plan.write_text(
+            plan_markdown(
+                [
+                    {
+                        "id": "UI-EXT",
+                        "trace_ids": ["REQ-001"],
+                        "route": "/popup",
+                        "breakpoints": ["390", "768"],
+                        "states": ["ready"],
+                        "evidence_gate": "required",
+                        "capture_mode": "browser-extension",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code, stdout = self.run_main()
+        self.assertEqual(0, code)
+        self.assertIn("manual/platform groups", stdout)
+        self.assertIn("browser-extension", stdout)
+        self.assertFalse(self.out.exists())
+
+    def test_native_capture_reports_manual_platform_group_without_base_url(self) -> None:
+        self.plan.write_text(
+            plan_markdown(
+                [
+                    {
+                        "id": "UI-NATIVE",
+                        "trace_ids": ["REQ-001"],
+                        "route": "/home",
+                        "breakpoints": ["compact", "regular"],
+                        "states": ["ready"],
+                        "evidence_gate": "required",
+                        "capture_mode": "native",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        stderr = io.StringIO()
+        stdout = io.StringIO()
+        with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(stdout):
+            code = parity_capture.main(
+                [
+                    "--plan", str(self.plan),
+                    "--reference", str(self.reference),
+                    "--out", str(self.out),
+                ]
+            )
+        self.assertEqual(0, code)
+        self.assertIn("manual/platform groups", stdout.getvalue())
+        self.assertNotIn("--base-url is required", stderr.getvalue())
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import os
 import sys
 import json
 import subprocess
@@ -12,6 +13,7 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -133,6 +135,7 @@ class NodeTransitionTests(unittest.TestCase):
         return plan, run
 
     def test_cli_local_verifier_reserve_execute_record_spine(self) -> None:
+        windows_fixture = os.name == "nt"
         with (
             tempfile.TemporaryDirectory() as repo_dir,
             tempfile.TemporaryDirectory() as control_dir,
@@ -172,8 +175,40 @@ class NodeTransitionTests(unittest.TestCase):
             mf.git(root, "add", "docs/product")
             mf.git(root, "commit", "-qm", "contracts")
             head = mf.git(root, "rev-parse", "HEAD")
-
+            fake_runtime = control / ("docker.exe" if windows_fixture else "docker")
+            if windows_fixture:
+                fake_runtime.write_text(
+                    "@echo off\r\n"
+                    "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
+                    "if \"%1\"==\"image\" (echo [\"fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111\"]&exit /b 0)\r\n"
+                    "if \"%1\"==\"run\" exit /b 0\r\n"
+                    "exit /b 1\r\n",
+                    encoding="utf-8",
+                )
+            else:
+                fake_runtime.write_text(
+                    "#!/bin/sh\n"
+                    'if [ "$1" = "version" ]; then echo fixture-runtime; exit 0; fi\n'
+                    'if [ "$1" = "image" ]; then echo ["fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111"]; exit 0; fi\n'
+                    'if [ "$1" = "run" ]; then exit 0; fi\n'
+                    "exit 1\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                fake_runtime.chmod(0o755)
             run = mf.valid_run(plan)
+            sandbox_entry = run["observed"]["sandbox"]["entries"][0]
+            sandbox_entry["runtime_probe"]["executable"] = str(fake_runtime)
+            sandbox_entry["runtime_probe"]["executable_sha256"] = hashlib.sha256(fake_runtime.read_bytes()).hexdigest()
+            sandbox_entry["runtime_probe"]["version_output_sha256"] = hashlib.sha256(b"fixture-runtime\n").hexdigest()
+            sandbox_entry["runtime_probe"]["trust"] = {
+                "path": str(fake_runtime),
+                "runtime": sandbox_entry["runtime"],
+                "ownership": "fixture-machine-policy",
+                "uid": 0,
+                "mode": 493,
+                "reparse": False,
+            }
             mf.authorize_execution(run, ["M1", "M2"])
             run.update({"status": "running", "plan_readiness": "ready"})
             run["observed"].update({"captured_at": "2026-01-01T00:00:00Z"})
@@ -237,17 +272,58 @@ class NodeTransitionTests(unittest.TestCase):
                     ]
                 ),
             )
-            completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "verifier_runtime.py"),
-                    "--request",
-                    str(request_path),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            fake_runtime = control / ("docker.exe" if windows_fixture else "docker")
+            if windows_fixture:
+                fake_runtime.write_text(
+                    "@echo off\r\n"
+                    "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
+                    "if \"%1\"==\"image\" (echo [\"fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111\"]&exit /b 0)\r\n"
+                    "if \"%1\"==\"run\" exit /b 0\r\n"
+                    "exit /b 1\r\n",
+                    encoding="utf-8",
+                )
+            else:
+                fake_runtime.write_text(
+                    "#!/bin/sh\n"
+                    'if [ "$1" = "version" ]; then echo fixture-runtime; exit 0; fi\n'
+                    'if [ "$1" = "image" ]; then echo ["fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111"]; exit 0; fi\n'
+                    'if [ "$1" = "run" ]; then exit 0; fi\n'
+                    "exit 1\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                fake_runtime.chmod(0o755)
+            # The container runtime is never executed: the fixture shim only
+            # feeds the recorded preflight digests, and _run_container_verifier
+            # is mocked so the CLI spine runs identically on every host.
+            import contextlib
+            import io
+            import verifier_runtime as runtime_module
+
+            def fake_container(
+                _checkout_root: Path,
+                _snapshot_root: Path,
+                _declared_cwd: str,
+                _argv: list[str],
+                policy: dict[str, object],
+                _timeout_seconds: float,
+                sandbox_preflight: dict[str, object] | None = None,
+            ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+                assert isinstance(sandbox_preflight, dict)
+                return subprocess.CompletedProcess(["docker", "run"], 0, "", ""), {
+                    "runtime": policy["runtime"],
+                    "runtime_probe": sandbox_preflight["runtime_probe"],
+                    "image": policy["image"],
+                    "image_probe": sandbox_preflight["repo_digest"],
+                    "policy": policy,
+                    "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
+                    "network": "none",
+                }
+
+            output = io.StringIO()
+            with patch.object(runtime_module, "_run_container_verifier", side_effect=fake_container), contextlib.redirect_stdout(output):
+                code = runtime_module.main(["--request", str(request_path)])
+            completed = subprocess.CompletedProcess(["verifier_runtime.py"], code, output.getvalue(), "")
             self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
             result_path.write_text(completed.stdout, encoding="utf-8")
             self.assertEqual(
@@ -619,15 +695,36 @@ class NodeTransitionTests(unittest.TestCase):
                 repo_root=root,
             )
             request["verifier"]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
-            execution = run_verifier(
-                request["verifier"],
-                request["context"],
-                checkout_root=root,
-                environment={},
-                git_guard=request["git_guard"],
-                reservation=request["reservation"],
-                request_sha256=harness_transition._json_sha256(request),
-            )
+            policy = request["verifier"]["execution"]["sandbox"]
+            image = policy["image"]
+            fake_attestation = {
+                "runtime": policy["runtime"],
+                "runtime_probe": request["sandbox_preflight"]["runtime_probe"],
+                "image": image,
+                "image_probe": request["sandbox_preflight"]["repo_digest"],
+                "policy": policy,
+                "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
+                "network": "none",
+            }
+            with patch(
+                "verifier_runtime._run_container_verifier",
+                return_value=(
+                    subprocess.CompletedProcess(
+                        args=["docker", "run"], returncode=0, stdout="", stderr=""
+                    ),
+                    fake_attestation,
+                ),
+            ):
+                execution = run_verifier(
+                    request["verifier"],
+                    request["context"],
+                    checkout_root=root,
+                    environment={},
+                    git_guard=request["git_guard"],
+                    reservation=request["reservation"],
+                    request_sha256=harness_transition._json_sha256(request),
+                    sandbox_preflight=request["sandbox_preflight"],
+                )
             self.assertEqual("PASS", execution["status"])
             self.assertEqual(request["reservation"], execution["reservation"])
             self.assertEqual(
@@ -1391,6 +1488,36 @@ class NodeTransitionTests(unittest.TestCase):
         }
         directives = select_ready_nodes(plan, run)["dispatchable_nodes"]
         self.assertNotIn(node["id"], [item["node_id"] for item in directives])
+
+
+    def test_archive_first_v11_refuses_push_transition_before_git_checks(self) -> None:
+        plan = mf.valid_plan()
+        run = mf.valid_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"]["required_harness_version"] = "0.38.0"
+        with self.assertRaisesRegex(ManifestError, "archive-first"):
+            harness_transition._validate_push_side_effect(
+                run,
+                Path("C:/not-used"),
+                "a" * 40,
+            )
+
+
+    def test_transition_git_reads_reject_replace_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", "-b", "work"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Harness Test"], cwd=root, check=True)
+            (root / "sample.txt").write_text("trusted\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "trusted"], cwd=root, check=True)
+            trusted = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            (root / "sample.txt").write_text("substituted\n", encoding="utf-8")
+            subprocess.run(["git", "commit", "-qam", "substituted"], cwd=root, check=True)
+            substituted = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            subprocess.run(["git", "replace", trusted, substituted], cwd=root, check=True)
+            with self.assertRaisesRegex(ManifestError, "replacement refs"):
+                harness_transition._git_out(root, "rev-parse", "HEAD")
 
 
 if __name__ == "__main__":

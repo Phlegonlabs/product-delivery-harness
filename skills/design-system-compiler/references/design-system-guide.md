@@ -1,15 +1,15 @@
 # Design System Guide
 
-Use this guide to publish the small frontend implementation contract in `docs/product/design-system.md` and `docs/product/design-system.json`.
+Use this guide to publish the small frontend implementation contract in `docs/design/design-system.md` and `docs/design/design-system.json`.
 
 The design system exists so frontend implementation can follow one set of tokens, primitives, component variants, states, responsive rules, and accessibility rules. It is not a design-research archive, component showcase, page recipe, or governance manual.
 
 ## Drafting Order
 
-1. Confirm that `PRD.md` records `Design System Need Gate: required`, then load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
-2. Confirm that the PRD UI surface contract is complete and frozen, `wireframes.html` has explicit human-owner approval for its complete responsive browser matrix recorded in `### Wireframe Approval`, and `### UI Design Handoff` records an approved immutable target with scope, hash, the same responsive set, passing browser-matrix evidence, and tolerance.
-3. Consume the selected direction, Taste applicability result, Design Read and dials when applicable, visual evidence, and human approval from the UI Design Handoff. Do not rerun visual-direction generation, `impeccable`, `design-taste-frontend`, or the UI Preview Gate during normal compilation.
-4. Use `frontend-design` in contract-compilation mode to translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target.
+1. Confirm that `docs/design/ui-design.md` records `Design System Need Gate: required`, then run the exact pair-less preflight when its compiled-pair field is `pending — design-system-compiler`. Load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
+2. Confirm that the PRD UI Surface Contract is complete and frozen and that `docs/design/ui-design.md` records approved Wireframe and Visual decisions for the complete responsive browser matrix and immutable target.
+3. Consume the selected direction, Style Integration rules, Impeccable review evidence, H1-H9 result, and human approval from `ui-design.md`. Do not rerun `frontend-design`, Impeccable, direction generation, or the HiFi review during normal compilation.
+4. Translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target. `frontend-design` supplies the approved direction; it is not a compiler mode.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
 6. Reconcile the final token, primitive, and product-component names against every required PRD UI element and state. An unresolved page-local exception blocks publication.
 
@@ -17,9 +17,13 @@ Publish the Markdown and JSON together.
 
 ## Contract Boundary
 
-`design-system.json` is the sole structured authority. It contains only what implementation and validation need:
+`design-system.json` is the sole structured authority. New approval pairs use `design-system/2`; its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
 
-- token and primitive source paths;
+Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | Tailwind CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`. `stackSemantics` binds the exact approved rendering model (or client strategy), component foundation (or framework), styling approach, and platform. A hybrid pair uses `surfaceContracts` instead of global `platform`, `stylingMechanism`, `viewports`, and `sizeClasses`, plus a `stackSemantics` map keyed by every UI-* surface. Platform and styling choices remain grounded in the approved `stack-decisions.md` source binding rather than being invented by the compiler. Shared tokens, primitives, product components, motion variants, and state matrix remain global.
+
+Browser-extension UI uses `platform: web` with the UI approval `captureMode: browser-extension`; it is not silently treated as hosted web.
+
+- current source bindings plus token and primitive source paths;
 - the responsive verification set;
 - tokens the product actually uses;
 - primitives with closed variant sets;
@@ -42,10 +46,10 @@ Do not preserve reference-image files, the full image extraction or `Check This`
 
 Record:
 
-- decision status: `selected`, `provisional`, or `assumed`;
+- decision status: `selected` only;
 - the human decision owner;
 - the selected or consolidated `VD-*` direction ID;
-- the Taste applicability decision and confirmed Design Read or dial settings when applicable;
+- the approved Style Integration direction and candidate theme rules;
 - the representative surface mode, concept thesis, and named visual world when the approved handoff includes them;
 - applicable `MR-*` market evidence, or an explicit statement that no valid market evidence supports the visual decision;
 - inspected `REF-*` sources with direct URL or attachment label and retrieval date;
@@ -106,12 +110,14 @@ Do not repeat the full primitive or component inventory manually in Markdown; th
 
 ## Responsive, State, And Accessibility Rules
 
-Ship exactly one responsive set:
+Ship exactly one responsive set for a homogeneous product:
 
 - at least three ascending `viewports` for web; or
 - at least two `sizeClasses` for native or desktop.
 
 Copy the exact approved PRD and wireframe set; do not add, remove, or rename targets during compilation. Choose that smallest sufficient set upstream during product definition. Native and desktop products use their platform's own size or window classes, not web pixel breakpoints. Each target has an implementation-facing reflow, visibility, interaction, long-content, and intended-overlay rule. Unintended overlap, clipping, occlusion, and horizontal overflow are blocking defects at every target and state.
+
+For a hybrid product, each `surfaceContracts` entry carries its own exact responsive set and release/capture contract; do not collapse web viewports and native/desktop size classes into one global set. Platform and styling mechanism stay in the approved stack decision.
 
 `stateMatrix` is the checklist for every screen. Each screen implements every listed state or records `<state>: n/a — <reason>` in `PRD.md`. The PRD and JSON must agree.
 
@@ -141,18 +147,18 @@ Resolve conflicts in this order:
 3. accessibility requirement;
 4. target-platform convention;
 5. selected Visual Direction;
-6. provisional or assumed preference.
+6. an explicitly approved selected direction.
 
-`PRD.md` owns product structure and behavior, and approved `wireframes.html` is its structural interactive review projection. The design system owns visual implementation. A visual treatment that needs a structural change returns to `product-definition-builder` instead of silently changing the screen.
+`PRD.md` owns product behavior, approved `wireframes.html` is its structural interactive projection, and `ui-design.md` owns the selected visual direction. The design system owns reusable visual implementation rules. A product change returns to `product-definition-builder`; a wireframe or visual change returns to `ui-design-builder`.
 
 ## Publish Check
 
 Before publication:
 
-1. Confirm one selected or explicitly provisional Visual Direction plus UI preview evidence or an explicit owner waiver.
+1. Confirm one selected Visual Direction plus UI preview evidence.
 2. Confirm every token, primitive, component, state, and responsive entry is used or required.
 3. Confirm every required PRD UI element maps to a registered primitive or product component.
 4. Confirm no page-local value or control is required.
-5. Generate the Markdown contract block with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`. The atomic write rejects a symlink Markdown destination instead of replacing the link or leaving its target unchanged.
-6. Validate it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`. The check resolves every complete `DS-*` token named anywhere in the Markdown — signature rules, primitive `dsId`, or `DS-COMP-*` — against the JSON registry, rejects malformed lookalikes, and enforces one global ID namespace across all three registries.
+5. Generate the Markdown contract block with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. The write serializes compliant writers with a shared destination lock/version token, rejects symlink/reparse components, holds the POSIX parent dirfd or Windows non-delete-sharing parent handle, and commits only through an exchange/backup primitive that validates the displaced bytes; it never falls back to an unbound destructive pathname move.
+6. Validate it with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`. The check resolves every complete `DS-*` token named anywhere in the Markdown — signature rules, primitive `dsId`, or `DS-COMP-*` — against the JSON registry, rejects malformed lookalikes, and enforces one global ID namespace across all three registries.
 7. Run the contrast and type-scale checks.

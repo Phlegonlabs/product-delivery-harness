@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sys
 import tempfile
 import unittest
@@ -11,14 +12,27 @@ from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = TESTS_DIR.parent
+PDB_TESTS_DIR = Path(__file__).resolve().parents[3] / "product-definition-builder" / "scripts" / "tests"
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
+if str(PDB_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(PDB_TESTS_DIR))
 
 import new_run  # noqa: E402
 import render_tasks_view  # noqa: E402
+from harness_manifest import load_plan  # noqa: E402
 from manifest_fixtures import manifest_markdown  # noqa: E402
+from test_product_package_checker import (  # noqa: E402
+    release_architecture,
+    strictize_approved_package,
+    valid_prd,
+    valid_stack,
+)
+
+while str(PDB_TESTS_DIR) in sys.path:
+    sys.path.remove(str(PDB_TESTS_DIR))
 
 PLAN_TEMPLATE = SCRIPTS_DIR.parent / "assets" / "templates" / "HARNESS_PLAN.template.md"
 
@@ -93,6 +107,32 @@ class RenderTasksViewTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.dir = Path(self.tmp.name)
+        self.plan = load_plan(PLAN_TEMPLATE)
+        approved_prd, approved_architecture, approved_stack = strictize_approved_package(
+            valid_prd(), release_architecture(), valid_stack()
+        )
+        product_sources = {
+            "docs/product/PRD.md": approved_prd.encode("utf-8"),
+            "docs/product/architecture.md": approved_architecture.encode("utf-8"),
+            "docs/product/stack-decisions.md": approved_stack.encode("utf-8"),
+        }
+        for location, value in product_sources.items():
+            path = self.dir / location
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(value)
+        for source in self.plan["sources"]:
+            source["content_sha256"] = hashlib.sha256(
+                product_sources[source["location"]]
+            ).hexdigest()
+            source["source_revision"] = None
+            source["staged_revision"] = None
+        self.plan_path = self.dir / "PLAN.md"
+        self.plan_path.write_text(
+            manifest_markdown(
+                "## Harness Plan Manifest", "harness_plan", self.plan
+            ),
+            encoding="utf-8",
+        )
 
     def generate_run(self) -> Path:
         out = self.dir / "RUN.md"
@@ -101,17 +141,24 @@ class RenderTasksViewTests(unittest.TestCase):
             new_run.main(
                 [
                     "--plan",
-                    str(PLAN_TEMPLATE),
+                    str(self.plan_path),
                     "--run-id",
                     "RUN-test",
                     "--branch",
                     "refs/heads/test-run",
                     "--out",
                     str(out),
+                    "--repo-root",
+                    str(self.dir),
                 ]
             ),
         )
         return out
+
+    def render_main(self, arguments: list[str]) -> int:
+        return render_tasks_view.main(
+            [*arguments, "--repo-root", str(self.dir)]
+        )
 
     def test_template_pair_renders_progress_frontier_and_task_rows(self) -> None:
         from harness_manifest import load_plan, load_run
@@ -185,8 +232,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         first = out.read_text(encoding="utf-8")
@@ -194,8 +241,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         self.assertEqual(first, out.read_text(encoding="utf-8"))
@@ -206,8 +253,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         text = out.read_text(encoding="utf-8")
@@ -217,8 +264,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out), "--check"]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out), "--check"]
             ),
         )
 
@@ -228,8 +275,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         text = out.read_text(encoding="utf-8")
@@ -242,8 +289,8 @@ class RenderTasksViewTests(unittest.TestCase):
         out = self.dir / "tasks.md"
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         row = "- 2026-09-11 · owner · tightened dashboard copy · rationale: review"
@@ -257,8 +304,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         self.assertIn(row, out.read_text(encoding="utf-8"))
@@ -268,8 +315,8 @@ class RenderTasksViewTests(unittest.TestCase):
         out = self.dir / "tasks.md"
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         text = out.read_text(encoding="utf-8")
@@ -282,8 +329,8 @@ class RenderTasksViewTests(unittest.TestCase):
         out.write_text(edited, encoding="utf-8")
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out), "--check"]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out), "--check"]
             ),
         )
 
@@ -293,8 +340,8 @@ class RenderTasksViewTests(unittest.TestCase):
         )
         self.assertEqual(
             1,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out), "--check"]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out), "--check"]
             ),
         )
 
@@ -303,21 +350,21 @@ class RenderTasksViewTests(unittest.TestCase):
         out = self.dir / "tasks.md"
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         from harness_manifest import load_plan, load_run
 
         legacy = render_tasks_view.build_view(
-            load_plan(PLAN_TEMPLATE), load_run(run_path)
+            load_plan(self.plan_path), load_run(run_path)
         )
         out.write_text(legacy, encoding="utf-8")
 
         self.assertEqual(
             0,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         migrated = out.read_text(encoding="utf-8")
@@ -330,8 +377,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             2,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(run_path), "--out", str(out)]
             ),
         )
         self.assertEqual("hand-authored notes", out.read_text(encoding="utf-8"))
@@ -350,8 +397,8 @@ class RenderTasksViewTests(unittest.TestCase):
 
         self.assertEqual(
             2,
-            render_tasks_view.main(
-                ["--plan", str(PLAN_TEMPLATE), "--run", str(stale)]
+            self.render_main(
+                ["--plan", str(self.plan_path), "--run", str(stale)]
             ),
         )
 

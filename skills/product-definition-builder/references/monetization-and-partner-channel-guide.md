@@ -77,7 +77,7 @@ Assign status per layer; one section may mix statuses. `Approved` means the huma
 
 `stack-decisions.md` records the approved billing/store, subscription/entitlement, paywall/checkout, merchant-of-record/tax, and partner-channel providers as separate layers with status, official evidence, fit, constraints, alternatives, revisit triggers, and the human Stack Decision Checkpoint.
 
-For UI-bearing products, add or update every affected pricing, checkout, paywall, purchase restore/manage, affiliate application/dashboard, referral/deal registration, reseller administration, commission/payout, and error state in the PRD UI Surface Contract and `wireframes.html` before implementation.
+For UI-bearing products, add or update every affected pricing, checkout, paywall, purchase restore/manage, affiliate application/dashboard, referral/deal registration, reseller administration, commission/payout, and error state in the PRD UI Surface Contract. After Product Definition Approval, `ui-design-builder` updates `ui-design.md` and `wireframes.html` before implementation.
 
 Delivery separates independently verifiable billing/entitlement and partner-channel outcomes into different missions. Required tests cover sandbox/store purchase, entitlement grant/revoke/restore, renewal, upgrade/downgrade, cancellation, payment failure, refund/chargeback, webhook replay and out-of-order delivery, affiliate/referral attribution, commission reversal, duplicate/self-referral/fraud controls, payout records, and reseller provisioning/termination where applicable.
 

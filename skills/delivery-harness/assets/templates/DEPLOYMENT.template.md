@@ -16,11 +16,11 @@ The deployment record for this repository: the platform model, the exact configu
 
 ## Release Unit Names
 
-Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`; no release name may appear under two different surfaces. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Chrome, Firefox, stores, and hosting vendors stay in Provider / channel unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, or `windows`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names.
+Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`; no release name may appear under two different surfaces. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Record stage-specific provider/channel pairs as the exact `Provider;Exact channel / track` value. Chrome, Firefox, stores, and hosting vendors stay in those provider/channel cells unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, or `windows`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names.
 
-| Surface | Surface suffix | Production release name | Development release name | Provider / channel |
-| --- | --- | --- | --- | --- |
-| <stable surface id> | <surface suffix> | <production release name> | <development release name> | <stage-specific provider or channel> |
+| Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
+| --- | --- | --- | --- | --- | --- |
+| <stable surface id> | <surface suffix> | <production release name> | <development release name> | <exact architecture Provider;Exact channel / track> | <exact architecture Provider;Exact channel / track> |
 
 ## Resource Isolation
 
@@ -130,7 +130,17 @@ These steps are performed by a person with platform access; the Harness never pe
 - aws: map the exact candidate run branch to isolated non-production and `main` to production; keep separate backend environments and secrets.
 - generic: record candidate and `main` source roles when supported; otherwise use `manual` with separate authorization and read-back.
 
+## Release Target Status
+
+Fill this architecture-backed table from the stable target IDs in `docs/product/architecture.md`. The row set must match that architecture exactly. A current PASS binds the exact target, stage, provider/channel, expected and deployed full SHAs, artifact or build identity, availability evidence, checked time, and status; Expected SHA must equal Deployed SHA. Native `ios`, `android`, `macos`, and `windows` targets prove install/download or artifact/build identity rather than URL parity.
+
+| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| <release-target-id> | <surface-id> | <development / production> | <exact architecture Provider;Exact channel / track> | <credential-free https listing/download URL, or exact `n/a — artifact-only:<artifact>; no network endpoint`, or exact `n/a — channel-only:<Provider;channel>; no network endpoint` when artifact is n/a> | <full SHA / pending> | <full SHA / pending> | <exact artifact/build identity / n/a only when architecture Artifact kind is no independent artifact / pending> | <route/API smoke or installability evidence / pending> | <RFC3339 / pending> | <PASS / FAIL / BLOCKED / UNVALIDATED / pending> |
+
 ## Environment Status
+
+Keep this legacy table for repositories and reviewers that inspect environment URLs without the richer architecture join. Do not replace the per-target table above with two generic rows.
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
 | --- | --- | --- | --- | --- | --- |

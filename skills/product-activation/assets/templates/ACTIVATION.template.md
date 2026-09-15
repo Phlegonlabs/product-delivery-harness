@@ -4,7 +4,7 @@ The live post-delivery activation record. Keep it at `docs/ACTIVATION.md`. Recor
 
 ## Record
 
-- Schema: product-activation/1
+- Schema: product-activation/2
 - Product: <fill>
 - Activation owner: <fill>
 - Release reference: <fill>
@@ -17,7 +17,7 @@ The live post-delivery activation record. Keep it at `docs/ACTIVATION.md`. Recor
 | Profile | Applies | Reason | Owner |
 | --- | --- | --- | --- |
 | core | yes | Shared release, ownership, privacy, measurement, operations, and evidence baseline | <fill> |
-| <surface-or-feature-profile> | <yes / no> | <why it applies or n/a> | <fill> |
+| <surface-or-feature-profile> | <yes / no> | <why it applies or n/a> | <human owner> |
 
 ## Capability Observations
 
@@ -36,15 +36,15 @@ The live post-delivery activation record. Keep it at `docs/ACTIVATION.md`. Recor
 
 Add one row for every PRD metric and every required `TEST-*` expected signal. Preserve each metric name and TEST ID exactly.
 
-| Signal | Definition / target | Window | Release targets | Source ID | Status |
-| --- | --- | --- | --- | --- | --- |
-| <exact PRD metric name or TEST-ID> | <definition and target> | <measurement window> | <release-target-id> | pending | planned |
+| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source / method | Owner | Source ID | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| <exact PRD metric name or TEST-ID> | <exact PRD definition or test obligation> | <exact PRD baseline or none recorded> | <exact PRD target / guardrail or n/a reason> | <exact PRD measurement window or test type> | <exact required TEST expected signal or n/a reason> | <release-target-id> | <exact PRD source / method> | <exact PRD owner> | pending | planned |
 
 ## Measurement Sources
 
-| MS ID | Target | Environment | Retrieval | Route / capability | Release bindings | Owner | Status | Evidence IDs |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MS-001 | <exact provider target> | <preview / production / store channel> | <bounded query or read-back definition> | unselected;pending | <release-target-id>@pending#pending | <fill> | planned | none |
+| MS ID | Target | Environment | Retrieval | Source role | Route / capability | Release bindings | Owner | Status | Evidence IDs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MS-001 | <exact provider target> | <preview / production / store channel> | <bounded query or read-back definition> | <search_console / ga4 / production_page / google_trends / keyword_planner / public_serp / first_party> | unselected;pending | <release-target-id>@pending#pending | <human owner> | planned | none |
 
 ## Activation Tasks
 
@@ -96,9 +96,11 @@ Mutation output and read-back must be separate evidence rows. Keep references no
 
 ## Target Readiness
 
-| Release target | Source SHA | Artifact / build identity | Status | Checked | Blockers |
-| --- | --- | --- | --- | --- | --- |
-| <release-target-id> | pending | pending | preparation | pending | none |
+Every target from `docs/product/architecture.md` needs exactly one row. Use `n/a` only with a concrete reason proving the surface has no activation scope. A ready target must match the exact architecture stage/provider/channel and the deployment row's source and artifact identity.
+
+| Release target | Stage | Provider / channel | Source SHA | Artifact / build identity | Availability state | Status | Checked | N/A reason | Blockers |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| <release-target-id> | <development / production> | <exact architecture Provider;Exact channel / track> | pending | <exact artifact/build identity, or n/a only when architecture Artifact kind is no independent artifact> | pending | preparation | pending | none | none |
 
 ## Open Blockers
 

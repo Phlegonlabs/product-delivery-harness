@@ -34,6 +34,8 @@ Use the exact level-two headings and table headers in `ACTIVATION.template.md`:
 
 The task boundary comments and every task field are invariant machine anchors. Keep them in English even when the surrounding document is translated.
 
+Each required level-two section is parsed from active Markdown only; fenced code, indented code, and HTML comments cannot supply or duplicate it. A duplicate required section is rejected. The PRD parser also rejects duplicate metric names before mapping them to Outcome Coverage.
+
 ## IDs And Closed Values
 
 - Activation actions: `ACT-001`, `ACT-002`, and so on.
@@ -47,7 +49,8 @@ The task boundary comments and every task field are invariant machine anchors. K
 - Outcome/source status: `planned`, `available`, `verified`, `blocked`, `superseded`, or `n/a`.
 - Task status: `pending`, `ready`, `configured`, `verified`, `uncertain`, `blocked`, `stale`, or `n/a`.
 - Record status: `seeded`, `preparation`, `active`, `handoff_ready`, `blocked`, or `n/a`.
-- Readiness status: `preparation`, `pending`, `ready`, or `blocked`.
+- Readiness status: `preparation`, `pending`, `ready`, `blocked`, or `n/a`.
+- Target availability state: `deployed`, `installable`, `downloadable`, `unavailable`, `pending`, or `n/a`.
 - Evidence kind: `write`, `readback`, `behavior`, `capability`, or `manual`.
 - Evidence result: `PASS`, `FAIL`, `BLOCKED`, or `UNCERTAIN` when a mutation attempt has no definite outcome.
 - Authorization: `not_required`, `pending`, `approved`, `consumed`, `denied`, `expired`, `handoff_complete`, or `prohibited`.
@@ -56,9 +59,11 @@ The task boundary comments and every task field are invariant machine anchors. K
 
 ## Outcome Coverage And Sources
 
-Every PRD metric and every `TEST-*` row marked `Required: Yes` appears once in **Outcome Coverage**. New Product Definition packages use `Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner`; historical three-column `Metric | Definition | Target` tables remain readable. Preserve the metric text and TEST ID exactly. Do not create another product trace family.
+Every PRD metric and every `TEST-*` row marked `Required: Yes` appears once in **Outcome Coverage**. Coverage repeats structured `Definition / obligation`, `Baseline`, `Target / guardrail`, `Measurement window`, `Source / method`, `Owner`, and `Expected signal` fields exactly (using a concrete `n/a — reason` only where the PRD row has no such field), plus release targets, source, and status. New Product Definition packages use `Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner`; historical three-column `Metric | Definition | Target` tables remain readable. Product Activation schema `/2` carries the source/method and owner columns explicitly; preserve the metric text and TEST ID exactly. Do not create another product trace family.
 
-Every non-`n/a` coverage row names one `MS-*` source before it can be verified. A source records the exact provider target, environment, bounded retrieval definition, route plus target-scoped capability observation, typed release bindings, owner, status, and evidence IDs. Installing a tag, SDK, property, pixel, crash reporter, or dashboard does not verify a source. Verification requires fresh `readback` or `behavior` evidence bound to the exact release SHA and artifact identity; a manual statement cannot verify a measurement source.
+Every non-`n/a` coverage row names one `MS-*` source before it can be verified. A source records the exact provider target, environment, bounded retrieval definition, one closed `Source role` (`search_console`, `ga4`, `production_page`, `google_trends`, `keyword_planner`, `public_serp`, or `first_party`), route plus target-scoped capability observation, typed release bindings, owner, status, and evidence IDs. Installing a tag, SDK, property, pixel, crash reporter, or dashboard does not verify a source. Verification requires fresh `readback` or `behavior` evidence bound to the exact release SHA and artifact identity; a manual statement cannot verify a measurement source.
+
+Applied Profiles is a closed catalog join: `core` is always required, every architecture release surface contributes its canonical surface profile (`web`, `api / backend`, `ios`, `android`, `macos`, `windows`, `browser extension`, `cli/toolchain`, `agent/automation`, or `other_nonpublic`), and any feature overlay must use a profile name from `references/profile-catalog.md`. Every applied or rejected row names a human owner and an explicit `n/a — reason` disposition. The `Provider / channel` value in target readiness is the exact architecture `Provider;Exact channel / track` pair. An active production release target cannot be marked `n/a`; an inactive production target may use a concrete `n/a — reason` readiness disposition. Artifact identity is concrete for every target except an architecture target whose `Artifact kind` is exactly `no independent artifact`; only that target may use the literal artifact identity `n/a`.
 
 Outcome review consumes only verified sources whose release targets match the deployed release. It remains a later owner-requested step after real elapsed time; Product Activation records the measurement-window start and stops.
 
@@ -103,7 +108,7 @@ Required fields:
 
 ## Exact Action Digest
 
-Compute lowercase SHA-256 over compact, key-sorted JSON with schema `activation-action/1` and these normalized fields:
+Compute lowercase SHA-256 over compact, key-sorted JSON with schema `activation-action/2` and these normalized fields:
 
 - task ID;
 - sorted source refs;
@@ -119,11 +124,14 @@ Compute lowercase SHA-256 over compact, key-sorted JSON with schema `activation-
 - risk;
 - confirmation;
 - execution route; and
-- execution capability observation ID.
+- execution capability observation ID and its exact target scope;
+- read-back route;
+- read-back capability observation ID and its exact target scope; and
+- behavior verification.
 
 Normalize every string to Unicode NFC and trim surrounding whitespace. Exclude capability observations, authorization state, evidence, timestamps, blockers, and task status. Secret values never enter the action or digest.
 
-`scripts/check_activation.py --show-action-digests` prints the current digest without editing the file. A mutation may run only when `Authorized digest` equals the recomputed `Action digest`. Any target, release SHA or artifact, precondition, desired state, dependency, secret name, risk, confirmation, route, or capability-observation change expires the approval.
+`scripts/check_activation.py --show-action-digests` prints the current digest without editing the file. A mutation may run only when `Authorized digest` equals the recomputed `Action digest`. Any target, release SHA or artifact, precondition, desired state, dependency, secret name, risk, confirmation, route, capability observation or scope, read-back route/capability, or behavior verification change expires the approval.
 
 ## Capability And Route Selection
 
@@ -182,6 +190,7 @@ An ambiguous mutation result stays `uncertain` and records matching `UNCERTAIN` 
 Readiness is per release target. A target is `ready` only when:
 
 - its source identity is a full lowercase Git SHA and its artifact/build identity is exact or explicitly `n/a`;
+- it resolves through the shared `product-definition-builder/scripts/release_targets.py` parser, and its stage, provider/channel, source identity, artifact identity, and availability state match the architecture-backed Deployment row;
 - every required ACT task bound to it is `verified`;
 - every non-`n/a` Outcome Coverage row for it is `verified` through a verified `MS-*` source;
 - no blocker names that target;
@@ -189,7 +198,7 @@ Readiness is per release target. A target is `ready` only when:
 
 `handoff_ready` means every target claimed in the current activation scope is ready. It does not mean the outcome window has closed or the product met its adoption target.
 
-The complete target set is the union of non-placeholder targets in ACT release bindings, measurement-source release bindings, and Outcome Coverage. Every active target needs exactly one Target Readiness row. **Open Blockers** uses structured `BLOCK-*` rows; an `open` global blocker or blocker naming a target prevents that target and the overall record from becoming ready.
+The complete authority set is every target in the current architecture `## Release Targets` section. Each one needs exactly one Target Readiness row, either active or a concrete `n/a` disposition. The active set is the union of non-placeholder targets in ACT release bindings, measurement-source release bindings, Outcome Coverage, and non-`n/a` readiness rows. Every active target needs exactly one Target Readiness row. **Open Blockers** uses structured `BLOCK-*` rows; an `open` global blocker or blocker naming a target prevents that target and the overall record from becoming ready.
 
 ## Gap Routing
 
@@ -207,7 +216,7 @@ Run:
 python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md
 python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md
 python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --require-filled
-python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md --require-verified-sources --require-ready <release-target-id>
+python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --require-verified-sources --require-ready <release-target-id>
 python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --show-action-digests
 ```
 

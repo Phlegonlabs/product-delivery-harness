@@ -2,8 +2,10 @@ import hashlib
 import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import sys
@@ -14,6 +16,16 @@ if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
 import check_design_system_pair as checker  # noqa: E402
+
+
+SOURCE_BINDINGS = {
+    "prd": ("docs/product/PRD.md", b"prd"),
+    "architecture": ("docs/product/architecture.md", b"architecture"),
+    "stack": ("docs/product/stack-decisions.md", b"stack"),
+    "uiDesign": ("docs/design/ui-design.md", b"ui design"),
+    "wireframe": ("docs/design/wireframes.html", b"wireframes"),
+    "hifi": ("docs/design/ui-references/run-1/index.html", b"hifi"),
+}
 
 
 def registry(**overrides: object) -> dict:
@@ -87,6 +99,28 @@ Composes `Stack`.
 | `ready` | Yes |
 | `loading` | Yes |
 """ + checker.generated_contract_block(registry())
+
+
+def prepare_source_bindings(data: dict, root: Path) -> dict:
+    """Make a schema-2 fixture whose binding files match their hashes."""
+    if data.get("schema") != "design-system/2":
+        return data
+    bindings = {}
+    for key, (path, content) in SOURCE_BINDINGS.items():
+        target = root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        digest = (
+            checker.canonical_ui_approval_sha256(content.decode("utf-8"))
+            if key == "uiDesign"
+            else hashlib.sha256(content).hexdigest()
+        )
+        bindings[key] = {
+            "path": path,
+            "sha256": digest,
+        }
+    data["sourceBindings"] = bindings
+    return data
 
 REAL_TABLE_SHAPE_WITH_STALE_GENERATED_CONTRACT = """
 # Design System
@@ -193,15 +227,91 @@ The prior inventory used OrderCard.
 
 
 class CheckDesignSystemPairTests(unittest.TestCase):
+    def test_stack_semantics_bind_homogeneous_and_hybrid_surface_choices(self):
+        stack = """
+# Stack Decisions
+## Frontend Technology Decision
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Rendering model | SPA | Approved | Owner | Fits | None |
+| Component foundation | shadcn/ui | Approved | Owner | Fits | None |
+| Styling approach | Tailwind CSS | Approved | Owner | Fits | None |
+"""
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "stack-decisions.md"
+            path.write_text(stack, encoding="utf-8")
+            registry_data = registry(
+                schema="design-system/2",
+                stylingMechanism="Tailwind CSS",
+                stackSemantics={
+                    "platform": "web",
+                    "renderingModel": "SPA",
+                    "componentFoundation": "shadcn/ui",
+                    "stylingMechanism": "Tailwind CSS",
+                },
+            )
+            problems: list[str] = []
+            checker._validate_stack_semantics(
+                registry_data,
+                stack_path=path,
+                ui_view={
+                    "target_scope": {
+                        "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web", "stackSemantics": {
+                            "platform": "web",
+                            "renderingModel": "SPA",
+                            "componentFoundation": "shadcn/ui",
+                            "stylingMechanism": "Tailwind CSS",
+                        }}]
+                    }
+                },
+                problems=problems,
+            )
+            self.assertEqual([], problems)
+            for key, value in (
+                ("platform", "ios"),
+                ("renderingModel", "SSR"),
+                ("componentFoundation", "Other UI"),
+                ("stylingMechanism", "plain CSS"),
+            ):
+                mutated = json.loads(json.dumps(registry_data))
+                mutated["stackSemantics"][key] = value
+                problems = []
+                checker._validate_stack_semantics(
+                    mutated,
+                    stack_path=path,
+                    ui_view={
+                        "target_scope": {
+                            "surfaces": [{"id": "UI-001", "surfaceClass": "hosted_web", "stackSemantics": {
+                                "platform": "web",
+                                "renderingModel": "SPA",
+                                "componentFoundation": "shadcn/ui",
+                                "stylingMechanism": "Tailwind CSS",
+                            }}]
+                        }
+                    },
+                    problems=problems,
+                )
+                self.assertTrue(problems, key)
+
     def run_pair(
         self,
         markdown: str,
         data: dict,
         *,
         require_filled: bool = False,
+        prepare_bindings: bool = True,
     ) -> tuple[int, list[str]]:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            for path, content in SOURCE_BINDINGS.values():
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            if prepare_bindings:
+                prepare_source_bindings(data, root)
+                if data.get("schema") == "design-system/2":
+                    markdown = checker.replace_generated_contract(markdown, data)
             md = root / "design-system.md"
             js = root / "design-system.json"
             md.write_text(markdown, encoding="utf-8")
@@ -210,8 +320,16 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 markdown,
                 data,
                 require_filled=require_filled,
+                repo_root=root,
             )
-            argv = ["--markdown", str(md), "--registry", str(js)]
+            argv = [
+                "--markdown",
+                str(md),
+                "--registry",
+                str(js),
+                "--repo-root",
+                str(root),
+            ]
             if require_filled:
                 argv.append("--require-filled")
             code = checker.main(argv)
@@ -357,14 +475,16 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         )
         self.assertNotIn(checker.BEGIN_MARKER, template)
 
-        markdown = checker.replace_generated_contract(template, data)
-        self.assertEqual([], checker.compare(markdown, data))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            prepare_source_bindings(data, root)
+            markdown = checker.replace_generated_contract(template, data)
+            self.assertEqual([], checker.compare(markdown, data, repo_root=root))
         self.assertEqual(markdown, checker.replace_generated_contract(markdown, data))
 
         drifted = dict(data)
         drifted["product"] = "Different Product"
-        problems = checker.compare(markdown, drifted)
-
+        problems = checker.compare(markdown, drifted, repo_root=root)
         self.assertTrue(
             any(
                 "generated contract.product differs" in problem
@@ -373,6 +493,207 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             ),
             problems,
         )
+
+    def test_schema_two_web_pair_passes_with_current_sources(self):
+        data = registry(schema="design-system/2")
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        code, problems = self.run_pair(markdown, data)
+
+        self.assertEqual([], problems)
+        self.assertEqual(0, code)
+
+    def test_schema_two_native_pair_passes_with_size_classes(self):
+        data = registry(schema="design-system/2")
+        del data["viewports"]
+        data["platform"] = "ios"
+        data["sizeClasses"] = ["compact", "regular"]
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        code, problems = self.run_pair(markdown, data)
+
+        self.assertEqual([], problems)
+        self.assertEqual(0, code)
+
+    def test_schema_two_hybrid_surface_contracts_replace_global_platform_and_responsive(self):
+        data = registry(schema="design-system/2")
+        for key in ("platform", "stylingMechanism", "viewports", "sizeClasses"):
+            data.pop(key, None)
+        data["surfaceContracts"] = {
+            "UI-WEB": {
+                "releaseSurface": "web-app",
+                "surfaceClass": "hosted_web",
+                "captureMode": "hosted-browser",
+                "responsive": {"kind": "viewports", "targets": [390, 768, 1200]},
+            },
+            "UI-IOS": {
+                "releaseSurface": "ios-app",
+                "surfaceClass": "ios",
+                "captureMode": "native",
+                "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]},
+            },
+        }
+        binding_paths = {
+            "prd": "docs/product/PRD.md",
+            "architecture": "docs/product/architecture.md",
+            "stack": "docs/product/stack-decisions.md",
+            "uiDesign": "docs/design/ui-design.md",
+            "wireframe": "docs/design/wireframes.html",
+            "hifi": "docs/design/ui-references/run-1/index.html",
+        }
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "a" * 64}
+            for key, path in binding_paths.items()
+        }
+        self.assertEqual([], checker.validate_registry(data))
+        data["viewports"] = [390, 768, 1200]
+        self.assertTrue(any("hybrid surfaceContracts must omit" in item for item in checker.validate_registry(data)))
+        data.pop("viewports", None)
+        data["surfaceContracts"]["UI-IOS"]["captureMode"] = "hosted-browser"
+        self.assertTrue(any("captureMode is incompatible with surfaceClass" in item for item in checker.validate_registry(data)))
+        data["surfaceContracts"]["UI-IOS"]["captureMode"] = "native"
+        data["surfaceContracts"]["UI-WEB"]["captureMode"] = "native"
+        self.assertTrue(any("captureMode is incompatible with surfaceClass" in item for item in checker.validate_registry(data)))
+        data["surfaceContracts"]["UI-WEB"]["captureMode"] = "hosted-browser"
+        data["surfaceContracts"]["UI-WEB"]["surfaceClass"] = "unknown"
+        self.assertTrue(any("surfaceClass is invalid" in item for item in checker.validate_registry(data)))
+
+        schema_one = dict(data)
+        schema_one["schema"] = "design-system/1"
+        self.assertTrue(any("surfaceContracts requires design-system/2" in item for item in checker.validate_registry(schema_one)))
+
+    def test_schema_two_requires_every_source_binding_and_current_bytes(self):
+        base = registry(schema="design-system/2")
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, base)
+        _, problems = self.run_pair(
+            markdown, base, prepare_bindings=False
+        )
+        self.assertTrue(any("sourceBindings must be an object" in item for item in problems))
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+            if key != "stack"
+        }
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(any("sourceBindings is missing: stack" in item for item in problems))
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+            if key != "hifi"
+        }
+        data["sourceBindings"]["extra"] = {"path": "docs/extra.md", "sha256": "0" * 64}
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(any("unexpected keys: extra" in item for item in problems))
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+        }
+        data["sourceBindings"]["prd"]["sha256"] = "0" * 64
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(
+            any("sourceBindings.prd sha256 does not match" in item for item in problems)
+        )
+
+        data = registry(schema="design-system/2")
+        data["sourceBindings"] = {
+            key: {"path": path, "sha256": "0" * 64}
+            for key, (path, _) in SOURCE_BINDINGS.items()
+        }
+        data["sourceBindings"]["wireframe"]["path"] = "../outside.html"
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        self.assertTrue(
+            any("sourceBindings.wireframe.path must be a repo-relative path" in item)
+            for item in problems
+        )
+
+    def test_current_publication_rejects_schema_one(self):
+        data = registry()
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, require_filled=True)
+        self.assertTrue(any("current publication requires design-system/2" in item for item in problems))
+
+    def test_current_schema_two_publication_rejects_opaque_ui_design_binding(self):
+        data = registry(schema="design-system/2")
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, require_filled=True)
+        self.assertTrue(
+            any("sourceBindings.uiDesign must point to a complete UI Design Contract" in item for item in problems),
+            problems,
+        )
+
+    def test_schema_two_rejects_invalid_enums_and_duplicate_semantic_paths(self):
+        data = registry(schema="design-system/2")
+        data["platform"] = "browser"
+        data["stylingMechanism"] = "magic"
+        data["enforcement"] = "maybe"
+        data["sourceBindings"] = {
+            key: {"path": "docs/product/PRD.md", "sha256": "0" * 64}
+            for key in checker.SOURCE_BINDING_KEYS
+        }
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        _, problems = self.run_pair(markdown, data, prepare_bindings=False)
+        joined = "\n".join(problems)
+        self.assertIn("platform must be one of", joined)
+        self.assertIn("stylingMechanism must be one of", joined)
+        self.assertIn("enforcement must be one of", joined)
+        self.assertIn("sourceBindings paths must be distinct", joined)
+
+    def test_generated_markers_inside_fence_are_not_authoritative(self):
+        data = registry()
+        markdown = "```text\n" + checker.generated_contract_block(data) + "\n```\n"
+        _, problems = self.run_pair(markdown, data)
+        self.assertTrue(any("exactly one matched generated" in item for item in problems))
+
+    def test_ui_approval_digest_ignores_derived_linkage_fields(self):
+        text = (
+            "# UI Design Contract\n\n"
+            "Decision: approved\n"
+            "Compiled design system pair: first.md @ sha256:" + "1" * 64 +
+            " and first.json @ sha256:" + "2" * 64 + "\n"
+            "Replacement visual contract when_not_required: target=x @ sha256:" + "3" * 64 +
+            "; ui-design=x @ sha256:" + "4" * 64 +
+            "; wireframe=x @ sha256:" + "5" * 64 +
+            "; prd=x @ sha256:" + "6" * 64 + "\n"
+        )
+        from ui_approval_digest import canonical_ui_approval_sha256
+
+        self.assertEqual(
+            checker.canonical_ui_approval_sha256(text),
+            canonical_ui_approval_sha256(text),
+        )
+        changed = text.replace("first.md", "second.md").replace("sha256:" + "1" * 64, "sha256:" + "f" * 64)
+        self.assertEqual(checker.canonical_ui_approval_sha256(text), checker.canonical_ui_approval_sha256(changed))
+
+    def test_fenced_and_commented_ds_ids_are_not_active_authority(self):
+        markdown = (
+            MATCHING_MARKDOWN
+            + "\n<!-- DS-FAKE-001 -->\n\n```text\nDS-FAKE-002\n```\n"
+        )
+        data = registry()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            prepare_source_bindings(data, root)
+            self.assertEqual([], checker.compare(markdown, data, repo_root=root))
+
+    def test_legacy_schema_one_is_inspection_only(self):
+        markdown = MATCHING_MARKDOWN
+        data = registry()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            js = root / "design-system.json"
+            md.write_text(markdown, encoding="utf-8")
+            js.write_text(json.dumps(data), encoding="utf-8")
+            self.assertEqual(0, checker.main(["--markdown", str(md), "--registry", str(js)]))
+            self.assertEqual([], checker.compare(markdown, data))
 
     def test_missing_or_blank_json_product_fails_validation(self) -> None:
         for invalid in (None, "", "   ", 42):
@@ -775,6 +1096,74 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             self.assertTrue(link.is_symlink())
             self.assertEqual(original, target.read_bytes())
 
+    def test_atomic_write_rejects_a_symlink_parent_component_on_posix(self) -> None:
+        if os.name == "nt":
+            self.skipTest("POSIX component dirfd semantics are unavailable on Windows")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            real = root / "real"
+            real.mkdir()
+            destination = real / "design-system.md"
+            original = b"# Original\n"
+            destination.write_bytes(original)
+            alias = root / "alias"
+            alias.symlink_to(real, target_is_directory=True)
+            redirected = alias / "design-system.md"
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError,
+                "parent directory contains a symlink or reparse point|cannot be held",
+            ):
+                checker._write_bytes_atomic(redirected, b"# Replacement\n", original)
+            self.assertEqual(original, destination.read_bytes())
+
+    def test_windows_junction_parent_is_rejected_before_native_replace(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows junction semantics are unavailable on this host")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            real = root / "real"
+            real.mkdir()
+            destination = real / "design-system.md"
+            original = b"# Original\n"
+            destination.write_bytes(original)
+            junction = root / "junction"
+            result = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(junction), str(real)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                self.skipTest("junction creation unavailable: " + result.stderr.strip())
+            redirected = junction / "design-system.md"
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError,
+                "symlink or reparse point|cannot be held",
+            ):
+                checker._write_bytes_atomic(redirected, b"# Replacement\n", original)
+            self.assertEqual(original, destination.read_bytes())
+
+    def test_windows_ancestor_junction_is_rejected_by_component_handle_walk(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows junction semantics are unavailable on this host")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            real = root / "real"
+            (real / "parent").mkdir(parents=True)
+            junction = root / "alias"
+            result = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(junction), str(real)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                self.skipTest("junction creation unavailable: " + result.stderr.strip())
+            redirected = junction / "parent" / "design-system.md"
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError,
+                "symlink or reparse point|cannot be held",
+            ):
+                checker._windows_open_parent(redirected)
+
     def test_write_aborts_when_markdown_changes_during_compare(self) -> None:
         markdown = "# Design System\n\nHuman rationale.\n"
         concurrent_edit = b"# Concurrent edit\n"
@@ -794,12 +1183,14 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 registry_data: dict[str, object],
                 *,
                 require_filled: bool = False,
+                repo_root: Path | None = None,
             ) -> list[str]:
                 md.write_bytes(concurrent_edit)
                 return original_compare(
                     markdown_text,
                     registry_data,
                     require_filled=require_filled,
+                    repo_root=repo_root,
                 )
 
             checker.compare = compare_with_concurrent_edit
@@ -817,6 +1208,75 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 checker.compare = original_compare
 
             self.assertEqual(2, code)
+            self.assertEqual(concurrent_edit, md.read_bytes())
+
+    def test_write_rejects_destination_change_at_native_commit_boundary(self) -> None:
+        markdown = b"# Original\n"
+        concurrent_edit = b"# Concurrent at commit\n"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            md.write_bytes(markdown)
+            original_open = (
+                checker._windows_open_parent
+                if os.name == "nt"
+                else checker._open_posix_parent
+            )
+
+            def mutate_then_open(path: Path):
+                md.write_bytes(concurrent_edit)
+                return original_open(path)
+
+            if os.name == "nt":
+                checker._windows_open_parent = mutate_then_open
+            else:
+                checker._open_posix_parent = mutate_then_open
+            try:
+                with self.assertRaisesRegex(
+                    checker.ConcurrentModificationError,
+                    "changed before the (native|dirfd) replace",
+                ):
+                    checker._write_bytes_atomic(md, b"# Replacement\n", markdown)
+            finally:
+                if os.name == "nt":
+                    checker._windows_open_parent = original_open
+                else:
+                    checker._open_posix_parent = original_open
+            self.assertEqual(concurrent_edit, md.read_bytes())
+
+    def test_write_exchange_primitive_preserves_displaced_edit(self) -> None:
+        markdown = b"# Original\n"
+        concurrent_edit = b"# Concurrent inside primitive\n"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            md.write_bytes(markdown)
+            if os.name == "nt":
+                primitive = checker._windows_replace_with_backup
+
+                def inject(destination: Path, replacement: Path, backup: Path) -> None:
+                    destination.write_bytes(concurrent_edit)
+                    primitive(destination, replacement, backup)
+
+                patcher = mock.patch.object(
+                    checker, "_windows_replace_with_backup", side_effect=inject
+                )
+            else:
+                primitive = checker._posix_rename_exchange
+
+                def inject(parent_fd: int, left_name: str, right_name: str) -> None:
+                    md.write_bytes(concurrent_edit)
+                    primitive(parent_fd, left_name, right_name)
+
+                patcher = mock.patch.object(
+                    checker, "_posix_rename_exchange", side_effect=inject
+                )
+            with patcher:
+                with self.assertRaisesRegex(
+                    checker.ConcurrentModificationError,
+                    "displaced bytes|preserved|restore",
+                ):
+                    checker._write_bytes_atomic(md, b"# Replacement\n", markdown)
             self.assertEqual(concurrent_edit, md.read_bytes())
 
     def test_replace_and_extract_reject_inverse_and_unmatched_markers(self) -> None:

@@ -53,16 +53,14 @@ interface:
     explicit treatment of research findings and assumptions. Validate the core
     files with check_product_package.py --require-filled --require-approved.
 
-    Only after Product Definition Approval, create or refresh one
-    self-contained structural wireframes.html for every UI-* screen, target and
-    state. Run its reference pass, browser matrix, PRD-bound grading, human
-    Wireframe Approval and full checker. A structural finding changes the PRD
-    first and reopens Product Definition Approval. Headless products skip
-    wireframes but not product approval. Treat the approved wireframe as the
-    normal stop point. Enter visual design, design-system compilation or
-    implementation only on a later explicit request. Keep publication
-    authorization separate from content approval; never overwrite, move or
-    archive existing documents without exact permission.
+    Product Definition includes the complete frontend and backend architecture,
+    data and auth boundaries, deployment model, and every applicable technology
+    layer. For UI products, finish the UI Surface Contract but do not create
+    wireframes, choose layout/style/motion/media, or compile tokens. Record the
+    later UI decision owner and stop after Product Definition Approval. A later
+    explicit request uses $ui-design-builder. Keep publication authorization
+    separate from content approval; never overwrite, move or archive existing
+    documents without exact permission.
 
     For every deployable web, API, mobile, desktop, or browser-extension
     surface, preserve provider-neutral development and production targets with
@@ -79,8 +77,6 @@ interface:
     docs/ACTIVATION.md only when absent, map every metric and required TEST
     signal, and leave later reconciliation to $product-activation.
 
-    Only when the owner explicitly continues into visual design, run UI Design
-    Pass with $design-taste-frontend where applicable and $frontend-design for
-    excluded surfaces. Produce the connected design-reference HTML, preserve
-    the approved stack constraints, and invoke $design-system-compiler only
-    when the Design System Need Gate is required.
+    UI design, wireframes, visual references, Impeccable review, UI scoring, and
+    the Design System Need Gate belong to $ui-design-builder and are never
+    invoked from this skill.

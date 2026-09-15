@@ -18,8 +18,10 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         metadata = self.read("agents/openai.yaml")
         self.assertIn("name: product-activation", skill)
         self.assertIn("post-delivery activation", skill)
-        self.assertIn("websites and web apps, iOS apps, and browser extensions", skill)
-        self.assertNotIn("websites, mobile apps, and browser extensions", skill)
+        self.assertIn(
+            "websites, web apps, APIs/backend services, iOS apps, Android apps, browser extensions, macOS apps, and Windows apps",
+            skill,
+        )
         self.assertIn('display_name: "Product Activation"', metadata)
         self.assertIn("$product-activation", metadata)
         self.assertIn("allow_implicit_invocation: true", metadata)
@@ -48,7 +50,16 @@ class ProductActivationSkillContractTests(unittest.TestCase):
             "purpose-built connector, official API, official CLI, Browser, Computer Use, then manual handoff",
             skill,
         )
-        for heading in ("## Core", "## Web", "## iOS", "## Browser Extension"):
+        for heading in (
+            "## Core",
+            "## Web",
+            "## API / Backend",
+            "## iOS",
+            "## Android",
+            "## Desktop",
+            "## Browser Extension",
+            "## Responsibility Separation",
+        ):
             self.assertIn(heading, profiles)
         self.assertIn("verified `MS-*`", skill)
         self.assertIn("real measurement window closes", skill)
@@ -61,6 +72,19 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         self.assertIn("check_product_package.py", skill)
         self.assertIn("Target / guardrail", contract)
         self.assertIn("historical three-column", contract)
+
+    def test_release_authority_and_digest_contract_are_strict(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/activation-contract.md")
+
+        self.assertIn("architecture parser is the only release-target authority", skill)
+        self.assertIn("release_targets.py", contract)
+        self.assertIn("activation-action/2", contract)
+        self.assertIn("read-back capability observation ID", contract)
+        self.assertIn("behavior verification", contract)
+        self.assertIn("duplicate required section", contract)
+        self.assertIn("--architecture docs/product/architecture.md", contract)
+        self.assertIn("--deployment docs/DEPLOYMENT.md", contract)
 
     def test_template_passes_structural_checker(self) -> None:
         template = SKILL_ROOT / "assets" / "templates" / "ACTIVATION.template.md"

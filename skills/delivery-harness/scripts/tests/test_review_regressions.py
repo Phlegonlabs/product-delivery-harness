@@ -10,10 +10,13 @@ guards at their edges.
 from __future__ import annotations
 
 import copy
+import hashlib
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -26,6 +29,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from harness_core import _keys  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
 from manifest_fixtures import (  # noqa: E402
+    container_execution,
     mark_complete,
     valid_plan as valid_current_plan,
     valid_run as valid_current_run,
@@ -41,22 +45,31 @@ def real_verifier_record(**cache_extra):
     """Run a verifier for real and return the record the parent must retain."""
 
     root = Path(tempfile.mkdtemp())
-    (root / "co").mkdir()
+    checkout = root / "co"
+    checkout.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "integration"], cwd=checkout, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=checkout, check=True)
+    subprocess.run(["git", "config", "user.name", "Harness Test"], cwd=checkout, check=True)
+    (checkout / ".fixture").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", ".fixture"], cwd=checkout, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=checkout, check=True)
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=checkout, text=True).strip()
+    execution = container_execution()
     verifier = {
         "id": "V1",
         "cwd": ".",
         "argv": [sys.executable, "-c", "raise SystemExit(0)"],
         "pass_signal": "exit 0",
         "cache": {"mode": "session_exact", "environment_keys": [], **cache_extra},
-        "execution": {"parallel_safe": True, "resources": []},
+        "execution": execution,
     }
     supplied = {
         "run_id": "R",
         "plan_revision": 1,
         "plan_digest_sha256": "a" * 64,
         "graph_revision": 1,
-        "batch_base_sha": "b" * 40,
-        "head_sha": "c" * 40,
+        "batch_base_sha": head,
+        "head_sha": head,
         "layer": "batch",
         "trust_domain": "local",
         "checkout_role": "parent",
@@ -65,13 +78,50 @@ def real_verifier_record(**cache_extra):
         "changed_files": [],
     }
     context = {key: supplied.get(key) for key in CONTEXT_FIELDS}
-    return run_verifier(
-        verifier,
-        context,
-        checkout_root=root / "co",
-        cache_root=root / "cache",
-        environment={},
-    )
+    runtime_executable = Path(sys.executable).resolve()
+    sandbox_preflight = {
+        "runtime": execution["sandbox"]["runtime"],
+        "image": execution["sandbox"]["image"],
+        "repo_digest": execution["sandbox"]["image"],
+        "runtime_probe": {
+            "executable": str(runtime_executable),
+            "executable_sha256": hashlib.sha256(
+                runtime_executable.read_bytes()
+            ).hexdigest(),
+            "version_output_sha256": "b" * 64,
+        },
+    }
+    def fake_container(
+        _checkout_root: Path,
+        _snapshot_root: Path,
+        _declared_cwd: str,
+        _argv: list[str],
+        policy: dict[str, object],
+        _timeout_seconds: float,
+        sandbox_preflight: dict[str, object],
+    ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+        image = str(policy["image"])
+        return subprocess.CompletedProcess(
+            args=["docker", "run"], returncode=0, stdout="", stderr=""
+        ), {
+            "runtime": str(policy["runtime"]),
+            "runtime_probe": sandbox_preflight["runtime_probe"],
+            "image": image,
+            "image_probe": sandbox_preflight["repo_digest"],
+            "policy": policy,
+            "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
+            "network": "none",
+        }
+
+    with patch("verifier_runtime._run_container_verifier", side_effect=fake_container):
+        return run_verifier(
+            verifier,
+            context,
+            checkout_root=checkout,
+            cache_root=root / "cache",
+            environment={},
+            sandbox_preflight=sandbox_preflight,
+        )
 
 
 class RetainedVerifierRecordTests(unittest.TestCase):

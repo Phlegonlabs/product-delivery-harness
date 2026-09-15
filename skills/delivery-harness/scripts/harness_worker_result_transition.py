@@ -7,11 +7,11 @@ import copy
 import hashlib
 import json
 import os
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from harness_core import ManifestError, _normalized_branch, is_full_sha
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
     _verifier_owners,
     validate_current_plan_run,
@@ -77,10 +77,9 @@ def _bound_worker(
 
 
 def _git(root: Path, *arguments: str, text: bool = True) -> str | bytes:
-    completed = subprocess.run(
-        ["git", *arguments],
-        cwd=root,
-        capture_output=True,
+    completed = run_git(
+        root,
+        *arguments,
         text=text,
         timeout=30,
     )
@@ -103,6 +102,25 @@ def _git_common_dir(root: Path) -> Path:
     return (value if value.is_absolute() else root / value).resolve()
 
 
+def _worker_dirty(root: Path) -> bool | None:
+    """Observe dirty state; a failed Git status is unknown, never clean."""
+
+    try:
+        completed = run_git(
+            root,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            text=True,
+            timeout=30,
+        )
+    except (GitMetadataError, OSError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return bool(completed.stdout.strip())
+
+
 def _observe_bound_worker(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -121,6 +139,11 @@ def _observe_bound_worker(
     worktree = Path(worktree_path)
     if not worktree.is_dir():
         raise ManifestError(f"bound worker worktree does not exist: {worktree}")
+    try:
+        reject_object_substitution(repo_root)
+        reject_object_substitution(worktree)
+    except (GitMetadataError, OSError) as exc:
+        raise ManifestError(str(exc)) from exc
     if os.path.normcase(str(_git_common_dir(worktree))) != os.path.normcase(
         str(_git_common_dir(repo_root))
     ):
@@ -138,10 +161,12 @@ def _observe_bound_worker(
     base_sha = worker.get("batch_base_sha")
     if not is_full_sha(base_sha):
         raise ManifestError("bound worker has no valid batch_base_sha")
-    ancestry = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", str(base_sha), live_head],
-        cwd=worktree,
-        capture_output=True,
+    ancestry = run_git(
+        worktree,
+        "merge-base",
+        "--is-ancestor",
+        str(base_sha),
+        live_head,
         text=True,
         timeout=30,
     ).returncode == 0
@@ -167,7 +192,49 @@ def _observe_bound_worker(
             changed_paths.add(token.decode("utf-8").replace("\\", "/"))
         index += path_count
     changed_files = sorted(changed_paths)
-    dirty = bool(str(_git(worktree, "status", "--porcelain=v1", "--untracked-files=all")).strip())
+    dirty = _worker_dirty(worktree)
+    commit_order = [
+        commit.strip()
+        for commit in str(
+            _git(worktree, "rev-list", "--reverse", f"{base_sha}..{live_head}")
+        ).splitlines()
+        if commit.strip()
+    ]
+    task_changed_files: dict[str, list[str]] = {}
+    worker_result = node_result.get("worker_result")
+    if isinstance(worker_result, dict):
+        # A task checkpoint is cumulative. Diffing base..checkpoint would
+        # assign every earlier task's files to each later task and select the
+        # wrong targeted verifiers. Attribute paths to the exact commits the
+        # worker reported for that task instead.
+        for task_result in worker_result.get("task_results", []):
+            if not isinstance(task_result, dict):
+                continue
+            task_id = task_result.get("task_id")
+            task_commits = task_result.get("commits")
+            if not isinstance(task_id, str) or not isinstance(task_commits, list):
+                continue
+            task_paths: set[str] = set()
+            for commit in task_commits:
+                if not isinstance(commit, str) or not is_full_sha(commit):
+                    continue
+                raw_task_paths = _git(
+                    worktree,
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "--diff-filter=ACDMRTUXB",
+                    "-r",
+                    "-z",
+                    commit,
+                    text=False,
+                )
+                task_paths.update(
+                    token.decode("utf-8").replace("\\", "/")
+                    for token in raw_task_paths.split(b"\0")
+                    if token
+                )
+            task_changed_files[task_id] = sorted(task_paths)
     managed_by = "app" if worker.get("workspace_mode") == "app_managed_worktree" else "parent"
     observed_git = run.setdefault("observed", {}).setdefault("git", {})
     worktrees = observed_git.setdefault("worktrees", [])
@@ -197,6 +264,8 @@ def _observe_bound_worker(
         "changed_files": changed_files,
         "ancestry_confirmed": ancestry,
         "dirty": dirty,
+        "commit_order": commit_order,
+        "task_changed_files": task_changed_files,
     }
 
 
@@ -205,7 +274,7 @@ def verify_worker_observation(observation: dict[str, Any]) -> None:
 
     root = observation["root"]
     live_head = str(_git(root, "rev-parse", "HEAD")).strip()
-    dirty = bool(str(_git(root, "status", "--porcelain=v1", "--untracked-files=all")).strip())
+    dirty = _worker_dirty(root)
     if live_head != observation["head_sha"] or dirty != observation["dirty"]:
         raise ManifestError(
             "worker worktree changed during result recording; re-observe and retry"
@@ -339,6 +408,20 @@ def _retained_execution(
             if isinstance(retained.get("dispatch_attestation"), dict)
             else {}
         ),
+        **(
+            {
+                "git_guard_attestation": copy.deepcopy(
+                    retained["git_guard_attestation"]
+                )
+            }
+            if isinstance(retained.get("git_guard_attestation"), dict)
+            else {}
+        ),
+        **(
+            {"sandbox_attestation": copy.deepcopy(retained["sandbox_attestation"])}
+            if isinstance(retained.get("sandbox_attestation"), dict)
+            else {}
+        ),
     }
 
 
@@ -390,7 +473,9 @@ def _record_passing_result(
         worker_result,
         observed_head_sha=observation["head_sha"],
         observed_changed_files=observation["changed_files"],
+        observed_task_changed_files=observation.get("task_changed_files", {}),
         ancestry_confirmed=observation["ancestry_confirmed"],
+        observed_commit_order=observation.get("commit_order"),
         retained_verifier_results=retained_results,
         manifest_already_validated=True,
     )

@@ -127,7 +127,7 @@ class SchemaV6V11ContractTests(unittest.TestCase):
         self.assertIn("accepted Git `head_sha`", verification)
         self.assertIn("PLAN v6", readme)
         self.assertIn("RUN v11", readme)
-        self.assertIn("`design-system.md`, `design-system.json`", readme)
+        self.assertIn("`docs/design/design-system.md`, `docs/design/design-system.json`", readme)
 
 
 if __name__ == "__main__":

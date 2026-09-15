@@ -6,11 +6,13 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import sys
 import subprocess
 import tempfile
 import time
 import unittest
+from unittest import mock
 from argparse import Namespace
 from pathlib import Path
 
@@ -23,17 +25,21 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import harness_transition  # noqa: E402
-from harness_core import ManifestError, plan_digest  # noqa: E402
+from harness_core import ManifestError, changed_files_digest, plan_digest  # noqa: E402
 from harness_manifest import load_run  # noqa: E402
 from harness_worker_result_transition import (  # noqa: E402
     _observe_bound_worker,
+    _worker_dirty,
     record_worker_result,
     reject_worker_result,
     verify_worker_observation,
 )
+from validate_worker_result import validate_worker_result_data  # noqa: E402
+from harness_manifest import validate_run  # noqa: E402
+from select_ready_nodes import _resume_reconciliation_reasons  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 from manifest_fixtures import git  # noqa: E402
-from verifier_runtime import run_verifier  # noqa: E402
+from verifier_runtime import build_execution_key, execution_key_from_document  # noqa: E402
 
 
 def make_repo() -> tuple[tempfile.TemporaryDirectory, Path, str, str]:
@@ -115,9 +121,119 @@ class WritePathTransitionTests(unittest.TestCase):
         )
         run["observed"]["captured_at"] = None
         self.plan, self.run = plan, run
+        self.run["observed"]["sandbox"] = mf.sandbox_observation(self.plan)
+
+        def observe_fixture_sandboxes(candidate_plan):
+            observation = mf.sandbox_observation(candidate_plan)
+            return observation["entries"], []
+
+        self._sandbox_probe = mock.patch.object(
+            harness_transition,
+            "observe_plan_sandboxes",
+            side_effect=observe_fixture_sandboxes,
+        )
+        self._sandbox_probe.start()
+        self.addCleanup(self._sandbox_probe.stop)
 
     def tearDown(self) -> None:
         self._temp.cleanup()
+
+    def test_run_document_replacement_binds_parent_on_posix(self) -> None:
+        if os.name == "nt":
+            self.skipTest("POSIX dirfd assertion is not applicable on Windows")
+        run_path = self.root / "RUN.md"
+        original = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        run_path.write_text(original, encoding="utf-8")
+        with mock.patch.object(
+            harness_transition, "_run_posix_exchange", wraps=harness_transition._run_posix_exchange
+        ) as exchange:
+            try:
+                harness_transition._replace_run_document(
+                    run_path, self.run, expected_text=original
+                )
+            except ManifestError as exc:
+                if "renameat2" in str(exc):
+                    self.skipTest(str(exc))
+                raise
+        self.assertTrue(exchange.called)
+        _parent_fd, _temporary_name, _destination_name = exchange.call_args.args
+        self.assertNotEqual(original, run_path.read_text(encoding="utf-8"))
+
+    def test_run_document_replacement_rejects_parent_symlink(self) -> None:
+        link = self.root / "linked-run-parent"
+        target = self.root / "real-run-parent"
+        target.mkdir()
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"symlink unavailable: {exc}")
+        run_path = link / "RUN.md"
+        run_path.write_text(
+            mf.manifest_markdown("## Harness Run State", "harness_run", self.run),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ManifestError):
+            harness_transition._replace_run_document(
+                run_path, self.run, expected_text=run_path.read_text(encoding="utf-8")
+            )
+
+    def test_run_document_commit_boundary_preserves_concurrent_edit(self) -> None:
+        run_path = self.root / "RUN.md"
+        original = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        concurrent = "# concurrent user edit\n"
+        run_path.write_text(original, encoding="utf-8")
+
+        def edit_at_commit_boundary(_path: Path) -> None:
+            run_path.write_text(concurrent, encoding="utf-8")
+
+        with mock.patch.object(
+            harness_transition,
+            "_run_replace_commit_boundary",
+            side_effect=edit_at_commit_boundary,
+        ):
+            with self.assertRaisesRegex(ManifestError, "commit boundary"):
+                harness_transition._replace_run_document(
+                    run_path, self.run, expected_text=original
+                )
+        self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
+
+    def test_run_document_exchange_primitive_preserves_displaced_edit(self) -> None:
+        run_path = self.root / "RUN.md"
+        original = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        concurrent = "# concurrent primitive edit\n"
+        run_path.write_text(original, encoding="utf-8")
+        if os.name == "nt":
+            primitive = harness_transition._run_windows_replace_with_backup
+
+            def inject(destination: Path, replacement: Path, backup: Path) -> None:
+                destination.write_text(concurrent, encoding="utf-8")
+                primitive(destination, replacement, backup)
+
+            patcher = mock.patch.object(
+                harness_transition, "_run_windows_replace_with_backup", side_effect=inject
+            )
+        else:
+            primitive = harness_transition._run_posix_exchange
+
+            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
+                run_path.write_text(concurrent, encoding="utf-8")
+                primitive(parent_fd, left_name, right_name)
+
+            patcher = mock.patch.object(
+                harness_transition, "_run_posix_exchange", side_effect=inject
+            )
+        with patcher:
+            with self.assertRaisesRegex(ManifestError, "displaced bytes|preserved|restore"):
+                harness_transition._replace_run_document(
+                    run_path, self.run, expected_text=original
+                )
+        self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
 
     def _sync_plan_digest(self) -> None:
         digest = plan_digest(self.plan)
@@ -128,10 +244,33 @@ class WritePathTransitionTests(unittest.TestCase):
                 authorization.get("scope"), dict
             ):
                 authorization["scope"]["plan_digest_sha256"] = digest
+        self.run["observed"]["sandbox"] = mf.sandbox_observation(self.plan)
+
+    def test_failed_worker_git_status_is_unknown_and_blocks_reconciliation(self) -> None:
+        failed_status = subprocess.CompletedProcess(
+            ["git", "status", "--porcelain=v1"], 1, "", "status unavailable"
+        )
+        with mock.patch("subprocess.run", return_value=failed_status):
+            self.assertIsNone(_worker_dirty(self.root))
+
+        self.run["observed"]["git"]["worktrees"] = [
+            {
+                "path": str(self.root / "wt-m1"),
+                "branch_ref": "refs/heads/feature/m1",
+                "head_sha": self.head,
+                "managed_by": "parent",
+                "dirty": None,
+            }
+        ]
+        self.assertEqual([], validate_run(self.plan, self.run))
+        self.assertIn(
+            "worktree_state_unreconciled",
+            _resume_reconciliation_reasons(self.run),
+        )
 
     def test_observation_wave_lease_and_integration_chain(self) -> None:
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         observed = self.run["observed"]
         self.assertEqual(self.head, observed["git"]["parent_head_sha"])
@@ -223,9 +362,29 @@ class WritePathTransitionTests(unittest.TestCase):
         ]
         for declaration, _, _, _ in declarations:
             declaration["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
+            declaration["read_only"] = True
+            declaration["execution"] = {
+                "parallel_safe": True,
+                "resources": [],
+                "isolation": "container",
+                "sandbox": {
+                    "runtime": "docker",
+                    "image": "fixture@sha256:" + "1" * 64,
+                    "network": "none",
+                    "read_only_rootfs": True,
+                    "no_new_privileges": True,
+                    "cap_drop": ["ALL"],
+                    "tmpfs": ["/tmp"],
+                    "memory": "512m",
+                    "cpus": "1",
+                    "pids_limit": "256",
+                    "user": "65532:65532",
+                    "pull": "never",
+                },
+            }
         self._sync_plan_digest()
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         harness_transition._accept_wave(
             self.plan,
@@ -275,20 +434,23 @@ class WritePathTransitionTests(unittest.TestCase):
         git(worker_root, "add", "src/a/one.py")
         git(worker_root, "commit", "-qm", "task one")
         task_one_head = git(worker_root, "rev-parse", "HEAD")
-        (source_root / "two.py").write_text("TWO = 2\n", encoding="utf-8")
-        git(worker_root, "add", "src/a/two.py")
-        git(worker_root, "commit", "-qm", "task two")
-        worker_head = git(worker_root, "rev-parse", "HEAD")
-        retained = []
-        for declaration, layer, task_id, attempt_id in declarations:
+
+        def execute_verifier(
+            declaration: dict,
+            layer: str,
+            task_id: str | None,
+            attempt_id: str,
+            head: str,
+            files: list[str],
+        ) -> dict:
             context = {
                 "run_id": self.run["run_id"],
                 "plan_revision": self.plan["revision"],
                 "plan_digest_sha256": plan_digest(self.plan),
                 "graph_revision": self.run["graph_state"]["graph_revision"],
                 "batch_base_sha": self.head,
-                "head_sha": worker_head,
-                "changed_files": changed_files,
+                "head_sha": head,
+                "changed_files": files,
                 "trust_domain": "parent_local",
                 "checkout_role": "worker",
                 "checkout_dirty": False,
@@ -299,14 +461,102 @@ class WritePathTransitionTests(unittest.TestCase):
                 "attempt_id": attempt_id,
                 "lease_id": "LEASE-M1-RESULT",
             }
-            retained.append(
-                run_verifier(
-                    declaration,
-                    context,
-                    checkout_root=worker_root,
-                    environment={},
-                )
+            policy = declaration["execution"]["sandbox"]
+            sandbox_preflight = next(
+                copy.deepcopy(entry)
+                for entry in self.run["observed"]["sandbox"]["entries"]
+                if entry["runtime"] == policy["runtime"]
+                and entry["image"] == policy["image"]
             )
+            execution_key, key_document = build_execution_key(
+                declaration,
+                context,
+                checkout_root=worker_root,
+                environment={},
+                sandbox_preflight=sandbox_preflight,
+            )
+            normalized = copy.deepcopy(declaration)
+            normalized.setdefault("cache", {"mode": "disabled", "environment_keys": []})
+            sandbox_attestation = {
+                "runtime": sandbox_preflight["runtime"],
+                "runtime_probe": copy.deepcopy(sandbox_preflight["runtime_probe"]),
+                "image": sandbox_preflight["image"],
+                "image_probe": sandbox_preflight["repo_digest"],
+                "policy": policy,
+                "mount": {
+                    "source": "git_archive",
+                    "destination": "/workspace",
+                    "read_only": True,
+                },
+                "network": "none",
+            }
+            return {
+                "protocol": "harness-verifier-execution-v2",
+                "verifier_id": declaration["id"],
+                "status": "PASS",
+                "exit_code": 0,
+                "stdout": "",
+                "stderr": "",
+                "execution_key": execution_key,
+                "evidence_key": execution_key,
+                "verifier": normalized,
+                "context": context,
+                "key_document": key_document,
+                "cache_status": "bypassed",
+                "cache_reason": "cache_disabled",
+                "duration_ms": 0,
+                "metrics": {"executed": 1, "reused": 0},
+                "sandbox_attestation": sandbox_attestation,
+                "git_guard_attestation": {
+                    "checkout_root": str(worker_root.resolve()),
+                    "git_guard": {
+                        "expected_branch": "feature/m1-result",
+                        "expected_head_sha": head,
+                        "ignored_paths": [],
+                    },
+                    "isolation_mode": "container",
+                    "source_head_sha": head,
+                    "sandbox_attestation": copy.deepcopy(sandbox_attestation),
+                    "tracked_files": {},
+                    "protected_path_sha256": {},
+                    "protected_path_stats": {},
+                },
+            }
+
+        retained = [
+            execute_verifier(
+                declarations[0][0],
+                "task",
+                "M1/T01",
+                "ATT-T01",
+                task_one_head,
+                ["src/a/one.py"],
+            )
+        ]
+        (source_root / "two.py").write_text("TWO = 2\n", encoding="utf-8")
+        git(worker_root, "add", "src/a/two.py")
+        git(worker_root, "commit", "-qm", "task two")
+        worker_head = git(worker_root, "rev-parse", "HEAD")
+        retained.extend(
+            [
+                execute_verifier(
+                    declarations[1][0],
+                    "task",
+                    "M1/T02",
+                    "ATT-T02",
+                    worker_head,
+                    ["src/a/two.py"],
+                ),
+                execute_verifier(
+                    declarations[2][0],
+                    "worker",
+                    None,
+                    "ATT-WORKER",
+                    worker_head,
+                    changed_files,
+                ),
+            ]
+        )
         by_id = {result["verifier_id"]: result for result in retained}
         worker_result = {
             "type": "WORKER_RESULT",
@@ -374,6 +624,48 @@ class WritePathTransitionTests(unittest.TestCase):
             "refinement_request": None,
             "evidence_paths": ["evidence/node.txt"],
         }
+        reversed_tasks = copy.deepcopy(worker_result)
+        reversed_tasks["task_results"].reverse()
+        order_issues = validate_worker_result_data(
+            self.plan,
+            self.run,
+            reversed_tasks,
+            observed_head_sha=worker_head,
+            observed_changed_files=changed_files,
+            ancestry_confirmed=True,
+            retained_verifier_results=retained,
+            observed_commit_order=[task_one_head, worker_head],
+            observed_task_changed_files={
+                "M1/T01": ["src/a/one.py"],
+                "M1/T02": changed_files,
+            },
+            manifest_already_validated=True,
+        )
+        self.assertIn(
+            "task_order_mismatch", {item["code"] for item in order_issues}
+        )
+
+        reversed_commits = copy.deepcopy(worker_result)
+        reversed_commits["commits"] = [worker_head, task_one_head]
+        commit_issues = validate_worker_result_data(
+            self.plan,
+            self.run,
+            reversed_commits,
+            observed_head_sha=worker_head,
+            observed_changed_files=changed_files,
+            ancestry_confirmed=True,
+            retained_verifier_results=retained,
+            observed_commit_order=[task_one_head, worker_head],
+            observed_task_changed_files={
+                "M1/T01": ["src/a/one.py"],
+                "M1/T02": changed_files,
+            },
+            manifest_already_validated=True,
+        )
+        self.assertIn(
+            "commit_order_mismatch", {item["code"] for item in commit_issues}
+        )
+
         node_path = self.root / "node-result.json"
         node_path.write_text(json.dumps({"node_result": node_result}), encoding="utf-8")
         retained_paths = []
@@ -430,6 +722,49 @@ class WritePathTransitionTests(unittest.TestCase):
         )
         self.assertEqual("worker_running", self.run["mission_states"]["M1"]["phase"])
 
+        checkpoint_run = copy.deepcopy(self.run)
+        checkpoint_retained = copy.deepcopy(retained)
+        final_head_task = checkpoint_retained[0]
+        final_head_task["context"]["head_sha"] = worker_head
+        final_head_task["context"]["changed_files"] = changed_files
+        final_head_task["key_document"]["head_sha"] = worker_head
+        final_head_task["key_document"]["changed_files_digest"] = changed_files_digest(
+            changed_files
+        )
+        final_head_key = execution_key_from_document(final_head_task["key_document"])
+        final_head_task["execution_key"] = final_head_key
+        final_head_task["evidence_key"] = final_head_key
+        checkpoint_node_result = copy.deepcopy(node_result)
+        checkpoint_node_result["worker_result"]["verifiers"][0]["evidence"] = final_head_key
+        checkpoint_path = self.root / "checkpoint-node-result.json"
+        checkpoint_path.write_text(
+            json.dumps({"node_result": checkpoint_node_result}), encoding="utf-8"
+        )
+        checkpoint_retained_paths = []
+        for index, result in enumerate(checkpoint_retained, start=1):
+            path = self.root / f"checkpoint-verifier-{index}.json"
+            path.write_text(json.dumps(result), encoding="utf-8")
+            checkpoint_retained_paths.append(path)
+        record_worker_result(
+            self.plan,
+            checkpoint_run,
+            Namespace(
+                repo_root=self.root,
+                node_result=checkpoint_path,
+                worker_result=None,
+                verifier_result=checkpoint_retained_paths,
+            ),
+        )
+        self.assertEqual(
+            "worker_failed", checkpoint_run["mission_states"]["M1"]["phase"]
+        )
+        self.assertTrue(
+            any(
+                "does not match parent-observed validation context" in blocker
+                for blocker in checkpoint_run["mission_states"]["M1"]["blockers"]
+            )
+        )
+
         record_args = Namespace(
             repo_root=self.root,
             node_result=node_path,
@@ -470,7 +805,7 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def test_record_worker_result_retains_a_retryable_failure(self) -> None:
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         harness_transition._accept_wave(
             self.plan,
@@ -587,7 +922,7 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def test_guards_refuse_the_wrong_states(self) -> None:
         with self.assertRaises(ManifestError):
-            harness_transition._record_observation(self.run, Namespace(repo_root=None))
+            harness_transition._record_observation(self.plan, self.run, Namespace(repo_root=None))
 
         self.run["active_wave"].update({"status": "active", "wave_id": "B-OTHER"})
         with self.assertRaises(ManifestError):
@@ -616,7 +951,7 @@ class WritePathTransitionTests(unittest.TestCase):
             )
 
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         harness_transition._accept_wave(
             self.plan,
@@ -673,7 +1008,7 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def test_accept_wave_uses_the_selector_frontier(self) -> None:
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         with self.assertRaisesRegex(ManifestError, "selector's dispatchable"):
             harness_transition._accept_wave(
@@ -697,6 +1032,7 @@ class WritePathTransitionTests(unittest.TestCase):
         self.run["execution_authorization_scope"]["plan_digest_sha256"] = self.run[
             "plan"
         ]["digest_sha256"]
+        self.run["observed"]["sandbox"] = mf.sandbox_observation(self.plan)
         with self.assertRaisesRegex(ManifestError, "worktree_ineligible"):
             harness_transition._accept_wave(
                 self.plan,
@@ -711,7 +1047,7 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def test_lease_refuses_a_pause_after_wave_acceptance(self) -> None:
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         harness_transition._accept_wave(
             self.plan,
@@ -746,7 +1082,7 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def test_accept_wave_rejects_live_git_drift_after_observation(self) -> None:
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         (self.root / "later.txt").write_text("later\n", encoding="utf-8")
         git(self.root, "add", "later.txt")
@@ -765,7 +1101,7 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def test_accept_wave_rejects_product_dirt_after_observation(self) -> None:
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         (self.root / "dirty-product.txt").write_text("dirty\n", encoding="utf-8")
 
@@ -783,7 +1119,7 @@ class WritePathTransitionTests(unittest.TestCase):
 
     def test_record_integration_rejects_a_different_checkout(self) -> None:
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
         self.run["mission_states"]["M1"]["phase"] = "worker_passed"
         self.run["mission_states"]["M1"]["head_sha"] = self.head
@@ -809,7 +1145,7 @@ class WritePathTransitionTests(unittest.TestCase):
         self.head = git(self.root, "rev-parse", "HEAD")
         self.run["integration"]["batch_base_sha"] = self.head
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root, run=run_path)
+            self.plan, self.run, Namespace(repo_root=self.root, run=run_path)
         )
         run_path.write_text("transition update\n", encoding="utf-8")
         self.run["mission_states"]["M1"]["phase"] = "worker_passed"
@@ -858,7 +1194,7 @@ class WritePathTransitionTests(unittest.TestCase):
         self.head = git(self.root, "rev-parse", "HEAD")
         self._sync_plan_digest()
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
 
         with self.assertRaisesRegex(ManifestError, "frozen wireframes.html source"):
@@ -924,7 +1260,7 @@ class WritePathTransitionTests(unittest.TestCase):
         self.head = git(self.root, "rev-parse", "HEAD")
         self._sync_plan_digest()
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
 
         with self.assertRaisesRegex(ManifestError, "differs from the PRD route"):
@@ -959,7 +1295,7 @@ class WritePathTransitionTests(unittest.TestCase):
         self.run["integration"]["batch_base_sha"] = self.head
         self._sync_plan_digest()
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
 
         with self.assertRaisesRegex(ManifestError, "PRD surfaces absent from the PLAN"):
@@ -996,7 +1332,7 @@ class WritePathTransitionTests(unittest.TestCase):
         self.run["integration"]["batch_base_sha"] = self.head
         self._sync_plan_digest()
         harness_transition._record_observation(
-            self.run, Namespace(repo_root=self.root)
+            self.plan, self.run, Namespace(repo_root=self.root)
         )
 
         with self.assertRaisesRegex(ManifestError, "headings outside"):
@@ -1090,6 +1426,18 @@ class WritePathTransitionTests(unittest.TestCase):
             git(linked_root, "add", ".")
             git(linked_root, "commit", "-qm", "tracked harness layout")
             head = git(linked_root, "rev-parse", "HEAD")
+            with mock.patch.object(
+                harness_transition,
+                "observe_plan_sandboxes",
+                return_value=(mf.sandbox_observation(plan)["entries"], []),
+            ):
+                harness_transition._record_observation(
+                    plan, run, Namespace(repo_root=linked_root)
+                )
+            run_path.write_text(
+                mf.manifest_markdown("## Harness Run State", "harness_run", run),
+                encoding="utf-8",
+            )
 
             base_command = [
                 sys.executable,
@@ -1105,7 +1453,6 @@ class WritePathTransitionTests(unittest.TestCase):
             ]
             for command in (
                 ["acquire-run-lock"],
-                ["record-observation"],
                 [
                     "accept-wave",
                     "--wave-id",

@@ -1,11 +1,11 @@
 # Product Design Output Contract
 
-Publish these files only when `PRD.md` records `Design System Need Gate: required`:
+Publish these files only when `docs/design/ui-design.md` records `Design System Need Gate: required`:
 
-- `design-system.md`
-- `design-system.json`
+- `docs/design/design-system.md`
+- `docs/design/design-system.json`
 
-The pair forms one reusable visual implementation handoff. `PRD.md` owns product structure, behavior, and the approved UI Design Handoff; approved `wireframes.html` provides its structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. The approved preview remains a scoped page-faithful target outside this pair.
+The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved HiFi target; approved `wireframes/4` provides the structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. New approval authority belongs to `design-system/2`; `design-system/1` remains inspection-only and is rejected by the publication checker.
 
 ## `design-system.md`
 
@@ -22,7 +22,8 @@ Include only:
 
 Keep it the sole structured authority for:
 
-- platform, styling mechanism, enforcement mode, token sources, and primitive sources;
+- platform, stack-bound rendering model/component foundation/styling semantics, styling mechanism, enforcement mode, token sources, and primitive sources;
+- `sourceBindings` for current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target bytes;
 - exactly one responsive verification set, copied exactly from the approved PRD and wireframe: at least three ascending web `viewports` or at least two native/desktop `sizeClasses`;
 - only the tokens the product uses;
 - four primitive layers with closed variant sets;
@@ -32,26 +33,28 @@ Keep it the sole structured authority for:
 - registered motion variants; and
 - the UI state matrix.
 
-## PRD Input Quality Check
+## Approved Input Quality Check
 
 - The Design System Need Gate is `required` and records its human owner and reason.
-- `### UI Design Handoff` records an approved immutable target, source hash, routes and states, the exact PRD/wireframe responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
-- `wireframes.html` has human approval recorded in `PRD.md`, and each `UI-*` page matches the PRD.
+- `ui-design.md` records an approved immutable target, source hash, routes and states, the exact PRD/wireframe responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
+- `wireframes.html` has human approval recorded in `ui-design.md`, and each `UI-*` page matches the PRD.
 - Each UI surface has one main purpose, one task-fit layout pattern, a real route or explicit `n/a`, and a density reason.
-- Every visible region has exact copy or a bounded display contract, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
+- Every visible region carries the approved Copy Freeze: exact static strings and action labels, complete dynamic source/order/format/count/length/fallback contracts with representative examples, alternate-state copy, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
 - Public surfaces have bounded SEO fields, correct heading order, and image alt-text contracts.
 - Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a` at every responsive target.
 - Scope, routes, actions, content responsibilities, wireframe structure, responsive rearrangement, and trace IDs stay fixed across visual directions.
+- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and wireframe copy delta and requires renewed Copy Freeze approval.
 
-If any item is missing, return a bounded PRD update. Do not invent it in the design system.
+If product behavior or stack is missing, return a bounded Product Definition update. If UI direction or evidence is missing, return to `ui-design-builder`. Do not invent either in the design system.
 
 ## Final Quality Check
 
-- `frontend-design` was loaded with `design-system-compiler` in contract-compilation mode.
-- `impeccable` and `design-taste-frontend` were not rerun during normal compilation; their approved consequences are read from the PRD UI Design Handoff.
-- The Taste applicability record contains a Design Read and dial settings when applicable, or a specific `n/a` reason.
-- The human owner approved one immutable UI target, or explicitly authorized a provisional assumption.
+- The approved `frontend-design` direction is recorded in `ui-design.md`; the compiler owns pair generation and validation.
+- `frontend-design` and Impeccable were not rerun during normal compilation; their approved consequences are read from `ui-design.md`.
+- The Style Integration record names `frontend-design`, the selected direction, and its candidate theme rules.
+- The human owner approved one immutable UI target.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
+- The Direction Checkpoint records owner approval of the thesis, complementary reference-role map, representative composition, typography and density intent, interaction signature, responsive consequence, and avoid list before full HTML or token compilation.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.
 - Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set contains at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and wireframe exactly.
 - Every required PRD element maps to the final registry, and no unresolved page-local exception remains.

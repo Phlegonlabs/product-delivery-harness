@@ -114,6 +114,9 @@ class ValidateResultTests(unittest.TestCase):
         self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
             architecture_path.read_bytes()
         ).hexdigest()
+        # This case isolates frozen-source joins. A current integration head is
+        # tested against a real Git checkout in the dedicated live-head cases.
+        self.run["integration"]["integration_head_sha"] = None
         self.run["plan"]["digest_sha256"] = plan_digest(self.plan)
         self.result = running_result(self.plan, self.run)
         self.plan_path = write(self.dir, "PLAN.md", {"harness_plan": self.plan})

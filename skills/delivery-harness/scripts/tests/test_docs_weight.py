@@ -99,6 +99,19 @@ class DocsWeightTests(unittest.TestCase):
         self.assertIn("no v* tag found; reporting absolute counts only", out)
         self.assertIn("GRAND TOTAL: 0 -> 3 (+3) baseline: none", out)
 
+    def test_worktree_move_counts_untracked_destination_and_skips_deleted_source(self) -> None:
+        self.write("skills/demo/SKILL.md", "one two")
+        self.write("skills/demo/references/old.md", "old words")
+        self.commit_all("base")
+
+        (self.root / "skills/demo/references/old.md").unlink()
+        self.write("skills/new-skill/SKILL.md", "new live skill")
+
+        now = docs_weight.weights(self.root, None)
+
+        self.assertNotIn("skills/demo/references/old.md", now)
+        self.assertEqual(3, now["skills/new-skill/SKILL.md"])
+
     def test_counts_real_repository_skills(self) -> None:
         repo_root = Path(__file__).resolve().parents[4]
         now = docs_weight.weights(repo_root, None)
@@ -107,6 +120,7 @@ class DocsWeightTests(unittest.TestCase):
         # The worktree walk must find every canonical skill.
         skills = {key.split("/", 2)[1] for key in now}
         self.assertIn("product-definition-builder", skills)
+        self.assertIn("ui-design-builder", skills)
         self.assertIn("product-activation", skills)
 
 

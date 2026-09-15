@@ -9,6 +9,8 @@ old branch-protection model shipped.
 from __future__ import annotations
 
 import sys
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,6 +24,8 @@ from harness_authorization import (  # noqa: E402
 )
 from harness_core import ManifestError  # noqa: E402
 from harness_transition import _require_non_default_integration_branch  # noqa: E402
+from harness_transition import _validate_push_side_effect  # noqa: E402
+from push_integration_branch import _safe_remote, push_authorized_head  # noqa: E402
 
 SHA = "a" * 40
 DIGEST = "b" * 64
@@ -335,6 +339,105 @@ class MainBranchGuardTests(unittest.TestCase):
                 )
                 with self.assertRaisesRegex(ManifestError, "protected or retired branch"):
                     _require_non_default_integration_branch(run)
+
+
+class ExactLivePushTests(unittest.TestCase):
+    """The push side effect may never advance past a newer branch head."""
+
+    @staticmethod
+    def git(root: Path, *arguments: str) -> None:
+        subprocess.run(["git", *arguments], cwd=root, check=True, capture_output=True)
+
+    def make_repo(self, temp: Path) -> tuple[Path, Path, str]:
+        root = temp / "work"
+        remote = temp / "remote.git"
+        root.mkdir()
+        self.git(root, "init", "-q", "-b", "codex/add-search")
+        self.git(root, "config", "user.email", "test@example.com")
+        self.git(root, "config", "user.name", "Harness Test")
+        (root / "src.txt").write_text("candidate\n", encoding="utf-8")
+        self.git(root, "add", "src.txt")
+        self.git(root, "commit", "-qm", "candidate")
+        self.git(remote.parent, "init", "-q", "--bare", str(remote))
+        return root, remote, subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=root, text=True
+        ).strip()
+
+    def test_guarded_helper_pushes_exact_head_and_reads_remote_back(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, remote, head = self.make_repo(Path(temporary))
+            run = run_with_push()
+            run["mission_states"] = {"M1": {}}
+            run["integration"]["integration_head_sha"] = head
+            run["authorizations"]["push"]["authorized_head_sha"] = head
+
+            with self.assertRaisesRegex(ManifestError, "schema 11"):
+                push_authorized_head({}, run, root, str(remote))
+
+    def test_live_code_commit_after_authorized_head_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, _remote, head = self.make_repo(Path(temporary))
+            (root / "src.txt").write_text("newer\n", encoding="utf-8")
+            self.git(root, "add", "src.txt")
+            self.git(root, "commit", "-qm", "newer code")
+            run = run_with_push()
+            run["integration"]["integration_head_sha"] = head
+            run["authorizations"]["push"]["authorized_head_sha"] = head
+
+            with self.assertRaisesRegex(ManifestError, "integration branch HEAD is"):
+                _validate_push_side_effect(run, root, head)
+
+    def test_coordination_only_commit_is_still_live_head_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, _remote, head = self.make_repo(Path(temporary))
+            coordination = root / "docs" / "goal" / "RUN.md"
+            coordination.parent.mkdir(parents=True)
+            coordination.write_text("bookkeeping\n", encoding="utf-8")
+            self.git(root, "add", "docs/goal/RUN.md")
+            self.git(root, "commit", "-qm", "record run")
+            run = run_with_push()
+            run["integration"]["coordination_paths"] = ["docs/goal/RUN.md"]
+            run["integration"]["integration_head_sha"] = head
+            run["authorizations"]["push"]["authorized_head_sha"] = head
+
+            with self.assertRaisesRegex(ManifestError, "integration branch HEAD is"):
+                _validate_push_side_effect(run, root, head)
+
+    def test_reservation_side_effect_requires_the_repository_root(self) -> None:
+        run = run_with_push()
+        with self.assertRaisesRegex(ManifestError, "requires --repo-root"):
+            _validate_push_side_effect(run, None, SHA)
+
+    def test_current_push_remote_must_be_a_simple_name(self) -> None:
+        for remote in ("https://example.test/repo.git", "ext::ssh host", "--upload-pack=bad", "C:/repo.git"):
+            with self.subTest(remote=remote):
+                with self.assertRaisesRegex(ManifestError, "simple configured remote"):
+                    _safe_remote(remote, configured_name=True)
+
+    def test_push_url_rejects_credentials_query_and_fragment(self) -> None:
+        for url in (
+            "https://user:secret@example.test/repo.git",
+            "https://example.test/repo.git?token=secret",
+            "https://example.test/repo.git#secret",
+        ):
+            with self.subTest(url=url):
+                with self.assertRaisesRegex(ManifestError, "userinfo, query, or fragment"):
+                    from push_integration_branch import _safe_push_url
+
+                    _safe_push_url(url)
+
+    def test_push_url_accepts_passwordless_ssh_and_local_paths(self) -> None:
+        from push_integration_branch import _safe_push_url
+
+        for url in (
+            "git@example.test:team/repo.git",
+            "ssh://deploy@example.test/team/repo.git",
+            "file:///tmp/repo.git",
+            "C:/tmp/repo.git",
+            "/tmp/repo.git",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(url, _safe_push_url(url))
 
 
 class BranchSpellingRegressionTests(unittest.TestCase):

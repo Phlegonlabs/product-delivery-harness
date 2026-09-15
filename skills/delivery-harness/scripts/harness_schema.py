@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 
 PLAN_HEADING = "## Harness Plan Manifest"
@@ -133,6 +134,36 @@ SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
 CURRENT_PLAN_SCHEMA_VERSION = 6
 CURRENT_RUN_SCHEMA_VERSION = 11
 CURRENT_SCHEMA_PAIR = (CURRENT_PLAN_SCHEMA_VERSION, CURRENT_RUN_SCHEMA_VERSION)
+ARCHIVE_FIRST_HARNESS_VERSION = (0, 38, 0)
+
+
+def parse_harness_version(value: Any) -> tuple[int, int, int] | None:
+    """Parse the same three-part release core used by ``version_at_least``."""
+
+    if not isinstance(value, str):
+        return None
+    core = value.split("+", 1)[0].split("-", 1)[0]
+    parts = core.split(".")
+    if len(parts) != 3 or any(not part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def required_harness_version(run: dict[str, Any]) -> tuple[int, int, int] | None:
+    """Read the RUN's immutable required Harness version pin."""
+
+    capabilities = run.get("runtime_capabilities")
+    adapter = capabilities.get("runtime_adapter") if isinstance(capabilities, dict) else None
+    gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
+    value = gate.get("required_harness_version") if isinstance(gate, dict) else None
+    return parse_harness_version(value)
+
+
+def archive_first_required(run: dict[str, Any]) -> bool:
+    """Return true when the RUN is pinned to archive-first push semantics."""
+
+    version = required_harness_version(run)
+    return version is not None and version >= ARCHIVE_FIRST_HARNESS_VERSION
 
 
 def schema_pair_of(plan: object, run: object) -> tuple[object, object]:

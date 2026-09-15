@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -21,14 +20,15 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import ManifestError  # noqa: E402
+from harness_git import GitMetadataError, reject_object_substitution, run_git  # noqa: E402
 
 SKILLS_ROOT = Path("skills")
 
 
 def _git(repo_root: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), *args],
-        capture_output=True,
+    result = run_git(
+        repo_root,
+        *args,
         text=True,
         encoding="utf-8",
         errors="replace",
@@ -49,7 +49,15 @@ def tracked_files(repo_root: Path, ref: str | None) -> list[Path]:
     """SKILL.md plus references/*.md under skills/ at ref (None = worktree)."""
 
     if ref is None:
-        listing = _git(repo_root, "ls-files", "--", "skills")
+        listing = _git(
+            repo_root,
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "--",
+            "skills",
+        )
     else:
         listing = _git(repo_root, "ls-tree", "-r", "--name-only", ref, "--", "skills")
     files = []
@@ -58,6 +66,11 @@ def tracked_files(repo_root: Path, ref: str | None) -> list[Path]:
         if not path:
             continue
         pure = Path(path)
+        if ref is None and not (repo_root / pure).is_file():
+            # A working-tree move/deletion can leave the old path in the index
+            # before the user authorizes a commit. Count the live worktree,
+            # not a path whose bytes no longer exist.
+            continue
         if pure.parent.parent == SKILLS_ROOT and pure.name == "SKILL.md":
             files.append(pure)
         elif (
@@ -83,10 +96,13 @@ def weights(repo_root: Path, ref: str | None) -> dict[str, int]:
 
 
 def latest_tag(repo_root: Path) -> str | None:
-    result = subprocess.run(
-        ["git", "-C", str(repo_root), "describe", "--tags", "--abbrev=0",
-         "--match", "v[0-9]*"],
-        capture_output=True,
+    result = run_git(
+        repo_root,
+        "describe",
+        "--tags",
+        "--abbrev=0",
+        "--match",
+        "v[0-9]*",
         text=True,
         timeout=30,
     )
@@ -95,6 +111,10 @@ def latest_tag(repo_root: Path) -> str | None:
 
 
 def report(repo_root: Path, baseline: str | None) -> int:
+    try:
+        reject_object_substitution(repo_root)
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
     now = weights(repo_root, None)
     ref = baseline
     if ref is None:

@@ -34,6 +34,7 @@ RESULT_KEYS = {
     "findings",
     "evidence",
 }
+CHECK_KEYS = {"id", "execution_key"}
 TOOL_KEYS = {"name", "status", "evidence"}
 COVERAGE_KEYS = {"status", "reviewed", "gaps"}
 FINDING_KEYS = {
@@ -116,13 +117,14 @@ def validate_security_review_result(
     expected_base_sha: str | None = None,
     expected_scope: Iterable[str] | None = None,
     required_tools: Iterable[str] = (),
+    required_checks: Iterable[str] = (),
     allowed_decisions: Iterable[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     if not isinstance(value, dict):
         return ["security_review_result: must be an object"]
     missing = sorted(RESULT_KEYS - set(value))
-    extra = sorted(set(value) - RESULT_KEYS)
+    extra = sorted(set(value) - RESULT_KEYS - {"checks"})
     if missing:
         errors.append(
             "security_review_result: missing keys: " + ", ".join(missing)
@@ -183,6 +185,35 @@ def validate_security_review_result(
         value["evidence"],
         nonempty=True,
     )
+    checks = value.get("checks", [])
+    required_check_names = set(required_checks)
+    check_ids: set[str] = set()
+    if not isinstance(checks, list):
+        errors.append("security_review_result.checks: must be a list")
+        checks = []
+    for index, check in enumerate(checks):
+        path = f"security_review_result.checks[{index}]"
+        if not isinstance(check, dict) or set(check) != CHECK_KEYS:
+            errors.append(f"{path}: must contain exactly id and execution_key")
+            continue
+        if not _is_nonempty_string(check["id"]) or check["id"] in check_ids:
+            errors.append(f"{path}.id: must be a unique non-empty check ID")
+        else:
+            check_ids.add(check["id"])
+        if not re.fullmatch(r"[0-9a-f]{64}", str(check["execution_key"])):
+            errors.append(f"{path}.execution_key: must be a lowercase execution key")
+    missing_checks = sorted(required_check_names - check_ids)
+    if missing_checks:
+        errors.append(
+            "security_review_result.checks: missing required checks: "
+            + ", ".join(missing_checks)
+        )
+    extra_checks = sorted(check_ids - required_check_names)
+    if extra_checks:
+        errors.append(
+            "security_review_result.checks: undeclared checks are not allowed: "
+            + ", ".join(extra_checks)
+        )
 
     tools = value["tools"]
     tool_statuses: dict[str, str] = {}

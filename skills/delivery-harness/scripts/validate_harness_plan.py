@@ -39,6 +39,7 @@ from harness_contract_join import (
     web_viewport_floor_required,
 )
 from harness_design_contract import compare_design_system_pair
+from verifier_runtime import probe_plan_sandboxes
 
 
 PRD_SOURCE_KINDS = {"prd", "product requirement", "product requirements"}
@@ -49,8 +50,31 @@ DESIGN_SYSTEM_SOURCE_KINDS = {
 }
 
 
+def _requires_repo_root(plan: dict, *, include_paths: bool = False) -> bool:
+    if plan.get("schema_version") != 6:
+        return False
+    for source in plan.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        location = source.get("location")
+        if not isinstance(location, str) or not location.strip():
+            continue
+        location = location.strip()
+        if location.startswith("<") and location.endswith(">"):
+            continue
+        if include_paths:
+            return True
+        revision = source.get("source_revision")
+        if isinstance(revision, str) and revision.strip() and revision.strip("0"):
+            return True
+    return False
+
+
 def validate_design_system_pair(
-    markdown_path: str, registry_path: str
+    markdown_path: str,
+    registry_path: str,
+    *,
+    repo_root: str | Path | None = None,
 ) -> list[str]:
     try:
         markdown_text = Path(markdown_path).read_text(encoding="utf-8")
@@ -62,7 +86,9 @@ def validate_design_system_pair(
         return [f"design-system.json: cannot read {registry_path}: {exc}"]
     if not isinstance(registry, dict):
         return [f"design-system.json: {registry_path} must contain a JSON object"]
-    return compare_design_system_pair(markdown_text, registry)
+    return compare_design_system_pair(
+        markdown_text, registry, repo_root=repo_root
+    )
 
 
 def _frozen_sources(
@@ -192,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Optional path to wireframes.html. Required when the PLAN freezes "
         "that source: its bytes must match the frozen hash, its screen ids, "
         "routes, and states must agree with the PLAN's ui_surfaces, and it must "
-        "pass product-definition-builder's full wireframe checker (reviewer "
+        "pass ui-design-builder's full wireframe checker (reviewer "
         "shell, self-containment, approved status, PRD join).",
     )
     parser.add_argument(
@@ -208,25 +234,52 @@ def main(argv: list[str] | None = None) -> int:
         "pair so its bytes and generated contract can be checked against "
         "--design-system.",
     )
+    parser.add_argument(
+        "--probe-sandboxes",
+        action="store_true",
+        help="Read-only probe every declared container runtime and exact local image RepoDigest before readiness",
+    )
     args = parser.parse_args(argv)
     try:
         plan = load_plan(args.plan)
         errors: list[str] = []
         run_errors: list[str] = []
         run = None
+        requires_root = _requires_repo_root(plan, include_paths=args.run is not None)
+        if args.repo_root is None and requires_root:
+            if any(
+                isinstance(source, dict)
+                and isinstance(source.get("source_revision"), str)
+                and source["source_revision"].strip()
+                for source in plan.get("sources", [])
+            ):
+                errors.append(
+                    "plan.sources: current source_revision validation requires --repo-root"
+                )
+            else:
+                errors.append(
+                    "plan.sources: current source validation requires --repo-root"
+                )
         if args.run:
             run = load_run(args.run)
             if is_current_pair(plan, run):
-                errors = validate_current_plan_run(
-                    plan, run, repo_root=args.repo_root
+                errors.extend(
+                    validate_current_plan_run(
+                        plan,
+                        run,
+                        repo_root=args.repo_root,
+                        require_repo_root=requires_root,
+                    )
                 )
             else:
                 # Preserve the compatibility CLI for historical manifests;
                 # current PLAN/RUN execution is strict before this dispatch.
-                errors = validate_plan(plan, repo_root=args.repo_root)
+                errors.extend(validate_plan(plan, repo_root=args.repo_root))
                 run_errors = validate_run(plan, run)
         else:
-            errors = validate_plan(plan, repo_root=args.repo_root)
+            errors.extend(validate_plan(plan, repo_root=args.repo_root))
+        if args.probe_sandboxes:
+            errors.extend(probe_plan_sandboxes(plan))
         errors.extend(required_design_system_source_errors(plan))
         if args.repo_root and run is None:
             errors.extend(validate_frozen_contract_joins(plan, args.repo_root))
@@ -293,7 +346,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.design_system and args.design_system_markdown:
             errors.extend(
                 validate_design_system_pair(
-                    args.design_system_markdown, args.design_system
+                    args.design_system_markdown,
+                    args.design_system,
+                    repo_root=args.repo_root,
                 )
             )
         if run is not None:
@@ -303,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             repo_root = args.repo_root or "."
-            run_errors.extend(validate_ui_evidence_files(run, repo_root))
+            run_errors.extend(validate_ui_evidence_files(plan, run, repo_root))
             run_errors.extend(validate_integration_head_against_git(run, repo_root))
     except (OSError, ManifestError) as exc:
         sys.stdout.write(

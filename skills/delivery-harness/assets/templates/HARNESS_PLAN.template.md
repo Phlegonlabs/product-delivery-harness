@@ -1,6 +1,6 @@
 # Plan: <feature or product slice>
 
-Use this template as `docs/goal/PLAN.md` for managed work that needs durable coordination, even when the selected execution route is sequential. Direct small work creates no PLAN/RUN artifacts. This example intentionally shows one neutral mission, one isolated writer, one exact-head pre-integration review, one fresh unified security review, and local final gates; it is not a UI repair graph or a promise of parallel fan-out. Builder UX Direction remains an upstream contract when a product has one; this neutral example has no UI surface. A web visual review adds `"required_tools": ["chrome_devtools"]` inside its `review` object; a frontend-code review adds it only when live browser state is part of the required evidence.
+Use this template as `docs/goal/PLAN.md` for managed work that needs durable coordination, even when the selected execution route is sequential. Direct small work creates no PLAN/RUN artifacts. This example intentionally shows one neutral mission, one isolated writer, one exact-head pre-integration review, one fresh unified security review, and local final gates; it is not a UI repair graph or a promise of parallel fan-out. UI Design Intake remains an upstream contract when a product has UI; this neutral example has no UI surface. A web visual review adds `"required_tools": ["chrome_devtools"]` inside its `review` object; a frontend-code review adds it only when live browser state is part of the required evidence.
 
 ## Harness Plan Manifest
 
@@ -16,13 +16,35 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
       {
         "id": "SRC-001",
         "kind": "prd",
-        "location": "<repo-relative path or URL>",
+        "location": "docs/product/PRD.md",
         "owner": "<human or team>",
         "status": "frozen",
         "content_sha256": null,
         "source_revision": "0000000000000000000000000000000000000000",
         "staged_revision": null,
-        "notes": "<role or concise notes>"
+        "notes": "approved product authority"
+      },
+      {
+        "id": "SRC-002",
+        "kind": "architecture",
+        "location": "docs/product/architecture.md",
+        "owner": "<human or team>",
+        "status": "frozen",
+        "content_sha256": null,
+        "source_revision": "0000000000000000000000000000000000000000",
+        "staged_revision": null,
+        "notes": "approved architecture authority"
+      },
+      {
+        "id": "SRC-003",
+        "kind": "stack decisions",
+        "location": "docs/product/stack-decisions.md",
+        "owner": "<human or team>",
+        "status": "frozen",
+        "content_sha256": null,
+        "source_revision": "0000000000000000000000000000000000000000",
+        "staged_revision": null,
+        "notes": "approved stack authority"
       }
     ],
     "traces": [
@@ -48,13 +70,51 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
         "id": "final-check",
         "cwd": ".",
         "argv": ["<runner>", "<final-argument>"],
-        "pass_signal": "<literal pass signal>"
+        "pass_signal": "<literal pass signal>",
+        "execution": {
+          "parallel_safe": true,
+          "resources": [],
+          "isolation": "container",
+          "sandbox": {
+            "runtime": "docker",
+            "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "network": "none",
+            "read_only_rootfs": true,
+            "no_new_privileges": true,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never"
+          }
+        }
       },
       {
         "id": "final-closeout",
         "cwd": ".",
         "argv": ["<runner>", "<closeout-argument>"],
-        "pass_signal": "<literal pass signal>"
+        "pass_signal": "<literal pass signal>",
+        "execution": {
+          "parallel_safe": true,
+          "resources": [],
+          "isolation": "container",
+          "sandbox": {
+            "runtime": "docker",
+            "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "network": "none",
+            "read_only_rootfs": true,
+            "no_new_privileges": true,
+            "cap_drop": ["ALL"],
+            "tmpfs": ["/tmp"],
+            "memory": "512m",
+            "cpus": "1",
+            "pids_limit": "256",
+            "user": "65532:65532",
+            "pull": "never"
+          }
+        }
       }
     ],
     "graph": {
@@ -205,6 +265,26 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "cwd": ".",
             "argv": ["<runner>", "<mission-argument>"],
             "pass_signal": "exit 0",
+            "read_only": true,
+            "execution": {
+              "parallel_safe": true,
+              "resources": [],
+              "isolation": "container",
+              "sandbox": {
+                "runtime": "docker",
+                "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "network": "none",
+                "read_only_rootfs": true,
+                "no_new_privileges": true,
+                "cap_drop": ["ALL"],
+                "tmpfs": ["/tmp"],
+                "memory": "512m",
+                "cpus": "1",
+                "pids_limit": "256",
+                "user": "65532:65532",
+                "pull": "never"
+              }
+            },
             "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
             "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
           }
@@ -214,7 +294,26 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "id": "mission-integration",
             "cwd": ".",
             "argv": ["<runner>", "<integration-argument>"],
-            "pass_signal": "<literal pass signal>"
+            "pass_signal": "<literal pass signal>",
+            "execution": {
+              "parallel_safe": true,
+              "resources": [],
+              "isolation": "container",
+              "sandbox": {
+                "runtime": "docker",
+                "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "network": "none",
+                "read_only_rootfs": true,
+                "no_new_privileges": true,
+                "cap_drop": ["ALL"],
+                "tmpfs": ["/tmp"],
+                "memory": "512m",
+                "cpus": "1",
+                "pids_limit": "256",
+                "user": "65532:65532",
+                "pull": "never"
+              }
+            }
           }
         ],
         "tasks": [
@@ -243,6 +342,26 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
                 "cwd": ".",
                 "argv": ["<runner>", "<task-argument>"],
                 "pass_signal": "exit 0",
+                "read_only": true,
+                "execution": {
+                  "parallel_safe": true,
+                  "resources": [],
+                  "isolation": "container",
+                  "sandbox": {
+                    "runtime": "docker",
+                    "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                    "network": "none",
+                    "read_only_rootfs": true,
+                    "no_new_privileges": true,
+                    "cap_drop": ["ALL"],
+                    "tmpfs": ["/tmp"],
+                    "memory": "512m",
+                    "cpus": "1",
+                    "pids_limit": "256",
+                    "user": "65532:65532",
+                    "pull": "never"
+                  }
+                },
                 "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
                 "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
               }
@@ -263,15 +382,15 @@ The single-mission example deliberately leaves `batch_verifiers` empty: a one-mi
 
 For each `runtime_worker` node, Plan Mode may leave `preferred_provider` null and list every supported host (`codex`, `claude_code`, `pi`, and `generic`) under `allowed_providers`; provider-specific launch options remain under `provider_options`. The selected runtime adapter remains host-native and separate from the selector's `execution_route`. A large route with no usable agent capability uses `sequential_parent`: the PLAN mission stays `executor: runtime_worker`, while RUN records a parent-owned binding with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation.
 
-Every PLAN-v6 source binds the published input with `content_sha256`, `source_revision`, or both. Contract joins use immutable bytes and require `content_sha256`. When a frozen PRD contains the Product Definition approval marker, the PLAN also freezes `architecture.md` and `stack-decisions.md`; `--repo-root` runs the core-package checker before any UI join. A UI-bearing PRD and frozen `wireframes.html` still pass their exact sibling joins, and required design-system Markdown/JSON rows remain a pair. URLs are never fetched, so an external source needs an immutable revision or local snapshot. `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, update its hash/revision, clear `staged_revision`, then increment PLAN revision and digest.
+Harness 0.38 always freezes the three exact rows shown above with current `content_sha256`; if `source_revision` is present, that full-SHA Git blob and current bytes must both match. Contract joins consume those immutable bytes. UI work adds exact `ui design`, `wireframe`, and `approved ui target` rows at their canonical `docs/design/` paths. A `required` Design System Need gate adds exact `design system` and `design system json` rows; `not_required` adds neither and permits no `DS-*` trace. Every UI surface records `capture_mode: hosted-browser | browser-extension | native | desktop`. URLs are never fetched or joined as authority. A `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, clear staging, and increment PLAN revision/digest.
 
-Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. Equivalent opted-in task and worker commands on the same immutable inputs reuse one execution even though their verifier IDs differ.
+Every executable verifier declaration uses the explicit container policy shown above. Replace the example image reference with a locally observed immutable RepoDigest before readiness; zero or fabricated template digests are rejected. External, network, browser, and mutable-environment checks use an external-wait, lifecycle, or browser route instead of a local candidate subprocess. Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. Equivalent opted-in task and worker commands on the same immutable inputs reuse one execution even though their verifier IDs differ.
 
 Before readiness, apply `references/execution-task-decomposition.md`'s Mission Cohesion Gate to every mission. Split independent product surfaces or domain capabilities even when they share router, auth, schema, migration, or serialized resources; model the shared foundation and ordering explicitly instead of creating a catch-all mission. Plan each mission as one bounded fresh-child worker slice that normally stays within 10-20 minutes of implementation plus focused verification, treating that range as an upper shape rather than capacity to fill. Make every executable task one atomic initial commit boundary: verify and commit it before the next task begins; keep later repair commits separate and attributed to that task.
 
 Plan one runtime reviewer per applicable surface, set `max_attempts` to at most 2, and add same-surface fan-out only for an explicit user request or a recorded high-impact risk. Every new code-delivery plan includes one integration-stage `security` review covering all missions and loads the skill bound to `code_security_verification`; it always runs fresh on the unified candidate and cannot use the byte-identical-tree skip. Group repair findings by root-cause failure family, freeze the family's acceptance matrix before another write, and carry consumed review attempts across PLAN revisions in the owner-decision source, mission stop conditions, and reviewer packet. A replan does not grant a fresh review budget. After exhaustion, only an explicit owner decision naming the structural strategy, failure-family matrix, and exact additional allowance may create one successor review node; set its `max_attempts` to that allowance, never the default two. For broad implementation plans, prefer Codex `gpt-5.6-terra` with `high` reasoning, while routine deterministic `backend_code` and `security` review uses `gpt-5.6-terra` with `medium`; provider-specific options remain per-node and the selected runtime adapter remains authoritative. A plan may set a non-null `preferred_provider` only when an explicit host preference is part of the plan; otherwise keep it null so the same canonical graph routes on every supported host. Provider examples may repeat delegated `"model": "sonnet"` and `"model": "gpt-5.6-sol"` for each matching node. Pi keeps model null but may bind per-node effort; generic keeps both values null. Stronger models remain reserved for the parent's own coordination and planning. Raise the unified-head review to `xhigh` only when its gate warrants it; it is the final synthesis, so do not add another same-scope review on an unchanged SHA.
 
-For UI work, load `references/ui-implementation-contract.md` only when the mission writes UI or a UI review needs the detailed contract. Design-system compilation mode requires `design-system-compiler` and `frontend-design` after approved wireframes, an approved UI Design Handoff, and `Design System Need Gate: required`. The `frontend-design conformance mode` is used only when the user explicitly selected it for the new or high-impact visual surface. Concept generation and Taste direction selection are not implementation skills. Select exactly one active visual route: a required validated pair or a `not_required` approved page-faithful target. A missing active-source entry is a proposed design-input delta, not a local exception. Run the broad final regression and browser/UI checks after exact-SHA code review and repair loops converge.
+For UI work, load `references/ui-implementation-contract.md`. Freeze the approved UI contract, wireframes/4, HiFi target, capture mode, and exactly one visual route. `design-system-compiler` owns a required schema-2 pair; otherwise use the exact `not_required` replacement. UI implementation uses the owner-bound frontend-authoring skill under Harness conformance. A missing source is a design-input delta. Run platform-correct evidence after exact-SHA review and repair converge.
 
 Use immutable flat task IDs such as `M1/T01`. Each task has a structured acceptance row exactly `{test_id, trace_ids, criterion}` and a verifier. Task dependencies are same-mission only; cross-mission ordering belongs in typed graph dependency edges. Scope entries are POSIX repository-relative paths or terminal `/**` subtrees. Workers never edit PLAN/RUN or frozen contract sources.
 
@@ -281,8 +400,9 @@ Use immutable flat task IDs such as `M1/T01`. Each task has a structured accepta
 |---|---|---|---|---|
 | Product requirements | <path> | <hash or revision> | draft / frozen / delta_accepted / missing / n/a | <notes> |
 | Product Definition Approval | <PRD section> | <same hash or revision> | approved / revision_requested / blocked / n/a | <package revision, owner, blockers> |
-| Approved wireframe | <wireframes.html path> | <hash or revision> | draft / approved / delta_accepted / missing / n/a | <UI-* coverage, labels, exact responsive set, browser layout QA, and PRD approval> |
-| UI Design Handoff / approved target | <PRD section and target path/version> | <PRD and target hashes> | approved / provisional / blocked / n/a | <Design System Need Gate, scope, states, exact responsive set, browser matrix, tolerance> |
+| Approved UI design contract | <ui-design.md path> | <hash or revision> | approved / provisional / blocked / n/a | <intake, motion/media, Wireframe and Visual approvals, Impeccable and H1-H9 evidence> |
+| Approved wireframe | <wireframes.html path> | <hash or revision> | draft / approved / delta_accepted / missing / n/a | <UI-* coverage, labels, exact responsive set, browser layout QA, and ui-design approval> |
+| Approved HiFi target | <target path/version> | <hash or revision> | approved / provisional / blocked / n/a | <Design System Need Gate, scope, states, responsive matrix, tolerance> |
 | Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Stack decisions | <stack-decisions.md path> | <hash or revision> | approved / revision_requested / blocked / n/a | <Required/Selected/Approved layers; delegation source if used> |
 | Design system pair | <path> | <hash or revision> | draft / frozen / missing / n/a | <required only when the Design System Need Gate is required> |

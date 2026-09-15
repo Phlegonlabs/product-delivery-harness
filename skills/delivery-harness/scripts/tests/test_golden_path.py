@@ -7,10 +7,10 @@ CI enables this test explicitly. Run it locally with:
         -s skills/delivery-harness/scripts/tests \
         -p "test_golden_path.py" -v
 
-The per-component suites each stay green while the four skills drift apart;
+The per-component suites can stay green while the six skills drift apart;
 this test walks the documented spine in order against one synthetic package —
 `new_run.py` generating RUN from PLAN, `validate_harness_plan.py` re-running
-the frozen source joins including the sibling skill's core-package and wireframe checkers,
+the frozen source joins including the sibling skills' product, UI-design, and wireframe checkers,
 and `validate_result.py` validating a returned graph payload with `--repo-root`
 — so cross-skill contract drift surfaces here as one red test.
 """
@@ -35,13 +35,14 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import load_run  # noqa: E402
+from harness_contract_join import validate_frozen_contract_joins  # noqa: E402
 from manifest_fixtures import (  # noqa: E402
     git,
     init_repo,
     manifest_markdown,
-    wireframes_html,
 )
-from test_harness_manifest import valid_plan  # noqa: E402
+import test_harness_strict_authority as strict_authority_fixtures  # noqa: E402
+from test_graph_orchestration import add_security_review  # noqa: E402
 from test_validate_node_result import running_result  # noqa: E402
 
 
@@ -123,12 +124,9 @@ Filled.
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | Complete fixture | integration | Yes | PRD-001 | Completion observed |
 | TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |
-## Builder UX Direction Decision
-Decision owner: Owner
-Motion Need Gate:
-| UI scope | Gate | Purpose and trigger | Decision source | Reduced-motion fallback |
-| --- | --- | --- | --- | --- |
-| UI-001 | not_required | Static fixture | Owner | Static fixture |
+## UI Design Handoff Status
+UI design: pending explicit ui-design-builder request
+UI decision owner: Owner
 ## Product Definition Decisions
 ### Research Gate
 Research Gate: go — assessed 2026-09-12, decided by Owner
@@ -153,6 +151,7 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
 - `route`: /home
 - `states`: ready
 - `responsive`: viewports: 390, 768, 1200
+- `copy`: approved — static copy is implementation-bound
 <!-- ui-surface-contract:end -->
 """
 
@@ -215,6 +214,71 @@ def approved_stack() -> str:
 """
 
 
+def approved_ui_design() -> str:
+    return """# UI Design Contract
+
+## Source Product Definition
+PRD source: docs/product/PRD.md @ fixture
+Architecture source: docs/product/architecture.md @ fixture
+Stack source: docs/product/stack-decisions.md @ fixture
+Product Definition Approval: approved — Owner, 2026-09-13
+Stack Decision Checkpoint: approved — Owner, 2026-09-13
+## UI Design Intake
+Decision owner: Owner
+Decided on: 2026-09-13
+Visual Preference Brief: Plain synthetic fixture UI
+Direction mode: one recommended direction
+## Motion And Media Intent
+Motion direction: not_required — Owner
+| Intent ID | UI scope / region | Treatment | Purpose and trigger | Static / reduced-motion fallback | Generation route | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| MM-001 | UI-001 / main | none | Static fixture | Static fixture | none | approved |
+## Wireframe Approval
+Wireframe: docs/design/wireframes.html @ fixture
+Frozen PRD basis: docs/product/PRD.md @ fixture
+Copy Freeze: approved
+Copy owner: Owner
+Copy locale: en-US
+Copy approved on: 2026-09-13
+Responsive browser check: passed synthetic matrix
+UI grading: W1-W5 overall 90 with no block
+Wireframe score: 90
+Wireframe lowest dimension: 90
+Wireframe blocks: none
+Decision: approved
+Decision owner: Owner
+Decided on: 2026-09-13
+## Style Integration
+Design author: frontend-design
+Selected direction: VD-R1-01 synthetic fixture
+Direction decision: approved
+Direction decision owner: Owner
+Direction decided on: 2026-09-13
+Candidate theme: plain fixture CSS
+Connected HiFi reference: docs/design/ui-references/golden/index.html @ fixture
+## HiFi Review
+Impeccable critique: passed synthetic review 40/40
+Impeccable audit: passed synthetic audit 20/20
+UI grading: H1-H9 overall 95; H2 95; H4 95; H8 95; no block
+HiFi score: 95
+H2 score: 95
+H4 score: 95
+H8 score: 95
+HiFi lowest dimension: 90
+HiFi blocks or disputes: none
+## Visual Approval
+Decision: approved
+Decision owner: Owner
+Decided on: 2026-09-13
+Approved target: docs/design/ui-references/golden/index.html @ fixture; UI-001 ready; 390, 768, 1200
+## Design System Need Gate
+Decision: not_required
+Decision owner: Owner
+Reason: Synthetic single-surface target
+Replacement visual contract when not_required: ui-design.md, wireframes.html, PRD.md, approved target
+"""
+
+
 @unittest.skipUnless(
     os.environ.get("HARNESS_GOLDEN_PATH"),
     "set HARNESS_GOLDEN_PATH=1 to run the golden-path E2E",
@@ -225,63 +289,38 @@ class GoldenPathTests(unittest.TestCase):
             root = Path(directory)
             init_repo(root, "README.md")
 
-            product = root / "docs" / "product"
-            product.mkdir(parents=True)
-            prd_path = product / "PRD.md"
-            prd_path.write_text(approved_prd(), encoding="utf-8")
-            wireframes_path = product / "wireframes.html"
-            wireframes_path.write_text(
-                wireframes_html(
-                    [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
-                    schema="wireframes/3",
-                    viewports=(390, 768, 1200),
-                ),
-                encoding="utf-8",
+            plan, _seed_run, paths = (
+                strict_authority_fixtures.StrictAuthorityJoinTests._ui_fixture(
+                    root, required=True
+                )
             )
-            architecture_path = product / "architecture.md"
-            architecture_path.write_text(approved_architecture(), encoding="utf-8")
-            stack_path = product / "stack-decisions.md"
-            stack_path.write_text(approved_stack(), encoding="utf-8")
-
-            plan = valid_plan()
+            prd_path = paths["prd"]
+            wireframes_path = paths["wireframe"]
+            design_markdown_path = paths["design_markdown"]
+            design_json_path = paths["design_json"]
             plan["security_review"] = {
-                "status": "not_applicable",
+                "status": "required",
                 "skill_slot": "code_security_verification",
-                "reason": "synthetic contract fixture has no implementation candidate",
+                "reason": None,
             }
-            plan["ui_surfaces"] = [
-                {
-                    "id": "UI-001",
-                    "trace_ids": ["REQ-001"],
-                    "route": "/home",
-                    "breakpoints": ["390", "768", "1200"],
-                    "states": ["ready"],
-                    "evidence_gate": "required",
-                }
-            ]
-            plan["sources"] = [
-                frozen_source(
-                    "SRC-001", "prd", "docs/product/PRD.md", prd_path
-                ),
-                frozen_source(
-                    "SRC-002",
-                    "architecture",
-                    "docs/product/architecture.md",
-                    architecture_path,
-                ),
-                frozen_source(
-                    "SRC-STACK",
-                    "stack decisions",
-                    "docs/product/stack-decisions.md",
-                    stack_path,
-                ),
-                frozen_source(
-                    "SRC-WIREFRAMES",
-                    "wireframe",
-                    "docs/product/wireframes.html",
-                    wireframes_path,
-                ),
-            ]
+            add_security_review(plan)
+            for trace in plan["traces"]:
+                if not trace["id"].startswith("DS-"):
+                    trace["source_ids"] = ["SRC-PRD"]
+            for mission in plan.get("missions", []):
+                mission["write_scope"] = ["docs/README.md"]
+                if "DS-LAY-001" not in mission["trace_ids"]:
+                    mission["trace_ids"].append("DS-LAY-001")
+                for task in mission.get("tasks", []):
+                    task["write_scope"] = ["docs/README.md"]
+                    if "DS-LAY-001" not in task["trace_ids"]:
+                        task["trace_ids"].append("DS-LAY-001")
+                    for acceptance in task.get("acceptance_matrix", []):
+                        if "DS-LAY-001" not in acceptance["trace_ids"]:
+                            acceptance["trace_ids"].append("DS-LAY-001")
+            for node in plan["graph"]["nodes"]:
+                if isinstance(node.get("review"), dict):
+                    node["review"]["scope"] = ["docs/README.md"]
             git(root, "add", "docs")
             git(root, "commit", "-qm", "freeze product package")
             head = git(root, "rev-parse", "HEAD")
@@ -302,6 +341,8 @@ class GoldenPathTests(unittest.TestCase):
                 "RUN-GOLDEN",
                 "--branch",
                 "refs/heads/run/golden-path",
+                "--repo-root",
+                str(root),
                 "--out",
                 str(root / "RUN.md"),
             )
@@ -321,6 +362,10 @@ class GoldenPathTests(unittest.TestCase):
                 str(prd_path),
                 "--wireframes",
                 str(wireframes_path),
+                "--design-system-markdown",
+                str(design_markdown_path),
+                "--design-system",
+                str(design_json_path),
             )
             self.assertEqual(
                 0,
@@ -330,6 +375,20 @@ class GoldenPathTests(unittest.TestCase):
             self.assertEqual("PASS", json.loads(validated.stdout)["status"])
 
             run = load_run(run_path)
+            missing_ui_design = json.loads(json.dumps(plan))
+            missing_ui_design["sources"] = [
+                source
+                for source in missing_ui_design["sources"]
+                if source["id"] != "SRC-UI"
+            ]
+            self.assertTrue(
+                any(
+                    "requires exactly one frozen ui-design source" in error
+                    for error in validate_frozen_contract_joins(
+                        missing_ui_design, root, run=run
+                    )
+                )
+            )
             run["integration"]["batch_base_sha"] = head
             node_result = running_result(plan, run)
             run_path.write_text(

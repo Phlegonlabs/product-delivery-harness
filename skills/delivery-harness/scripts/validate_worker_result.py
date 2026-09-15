@@ -5,11 +5,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-from harness_core import changed_files_digest
+from harness_core import (
+    _normalized_branch,
+    changed_files_digest,
+    sandbox_execution_binding_errors,
+)
+from harness_schema import run_required_harness_version, version_at_least
+from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
     ManifestError,
     NESTED_SUBAGENT_ROLES,
@@ -33,6 +41,8 @@ from select_verifiers import (
     VerifierSelectionError,
     applicable_targeted_verifiers,
     canonical_changed_path,
+    normalize_changed_files,
+    verifier_is_applicable,
 )
 # `verifier_runtime` pulls in concurrent.futures -> logging -> traceback for its
 # batch mode, which this validator never uses; importing it at module scope cost
@@ -96,6 +106,130 @@ SUBAGENT_CHILD_FIELDS = {
 }
 SUBAGENT_REVIEW_FIELDS = {"reviewed_sha", "decision"}
 ISOLATED_WORKSPACES = {"parent_managed_worktree", "app_managed_worktree"}
+
+
+def _observe_git_worker(
+    run: dict[str, Any], result: dict[str, Any], repo_root: str | Path
+) -> dict[str, Any]:
+    """Derive worker head, rev-list, diff, and task slices from live Git.
+
+    The standalone validator is read-only, but it must not accept caller
+    supplied ``--observed-*`` claims for a current RUN.  It resolves the
+    bound worker record first, then observes that exact checkout.
+    """
+
+    mission_id = result.get("mission_id")
+    lease_id = result.get("lease_id")
+    workers = run.get("workers", [])
+    matches = [
+        worker
+        for worker in workers
+        if isinstance(worker, dict)
+        and worker.get("mission_id") == mission_id
+        and worker.get("lease_id") == lease_id
+    ] if isinstance(workers, list) else []
+    if len(matches) != 1:
+        raise ManifestError("live worker observation requires one mission/lease worker")
+    worker = matches[0]
+    root = Path(repo_root).resolve()
+    try:
+        reject_object_substitution(root)
+    except (GitMetadataError, OSError) as exc:
+        raise ManifestError(str(exc)) from exc
+    top = run_git(
+        root,
+        "rev-parse",
+        "--show-toplevel",
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    if top.returncode != 0 or Path(top.stdout.strip()).resolve() != root:
+        raise ManifestError("--repo-root must be the live worker repository root")
+    expected_path = worker.get("worktree_path")
+    if isinstance(expected_path, str) and expected_path and os.path.normcase(str(Path(expected_path).resolve())) != os.path.normcase(str(root)):
+        raise ManifestError("--repo-root does not match the bound worker worktree")
+
+    def git(*args: str, text: bool = True) -> str | bytes:
+        completed = run_git(root, *args, text=text, check=False, timeout=30)
+        if completed.returncode != 0:
+            detail = completed.stderr if text else completed.stderr.decode(errors="replace")
+            raise ManifestError(f"git {' '.join(args)} failed: {str(detail).strip()}")
+        return completed.stdout
+
+    branch = str(git("branch", "--show-current")).strip()
+    expected_branch = str(worker.get("branch_ref") or "").removeprefix("refs/heads/")
+    if not branch or branch != expected_branch:
+        raise ManifestError("live worker branch does not match the bound worker")
+    head = str(git("rev-parse", "HEAD")).strip()
+    base = worker.get("batch_base_sha")
+    if not is_full_sha(base) or not is_full_sha(head):
+        raise ManifestError("live worker base/head must be full Git SHAs")
+    ancestry = run_git(
+        root,
+        "merge-base",
+        "--is-ancestor",
+        base,
+        head,
+        text=True,
+        check=False,
+        timeout=30,
+    ).returncode == 0
+    raw_commits = str(git("rev-list", "--reverse", f"{base}..{head}"))
+    commit_order = [item.strip() for item in raw_commits.splitlines() if item.strip()]
+    raw_paths = git("diff", "--name-status", "--diff-filter=ACDMRTUXB", "-z", f"{base}..{head}", text=False)
+    assert isinstance(raw_paths, bytes)
+    tokens = [item for item in raw_paths.split(b"\0") if item]
+    changed: set[str] = set()
+    index = 0
+    while index < len(tokens):
+        status = tokens[index].decode("ascii", errors="replace")
+        index += 1
+        if not status:
+            continue
+        count = 2 if status[:1] in {"R", "C"} else 1
+        for token in tokens[index : index + count]:
+            changed.add(token.decode("utf-8").replace("\\", "/"))
+        index += count
+    status = run_git(
+        root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    dirty = None if status.returncode != 0 else bool(status.stdout.strip())
+    task_changed: dict[str, list[str]] = {}
+    for task_result in result.get("task_results", []):
+        if not isinstance(task_result, dict) or not isinstance(task_result.get("task_id"), str):
+            continue
+        paths: set[str] = set()
+        for commit in task_result.get("commits", []):
+            if not isinstance(commit, str) or not is_full_sha(commit):
+                continue
+            raw = git(
+                "diff-tree",
+                "--no-commit-id",
+                "--name-only",
+                "--diff-filter=ACDMRTUXB",
+                "-r",
+                "-z",
+                commit,
+                text=False,
+            )
+            assert isinstance(raw, bytes)
+            paths.update(item.decode("utf-8").replace("\\", "/") for item in raw.split(b"\0") if item)
+        task_changed[task_result["task_id"]] = sorted(paths)
+    return {
+        "head_sha": head,
+        "changed_files": sorted(changed),
+        "commit_order": commit_order,
+        "task_changed_files": task_changed,
+        "ancestry_confirmed": ancestry,
+        "dirty": dirty,
+    }
 
 
 def _issue(
@@ -383,6 +517,7 @@ def _retained_verifier_results(
     worker: dict[str, Any] | None,
     observed_head_sha: str | None,
     observed_changed_files: list[str],
+    observed_task_changed_files: dict[str, list[str]] | None,
     errors: list[dict[str, str]],
 ) -> dict[str, dict[str, Any]]:
     retained: dict[str, dict[str, Any]] = {}
@@ -395,6 +530,15 @@ def _retained_verifier_results(
         )
         return retained
     declarations = _declared_verifiers(mission)
+    reported_task_heads: dict[str, Any] = {}
+    reported_task_results = result.get("task_results")
+    if isinstance(reported_task_results, list):
+        for task_result in reported_task_results:
+            if (
+                isinstance(task_result, dict)
+                and isinstance(task_result.get("task_id"), str)
+            ):
+                reported_task_heads[task_result["task_id"]] = task_result.get("head_sha")
     expected_checkout_dirty: bool | None = None
     observed_git = run.get("observed", {}).get("git", {})
     if isinstance(worker, dict) and worker.get("workspace_mode") in ISOLATED_WORKSPACES:
@@ -451,6 +595,16 @@ def _retained_verifier_results(
         "checkout_role": "worker",
         "checkout_dirty": expected_checkout_dirty,
     }
+    strict_sandbox_binding = version_at_least(
+        run_required_harness_version(run), (0, 38, 0)
+    )
+    observed_sandbox = run.get("observed", {}).get("sandbox", {})
+    observed_sandbox_entries = (
+        observed_sandbox.get("entries", [])
+        if isinstance(observed_sandbox, dict)
+        and isinstance(observed_sandbox.get("entries", []), list)
+        else []
+    )
     for index, item in enumerate(values):
         path = f"observed.verifier_results[{index}]"
         if not isinstance(item, dict):
@@ -505,11 +659,21 @@ def _retained_verifier_results(
         declaration = declaration_binding[0] if declaration_binding is not None else None
         expected_layer = declaration_binding[1] if declaration_binding is not None else None
         expected_task_id = declaration_binding[2] if declaration_binding is not None else None
+        verifier_expected_context = dict(expected_context)
+        if (
+            expected_layer == "task"
+            and observed_task_changed_files is not None
+            and expected_task_id in observed_task_changed_files
+        ):
+            verifier_expected_context["head_sha"] = reported_task_heads.get(expected_task_id)
+            verifier_expected_context["changed_files"] = sorted(
+                observed_task_changed_files[expected_task_id]
+            )
         context = item.get("context")
         if not isinstance(context, dict):
             _issue(errors, "retained_verifier_mismatch", f"{path}.context", "must retain verifier context")
         else:
-            for field, expected in expected_context.items():
+            for field, expected in verifier_expected_context.items():
                 if context.get(field) != expected:
                     _issue(errors, "retained_verifier_context_mismatch", f"{path}.context.{field}", "does not match parent-observed validation context")
             expected_identity = {
@@ -576,11 +740,226 @@ def _retained_verifier_results(
                 changed_digest = changed_files_digest(context.get("changed_files"))
                 if key_context != retained_context or key_document.get("changed_files_digest") != changed_digest:
                     _issue(errors, "retained_verifier_context_mismatch", f"{path}.key_document", "does not encode the retained verifier context")
+                if protocol == VERIFIER_PROTOCOL:
+                    expected_execution = (
+                        declaration.get("execution")
+                        if isinstance(declaration, dict)
+                        else None
+                    )
+                    if key_document.get("execution") != expected_execution:
+                        _issue(
+                            errors,
+                            "retained_verifier_key_mismatch",
+                            f"{path}.key_document.execution",
+                            "does not exactly encode the normalized execution policy",
+                        )
+        declared_container = (
+            isinstance(declaration, dict)
+            and isinstance(declaration.get("execution"), dict)
+            and declaration["execution"].get("isolation") == "container"
+        )
+        if (
+            strict_sandbox_binding
+            and protocol == VERIFIER_PROTOCOL
+            and declared_container
+            and isinstance(key_document, dict)
+        ):
+            declared_sandbox = declaration["execution"].get("sandbox")
+            preflight = key_document.get("sandbox_preflight")
+            sandbox_attestation = item.get("sandbox_attestation")
+            for issue in sandbox_execution_binding_errors(
+                declared_sandbox,
+                preflight,
+                sandbox_attestation,
+            ):
+                _issue(
+                    errors,
+                    "retained_verifier_sandbox_mismatch",
+                    f"{path}.sandbox_attestation",
+                    issue,
+                )
+            matches = [
+                entry
+                for entry in observed_sandbox_entries
+                if isinstance(entry, dict)
+                and isinstance(preflight, dict)
+                and entry.get("runtime") == preflight.get("runtime")
+                and entry.get("image") == preflight.get("image")
+            ]
+            if len(matches) != 1 or matches[0] != preflight:
+                _issue(
+                    errors,
+                    "retained_verifier_sandbox_mismatch",
+                    f"{path}.key_document.sandbox_preflight",
+                    "must equal the current PLAN-bound RUN sandbox observation",
+                )
+            guarded = item.get("git_guard_attestation")
+            nested_sandbox = (
+                guarded.get("sandbox_attestation")
+                if isinstance(guarded, dict)
+                else None
+            )
+            if nested_sandbox is not None and nested_sandbox != sandbox_attestation:
+                _issue(
+                    errors,
+                    "retained_verifier_sandbox_mismatch",
+                    f"{path}.git_guard_attestation.sandbox_attestation",
+                    "must equal the retained top-level sandbox attestation",
+                )
+        if (
+            run.get("schema_version") == 11
+            and protocol == VERIFIER_PROTOCOL
+            and expected_layer in {"task", "worker"}
+        ):
+            attestation = item.get("git_guard_attestation")
+            if not isinstance(attestation, dict):
+                _issue(
+                    errors,
+                    "retained_verifier_guard_missing",
+                    f"{path}.git_guard_attestation",
+                    "current task/worker evidence must retain its live git_guard snapshot",
+                )
+            else:
+                guard = attestation.get("git_guard")
+                if attestation.get("isolation_mode") != "container":
+                    _issue(
+                        errors,
+                        "retained_verifier_guard_mismatch",
+                        f"{path}.git_guard_attestation.isolation_mode",
+                        "current task/worker evidence must use container isolation",
+                    )
+                if not isinstance(attestation.get("sandbox_attestation"), dict):
+                    _issue(
+                        errors,
+                        "retained_verifier_guard_mismatch",
+                        f"{path}.git_guard_attestation.sandbox_attestation",
+                        "must retain the machine-verifiable sandbox attestation",
+                    )
+                else:
+                    sandbox_attestation = attestation["sandbox_attestation"]
+                    if set(sandbox_attestation) != {
+                        "runtime",
+                        "runtime_probe",
+                        "image",
+                        "image_probe",
+                        "policy",
+                        "mount",
+                        "network",
+                    }:
+                        _issue(
+                            errors,
+                            "retained_verifier_guard_mismatch",
+                            f"{path}.git_guard_attestation.sandbox_attestation",
+                            "must retain the complete container sandbox attestation",
+                        )
+                    declared_execution = (
+                        declaration.get("execution")
+                        if isinstance(declaration, dict)
+                        else None
+                    )
+                    declared_sandbox = (
+                        declared_execution.get("sandbox")
+                        if isinstance(declared_execution, dict)
+                        else None
+                    )
+                    if sandbox_attestation.get("policy") != declared_sandbox:
+                        _issue(
+                            errors,
+                            "retained_verifier_guard_mismatch",
+                            f"{path}.git_guard_attestation.sandbox_attestation.policy",
+                            "must exactly match the declared sandbox policy",
+                        )
+                    elif isinstance(declared_sandbox, dict):
+                        if sandbox_attestation.get("runtime") != declared_sandbox.get("runtime") or sandbox_attestation.get("image") != declared_sandbox.get("image"):
+                            _issue(
+                                errors,
+                                "retained_verifier_guard_mismatch",
+                                f"{path}.git_guard_attestation.sandbox_attestation",
+                                "runtime and image must match the declared sandbox policy",
+                            )
+                        for probe_key in ("runtime_probe", "image_probe"):
+                            probe_value = sandbox_attestation.get(probe_key)
+                            valid_probe = isinstance(probe_value, str) and bool(probe_value.strip())
+                            if probe_key == "runtime_probe" and isinstance(probe_value, dict):
+                                valid_probe = {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(probe_value) and not (set(probe_value) - {"executable", "executable_sha256", "version_output_sha256", "trust"}) and isinstance(probe_value.get("trust"), dict)
+                            if not valid_probe:
+                                _issue(
+                                    errors,
+                                    "retained_verifier_guard_mismatch",
+                                    f"{path}.git_guard_attestation.sandbox_attestation.{probe_key}",
+                                    "must contain a non-empty runtime probe result",
+                                )
+                        digest = str(declared_sandbox.get("image", "")).rsplit("@", 1)[-1]
+                        if digest and re.fullmatch(
+                            r"[A-Za-z0-9][A-Za-z0-9._:/-]*@" + re.escape(digest),
+                            str(sandbox_attestation.get("image_probe", "")),
+                        ) is None:
+                            _issue(
+                                errors,
+                                "retained_verifier_guard_mismatch",
+                                f"{path}.git_guard_attestation.sandbox_attestation.image_probe",
+                                "must attest the exact pinned image digest",
+                            )
+                    if sandbox_attestation.get("mount") != {
+                        "source": "git_archive",
+                        "destination": "/workspace",
+                        "read_only": True,
+                    } or sandbox_attestation.get("network") != "none":
+                        _issue(
+                            errors,
+                            "retained_verifier_guard_mismatch",
+                            f"{path}.git_guard_attestation.sandbox_attestation",
+                            "must attest the exact read-only archive mount and disabled network",
+                        )
+                if attestation.get("source_head_sha") != verifier_expected_context.get("head_sha"):
+                    _issue(
+                        errors,
+                        "retained_verifier_guard_mismatch",
+                        f"{path}.git_guard_attestation.source_head_sha",
+                        "must equal the retained verifier context head",
+                    )
+                if not isinstance(guard, dict):
+                    _issue(
+                        errors,
+                        "retained_verifier_guard_mismatch",
+                        f"{path}.git_guard_attestation.git_guard",
+                        "must be an object",
+                    )
+                else:
+                    expected_head = verifier_expected_context.get("head_sha")
+                    if guard.get("expected_head_sha") != expected_head:
+                        _issue(
+                            errors,
+                            "retained_verifier_guard_mismatch",
+                            f"{path}.git_guard_attestation.git_guard.expected_head_sha",
+                            "must equal the retained verifier context head",
+                        )
+                    if isinstance(worker, dict) and _normalized_branch(
+                        guard.get("expected_branch")
+                    ) != _normalized_branch(worker.get("branch_ref")):
+                        _issue(
+                            errors,
+                            "retained_verifier_guard_mismatch",
+                            f"{path}.git_guard_attestation.git_guard.expected_branch",
+                            "must equal the bound worker branch",
+                        )
+                    if not isinstance(attestation.get("tracked_files"), dict):
+                        _issue(
+                            errors,
+                            "retained_verifier_guard_mismatch",
+                            f"{path}.git_guard_attestation.tracked_files",
+                            "must retain tracked file identity/hash snapshots",
+                        )
         normalized = item.get("verifier")
         declared_cache = (
             declaration.get("cache")
             if isinstance(declaration, dict) and isinstance(declaration.get("cache"), dict)
             else {"mode": "disabled", "environment_keys": []}
+        )
+        declared_execution = (
+            declaration.get("execution")
+            if isinstance(declaration, dict)
+            else None
         )
         if declaration is None or not isinstance(normalized, dict):
             _issue(errors, "retained_verifier_mismatch", f"{path}.verifier", "does not match a declared verifier")
@@ -590,6 +969,9 @@ def _retained_verifier_results(
             or normalized.get("argv") != declaration.get("argv")
             or normalized.get("pass_signal") != declaration.get("pass_signal")
             or normalized.get("cache") != declared_cache
+            or normalized.get("read_only", False)
+            != (declaration.get("read_only", False) if isinstance(declaration, dict) else False)
+            or normalized.get("execution") != declared_execution
             or not isinstance(key_document, dict)
             or (
                 protocol == "harness-verifier-execution-v1"
@@ -620,6 +1002,8 @@ def validate_worker_result_data(
     observed_changed_files: list[str] | None,
     ancestry_confirmed: bool,
     retained_verifier_results: list[dict[str, Any]] | None = None,
+    observed_commit_order: list[str] | None = None,
+    observed_task_changed_files: dict[str, list[str]] | None = None,
     manifest_already_validated: bool = False,
 ) -> list[dict[str, str]]:
     """Return deterministic validation issues for one integration candidate.
@@ -838,6 +1222,32 @@ def validate_worker_result_data(
         _issue(errors, "ancestry_unconfirmed", "observed.ancestry", "parent must confirm base is an ancestor of head")
     if base_sha is not None and head_sha is not None and base_sha == head_sha:
         _issue(errors, "empty_handoff", "worker_result.head_sha", "must differ from base SHA")
+    requires_observed_commits = run.get("schema_version") in {10, 11}
+    if requires_observed_commits and observed_commit_order is None:
+        _issue(
+            errors,
+            "observed_commit_order_missing",
+            "observed.commits",
+            "parent-observed Git commit order is required",
+        )
+    elif observed_commit_order is not None:
+        for index, commit in enumerate(observed_commit_order):
+            if not isinstance(commit, str) or not _require_sha(
+                commit, f"observed.commits[{index}]", errors
+            ):
+                _issue(
+                    errors,
+                    "observed_commit_order_invalid",
+                    f"observed.commits[{index}]",
+                    "must be a full Git SHA",
+                )
+        if commits is not None and observed_commit_order != commits:
+            _issue(
+                errors,
+                "commit_order_mismatch",
+                "worker_result.commits",
+                "must exactly match git rev-list --reverse base..head",
+            )
 
     reported_paths_raw = result.get("changed_files")
     reported_paths: list[str] = []
@@ -898,6 +1308,7 @@ def validate_worker_result_data(
             observed_changed_files=[
                 path for path in observed_paths if not _report_exception(path, worker)
             ],
+            observed_task_changed_files=observed_task_changed_files,
             errors=errors,
         )
     verifier_results: dict[str, dict[str, Any]] = {}
@@ -976,6 +1387,22 @@ def validate_worker_result_data(
             for task in mission.get("tasks", [])
             if isinstance(task, dict) and not task.get("replaced_by")
         }
+        reported_task_order = [
+            task_result.get("task_id")
+            for task_result in task_results_raw
+            if isinstance(task_result, dict) and isinstance(task_result.get("task_id"), str)
+        ] if isinstance(task_results_raw, list) else []
+        seen_reported_tasks: set[str] = set()
+        for task_id in reported_task_order:
+            dependencies = executable_tasks.get(task_id, {}).get("depends_on", [])
+            if any(dependency not in seen_reported_tasks for dependency in dependencies):
+                _issue(
+                    errors,
+                    "task_order_mismatch",
+                    "worker_result.task_results",
+                    f"task {task_id} must follow its task dependencies",
+                )
+            seen_reported_tasks.add(task_id)
         if set(task_results) != set(executable_tasks):
             _issue(
                 errors,
@@ -983,6 +1410,57 @@ def validate_worker_result_data(
                 "worker_result.task_results",
                 "must contain every executable non-superseded mission task exactly once",
             )
+        if observed_task_changed_files is not None:
+            for task_id, raw_paths in observed_task_changed_files.items():
+                task = executable_tasks.get(task_id)
+                if task is None:
+                    _issue(
+                        errors,
+                        "unknown_task_changed_files",
+                        f"observed.task_changed_files.{task_id}",
+                        "must reference an executable PLAN task",
+                    )
+                    continue
+                if not isinstance(raw_paths, list):
+                    _issue(
+                        errors,
+                        "invalid_task_changed_files",
+                        f"observed.task_changed_files.{task_id}",
+                        "must be an array",
+                    )
+                    continue
+                for index, raw_path in enumerate(raw_paths):
+                    changed_path = _canonical_changed_path(
+                        raw_path,
+                        f"observed.task_changed_files.{task_id}[{index}]",
+                        errors,
+                    )
+                    if changed_path is None:
+                        continue
+                    if parent_owned_path(changed_path):
+                        _issue(
+                            errors,
+                            "task_parent_owned_file",
+                            f"observed.task_changed_files.{task_id}[{index}]",
+                            "task commit slice contains a parent-owned file",
+                        )
+                        continue
+                    deny_scope = task.get("deny_scope", [])
+                    write_scope = task.get("write_scope", [])
+                    if path_in_scopes(changed_path, deny_scope):
+                        _issue(
+                            errors,
+                            "task_denied_path",
+                            f"observed.task_changed_files.{task_id}[{index}]",
+                            "task commit slice is denied by the task scope",
+                        )
+                    elif not path_in_scopes(changed_path, write_scope):
+                        _issue(
+                            errors,
+                            "task_scope_escape",
+                            f"observed.task_changed_files.{task_id}[{index}]",
+                            "task commit slice is outside the task write scope",
+                        )
         required_worker_verifiers = {
             verifier.get("id")
             for verifier in mission.get("worker_verifiers", [])
@@ -1003,14 +1481,38 @@ def validate_worker_result_data(
         )
         if observed_diff_is_valid:
             try:
-                applicability = applicable_targeted_verifiers(mission, observed_paths)
-                required_worker_verifiers = set(applicability["worker_verifier_ids"])
-                required_task_verifiers = {
-                    task_id: set(verifier_ids)
-                    for task_id, verifier_ids in applicability[
-                        "task_verifier_ids"
-                    ].items()
-                }
+                if observed_task_changed_files is None:
+                    applicability = applicable_targeted_verifiers(mission, observed_paths)
+                    required_worker_verifiers = set(applicability["worker_verifier_ids"])
+                    required_task_verifiers = {
+                        task_id: set(verifier_ids)
+                        for task_id, verifier_ids in applicability[
+                            "task_verifier_ids"
+                        ].items()
+                    }
+                else:
+                    # Select each task's targeted verifiers against the exact
+                    # commit slice attributed to that task.  A cumulative
+                    # base..checkpoint diff would incorrectly require a
+                    # verifier for files changed by an earlier task.
+                    required_task_verifiers = {}
+                    for task_id, task in executable_tasks.items():
+                        raw_paths = observed_task_changed_files.get(task_id, [])
+                        task_paths = normalize_changed_files(raw_paths)
+                        required_task_verifiers[task_id] = {
+                            verifier["id"]
+                            for verifier in task.get("verifiers", [])
+                            if isinstance(verifier, dict)
+                            and isinstance(verifier.get("id"), str)
+                            and verifier_is_applicable(verifier, task_paths)
+                        }
+                    required_worker_verifiers = {
+                        verifier["id"]
+                        for verifier in mission.get("worker_verifiers", [])
+                        if isinstance(verifier, dict)
+                        and isinstance(verifier.get("id"), str)
+                        and verifier_is_applicable(verifier, observed_paths)
+                    }
             except VerifierSelectionError as exc:
                 _issue(
                     errors,
@@ -1085,6 +1587,13 @@ def validate_worker_result_data(
             _issue(errors, "commit_reused", "worker_result.task_results", "one commit cannot satisfy multiple tasks")
         if commits is not None and set(flattened) != set(commits):
             _issue(errors, "unattributed_commit", "worker_result.commits", "every worker commit must belong to exactly one task result")
+        if commits is not None and flattened != commits:
+            _issue(
+                errors,
+                "task_order_mismatch",
+                "worker_result.task_results",
+                "task results must list their commits in dependency-topological Git order",
+            )
         if commits is not None:
             commit_positions = {commit: index for index, commit in enumerate(commits)}
             for task_id, task_result in task_results.items():
@@ -1118,7 +1627,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan", required=True, help="Path to canonical PLAN.md")
     parser.add_argument("--run", required=True, help="Path to canonical RUN.md")
     parser.add_argument("--result", required=True, help="Path to worker-result Markdown")
-    parser.add_argument("--observed-head-sha", required=True, help="Parent-observed worker head SHA")
+    parser.add_argument("--observed-head-sha", help="Legacy parent-observed worker head SHA")
     parser.add_argument(
         "--observed-changed-file",
         action="append",
@@ -1135,6 +1644,11 @@ def _parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Parent-retained verifier_runtime.py JSON result; repeat for each verifier",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="live bound worker checkout used to derive Git observations",
     )
     return parser
 
@@ -1156,8 +1670,45 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(_result_document("FAIL", errors), sort_keys=True, separators=(",", ":")))
         return 1
 
+    live_observation: dict[str, Any] | None = None
     if is_current_pair(plan, run):
-        for message in validate_current_plan_run(plan, run):
+        worker_path = None
+        if isinstance(result, dict):
+            worker_path = next(
+                (
+                    worker.get("worktree_path")
+                    for worker in run.get("workers", [])
+                    if isinstance(worker, dict)
+                    and worker.get("mission_id") == result.get("mission_id")
+                    and worker.get("lease_id") == result.get("lease_id")
+                ),
+                None,
+            )
+        if args.repo_root is not None:
+            try:
+                live_observation = _observe_git_worker(run, result, args.repo_root)
+                if live_observation.get("dirty") is not False:
+                    _issue(
+                        errors,
+                        "dirty_worker_handoff",
+                        "observed.git.dirty",
+                        "live worker checkout must be clean; RUN dirty=false is not sufficient",
+                    )
+            except ManifestError as exc:
+                _issue(errors, "live_observation_failed", "--repo-root", str(exc))
+        elif isinstance(worker_path, str) and Path(worker_path).is_dir():
+            _issue(
+                errors,
+                "repo_root_required",
+                "--repo-root",
+                "current worker validation requires the live bound worktree",
+            )
+        for message in validate_current_plan_run(
+            plan,
+            run,
+            repo_root=args.repo_root,
+            require_repo_root=False,
+        ):
             _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
     else:
         # The CLI keeps the historical result protocol readable for migration;
@@ -1167,15 +1718,40 @@ def main(argv: list[str] | None = None) -> int:
         for message in validate_run(plan, run):
             _issue(errors, "invalid_run", "harness_run", message)
     if not errors:
+        observed_head = (
+            live_observation["head_sha"]
+            if live_observation is not None
+            else args.observed_head_sha
+        )
+        observed_changed = (
+            live_observation["changed_files"]
+            if live_observation is not None
+            else args.observed_changed_file
+        )
+        ancestry = (
+            live_observation["ancestry_confirmed"]
+            if live_observation is not None
+            else args.ancestry_confirmed
+        )
         errors.extend(
             validate_worker_result_data(
                 plan,
                 run,
                 result,
-                observed_head_sha=args.observed_head_sha,
-                observed_changed_files=args.observed_changed_file,
-                ancestry_confirmed=args.ancestry_confirmed,
+                observed_head_sha=observed_head,
+                observed_changed_files=observed_changed,
+                ancestry_confirmed=ancestry,
                 retained_verifier_results=retained_verifier_results,
+                observed_commit_order=(
+                    live_observation["commit_order"]
+                    if live_observation is not None
+                    else None
+                ),
+                observed_task_changed_files=(
+                    live_observation["task_changed_files"]
+                    if live_observation is not None
+                    else None
+                ),
                 manifest_already_validated=True,
             )
         )

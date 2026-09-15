@@ -7,20 +7,20 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 ## Purpose
 
-Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN state, runtime probing, workers, worktrees, and graph scheduling only when coordination requires them.
+Use the least ceremony that preserves safety. Keep work direct; add PLAN/RUN state, probing, workers, worktrees, and graph scheduling only when coordination requires them.
 
 Keep upstream ownership separate:
 
-- `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, plus approved `wireframes.html` when the product has UI.
-- `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
-- This skill implements an approved Product Definition and Stack Decision Checkpoint, including Builder UX Direction and the active visual source when UI applies. Builder approval proves direction conformance, not usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents neither product, stack, nor design decisions.
+- `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, including complete frontend and backend architecture and technology decisions.
+- `ui-design-builder` owns `docs/design/ui-design.md`, UI Design Intake, approved `wireframes.html`, Style Integration, Impeccable review, PRD-bound scores, Visual Approval, and the HiFi target. `design-system-compiler`, with `frontend-design`, owns the design-system pair only when the Design System Need Gate is `required`.
+- This skill implements approved product/stack sources, `ui-design.md`, copy-frozen `wireframes.html`, and the active visual source. It preserves approved copy and dynamic display contracts. UI approval proves direction conformance, not representative-user usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents no product, copy, stack, or design decisions.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
 
-Before loading a task skill, adapter, planner, scheduler, or worker, run one bounded parent-only, read-only scope scan.
+Before loading task-specific tooling, run one bounded parent-only scope scan.
 
-Classify work as `small` when one parent writer can own one bounded outcome, work in one implementation branch or checkout, and verify it with one coherent local sequence. A high file count, several languages, a long test command, or difficult reasoning does not make work `large` by itself.
+Classify work as `small` when one parent writer can own one bounded outcome in one checkout and verify it with one coherent local sequence. A high file count, language count, test duration, or reasoning difficulty does not make work `large` by itself.
 
 Classify work as `large` only when at least one condition is true:
 
@@ -51,7 +51,8 @@ Project size: small | large
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
 Host adapter: none | codex | claude_code | pi | generic
-Landing: local_only | integration_push
+RUN landing: local_only
+Post-archive publication: none | exact candidate branch
 Upstream inputs: present | missing | needs owner decision
 Gitignore impact: none | update | needs owner decision
 ```
@@ -70,7 +71,7 @@ These rules apply to both routes:
 
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
 - Preserve all 12 managed action keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, and `delete_branches`.
-- Execution intent covers only applicable local setup, branch, commit, and integration actions. It does not authorize `push`. A RUN push needs explicit remote intent for its own integration branch and exact head; later `main` promotion requires separate action-time authorization.
+- Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38 RUNs stay `local_only` with `push` false. Publishing A to the run branch and promoting A to `main` are separate post-RUN actions with separate authorization.
 - This workflow is main-only. Never implement directly on the default branch, and never use the retired `development` name as a run or release branch. Promote only through `references/branch-promotion-contract.md`; never force-push. If no exact run-branch name exists, ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers never delegate, edit PLAN/RUN, integrate, push, or clean up.
@@ -93,7 +94,7 @@ For small work:
 
 For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates. Stop after two failed repair attempts and report the remaining gap.
 
-For a self-contained feature inside an existing codebase, offer `/feature-dev` as an optional richer implementation loop. It does not change authorization, ownership, or verification rules.
+For a self-contained feature, offer `/feature-dev` as an optional richer loop; it does not change authorization, ownership, or verification.
 
 ## Managed Route
 
@@ -116,6 +117,7 @@ Read only what the current decision needs:
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
 - `references/runtime-upgrades.md`: host/Harness version observation, old-runtime wave boundaries, updater/restart handling, and fresh-session recovery.
+- Runtime trust/publication: see `references/runtime-trust.md` and `trusted-host-publication.md`.
 - `references/ui-implementation-contract.md`: every UI implementation or UI review.
 - `references/gitignore-contract.md`: task-specific ignore classification and checks.
 - `references/commit-convention.md`: before a Harness-managed commit.
@@ -173,12 +175,12 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 Read `references/ui-implementation-contract.md` before UI implementation or review.
 
-- Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after approved wireframes, an approved UI Design Handoff, and `Design System Need Gate: required`. It does not reopen Taste or concept generation by default.
-- UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser layout evidence, and tolerance in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
+- `design-system-compiler` owns compilation after approved Product Definition, UI design, Copy Freeze, wireframes, HiFi, and a `required` Design System Need Gate. Do not claim another skill exposes compilation mode.
+- UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
+- System-conformance mode obeys the frozen PRD UI Surface Contract, approved `ui-design.md`, `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the UI design gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser evidence, and tolerance in `ui-design.md`. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
-- These are bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind other skills to the design, implementation, and page-quality-verification slots, plus the code-security-verification slot; the same modes, sources, and gates apply.
+- After the Final Visual Parity Loop, one read-only page-quality pass (`references/verification-gates.md`) runs on the exact head. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
+- Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow
 
@@ -190,7 +192,7 @@ If the user pauses or cancels a managed run, apply the durable control transitio
 
 ### 2. Plan Large Work
 
-Freeze only approved inputs needed by the graph: Product Definition revision, Stack Decision Checkpoint, source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. When a PRD carries the Product Definition approval marker, the frozen join runs the sibling core-package checker over PRD, architecture, and stack decisions. Use the existing bounded review-repair graph and owner-attempt rules. A generic instruction to continue does not grant another attempt.
+Freeze only approved inputs needed by the graph: Product Definition revision, Stack Decision Checkpoint, source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. Harness 0.38 requires one canonical frozen PRD, architecture, and stack source for every plan and always runs the full sibling Product package checker with `--repo-root`; UI plans also require the approved UI, wireframe, HiFi target, and conditional design-system authority. Use the bounded review-repair graph and owner-attempt rules. A generic instruction to continue grants no new attempt.
 
 ### 3. Pass Plan Readiness
 
@@ -200,7 +202,7 @@ Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate
 
 ### 4. Execute And Integrate
 
-Select only after the runtime version gate. `lease-worker` copies selector-derived runtime/portable bindings, validates compatibility flags, accepts `--task-thread-id` only for `app_task`, accepts existing exact targets, and materializes new exact targets only from active wildcard grants without widening authority. Record missions with `record-worker-result` under the RUN lock; use `reject-worker-result` for stale candidates and `validate_result.py` for preflight. For non-mission nodes, reserve with `reserve-node-attempt`, execute outside the lock, then finish with `record-node-result` and evidence. Persist `reserve-review-dispatch` before launch, finish with `record-review-attempt`, review exact heads, integrate serially, and close-wave.
+After the version gate, run `python skills/delivery-harness/scripts/harness_transition.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds runtime, RepoDigest, host, PLAN revision, and digest; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
 
 ### 5. Verify Local-First
 
@@ -218,6 +220,6 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 ### 6. Complete
 
-New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an authorized exact-head push to the run branch. After RUN close, apply `references/branch-promotion-contract.md`: initial delivery and later enhancements both start from the observed remote `main`, pass every candidate and applicable non-production-environment gate on the exact run-branch SHA, then fast-forward that SHA to `main` under separate authorization and read-back. Deployment, cleanup, and activation keep their own gates; after promotion, archive the run with `scripts/archive_run.py` (`contract-and-traceability.md`).
+Harness 0.38 RUNs close `local_only` at C after all gates and security pass. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back failure; commit only bookkeeping as A and reverify it. A current RUN never pushes. Under a new instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, receipt, and trusted-host evidence external, binds the canonical URL plus machine-policy ID/hash/principal and OS-managed verifier digest, returns a URL-only no-force argv, and never invokes `git push`; a trusted host reloads and revalidates the request with sanitized config, signs evidence, publishes, and recovery verifies it before reading A back. Candidate gates and separately authorized exact-A `main` promotion follow.
 
-`product-activation` follows required promotion and deployment verification; RUN grants no authority.
+`product-activation`, outcome review, and SEO follow required promotion and production verification; no RUN grant authorizes them.

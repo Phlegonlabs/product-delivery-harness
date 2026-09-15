@@ -1,4 +1,4 @@
 interface:
   display_name: "Design System Compiler"
   short_description: "Create a frozen design-system contract"
-  default_prompt: "Use $design-system-compiler with $frontend-design only after check_product_package.py confirms approved Product Definition and Stack Decision checkpoints, the visual phase has an approved UI Design Handoff, and PRD.md records Design System Need Gate: required. Compile the approved component foundation, styling constraints, handoff, and wireframes into the design-system pair without reopening product, stack, or visual direction."
+  default_prompt: "Use $design-system-compiler with $frontend-design only after check_product_package.py confirms approved Product Definition and Stack Decision checkpoints and docs/design/ui-design.md records approved Wireframe and Visual decisions plus Design System Need Gate: required. Compile the approved target into the docs/design design-system pair without reopening product, stack, layout, or visual direction."

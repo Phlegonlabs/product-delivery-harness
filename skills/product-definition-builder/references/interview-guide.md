@@ -7,8 +7,7 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Do not include 
 Size each `AskUserQuestion` call to the question tool's actual per-call question and option limits. Batch each phase into the minimum number of calls the tool permits, never repeat an answered decision to reshape a call, and use the tool's built-in Other when its option limit cannot show the full candidate list; record that full list in `PRD.md`. There is no host-specific or cross-phase total-call cap. Start the closed-set phase only after the segmented free-text sequence is complete, in this order:
 
 1. The decisions that depend on no other answer: product archetype and validation depth.
-2. For a UI-bearing product, the five closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, preferred layout/interaction pattern, and motion direction.
-3. The decisions that depend on the archetype call's answer: deployment platform, mobile or desktop target platforms, client implementation strategy, browser-extension targets, monetization model, partner channel, database category, auth strategy, and stack decision mode.
+2. The decisions that depend on the archetype call's answer: deployment platform, mobile or desktop target platforms, client implementation strategy, browser-extension targets, monetization model, partner channel, database category, auth strategy, and stack decision mode.
 
 This table is the canonical closed-decision inventory and phase order. Each applicable ID is asked exactly once by the matching `(AskUserQuestion)` bullet below. Batch only within one phase; a host with a smaller per-call capacity splits that phase without dropping or moving decisions.
 
@@ -16,11 +15,6 @@ This table is the canonical closed-decision inventory and phase order. Each appl
 | --- | --- | --- |
 | AQ-ARCHETYPE | independent | Product archetype |
 | AQ-VALIDATION-DEPTH | independent | Validation depth |
-| AQ-EXPERIENCE-PRIORITY | builder | Experience priority |
-| AQ-GUIDANCE-CONTROL | builder | Guidance versus expert control |
-| AQ-INFORMATION-DENSITY | builder | Information density |
-| AQ-LAYOUT-PATTERN | builder | Layout and interaction pattern |
-| AQ-MOTION-DIRECTION | builder | Motion direction and decision authority |
 | AQ-DEPLOYMENT-PLATFORM | final | Deployment platform |
 | AQ-MOBILE-TARGETS | final | Mobile target operating systems |
 | AQ-DESKTOP-TARGETS | final | Desktop target operating systems |
@@ -64,7 +58,7 @@ Ask the unresolved parts of these short prompts:
 - Which rules, approvals, limits, audit needs, or forbidden outcomes apply? For AI/automation, what may it do, what needs human approval, and what limits apply?
 - Which actions need confirmation, progress feedback, undo, recovery, or human intervention, and which screens or notifications support them?
 
-Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, classification, residency, deletion/export, consent, vendor and human access, business rules, compliance boundaries, AI/automation permissions and evaluation, UI states, content responsibilities, and confirmation/recovery expectations. Leave database category, auth strategy, validation depth, Builder UX dimensions, and stack decision mode for `AskUserQuestion`.
+Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, classification, residency, deletion/export, consent, vendor and human access, business rules, compliance boundaries, AI/automation permissions and evaluation, UI states, content responsibilities, and confirmation/recovery expectations. Leave database category, auth strategy, validation depth, and stack decision mode for `AskUserQuestion`.
 
 ### Segment 3 — Delivery, success, and risk
 
@@ -115,23 +109,15 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What compliance, audit, or policy constraints apply?
    - [AQ-MONETIZATION-MODEL] If the product has commercial intent or an unresolved pricing strategy, which model applies: no commercial surface, one-time purchase, recurring subscription, usage-based, hybrid, or undecided and need a recommendation? (AskUserQuestion, final phase, since the viable purchase route depends on the archetype answer) Skip it only when the user's prompt, existing package, or repository already resolves the model. This decision makes the Monetization Infrastructure Gate applicable but does not select RevenueCat or any other provider automatically.
    - [AQ-PARTNER-CHANNEL] If the product may use outside sellers or promoters, which channel applies: none, affiliate, referral, reseller, hybrid, or undecided and need a recommendation? (AskUserQuestion, final phase, since the operating model depends on the product and purchase surfaces) Skip it when the user's prompt or existing package already resolves the channel, or when the product has no commercial or partner-distribution intent. Affiliate link attribution, known-lead referral, and reseller-owned sales are different operating models; resolve them with `monetization-and-partner-channel-guide.md`.
-7. UX expectations
-   - Who is the builder or human product/design decision owner for the UX direction?
-   - [AQ-EXPERIENCE-PRIORITY] What should the experience optimize first: speed, clarity, guided completion, expert control, exploration, conversion, or content comprehension? (AskUserQuestion)
-   - [AQ-GUIDANCE-CONTROL] Should the experience be guided, balanced, or expert-flexible? (AskUserQuestion)
-   - [AQ-INFORMATION-DENSITY] Should the interface be sparse, balanced, or information-dense? (AskUserQuestion)
-   - [AQ-LAYOUT-PATTERN] Which primary layout and interaction pattern does the builder prefer, and why does it fit the user's task? (AskUserQuestion)
-   - [AQ-MOTION-DIRECTION] Should the shipped interface stay quiet with only necessary functional feedback, use expressive motion where it improves hierarchy or brand, or let the AI recommend one of those directions from the product evidence? (AskUserQuestion) When the owner delegates the recommendation, the AI records its rationale and per-surface Motion Need Gate; it does not silently authorize generated motion, autoplay or sound, a material performance budget, an accessibility exception, or a new product surface.
+7. UX and UI product obligations
+   - Who owns later UI design decisions?
    - Which actions require confirmation, undo, recovery, progress feedback, or human intervention? Ask this as free text — it varies too much by action to enumerate.
    - [AQ-VALIDATION-DEPTH] What validation depth does the builder expect: documented assumptions, internal prototype review, testing with likely users, or recurring usability benchmarking? (AskUserQuestion)
    - What screens, dashboards, forms, or notifications are expected?
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
-   - Do not ask the user to choose from a fixed catalog of design-reference visual styles in this discovery interview. Record known brand references, visual constraints, product-specific goals, and disliked patterns. After the PRD UI surface contract and wireframes are approved and the market-research gap pass is available, the direct UI Design Pass asks what style the owner wants, waits for the answer, checks `design-taste-frontend` applicability, and produces one recommended product-specific direction by default. It produces three comparable directions only when the owner asks for alternatives or a recorded conflict needs comparison. That later gate is a separate decision phase.
-   - Are there known design references or brand constraints?
+   - Record only hard brand, platform, legal, or accessibility constraints needed to define the product. Do not ask about preferred density, layout, visual character, typography feel, color direction, imagery, icons, motion treatment, media placeholders, wireframes, or design tokens. Those belong to `ui-design-builder` after Product Definition Approval.
    - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
-   - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action? Use the answer to classify each key surface as `required`, `recommended`, `not_required`, or `blocked` in the Motion Need Gate.
    - For a landing page, what single message and primary action belong in the first viewport, and which details can be deferred?
-   - Which regions require an image, product media, video, or animation, and what should each help the user understand or do?
 8. Architecture constraints
    - Is there a required stack, hosting environment, database, auth provider, or existing system?
    - [AQ-AUTH-STRATEGY] What auth strategy should this product use: build custom authentication, a managed third-party provider, a platform-native provider, no auth, or an evidence-backed recommendation? (AskUserQuestion)
@@ -153,7 +139,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What is explicitly out of scope?
    - What timeline, milestone, or team constraint should shape the implementation plan?
    - What is the complete inventory of expected deployable web, API, mobile, desktop, or browser-extension surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, explicit lowercase kebab-case surface suffix, and lowercase kebab-case release name. Production uses the unqualified canonical `<product-slug>-<surface-suffix>` name with no `-prod`; development uses that exact name plus `-dev`; distinct surfaces never share a release name. Record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
-   - For each target, which exact branch or ref produces the release? Under the standard main-only branch-promotion contract, the exact candidate run branch/ref supplies the internally tested development release and `main` supplies production. Initial delivery and later enhancements both start from observed remote `main`. Record any signed tag or different source rule explicitly.
+   - For each target, record the exact candidate run branch/ref for the internally tested development release. Production is closed to `refs/heads/main` after candidate verification and separately authorized fast-forward; initial delivery and later enhancements both start from observed remote `main`. A signed tag or different production source is not an accepted alternative.
    - What artifact kind is released, what signing or notarization is required, and what exact environment, store channel, testing track, update feed, or distribution channel receives it?
    - What submission, promotion, review, or manual-approval path must complete? What signal proves the release is actually available to its intended audience? Upload, submission, review approval, or a successful deployment command alone is not availability.
    - What rollout controls apply, and what is the real recovery path? For native stores and signed installers, identify when recovery means halting a staged rollout and shipping a signed forward-fix rather than claiming an instant rollback.
@@ -181,10 +167,8 @@ Discovery is complete enough to draft when the agent can state:
 - An AI and Automation Gate with data, model/provider boundary, tool permissions, human approval, evaluation, cost/latency, fallback/shutoff, injection defense, and output validation when applicable, or `not_required` with a reason.
 - The monetization model and both the Monetization Infrastructure Gate and Partner Channel Gate, including explicit `not_required` reasons; when applicable, the pricing/offer rules, purchase surfaces, entitlement owner, merchant-of-record/tax owner, partner motion, attribution, commission, payout, and reseller responsibilities needed to recommend current providers.
 - The UI screens or interaction points that need a canonical PRD surface entry.
-- A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, motion direction and decision authority, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
 - Approved or draft exact wording and bounded display responsibilities for visible regions, or permission to derive them.
-- Known brand references, visual hard limits, disliked patterns, and product-specific visual goals, with design-reference preference discovery explicitly deferred to the direct UI Design Pass after the PRD UI surface contract and wireframes are approved.
-- A Motion Need Gate for every key UI surface: `required`, `recommended`, `not_required`, or `blocked`, with purpose, trigger, decision source, and reduced-motion fallback; when the owner delegates the recommendation, the AI records why without expanding scope or authorizing a generation provider.
+- The named human owner for the later `ui-design-builder` phase, or an explicit `not_required` result for a headless product. UI layout, visual, motion, media, wireframe, and token decisions remain deferred.
 - The success metrics and acceptance criteria, including baseline, target/guardrail, measurement window, source/method, and owner.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.
 - The release-blocking test obligations and the functional or non-functional requirements each one proves, ready for stable `TEST-*` IDs.
@@ -196,7 +180,7 @@ If any item is missing and the user did not authorize assumptions, ask follow-up
 When `docs/product/PRD.md` (or another document clearly describing the same product) already exists, this run enhances it instead of starting fresh. Read the existing package in full first, then run a delta interview:
 
 - Record an `Enhancement Impact Record` before drafting. Classify product scope/behavior, UI structure/style, data/integrations, architecture/stack, data/trust/AI, monetization/partner channels, and release/operations as unchanged or changed; keep the existing `none` / `structure` / `style` / `both` vocabulary for the UI row. Each changed row names the affected IDs or decisions, artifacts to refresh, and approval gates to rerun.
-- First, classify the delta's UI impact explicitly with the owner: `none` (no UI change), `structure` (screens, regions, flows, or states change), `style` (the visual direction or design system is affected), or `both`. Never assume `none` because the request reads backend- or data-side — most enhancements are design-side. Record the classification; it drives the wireframe revision and style-review rules in `wireframe-guide.md`'s Enhancement Revisions.
+- First, classify the delta's UI impact explicitly with the owner: `none` (no UI change), `structure` (product-defined screens, routes, flows, or states change), `style` (only the downstream UI direction or design system is affected), or `both`. A `style`-only request routes to `ui-design-builder`; `structure` or `both` updates Product Definition first and then refreshes downstream UI approval.
 - Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
 - Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
 - Preserve existing `TEST-*` IDs for unchanged obligations. Add a new TEST ID only when the delta creates an uncovered obligation; do not renumber or replace existing tests during cleanup.
@@ -211,5 +195,5 @@ If the user asks for a first draft without more questions:
 - State that assumptions are being used.
 - Add an `Assumptions` section to every artifact where relevant.
 - Add unresolved items to the structured `Open Questions` table with owner, deadline, approval impact, and status.
-- Record missing builder UX choices as `assumed`, never as selected or user-validated. Builder preference alone is not usability evidence.
+- Do not invent downstream UI choices. Record the `ui-design-builder` handoff as pending instead of assuming layout, style, motion, media, wireframe, or token decisions.
 - Do not invent compliance requirements or pricing. A named technology recommendation is allowed when it follows the applicable stack-selection guide, is supported by known requirements, and clearly identifies assumptions and alternatives; it remains `Recommended` and cannot pass Product Definition Approval unless the owner accepts it or previously delegated that exact decision class.

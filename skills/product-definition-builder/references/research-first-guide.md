@@ -34,7 +34,7 @@ Apply `references/market-research-guide.md`'s Source Rules and confidence vocabu
 
 ## Delegation
 
-The same authorization discipline as the market-research pass applies: a single read-only subagent only when the parent holds a separate explicit delegation authorization for it, otherwise the parent runs the role inline. There is no workflow lane for this phase — the Dynamic Workflow runs after the closed-set decisions — and the single-subagent grant is never inferred from tool availability or package size.
+The same authorization discipline as the market-research pass applies: a single read-only subagent only when the parent holds a separate explicit delegation authorization for it, otherwise the parent runs the role inline. There is no agent work-graph lane for this phase — the bounded graph runs after the closed-set decisions — and the single-subagent grant is never inferred from tool availability or package size.
 
 ## The Artifact
 
