@@ -528,6 +528,8 @@ def _direction_comparison(
                 _add(problems, "Direction comparison case is outside Approved target scope")
         if _source_syntax(screenshot, "Direction comparison Screenshot", problems):
             identity = SOURCE_RE.fullmatch(screenshot)
+            if not identity.group("path").startswith("docs/design/directions/"):
+                _add(problems, "Direction comparison Screenshot must be retained under docs/design/directions/")
             if Path(identity.group("path")).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
                 _add(problems, "Direction comparison Screenshot must name a PNG, JPEG, or WebP capture")
             images.setdefault(direction, set()).add(identity.group("sha256"))

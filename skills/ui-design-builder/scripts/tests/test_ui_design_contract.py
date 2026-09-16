@@ -765,6 +765,7 @@ class UiDesignContractTests(unittest.TestCase):
             "no stress": base.replace("| stress |", "| primary |"),
             "missing capture": base.replace(f"docs/design/directions/primary.png @ sha256:{PRIMARY_HASH}", "TBD"),
             "text capture": base.replace("directions/primary.png", "directions/primary.md"),
+            "noncanonical capture directory": base.replace("docs/design/directions/primary.png", "docs/evidence/primary.png"),
             "uncompared selection": base.replace("Selected direction: VD-R1-01", "Selected direction: VD-R1-99"),
             "wrong count": base.replace("Direction mode: one recommended direction", "Direction mode: three comparable directions"),
         }
