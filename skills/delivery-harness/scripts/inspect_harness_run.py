@@ -14,6 +14,9 @@ from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_ui_evidence import _layout_check_required
 
 
+FAILED_ATTEMPT_RESULTS = {"fix_required", "retryable_failure", "blocked", "contract_gap"}
+
+
 def _git(worktree: Path, *args: str) -> str | None:
     try:
         reject_object_substitution(worktree)
@@ -62,6 +65,85 @@ def _attestation_summary(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _failure_snapshot(attempt: dict[str, Any]) -> dict[str, Any]:
+    evidence = attempt.get("evidence")
+    return {
+        "attempt_id": attempt.get("attempt_id"),
+        "kind": attempt.get("kind"),
+        "result": attempt.get("result"),
+        "evidence": [
+            item for item in evidence if isinstance(item, str)
+        ] if isinstance(evidence, list) else [],
+    }
+
+
+def _attempt_recovery_summary(
+    run: dict[str, Any], mission_ids: set[str]
+) -> dict[str, Any]:
+    """Read retained failure evidence without changing state or inferring liveness."""
+
+    raw_attempts = run.get("attempt_log")
+    attempts = raw_attempts if isinstance(raw_attempts, list) else []
+    malformed_entries = (
+        0 if raw_attempts is None
+        else sum(not isinstance(attempt, dict) for attempt in attempts)
+    )
+    failures: dict[str, dict[str, Any] | None] = {
+        mission_id: None for mission_id in mission_ids
+    }
+    failed_dispatch_counts: dict[str, int] = {
+        mission_id: 0 for mission_id in mission_ids
+    }
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        mission_id = attempt.get("mission_id")
+        if not isinstance(mission_id, str):
+            continue
+        result = (
+            attempt.get("result").casefold()
+            if isinstance(attempt.get("result"), str)
+            else None
+        )
+        if result not in FAILED_ATTEMPT_RESULTS:
+            continue
+        failure = _failure_snapshot(attempt)
+        failures[mission_id] = failure
+        if attempt.get("kind") == "dispatch":
+            failed_dispatch_counts[mission_id] = failed_dispatch_counts.get(mission_id, 0) + 1
+    return {
+        "attempt_log_present": raw_attempts is not None,
+        "attempt_log_valid": raw_attempts is None or isinstance(raw_attempts, list),
+        "observed_entries": len(attempts),
+        "malformed_entries": malformed_entries,
+        "runtime_process_liveness": "unknown",
+        "missions": [
+            {
+                "mission_id": mission_id,
+                "failed_dispatch_count": failed_dispatch_counts.get(mission_id, 0),
+                "most_recent_failure": failures.get(mission_id),
+            }
+            for mission_id in sorted(set(mission_ids) | set(failures))
+        ],
+    }
+
+
+def _next_recovery_steps(summary: dict[str, Any]) -> list[str]:
+    recovery = summary.get("attempt_recovery") or {}
+    has_failure = any(
+        item.get("most_recent_failure") is not None
+        for item in recovery.get("missions", [])
+    )
+    if not summary["warnings"] and not has_failure:
+        return []
+    return [
+        "Use inspect_harness_run.py --json and preserve retained attempt, grant, and verifier contexts.",
+        "Confirm process/session liveness with the owning runtime first; dirty work alone does not prove interruption.",
+        "Only after confirming interruption, use reconcile-interrupted or reconcile-interrupted-reviews with the required RUN lock.",
+        "Use record-node-result or record-worker-result only for the matching current reserved attempt or lease; new work needs a new attempt, never rewritten history.",
+    ]
+
+
 def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
     runtime_capabilities = run.get("runtime_capabilities")
     runtime_adapter = (
@@ -79,6 +161,12 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         for item in run.get("workers", [])
         if isinstance(item, dict) and isinstance(item.get("mission_id"), str)
     }
+    mission_ids: set[str] = {
+        mission_id
+        for mission_id in run.get("mission_states", {})
+        if isinstance(mission_id, str)
+    }
+    recovery = _attempt_recovery_summary(run, mission_ids)
     missions: list[dict[str, Any]] = []
     warnings: list[str] = []
 
@@ -122,11 +210,20 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         needs_reconciliation = head_drift or dirty_drift or worktree_unavailable
 
         if needs_reconciliation:
+            historical_drift = phase in {"integrated", "superseded"}
             reasons = []
             if head_drift:
-                reasons.append("head advanced or diverged")
+                reasons.append(
+                    "superseded or historical head drift"
+                    if historical_drift
+                    else "head advanced or diverged"
+                )
             if dirty_drift:
-                reasons.append("worktree dirty")
+                reasons.append(
+                    "superseded or historical worktree drift"
+                    if historical_drift
+                    else "worktree dirty (process liveness unknown)"
+                )
             if worktree_unavailable:
                 reasons.append("worktree unavailable")
             warnings.append(f"{mission_id}: {', '.join(reasons)}")
@@ -140,6 +237,12 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
                 "live_dirty": live_dirty,
                 "worktree_path": str(worktree) if worktree else None,
                 "needs_reconciliation": needs_reconciliation,
+                "drift_class": (
+                    "superseded_or_historical"
+                    if needs_reconciliation and historical_drift
+                    else "active" if needs_reconciliation else None
+                ),
+                "runtime_process_liveness": "unknown",
             }
         )
 
@@ -163,10 +266,15 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         else None,
         "integration": run.get("integration"),
         "runtime_process_state": "not inspected",
+        "runtime_process_liveness": "unknown",
         "runtime_version_gate": version_gate if isinstance(version_gate, dict) else None,
         "missions": missions,
+        "attempt_recovery": recovery,
         "attestations": _attestation_summary(run),
         "warnings": warnings,
+        "next_recovery_steps": _next_recovery_steps(
+            {"warnings": warnings, "attempt_recovery": recovery}
+        ),
     }
 
 
@@ -184,7 +292,7 @@ def render_text(summary: dict[str, Any]) -> str:
             else "none"
         ),
         f"Wave: {wave.get('wave_id') or '-'} ({wave.get('status') or '-'})",
-        "Runtime processes: not inspected",
+        "Runtime processes: not inspected; process liveness unknown",
         "Runtime version gate: "
         f"{version_gate.get('status') or 'unrecorded'} | "
         f"host={version_gate.get('host_version') or '-'} | "
@@ -205,9 +313,30 @@ def render_text(summary: dict[str, Any]) -> str:
             f"{dirty} | recorded={mission['recorded_head_sha'] or '-'} | "
             f"live={mission['live_head_sha'] or '-'}"
         )
+    recovery = summary.get("attempt_recovery") or {}
+    lines.append(
+        "Attempt recovery: "
+        f"log={recovery.get('attempt_log_present', False)} | "
+        f"valid={recovery.get('attempt_log_valid', True)} | "
+        f"entries={recovery.get('observed_entries', 0)} | "
+        f"malformed={recovery.get('malformed_entries', 0)} | "
+        f"process liveness={recovery.get('runtime_process_liveness', 'unknown')}"
+    )
+    for mission_recovery in recovery.get("missions", []):
+        failure = mission_recovery.get("most_recent_failure")
+        evidence = failure.get("evidence", []) if failure else []
+        lines.append(
+            f"{mission_recovery['mission_id']}: failed_dispatches="
+            f"{mission_recovery.get('failed_dispatch_count', 0)} | "
+            f"latest={failure.get('attempt_id') if failure else '-'} | "
+            f"evidence={', '.join(evidence) if evidence else '-'}"
+        )
     if summary["warnings"]:
         lines.append("Warnings:")
         lines.extend(f"- {warning}" for warning in summary["warnings"])
+    if summary.get("next_recovery_steps"):
+        lines.append("Recovery next steps:")
+        lines.extend(f"- {step}" for step in summary["next_recovery_steps"])
     attestations = summary.get("attestations") or {}
     lines.append(
         "UI attestations: "

@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from harness_core import mission_dependencies
+from harness_core import mission_dependencies, extract_json_manifest_text
 from harness_manifest import (
     ManifestError,
     load_plan,
@@ -224,6 +226,134 @@ def with_update_log(view: str, inner: str = "") -> str:
     return view.rstrip("\n") + "\n" + "\n".join(lines) + "\n"
 
 
+def _assert_plain_repo_path(path: Path, repo_root: Path) -> None:
+    """Refuse automated writes outside the repo or through a reparse target."""
+
+    resolved_root = repo_root.resolve(strict=True)
+    resolved_path = path.resolve(strict=False)
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(f"{path} is outside repo root {repo_root}") from exc
+
+    current = path
+    while current != current.parent:
+        if current.exists() and (
+            current.is_symlink()
+            or bool(getattr(current.stat(), "st_file_attributes", 0) & 0x0400)
+        ):
+            raise ValueError(f"{current} is a symlink or reparse point")
+        current = current.parent
+
+
+def refresh_view(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    out: Path,
+    *,
+    repo_root: Path | None = None,
+    check_sources: Callable[[], None] | None = None,
+) -> Path:
+    """Write one projection from already-validated PLAN/RUN objects.
+
+    Checkpoint callers reuse their in-memory validated pair so refreshing the
+    non-canonical view does not repeat full manifest validation. The standalone
+    CLI remains the repair and check path because it reloads and validates both
+    canonical files.
+    """
+
+    from harness_transition import (
+        _assert_non_reparse_path,
+        _open_posix_parent_chain,
+        _open_windows_parent_chain,
+        _replace_document_text,
+    )
+
+    out = Path(os.path.abspath(out))
+    _assert_non_reparse_path(out)
+    if repo_root is not None:
+        _assert_plain_repo_path(out, Path(repo_root))
+    view = build_view(plan, run)
+    preserved = ""
+    existing = None
+    if out.exists():
+        existing = out.read_text(encoding="utf-8")
+        if GENERATED_MARKER not in existing:
+            raise ValueError(
+                f"refusing to overwrite non-generated tasks view {out}"
+            )
+        preserved = extract_update_log(existing)
+    updated = with_update_log(view, preserved)
+    if check_sources is not None:
+        check_sources()
+    if updated == existing:
+        return out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _assert_non_reparse_path(out)
+    if existing is not None:
+        _replace_document_text(
+            out, updated, expected_text=existing, before_commit=check_sources
+        )
+    else:
+        # Hold the ancestor chain and create exclusively. A raced user file
+        # wins; never truncate it or remove a partially written recovery file.
+        posix_handles = []
+        windows_handles = []
+        try:
+            if os.name == "nt":
+                windows_handles = _open_windows_parent_chain(out.parent)
+            else:
+                posix_handles = _open_posix_parent_chain(out.parent)
+            if check_sources is not None:
+                check_sources()
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+            fd = os.open(
+                out.name if posix_handles else out,
+                flags,
+                0o600,
+                **({"dir_fd": posix_handles[-1]} if posix_handles else {}),
+            )
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(updated)
+                handle.flush()
+                os.fsync(handle.fileno())
+        finally:
+            for fd in reversed(posix_handles):
+                os.close(fd)
+            for kernel32, handle in reversed(windows_handles):
+                kernel32.CloseHandle(handle)
+    if check_sources is not None:
+        check_sources()
+    return out
+
+
+def source_guard(
+    plan: dict[str, Any], run: dict[str, Any], plan_path: Path, run_path: Path,
+    *, expected_plan_text: str | None = None,
+) -> Callable[[], None]:
+    """Bind a projection to the exact saved pair without validating it again."""
+
+    plan_text = plan_path.read_text(encoding="utf-8")
+    run_text = run_path.read_text(encoding="utf-8")
+    if (
+        (expected_plan_text is not None and plan_text != expected_plan_text)
+        or extract_json_manifest_text(
+            plan_text, "## Harness Plan Manifest", "harness_plan", source=plan_path
+        ) != plan
+        or extract_json_manifest_text(
+            run_text, "## Harness Run State", "harness_run", source=run_path
+        ) != run
+    ):
+        raise ManifestError("PLAN/RUN changed before tasks-view refresh")
+
+    def check() -> None:
+        if (plan_path.read_text(encoding="utf-8") != plan_text
+                or run_path.read_text(encoding="utf-8") != run_text):
+            raise ManifestError("PLAN/RUN changed during tasks-view refresh; re-render the view")
+
+    return check
+
+
 def build_view(plan: dict[str, Any], run: dict[str, Any]) -> str:
     """Render the deterministic Markdown view from validated PLAN/RUN dicts."""
     dependencies = mission_dependencies(plan)
@@ -327,19 +457,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.out is None:
             sys.stdout.write(with_update_log(view))
             return 0
-        preserved = ""
-        if args.out.exists():
-            existing = args.out.read_text(encoding="utf-8")
-            if GENERATED_MARKER not in existing:
-                print(
-                    f"refusing to overwrite {args.out}: it was not generated by "
-                    "this tool; delete it first if it is disposable",
-                    file=sys.stderr,
-                )
-                return 2
-            preserved = extract_update_log(existing)
-        args.out.write_text(
-            with_update_log(view, preserved), encoding="utf-8", newline="\n"
+        refresh_view(
+            plan, run, args.out,
+            check_sources=source_guard(plan, run, args.plan, args.run),
         )
         print(f"wrote {args.out}")
     except (ManifestError, OSError, ValueError) as exc:
