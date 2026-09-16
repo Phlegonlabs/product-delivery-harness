@@ -44,9 +44,21 @@ For each direction, record:
 - tradeoffs and an avoid list; and
 - how it respects the approved component foundation and styling approach.
 
-Choose iconography through current official-source lookup. When icons are required, compare Lucide, Phosphor, Heroicons, and Tabler, select one primary and one named fallback, and record license, framework support, maintenance evidence, URLs, and retrieval dates. Record `UNVALIDATED` when evidence is unavailable; never silently choose from memory.
+Choose iconography through current official-source lookup for the approved platform. For Web icons, compare Lucide, Phosphor, Heroicons, and Tabler, select one primary and one named fallback, and record license, framework support, maintenance evidence, URLs, and retrieval dates. For iOS, assess SF Symbols first against the approved OS range, text styles, symbol meaning, and brand needs; record the selected system or custom treatment and its reason. Other platforms use their own conventions and approved component foundation. Never require a Web icon library on a native surface. Record `UNVALIDATED` when evidence is unavailable; never silently choose from memory.
 
 Choose typography with the same evidence discipline. Record display/body roles, required weights, Latin and CJK coverage, fallback order, loading strategy, source URLs, and retrieval dates. Record the palette derivation, contrast intent, and whether dark mode is in scope. These candidate theme values render the HiFi target but are not yet a frozen design-system contract.
+
+## Platform Rules
+
+Record one row per approved `stackSemantics.platform` in `### Platform rules` under Style Integration. Shared brand color roles, content hierarchy, and voice may span platforms; navigation, control geometry, type metrics, density, and feedback must follow the platform and task. The table does not select a framework or reopen the approved stack.
+
+- Web App: design the frequent working screen first. Set navigation, keyboard/focus/hover behavior, content width, table/list/detail density, responsive composition, font loading, and CJK fallback. A hero treatment belongs only to a product-approved surface that needs it.
+- iOS: explain system text styles and Dynamic Type, SF Symbols or a reasoned custom alternative, navigation/back behavior, sheets, safe areas, touch targets, keyboard avoidance, native list density, system feedback, and reduced motion. Check supported OS versions. Assess dark mode and haptics only within approved scope. Custom fonts may express the brand when they preserve scaling, readability, and language coverage.
+- Other native/desktop platforms: record the corresponding typography, controls, input methods, layout, and feedback conventions with current official evidence. A Web projection cannot substitute for these decisions.
+
+Use current [Apple iOS guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-ios), [typography guidance](https://developer.apple.com/design/human-interface-guidelines/typography), and [SF Symbols](https://developer.apple.com/sf-symbols/) for iOS, recording the inspected source and date. Their names alone are not design reasoning.
+
+Set `Review medium: HTML projection only`. Studies and HiFi review native appearance approximately; they do not prove native typography, gestures, keyboard behavior, scrolling, haptics, or accessibility. `Native proof` is `not_applicable` for Web and `required before expansion` for native/desktop platforms. After Visual Approval, the first implementation slice verifies representative primary and stress cases using the approved stack and actual platform tooling before expanding to other screens. Record this in the existing Harness UI evidence and repair through the same ownership boundaries; HTML cannot clear it. No production UI is authored during this design pass.
 
 ## Motion And Generated Media
 

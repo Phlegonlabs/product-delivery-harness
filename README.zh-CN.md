@@ -44,6 +44,7 @@
 - **HiFi 页面必须由产品控件连通。** 新增或修订的 `ui-hifi/2` 以 `index.html` 清单绑定同目录 HTML 页面的哈希与控件目的地。离线 `ui-output/2` 证据逐 responsive target 验证点击及键盘操作；缺页、过期哈希、无效控件、错误目的地或未声明跳转均阻止批准。每页只能呈现分配给该页的 surface。发布与保留须包含完整包；schema-1 仅供读取检查，正式 Visual Approval 一律要求 schema 2。 指定 Git revision 冻结时，该 revision 必须包含所有子页面且内容一致。
 - **视觉质量有独立门槛。** HiFi 的 H5（避免模板感）、H7（创意辨识度）与 H9（设计一致性）各须达到 80；总分 90 不能抵消视觉分项不足。审查须引用已检查的截图与已确认的方向原则；数字验证不代表美感或人工检查已获证明。
 - **用代表画面选择方向。** 选定前，每个方向呈现相同的主要操作与压力情境，保留已冻结内容。Direction comparison 表以路径与哈希绑定截图，并验证一个或三个方向的案例一致。人工选定后才制作完整连通 HiFi；局部研究不授权正式 UI 实作。
+- **平台共享品牌，分别定义控件。** Platform rules 逐批准平台记录规则。iOS 明确评估 system text styles、Dynamic Type、SF Symbols 与原生操作／版面，不强制套用 Web 组件库。HTML 仅供审稿；原生实作先以平台工具验证代表案例，再扩展其他画面，最后仍须完成全矩阵验证。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **每个 graph attempt 都可追踪，candidate code 一律隔离。** 非 mission 节点先 reserve，再在 RUN lock 外执行并记录结果。PLAN v6 本地 verifier 只能使用 repository 与 user-writable PATH 之外、由 machine policy 批准且受 OS 保护的原生 Docker/Podman executable；attestation 绑定 path、hash、ownership proof、image RepoDigest 与 sandbox policy。Candidate input 是只读 Git archive，执行时关闭网络、只读 rootfs、使用非 root user 与有界资源。 Windows 信任检查同时检查可执行文件与父目录 ACL；即使目录受保护，可写入的可执行文件仍会被拒绝。
 - **Runtime binding 明确可验证。** `lease-worker` 从选择器 directive 派生 provider、driver、model、effort 和 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精确目标可直接沿用，新精确目标只能从已启用的 wildcard 授权 materialize，不会扩大权限。

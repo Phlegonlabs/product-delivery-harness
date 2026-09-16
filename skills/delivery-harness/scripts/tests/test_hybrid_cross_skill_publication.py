@@ -318,7 +318,9 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
         extra_rows = "\n".join(line.replace("| UI-001 |", f"| {second_id} |")
                                .replace("| 390 |", f"| {second_targets[0]} |")
                                .replace("| 1200 |", f"| {second_targets[-1]} |") for line in comparison_rows)
-        ui_text = ui_text.replace("\n## HiFi Review", "\n" + extra_rows + "\n\n## HiFi Review")
+        ui_text = ui_text.replace("\n### Platform rules", "\n" + extra_rows + "\n\n### Platform rules")
+        if platform == "ios":
+            ui_text = ui_text.replace("\n## HiFi Review", "\n| ios | Tabs and back gesture; safe areas and keyboard | system text styles with Dynamic Type and CJK fallback | SF Symbols; custom symbols only for product meaning | Native touch density | System transitions and reduced motion | required before expansion | Apple HIG and SF Symbols inspected 2026-09-13 |\n\n## HiFi Review")
         ui_text = re.sub(r"^PRD source:.*$", f"PRD source: docs/product/PRD.md @ sha256:{hashlib.sha256(product.read_bytes()).hexdigest()}", ui_text, flags=re.MULTILINE)
         ui_text = re.sub(r"^Architecture source:.*$", f"Architecture source: docs/product/architecture.md @ sha256:{hashlib.sha256(architecture.read_bytes()).hexdigest()}", ui_text, flags=re.MULTILINE)
         ui_text = re.sub(r"^Stack source:.*$", f"Stack source: docs/product/stack-decisions.md @ sha256:{hashlib.sha256(stack.read_bytes()).hexdigest()}", ui_text, flags=re.MULTILINE)

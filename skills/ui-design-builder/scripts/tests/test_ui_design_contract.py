@@ -98,6 +98,7 @@ Direction decision: approved
 Direction decision owner: Product owner
 Direction decided on: 2026-09-13
 Candidate theme: blue-gray palette, sans type, compact rhythm
+Review medium: HTML projection only
 Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}
 
 ### Direction comparison
@@ -106,6 +107,12 @@ Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | VD-R1-01 | UI-001 | ready | 390 | primary | Approved home copy and normal data | docs/design/directions/primary.png @ sha256:{PRIMARY_HASH} | Compact primary action hierarchy |
 | VD-R1-01 | UI-001 | ready | 1200 | stress | Approved home copy with bounded dense data | docs/design/directions/stress.png @ sha256:{STRESS_HASH} | Dense data stays aligned and readable |
+
+### Platform rules
+
+| Platform | Navigation and input | Typography | Icons | Density and layout | Feedback and motion | Native proof | Sources |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| web | Sidebar, keyboard and visible focus | Sans text with CJK fallback | Lucide with named fallback | Compact rows with responsive reflow | Functional state feedback | not_applicable | Inspected official font and icon sources with retrieval date |
 
 ## HiFi Review
 
@@ -772,7 +779,7 @@ class UiDesignContractTests(unittest.TestCase):
         extras = "\n".join(rows.replace("VD-R1-01", f"VD-R1-0{n}")
                            .replace(PRIMARY_HASH, str(n) * 64).replace(STRESS_HASH, str(n + 3) * 64)
                            for n in (2, 3))
-        base = base.replace("\n## HiFi Review", "\n" + extras + "\n\n## HiFi Review")
+        base = base.replace("\n### Platform rules", "\n" + extras + "\n\n### Platform rules")
         self.assertEqual([], checker.validate_text(base, require_visual_approved=True))
         for candidate in (
             base.replace("2" * 64, PRIMARY_HASH),
@@ -796,6 +803,44 @@ class UiDesignContractTests(unittest.TestCase):
             problems = []
             checker._direction_comparison(style, "Direction mode: one recommended direction", None, problems, repo_root=root)
             self.assertTrue(any("canonical POSIX segments" in p for p in problems), problems)
+
+    def test_platform_rules_match_platforms_and_keep_native_proof_separate(self):
+        web = checker._section(contract(), "## Style Integration")
+        ios_row = "| ios | Native tabs and back; keyboard safe area | system text styles with Dynamic Type | SF Symbols with documented custom fallback | Touch rows | System feedback | required before expansion | Apple HIG inspected 2026-09-13 |\n"
+        scope = {"surfaces": [{"stackSemantics": {"platform": platform}} for platform in ("web", "ios")]}
+        both = web + ios_row
+        problems = []
+        checker._platform_rules(both, scope, problems)
+        self.assertEqual([], problems)
+        mutations = {
+            "missing ios": web,
+            "duplicate": both + ios_row,
+            "extra platform": both + ios_row.replace("| ios |", "| android |"),
+            "web typography on ios": both.replace("system text styles with Dynamic Type", "fixed CSS font size"),
+            "web icons only": both.replace("SF Symbols with documented custom fallback", "Lucide"),
+            "html native claim": both.replace("required before expansion", "verified in HTML"),
+            "blank source": both.replace("Apple HIG inspected 2026-09-13", "TBD"),
+        }
+        for name, style in mutations.items():
+            with self.subTest(name=name):
+                problems = []
+                checker._platform_rules(style, scope, problems)
+                self.assertTrue(problems)
+
+    def test_visual_contract_cannot_claim_native_validation_from_html(self):
+        candidate = contract().replace("Review medium: HTML projection only", "Review medium: native verified")
+        problems = checker.validate_text(candidate, require_visual_approved=True)
+        self.assertTrue(any("it is not native verification" in p for p in problems), problems)
+
+    def test_direction_comparison_requires_each_platform(self):
+        scope = {"surfaces": [
+            {"id": "UI-001", "states": ["ready"], "stackSemantics": {"platform": "web"}, "responsive": {"targets": [390, 1200]}},
+            {"id": "UI-IOS", "states": ["ready"], "stackSemantics": {"platform": "ios"}, "responsive": {"targets": ["compact", "regular"]}},
+        ]}
+        problems = []
+        checker._direction_comparison(checker._section(contract(), "## Style Integration"),
+                                      "Direction mode: one recommended direction", scope, problems)
+        self.assertTrue(any("for platform ios" in p for p in problems), problems)
 
     def test_wireframe_approval_is_human_and_approved(self):
         problems = checker.validate_text(

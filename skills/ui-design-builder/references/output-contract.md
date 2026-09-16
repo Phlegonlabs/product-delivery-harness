@@ -94,6 +94,8 @@ Direction decided on: [YYYY-MM-DD]
 
 Candidate theme: [color, typography, spacing, shape, iconography, imagery, and motion rules used in the HiFi reference; not yet a frozen design-system pair]
 
+Review medium: HTML projection only
+
 Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>]
 
 ### Direction comparison
@@ -104,6 +106,15 @@ Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>]
 | VD-R1-01 | UI-001 | ready | 1200 | stress | [bounded dense data from the same copy contract] | docs/design/directions/round-1/dense.png @ sha256:[hash] | [how density and alignment hold up] |
 
 The active table contains exactly one or three direction IDs as selected in `Direction mode`. Each direction covers the same surface/state/target/scenario/content tuples with both `primary` and `stress` scenarios. Every tuple belongs to the approved surface scope; a stress scenario may use bounded dense content in an existing state. Cover every platform with its own cases. `Selected direction` starts with one of these exact `VD-R<round>-<number>` IDs. Screenshots are repository-relative PNG, JPEG, or WebP paths with lowercase SHA-256 values; identical captures cannot stand for different directions. Record only inspected captures and retain the authorized files. The checker validates scope, matrix equality, paths, and hashes; visual distinction and content fidelity remain human review judgments. Before Visual Approval these records may remain draft, but no missing or stale comparison can pass final validation. Never backfill an old approval: missing evidence requires renewed affected direction and Visual Approval.
+
+### Platform rules
+
+| Platform | Navigation and input | Typography | Icons | Density and layout | Feedback and motion | Native proof | Sources |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| web | [navigation, keyboard, focus, hover] | [roles, loading, CJK fallback] | [selected family and fallback] | [task density and responsive layout] | [approved functional feedback] | not_applicable | [official URLs and inspection dates] |
+| ios | [native navigation, back, sheets, keyboard] | [system text styles and Dynamic Type reasoning] | [SF Symbols or reasoned alternative] | [safe areas and touch density] | [system feedback and reduced motion] | required before expansion | [official URLs, inspection dates, OS range] |
+
+Include exactly the platforms present in Approved target `stackSemantics.platform`; omit example rows that do not apply. Every column contains a concrete rule or scoped reason. The iOS typography and icon columns explicitly address system text styles, Dynamic Type, and SF Symbols without requiring custom brands to abandon their chosen fonts or symbols. Web libraries are not default native foundations. Other native/desktop rows also use `required before expansion`. `Review medium` must remain the exact HTML projection value; actual platform proof belongs to the first approved implementation slice and final Harness evidence. Validators check declared coverage and required topics, not platform usability or the quality of the rationale.
 
 Each connected HiFi page must pass the generic self-contained surface check: no active external resources, network or executable APIs, remote forms, base/meta refresh navigation, CSS imports, or external scripts. Each schema-2 page contains exactly one CSP meta, first in its head, with this exact policy (the parser is deterministic and does not claim to prove arbitrary JavaScript safe):
 

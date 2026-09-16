@@ -569,6 +569,30 @@ def _surface_platform(surface: dict[str, Any]) -> str:
     return STACK_PLATFORM_BY_SURFACE_CLASS.get(surface.get("surfaceClass"), surface.get("captureMode", "web"))
 
 
+def _platform_rules(style: str, scope: dict[str, Any] | None, problems: list[str]) -> None:
+    rows = _design_table(style, "### Platform rules", [
+        "Platform", "Navigation and input", "Typography", "Icons", "Density and layout",
+        "Feedback and motion", "Native proof", "Sources",
+    ], problems)
+    platforms = set()
+    for platform, _, typography, icons, _, _, native_proof, _ in rows:
+        if platform in platforms:
+            _add(problems, f"Platform rules duplicates {platform}")
+        platforms.add(platform)
+        if platform == "ios":
+            if not all(term in typography.casefold() for term in ("system text styles", "dynamic type")):
+                _add(problems, "iOS Platform rules Typography must address system text styles and Dynamic Type")
+            if "sf symbols" not in icons.casefold():
+                _add(problems, "iOS Platform rules Icons must address SF Symbols")
+        expected_proof = "not_applicable" if platform == "web" else "required before expansion"
+        if native_proof != expected_proof:
+            _add(problems, f"Platform rules {platform} Native proof must be {expected_proof}")
+    if scope is not None:
+        expected = {_surface_platform(surface) for surface in scope["surfaces"]}
+        if platforms != expected:
+            _add(problems, "Platform rules must exactly cover Approved target platforms")
+
+
 def _validate_motion_table(
     section: str, *, require_filled: bool, problems: list[str]
 ) -> dict[str, dict[str, str]]:
@@ -2275,6 +2299,7 @@ def validate_text(
                 "Direction decision owner",
                 "Direction decided on",
                 "Candidate theme",
+                "Review medium",
                 "Connected HiFi reference",
             ),
             label="Style Integration",
@@ -2283,6 +2308,8 @@ def validate_text(
         )
         if style_values.get("Design author", "").casefold() != "frontend-design":
             _add(problems, "Style Integration Design author must be frontend-design")
+        if style_values.get("Review medium") != "HTML projection only":
+            _add(problems, "Style Integration Review medium must be HTML projection only; it is not native verification")
         if style_values.get("Direction decision", "").casefold() not in VALID_DIRECTION_DECISIONS:
             _add(problems, "Style Integration Direction decision is not approved")
         if not _human_owner(style_values.get("Direction decision owner")):
@@ -2369,6 +2396,7 @@ def validate_text(
         scope = _target_scope(visual_values.get("Approved target"), "Approved target", problems)
         valid_scope = scope if len(problems) == scope_errors_before else None
         _direction_comparison(style, sections.get("## UI Design Intake", ""), valid_scope, problems)
+        _platform_rules(style, valid_scope, problems)
         connected = SOURCE_RE.fullmatch(
             (style_values.get("Connected HiFi reference") or "").strip()
         )
