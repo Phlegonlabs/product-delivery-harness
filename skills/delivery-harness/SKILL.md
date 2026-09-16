@@ -102,7 +102,7 @@ For a self-contained feature, offer `/feature-dev` as an optional richer loop; i
 
 New managed work uses PLAN schema v6 and RUN schema v11. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
 
-Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with `scripts/new_run.py` rather than hand-copying `assets/templates/MISSION_RUNBOOK.template.md`; nearly every field of a new RUN is derivable from PLAN, and the generator grants nothing. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; render `docs/tasks.md` with `scripts/render_tasks_view.py` when the run starts, after each accepted wave, and after recording a mid-run modification — each becomes its own mission (`references/execution-state-model.md`); the view is non-canonical, never edited to change state, and `--check` detects a stale view by its state fingerprint.
+Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with `scripts/new_run.py`; it derives initial state and grants nothing. RUN owns checkpoints, tasks, attempts, evidence, and closeout. With `--repo-root`, `new_run.py --out` and guarded checkpoint transitions automatically render `docs/tasks.md` from its declared coordination path. This non-canonical view preserves its Update Log. A refresh failure leaves successful RUN state intact; use `scripts/render_tasks_view.py` to repair or `--check` it. Read `references/execution-state-model.md` for the checkpoint set, source guards, and formal revision procedure.
 
 ### Reference Routing
 

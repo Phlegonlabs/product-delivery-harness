@@ -71,9 +71,12 @@ Cada uno de los siete skills incluidos se puede invocar por separado; el pipelin
 El núcleo de entrega toma una decisión de tamaño antes de invocar la orquestación gestionada:
 
 - El trabajo pequeño sigue siendo directo, sin planner, scheduler, PLAN/RUN, subagent ni preflight de runtime externo por defecto.
-- El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; el `docs/tasks.md` del proyecto objetivo es una vista humana bajo demanda, no un estado requerido. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
+- El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; `new_run.py` escribe el `docs/tasks.md` inicial con `--out` y `--repo-root`, y las transiciones gestionadas `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews` y `close-wave` con `--repo-root` lo refrescan conservando el Update Log. Un fallo de proyección nunca revierte el RUN; el `render_tasks_view.py` independiente repara o verifica esa vista no canónica. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
+
 - El selector deriva `managed_sequential` para menos de dos missions de escritura segura realmente seleccionadas y `parallel_graph` para dos o más. El fan-out del scheduler arranca solo para el segundo; el runtime driver sigue siendo un hecho de transporte separado. El núcleo aplica exactamente una sección de provider del host desde la referencia de adaptadores de runtime; los runtimes externos se preflightean solo cuando la ruta seleccionada los necesita.
 - La ejecución del RUN nunca espera al CI remoto. La promoción de branches es una etapa de closeout separada: la verificación del candidato exacto y del preview environment aislado aplicable debe terminar antes de que `main` pueda moverse.
+
+Solo RUN y su vista tasks generada y declarada son excepciones al checkout limpio; los hashes del verifier protegen ambos. Los cambios de producto y las vistas escritas a mano siguen bloqueando. Las operaciones rutinarias de RUN usan transiciones protegidas; una revisión formal conserva el historial y requiere nueva autorización exacta. Si solo hay layers `Selected`/`Required` sin una opción nueva aprobada, conserva `Approved option map: None` y omite el generador opcional.
 
 Tamaño significa scope de coordinación y blast radius, no un conteo bruto de archivos o líneas. Si el trabajo pequeño crece, el Harness conserva el trabajo completado y planifica solo el resto.
 
