@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.40.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.40.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -79,7 +79,7 @@
 - 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心只套用 runtime adapter 参考文档中对应所检测宿主的那一个 provider 章节；只有当选定的路线需要外部运行时，才会对其做预检。
 - RUN 执行不等待远程 CI；branch promotion 是独立 closeout。精确 candidate 与适用的隔离 preview environment 验证完成前，`main` 不得移动。
 
-只有 RUN 与它已声明的生成 tasks view 例外于干净目录检查；verifier 仍用哈希保护两者。产品修改和手写 view 仍会阻止执行。日常 RUN 操作使用 guarded transitions；正式 revision 保留历史并取得精确的新授权。若包件只有 `Selected`／`Required` layers，没有新批准 option，保持 `Approved option map: None`，跳过可选的生成器。
+只有 RUN 与它已声明的生成 tasks view 例外于干净目录检查；verifier 仍用哈希保护两者。产品修改和手写 view 仍会阻止执行。日常 RUN 操作使用 guarded transitions；正式 revision 保留历史并取得精确的新授权。若包件只有 `Selected`／`Required` layers，没有新批准 option，保持 `Approved option map: None`，跳过可选的生成器。 检查器接受不分大小写的 `None`；只有没有新增批准 layer 或 option 时，才可省略选项表。
 
 规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
 
@@ -544,6 +544,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.40.1** — 修正现有 Selected／Required 选型使用 `Approved option map: None` 时的严格验证，也支持没有选项表的包件。新增批准选型仍须提供完全匹配的 option map。
 
 - **0.40.0** — H5、H7、H9 各须达到 80，视觉质量不再被总分抵消。选方向须提供主要／压力情境的可比较截图，验证范围、平台覆盖、图像文件与哈希。Platform rules 分开 Web 与原生字体、图标、版面及操作；iOS 明确评估 system text styles、Dynamic Type 与 SF Symbols。HTML 仅供审稿，原生代表案例先验证再扩展实作。既有视觉契约须补齐比较、平台与分数记录，并重新取得受影响的批准。破坏性 skill-bundle 变更，不自动升级旧批准。 同版纳入 checkpoint 自动刷新进度页、只读 stack option-map 生成器、保留的 dispatch 证据查看、文档批量读取、review packet 去重、verifier 计时，以及保留各自 guard 的同批 container 结果复用。
 

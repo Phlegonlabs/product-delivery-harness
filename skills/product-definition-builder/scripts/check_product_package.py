@@ -1444,6 +1444,8 @@ def _parse_approved_option_map(
     findings: list[str] = []
     parsed: dict[str, dict[str, str]] = {}
     normalized = option_map.strip()
+    if normalized.casefold() == "none":
+        return {}, []
     explicit = normalized.startswith("||") or normalized.endswith("||")
     if explicit:
         if not (normalized.startswith("||") and normalized.endswith("||")):
@@ -2912,7 +2914,12 @@ def validate_texts(
             "stack-decisions",
             "Approved layers require a non-empty Coherent Options Presented table",
         )
-    elif require_approved and checkpoint_option_map and not option_rows:
+    elif (
+        require_approved
+        and checkpoint_option_map
+        and checkpoint_option_map.strip().casefold() != "none"
+        and not option_rows
+    ):
         _add(
             problems,
             "stack-decisions",

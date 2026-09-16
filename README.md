@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.40.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.40.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -79,7 +79,7 @@ The delivery core makes one size decision before it invokes managed orchestratio
 - The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core then applies exactly one host provider section from the runtime adapter reference; external runtimes are preflighted only when a selected route needs them.
 - RUN execution never waits for remote CI. Branch promotion is a separate closeout stage: exact candidate and applicable isolated preview-environment verification must finish before `main` can move.
 
-Only RUN and its declared generated tasks view are clean-checkout exceptions; verifier hashes still protect both. Product dirt and hand-authored views still block. Routine RUN operations use guarded transitions, while formal revisions preserve history and need exact new authorization. For a package containing only `Selected`/`Required` layers with no approved new option, keep `Approved option map: None` and skip the optional generator.
+Only RUN and its declared generated tasks view are clean-checkout exceptions; verifier hashes still protect both. Product dirt and hand-authored views still block. Routine RUN operations use guarded transitions, while formal revisions preserve history and need exact new authorization. For a package containing only `Selected`/`Required` layers with no approved new option, keep `Approved option map: None` and skip the optional generator. The checker accepts case-insensitive `None` without an options table only when no layer or option is newly approved.
 
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
 
@@ -544,6 +544,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.40.1** — Fix strict stack validation for existing Selected/Required choices with `Approved option map: None`, including packages without an options table. Newly approved choices still require an exact option map.
 
 - **0.40.0** — Visual quality now requires H5, H7, and H9 scores of at least 80 independently. Direction selection uses comparable primary/stress screenshots with validated scope, platform coverage, image files, and hashes. Platform rules separate Web and native typography, icons, layout, and input; iOS explicitly assesses system text styles, Dynamic Type, and SF Symbols. HTML is review-only; native representative cases are verified before implementation expands. Existing visual contracts need the new comparison, platform, and score records plus renewed affected approvals. Breaking skill-bundle change; no legacy approval is silently upgraded. This release also adds guarded checkpoint task-view refreshes, a read-only stack option-map renderer, retained dispatch evidence inspection, batched documentation reads, smaller review packets, verifier timings, and exact same-batch container reuse with independent guards.
 

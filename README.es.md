@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.40.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.40.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -79,7 +79,7 @@ El núcleo de entrega toma una decisión de tamaño antes de invocar la orquesta
 - El selector deriva `managed_sequential` para menos de dos missions de escritura segura realmente seleccionadas y `parallel_graph` para dos o más. El fan-out del scheduler arranca solo para el segundo; el runtime driver sigue siendo un hecho de transporte separado. El núcleo aplica exactamente una sección de provider del host desde la referencia de adaptadores de runtime; los runtimes externos se preflightean solo cuando la ruta seleccionada los necesita.
 - La ejecución del RUN nunca espera al CI remoto. La promoción de branches es una etapa de closeout separada: la verificación del candidato exacto y del preview environment aislado aplicable debe terminar antes de que `main` pueda moverse.
 
-Solo RUN y su vista tasks generada y declarada son excepciones al checkout limpio; los hashes del verifier protegen ambos. Los cambios de producto y las vistas escritas a mano siguen bloqueando. Las operaciones rutinarias de RUN usan transiciones protegidas; una revisión formal conserva el historial y requiere nueva autorización exacta. Si solo hay layers `Selected`/`Required` sin una opción nueva aprobada, conserva `Approved option map: None` y omite el generador opcional.
+Solo RUN y su vista tasks generada y declarada son excepciones al checkout limpio; los hashes del verifier protegen ambos. Los cambios de producto y las vistas escritas a mano siguen bloqueando. Las operaciones rutinarias de RUN usan transiciones protegidas; una revisión formal conserva el historial y requiere nueva autorización exacta. Si solo hay layers `Selected`/`Required` sin una opción nueva aprobada, conserva `Approved option map: None` y omite el generador opcional. El validador acepta `None` sin distinguir mayúsculas y permite omitir la tabla solo cuando no hay layers ni opciones recién aprobados.
 
 Tamaño significa scope de coordinación y blast radius, no un conteo bruto de archivos o líneas. Si el trabajo pequeño crece, el Harness conserva el trabajo completado y planifica solo el resto.
 
@@ -543,6 +543,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.40.1** — Corrige la validación de stacks existentes Selected/Required con `Approved option map: None`, incluso sin tabla de opciones. Las elecciones nuevas aprobadas siguen exigiendo un mapa exacto.
 
 - **0.40.0** — H5, H7 y H9 exigen al menos 80 de forma independiente. La selección compara capturas de casos principales y exigentes, con scope, cobertura de plataformas, imágenes y hashes validados. Platform rules separa tipografía, iconos, layout e input Web/nativos; iOS evalúa system text styles, Dynamic Type y SF Symbols. HTML solo sirve para revisión; los casos nativos se verifican antes de ampliar la implementación. Los contratos anteriores requieren los nuevos registros y renovar las aprobaciones afectadas. Cambio incompatible del bundle; ninguna aprobación antigua se actualiza implícitamente. Esta versión también añade actualización de tareas en checkpoints, un generador de mapas de opciones de stack de solo lectura, inspección de evidencias de dispatch, lectura de documentos por lotes, paquetes de revisión más cortos, tiempos de verificación y reutilización de resultados de contenedores dentro del mismo lote con comprobaciones independientes.
 
