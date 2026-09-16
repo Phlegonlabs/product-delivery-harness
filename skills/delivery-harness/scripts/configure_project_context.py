@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 
-from check_skill_bindings import PIN_RE, bound_skill_name, parse_binding_contract
+from check_skill_bindings import PIN_RE, STAGE_SLOTS, bound_skill_name, parse_binding_contract
 
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "assets" / "templates"
@@ -109,7 +109,7 @@ def configure_context(
     return result
 
 
-def unresolved_placeholders(root: Path) -> list[str]:
+def unresolved_placeholders(root: Path, *, stage: str = "all") -> list[str]:
     """Unresolved template markers in a seeded AGENTS.md, with line numbers."""
 
     agents = root / "AGENTS.md"
@@ -124,9 +124,11 @@ def unresolved_placeholders(root: Path) -> list[str]:
         for marker in UNRESOLVED_PLACEHOLDER_MARKERS:
             if marker in line:
                 findings.append(f"line {number}: unresolved placeholder {marker!r}")
-    rows, binding_findings = parse_binding_contract(text)
+    rows, binding_findings = parse_binding_contract(text, stage=stage)
     findings.extend(f"skill bindings: {finding}" for finding in binding_findings)
     for slot, cell, pin, number in rows:
+        if slot not in STAGE_SLOTS[stage] and cell.strip("`") == pin == "pending":
+            continue
         if bound_skill_name(cell) is None or PIN_RE.fullmatch(pin) is None:
             findings.append(
                 f"line {number}: unresolved Skill Bindings row for slot {slot!r}"
@@ -137,6 +139,7 @@ def unresolved_placeholders(root: Path) -> list[str]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path, help="Target repository root")
+    parser.add_argument("--stage", choices=sorted(STAGE_SLOTS), default="all")
     parser.add_argument(
         "--agents-template",
         type=Path,
@@ -179,7 +182,7 @@ def main() -> int:
         return 2
     unresolved: list[str] = []
     if args.require_resolved:
-        unresolved = unresolved_placeholders(root)
+        unresolved = unresolved_placeholders(root, stage=args.stage)
         result["unresolved_placeholders"] = unresolved
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     if args.check and (result["missing"] or unresolved):

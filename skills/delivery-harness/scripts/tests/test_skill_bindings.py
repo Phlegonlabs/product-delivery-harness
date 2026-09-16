@@ -39,6 +39,30 @@ Words here.
 
 
 class SkillBindingTests(unittest.TestCase):
+    def test_stage_deferral_and_required_pin_drift(self) -> None:
+        pin = check_skill_bindings.hash_skill(self.skills / "compiler-skill" / "SKILL.md")
+        text = "## Skill Bindings\n| Slot | Stage | Bound skill | Pinned SHA-256 |\n| --- | --- | --- | --- |\n"
+        text += f"| code_security_verification | security | compiler-skill | {pin} |\n"
+        text += "| ui_design | later | pending | pending |\n"
+        self.agents.write_text(text, encoding="utf-8")
+        self.assertEqual([], check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")[0])
+        self.assertEqual([], check_skill_bindings.check_bindings(self.agents, [self.skills], stage="product-definition")[0])
+        self.assertTrue(check_skill_bindings.check_bindings(self.agents, [self.skills], stage="ui-design")[0])
+        self.assertTrue(check_skill_bindings.check_bindings(self.agents, [self.skills])[0])
+        self.agents.write_text(text.replace("pending | pending", "future-uninstalled | " + "f" * 64), encoding="utf-8")
+        self.assertEqual([], check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")[0])
+        (self.skills / "compiler-skill" / "SKILL.md").write_text("changed", encoding="utf-8")
+        self.assertTrue(check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")[0])
+
+    def test_deferred_stage_rejects_malformed_unknown_and_duplicate_rows(self) -> None:
+        base = "## Skill Bindings\n| Slot | Stage | Bound skill | Pinned SHA-256 |\n| --- | --- | --- | --- |\n"
+        for rows in ("| extra | future | pending | pending |\n",
+                     "| ui_design | future | pending | pending |\n" * 2,
+                     "| ui_design | malformed |\n",
+                     "| ui_design | future | two skills | pending |\n"):
+            self.agents.write_text(base + rows, encoding="utf-8")
+            self.assertTrue(check_skill_bindings.check_bindings(self.agents, [self.skills], stage="product-definition")[0])
+
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)

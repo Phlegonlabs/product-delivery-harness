@@ -20,14 +20,14 @@ The delivery flow binds stage slots, not fixed skill names. This table binds the
 
 | Slot | Stage | Bound skill | Pinned SHA-256 |
 | --- | --- | --- | --- |
-| ui_design | approved Product Definition → UI intake, wireframes, HiFi, approvals | `<resolve after local observation; recommended: ui-design-builder>` | `<full-tree SHA-256 after owner confirmation>` |
-| style_integration | approved wireframe → page theme and connected HiFi target | `<resolve an installed visual-direction skill>` | `<full-tree SHA-256 after owner confirmation>` |
-| design_compilation | frozen design-system pair | `<resolve after local observation; recommended: design-system-compiler>` | `<full-tree SHA-256 after owner confirmation>` |
-| frontend_implementation | implementation missions | `<resolve an installed frontend-authoring skill>` | `<full-tree SHA-256 after owner confirmation>` |
-| ui_quality_verification | authorized HiFi/page-quality review | `<resolve a compatible installed UI-quality skill>` | `<full-tree SHA-256 after owner confirmation>` |
-| code_security_verification | fresh unified code-security review before final regression and closeout | `<resolve after local observation; recommended: code-security-review>` | `<full-tree SHA-256 after owner confirmation>` |
+| ui_design | approved Product Definition → UI intake, wireframes, HiFi, approvals | `pending` | `pending` |
+| style_integration | approved wireframe → page theme and connected HiFi target | `pending` | `pending` |
+| design_compilation | frozen design-system pair | `pending` | `pending` |
+| frontend_implementation | implementation missions | `pending` | `pending` |
+| ui_quality_verification | authorized HiFi/page-quality review | `pending` | `pending` |
+| code_security_verification | fresh unified code-security review before final regression and closeout | `pending` | `pending` |
 
-These rows are intentionally unresolved in the seed. Before managed work, observe the installed skill trees, show the exact choices and side effects to the owner, then replace every placeholder with one skill name and its full-tree SHA-256. `frontend-design` is external and supports visual direction/frontend authoring only; do not claim compilation, conformance, or read-only modes it does not define. The pinned `impeccable` profile requires separate authorization for subagents, browser/server activity, snapshot writes, and any optional binary download; it is not a Harness read-only reviewer. `delivery-harness/scripts/check_skill_bindings.py` rejects unresolved, fenced, duplicate, malformed, missing, or drifted bindings. The code-security reviewer receives no implementation or lifecycle authority.
+These rows are intentionally unresolved in the seed. Before managed work, observe the installed skill trees, show the exact choices and side effects to the owner, then replace each required stage slot with one skill name and its full-tree SHA-256. `pending` in both cells is allowed only outside the checked stage. Product Definition uses `--stage product-definition`; UI authoring uses `--stage ui-design`; compilation uses `--stage design-compilation`; a proven headless/backend-only scope uses `--stage backend`. Omit `--stage` for full UI delivery or unknown applicability. Recheck at every stage change; a stage result never authorizes a later stage. `frontend-design` is external and supports visual direction/frontend authoring only; do not claim compilation, conformance, or read-only modes it does not define. The pinned `impeccable` profile requires separate authorization for subagents, browser/server activity, snapshot writes, and any optional binary download; it is not a Harness read-only reviewer. `delivery-harness/scripts/check_skill_bindings.py` rejects unresolved, fenced, duplicate, malformed, missing, or drifted bindings. The code-security reviewer receives no implementation or lifecycle authority.
 
 ## Core Development Principles
 
