@@ -556,6 +556,34 @@ class ArchiveFirstPushTests(unittest.TestCase):
         with self.assertRaisesRegex(ManifestError, "copied or moved"):
             subject.execute(Path(fixture["root"]), request_path=copied)
 
+    def test_request_rejects_new_credential_policy_before_handoff(self) -> None:
+        fixture = self._fixture()
+        request = self._prepare(fixture)
+        self.assertNotIn("credential_binding", request)
+        with patch.object(subject, "credential_binding", return_value={"policy_sha256": "a" * 64}):
+            with self.assertRaisesRegex(ManifestError, "credential policy/helper changed"):
+                subject._load_request(Path(fixture["request"]), Path(fixture["root"]))
+        self.assertFalse(Path(fixture["attempt"]).exists())
+
+    def test_private_https_request_binds_credential_policy_in_its_digest(self) -> None:
+        fixture = self._fixture()
+        root = Path(fixture["root"])
+        url = "https://example.invalid/team/private.git"
+        git(root, "remote", "set-url", "--push", "origin", url)
+        binding = {"policy_sha256": "a" * 64, "helper": "/trusted/helper",
+                   "helper_sha256": "b" * 64, "endpoint": url}
+        with patch.object(subject, "credential_binding", return_value=binding), patch.object(
+            subject, "_remote_state", return_value=None
+        ) as read:
+            request = self._prepare(fixture)
+            self.assertEqual(binding, request["credential_binding"])
+            self.assertEqual(binding, read.call_args.kwargs["credentials"])
+            self.assertEqual(request, subject._load_request(Path(fixture["request"]), root))
+        changed = {**binding, "helper_sha256": "c" * 64}
+        with patch.object(subject, "credential_binding", return_value=changed):
+            with self.assertRaisesRegex(ManifestError, "credential policy/helper changed"):
+                subject._load_request(Path(fixture["request"]), root)
+
     def test_full_branch_ref_and_protected_case_variants_are_handled(self) -> None:
         fixture = self._fixture()
         receipt_path = Path(fixture["archive"]) / "ARCHIVE_RECEIPT.json"

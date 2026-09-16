@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_git import git_environment, git_executable, _windows_parent_user_writable
+from publication_credentials import publication_environment, UNBOUND
 from push_archived_candidate import (
     EXECUTION_EVIDENCE_NAMESPACE,
     EXECUTION_EVIDENCE_PROTOCOL,
@@ -200,12 +201,10 @@ def _challenge_sign_and_verify(
             pass
 
 
-def _remote_head(url: str, branch_ref: str, *, cwd: Path) -> str | None:
+def _remote_head(url: str, branch_ref: str, *, cwd: Path, credentials=UNBOUND) -> str | None:
     isolated = Path(tempfile.mkdtemp(prefix="harness-trusted-host-"))
     try:
-        env = git_environment()
-        env["GIT_CONFIG_NOSYSTEM"] = "1"
-        env["GIT_CONFIG_GLOBAL"] = os.devnull if os.name != "nt" else "NUL"
+        env = publication_environment(url, expected=credentials)
         result = subprocess.run(
             [git_executable(env), "--no-replace-objects", "ls-remote", "--", url, branch_ref],
             cwd=isolated,
@@ -223,7 +222,7 @@ def _remote_head(url: str, branch_ref: str, *, cwd: Path) -> str | None:
         except OSError:
             pass
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "trusted-host remote read failed")
+        raise RuntimeError("trusted-host remote read failed")
     if not result.stdout.strip():
         return None
     fields = result.stdout.strip().split()
@@ -389,13 +388,11 @@ def execute(args: argparse.Namespace) -> int:
         url = _pre_push_recheck(root, request, authority)
         push_argv = _execution_argv(request)
         executable_argv = [git_executable(), *push_argv[1:]]
-        env = git_environment()
-        env["GIT_CONFIG_NOSYSTEM"] = "1"
-        env["GIT_CONFIG_GLOBAL"] = os.devnull if os.name != "nt" else "NUL"
+        env = publication_environment(url, expected=request.get("credential_binding"))
         pushed = subprocess.run(executable_argv, cwd=Path.cwd(), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, check=False)
         if pushed.returncode != 0:
-            raise RuntimeError(pushed.stderr.strip() or "trusted-host push failed")
-        readback = _remote_head(url, request["branch_ref"], cwd=Path.cwd())
+            raise RuntimeError("trusted-host push failed")
+        readback = _remote_head(url, request["branch_ref"], cwd=Path.cwd(), credentials=request.get("credential_binding"))
         if readback != request["candidate_a"]:
             raise RuntimeError("trusted-host remote readback does not equal candidate A")
         payload = {

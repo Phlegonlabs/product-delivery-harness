@@ -34,7 +34,7 @@ therefore not trusted.
 Run the read-only preflight from the repository root:
 
 ```text
-python skills/delivery-harness/scripts/validate_harness_plan.py --plan <PLAN.md> --probe-sandboxes
+python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --probe-sandboxes
 ```
 
 The command is diagnostic only. A managed run must still record the fresh
