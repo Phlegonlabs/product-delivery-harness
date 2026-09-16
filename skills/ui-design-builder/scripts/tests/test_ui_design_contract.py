@@ -4,11 +4,14 @@ import importlib
 import hashlib
 import inspect
 import json
+import io
 import re
 import sys
 import unittest
 import tempfile
 from pathlib import Path
+
+from PIL import Image
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
@@ -31,6 +34,17 @@ D_HASH = hashlib.sha256(b"wireframes").hexdigest()
 E_HASH = hashlib.sha256(b"hifi").hexdigest()
 U_HASH = hashlib.sha256(b"ui-design").hexdigest()
 EVIDENCE_HASH = "e" * 64
+def capture_fixture(color):
+    """Synthetic image bytes for validator tests, not product review evidence."""
+    output = io.BytesIO()
+    Image.new("RGB", (2, 2), color).save(output, format="PNG")
+    return output.getvalue()
+
+
+PRIMARY_CAPTURE = capture_fixture("white")
+STRESS_CAPTURE = capture_fixture("black")
+PRIMARY_HASH = hashlib.sha256(PRIMARY_CAPTURE).hexdigest()
+STRESS_HASH = hashlib.sha256(STRESS_CAPTURE).hexdigest()
 
 
 def contract(*, wireframe="approved", visual="approved", author="frontend-design"):
@@ -85,6 +99,13 @@ Direction decision owner: Product owner
 Direction decided on: 2026-09-13
 Candidate theme: blue-gray palette, sans type, compact rhythm
 Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}
+
+### Direction comparison
+
+| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| VD-R1-01 | UI-001 | ready | 390 | primary | Approved home copy and normal data | docs/design/directions/primary.png @ sha256:{PRIMARY_HASH} | Compact primary action hierarchy |
+| VD-R1-01 | UI-001 | ready | 1200 | stress | Approved home copy with bounded dense data | docs/design/directions/stress.png @ sha256:{STRESS_HASH} | Dense data stays aligned and readable |
 
 ## HiFi Review
 
@@ -195,6 +216,10 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         ).replace("navigate-to 'self'", "navigate-to 'none'").replace(
             'href="index.html"', 'href="#home"'
         ), encoding="utf-8")
+    captures = root / "docs/design/directions"
+    captures.mkdir(parents=True, exist_ok=True)
+    (captures / "primary.png").write_bytes(PRIMARY_CAPTURE)
+    (captures / "stress.png").write_bytes(STRESS_CAPTURE)
     ui = contract()
     replacements = {
         A_HASH: hashlib.sha256(product.read_bytes()).hexdigest(),
@@ -719,6 +744,58 @@ class UiDesignContractTests(unittest.TestCase):
         problems = checker.validate_text(candidate, require_visual_approved=True)
         for dimension in ("H5", "H7"):
             self.assertIn(f"ui-design: {dimension} score must be an integer from 80 to 100", problems)
+
+    def test_direction_comparison_requires_rendered_matching_cases(self):
+        base = contract()
+        start = base.index("### Direction comparison")
+        end = base.index("## HiFi Review")
+        table = base[start:end]
+        mutations = {
+            "missing": base[:start] + base[end:],
+            "duplicate": base[:end] + table + base[end:],
+            "outside scope": base.replace("| UI-001 | ready | 390 |", "| UI-099 | ready | 390 |"),
+            "wrong target": base.replace("| ready | 390 |", "| ready | 400 |"),
+            "no stress": base.replace("| stress |", "| primary |"),
+            "missing capture": base.replace(f"docs/design/directions/primary.png @ sha256:{PRIMARY_HASH}", "TBD"),
+            "text capture": base.replace("directions/primary.png", "directions/primary.md"),
+            "uncompared selection": base.replace("Selected direction: VD-R1-01", "Selected direction: VD-R1-99"),
+            "wrong count": base.replace("Direction mode: one recommended direction", "Direction mode: three comparable directions"),
+        }
+        for name, candidate in mutations.items():
+            with self.subTest(name=name):
+                problems = checker.validate_text(candidate, require_visual_approved=True)
+                self.assertTrue(any("comparison" in p or "compared" in p for p in problems), problems)
+
+    def test_three_directions_compare_the_same_content_and_distinct_captures(self):
+        base = contract().replace("Direction mode: one recommended direction", "Direction mode: three comparable directions")
+        rows = "\n".join(line for line in base.splitlines() if line.startswith("| VD-R1-01 |"))
+        extras = "\n".join(rows.replace("VD-R1-01", f"VD-R1-0{n}")
+                           .replace(PRIMARY_HASH, str(n) * 64).replace(STRESS_HASH, str(n + 3) * 64)
+                           for n in (2, 3))
+        base = base.replace("\n## HiFi Review", "\n" + extras + "\n\n## HiFi Review")
+        self.assertEqual([], checker.validate_text(base, require_visual_approved=True))
+        for candidate in (
+            base.replace("2" * 64, PRIMARY_HASH),
+            base.replace("Approved home copy and normal data", "different content", 1),
+            base.replace("| VD-R1-02 | UI-001 | ready | 390 |", "| VD-R1-02 | UI-001 | ready | 768 |"),
+        ):
+            self.assertTrue(any("comparison" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
+
+    def test_direction_capture_hashes_and_paths_are_checked(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
+            capture = root / "docs/design/directions/primary.png"
+            capture.write_bytes(b"changed fixture")
+            problems = checker.validate(root / "docs/design/ui-design.md", repo_root=root,
+                                        prd_path=product, wireframes_path=wireframe, hifi_path=hifi,
+                                        require_visual_approved=True)
+            self.assertTrue(any("Direction comparison Screenshot" in p for p in problems), problems)
+            style = checker._section(contract(), "## Style Integration")
+            style = style.replace("docs/design/directions/primary.png", "../primary.png")
+            problems = []
+            checker._direction_comparison(style, "Direction mode: one recommended direction", None, problems, repo_root=root)
+            self.assertTrue(any("canonical POSIX segments" in p for p in problems), problems)
 
     def test_wireframe_approval_is_human_and_approved(self):
         problems = checker.validate_text(

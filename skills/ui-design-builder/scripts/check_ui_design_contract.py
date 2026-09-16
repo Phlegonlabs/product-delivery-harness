@@ -468,6 +468,107 @@ def _table_rows(section: str) -> list[list[str]]:
     return rows
 
 
+def _design_table(style: str, heading: str, columns: list[str], problems: list[str]) -> list[list[str]]:
+    matches = list(re.finditer(rf"^{re.escape(heading)}\s*$", style, re.MULTILINE))
+    if len(matches) != 1:
+        _add(problems, f"Style Integration requires exactly one {heading!r}")
+        return []
+    body = re.split(r"^#{2,3} ", style[matches[0].end():], maxsplit=1, flags=re.MULTILINE)[0]
+    rows = _table_rows(body)
+    if not rows or rows[0] != columns or len(rows) == 1:
+        _add(problems, f"{heading} requires its declared columns and at least one row")
+        return []
+    valid = []
+    for row in rows[1:]:
+        if len(row) != len(columns) or any(not _filled(cell) for cell in row):
+            _add(problems, f"{heading} rows must fill every declared column")
+        else:
+            valid.append(row)
+    return valid
+
+
+def _direction_comparison(
+    style: str, intake: str, scope: dict[str, Any] | None, problems: list[str],
+    *, repo_root: Path | None = None,
+) -> None:
+    rows = _design_table(style, "### Direction comparison", [
+        "Direction", "UI surface", "State", "Target", "Scenario", "Content basis", "Screenshot", "Rationale",
+    ], problems)
+    raw_surfaces = (scope or {}).get("surfaces", [])
+    surfaces = {item["id"]: item for item in (raw_surfaces if isinstance(raw_surfaces, list) else [])
+                if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    cases: dict[str, set[tuple[str, ...]]] = {}
+    images: dict[str, set[str]] = {}
+    for direction, surface_id, state, target, scenario, content, screenshot, _ in rows:
+        if re.fullmatch(r"VD-R[1-9][0-9]*-[0-9]{2,}", direction) is None:
+            _add(problems, "Direction comparison requires versioned VD-R<round>-<number> IDs")
+        if scenario not in {"primary", "stress"}:
+            _add(problems, "Direction comparison Scenario must be primary or stress")
+        case = (surface_id, state, target, scenario, content)
+        known = cases.setdefault(direction, set())
+        if case in known:
+            _add(problems, "Direction comparison duplicates a direction/case")
+        known.add(case)
+        surface = surfaces.get(surface_id)
+        if scope is not None:
+            responsive = surface.get("responsive", scope.get("responsive", {})) if surface else {}
+            if (not surface or state not in surface.get("states", [])
+                    or not isinstance(responsive, dict)
+                    or not isinstance(responsive.get("targets"), list)
+                    or target not in [str(value) for value in responsive.get("targets", [])]):
+                _add(problems, "Direction comparison case is outside Approved target scope")
+        if _source_syntax(screenshot, "Direction comparison Screenshot", problems):
+            identity = SOURCE_RE.fullmatch(screenshot)
+            if Path(identity.group("path")).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+                _add(problems, "Direction comparison Screenshot must name a PNG, JPEG, or WebP capture")
+            images.setdefault(direction, set()).add(identity.group("sha256"))
+            if repo_root is not None:
+                before = len(problems)
+                _resolve_source(screenshot, repo_root=repo_root, label="Direction comparison Screenshot", problems=problems)
+                if len(problems) == before:
+                    try:
+                        from PIL import Image
+                    except ImportError:
+                        _add(problems, "Direction comparison Screenshot verification requires Pillow")
+                        continue
+                    try:
+                        with Image.open(repo_root / identity.group("path")) as capture:
+                            if capture.format not in {"PNG", "JPEG", "WEBP"}:
+                                raise ValueError("unsupported capture format")
+                            capture.verify()
+                    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+                        _add(problems, f"Direction comparison Screenshot cannot be verified as an image: {exc}")
+    expected = 3 if _field(intake, "Direction mode") == "three comparable directions" else 1
+    if len(cases) != expected:
+        _add(problems, f"Direction comparison requires exactly {expected} directions")
+    selected = re.match(r"VD-R[1-9][0-9]*-[0-9]{2,}(?=\s|$)", _field(style, "Selected direction") or "")
+    if selected is None or selected.group() not in cases:
+        _add(problems, "Selected direction must name a compared direction")
+    baseline = next(iter(cases.values()), set())
+    for direction, direction_cases in cases.items():
+        if direction_cases != baseline:
+            _add(problems, "Direction comparison must use the same surface/state/target/scenario/content cases for every direction")
+        if {case[3] for case in direction_cases} != {"primary", "stress"}:
+            _add(problems, f"Direction comparison {direction} requires primary and stress cases")
+        if scope is not None:
+            platforms = {_surface_platform(surface) for surface in surfaces.values()}
+            for platform in platforms:
+                covered = {case[3] for case in direction_cases
+                           if case[0] in surfaces and _surface_platform(surfaces[case[0]]) == platform}
+                if covered != {"primary", "stress"}:
+                    _add(problems, f"Direction comparison {direction} requires primary and stress cases for platform {platform}")
+    image_sets = list(images.values())
+    if any(left & right for i, left in enumerate(image_sets) for right in image_sets[i + 1:]):
+        _add(problems, "Direction comparison cannot reuse an identical screenshot across directions")
+
+
+def _surface_platform(surface: dict[str, Any]) -> str:
+    semantics = surface.get("stackSemantics")
+    if isinstance(semantics, dict) and isinstance(semantics.get("platform"), str):
+        return semantics["platform"]
+    return STACK_PLATFORM_BY_SURFACE_CLASS.get(surface.get("surfaceClass"), surface.get("captureMode", "web"))
+
+
 def _validate_motion_table(
     section: str, *, require_filled: bool, problems: list[str]
 ) -> dict[str, dict[str, str]]:
@@ -2264,7 +2365,10 @@ def validate_text(
         _target_source_syntax(
             visual_values.get("Approved target"), "Approved target", problems
         )
-        _target_scope(visual_values.get("Approved target"), "Approved target", problems)
+        scope_errors_before = len(problems)
+        scope = _target_scope(visual_values.get("Approved target"), "Approved target", problems)
+        valid_scope = scope if len(problems) == scope_errors_before else None
+        _direction_comparison(style, sections.get("## UI Design Intake", ""), valid_scope, problems)
         connected = SOURCE_RE.fullmatch(
             (style_values.get("Connected HiFi reference") or "").strip()
         )
@@ -2437,6 +2541,9 @@ def _validate_impl(
     )
     _resolve_source(recorded_hifi, repo_root=root, label="Connected HiFi reference", problems=problems)
     _resolve_target_source(recorded_target, repo_root=root, label="Approved target", problems=problems)
+
+    if require_visual_approved:
+        _direction_comparison(style, _section(active, "## UI Design Intake") or "", None, problems, repo_root=root)
 
     if approved_gate:
         product_matches = [

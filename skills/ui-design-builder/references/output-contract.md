@@ -96,6 +96,15 @@ Candidate theme: [color, typography, spacing, shape, iconography, imagery, and m
 
 Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>]
 
+### Direction comparison
+
+| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| VD-R1-01 | UI-001 | ready | 390 | primary | [frozen copy and representative data] | docs/design/directions/round-1/primary.png @ sha256:[hash] | [specific hierarchy and type decisions] |
+| VD-R1-01 | UI-001 | ready | 1200 | stress | [bounded dense data from the same copy contract] | docs/design/directions/round-1/dense.png @ sha256:[hash] | [how density and alignment hold up] |
+
+The active table contains exactly one or three direction IDs as selected in `Direction mode`. Each direction covers the same surface/state/target/scenario/content tuples with both `primary` and `stress` scenarios. Every tuple belongs to the approved surface scope; a stress scenario may use bounded dense content in an existing state. Cover every platform with its own cases. `Selected direction` starts with one of these exact `VD-R<round>-<number>` IDs. Screenshots are repository-relative PNG, JPEG, or WebP paths with lowercase SHA-256 values; identical captures cannot stand for different directions. Record only inspected captures and retain the authorized files. The checker validates scope, matrix equality, paths, and hashes; visual distinction and content fidelity remain human review judgments. Before Visual Approval these records may remain draft, but no missing or stale comparison can pass final validation. Never backfill an old approval: missing evidence requires renewed affected direction and Visual Approval.
+
 Each connected HiFi page must pass the generic self-contained surface check: no active external resources, network or executable APIs, remote forms, base/meta refresh navigation, CSS imports, or external scripts. Each schema-2 page contains exactly one CSP meta, first in its head, with this exact policy (the parser is deterministic and does not claim to prove arbitrary JavaScript safe):
 
 `default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'self'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`

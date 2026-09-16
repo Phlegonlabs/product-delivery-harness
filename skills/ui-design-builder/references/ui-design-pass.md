@@ -27,6 +27,10 @@ When the owner has a clear direction, produce one product-specific direction. Wh
 
 Present the complete direction set to the human owner. End the turn and wait for `approve`, `select`, `mix`, or `reject`; even a one-direction set needs explicit approval. A mix or rejection creates one complete revised direction set and another explicit decision. Do not create the connected HiFi reference or invoke a generation provider before a direction is selected.
 
+Before this selection, render bounded representative studies for every direction: a frequent primary task and a stress case using dense data, long content, or an approved alternate state. A one-screen product may show two content scenarios in the same approved state; do not invent a state or rewrite frozen copy. Use the same surface, state, target, scenario, and content basis across directions. Cover each in-scope platform. Compare composition, hierarchy, density, typography, and control treatment; changing only an accent color is not a distinct direction.
+
+Record the studies in `### Direction comparison` under Style Integration using the output contract's table, with inspected screenshot paths/hashes and a concrete rationale for each row. Keep their authorized files under `docs/design/directions/<round>/`. These studies are selection evidence, not the connected HiFi target or production UI. The owner selects from the recorded direction IDs; a mixed direction gets a new complete comparison round before selection. This uses the existing direction gate, not another approval step. Screenshot hashes prove identity, not aesthetic quality or honest inspection.
+
 ## Frontend Design Style Integration
 
 Load `frontend-design` and use its brief-first, subject-grounded design process. It owns the direction, page theme, and connected HiFi design-reference HTML across every surface. Do not load `design-taste-frontend`, `gpt-taste`, Impeccable build/refine commands, or another visual author in parallel.

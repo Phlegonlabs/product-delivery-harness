@@ -314,6 +314,11 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
             f"scope=surfaces={json.dumps(scope_surfaces, separators=(',', ':'))}|routes=[\"/home\",\"{second_route}\"]|states=[\"ready\"]|responsive={json.dumps({'kind':'per-surface','targets':[]}, separators=(',', ':'))}|tolerance=\"exact\"|allowedDeviations=[]|captureMode=mixed"
         )
         ui_text = re.sub(r"^Approved target:.*$", target_scope, ui_text, flags=re.MULTILINE)
+        comparison_rows = [line for line in ui_text.splitlines() if line.startswith("| VD-R1-01 |")]
+        extra_rows = "\n".join(line.replace("| UI-001 |", f"| {second_id} |")
+                               .replace("| 390 |", f"| {second_targets[0]} |")
+                               .replace("| 1200 |", f"| {second_targets[-1]} |") for line in comparison_rows)
+        ui_text = ui_text.replace("\n## HiFi Review", "\n" + extra_rows + "\n\n## HiFi Review")
         ui_text = re.sub(r"^PRD source:.*$", f"PRD source: docs/product/PRD.md @ sha256:{hashlib.sha256(product.read_bytes()).hexdigest()}", ui_text, flags=re.MULTILINE)
         ui_text = re.sub(r"^Architecture source:.*$", f"Architecture source: docs/product/architecture.md @ sha256:{hashlib.sha256(architecture.read_bytes()).hexdigest()}", ui_text, flags=re.MULTILINE)
         ui_text = re.sub(r"^Stack source:.*$", f"Stack source: docs/product/stack-decisions.md @ sha256:{hashlib.sha256(stack.read_bytes()).hexdigest()}", ui_text, flags=re.MULTILINE)
