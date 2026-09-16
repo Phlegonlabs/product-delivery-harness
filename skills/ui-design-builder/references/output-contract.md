@@ -9,6 +9,10 @@
 
 Legacy `docs/product/wireframes.html` and `docs/product/design-system.*` remain readable. New or revised artifacts publish under `docs/design/`; do not move an existing legacy artifact without exact owner authorization.
 
+## Human Review Presentation
+
+Before Wireframe Approval and Visual Approval, proactively send one user-visible response with verified absolute Markdown links to the complete actual candidate. Wireframe Approval links all `wireframes.html` pages/states and affected `ui-design.md` scope; Visual Approval links the HiFi entrypoint, every manifest-listed sibling page, and the affected design handoff. Use the final logical paths in the authorized publication checkout for approval; after publication, link canonical files in the source checkout. Do not collect approval on `.ui-staging` paths. State readiness and review focus, then request the explicit decision. Tool-only output, a hidden panel, a summary, a screenshot, or a plain path cannot replace the links. Opening a viewer is convenience only. A missing/stale file or unverifiable preview blocks approval readiness. Wait for the owner's explicit decision before continuing. A changed candidate reopens the affected approval.
+
 ## `ui-design.md`
 
 Use these exact headings:

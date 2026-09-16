@@ -82,7 +82,9 @@ Render every page-target-state and overlay in a real browser inside a closed off
 
 HiFi surface evidence keeps method `sandboxed-offline-browser`. Schema-2 packages require `ui-output/2` with the exact interaction results and local-navigation transcript described in `output-contract.md`. A missing result, wrong destination, invisible destination, bad focus, undeclared navigation, external request, popup, form attempt, or console error fails. Schema-1 references retain their existing `ui-output/1` no-navigation policy. Also reject unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
 
-Present only a passing candidate. Record the human decision as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. Approval proves visual-direction conformance, not representative-user usability or production readiness.
+Proactively send one user-visible response with verified absolute Markdown links to the complete current schema-2 HiFi entrypoint, every manifest-listed sibling page, and the affected `ui-design.md` design handoff. Use the final logical paths in the authorized publication checkout for approval; after publication, link canonical files in the source checkout. Do not collect approval on `.ui-staging` paths. Say that the full approved scope is included, name what the owner should review, and ask explicitly for Visual Approval. A preview or panel open is convenience only and cannot replace the response or links; if any page or preview cannot be verified or opened, report that blockage instead of approval readiness.
+
+Wait for the owner's explicit decision. Record it as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. Approval proves visual-direction conformance, not representative-user usability or production readiness.
 
 ## Retention And Design System Need Gate
 

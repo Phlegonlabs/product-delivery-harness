@@ -790,6 +790,39 @@ async function agent(_prompt, options) {
         self.assertIn("End the turn and wait for the answer", intake)
         self.assertIn("one recommended direction or three comparable directions", intake)
 
+    def test_product_approval_presents_and_waits_on_the_complete_candidate(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        self.assertIn(
+            "verified absolute Markdown links to the complete actual current PRD",
+            skill,
+        )
+        for marker in (
+            "Use staging paths while the candidate remains staged",
+            "ask explicitly for Product Definition Approval",
+            "Opening a file or browser panel is convenience only",
+            "presenting the package is not approval",
+            "published canonical absolute Markdown links",
+            "if publication is deferred, report the actual staging links instead",
+            "Wait for the owner's explicit decision before continuing",
+        ):
+            self.assertIn(marker, skill)
+        self.assertIn("#### Human Review Presentation", contract)
+        self.assertIn(
+            "complete current PRD, architecture, and stack source",
+            contract,
+        )
+        for marker in (
+            "Link the staging location while the candidate remains staged",
+            "canonical locations after publication",
+            "plain path cannot replace those links",
+            "do not claim approval readiness",
+        ):
+            self.assertIn(marker, contract)
+        self.assertIn("awaiting explicit approval", lifecycle)
+
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
 
