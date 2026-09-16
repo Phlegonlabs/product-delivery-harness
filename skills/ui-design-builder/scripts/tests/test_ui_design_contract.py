@@ -124,7 +124,7 @@ def wireframe_html(data: object) -> str:
     )
 
 
-def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, Path, Path, Path, Path | None]:
+def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False) -> tuple[Path, Path, Path, Path, Path, Path | None]:
     from test_product_package_checker import valid_prd, valid_stack, ui_contract
     from test_wireframe_contract import render_html, wireframe_data
 
@@ -158,9 +158,15 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
         path.write_text(content, encoding="utf-8")
     hifi.parent.mkdir(parents=True, exist_ok=True)
     manifest = json.dumps({
-        "schema": "ui-hifi/1",
+        "schema": "ui-hifi/2",
+        "pages": [],
+        "interactions": [{"id": control, "source": {"surface": "UI-001", "state": "ready"},
+                          "control": control, "kind": "navigate",
+                          "destination": {"surface": "UI-001", "state": "ready"}}
+                         for control in ("home", "refresh")],
         "surfaces": [{
             "id": "UI-001",
+            "page": "index.html",
             "route": "/home",
             "states": ["ready"],
             "responsive": {"kind": "viewports", "targets": [390, 768, 1200]},
@@ -170,11 +176,22 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
     })
     hifi.write_text(
         '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="'
-        + checker.check_wireframe_html.REQUIRED_HIFI_CSP
-        + '"></head><body><main data-ui-surface="UI-001" data-ui-route="/home"><nav data-navigation-id="home">Pages</nav><h1>HiFi review surface with meaningful content</h1><button data-control-id="refresh">Refresh</button><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
+        + checker.check_wireframe_html.REQUIRED_HIFI_CSP.replace("navigate-to 'none'", "navigate-to 'self'")
+        + '"></head><body><main data-ui-surface="UI-001" data-ui-route="/home"><a data-navigation-id="home" href="index.html">Pages</a><h1>HiFi review surface with meaningful content</h1><a role="button" data-control-id="refresh" href="index.html">Refresh</a><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
         '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
         encoding="utf-8",
     )
+    if legacy_hifi:
+        legacy = json.loads(manifest)
+        legacy = {"schema": "ui-hifi/1", "surfaces": [
+            {key: value for key, value in row.items() if key != "page"}
+            for row in legacy["surfaces"]
+        ]}
+        hifi.write_text(hifi.read_text(encoding="utf-8").replace(
+            manifest, json.dumps(legacy)
+        ).replace("navigate-to 'self'", "navigate-to 'none'").replace(
+            'href="index.html"', 'href="#home"'
+        ), encoding="utf-8")
     ui = contract()
     replacements = {
         A_HASH: hashlib.sha256(product.read_bytes()).hexdigest(),
@@ -212,23 +229,13 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
             "results": [dict(case, result="PASS") for case in evidence_cases],
         }
         if check_name == "hifi-browser":
-            output.update(
-                {
-                    "sandbox": {
-                        "network": "disabled",
-                        "topNavigation": "blocked",
-                        "popups": "blocked",
-                        "forms": "blocked",
-                    },
-                    "console": [],
-                    "network": [],
-                    "navigation": [],
-                    "popups": [],
-                    "forms": [],
-                    "popupAttempts": 0,
-                    "formAttempts": 0,
-                }
-            )
+            output.update(bundle_output(json.loads(manifest)))
+            output["schema"] = "ui-output/2"
+            if legacy_hifi:
+                output["schema"] = "ui-output/1"
+                output.pop("interactions")
+                output["navigation"] = []
+                output["sandbox"]["topNavigation"] = "blocked"
         output_path.write_text(json.dumps(output), encoding="utf-8")
         receipt = {
             "tool": "rubric-grader" if check_name.endswith("grading") else "impeccable" if "impeccable" in check_name else "playwright",
@@ -635,6 +642,25 @@ class UiDesignContractTests(unittest.TestCase):
                 require_visual_approved=True,
             )
             self.assertEqual([], problems)
+
+    def test_legacy_hifi_is_readable_but_cannot_pass_visual_publication(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(
+                root, required=False, legacy_hifi=True,
+            )
+            inspection = []
+            checker._validate_hifi_surface(hifi, inspection)
+            self.assertEqual([], inspection)
+            problems = checker.validate(
+                root / "docs/design/ui-design.md", repo_root=root,
+                prd_path=product, wireframes_path=wireframe, hifi_path=hifi,
+                require_filled=True, require_wireframe_approved=True,
+                require_visual_approved=True,
+            )
+            self.assertEqual([
+                "ui-design: Visual approval requires ui-hifi/2; schema-1 HiFi is inspection-only"
+            ], problems)
 
     def test_full_validate_required_publication_round_trip(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -54,7 +54,7 @@ Required deterministic functional UI motion may run locally in the HiFi HTML wit
 
 ## Connected HiFi Reference
 
-Produce a connected `ui-hifi/2` HTML package with `index.html` as its entry and sibling HTML files for separate pages. Cover every in-scope `UI-*` screen, responsive target, and non-`n/a` state. Each page embeds its CSS, scripts, fonts, and media. Keep a left review sidebar, screen/state switching, and the product actions needed to traverse every approved flow. A product tab or page link uses a real anchor to its declared HTML destination. Buttons change a declared local state, including overlays and feedback. Reviewer sidebar navigation never substitutes for product-control interaction coverage. New or revised HiFi uses schema 2; untouched schema-1 single-file references remain readable.
+Produce a connected `ui-hifi/2` HTML package with `index.html` as its entry and sibling HTML files for separate pages. Cover every in-scope `UI-*` screen, responsive target, and non-`n/a` state. Each page embeds its CSS, scripts, fonts, and media. Keep a left review sidebar, screen/state switching, and the product actions needed to traverse every approved flow. A product tab or page link uses a real anchor to its declared HTML destination. Buttons change a declared local state, including overlays and feedback. Reviewer sidebar navigation never substitutes for product-control interaction coverage. Every current Visual Approval requires schema 2; schema-1 single-file references remain inspection-only.
 
 The HTML contains exactly one canonical restrictive CSP meta:
 

@@ -1015,7 +1015,10 @@ def _validate_hifi_bundle(
         _add(problems, "HiFi pages must be reachable from index.html through product navigation")
 
 
-def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any] | None = None) -> None:
+def _validate_hifi_surface(
+    path: Path, problems: list[str], scope: dict[str, Any] | None = None,
+    *, require_connected: bool = False,
+) -> None:
     try:
         html = path.read_text(encoding="utf-8")
         matches = list(HIFI_MANIFEST_RE.finditer(html))
@@ -1026,6 +1029,8 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
     if isinstance(manifest, dict) and manifest.get("schema") == "ui-hifi/2":
         _validate_hifi_bundle(path, html, manifest, problems, scope)
     else:
+        if require_connected:
+            _add(problems, "Visual approval requires ui-hifi/2; schema-1 HiFi is inspection-only")
         _validate_hifi_html(html, problems, scope)
 
 
@@ -2495,7 +2500,7 @@ def _validate_impl(
             problems=problems,
         )
         if checked_hifi is not None:
-            _validate_hifi_surface(checked_hifi, problems, target_scope_for_evidence)
+            _validate_hifi_surface(checked_hifi, problems, target_scope_for_evidence, require_connected=True)
             _resolve_source(
                 recorded_hifi,
                 repo_root=root,
