@@ -115,6 +115,37 @@ def tree_snapshot(root: Path) -> dict[str, bytes]:
 
 
 class InstallScriptTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("pwsh"), "pwsh is required for the GitHub shell")
+    def test_ci_dependency_negative_check_exits_successfully(self) -> None:
+        workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        step = workflow.split(
+            "- name: Verify PowerShell installer syntax and dependency check route", 1
+        )[1].split("run: |-", 1)[1]
+        lines = []
+        for line in step.splitlines()[1:]:
+            if line.strip() and not line.startswith("          "):
+                break
+            lines.append(line[10:])
+        # GitHub appends this native-command exit check to PowerShell scripts.
+        script = "\n".join(lines) + (
+            "\nif (Test-Path variable:\\LASTEXITCODE) { exit $LASTEXITCODE }\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            script_path = Path(temporary) / "ci-check.ps1"
+            script_path.write_text(script, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("pwsh"), "-NoProfile", "-File", str(script_path)],
+                cwd=REPO_ROOT,
+                env={**os.environ, "RUNNER_TEMP": temporary},
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     SKILLS = (
         "delivery-harness",
         "product-definition-builder",
