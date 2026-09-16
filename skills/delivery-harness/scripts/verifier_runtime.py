@@ -348,9 +348,9 @@ def _runtime_trust(executable: Path, runtime: str) -> dict[str, Any]:
         roots = list(windows_machine_roots())
         if not any(_path_within(canonical, root) for root in roots):
             raise VerifierRuntimeError("sandbox runtime executable must come from an administrator-installed Windows path")
-        # Windows stat does not expose a portable ACL matrix.  Refuse a
-        # user-writable parent where Python can observe one and retain the
-        # reparse/non-user path proof for the native Windows handle binder.
+        # File ACEs can permit writes even when the parent directory is protected.
+        if windows_parent_user_writable(canonical):
+            raise VerifierRuntimeError("sandbox runtime file is user-writable")
         if windows_parent_user_writable(canonical.parent):
             raise VerifierRuntimeError("sandbox runtime parent is user-writable")
     else:

@@ -230,7 +230,7 @@ async function agent(_prompt, options) {
 
         self.assertIn(
             "<delivery-harness-skill-root>/scripts/"
-            "configure_project_context.py --root <target-root> --check",
+            'configure_project_context.py" --root <target-root> --check',
             skill,
         )
         self.assertIn("PROJECT_AGENTS.template.md` for `AGENTS.md`", skill)
@@ -756,7 +756,7 @@ async function agent(_prompt, options) {
             self.assertIn("Impeccable", content)
             self.assertNotIn("design-taste-frontend` leads", content)
         self.assertIn("Connected HiFi reference:", contract)
-        self.assertIn("one self-contained design-reference HTML", guide)
+        self.assertIn("connected `ui-hifi/2` HTML package", guide)
         self.assertIn(
             "generationStatus: deferred",
             self.read_ui("references/wireframe-guide.md"),
@@ -1165,7 +1165,8 @@ async function agent(_prompt, options) {
         monetization = self.read("references/monetization-and-partner-channel-guide.md")
 
         header = "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |"
-        self.assertEqual(5, contract.count(header))
+        self.assertEqual(6, contract.count(header))
+        self.assertIn("## CLI and Toolchain Decision", contract)
         for status_rule in (
             "`Required` means a user, organization, or hard external constraint",
             "`Selected` means the current product or repository already adopted it",
@@ -1910,7 +1911,7 @@ async function agent(_prompt, options) {
         self.assertIn("macos", skill)
         self.assertIn("windows", skill)
         self.assertIn("including hybrids", skill)
-        self.assertIn("check_activation.py --activation", skill)
+        self.assertIn('check_activation.py" --activation', skill)
         self.assertIn("--architecture <staged architecture.md>", skill)
         self.assertIn("never falls back to a bundled default", skill)
         self.assertIn("creates it only when absent", contract)
@@ -2321,15 +2322,15 @@ async function agent(_prompt, options) {
         contract = self.read_ui("references/output-contract.md")
 
         lowered = guide.lower()
-        self.assertIn("one self-contained design-reference html", lowered)
+        self.assertIn("connected `ui-hifi/2` html package", lowered)
         self.assertIn("login, registration, recovery", lowered)
         self.assertIn(
             "generationstatus: deferred",
             self.read_ui("references/wireframe-guide.md").lower(),
         )
         for marker in (
-            "Each visible control navigates",
-            "opens the documented overlay",
+            "A product tab or page link uses a real anchor",
+            "Buttons change a declared local state, including overlays and feedback",
             "calls no live backend, credential, identity provider, or unapproved generation provider",
             "Generated output cannot add copy, controls, states, routes, or claims",
         ):

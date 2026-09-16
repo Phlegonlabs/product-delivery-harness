@@ -379,5 +379,45 @@ class HarnessGitTests(unittest.TestCase):
             )
         access_check.assert_called_once()
 
+@unittest.skipUnless(os.name == "nt", "Windows executable ACL policy")
+class WindowsLauncherACLTests(unittest.TestCase):
+    def test_file_acl_is_checked_independently_of_protected_parent(self) -> None:
+        import harness_git
+        import parity_capture
+        import verifier_runtime
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            executable = root / "docker.exe"
+            executable.write_bytes(b"fixture executable; never executed")
+            cases = (
+                (harness_git, "_machine_git_roots", "_windows_parent_user_writable",
+                 lambda: harness_git._trusted_executable(executable, "Git executable"),
+                 harness_git.GitMetadataError),
+                (verifier_runtime, "windows_machine_roots", "windows_parent_user_writable",
+                 lambda: verifier_runtime._runtime_trust(executable, "docker"),
+                 verifier_runtime.VerifierRuntimeError),
+                (parity_capture, "windows_machine_roots", "windows_parent_user_writable",
+                 lambda: parity_capture._trusted_launcher_path(executable, "browser launcher"),
+                 RuntimeError),
+            )
+            for module, roots_name, acl_name, check, error in cases:
+                for writable in (True, False):
+                    with self.subTest(module=module.__name__, writable=writable):
+                        with patch.object(module, roots_name, return_value=(root,)), patch.object(
+                            module, acl_name,
+                            side_effect=lambda path: writable and path == executable,
+                        ) as acl, patch.object(module.subprocess, "run") as run:
+                            if writable:
+                                with self.assertRaisesRegex(error, "file is user-writable"):
+                                    check()
+                            else:
+                                check()
+                            acl.assert_any_call(executable)
+                            if not writable:
+                                acl.assert_any_call(root)
+                            run.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

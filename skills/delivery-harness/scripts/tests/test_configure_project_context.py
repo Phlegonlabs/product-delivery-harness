@@ -15,6 +15,24 @@ SCRIPT = SCRIPTS_DIR / "configure_project_context.py"
 
 
 class ConfigureProjectContextTests(unittest.TestCase):
+    def test_product_definition_pending_bindings_check_is_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            agents = root / "AGENTS.md"
+            # Product-owned deployment context is resolved; only future bindings remain.
+            import re
+            agents.write_text(re.sub(r"<fill>|<databases[^>]*>", "fixture", agents.read_text(encoding="utf-8")), encoding="utf-8")
+            before = (root / "AGENTS.md").read_bytes()
+            result = subprocess.run([sys.executable, str(SCRIPT), "--root", str(root),
+                                     "--check", "--require-resolved", "--stage", "product-definition"],
+                                    capture_output=True, text=True, cwd=SCRIPTS_DIR.parents[2])
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(before, (root / "AGENTS.md").read_bytes())
+            strict = subprocess.run([sys.executable, str(SCRIPT), "--root", str(root),
+                                     "--check", "--require-resolved"], capture_output=True)
+            self.assertEqual(1, strict.returncode)
+
     def make_templates(self, root: Path) -> tuple[Path, Path]:
         agents_template = root / "agents-template.md"
         claude_template = root / "claude-template.md"

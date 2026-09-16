@@ -315,6 +315,18 @@ class ActivationCheckerTests(unittest.TestCase):
         self.assertIn("stack: verified-source handoff requires stack-decisions.md", joined)
         self.assertIn("requires product-activation/2", joined)
 
+    def test_preparation_cannot_claim_ready_before_availability(self) -> None:
+        record = valid_record_v2().replace("| deployed | ready |", "| unavailable | preparation |")
+        with patch("check_product_package.validate_texts", return_value=[]), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ):
+            findings = check_activation.check_activation_text(
+                record, prd_text=APPROVED_PRD, architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT, stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(), require_ready=("web-prod",),
+            )
+        self.assertIn("required target web-prod is not ready", "\n".join(findings))
+
     def test_require_ready_stack_validation_requires_repo_root(self) -> None:
         findings = check_activation.check_activation_text(
             valid_record_v2(),

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.38.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.39.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -38,11 +38,12 @@
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
-- **先批准 Product Definition，再进入 UI 设计。** 每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。
+- **先批准 Product Definition，再进入 UI 设计。** 每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。 CLI 与 `other_nonpublic` 共用标准 `Toolchain` 批准 area（`CLI/toolchain` 为别名），分别记录 language、toolchain、distribution mechanism 与 testing layers。
 - **建议不等于实现权威。** 每个适用领域先给出两到三组 coherent stack。新选择获批后标记 `Approved`，现有选择是 `Selected`，硬限制是 `Required`；`Recommended` 和 `Provisional` 会阻止 delivery。Checkpoint 的封闭 area set 必须等于适用且已解决的 areas，获批 option 的 layer map 必须等于可执行 stack rows。
 - **UI 设计有独立批准主线。** `ui-design-builder` 先完成 UI/style/motion/media intake。Schema 4 wireframe 冻结文案与显示契约；hybrid 产品逐 `UI-*` surface 绑定 `releaseSurface`、`surfaceClass`、`captureMode` 与 responsive set。HiFi target 必须带精确 scope、restrictive CSP，以及保留 console、network、navigation、form、popup 尝试的人工 sandboxed-offline receipt。需要正式 design system 时走唯一窄路径：Visual Approval 记录 `required/pending`，compiler 校验该批准 digest 并生成 pair，owner 再链接两份 hash；普通 final validation 会拒绝 pending。Agent 不能代替 owner 批准。
+- **HiFi 页面必须由产品控件连通。** 新增或修订的 `ui-hifi/2` 以 `index.html` 清单绑定同目录 HTML 页面的哈希与控件目的地。离线 `ui-output/2` 证据逐 responsive target 验证点击及键盘操作；缺页、过期哈希、无效控件、错误目的地或未声明跳转均阻止批准。每页只能呈现分配给该页的 surface。发布与保留须包含完整包；schema-1 仅供读取检查，正式 Visual Approval 一律要求 schema 2。 指定 Git revision 冻结时，该 revision 必须包含所有子页面且内容一致。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
-- **每个 graph attempt 都可追踪，candidate code 一律隔离。** 非 mission 节点先 reserve，再在 RUN lock 外执行并记录结果。PLAN v6 本地 verifier 只能使用 repository 与 user-writable PATH 之外、由 machine policy 批准且受 OS 保护的原生 Docker/Podman executable；attestation 绑定 path、hash、ownership proof、image RepoDigest 与 sandbox policy。Candidate input 是只读 Git archive，执行时关闭网络、只读 rootfs、使用非 root user 与有界资源。
+- **每个 graph attempt 都可追踪，candidate code 一律隔离。** 非 mission 节点先 reserve，再在 RUN lock 外执行并记录结果。PLAN v6 本地 verifier 只能使用 repository 与 user-writable PATH 之外、由 machine policy 批准且受 OS 保护的原生 Docker/Podman executable；attestation 绑定 path、hash、ownership proof、image RepoDigest 与 sandbox policy。Candidate input 是只读 Git archive，执行时关闭网络、只读 rootfs、使用非 root user 与有界资源。 Windows 信任检查同时检查可执行文件与父目录 ACL；即使目录受保护，可写入的可执行文件仍会被拒绝。
 - **Runtime binding 明确可验证。** `lease-worker` 从选择器 directive 派生 provider、driver、model、effort 和 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精确目标可直接沿用，新精确目标只能从已启用的 wildcard 授权 materialize，不会扩大权限。
 - **有能力不等于有权限。** 即使运行时能够推送或清理，每个动作仍需要精确授权。
 - **Activation 必须读回验证。** Activation、Outcome、SEO 会先重验已批准的 Product/Stack bytes 与完整 Deployment contract。Outcome coverage 保留 PRD method、owner 与逐 target 精确 source map；measurement window 必须在各 target 可用之后开始。Multi-target review 只允许一种 mode，primary fields 绑定第一个有序 target，现有 rows 只能 append，aggregate verdict 与 follow-up 由规则决定。
@@ -50,7 +51,7 @@
 - **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
 - **UI 证据证明版面，而不只是像素。** 固定到 harness 0.34.0 及之后的 RUN 会在每条 route-breakpoint-state 证据行记录真实浏览器几何扫描的 `layout_check`；每个 UI 任务在验收前分类影响（`none`/`style`/`structure`/`both`），被接受的 parity 偏差连同引用记入 deviation ledger，上线 motion 必须追溯 `ui-design.md` 的 Motion and Media Intent。固定到 0.35.0 及之后的 RUN 还会机器校验 `deviation_ledger` 与逐 mission 的 `ui_impact_summary`。
 - **完成的 managed run 会在晋升前收档。** `archive_run.py` 在 no-follow handle 下重验 C、当前 `main`、完整 coordination inventory、evidence 与 move list，以 durable journal 执行 C→A，并在 recovery 时保留并行用户数据。Archive-only A 先针对 checkout 外部 immutable anchor 重验；本地 agent 只准备绑定 machine policy、verifier 与 detached trusted-host evidence 的 handoff，永远不执行 publication argv。Direct 工作保留固定 verified candidate，不虚构 PLAN/RUN archive。
-- **Parity 靠实拍，不靠记忆。** hosted-browser surface 逐 route×viewport×state capture；extension、native 与 desktop app 使用平台工具或明确的人工 capture，不能用 hosted URL 替代。任何不支持的 required group 都让结果成为 partial、不可作为 gate。每行绑定 Git blob、authority hash、baseline、capture method、trusted launcher identity 与 layout result。
+- **Parity 靠实拍，不靠记忆。** hosted-browser surface 逐 route×viewport×state capture；extension、native 与 desktop app 使用平台工具或明确的人工 capture，不能用 hosted URL 替代。任何不支持的 required group 都让结果成为 partial、不可作为 gate。每行绑定 Git blob、authority hash、baseline、capture method、trusted launcher identity 与 layout result。 截图文件名包含完整 surface/route/breakpoint/state tuple 的 SHA-256，避免名称规范化或大小写不敏感的路径合并不同证据。
 - **读规则是强制的。** 种子化的项目 `AGENTS.md` 要求：受管工作前必读已安装的 `delivery-harness` SKILL.md，影响产品的直接工作前必读受影响的 PRD 段落；跳过即 blocking review finding。
 - **代码安全是全新的最终审查。** 所有 code PLAN 都必须执行 `code-security-review`；`not_applicable` 只允许窄范围纯文档工作。实际 candidate path 必须落在 mission/security scope，并且永远不能带入 parent coordination files。项目要求的 security commands 是 graph 排序的 container verifiers；review 前会核对 exact current-head execution key。PASS 必须绑定 exact SHA、完整 coverage、零 exclusion，且不可复用旧结果。
 - **Promotion 一律 main-only。** 初次交付与 enhancement 都从观察到的 remote `main` 开始。Harness 0.38 RUN 在 C 以 local-only 关闭，不能由 RUN push。A 的授权 publication 必须同时携带 pre-archive external anchor、immutable request/attempt/receipt 与 trusted-host/human boundary；candidate gates 通过后，再另行授权与 read-back，把未变更的 A fast-forward 到 `main`。如果 A 之后的 candidate/preview evidence 失败，就在同一 non-default branch 以精确 A 创建新的 PLAN/RUN continuation，导入原 verified scope 与 repair、把 A records 绑定为历史输入，关闭 C2、用新 anchor 收档 A2；不能改写 A history 或复用旧 records。已 publication 的 A 要求 A2 remote pre-state 精确等于 A；未 publication 的 A 则必须保持 absent。
@@ -381,7 +382,7 @@ Managed 本地 verifier 还需要由 administrator/root 安装在 OS 保护路�
 3. UI 产品进入 `ui-design-builder`：human intake、Copy Freeze、schema-4 wireframe 校验与批准、Style Integration、structured HiFi、human-attested receipts、H1–H9 review 与 Visual Approval。
 4. Design System Need Gate 为 `required` 时，先记录精确 `required/pending` marker，通过 compiler 的窄 preflight，生成 schema-2 pair，由 owner 链接两份 hash，再通过普通 final UI validation。`not_required` 时要记录现有 pair 的 retain/retire disposition。
 5. 再调用 `delivery-harness`。Size gate 让单一小改动保持 direct；大型工作才建立 PLAN-v6/RUN-v11。每个状态变更动作都需要精确授权。
-6. Managed launch 前先通过 frozen source joins，并执行 `python skills/delivery-harness/scripts/harness_transition.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`；`--probe-sandboxes` 只作诊断。Mission 使用隔离工作树；所有 candidate commands 在 pinned container 内执行。
+6. Managed launch 前先通过 frozen source joins，并执行 `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`；`--probe-sandboxes` 只作诊断。Mission 使用隔离工作树；所有 candidate commands 在 pinned container 内执行。
 7. 完成 exact-head mission reviews、graph-ordered security checks、全新 unified `code-security-review`、broad regression gates 与 platform-correct UI evidence。
 8. 只有 managed 工作需要关闭 RUN：用 exact `main` evidence 与绝对 external `--anchor-out` dry-run/apply `archive_run.py`，commit journaled move 与 `ARCHIVE_RECEIPT.json` 为 A，再按 anchor 重验。Direct 工作保留已有 fixed candidate，跳过 RUN archive。
 9. 另行取得 action-time authorization，以 external anchor 与 immutable request/attempt/receipt 准备 A。Trusted host 重新读取并验证后执行 exact URL-only no-force publication、签署 evidence；recovery 验证 evidence 并读回 A。本地 agent 不执行该 argv。
@@ -389,6 +390,16 @@ Managed 本地 verifier 还需要由 administrator/root 安装在 OS 保护路�
 11. 另行精确授权，把未变的 candidate fast-forward 到 `main`、读回并验证 production。
 12. 执行 `product-activation`：精确外部动作、独立 read-back、behavior evidence、readiness 与 verified measurement sources。
 13. 每个 target 的 measurement window 结束后执行 append-only Outcome Review；public hosted-web production target 可再选用 `seo-growth-review`。
+
+### 运行已安装技能与发布检查
+
+将 `<skill-name-skill-root>` 解析为已安装技能的绝对目录（通常是 `~/.agents/skills/<skill-name>`），为 script 路径加引号，工作目录与 `--repo-root` 保持指向目标项目。reference 中的 `skills/<name>/scripts/` 是逻辑安装路径，不代表要把 skills 复制进项目。下方源仓库维护命令仍使用相对路径。
+
+Skill Bindings 默认检查全部 slot。Product Definition 使用 `--stage product-definition`，尚未进入的阶段可以保留 `pending`/`pending`；UI 与编译分别使用 `ui-design`、`design-compilation`，`backend` 仅适用于已确认无 UI 的产品或纯后端范围。每个阶段重新验证必要技能的完整 tree pin，前阶段结果不代表后阶段通过。
+
+UI 批准使用另行授权的 publication checkout，保留源 HEAD、完整 Git 历史与最终逻辑路径。`check_ui_publication.py` 比对上游 bytes 并执行完整 Product 与最终 UI gates；授权发布后用 `--published` 确认转移的 bytes 完全相同。`.ui-staging` 只放未批准草稿。Compiler 的 `sourceBindings.uiDesign.sha256` 使用 `ui_approval_digest.py` 排除派生 pair/replacement linkage，其余来源使用原始文件 hash。单一平台使用全局 responsive set，hybrid 使用每个 surface 的 `surfaceContracts` 与已批准 stack。
+
+Private HTTPS 发布可使用 `trusted-host-publication.md` 定义的管理员 credential-helper policy，只允许精确 endpoint。Request 绑定 policy/helper hash，prepare、trusted-host push 与 recovery 都拒绝漂移，也不继承任意 repo/user helper；evidence 不含凭证。Activation 可在固定 implementation SHA 下准备另行授权的部署前置设置；readiness 与 verified measurement handoff 仍要求精确 deployment evidence。Activation checker 命令须包含 PRD、architecture、deployment、stack-decisions、activation 路径与 repository root。
 
 ## 常见提示词
 
@@ -525,6 +536,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.39.0** — 连通 HiFi 采用 `ui-hifi/2`，绑定同目录 HTML 页面哈希、产品控件目的地，以及 `ui-output/2` 点击／键盘证据。冻结的 Git revision 必须包含所有子页面。旧 schema-1 仅供读取检查；正式 Visual Approval 一律使用新契约。同时修复 CLI／非公开工具的 Toolchain 批准、parity 文件名冲突，以及 Windows 可执行文件 ACL 检查。 新增最终路径 UI 发布检查、分阶段 Skill Bindings、已安装命令路径、管理员批准的 HTTPS credential helper、canonical UI digest、hybrid responsive 指引与部署前 Activation 准备。
 
 - **0.38.0** — 完整加固 zero-to-one 契约。Release-surface applicability、Product/Stack digests、精确 `PD-Rn@sha256` revision、封闭 approval-reference/option sets、exact product identity、full Deployment revalidation、逐 target measurement provenance/window、typed append-only Outcome/Verdict History 与 mode-specific SEO record 关闭 Product→Activation→Outcome 证据链。Required design system 走 pending→compile→owner-link；Stack styling/platform 一路绑定到 UI 与 schema-2 `surfaceContracts`。PLAN-v6 只通过 machine-approved、OS-protected 原生 Docker/Podman executable，保留 path/hash/owner-DACL/version/RepoDigest；拒绝假 PATH runtime 与 Windows script wrapper。Parity 遇 unsupported group 即 non-gating，并绑定 trusted launcher identity。Archive C→A 使用 no-follow inventory、durable journal、canonical path/mode、isolated Git filtering 与封闭 recovery mapping；authority-file writer 先 atomic exchange 或保留 displaced backup，并行数据只能恢复或保留。Trusted-host policy 与 signed evidence 可执行且位于本地 agent 边界外。Git、transition、design-system、installer 写入拒绝 link/reparse swap；Windows 有 targeted CI；external UI dependencies 与 Python/Pillow prerequisite 已明确。RUN 在 C local-only 关闭，direct 跳过 managed archive，失败 A 走新 C2/A2 且不改写 history。破坏性 skill-bundle 变更。
 - **0.37.0** — UI 设计正式拆成独立批准边界。`product-definition-builder` 确定产品 scope、完整 frontend/backend 架构与 stack 后即停止；新 `ui-design-builder` 负责人工 UI/style/motion/media intake、`wireframes/4` typed image/motion placeholders、W1–W5 结构评分、`frontend-design` Style Integration、连通 HiFi HTML、Impeccable critique/audit、H1–H9 评分、Visual Approval、条件式 GSAP 路由、精确授权的 Higgsfield MCP 生成动画，以及 Design System Need Gate。Schema 4 wireframe 会在评分或结构批准前冻结静态、动作、feedback、备用状态文案与有界动态显示契约；`ui-design.md` 记录文案 owner、locale 与日期，后续文字变更会重新打开 Product Definition、Copy Freeze、响应式检查和 Wireframe Approval。正式 tokens 只在视觉批准后编译；canonical UI 产物改放 `docs/design/`，Harness 0.37.0+ 对 UI delivery 强制 join 已批准 `ui-design.md`，旧设计路径保持读取兼容。Product Definition 的只读分析图改用当前宿主的原生 sibling-agent runner；Codex、Claude Code、Pi 与 generic host 共用同一份角色与父级 ownership 契约。第七个内置 skill `seo-growth-review` 新增可选只读的 release 后 review，使用 production crawl/index、Search Console、GA4 与当前估算，分开搜索可见度和站内行为、标注证据强度、排序 query-to-page 机会，并在不修改网站或外部账户的前提下路由 follow-up。破坏性 skill-bundle 变更。

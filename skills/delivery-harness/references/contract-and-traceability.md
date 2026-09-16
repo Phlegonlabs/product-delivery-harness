@@ -23,6 +23,8 @@ Write scope: allowed paths, read-only paths, destructive-action approval gates
 
 When a package comes from `product-definition-builder`, Harness first requires its machine-anchored Product Definition Approval and Stack Decision Checkpoint, including complete frontend and backend architecture. The `PRD.md` UI Surface Contract remains product authority for behavior and copy responsibility. For UI delivery, Harness also requires `ui-design-builder`'s approved `ui-design.md`, copy-frozen `wireframes.html`, and active visual source. A headless package still needs the product and stack approvals.
 
+A `ui-hifi/2` target freezes one `index.html` source whose manifest binds every sibling HTML page by SHA-256. Keep the complete package available to UI validation and capture. When that source declares `source_revision`, every child must be a regular tracked blob at that same revision and match its current bytes and manifest hash; a working-tree-only child cannot complete a historical freeze. Child edits renew the entry hash, affected interaction evidence, and Visual Approval. Do not add separate approved-target PLAN rows for child pages.
+
 For large work, including parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
 ## Canonical Harness State

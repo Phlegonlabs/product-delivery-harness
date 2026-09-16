@@ -626,7 +626,7 @@ Use this structure:
 - Decision: [approved / revision_requested / blocked]
 - Decision owner: [Human owner]
 - Decided on: [YYYY-MM-DD]
-- Approved areas: [Frontend / Mobile or desktop / Backend or data / AI or automation / Monetization or partner channel / none]
+- Approved areas: [Frontend / Mobile or desktop / Backend or data / AI or automation / Monetization or partner channel / Toolchain / none]
 - Delegated choices: [None / exact decision classes explicitly delegated and source]
 - Open areas: [None / exact unresolved areas]
 - Checkpoint digest: [sha256:<64 lowercase hex> over canonical stack bytes, excluding this checkpoint block]
@@ -644,7 +644,7 @@ Use this shared table for every unresolved area before the checkpoint. Preserve 
 
 | Option ID | Area | Complete bundle | Best fit | Tradeoffs / ownership | Disposition |
 | --- | --- | --- | --- | --- | --- |
-| OPT-FE-01 | [Frontend / Backend or data / Mobile or desktop / AI or automation / Commercial] | [Every coupled layer in this option] | [Why and when it fits] | [Cost, lock-in, data, maintenance, operations] | [recommended / approved / rejected] |
+| OPT-FE-01 | [Frontend / Backend or data / Mobile or desktop / AI or automation / Commercial / Toolchain] | [Every coupled layer in this option] | [Why and when it fits] | [Cost, lock-in, data, maintenance, operations] | [recommended / approved / rejected] |
 
 ## Frontend Technology Decision
 Use this section for every product with a browser frontend. Omit it only when no browser surface exists.
@@ -699,6 +699,20 @@ A product may add this section in a later revision after Frontend Technology Dec
 | Testing | [Unit and UI automation per platform] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
+
+## CLI and Toolchain Decision
+Use this section for `cli` and `other_nonpublic` release surfaces. Both map to the single canonical `Toolchain` area in Approved, Applicable, Resolved, and Coherent Options records; `CLI/toolchain` is accepted as an alias. A hybrid containing both classes still declares the area once. Keep activation profile names separate from stack areas.
+
+### Decision Drivers
+- [Target platforms, command/interface contract, packaging, distribution, upgrade policy, and team constraints.]
+
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Language | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Toolchain | [Runtime/compiler and build/package tooling] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Distribution mechanism | [Package registry, signed binary, or internal artifact channel] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Testing | [Command/interface and platform checks] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 ## Backend and Data Technology Decision
 Use this section for every product with a backend, persistent data, or auth requirement. Omit it only when the product provably has none of these.
@@ -774,7 +788,7 @@ One row per rejected option, across every decision above.
 
 | Area | Alternative | Where It Fits Better | Why Not Selected Here | Revisit Trigger |
 | --- | --- | --- | --- | --- |
-| [Frontend / Mobile or desktop / Backend or data / AI or automation / Monetization or partner channel] | [Alternative or coherent bundle] | [Context] | [Reason] | [Trigger] |
+| [Frontend / Mobile or desktop / Backend or data / Toolchain / AI or automation / Monetization or partner channel] | [Alternative or coherent bundle] | [Context] | [Reason] | [Trigger] |
 
 ### Unresolved Decision Protocol
 Use only when a layer cannot yet be decided. A bare `TBD` does not pass validation.

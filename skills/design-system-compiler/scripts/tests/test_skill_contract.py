@@ -99,7 +99,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def test_templates_and_checker_commands_belong_to_this_skill(self) -> None:
         skill = self.read("SKILL.md")
         self.assertIn("Run these from the repository root", skill)
-        self.assertIn("skills/design-system-compiler/scripts/check_design_system_pair.py", skill)
+        self.assertIn("<design-system-compiler-skill-root>/scripts/check_design_system_pair.py", skill)
         self.assertIn("scripts/check_color_contrast.py", skill)
         self.assertIn("scripts/check_type_scale.py", skill)
 
@@ -112,7 +112,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
 
         for content in (skill, guide, contract, template_md, template_json):
             self.assertIn("at least two", content)
-        self.assertIn("matches the PRD and approved wireframe set", skill)
+        self.assertIn("all sets match the PRD, approved wireframe, and stack", skill)
         self.assertIn("Copy the exact approved PRD and wireframe set", guide)
         self.assertIn("Unintended overlap, clipping, occlusion", guide)
         self.assertIn("passing browser-matrix evidence", contract)

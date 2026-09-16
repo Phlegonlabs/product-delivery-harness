@@ -221,6 +221,11 @@ For a route whose `UI-*` entry records SEO metadata, the same evidence set inclu
 
 ### Capture Mechanism By Platform
 
+Parity screenshot filenames include a SHA-256 of the exact surface, route,
+breakpoint, and state tuple. Display tokens alone are not unique: `/foo/bar`
+and `/foo-bar`, or names differing only in case, must retain separate files.
+Consumers use the paths recorded in the capture manifest.
+
 Only the capture mechanism changes with the resolved platform; the evidence discipline above is identical everywhere. Every platform must still produce a real binary screenshot under `docs/goal/evidence/`, record a lowercase SHA-256, bind it to the exact integration head, and cover the full breakpoint-by-state (native: device/OS-by-state) matrix. Placeholder, fabricated, or hand-drawn images never satisfy the gate.
 
 For a hosted-browser surface (`capture_mode: hosted-browser`), capture through a browser: Playwright/headless-browser screenshots, browser DevTools, or the `agent-browser` CLI, at that surface's planned viewports. The route-by-breakpoint-by-state matrix and the runbook's hosted-browser UI Evidence columns apply. `scripts/parity_capture.py` captures only this hosted subset in a hybrid plan; extension, native, and desktop groups are reported as platform/manual groups rather than rejected or approximated with a URL.
@@ -250,7 +255,7 @@ For each planned route-by-breakpoint-by-state combination:
 
 For `capture_mode: browser-extension`, `native`, or `desktop`, do not run URL parity for that surface and do not claim hosted parity. Capture the approved target and implemented surface with the platform-specific extension/native/desktop tooling (or an explicitly labeled manual capture), using that surface's responsive targets, bind both to the accepted Git head, and record the platform capture method and exact authority source in each `target_comparison` row. A hybrid plan must keep each UI-* surface's release surface, class, responsive set, and capture method explicit.
 
-Store comparison pairs under `docs/goal/evidence/`, for example `parity/<route>-<state>-<breakpoint>-target.png` and `parity/<route>-<state>-<breakpoint>-actual.png`.
+Store comparison pairs under `docs/goal/evidence/`. Automated captures use `parity/<label>-<tuple-sha256>-target.png` and `parity/<label>-<tuple-sha256>-actual.png`; use the exact paths recorded in `manifest.json`.
 - **System-conformance mode:** the baseline is the frozen design-system pair. The comparison evidence is a clean `scripts/check_ui_contract.py` run against the product's real source at the integration head (a zero-file or `--rule`-filtered run is not a baseline) plus the full screenshot matrix checked against the pair's tokens and variants.
 
 Record the comparison on each `ui_evidence` row as a `target_comparison` object: `baseline` (`html_target` or `design_system`), `baseline_artifact` (the reference-render image path under `docs/goal/evidence/` for `html_target`, or the contract-check evidence key for `design_system`), and `verdict` (`pass` or `deviation`). A `deviation` verdict lists every observed difference, and each difference either falls inside `ui-design.md`'s allowed deviations or triggers repair.

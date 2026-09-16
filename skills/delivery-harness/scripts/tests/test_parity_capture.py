@@ -148,6 +148,29 @@ class ParityCaptureTests(unittest.TestCase):
             return []
         return [json.loads(line) for line in self.log_path.read_text().splitlines()]
 
+    def test_colliding_route_and_state_tokens_keep_distinct_evidence(self) -> None:
+        routes = ["/foo/bar", "/foo-bar", "/FOO-BAR", "/" + "long-route-" * 21]
+        states = ["ready", "error/value", "error-value"]
+        self.plan.write_text(plan_markdown([
+            {"id": f"UI-{index:03}", "route": route, "breakpoints": ["390"], "states": states}
+            for index, route in enumerate(routes, 1)
+        ]), encoding="utf-8")
+        route_map = self.root / "route-map.json"
+        route_map.write_text(json.dumps({route: {
+            "reference": {"selector": "#nav"},
+            "states": {state: {"app_eval": "window.fixtureState = true"} for state in states},
+        } for route in routes}), encoding="utf-8")
+        code, output = self.run_main("--route-map", str(route_map))
+        self.assertEqual(0, code, output)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(manifest["gating_eligible"])
+        rows = manifest["captured"]
+        self.assertEqual(12, len(rows))
+        paths = [row[kind] for row in rows for kind in ("target", "actual")]
+        self.assertEqual(24, len({path.casefold() for path in paths}))
+        self.assertTrue(all(Path(path).is_file() for path in paths))
+        self.assertTrue(all(len(Path(path).name) <= 140 for path in paths))
+
     def test_captures_the_full_non_na_matrix(self) -> None:
         route_map = self.root / "route-map.json"
         route_map.write_text(
@@ -165,10 +188,8 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual(0, code, out)
 
         for width in ("390", "768", "1200"):
-            target = self.out / f"home-ready-{width}-target.png"
-            actual = self.out / f"home-ready-{width}-actual.png"
-            self.assertTrue(target.exists(), target)
-            self.assertTrue(actual.exists(), actual)
+            self.assertEqual(1, len(list(self.out.glob(f"home-ready-{width}-*-target.png"))))
+            self.assertEqual(1, len(list(self.out.glob(f"home-ready-{width}-*-actual.png"))))
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(6, len(manifest["captured"]))
         self.assertEqual(0, len(manifest["skipped"]))
@@ -183,7 +204,7 @@ class ParityCaptureTests(unittest.TestCase):
         board = (self.out / "parity-board.html").read_text(encoding="utf-8")
         self.assertIn("target (design reference)", board)
         self.assertIn("actual (implementation)", board)
-        self.assertIn("home-ready-390-target.png", board)
+        self.assertIn("home-ready-390-", board)
 
         calls = self.calls()
         self.assertIn(["set", "viewport", "390", "1000"], calls)
@@ -206,7 +227,7 @@ class ParityCaptureTests(unittest.TestCase):
         )
         code, out = self.run_main("--route-map", str(route_map))
         self.assertEqual(0, code, out)
-        self.assertTrue((self.out / "home-empty-768-actual.png").exists())
+        self.assertEqual(1, len(list(self.out.glob("home-empty-768-*-actual.png"))))
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(6, len(manifest["captured"]))
         self.assertEqual(0, len(manifest["skipped"]))
@@ -286,8 +307,8 @@ class ParityCaptureTests(unittest.TestCase):
         )
         code, out = self.run_main("--route-map", str(route_map), "--only", "/settings")
         self.assertEqual(2, code, out)
-        self.assertTrue((self.out / "settings-ready-390-target.png").exists())
-        self.assertFalse((self.out / "home-ready-390-target.png").exists())
+        self.assertEqual(1, len(list(self.out.glob("settings-ready-390-*-target.png"))))
+        self.assertEqual([], list(self.out.glob("home-ready-390-*-target.png")))
         manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual("PARTIAL", manifest["status"])
         self.assertFalse(manifest["gating_eligible"])

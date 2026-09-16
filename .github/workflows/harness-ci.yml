@@ -129,3 +129,5 @@ jobs:
               ($dependencyCheck -join "`n") -notmatch "impeccable") {
             throw "dependency check did not report both required external UI skills"
           }
+          # The dependency failure was expected; do not propagate its exit code.
+          exit 0

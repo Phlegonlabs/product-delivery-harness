@@ -366,6 +366,40 @@ def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple
     return contract_utils.finalize_approval_digests(prd, architecture, stack)
 
 
+def toolchain_package(surface_classes: tuple[str, ...]) -> tuple[str, str, str]:
+    targets = []
+    surfaces = []
+    for surface_class in surface_classes:
+        surface = surface_class.replace("_", "-")
+        surfaces.append(surface)
+        for stage in ("development", "production"):
+            targets.append(release_target(
+                f"{surface}-{stage}", stage=stage, surface=surface,
+                suffix=surface, provider="Direct download",
+                release_name=f"fixture-{surface}" + ("-dev" if stage == "development" else ""),
+            ).replace("Surface class: other_nonpublic", f"Surface class: {surface_class}"))
+    architecture = valid_architecture().replace(
+        "Expected deployable surfaces: none — fixture ships no deployable surface.",
+        "Expected deployable surfaces: " + ", ".join(surfaces) + "\n" + "\n".join(targets),
+    )
+    stack = valid_stack().split("### Coherent Options Presented")[0] + """### Coherent Options Presented
+| Option ID | Area | Complete bundle | Best fit | Tradeoffs / ownership | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| OPT-CLI-01 | Toolchain | Python package with pytest | Local command | Team maintains packaging | approved |
+| OPT-CLI-02 | Toolchain | Go executable with go test | Standalone binary | Team maintains compilation | rejected |
+
+## CLI and Toolchain Decision
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Language | Python | Approved | Owner decision | Fits team | None |
+| Toolchain | Python and build | Approved | Owner decision | Reproducible package | Pin versions |
+| Distribution mechanism | Signed wheel | Approved | Owner decision | Direct download | Verify signature |
+| Testing | pytest | Approved | Owner decision | Covers commands | None |
+"""
+    return strictize_approved_package(valid_prd(), architecture, stack)
+
+
 class ProductPackageCheckerTests(unittest.TestCase):
     def validate(
         self,
@@ -400,6 +434,49 @@ class ProductPackageCheckerTests(unittest.TestCase):
 
     def test_approved_package_passes(self) -> None:
         self.assertEqual([], self.validate())
+
+    def test_toolchain_release_packages_pass_full_approval(self) -> None:
+        for classes in (("cli",), ("other_nonpublic",), ("cli", "other_nonpublic")):
+            with self.subTest(classes=classes):
+                package = toolchain_package(classes)
+                self.assertEqual([], check_product_package.validate_texts(
+                    *package, require_filled=True, require_approved=True,
+                ))
+
+    def test_toolchain_approval_rejects_missing_section_layer_and_unapproved_choice(self) -> None:
+        for classes in (("cli",), ("other_nonpublic",)):
+            prd, architecture, stack = toolchain_package(classes)
+            for candidate, expected in (
+                (stack.split("## CLI and Toolchain Decision")[0], "missing required toolchain"),
+                (re.sub(r"^\| Testing \|.*\n", "", stack, flags=re.MULTILINE), "missing layers: testing"),
+                (stack.replace("| Python | Approved |", "| Python | Recommended |"), "remains 'Recommended'"),
+            ):
+                with self.subTest(classes=classes, expected=expected):
+                    package = strictize_approved_package(prd, architecture, candidate)
+                    problems = check_product_package.validate_texts(
+                        *package, require_filled=True, require_approved=True,
+                    )
+                    self.assertIn(expected, "\n".join(problems))
+
+    def test_toolchain_option_map_must_match_executable_layers(self) -> None:
+        prd, architecture, stack = toolchain_package(("cli",))
+        stack = stack.replace("Language=>Python", "Language=>Go")
+        problems = check_product_package.validate_texts(
+            prd, architecture, stack, require_filled=True, require_approved=True,
+        )
+        self.assertIn("Approved option map does not exactly match", "\n".join(problems))
+
+    def test_cli_toolchain_alias_passes_approval_and_option_matching(self) -> None:
+        prd, architecture, stack = toolchain_package(("cli",))
+        stack = re.sub(
+            r"(?m)^(- (?:Approved|Applicable|Resolved) areas: )toolchain$",
+            r"\1CLI/toolchain", stack,
+        )
+        stack = re.sub(r"(?m)^(\| OPT-CLI-\d+ \| )Toolchain(?= \|)", r"\1CLI/toolchain", stack)
+        package = contract_utils.finalize_approval_digests(prd, architecture, stack)
+        self.assertEqual([], check_product_package.validate_texts(
+            *package, require_filled=True, require_approved=True,
+        ))
 
     def test_strict_approval_requires_digests_structured_revision_and_identities(self) -> None:
         prd = valid_prd()

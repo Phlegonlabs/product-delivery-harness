@@ -151,6 +151,12 @@ STACK_LAYER_HEADER = (
 )
 
 STACK_SECTION_LAYERS = {
+    "CLI and Toolchain Decision": (
+        "language",
+        "toolchain",
+        "distribution mechanism",
+        "testing",
+    ),
     "Frontend Technology Decision": (
         "deployment / runtime",
         "rendering model",
@@ -209,6 +215,7 @@ STACK_SECTION_LAYERS = {
 }
 
 STACK_SECTION_AREAS = {
+    "CLI and Toolchain Decision": "toolchain",
     "Frontend Technology Decision": "frontend",
     "Mobile/Desktop Technology Decision": "mobile or desktop",
     "Backend and Data Technology Decision": "backend or data",
@@ -939,6 +946,8 @@ def _validate_gate_decisions(
 def _stack_areas(value: str) -> set[str]:
     normalized = value.casefold()
     areas: set[str] = set()
+    if re.search(r"\b(?:cli|toolchain)\b", normalized):
+        areas.add("toolchain")
     if "frontend" in normalized:
         areas.add("frontend")
     if "mobile" in normalized or "desktop" in normalized:
@@ -2788,21 +2797,13 @@ def validate_texts(
         repo_root=repo_root,
         problems=problems,
     )
-    if "cli/toolchain" in required_stack_areas:
-        cli_section = _section(stack_text, "## CLI and Toolchain Decision")
-        if cli_section is None or not _meaningful(cli_section, minimum=25):
-            _add(
-                problems,
-                "stack-decisions",
-                "CLI release targets require a substantive CLI and Toolchain Decision",
-            )
     if "toolchain" in required_stack_areas:
         toolchain_section = _section(stack_text, "## CLI and Toolchain Decision")
         if toolchain_section is None or not _meaningful(toolchain_section, minimum=25):
             _add(
                 problems,
                 "stack-decisions",
-                "non-public release targets require a substantive CLI and Toolchain Decision",
+                "CLI and non-public release targets require a substantive CLI and Toolchain Decision",
             )
     if require_approved:
         approved_value = stack_fields.get("approved areas", "") if stack_block is not None else ""

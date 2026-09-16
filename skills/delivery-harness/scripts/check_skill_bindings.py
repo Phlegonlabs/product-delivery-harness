@@ -31,6 +31,13 @@ REQUIRED_SLOTS = {
     "ui_quality_verification",
     "code_security_verification",
 }
+STAGE_SLOTS = {
+    "all": REQUIRED_SLOTS,
+    "product-definition": set(),
+    "ui-design": {"ui_design", "style_integration", "ui_quality_verification"},
+    "design-compilation": {"design_compilation", "style_integration"},
+    "backend": {"code_security_verification"},
+}
 TEXT_SUFFIXES = {
     ".css", ".html", ".js", ".json", ".md", ".ps1", ".py", ".sh",
     ".toml", ".ts", ".txt", ".yaml", ".yml",
@@ -153,7 +160,9 @@ def parse_binding_rows(text: str) -> list[tuple[str, str, str, int]]:
 
 def parse_binding_contract(
     text: str,
+    *, stage: str = "all",
 ) -> tuple[list[tuple[str, str, str, int]], list[str]]:
+    required = STAGE_SLOTS[stage]
     active = list(active_markdown_lines(text))
     heading_indexes = [
         index
@@ -197,7 +206,7 @@ def parse_binding_contract(
             findings.append(f"line {number}: duplicate Skill Bindings slot {slot!r}")
         seen_slots.add(slot)
         rows.append((slot, bound, pin.strip("`"), number))
-    missing = sorted(REQUIRED_SLOTS - seen_slots)
+    missing = sorted(required - seen_slots)
     extra = sorted(seen_slots - REQUIRED_SLOTS)
     if missing or extra:
         findings.append(
@@ -211,7 +220,7 @@ def parse_binding_contract(
 
 def bound_skill_name(cell: str) -> str | None:
     value = cell.strip().strip("`")
-    if not SKILL_NAME_RE.fullmatch(value):
+    if value == "pending" or not SKILL_NAME_RE.fullmatch(value):
         return None
     return value
 
@@ -256,20 +265,26 @@ def hash_skill(path: Path) -> str:
 
 
 def check_bindings(
-    agents_md: Path, skill_dirs: list[Path]
+    agents_md: Path, skill_dirs: list[Path], *, stage: str = "all"
 ) -> tuple[list[str], dict[str, str]]:
     findings: list[str] = []
     hashes: dict[str, str] = {}
     text = agents_md.read_text(encoding="utf-8")
-    rows, parse_findings = parse_binding_contract(text)
+    rows, parse_findings = parse_binding_contract(text, stage=stage)
     findings.extend(parse_findings)
     for slot, cell, pin, number in rows:
+        if slot not in STAGE_SLOTS[stage] and cell.strip("`") == pin == "pending":
+            continue
         name = bound_skill_name(cell)
         if name is None:
             findings.append(
                 f"line {number}: slot {slot!r} must bind exactly one skill name, "
                 f"got {cell!r}"
             )
+            continue
+        if slot not in STAGE_SLOTS[stage]:
+            if not PIN_RE.fullmatch(pin):
+                findings.append(f"line {number}: deferred binding must use a full-tree pin or pending/pending")
             continue
         located = locate_skill(name, skill_dirs)
         if located is None:
@@ -308,6 +323,8 @@ def default_skill_dirs(agents_md: Path) -> list[Path]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agents-md", type=Path, default=Path("AGENTS.md"))
+    parser.add_argument("--stage", choices=sorted(STAGE_SLOTS), default="all",
+                        help="Resolve only this stage; omitted means all slots. This is not a later-stage PASS.")
     parser.add_argument(
         "--skill-dir",
         type=Path,
@@ -327,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"AGENTS.md not found: {agents_md}", file=sys.stderr)
         return 2
     skill_dirs = list(args.skill_dir) or default_skill_dirs(agents_md)
-    findings, hashes = check_bindings(agents_md, skill_dirs)
+    findings, hashes = check_bindings(agents_md, skill_dirs, stage=args.stage)
     if args.show_hashes:
         for name, digest in sorted(hashes.items()):
             print(f"{name}: {digest}")
@@ -336,7 +353,7 @@ def main(argv: list[str] | None = None) -> int:
     if findings:
         return 1
     if not args.show_hashes:
-        print(f"all bound skills in {agents_md} are pinned and unchanged")
+        print(f"stage {args.stage}: required bindings in {agents_md} are pinned and unchanged")
     return 0
 
 

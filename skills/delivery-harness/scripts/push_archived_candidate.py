@@ -45,6 +45,7 @@ from archive_run import (
     validate_archive_receipt,
 )
 from archive_run import validate_archive_anchor
+from publication_credentials import credential_binding, publication_environment, UNBOUND
 
 
 POSIX_TRUST_POLICY_PATH = Path("/etc/product-delivery-harness/archive-push.allowed_signers")
@@ -740,7 +741,8 @@ def _validate_archive_authority(authority: dict[str, Any]) -> None:
 
 
 def _validate_request_values(request: dict[str, Any], root: Path, request_path: Path) -> None:
-    if set(request) != REQUEST_KEYS - {"request_sha256"} and set(request) != REQUEST_KEYS:
+    keys = set(request) - {"credential_binding"}
+    if keys != REQUEST_KEYS - {"request_sha256"} and keys != REQUEST_KEYS:
         raise ManifestError("request has missing or extra fields before digest")
     if request.get("protocol") != REQUEST_PROTOCOL:
         raise ManifestError("request protocol is invalid")
@@ -766,6 +768,8 @@ def _validate_request_values(request: dict[str, Any], root: Path, request_path: 
     }:
         raise ManifestError("execution evidence path must be distinct from request/attempt/receipt")
     _validate_endpoint(request)
+    if request.get("credential_binding") != credential_binding(request["push_url"]):
+        raise ManifestError("publication credential policy/helper changed since request creation")
     policy = _discover_machine_trust_policy(root=root)
     if request.get("trust_policy_id") != policy.policy_id:
         policy.cleanup()
@@ -1365,12 +1369,12 @@ def verify_archive_candidate(root: Path, *, archive_path: Path, candidate_a: str
     }
 
 
-def _read_closed(path: Path, protocol: str, keys: set[str]) -> dict[str, Any]:
+def _read_closed(path: Path, protocol: str, keys: set[str], *, optional: frozenset[str] = frozenset()) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ManifestError(f"cannot read immutable artifact: {exc}") from exc
-    if not isinstance(value, dict) or value.get("protocol") != protocol or set(value) != keys:
+    if not isinstance(value, dict) or value.get("protocol") != protocol or set(value) - optional != keys:
         raise ManifestError("immutable artifact has missing or extra fields")
     return value
 
@@ -1387,7 +1391,7 @@ def _write_closed(path: Path, value: dict[str, Any], root: Path) -> None:
         raise ManifestError("immutable request/receipt path is already consumed") from exc
 
 
-def _remote_state(root: Path, endpoint: str, branch_ref: str) -> str | None:
+def _remote_state(root: Path, endpoint: str, branch_ref: str, *, credentials=UNBOUND) -> str | None:
     """Read a remote ref through the exact URL bound to the request.
 
     The configured remote-name form remains accepted for backwards-compatible
@@ -1403,13 +1407,10 @@ def _remote_state(root: Path, endpoint: str, branch_ref: str) -> str | None:
     # Read the exact URL from a fresh non-repository cwd with system/global
     # config disabled.  This closes the check-to-use window in which a config
     # rewrite could be inserted after the normal repository preflight.  A
-    # private remote that needs credential helpers must be read by the trusted
-    # host's separately authenticated publication process instead.
+    # private HTTPS remote can use only the machine-policy credential helper.
     isolated_directory = Path(tempfile.mkdtemp(prefix="harness-git-isolated-"))
     try:
-        environment = git_environment()
-        environment["GIT_CONFIG_NOSYSTEM"] = "1"
-        environment["GIT_CONFIG_GLOBAL"] = os.devnull if os.name != "nt" else "NUL"
+        environment = publication_environment(url, expected=credentials)
         environment["GIT_CEILING_DIRECTORIES"] = str(isolated_directory)
         result = subprocess.run(
             [git_executable(environment), "--no-replace-objects", "ls-remote", "--", url, branch_ref],
@@ -1506,7 +1507,8 @@ def prepare(
     checked = _safe_remote(remote, configured_name=True)
     _, url = _verify_configured_remote(root, checked)
     url = _safe_push_url(url)
-    pre = _remote_state(root, url, verified["branch_ref"])
+    credentials = credential_binding(url)
+    pre = _remote_state(root, url, verified["branch_ref"], credentials=credentials)
     replacement_base = verified.get("replacement_base")
     if replacement_base is None:
         allowed_pre = {None, verified["candidate_c"]}
@@ -1559,6 +1561,7 @@ def prepare(
         "branch_ref": verified["branch_ref"],
         "remote": checked,
         "push_url": url,
+        **({"credential_binding": credentials} if credentials is not None else {}),
         **metadata,
         "remote_pre_push_head": pre,
         "request_path": str(request_path),
@@ -1584,7 +1587,7 @@ def prepare(
 
 
 def _load_request(path: Path, root: Path) -> dict[str, Any]:
-    request = _read_closed(path, REQUEST_PROTOCOL, REQUEST_KEYS)
+    request = _read_closed(path, REQUEST_PROTOCOL, REQUEST_KEYS, optional=frozenset({"credential_binding"}))
     loaded_path = path.resolve(strict=False)
     if request.get("request_path") != str(loaded_path):
         raise ManifestError("request was copied or moved; request_path does not match")
@@ -1670,7 +1673,7 @@ def _pre_push_recheck(root: Path, request: dict[str, Any], authority: dict[str, 
     if _out(root, "status", "--porcelain=v1", "--untracked-files=all"):
         raise ManifestError("checkout became dirty before archive push")
     _, url, _ = _configured_endpoint(root, request)
-    if _remote_state(root, url, request["branch_ref"]) != request["remote_pre_push_head"]:
+    if _remote_state(root, url, request["branch_ref"], credentials=request.get("credential_binding")) != request["remote_pre_push_head"]:
         raise ManifestError("remote pre-state changed before archive push")
     return url
 
@@ -1687,7 +1690,7 @@ def begin_handoff(root: Path, *, request_path: Path) -> dict[str, Any]:
     verified = verify_archive_candidate(root, archive_path=root / request["archive_path"], candidate_a=request["candidate_a"])
     _request_matches_authority(request, verified)
     _configured_endpoint(root, request)
-    if _remote_state(root, request["push_url"], request["branch_ref"]) != request["remote_pre_push_head"]:
+    if _remote_state(root, request["push_url"], request["branch_ref"], credentials=request.get("credential_binding")) != request["remote_pre_push_head"]:
         raise ManifestError("remote pre-state drifted before archive push")
     endpoint_kind = request["push_endpoint_kind"]
     endpoint_summary = request["push_endpoint_summary"]
@@ -1880,7 +1883,7 @@ def verify_receipt(
         raise ManifestError("receipt trusted-host identity does not match evidence")
     authority = verify_archive_candidate(root, archive_path=root / request["archive_path"], candidate_a=request["candidate_a"])
     _request_matches_authority(request, authority)
-    if _remote_state(root, request["push_url"], request["branch_ref"]) != request["candidate_a"]:
+    if _remote_state(root, request["push_url"], request["branch_ref"], credentials=request.get("credential_binding")) != request["candidate_a"]:
         raise ManifestError("fresh readback does not equal A")
     return receipt
 
@@ -1906,7 +1909,7 @@ def recover_uncertain(
     )
     authority = verify_archive_candidate(root, archive_path=root / request["archive_path"], candidate_a=request["candidate_a"])
     _request_matches_authority(request, authority)
-    if _remote_state(root, request["push_url"], request["branch_ref"]) != request["candidate_a"]:
+    if _remote_state(root, request["push_url"], request["branch_ref"], credentials=request.get("credential_binding")) != request["candidate_a"]:
         raise ManifestError("recovery refuses to push; remote does not already equal A")
     _, _, metadata = _configured_endpoint(root, request)
     receipt = {

@@ -5,6 +5,8 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 # Delivery Harness
 
+For scripts and bindings, read `references/installed-commands.md`.
+
 ## Purpose
 
 Use the least ceremony that preserves safety. Keep work direct; add PLAN/RUN state, probing, workers, worktrees, and graph scheduling only when coordination requires them.
@@ -61,7 +63,7 @@ For UI work, inspect only `docs/design/`, a user-named design folder, and obviou
 
 Classify each task's Gitignore impact with `references/gitignore-contract.md`; it applies to both direct and managed routes.
 
-When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python skills/delivery-harness/scripts/inspect_harness_run.py --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker.
+When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker.
 
 After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
 
@@ -136,7 +138,7 @@ The adapter layer selects launch mechanics and provider-specific model options. 
 Discover the effective instruction chain from repository root to the selected checkout.
 
 - Existing `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md` files are user-owned authority. Never overwrite, merge, normalize, or silently copy them.
-- On an authorized first bootstrap, run `scripts/configure_project_context.py --root <target-root>`. It creates only missing root files from `PROJECT_AGENTS.template.md` and `PROJECT_CLAUDE.template.md`; the generated files are intentionally different. The seeding flow fills the new `AGENTS.md`'s Skill Bindings table from locally observed skills with the owner's confirmation; an established file is never reopened for it.
+- On an authorized first bootstrap, run `scripts/configure_project_context.py --root <target-root>`. It creates only missing root files from `PROJECT_AGENTS.template.md` and `PROJECT_CLAUDE.template.md`; the generated files are intentionally different. Resolve new Skill Bindings from observed skills with owner confirmation; preserve established context files.
 - Codex receives the effective `AGENTS.override.md` / `AGENTS.md` chain and never receives `CLAUDE.md` as Codex instructions.
 - Claude Code receives its effective `CLAUDE.md` chain plus shared `AGENTS.md` governance.
 - Pi uses Pi's native per-directory priority: `AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`.
@@ -202,7 +204,7 @@ Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate
 
 ### 4. Execute And Integrate
 
-After the version gate, run `python skills/delivery-harness/scripts/harness_transition.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds runtime, RepoDigest, host, PLAN revision, and digest; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
+After the version gate, run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds runtime, RepoDigest, host, PLAN revision, and digest; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
 
 ### 5. Verify Local-First
 
@@ -222,4 +224,4 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 Harness 0.38 RUNs close `local_only` at C after all gates and security pass. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back failure; commit only bookkeeping as A and reverify it. A current RUN never pushes. Under a new instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, receipt, and trusted-host evidence external, binds the canonical URL plus machine-policy ID/hash/principal and OS-managed verifier digest, returns a URL-only no-force argv, and never invokes `git push`; a trusted host reloads and revalidates the request with sanitized config, signs evidence, publishes, and recovery verifies it before reading A back. Candidate gates and separately authorized exact-A `main` promotion follow.
 
-`product-activation`, outcome review, and SEO follow required promotion and production verification; no RUN grant authorizes them.
+`product-activation` preparation requires a fixed SHA and separate authorization. Readiness, measurement handoff, outcome review, and SEO require promotion and production verification; no RUN grant authorizes them.

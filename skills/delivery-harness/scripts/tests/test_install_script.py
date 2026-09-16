@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 import re
+import sys
 from pathlib import Path
 
 
@@ -115,6 +116,37 @@ def tree_snapshot(root: Path) -> dict[str, bytes]:
 
 
 class InstallScriptTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("pwsh"), "pwsh is required for the GitHub shell")
+    def test_ci_dependency_negative_check_exits_successfully(self) -> None:
+        workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        step = workflow.split(
+            "- name: Verify PowerShell installer syntax and dependency check route", 1
+        )[1].split("run: |-", 1)[1]
+        lines = []
+        for line in step.splitlines()[1:]:
+            if line.strip() and not line.startswith("          "):
+                break
+            lines.append(line[10:])
+        # GitHub appends this native-command exit check to PowerShell scripts.
+        script = "\n".join(lines) + (
+            "\nif (Test-Path variable:\\LASTEXITCODE) { exit $LASTEXITCODE }\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            script_path = Path(temporary) / "ci-check.ps1"
+            script_path.write_text(script, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("pwsh"), "-NoProfile", "-File", str(script_path)],
+                cwd=REPO_ROOT,
+                env={**os.environ, "RUNNER_TEMP": temporary},
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     SKILLS = (
         "delivery-harness",
         "product-definition-builder",
@@ -318,12 +350,27 @@ class InstallScriptTests(unittest.TestCase):
             )
 
     def test_bash_installs_complete_manifest_and_migrates_legacy_copies(self) -> None:
+        self.destination = self.home / "installed skills"
         self.seed_managed_copies()
         result = self.run_bash(
             {"SKILL_BACKUP_ROOT": str(self.backup_root)}
         )
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assert_full_install()
+        target = self.home / "empty target project"
+        target.mkdir()
+        for skill, script in (
+            ("delivery-harness", "check_skill_bindings.py"),
+            ("product-definition-builder", "check_product_package.py"),
+            ("ui-design-builder", "check_ui_publication.py"),
+            ("design-system-compiler", "check_design_system_pair.py"),
+            ("product-activation", "check_activation.py"),
+            ("seo-growth-review", "check_seo_review.py"),
+        ):
+            result = subprocess.run([sys.executable, str(self.destination / skill / "scripts" / script), "--help"],
+                                    cwd=target, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertFalse((target / "skills").exists())
 
         backups = [child for child in self.backup_root.iterdir() if child.is_dir()]
         self.assertEqual(1, len(backups))

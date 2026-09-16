@@ -125,7 +125,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "at least three ascending `viewports: 390, 768, 1200` for web" in prd
             or "at least three ascending `viewports: 390, 768, 1200` for hosted web/extensions" in prd
         )
-        self.assertIn("exactly one responsive verification set", design)
+        self.assertIn("one global responsive verification set for homogeneous products", design)
+        self.assertIn("one set per `surfaceContracts` entry for hybrids", design)
+        self.assertIn("copy the exact approved PRD/wireframe set", design)
         self.assertIn("PRD's `UI-*` surface contract agree exactly", harness)
 
     def test_ui_references_archive_without_deletion(self) -> None:
@@ -156,7 +158,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("PENDING_TRUSTED_HOST_PUBLICATION", promotion)
         self.assertIn("never invokes `git push`", project_agents)
         self.assertIn("fresh PLAN/RUN on the same non-default branch from exact A", harness)
-        self.assertIn("Only after production verification may `product-activation`", promotion)
+        self.assertIn("Only after production verification may activation readiness", promotion)
+        self.assertIn("separate exact external-action authorization; it cannot claim readiness", promotion)
         self.assertLess(
             promotion.index("## Managed RUN Archive Before Promotion"),
             promotion.index("## Candidate Gate"),
@@ -176,9 +179,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("docs/ACTIVATION.md", lifecycle)
         self.assertIn("Never create, edit, reopen, or extend `docs/goal/PLAN.md`", activation)
         self.assertIn(
-            "`product-activation`, outcome review, and SEO follow required promotion",
+            "Readiness, measurement handoff, outcome review, and SEO require promotion and production verification",
             delivery,
         )
+        self.assertIn("preparation requires a fixed SHA and separate authorization", delivery)
 
     def test_downstream_skills_always_run_the_full_product_gate_with_repo_root(self) -> None:
         sources = {

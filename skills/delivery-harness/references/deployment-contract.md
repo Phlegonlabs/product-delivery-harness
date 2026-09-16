@@ -73,7 +73,7 @@ Writing the observed result into the tracked deployment record does not authoriz
 
 ## Product Activation Handoff
 
-Deployment and activation are separate. The RUN closes local-only; archive-candidate publication, `main` promotion, and deployment verification follow under separate action-time authorization. The sibling `product-activation` skill then owns explicitly requested external setup and `docs/ACTIVATION.md`; it never reopens the archived PLAN/RUN.
+Deployment and activation are separate. The RUN closes local-only; archive-candidate publication, `main` promotion, and deployment verification follow under separate action-time authorization. The sibling `product-activation` skill owns explicitly requested external setup and `docs/ACTIVATION.md`; it never reopens the archived PLAN/RUN.
 
 After RUN close, provide one bounded handoff when the product has deployable surfaces:
 
@@ -83,7 +83,7 @@ After RUN close, provide one bounded handoff when the product has deployable sur
 - implemented analytics, consent, crash, store, email, payment, webhook, monitoring, or other activation hooks; and
 - every pending Required Secrets and Variables or External Console Setup row, naming configuration only and never a value.
 
-If the user already asked to continue into activation, invoke `product-activation` only after required branch promotion and deployment verification complete. Otherwise report the exact handoff and suggest the explicit next invocation. Tool availability, a signed-in browser, a deployment PASS, and RUN authorization do not authorize an external console mutation. Product Activation probes connector/API/CLI/Browser/Computer Use routes separately, binds approval to each exact target and action, and writes `verified` only after independent read-back and behavior evidence.
+When requested, `product-activation` may enter `preparation` at a fixed implementation SHA and artifact identity before deployment, including separately authorized DNS, auth, or payment prerequisites. Keep target readiness in preparation until required branch promotion and exact deployment verification complete. Rebind and reverify any release identity changed by promotion. No predeployment setup proves activation readiness or a verified measurement handoff. Otherwise report the exact handoff and suggest the explicit next invocation. Tool availability, a signed-in browser, a deployment PASS, and RUN authorization do not authorize an external console mutation. Product Activation probes connector/API/CLI/Browser/Computer Use routes separately, binds approval to each exact target and action, and writes `verified` only after independent read-back and behavior evidence.
 
 An absent `docs/ACTIVATION.md` remains valid for legacy or non-applicable products. Product Definition may create the first seed when the path is absent; Product Activation bootstraps it when needed. Neither absence nor a pending activation task keeps the delivery RUN open.
 

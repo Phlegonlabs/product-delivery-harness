@@ -5,6 +5,10 @@ description: Review a fixed code candidate for security vulnerabilities after im
 
 # Code Security Review
 
+## Installed Commands
+
+Resolve `<code-security-review-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+
 ## Purpose
 
 Review the completed code candidate, not the implementation process. Bind every conclusion to one exact candidate SHA and declared scope. A passing review means no validated blocking vulnerability was found in that SHA and scope, with no exclusions in the result; it is not a security certification.

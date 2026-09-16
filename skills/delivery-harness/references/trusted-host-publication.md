@@ -69,7 +69,7 @@ Read back the canonical policy ID, principal, policy hash, verifier path, and
 verifier hash before preparing a publication request:
 
 ```text
-python skills/delivery-harness/scripts/trusted_host_publication.py verify-policy --repo-root <absolute-repository-root>
+python "<delivery-harness-skill-root>/scripts/trusted_host_publication.py" verify-policy --repo-root <absolute-repository-root>
 ```
 
 Rotation is an administrator operation: write the replacement line, run
@@ -89,7 +89,7 @@ syntax end to end. POSIX:
 
 ```bash
 export HARNESS_TRUSTED_HOST=1
-python skills/delivery-harness/scripts/trusted_host_publication.py execute \
+python "<delivery-harness-skill-root>/scripts/trusted_host_publication.py" execute \
   --request /absolute/external/request.json \
   --attempt /absolute/external/attempt.json \
   --evidence-out /absolute/external/execution-evidence.json \
@@ -102,7 +102,7 @@ PowerShell:
 
 ```powershell
 $env:HARNESS_TRUSTED_HOST='1'
-python skills/delivery-harness/scripts/trusted_host_publication.py execute --request C:\external\request.json --attempt C:\external\attempt.json --evidence-out C:\external\execution-evidence.json --signing-key C:\ProgramData\ProductDeliveryHarness\machine-key --trusted-host-issuer host-id
+python "<delivery-harness-skill-root>/scripts/trusted_host_publication.py" execute --request C:\external\request.json --attempt C:\external\attempt.json --evidence-out C:\external\execution-evidence.json --signing-key C:\ProgramData\ProductDeliveryHarness\machine-key --trusted-host-issuer host-id
 Remove-Item Env:HARNESS_TRUSTED_HOST
 ```
 
@@ -116,3 +116,11 @@ request, attempt, signature, or evidence bytes by hand.
 
 Evidence records must conform to `trusted-host-publication.schema.json` and are
 verified by `push_archived_candidate.py recover` before a receipt can close.
+
+## Private HTTPS credentials
+
+An administrator may install a non-secret JSON policy in the Windows 64-bit HKLM `SOFTWARE\ProductDeliveryHarness` value `ArchivePushCredentials` (REG_SZ), or `/etc/product-delivery-harness/archive-push.credentials.json` on POSIX. The POSIX file and all parents must be root-owned, non-link, and not group/world writable. This is a separate administrator action, never an agent-created credential workaround.
+
+The closed object has `endpoints` (exact canonical HTTPS repository URLs, without credentials, query, or fragment), `helper` (absolute path to an administrator-installed native credential helper), and `sha256` (its lowercase raw-file digest). The executable must pass the same OS-protected install, file/parent ownership or ACL, and non-reparse checks as Git. Use the helper's own approved login/storage setup; never place a token or password in this policy.
+
+Prepare, trusted-host push, and readback/recovery use isolated Git configuration with only that approved helper and `credential.useHttpPath=true`; terminal and GCM interactive prompts, HTTP redirects, and Git/GCM credential tracing are disabled. Repository/user helpers, askpass overrides, and config injection remain excluded. A matching policy adds `credential_binding` to the v3 request, binding the policy bytes, helper path/hash, and exact endpoint; its signed request digest also binds the attempt and execution evidence. Old requests without this field remain valid only when no helper policy applies. Installing, rotating, or removing a matching policy invalidates pending requests; reconcile them before rotation. No publication action is authorized by installing a policy. Helper/Git error output is not copied into evidence because it can contain credential material.

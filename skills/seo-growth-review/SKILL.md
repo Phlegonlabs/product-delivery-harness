@@ -5,6 +5,10 @@ description: Audit deployed public websites for organic-search growth using live
 
 # SEO Growth Review
 
+## Installed Commands
+
+Resolve `<seo-growth-review-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+
 ## Purpose
 
 Turn production search and behavior evidence into a short, prioritized organic-growth review. Separate observed first-party demand from market estimates and hypotheses. Explain what should be improved, why it matters, how success will be measured, and which upstream workflow owns any change.

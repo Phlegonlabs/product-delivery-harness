@@ -191,6 +191,8 @@ def _trusted_executable(path: Path, label: str) -> Path:
                 raise GitMetadataError(f"{label} path must be root-owned and not writable by group/other: {component}")
     elif resolved.suffix.casefold() != ".exe":
         raise GitMetadataError(f"{label} must be a native .exe on Windows: {resolved}")
+    elif _windows_parent_user_writable(resolved):
+        raise GitMetadataError(f"{label} file is user-writable: {resolved}")
     elif _windows_parent_user_writable(resolved.parent):
         raise GitMetadataError(f"{label} parent is user-writable: {resolved.parent}")
     return resolved
@@ -205,7 +207,7 @@ def _is_within(path: Path, root: Path) -> bool:
 
 
 def _windows_parent_user_writable(path: Path) -> bool:
-    """Use native owner/DACL AccessCheck and fail closed on uncertainty."""
+    """Check a file or directory with native owner/DACL AccessCheck; fail closed."""
 
     if os.name != "nt" or windows_icacls_path() is None:
         return os.name == "nt"
@@ -427,7 +429,7 @@ def _windows_acl_allows_current_write(path: Path) -> bool:
 
 
 def windows_parent_user_writable(path: Path) -> bool:
-    """Shared effective-access policy for trusted Windows parent directories."""
+    """Shared effective-access policy for trusted Windows files and directories."""
 
     return _windows_parent_user_writable(path)
 

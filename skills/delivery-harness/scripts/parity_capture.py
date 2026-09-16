@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import errno
+import hashlib
 import html
 import json
 import os
@@ -227,6 +228,8 @@ def _trusted_launcher_path(path: Path, label: str) -> Path:
         roots = list(windows_machine_roots())
         if not any(_path_within(resolved, root) for root in roots):
             raise RuntimeError(f"{label} must come from Program Files or Windows system directories")
+        if windows_parent_user_writable(resolved):
+            raise RuntimeError(f"{label} file is user-writable: {resolved}")
         if windows_parent_user_writable(resolved.parent):
             raise RuntimeError(f"{label} parent is user-writable: {resolved.parent}")
         if resolved.suffix.casefold() not in {".exe", ".com", ".js", ".py", ".cmd", ".bat"}:
@@ -664,10 +667,13 @@ def capture(args: argparse.Namespace) -> int:
         if not isinstance(entry, dict):
             entry = {}
         for combo in (c for c in combos if c["route"] == route):
-            name = (
+            # Bind the filename to the exact tuple, not its lossy display tokens.
+            identity = json.dumps(combo, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            label = (
                 f"{_token(route)}-{_token(combo['state'])}-"
                 f"{_token(combo['breakpoint'])}"
             )
+            name = f"{label[:64]}-{hashlib.sha256(identity).hexdigest()}"
             target = out_dir / f"{name}-target.png"
             actual = out_dir / f"{name}-actual.png"
             breakpoint = combo["breakpoint"]

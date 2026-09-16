@@ -24,7 +24,7 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR, UI_TESTS_DIR, PDB_TESTS_DIR, DS_SCRIPT
 
 from harness_contract_join import validate_frozen_contract_joins  # noqa: E402
 from manifest_fixtures import valid_plan, valid_run  # noqa: E402
-from test_ui_design_contract import materialize_publication  # noqa: E402
+from test_ui_design_contract import bundle_output, materialize_publication  # noqa: E402
 from test_product_package_checker import strictize_approved_package  # noqa: E402
 from test_wireframe_contract import render_html  # noqa: E402
 from check_design_system_pair import replace_generated_contract  # noqa: E402
@@ -230,16 +230,23 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
         manifest = json.loads(manifest_match.group(1))
         manifest["surfaces"].append({
             "id": second_id,
+            "page": "index.html",
             "route": second_route,
             "states": ["ready"],
             "responsive": {"kind": second_kind, "targets": second_targets},
             "navigation": ["home"],
             "controls": ["refresh"],
         })
+        manifest["interactions"].extend({
+            "id": second_id + "-" + control,
+            "source": {"surface": second_id, "state": "ready"},
+            "control": control, "kind": "navigate",
+            "destination": {"surface": second_id, "state": "ready"},
+        } for control in ("home", "refresh"))
         second_dom = (
             f'<main data-ui-surface="{second_id}" data-ui-route="{second_route}">'
-            f'<nav data-navigation-id="home">Pages</nav><h1>Secondary hybrid surface with meaningful content</h1>'
-            f'<button data-control-id="refresh">Refresh</button>'
+            f'<a data-navigation-id="home" href="index.html">Pages</a><h1>Secondary hybrid surface with meaningful content</h1>'
+            f'<a role="button" data-control-id="refresh" href="index.html">Refresh</a>'
             + "".join(f'<span data-state="ready" data-responsive-target="{target}"></span>' for target in second_targets)
             + "</main>"
         )
@@ -289,10 +296,8 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                 for key in ("sandbox", "console", "network", "navigation"):
                     output.pop(key, None)
             else:
-                output.setdefault("popups", [])
-                output.setdefault("forms", [])
-                output.setdefault("popupAttempts", len(output["popups"]))
-                output.setdefault("formAttempts", len(output["forms"]))
+                output.update(bundle_output(manifest))
+                output["schema"] = "ui-output/2"
             output.update({"check": check_name, "subject": reviewed, "matrix": receipt["matrix"], "results": receipt["results"]})
             output_path.write_text(json.dumps(output), encoding="utf-8")
             receipt["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
