@@ -3,7 +3,13 @@ name: design-system-compiler
 description: Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair. Use only after Product Definition, Stack Decision, Wireframe, Style Integration, Impeccable HiFi review, PRD-bound scoring, and Visual Approval have passed and ui-design.md records Design System Need Gate: required. It freezes tokens, primitives, product components, motion variants, responsive rules, and states; it does not choose product, stack, layout, or visual direction.
 ---
 
+`sourceBindings.uiDesign.sha256` uses the canonical UI approval digest, not the raw file hash. Run `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`; it excludes active derived pair/replacement linkage lines so linking the compiled pair does not invalidate its own input. All other source bindings use raw-file SHA-256.
+
 # Design System Compiler
+
+## Installed Commands
+
+Resolve `<design-system-compiler-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
 
 ## Purpose
 
@@ -47,7 +53,7 @@ Product scope, route, content, action, flow, state, responsive, architecture, or
 
 ## Workflow
 
-1. From the repository root, run `python skills/product-definition-builder/scripts/check_product_package.py --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`. Stop on a missing or stale Product Definition/Stack approval.
+1. From the repository root, run `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`. Stop on a missing or stale Product Definition/Stack approval.
 2. Confirm that `ui-design.md` says `Design System Need Gate: required`; otherwise stop. A greenfield UI may carry the exact pending marker `Compiled design system pair: pending — design-system-compiler` during this preflight only.
 3. Pass the Compilation Skills Gate.
 4. Run the UI builder's exact pair-less preflight against the PRD UI Surface Contract, `ui-design.md`, approved wireframes/4 with approved Copy Freeze, HiFi target, component foundation, styling approach, and approved Stack rows. Then verify the normal pair checker after compilation. A visual direction that needs another stack returns upstream.
@@ -60,11 +66,11 @@ Product scope, route, content, action, flow, state, responsive, architecture, or
 Run these from the repository root:
 
 ```text
-python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --write
-python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --require-filled
-python skills/design-system-compiler/scripts/check_color_contrast.py <the arguments required by the staged design system>
-python skills/design-system-compiler/scripts/check_type_scale.py <the arguments required by the staged design system>
-python skills/product-definition-builder/scripts/check_product_package.py --prd <PRD.md> --architecture <architecture.md> --stack-decisions <stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved
+python "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py" --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --write
+python "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py" --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --require-filled
+python "<design-system-compiler-skill-root>/scripts/check_color_contrast.py" <the arguments required by the staged design system>
+python "<design-system-compiler-skill-root>/scripts/check_type_scale.py" <the arguments required by the staged design system>
+python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <PRD.md> --architecture <architecture.md> --stack-decisions <stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved
 ```
 
 Also confirm:
@@ -78,7 +84,7 @@ Also confirm:
 - every surface covers the final state matrix or records `<state>: n/a - <reason>` in `PRD.md`;
 - every required UI element maps to a registered primitive or product component;
 - every Motion and Media Intent row is resolved; approved deterministic motion maps to a registered variant plus reduced-motion behavior, while `not_required` introduces no decorative variant; generated Higgsfield or other provider assets remain media sources, not UI-state implementations;
-- exactly one responsive set exists — web `viewports` with at least three ascending targets, or native or desktop `sizeClasses` with at least two — and it matches the PRD and approved wireframe set;
+- a homogeneous product has exactly one global responsive set (at least three ascending web `viewports` or at least two native/desktop `sizeClasses`); a hybrid uses each `surfaceContracts` entry’s exact responsive and release/capture set with no global platform, styling mechanism, viewports, or size classes; all sets match the PRD, approved wireframe, and stack;
 - no unresolved placeholder, page-local value, or one-off control remains; and
 - `design-system.md` and `design-system.json` publish together and agree through the pair checker.
 

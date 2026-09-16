@@ -1,5 +1,7 @@
 # Product Design Output Contract
 
+`sourceBindings.uiDesign.sha256` uses the canonical UI approval digest, not the raw file hash. Run `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`; it excludes active derived pair/replacement linkage lines so linking the compiled pair does not invalidate its own input. All other source bindings use raw-file SHA-256.
+
 Publish these files only when `docs/design/ui-design.md` records `Design System Need Gate: required`:
 
 - `docs/design/design-system.md`
@@ -24,7 +26,7 @@ Keep it the sole structured authority for:
 
 - platform, stack-bound rendering model/component foundation/styling semantics, styling mechanism, enforcement mode, token sources, and primitive sources;
 - `sourceBindings` for current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target bytes;
-- exactly one responsive verification set, copied exactly from the approved PRD and wireframe: at least three ascending web `viewports` or at least two native/desktop `sizeClasses`;
+- one global responsive verification set for homogeneous products, or one set per `surfaceContracts` entry for hybrids; copy the exact approved PRD/wireframe set, with at least three ascending web `viewports` or two native/desktop `sizeClasses`, plus each surface’s release/capture identity and approved stack semantics; hybrids omit global platform, styling mechanism, viewports, and size classes;
 - only the tokens the product uses;
 - four primitive layers with closed variant sets;
 - optional primitive `dsId` values matching `DS-[A-Z]+-<number>` when a primitive needs a trace identity;
