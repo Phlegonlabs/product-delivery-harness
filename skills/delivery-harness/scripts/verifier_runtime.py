@@ -8,7 +8,8 @@ import ctypes
 import io
 import tarfile
 import tempfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from contextlib import nullcontext
 import hashlib
 import json
 import os
@@ -35,9 +36,7 @@ from harness_git import (
 
 PROTOCOL = "harness-verifier-execution-v2"
 BATCH_PROTOCOL = "harness-verifier-batch-v1"
-# Containerized verifier results are never reused.  The cache key still binds
-# the full immutable declaration and image policy, but execution must retain a
-# fresh sandbox attestation for each request.
+# Container reuse is batch-local and opt-in, with fresh consumer attestations.
 CACHE_BANNED_LAYERS = {"mission_integration", "batch", "final"}
 CACHE_ENTRY_FIELDS = {
     "protocol",
@@ -88,12 +87,9 @@ class VerifierRuntimeError(ValueError):
     """Raised when verifier execution inputs are unsafe or malformed."""
 
 
-# Runtime probes, image inspection, and the actual container invocation must
-# share one process-local critical section.  The lock does not provide the
-# filesystem guarantee by itself; ``_RuntimeExecutableBinding`` below holds a
-# descriptor (POSIX) or a delete/write-denying handle (Windows) for the whole
-# sequence so a path replacement cannot retarget the executable between the
-# hash checks and ``subprocess.run``.
+# Serialize runtime probes, not user commands. Each invocation holds its own
+# descriptor (POSIX) or delete/write-denying handle (Windows) and rechecks the
+# preflight hash before launch so path replacement cannot retarget execution.
 _RUNTIME_EXECUTION_LOCK = threading.RLock()
 
 
@@ -312,6 +308,54 @@ def _path_within(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+class _SnapshotArchiveCache:
+    """Cache immutable archive bytes for one verifier batch only."""
+
+    def __init__(self) -> None:
+        self._entries: dict[tuple[str, str], bytes] = {}
+        self._flights: dict[tuple[str, str], Any] = {}
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def key(checkout_root: Path, head_sha: str) -> tuple[str, str]:
+        return os.path.normcase(str(checkout_root.resolve())), head_sha
+
+    def get_or_create(
+        self,
+        checkout_root: Path,
+        head_sha: str,
+        read_archive: Any,
+    ) -> bytes:
+        key = self.key(checkout_root, head_sha)
+        with self._lock:
+            flight = self._flights.setdefault(key, threading.Lock())
+        with flight:
+            if key not in self._entries:
+                self._entries[key] = read_archive()
+            return self._entries[key]
+
+
+class _ContainerResultCache:
+    """Trust one runner invocation's PASSes; never persist or import them."""
+
+    def __init__(self) -> None:
+        self._entries: dict[str, dict[str, Any]] = {}
+        self._flights: dict[str, Any] = {}
+        self._lock = threading.Lock()
+
+    def flight(self, identity: str) -> Any:
+        with self._lock:
+            return self._flights.setdefault(identity, threading.Lock())
+
+    def get(self, execution_key: str) -> dict[str, Any] | None:
+        with self._lock:
+            return copy_json(self._entries.get(execution_key))
+
+    def store(self, identity: str, entry: dict[str, Any]) -> None:
+        with self._lock:
+            self._entries.setdefault(identity, copy_json(entry))
 
 
 def _runtime_trust(executable: Path, runtime: str) -> dict[str, Any]:
@@ -1159,6 +1203,7 @@ def _materialize_git_snapshot(
     head_sha: str,
     declared_cwd: str,
     argv: list[str],
+    archive_cache: _SnapshotArchiveCache | None = None,
 ) -> tuple[tempfile.TemporaryDirectory[str], Path, list[str]]:
     """Materialize an immutable Git tree outside the worker checkout."""
 
@@ -1179,25 +1224,35 @@ def _materialize_git_snapshot(
             raise VerifierRuntimeError(
                 f"snapshot verifier argv[{index}] must not reference the live checkout"
             )
-    try:
-        archive = run_git(
-            checkout,
-            "archive",
-            "--format=tar",
-            head_sha,
-            text=False,
-            check=False,
-            timeout=60,
-        )
-    except GitMetadataError as exc:
-        raise VerifierRuntimeError(str(exc)) from exc
-    if archive.returncode != 0:
-        detail = archive.stderr.decode(errors="replace").strip()
-        raise VerifierRuntimeError(f"cannot materialize git snapshot: {detail}")
+    def read_archive() -> bytes:
+        try:
+            result = run_git(
+                checkout,
+                "archive",
+                "--format=tar",
+                head_sha,
+                text=False,
+                check=False,
+                timeout=60,
+            )
+        except GitMetadataError as exc:
+            raise VerifierRuntimeError(str(exc)) from exc
+        if result.returncode != 0:
+            detail = result.stderr.decode(errors="replace").strip()
+            raise VerifierRuntimeError(
+                f"cannot materialize git snapshot: {detail}"
+            )
+        assert isinstance(result.stdout, bytes)
+        return result.stdout
+
+    if archive_cache is None:
+        archive = read_archive()
+    else:
+        archive = archive_cache.get_or_create(checkout, head_sha, read_archive)
     temporary = tempfile.TemporaryDirectory(prefix="harness-verifier-snapshot-")
     snapshot_root = Path(temporary.name).resolve()
     try:
-        with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as bundle:
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
             for member in bundle.getmembers():
                 if member.issym() or member.islnk() or member.isdev() or not (
                     member.isdir() or member.isfile()
@@ -1263,6 +1318,127 @@ def _snapshot_environment(
     return result
 
 
+def _verify_container_runtime_identity(
+    *,
+    bound_executable: Path,
+    runtime: str,
+    checked_preflight: dict[str, Any],
+) -> str:
+    """Freshly verify executable and image trust without running user code."""
+
+    runtime_probe = checked_preflight["runtime_probe"]
+    with _RUNTIME_EXECUTION_LOCK:
+        executable = shutil.which(runtime)
+        if executable is None:
+            raise VerifierRuntimeError(
+                f"container sandbox runtime {runtime!r} is unavailable; run the sandbox preflight again and defer the gate"
+            )
+        if os.path.normcase(str(Path(executable).resolve())) != os.path.normcase(
+            str(bound_executable)
+        ):
+            raise VerifierRuntimeError(
+                "sandbox runtime executable changed since preflight"
+            )
+        recorded_trust = runtime_probe.get("trust")
+        if recorded_trust is not None:
+            observed_trust = _runtime_trust(bound_executable, runtime)
+            if observed_trust != recorded_trust:
+                raise VerifierRuntimeError(
+                    "sandbox runtime machine trust proof changed since preflight"
+                )
+        with _RuntimeExecutableBinding(bound_executable) as binding:
+            if binding.sha256() != runtime_probe["executable_sha256"]:
+                raise VerifierRuntimeError(
+                    "sandbox runtime executable changed since preflight"
+                )
+            probe_env = {"PATH": os.environ.get("PATH", "")}
+            if os.name == "nt" and os.environ.get("SystemRoot"):
+                probe_env["SystemRoot"] = os.environ["SystemRoot"]
+            probe = _run_bound_runtime(
+                binding,
+                ["version"],
+                env=probe_env,
+                timeout=30,
+            )
+            if probe.returncode != 0:
+                raise VerifierRuntimeError("container sandbox runtime probe failed")
+            if _sha256_bytes(probe.stdout.encode("utf-8")) != runtime_probe[
+                "version_output_sha256"
+            ]:
+                raise VerifierRuntimeError(
+                    "sandbox runtime version output changed since preflight"
+                )
+            image = checked_preflight["image"]
+            inspect = _run_bound_runtime(
+                binding,
+                [
+                    "image",
+                    "inspect",
+                    "--format",
+                    "{{json .RepoDigests}}",
+                    image,
+                ],
+                env=probe_env,
+                timeout=60,
+            )
+            if inspect.returncode != 0 or not inspect.stdout.strip():
+                raise VerifierRuntimeError(
+                    "pinned container image is unavailable or unverified"
+                )
+            pinned_digest = image.rsplit("@", 1)[-1]
+            try:
+                repo_digests = json.loads(inspect.stdout)
+            except json.JSONDecodeError as exc:
+                raise VerifierRuntimeError(
+                    "container image probe returned invalid RepoDigests JSON"
+                ) from exc
+            if not isinstance(repo_digests, list) or any(
+                not isinstance(item, str) for item in repo_digests
+            ):
+                raise VerifierRuntimeError(
+                    "container image probe returned malformed RepoDigests"
+                )
+            matched_repo_digest = next(
+                (item for item in repo_digests if item.endswith("@" + pinned_digest)),
+                None,
+            )
+            if matched_repo_digest is None:
+                raise VerifierRuntimeError(
+                    "container image probe did not attest the pinned digest"
+                )
+            if checked_preflight["repo_digest"] != matched_repo_digest:
+                raise VerifierRuntimeError(
+                    "container image RepoDigest changed since preflight"
+                )
+            if binding.sha256() != runtime_probe["executable_sha256"]:
+                raise VerifierRuntimeError(
+                    "sandbox runtime executable changed immediately before execution"
+                )
+        return matched_repo_digest
+
+
+def _container_attestation(
+    runtime: str,
+    image: str,
+    matched_repo_digest: str,
+    checked_preflight: dict[str, Any],
+    policy: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "runtime": runtime,
+        "runtime_probe": copy_json(checked_preflight["runtime_probe"]),
+        "image": image,
+        "image_probe": matched_repo_digest,
+        "policy": copy_json(policy),
+        "mount": {
+            "source": "git_archive",
+            "destination": "/workspace",
+            "read_only": True,
+        },
+        "network": "none",
+    }
+
+
 def _run_container_verifier(
     checkout_root: Path,
     snapshot_root: Path,
@@ -1281,99 +1457,53 @@ def _run_container_verifier(
     checked_preflight = _validated_sandbox_preflight(policy, sandbox_preflight)
     runtime_probe = checked_preflight["runtime_probe"]
     bound_executable = Path(runtime_probe["executable"])
-    with _RUNTIME_EXECUTION_LOCK:
-        executable = shutil.which(runtime)
-        if executable is None:
+    matched_repo_digest = _verify_container_runtime_identity(
+        bound_executable=bound_executable,
+        runtime=runtime,
+        checked_preflight=checked_preflight,
+    )
+    # ``Path.as_posix`` in _validated_inputs normalizes one leading ``./``.
+    # Keep every other leading dot and slash exactly: a hidden directory must
+    # remain ``/workspace/.hidden``.
+    normalized_cwd = Path(declared_cwd).as_posix()
+    workdir = "/workspace" if normalized_cwd == "." else f"/workspace/{normalized_cwd}"
+    arguments = [
+        "run",
+        "--rm",
+        "--pull=never",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges:true",
+        f"--user={policy['user']}",
+        f"--memory={policy['memory']}",
+        f"--cpus={policy['cpus']}",
+        f"--pids-limit={policy['pids_limit']}",
+        "--mount",
+        f"type=bind,src={snapshot_root},dst=/workspace,readonly",
+    ]
+    for tmpfs in policy["tmpfs"]:
+        arguments.extend(["--tmpfs", str(tmpfs)])
+    arguments.extend(["--workdir", workdir, image, *argv])
+    with _RuntimeExecutableBinding(bound_executable) as binding:
+        if binding.sha256() != runtime_probe["executable_sha256"]:
             raise VerifierRuntimeError(
-                f"container sandbox runtime {runtime!r} is unavailable; run the sandbox preflight again and defer the gate"
+                "sandbox runtime executable changed immediately before execution"
             )
-        if os.path.normcase(str(Path(executable).resolve())) != os.path.normcase(
-            str(bound_executable)
-        ):
-            raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
-        recorded_trust = runtime_probe.get("trust")
-        if recorded_trust is not None:
-            observed_trust = _runtime_trust(bound_executable, runtime)
-            if observed_trust != recorded_trust:
-                raise VerifierRuntimeError("sandbox runtime machine trust proof changed since preflight")
-        with _RuntimeExecutableBinding(bound_executable) as binding:
-            if binding.sha256() != runtime_probe["executable_sha256"]:
-                raise VerifierRuntimeError("sandbox runtime executable changed since preflight")
-            probe_env = {"PATH": os.environ.get("PATH", "")}
-            if os.name == "nt" and os.environ.get("SystemRoot"):
-                probe_env["SystemRoot"] = os.environ["SystemRoot"]
-            probe = _run_bound_runtime(
-                binding,
-                ["version"],
-                env=probe_env,
-                timeout=30,
+        completed = _run_bound_runtime(
+            binding,
+            arguments,
+            env={"PATH": os.environ.get("PATH", ""), **(
+                {"SystemRoot": os.environ["SystemRoot"]}
+                if os.name == "nt" and os.environ.get("SystemRoot")
+                else {}
+            )},
+            timeout=timeout_seconds,
+        )
+        if binding.sha256() != runtime_probe["executable_sha256"]:
+            raise VerifierRuntimeError(
+                "sandbox runtime executable changed during execution"
             )
-            if probe.returncode != 0:
-                raise VerifierRuntimeError("container sandbox runtime probe failed")
-            if _sha256_bytes(probe.stdout.encode("utf-8")) != runtime_probe[
-                "version_output_sha256"
-            ]:
-                raise VerifierRuntimeError("sandbox runtime version output changed since preflight")
-            inspect = _run_bound_runtime(
-                binding,
-                ["image", "inspect", "--format", "{{json .RepoDigests}}", image],
-                env=probe_env,
-                timeout=60,
-            )
-            if inspect.returncode != 0 or not inspect.stdout.strip():
-                raise VerifierRuntimeError("pinned container image is unavailable or unverified")
-            pinned_digest = image.rsplit("@", 1)[-1]
-            try:
-                repo_digests = json.loads(inspect.stdout)
-            except json.JSONDecodeError as exc:
-                raise VerifierRuntimeError("container image probe returned invalid RepoDigests JSON") from exc
-            if not isinstance(repo_digests, list) or any(not isinstance(item, str) for item in repo_digests):
-                raise VerifierRuntimeError("container image probe returned malformed RepoDigests")
-            matched_repo_digest = next(
-                (item for item in repo_digests if item.endswith("@" + pinned_digest)),
-                None,
-            )
-            if matched_repo_digest is None:
-                raise VerifierRuntimeError("container image probe did not attest the pinned digest")
-            if checked_preflight["repo_digest"] != matched_repo_digest:
-                raise VerifierRuntimeError("container image RepoDigest changed since preflight")
-            if binding.sha256() != runtime_probe["executable_sha256"]:
-                raise VerifierRuntimeError(
-                    "sandbox runtime executable changed immediately before execution"
-                )
-            # ``Path.as_posix`` in _validated_inputs normalizes one leading
-            # ``./``.  Keep every other leading dot and slash exactly: a
-            # hidden directory must remain ``/workspace/.hidden``.
-            normalized_cwd = Path(declared_cwd).as_posix()
-            workdir = "/workspace" if normalized_cwd == "." else f"/workspace/{normalized_cwd}"
-            arguments = [
-                "run",
-                "--rm",
-                "--pull=never",
-                "--network=none",
-                "--read-only",
-                "--cap-drop=ALL",
-                "--security-opt=no-new-privileges:true",
-                f"--user={policy['user']}",
-                f"--memory={policy['memory']}",
-                f"--cpus={policy['cpus']}",
-                f"--pids-limit={policy['pids_limit']}",
-                "--mount",
-                f"type=bind,src={snapshot_root},dst=/workspace,readonly",
-            ]
-            for tmpfs in policy["tmpfs"]:
-                arguments.extend(["--tmpfs", str(tmpfs)])
-            arguments.extend(["--workdir", workdir, image, *argv])
-            completed = _run_bound_runtime(
-                binding,
-                arguments,
-                env=probe_env,
-                timeout=timeout_seconds,
-            )
-            if binding.sha256() != runtime_probe["executable_sha256"]:
-                raise VerifierRuntimeError(
-                    "sandbox runtime executable changed during execution"
-                )
     return completed, {
         "runtime": runtime,
         "runtime_probe": copy_json(runtime_probe),
@@ -1426,6 +1556,203 @@ def _write_cache_entry(path: Path, entry: dict[str, Any]) -> bool:
     return True
 
 
+def _container_reuse_allowed(
+    *,
+    container_mode: bool,
+    normalized_verifier: dict[str, Any],
+    context: dict[str, Any],
+    git_guard: dict[str, Any] | None,
+) -> bool:
+    cache = normalized_verifier["cache"]
+    return bool(
+        container_mode
+        and cache["mode"] == "session_exact"
+        and cache.get("deterministic_local") is True
+        and normalized_verifier["pass_signal"] == "exit 0"
+        and context["layer"] in {"task", "worker"}
+        and context["checkout_role"] == "worker"
+        and context["cache_safe"] is True
+        and context["checkout_dirty"] is False
+        and git_guard is not None
+    )
+
+
+TIMING_FIELDS = {
+    "end_to_end_ms",
+    "setup_ms",
+    "git_guard_ms",
+    "cache_lookup_ms",
+    "snapshot_ms",
+    "command_ms",
+    "postcheck_ms",
+}
+REUSE_ORIGIN_FIELDS = {
+    "kind",
+    "execution_key",
+    "verifier_id",
+    "context_sha256",
+    "stdout_sha256",
+    "stderr_sha256",
+    "sandbox_attestation",
+}
+
+
+def _output_digest(item: Mapping[str, Any], name: str) -> Any:
+    value = item.get(name)
+    return _sha256_bytes(value.encode("utf-8")) if isinstance(value, str) else item.get(name + "_sha256")
+
+
+def execution_retention_binding_errors(item: Mapping[str, Any]) -> list[str]:
+    """Validate optional observational and same-runner reuse bindings."""
+
+    errors: list[str] = []
+    timings = item.get("timings")
+    if timings is not None:
+        if not isinstance(timings, dict) or set(timings) != TIMING_FIELDS:
+            errors.append("timings must contain the exact observational fields")
+        else:
+            for key, value in timings.items():
+                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                    errors.append(f"timings.{key} must be a non-negative integer")
+    origin = item.get("container_reuse_origin")
+    container_reuse = item.get("cache_status") == "reused" and (
+        item.get("cache_reason") == "same_runner_container_pass"
+        or isinstance(item.get("sandbox_attestation"), dict)
+    )
+    if container_reuse and origin is None:
+        errors.append("container reuse requires an explicit origin")
+    if origin is not None:
+        if not container_reuse or item.get("status") != "PASS" or item.get("exit_code") != 0:
+            errors.append("container reuse origin requires a reused PASS")
+        verifier = item.get("verifier", {})
+        context = item.get("context", {})
+        cache = verifier.get("cache") if isinstance(verifier, dict) else None
+        if not isinstance(verifier, dict) or not isinstance(context, dict) or not (
+            isinstance(cache, dict)
+            and cache.get("mode") == "session_exact"
+            and cache.get("deterministic_local") is True
+            and verifier.get("read_only") is True
+            and verifier.get("pass_signal") == "exit 0"
+            and context.get("layer") in {"task", "worker"}
+            and context.get("cache_safe") is True
+            and context.get("checkout_dirty") is False
+        ):
+            errors.append("container reuse requires an opted-in read-only task/worker declaration")
+        if not isinstance(origin, dict) or set(origin) != REUSE_ORIGIN_FIELDS:
+            errors.append("container reuse origin has an incomplete binding")
+        else:
+            for key in (
+                "execution_key",
+                "context_sha256",
+                "stdout_sha256",
+                "stderr_sha256",
+            ):
+                digest = origin.get(key)
+                if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                    errors.append(
+                        f"container reuse origin.{key} must be a SHA-256 digest"
+                    )
+            if origin.get("kind") != "same_runner":
+                errors.append("container reuse origin kind must be same_runner")
+            if not isinstance(origin.get("verifier_id"), str) or not origin["verifier_id"]:
+                errors.append("container reuse origin.verifier_id must be non-empty")
+            if not isinstance(origin.get("sandbox_attestation"), dict):
+                errors.append("container reuse origin sandbox attestation is missing")
+            if isinstance(item.get("execution_key"), str) and origin.get(
+                "execution_key"
+            ) != item.get("execution_key"):
+                errors.append("container reuse origin execution key is rebound")
+            stdout_digest = _output_digest(item, "stdout")
+            if isinstance(stdout_digest, str) and origin.get("stdout_sha256") != stdout_digest:
+                errors.append("container reuse origin stdout is rebound")
+            stderr_digest = _output_digest(item, "stderr")
+            if isinstance(stderr_digest, str) and origin.get("stderr_sha256") != stderr_digest:
+                errors.append("container reuse origin stderr is rebound")
+            sandbox = item.get("sandbox_attestation")
+            if isinstance(sandbox, dict) and origin.get("sandbox_attestation") != sandbox:
+                errors.append("container reuse origin sandbox identity is rebound")
+    return errors
+
+
+def container_reuse_origin_run_errors(
+    item: Mapping[str, Any], run: Mapping[str, Any]
+) -> list[str]:
+    """Bind a retained reuse result to one real origin execution in RUN."""
+
+    origin = item.get("container_reuse_origin")
+    if origin is None:
+        return []
+    if not isinstance(origin, dict):
+        return ["container reuse origin is malformed"]
+    executions = run.get("verifier_executions")
+    if not isinstance(executions, list):
+        return ["container reuse origin has no retained RUN executions"]
+    matches = set()
+    for candidate in executions:
+        if not isinstance(candidate, dict) or candidate is item:
+            continue
+        if (
+            candidate.get("execution_key") == origin.get("execution_key")
+            and candidate.get("verifier_id") == origin.get("verifier_id")
+            and candidate.get("status") == "PASS"
+            and candidate.get("exit_code") == 0
+            and isinstance(candidate.get("context"), dict)
+            and candidate["context"].get("layer") in {"task", "worker"}
+            and _sha256_bytes(_canonical_json(candidate["context"])) == origin.get("context_sha256")
+            and candidate.get("cache_status") == "bypassed"
+            and candidate.get("cache_reason") == "same_runner_container_origin"
+            and candidate.get("sandbox_attestation")
+            == origin.get("sandbox_attestation")
+            and candidate.get("container_reuse_origin") is None
+            and _output_digest(candidate, "stdout") == origin.get("stdout_sha256")
+            and _output_digest(candidate, "stderr") == origin.get("stderr_sha256")
+            and candidate.get("git_guard_attestation") == item.get("git_guard_attestation")
+        ):
+            matches.add((candidate["execution_key"], candidate["verifier_id"], origin["context_sha256"]))
+    if len(matches) != 1:
+        return ["container reuse origin must match exactly one retained same-runner PASS"]
+    return []
+
+
+def _valid_container_cache_entry(
+    value: Any, execution_key: str
+) -> bool:
+    required = {
+        "execution_key",
+        "status",
+        "stdout",
+        "stderr",
+        "verifier_id",
+        "context",
+        "sandbox_attestation",
+    }
+    return (
+        isinstance(value, dict)
+        and set(value) == required
+        and value["execution_key"] == execution_key
+        and value["status"] == "PASS"
+        and isinstance(value["stdout"], str)
+        and isinstance(value["stderr"], str)
+        and isinstance(value["verifier_id"], str)
+        and bool(value["verifier_id"])
+        and isinstance(value["context"], dict)
+        and isinstance(value["sandbox_attestation"], dict)
+    )
+
+
+def _timings(
+    start: float, current: float, **fields: int
+) -> dict[str, int]:
+    values = {
+        key: max(0, value) for key, value in fields.items()
+    }
+    values["end_to_end_ms"] = max(
+        0,
+        round((current - start) * 1000),
+    )
+    return values
+
+
 def run_verifier(
     verifier: dict[str, Any],
     context: dict[str, Any],
@@ -1438,10 +1765,14 @@ def run_verifier(
     reservation: dict[str, Any] | None = None,
     request_sha256: str | None = None,
     sandbox_preflight: dict[str, Any] | None = None,
+    snapshot_archive_cache: _SnapshotArchiveCache | None = None,
+    container_result_cache: _ContainerResultCache | None = None,
 ) -> dict[str, Any]:
+    entry_started = time.perf_counter()
     if timeout_seconds <= 0:
         raise VerifierRuntimeError("timeout_seconds must be positive")
     effective_environment = dict(os.environ if environment is None else environment)
+    setup_started = time.perf_counter()
     cwd, argv, normalized_verifier, key_inputs = _validated_inputs(
         verifier,
         context,
@@ -1508,11 +1839,14 @@ def run_verifier(
             raise VerifierRuntimeError(
                 "a reserved verifier requires git_guard and the canonical request SHA-256"
             )
+    guard_started = time.perf_counter()
     guard_snapshot = (
         _git_guard_snapshot(checkout_root.resolve(), git_guard)
         if git_guard is not None
         else None
     )
+    guard_ms = max(0, round((time.perf_counter() - guard_started) * 1000))
+    setup_ms = max(0, round((guard_started - setup_started) * 1000))
     if git_guard is not None:
         assert isinstance(guard_snapshot, dict)
         git_guard_attestation = {
@@ -1534,205 +1868,394 @@ def run_verifier(
                 guard_snapshot["protected_path_sha256"]
             ),
         }
-    cache_mode = normalized_verifier["cache"]["mode"]
-    cache_status = "bypassed"
-    cache_reason = "cache_disabled"
-    cache_path: Path | None = None
-    can_reuse = cache_mode == "session_exact"
-    if container_mode and can_reuse:
-        can_reuse = False
-        cache_reason = "container_execution_not_cacheable"
-    if (
-        can_reuse
-        and key_inputs["context"]["layer"] in CACHE_BANNED_LAYERS
-        and not normalized_verifier["cache"].get("deterministic_local", False)
-    ):
-        can_reuse = False
-        cache_reason = "layer_not_cacheable"
-    elif can_reuse and normalized_verifier["pass_signal"] != "exit 0":
-        can_reuse = False
-        cache_reason = "pass_signal_not_cacheable"
-    elif can_reuse and not key_inputs["context"]["cache_safe"]:
-        can_reuse = False
-        cache_reason = "not_declared_deterministic_local"
-    elif can_reuse and key_inputs["context"]["checkout_dirty"]:
-        can_reuse = False
-        cache_reason = "checkout_dirty"
-    elif can_reuse and cache_root is None:
-        can_reuse = False
-        cache_reason = "cache_root_missing"
-    elif can_reuse:
-        root = cache_root.resolve()
-        checkout = checkout_root.resolve()
-        try:
-            root.relative_to(checkout)
-        except ValueError:
-            cache_path = _cache_path(root, execution_key)
-            entry, cache_reason = _load_cache_entry(
-                cache_path,
-                execution_key,
-                key_document["executable_identity"],
-            )
-            if entry is not None:
-                return {
-                    "protocol": PROTOCOL,
-                    "verifier_id": normalized_verifier["id"],
-                    "status": "PASS",
-                    "exit_code": 0,
-                    "stdout": entry["stdout"],
-                    "stderr": entry["stderr"],
-                    "execution_key": execution_key,
-                    "evidence_key": execution_key,
-                    "verifier": normalized_verifier,
-                    "context": key_inputs["context"],
-                    "key_document": key_document,
-                    "cache_status": "reused",
-                    "cache_reason": cache_reason,
-                    "duration_ms": 0,
-                    "metrics": {"executed": 0, "reused": 1},
-                    **(
-                        {"reservation": checked_reservation}
-                        if checked_reservation is not None
-                        else {}
-                    ),
-                    **(
-                        {"dispatch_attestation": dispatch_attestation}
-                        if dispatch_attestation is not None
-                        else {}
-                    ),
-                    **(
-                        {"git_guard_attestation": git_guard_attestation}
-                        if git_guard_attestation is not None
-                        else {}
-                    ),
-                }
-            cache_status = "miss"
-        else:
+    # Bind reuse to the live checkout and protected inputs as well as the
+    # immutable command key. A waiter must recheck the guard after acquiring
+    # the flight lock; failed origins leave no reusable entry.
+    container_reuse_allowed = _container_reuse_allowed(
+        container_mode=container_mode,
+        normalized_verifier=normalized_verifier,
+        context=key_inputs["context"],
+        git_guard=git_guard,
+    )
+    coalesce = container_result_cache is not None and container_reuse_allowed
+    cache_identity = ""
+    if coalesce:
+        cache_identity = _sha256_bytes(_canonical_json({
+            "execution_key": execution_key,
+            "checkout_root": os.path.normcase(str(checkout_root.resolve())),
+            "git_guard": git_guard,
+            "guard_snapshot": guard_snapshot,
+        }))
+    flight = container_result_cache.flight(cache_identity) if coalesce else nullcontext()
+    with flight:
+        if coalesce and _git_guard_snapshot(
+            checkout_root.resolve(), git_guard
+        ) != guard_snapshot:
+            raise VerifierRuntimeError("verifier inputs changed while waiting for execution")
+        cache_started = time.perf_counter()
+        if container_reuse_allowed and container_result_cache is not None:
+            cached = container_result_cache.get(cache_identity)
+            if cached is not None:
+                if not _valid_container_cache_entry(cached, execution_key):
+                    container_result_cache = None
+                else:
+                    matched_repo_digest = _verify_container_runtime_identity(
+                        bound_executable=Path(
+                            checked_sandbox_preflight["runtime_probe"]["executable"]
+                        ),
+                        runtime=container_policy["runtime"],
+                        checked_preflight=checked_sandbox_preflight,
+                    )
+                    sandbox_attestation = _container_attestation(
+                        container_policy["runtime"],
+                        container_policy["image"],
+                        matched_repo_digest,
+                        checked_sandbox_preflight,
+                        container_policy,
+                    )
+                    if git_guard_attestation is not None:
+                        git_guard_attestation["sandbox_attestation"] = copy_json(
+                            sandbox_attestation
+                        )
+                    if git_guard is not None:
+                        if _git_guard_snapshot(
+                            checkout_root.resolve(), git_guard
+                        ) != guard_snapshot:
+                            raise VerifierRuntimeError(
+                                "tracked or protected verifier inputs changed while reusing a same-runner result"
+                            )
+                    return {
+                        "protocol": PROTOCOL,
+                        "verifier_id": normalized_verifier["id"],
+                        "status": "PASS",
+                        "exit_code": 0,
+                        "stdout": cached["stdout"],
+                        "stderr": cached["stderr"],
+                        "execution_key": execution_key,
+                        "evidence_key": execution_key,
+                        "verifier": normalized_verifier,
+                        "context": key_inputs["context"],
+                        "key_document": key_document,
+                        "cache_status": "reused",
+                        "cache_reason": "same_runner_container_pass",
+                        "duration_ms": 0,
+                        "metrics": {"executed": 0, "reused": 1},
+                        "container_reuse_origin": {
+                            "kind": "same_runner",
+                            "execution_key": execution_key,
+                            "verifier_id": cached["verifier_id"],
+                            "context_sha256": _sha256_bytes(
+                                _canonical_json(cached["context"])
+                            ),
+                            "stdout_sha256": _sha256_bytes(
+                                cached["stdout"].encode("utf-8")
+                            ),
+                            "stderr_sha256": _sha256_bytes(
+                                cached["stderr"].encode("utf-8")
+                            ),
+                            "sandbox_attestation": copy_json(
+                                cached["sandbox_attestation"]
+                            ),
+                        },
+                        "timings": _timings(
+                            entry_started,
+                            time.perf_counter(),
+                            setup_ms=setup_ms,
+                            git_guard_ms=guard_ms,
+                            cache_lookup_ms=max(
+                                0,
+                                round((time.perf_counter() - cache_started) * 1000),
+                            ),
+                            snapshot_ms=0,
+                            command_ms=0,
+                            postcheck_ms=0,
+                        ),
+                        **(
+                            {"reservation": checked_reservation}
+                            if checked_reservation is not None
+                            else {}
+                        ),
+                        **(
+                            {"dispatch_attestation": dispatch_attestation}
+                            if dispatch_attestation is not None
+                            else {}
+                        ),
+                        **(
+                            {"git_guard_attestation": git_guard_attestation}
+                            if git_guard_attestation is not None
+                            else {}
+                        ),
+                        **(
+                            {"sandbox_attestation": sandbox_attestation}
+                            if sandbox_attestation is not None
+                            else {}
+                        ),
+                    }
+        cache_mode = normalized_verifier["cache"]["mode"]
+        cache_status = "bypassed"
+        cache_reason = "cache_disabled"
+        cache_path: Path | None = None
+        can_reuse = cache_mode == "session_exact"
+        if container_mode and can_reuse:
             can_reuse = False
-            cache_reason = "cache_root_inside_checkout"
+            cache_reason = "container_disk_cache_disabled"
+        if (
+            can_reuse
+            and key_inputs["context"]["layer"] in CACHE_BANNED_LAYERS
+            and not normalized_verifier["cache"].get("deterministic_local", False)
+        ):
+            can_reuse = False
+            cache_reason = "layer_not_cacheable"
+        elif can_reuse and normalized_verifier["pass_signal"] != "exit 0":
+            can_reuse = False
+            cache_reason = "pass_signal_not_cacheable"
+        elif can_reuse and not key_inputs["context"]["cache_safe"]:
+            can_reuse = False
+            cache_reason = "not_declared_deterministic_local"
+        elif can_reuse and key_inputs["context"]["checkout_dirty"]:
+            can_reuse = False
+            cache_reason = "checkout_dirty"
+        elif can_reuse and cache_root is None:
+            can_reuse = False
+            cache_reason = "cache_root_missing"
+        elif can_reuse:
+            root = cache_root.resolve()
+            checkout = checkout_root.resolve()
+            try:
+                root.relative_to(checkout)
+            except ValueError:
+                cache_path = _cache_path(root, execution_key)
+                entry, cache_reason = _load_cache_entry(
+                    cache_path,
+                    execution_key,
+                    key_document["executable_identity"],
+                )
+                if entry is not None:
+                    cache_lookup_ms = max(
+                        0,
+                        round((time.perf_counter() - cache_started) * 1000),
+                    )
+                    return {
+                        "protocol": PROTOCOL,
+                        "verifier_id": normalized_verifier["id"],
+                        "status": "PASS",
+                        "exit_code": 0,
+                        "stdout": entry["stdout"],
+                        "stderr": entry["stderr"],
+                        "execution_key": execution_key,
+                        "evidence_key": execution_key,
+                        "verifier": normalized_verifier,
+                        "context": key_inputs["context"],
+                        "key_document": key_document,
+                        "cache_status": "reused",
+                        "cache_reason": cache_reason,
+                        "duration_ms": 0,
+                        "metrics": {"executed": 0, "reused": 1},
+                        "timings": _timings(
+                            entry_started,
+                            time.perf_counter(),
+                            setup_ms=setup_ms,
+                            git_guard_ms=guard_ms,
+                            cache_lookup_ms=cache_lookup_ms,
+                            snapshot_ms=0,
+                            command_ms=0,
+                            postcheck_ms=0,
+                        ),
+                        **(
+                            {"reservation": checked_reservation}
+                            if checked_reservation is not None
+                            else {}
+                        ),
+                        **(
+                            {"dispatch_attestation": dispatch_attestation}
+                            if dispatch_attestation is not None
+                            else {}
+                        ),
+                        **(
+                            {"git_guard_attestation": git_guard_attestation}
+                            if git_guard_attestation is not None
+                            else {}
+                        ),
+                    }
+                cache_status = "miss"
+            else:
+                can_reuse = False
+                cache_reason = "cache_root_inside_checkout"
+        cache_lookup_ms = max(
+            0,
+            round((time.perf_counter() - cache_started) * 1000),
+        )
 
-    snapshot_temp: tempfile.TemporaryDirectory[str] | None = None
-    execution_cwd = cwd
-    execution_argv = argv
-    execution_environment = effective_environment
-    if container_mode:
-        snapshot_temp, execution_cwd, execution_argv = _materialize_git_snapshot(
-            checkout_root,
-            key_inputs["context"]["head_sha"],
-            normalized_verifier["cwd"],
-            argv,
-        )
-        execution_environment = _snapshot_environment(
-            effective_environment, checkout_root, execution_cwd
-        )
-    started = time.perf_counter()
-    try:
+        snapshot_temp: tempfile.TemporaryDirectory[str] | None = None
+        execution_cwd = cwd
+        execution_argv = argv
+        execution_environment = effective_environment
+        snapshot_started = time.perf_counter()
         if container_mode:
-            assert snapshot_temp is not None
-            completed, sandbox_attestation = _run_container_verifier(
+            snapshot_temp, execution_cwd, execution_argv = _materialize_git_snapshot(
                 checkout_root,
-                Path(snapshot_temp.name),
+                key_inputs["context"]["head_sha"],
                 normalized_verifier["cwd"],
                 argv,
-                container_policy,
-                timeout_seconds,
-                sandbox_preflight=checked_sandbox_preflight,
+                archive_cache=snapshot_archive_cache,
             )
-        else:
-            completed = subprocess.run(
-                execution_argv,
-                cwd=execution_cwd,
-                env=execution_environment,
-                text=True,
-                capture_output=True,
-                check=False,
-                timeout=timeout_seconds,
+            execution_environment = _snapshot_environment(
+                effective_environment, checkout_root, execution_cwd
             )
-        status = "PASS" if completed.returncode == 0 else "FAIL"
-        exit_code = completed.returncode
-        stdout = completed.stdout
-        stderr = completed.stderr
-    except subprocess.TimeoutExpired as exc:
-        status = "TIMEOUT"
-        exit_code = None
-        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
-    except OSError as exc:
-        status = "ERROR"
-        exit_code = None
-        stdout = ""
-        stderr = str(exc)
-    finally:
-        if snapshot_temp is not None:
-            snapshot_temp.cleanup()
-    if git_guard is not None:
+        snapshot_ms = max(
+            0,
+            round((time.perf_counter() - snapshot_started) * 1000),
+        )
+        started = time.perf_counter()
         try:
-            after_snapshot = _git_guard_snapshot(checkout_root.resolve(), git_guard)
-            if after_snapshot != guard_snapshot:
-                raise VerifierRuntimeError(
-                    "tracked or protected verifier inputs changed while the command was running"
+            if container_mode:
+                assert snapshot_temp is not None
+                completed, sandbox_attestation = _run_container_verifier(
+                    checkout_root,
+                    Path(snapshot_temp.name),
+                    normalized_verifier["cwd"],
+                    argv,
+                    container_policy,
+                    timeout_seconds,
+                    sandbox_preflight=checked_sandbox_preflight,
                 )
-        except VerifierRuntimeError as exc:
+            else:
+                completed = subprocess.run(
+                    execution_argv,
+                    cwd=execution_cwd,
+                    env=execution_environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    timeout=timeout_seconds,
+                )
+            status = "PASS" if completed.returncode == 0 else "FAIL"
+            exit_code = completed.returncode
+            stdout = completed.stdout
+            stderr = completed.stderr
+        except subprocess.TimeoutExpired as exc:
+            status = "TIMEOUT"
+            exit_code = None
+            stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+            stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        except OSError as exc:
             status = "ERROR"
             exit_code = None
-            stderr = (stderr + "\n" if stderr else "") + str(exc)
-    if git_guard_attestation is not None and sandbox_attestation is not None:
-        git_guard_attestation["sandbox_attestation"] = copy_json(sandbox_attestation)
-    duration_ms = max(0, round((time.perf_counter() - started) * 1000))
+            stdout = ""
+            stderr = str(exc)
+        finally:
+            command_ms = max(0, round((time.perf_counter() - started) * 1000))
+            if snapshot_temp is not None:
+                snapshot_temp.cleanup()
+        postcheck_started = time.perf_counter()
+        if git_guard is not None:
+            try:
+                after_snapshot = _git_guard_snapshot(checkout_root.resolve(), git_guard)
+                if after_snapshot != guard_snapshot:
+                    raise VerifierRuntimeError(
+                        "tracked or protected verifier inputs changed while the command was running"
+                    )
+            except VerifierRuntimeError as exc:
+                status = "ERROR"
+                exit_code = None
+                stderr = (stderr + "\n" if stderr else "") + str(exc)
+        postcheck_ms = max(
+            0,
+            round((time.perf_counter() - postcheck_started) * 1000),
+        )
+        if git_guard_attestation is not None and sandbox_attestation is not None:
+            git_guard_attestation["sandbox_attestation"] = copy_json(sandbox_attestation)
+        duration_ms = max(0, round((time.perf_counter() - started) * 1000))
 
-    if status == "PASS" and can_reuse and cache_path is not None:
-        entry = {
+        if status == "PASS" and can_reuse and cache_path is not None:
+            entry = {
+                "protocol": PROTOCOL,
+                "execution_key": execution_key,
+                "status": "PASS",
+                "exit_code": 0,
+                "stdout": stdout,
+                "stderr": stderr,
+                "executable_identity": key_document["executable_identity"],
+            }
+            if _write_cache_entry(cache_path, entry):
+                cache_status = "stored"
+                cache_reason = "successful_exact_execution"
+            elif cache_reason == "cache_entry_missing":
+                cache_reason = "cache_entry_race"
+
+        if (
+            status == "PASS"
+            and container_reuse_allowed
+            and container_result_cache is not None
+            and sandbox_attestation is not None
+        ):
+            container_result_cache.store(
+                cache_identity,
+                {
+                    "execution_key": execution_key,
+                    "status": "PASS",
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "verifier_id": normalized_verifier["id"],
+                    "context": copy_json(key_inputs["context"]),
+                    "sandbox_attestation": copy_json(sandbox_attestation),
+                }
+            )
+        if container_mode:
+            cache_status = "bypassed"
+            cache_reason = (
+                "same_runner_container_origin"
+                if container_reuse_allowed
+                else "container_disk_cache_disabled"
+            )
+
+        return {
             "protocol": PROTOCOL,
-            "execution_key": execution_key,
-            "status": "PASS",
-            "exit_code": 0,
+            "verifier_id": normalized_verifier["id"],
+            "status": status,
+            "exit_code": exit_code,
             "stdout": stdout,
             "stderr": stderr,
-            "executable_identity": key_document["executable_identity"],
+            "execution_key": execution_key,
+            "evidence_key": execution_key,
+            "verifier": normalized_verifier,
+            "context": key_inputs["context"],
+            "key_document": key_document,
+            "cache_status": cache_status,
+            "cache_reason": cache_reason,
+            "duration_ms": duration_ms,
+            "metrics": {"executed": 1, "reused": 0},
+            "timings": _timings(
+                entry_started,
+                time.perf_counter(),
+                setup_ms=setup_ms,
+                git_guard_ms=guard_ms,
+                cache_lookup_ms=cache_lookup_ms,
+                snapshot_ms=snapshot_ms,
+                command_ms=command_ms,
+                postcheck_ms=postcheck_ms,
+            ),
+            **(
+                {"reservation": checked_reservation}
+                if checked_reservation is not None
+                else {}
+            ),
+            **(
+                {"dispatch_attestation": dispatch_attestation}
+                if dispatch_attestation is not None
+                else {}
+            ),
+            **(
+                {"git_guard_attestation": git_guard_attestation}
+                if git_guard_attestation is not None
+                else {}
+            ),
+            **(
+                {"sandbox_attestation": sandbox_attestation}
+                if sandbox_attestation is not None
+                else {}
+            ),
         }
-        if _write_cache_entry(cache_path, entry):
-            cache_status = "stored"
-            cache_reason = "successful_exact_execution"
-        elif cache_reason == "cache_entry_missing":
-            cache_reason = "cache_entry_race"
-
-    return {
-        "protocol": PROTOCOL,
-        "verifier_id": normalized_verifier["id"],
-        "status": status,
-        "exit_code": exit_code,
-        "stdout": stdout,
-        "stderr": stderr,
-        "execution_key": execution_key,
-        "evidence_key": execution_key,
-        "verifier": normalized_verifier,
-        "context": key_inputs["context"],
-        "key_document": key_document,
-        "cache_status": cache_status,
-        "cache_reason": cache_reason,
-        "duration_ms": duration_ms,
-        "metrics": {"executed": 1, "reused": 0},
-        **(
-            {"reservation": checked_reservation}
-            if checked_reservation is not None
-            else {}
-        ),
-        **(
-            {"dispatch_attestation": dispatch_attestation}
-            if dispatch_attestation is not None
-            else {}
-        ),
-        **(
-            {"git_guard_attestation": git_guard_attestation}
-            if git_guard_attestation is not None
-            else {}
-        ),
-        **(
-            {"sandbox_attestation": sandbox_attestation}
-            if sandbox_attestation is not None
-            else {}
-        ),
-    }
 
 
 def _execution_policies_conflict(
@@ -1754,7 +2277,7 @@ def run_verifier_batch(
     max_parallel: int,
     environment: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Execute explicitly parallel-safe verifier jobs in deterministic waves."""
+    """Execute verifier jobs by filling free slots with eligible work."""
 
     if not isinstance(jobs, list) or not jobs:
         raise VerifierRuntimeError("jobs must be a non-empty array")
@@ -1809,9 +2332,12 @@ def run_verifier_batch(
             )
         )
 
-    waves: list[list[tuple[str, dict[str, Any], dict[str, Any]]]] = []
-    for prepared_job in sorted(prepared, key=lambda item: item[0]):
-        for wave in waves:
+    prepared.sort(key=lambda item: item[0])
+    # Report the old deterministic conflict/capacity grouping for consumers.
+    # Execution below no longer waits at those boundaries.
+    compatibility_waves: list[list[tuple[str, dict[str, Any], dict[str, Any]]]] = []
+    for prepared_job in prepared:
+        for wave in compatibility_waves:
             if len(wave) < max_parallel and all(
                 not _execution_policies_conflict(prepared_job[2], existing[2])
                 for existing in wave
@@ -1819,7 +2345,9 @@ def run_verifier_batch(
                 wave.append(prepared_job)
                 break
         else:
-            waves.append([prepared_job])
+            compatibility_waves.append([prepared_job])
+    snapshot_archive_cache = _SnapshotArchiveCache()
+    container_result_cache = _ContainerResultCache()
 
     def execute(job: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -1838,19 +2366,43 @@ def run_verifier_batch(
                 reservation=job.get("reservation"),
                 request_sha256=job.get("request_sha256"),
                 sandbox_preflight=job.get("sandbox_preflight"),
+                snapshot_archive_cache=snapshot_archive_cache,
+                container_result_cache=container_result_cache,
             )
         except (OSError, ValueError, VerifierRuntimeError) as exc:
             return {"protocol": PROTOCOL, "status": "ERROR", "errors": [str(exc)]}
 
     started = time.perf_counter()
     results_by_id: dict[str, dict[str, Any]] = {}
-    for wave in waves:
-        with ThreadPoolExecutor(max_workers=len(wave)) as executor:
-            futures = {
-                executor.submit(execute, job): job_id for job_id, job, _ in wave
-            }
-            for future in as_completed(futures):
-                results_by_id[futures[future]] = future.result()
+    pending = list(prepared)
+    active: dict[Any, tuple[str, dict[str, Any]]] = {}
+    serial_waves = len(compatibility_waves)
+    peak_parallel = 0
+    with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+        while pending or active:
+            for candidate in list(pending):
+                if len(active) >= max_parallel:
+                    break
+                if any(
+                    _execution_policies_conflict(candidate[2], policy)
+                    for _, policy in active.values()
+                ):
+                    continue
+                job_id, job, policy = candidate
+                active[executor.submit(execute, job)] = (job_id, policy)
+                pending.remove(candidate)
+                peak_parallel = max(peak_parallel, len(active))
+            if not active:
+                raise VerifierRuntimeError("verifier scheduler made no progress")
+            completed, _ = wait(active, return_when=FIRST_COMPLETED)
+            for future in completed:
+                job_id, _ = active.pop(future)
+                try:
+                    results_by_id[job_id] = future.result()
+                except Exception as exc:
+                    results_by_id[job_id] = {
+                        "protocol": PROTOCOL, "status": "ERROR", "errors": [str(exc)]
+                    }
     duration_ms = max(0, round((time.perf_counter() - started) * 1000))
     results = [
         {"job_id": job_id, "result": results_by_id[job_id]}
@@ -1863,8 +2415,8 @@ def run_verifier_batch(
         "results": results,
         "metrics": {
             "duration_ms": duration_ms,
-            "waves": len(waves),
-            "max_parallel": max(len(wave) for wave in waves),
+            "waves": serial_waves,
+            "max_parallel": peak_parallel,
             "executed": sum(
                 item["result"].get("metrics", {}).get("executed", 0) for item in results
             ),
