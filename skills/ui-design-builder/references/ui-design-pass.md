@@ -27,6 +27,10 @@ When the owner has a clear direction, produce one product-specific direction. Wh
 
 Present the complete direction set to the human owner. End the turn and wait for `approve`, `select`, `mix`, or `reject`; even a one-direction set needs explicit approval. A mix or rejection creates one complete revised direction set and another explicit decision. Do not create the connected HiFi reference or invoke a generation provider before a direction is selected.
 
+Before this selection, render bounded representative studies for every direction: a frequent primary task and a stress case using dense data, long content, or an approved alternate state. A one-screen product may show two content scenarios in the same approved state; do not invent a state or rewrite frozen copy. Use the same surface, state, target, scenario, and content basis across directions. Cover each in-scope platform. Compare composition, hierarchy, density, typography, and control treatment; changing only an accent color is not a distinct direction.
+
+Record the studies in `### Direction comparison` under Style Integration using the output contract's table, with inspected screenshot paths/hashes and a concrete rationale for each row. Keep their authorized files under `docs/design/directions/<round>/`. These studies are selection evidence, not the connected HiFi target or production UI. The owner selects from the recorded direction IDs; a mixed direction gets a new complete comparison round before selection. This uses the existing direction gate, not another approval step. Screenshot hashes prove identity, not aesthetic quality or honest inspection.
+
 ## Frontend Design Style Integration
 
 Load `frontend-design` and use its brief-first, subject-grounded design process. It owns the direction, page theme, and connected HiFi design-reference HTML across every surface. Do not load `design-taste-frontend`, `gpt-taste`, Impeccable build/refine commands, or another visual author in parallel.
@@ -40,9 +44,21 @@ For each direction, record:
 - tradeoffs and an avoid list; and
 - how it respects the approved component foundation and styling approach.
 
-Choose iconography through current official-source lookup. When icons are required, compare Lucide, Phosphor, Heroicons, and Tabler, select one primary and one named fallback, and record license, framework support, maintenance evidence, URLs, and retrieval dates. Record `UNVALIDATED` when evidence is unavailable; never silently choose from memory.
+Choose iconography through current official-source lookup for the approved platform. For Web icons, compare Lucide, Phosphor, Heroicons, and Tabler, select one primary and one named fallback, and record license, framework support, maintenance evidence, URLs, and retrieval dates. For iOS, assess SF Symbols first against the approved OS range, text styles, symbol meaning, and brand needs; record the selected system or custom treatment and its reason. Other platforms use their own conventions and approved component foundation. Never require a Web icon library on a native surface. Record `UNVALIDATED` when evidence is unavailable; never silently choose from memory.
 
 Choose typography with the same evidence discipline. Record display/body roles, required weights, Latin and CJK coverage, fallback order, loading strategy, source URLs, and retrieval dates. Record the palette derivation, contrast intent, and whether dark mode is in scope. These candidate theme values render the HiFi target but are not yet a frozen design-system contract.
+
+## Platform Rules
+
+Record one row per approved `stackSemantics.platform` in `### Platform rules` under Style Integration. Shared brand color roles, content hierarchy, and voice may span platforms; navigation, control geometry, type metrics, density, and feedback must follow the platform and task. The table does not select a framework or reopen the approved stack.
+
+- Web App: design the frequent working screen first. Set navigation, keyboard/focus/hover behavior, content width, table/list/detail density, responsive composition, font loading, and CJK fallback. A hero treatment belongs only to a product-approved surface that needs it.
+- iOS: explain system text styles and Dynamic Type, SF Symbols or a reasoned custom alternative, navigation/back behavior, sheets, safe areas, touch targets, keyboard avoidance, native list density, system feedback, and reduced motion. Check supported OS versions. Assess dark mode and haptics only within approved scope. Custom fonts may express the brand when they preserve scaling, readability, and language coverage.
+- Other native/desktop platforms: record the corresponding typography, controls, input methods, layout, and feedback conventions with current official evidence. A Web projection cannot substitute for these decisions.
+
+Use current [Apple iOS guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-ios), [typography guidance](https://developer.apple.com/design/human-interface-guidelines/typography), and [SF Symbols](https://developer.apple.com/sf-symbols/) for iOS, recording the inspected source and date. Their names alone are not design reasoning.
+
+Set `Review medium: HTML projection only`. Studies and HiFi review native appearance approximately; they do not prove native typography, gestures, keyboard behavior, scrolling, haptics, or accessibility. `Native proof` is `not_applicable` for Web and `required before expansion` for native/desktop platforms. After Visual Approval, the first implementation slice verifies representative primary and stress cases using the approved stack and actual platform tooling before expanding to other screens. Record this in the existing Harness UI evidence and repair through the same ownership boundaries; HTML cannot clear it. No production UI is authored during this design pass.
 
 ## Motion And Generated Media
 
@@ -74,7 +90,7 @@ Before human visual approval:
 4. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
 5. Let `frontend-design` make one repair batch. Then re-run the authorized Impeccable critique and audit checks plus the complete rubric once on the new SHA-256.
 
-The candidate is ready for the human gate only when overall `H1`–`H9` is at least 90, `H2`, `H4`, and `H8` are each at least 90, every dimension is at least 60, and no block or disputed dimension remains. Do not repair merely to chase 100. A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+The candidate is ready for the human gate only when overall `H1`–`H9` is at least 90, `H2`, `H4`, and `H8` are each at least 90, `H5`, `H7`, and `H9` are each at least 80, every dimension is at least 60, and no block or disputed dimension remains. Do not repair merely to chase 100. A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 
 ## Browser And Human Visual Approval
 

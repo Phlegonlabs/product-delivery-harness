@@ -5,6 +5,7 @@
 Before drafting, read the approved Product Definition package and inspect, in order:
 
 - `docs/design/ui-design.md`;
+- authorized direction-study captures under `docs/design/directions/<round>/`, referenced by the active comparison table;
 - `docs/design/wireframes.html`;
 - `docs/design/ui-references/`;
 - `docs/design/design-system.md` and `docs/design/design-system.json`; and

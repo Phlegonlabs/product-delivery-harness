@@ -18,7 +18,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from harness_design_contract import compare_design_system_pair
-from harness_git import GitMetadataError, reject_object_substitution, run_git
+from harness_git import GitMetadataError, _path_has_reparse_or_link, reject_object_substitution, run_git
 from harness_schema import run_required_harness_version, version_at_least
 from harness_ui_evidence import validate_ui_surface_design_registry
 
@@ -1252,6 +1252,15 @@ def full_ui_design_checker_errors(
         else:
             hifi_path = root / hifi_relative
         if source_root is not None:
+            directions = source_root / "docs/design/directions"
+            if directions.exists() or directions.is_symlink():
+                if _path_has_reparse_or_link(directions) or any(
+                    _path_has_reparse_or_link(path) for path in directions.rglob("*")
+                ):
+                    return ["ui-design: direction captures must not traverse a symlink or reparse point"]
+                if not directions.is_dir():
+                    return ["ui-design: docs/design/directions must be a directory"]
+                shutil.copytree(directions, root / "docs/design/directions", symlinks=True)
             for relative in ("docs/evidence", "docs/design/ui-references"):
                 source = source_root / relative
                 destination = root / relative

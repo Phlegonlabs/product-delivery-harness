@@ -35,6 +35,7 @@ from harness_manifest import (
 )
 from harness_contract import contract_digest
 from harness_core import load_run
+from render_tasks_view import refresh_view, source_guard
 
 
 def _requires_repo_root(plan: dict[str, Any]) -> bool:
@@ -389,9 +390,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def tasks_view_path(run: dict[str, Any], repo_root: Path) -> Path | None:
+    """Resolve the generated view declared by this RUN's coordination paths."""
+
+    for candidate in run.get("integration", {}).get("coordination_paths", []):
+        if isinstance(candidate, str) and candidate.replace("\\", "/") == "docs/tasks.md":
+            return Path(repo_root) / "docs" / "tasks.md"
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        plan_text = args.plan.read_text(encoding="utf-8")
         plan = load_plan(args.plan)
     except (ManifestError, OSError) as exc:
         print(f"cannot read plan: {exc}", file=sys.stderr)
@@ -441,22 +452,52 @@ def main(argv: list[str] | None = None) -> int:
     if args.out is None:
         print(document, end="")
         return 0
-    if args.out.exists():
-        # Never clobber live run state; a completed run must be archived first.
-        hint = ""
-        try:
-            if load_run(args.out).get("status") == "complete":
-                hint = (
-                    "; this run is complete — archive it first with "
-                    "scripts/archive_run.py"
-                )
-        except Exception:  # noqa: BLE001 - any parse failure keeps the base message
-            pass
-        print(f"refusing to overwrite {args.out}{hint}", file=sys.stderr)
+    from harness_transition import (
+        _assert_non_reparse_path, _ensure_plan_unchanged, _run_transition_lock, _write_text_exclusive,
+    )
+
+    try:
+        with _run_transition_lock(args.out):
+            if args.out.exists():
+                # Never clobber live run state; a completed run must be archived first.
+                hint = ""
+                try:
+                    if load_run(args.out).get("status") == "complete":
+                        hint = (
+                            "; this run is complete — archive it first with "
+                            "scripts/archive_run.py"
+                        )
+                except Exception:  # noqa: BLE001 - any parse failure keeps the base message
+                    pass
+                print(f"refusing to overwrite {args.out}{hint}", file=sys.stderr)
+                return 2
+            _assert_non_reparse_path(args.out)
+            _ensure_plan_unchanged(args.plan, plan_text)
+            _write_text_exclusive(args.out, document)
+            print(f"wrote {args.out}")
+            if args.repo_root is not None:
+                view_path = tasks_view_path(run, args.repo_root)
+                if view_path is not None:
+                    try:
+                        refresh_view(
+                            plan, run, view_path, repo_root=args.repo_root,
+                            check_sources=source_guard(
+                                plan, run, args.plan, args.out, expected_plan_text=plan_text
+                            ),
+                        )
+                        print(f"wrote {view_path}")
+                    except (OSError, ValueError) as exc:
+                        print(
+                            "warning: RUN generation succeeded, but the initial tasks "
+                            f"view refresh failed: {exc}. Repair it with "
+                            "scripts/render_tasks_view.py using this exact PLAN/RUN "
+                            "pair; do not regenerate RUN.md.",
+                            file=sys.stderr,
+                        )
+            return 0
+    except (ManifestError, OSError, ValueError) as exc:
+        print(f"cannot write run: {exc}", file=sys.stderr)
         return 2
-    args.out.write_text(document, encoding="utf-8")
-    print(f"wrote {args.out}")
-    return 0
 
 
 if __name__ == "__main__":

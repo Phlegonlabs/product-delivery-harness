@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import copy
 import json
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import os
 import subprocess
@@ -15,17 +17,20 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import verifier_runtime  # noqa: E402
 from verifier_runtime import (  # noqa: E402
     BATCH_PROTOCOL,
     CACHE_BANNED_LAYERS,
     PROTOCOL,
     VerifierRuntimeError,
+    _ContainerResultCache,
+    _SnapshotArchiveCache,
     build_execution_key as _build_execution_key,
+    execution_retention_binding_errors,
     protected_path_sha256,
     probe_plan_sandboxes,
     run_verifier_batch,
@@ -154,6 +159,12 @@ def run_verifier(
 
     kwargs.setdefault("sandbox_preflight", sandbox_preflight(declaration))
     return _run_verifier(declaration, verifier_context, **kwargs)
+
+
+def worker_context() -> dict[str, object]:
+    result = cacheable_context()
+    result["checkout_role"] = "worker"
+    return result
 
 
 def build_execution_key(
@@ -997,9 +1008,9 @@ class VerifierRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(first["status"], "PASS")
         self.assertEqual(first["cache_status"], "bypassed")
-        self.assertEqual(first["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(first["cache_reason"], "container_disk_cache_disabled")
         self.assertEqual(worker["cache_status"], "bypassed")
-        self.assertEqual(worker["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(worker["cache_reason"], "container_disk_cache_disabled")
         self.assertEqual(first["execution_key"], worker["execution_key"])
         self.assertEqual(worker["verifier_id"], "mission-focused")
         self.assertEqual(worker["context"]["layer"], "worker")
@@ -1127,7 +1138,7 @@ class VerifierRuntimeTests(unittest.TestCase):
                 )
                 self.assertEqual(result["status"], "PASS")
                 self.assertEqual(result["cache_status"], "bypassed")
-                self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+                self.assertEqual(result["cache_reason"], "container_disk_cache_disabled")
         # Every call above executed for real; none could have reused a prior PASS.
         self.assertEqual(self.read_count(counter), len(CACHE_BANNED_LAYERS))
 
@@ -1153,7 +1164,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             )
             self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["cache_status"], "bypassed")
-        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(result["cache_reason"], "container_disk_cache_disabled")
         self.assertEqual(self.read_count(counter), 2)
 
     def test_dirty_checkout_bypasses_existing_pass(self) -> None:
@@ -1175,7 +1186,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             environment=self.environment,
         )
         self.assertEqual(result["cache_status"], "bypassed")
-        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(result["cache_reason"], "container_disk_cache_disabled")
         self.assertEqual(self.read_count(counter), 2)
 
     def test_failure_timeout_and_missing_cache_root_never_reuse(self) -> None:
@@ -1229,7 +1240,7 @@ class VerifierRuntimeTests(unittest.TestCase):
                 cache_root=None,
                 environment=self.environment,
             )
-            self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+            self.assertEqual(result["cache_reason"], "container_disk_cache_disabled")
         self.assertEqual(self.read_count(uncached_counter), 2)
 
     def test_corrupt_cache_never_hits_or_gets_overwritten(self) -> None:
@@ -1254,7 +1265,7 @@ class VerifierRuntimeTests(unittest.TestCase):
                 environment=self.environment,
             )
             self.assertEqual(result["cache_status"], "bypassed")
-            self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+            self.assertEqual(result["cache_reason"], "container_disk_cache_disabled")
         self.assertEqual(self.read_count(counter), 2)
         self.assertEqual(cache_path.read_text(encoding="utf-8"), "not json\n")
 
@@ -1269,7 +1280,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             cache_root=self.cache,
             environment=self.environment,
         )
-        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(result["cache_reason"], "container_disk_cache_disabled")
 
         inside_counter = self.root / "inside.txt"
         result = run_verifier(
@@ -1279,7 +1290,7 @@ class VerifierRuntimeTests(unittest.TestCase):
             cache_root=self.checkout / ".cache",
             environment=self.environment,
         )
-        self.assertEqual(result["cache_reason"], "container_execution_not_cacheable")
+        self.assertEqual(result["cache_reason"], "container_disk_cache_disabled")
         self.assertFalse((self.checkout / ".cache").exists())
 
     def test_dot_slash_argv0_resolves_against_verifier_cwd_not_real_process_cwd(
@@ -1315,6 +1326,477 @@ class VerifierRuntimeTests(unittest.TestCase):
         resolved_path = key_document["executable_identity"]["path"]
         self.assertTrue(resolved_path.startswith("container:fixture@sha256:"))
         self.assertNotIn(str(self.checkout.resolve()), resolved_path)
+
+    def git_guard(self) -> dict[str, object]:
+        return {
+            "expected_branch": "integration",
+            "expected_head_sha": SHA_B,
+            "ignored_paths": [],
+        }
+
+    def test_optin_container_pass_reuses_only_in_this_runner(self) -> None:
+        counter = self.root / "reuse-counter.txt"
+        declaration = verifier(counter)
+        declaration["cache"] = {
+            "mode": "session_exact",
+            "environment_keys": ["CI"],
+            "deterministic_local": True,
+        }
+        cache = _ContainerResultCache()
+        trust_calls: list[str] = []
+
+        def fake_trust(**kwargs: object) -> str:
+            trust_calls.append("trust")
+            return "fixture@sha256:" + "1" * 64
+
+        task_context = worker_context()
+        task_context.update({"layer": "task", "task_id": "M1/T1"})
+        first = run_verifier(
+            declaration,
+            task_context,
+            checkout_root=self.checkout,
+            cache_root=self.cache,
+            environment=self.environment,
+            git_guard=self.git_guard(),
+            container_result_cache=cache,
+        )
+        second_context = worker_context()
+        second_context["attempt_id"] = "A2"
+        second_context["lease_id"] = "L2"
+        with patch(
+            "verifier_runtime._verify_container_runtime_identity",
+            side_effect=fake_trust,
+        ):
+            second = run_verifier(
+                declaration,
+                second_context,
+                checkout_root=self.checkout,
+                cache_root=self.cache,
+                environment=self.environment,
+                git_guard=self.git_guard(),
+                reservation={"node_id": "N", "attempt_id": "A2", "nonce": "x"},
+                request_sha256="d" * 64,
+                container_result_cache=cache,
+            )
+
+        self.assertEqual(first["cache_status"], "bypassed")
+        self.assertEqual(first["cache_reason"], "same_runner_container_origin")
+        self.assertEqual(second["cache_status"], "reused")
+        self.assertEqual(second["cache_reason"], "same_runner_container_pass")
+        self.assertEqual(1, self.read_count(counter))
+        self.assertEqual(1, len(trust_calls))
+        self.assertEqual(second["metrics"], {"executed": 0, "reused": 1})
+        origin = second["container_reuse_origin"]
+        self.assertEqual(origin["verifier_id"], first["verifier_id"])
+        self.assertEqual(origin["execution_key"], second["execution_key"])
+        self.assertEqual(
+            origin["sandbox_attestation"],
+            second["sandbox_attestation"],
+        )
+        self.assertEqual(
+            second["git_guard_attestation"]["source_head_sha"], SHA_B
+        )
+        self.assertNotEqual(
+            first["context"]["attempt_id"], second["context"]["attempt_id"]
+        )
+
+    def test_container_reuse_refails_when_live_guard_changes(self) -> None:
+        counter = self.root / "guarded-reuse.txt"
+        declaration = verifier(counter)
+        declaration["cache"] = {
+            "mode": "session_exact",
+            "environment_keys": [],
+            "deterministic_local": True,
+        }
+        cache = _ContainerResultCache()
+        run_verifier(
+            declaration,
+            worker_context(),
+            checkout_root=self.checkout,
+            environment=self.environment,
+            git_guard=self.git_guard(),
+            container_result_cache=cache,
+        )
+        (self.checkout / ".fixture").write_text("changed\n", encoding="utf-8")
+        with self.assertRaisesRegex(VerifierRuntimeError, "dirty outside ignored paths"):
+            run_verifier(
+                declaration,
+                worker_context(),
+                checkout_root=self.checkout,
+                environment=self.environment,
+                git_guard=self.git_guard(),
+                container_result_cache=cache,
+            )
+
+    def test_timings_are_observational_and_reuse_has_no_container_command(self) -> None:
+        counter = self.root / "timing-counter.txt"
+        declaration = verifier(counter)
+        declaration["cache"] = {
+            "mode": "session_exact",
+            "environment_keys": [],
+            "deterministic_local": True,
+        }
+        clock = {"value": 0.0}
+
+        def controlled_clock() -> float:
+            clock["value"] += 0.001
+            return clock["value"]
+
+        cache = _ContainerResultCache()
+        with patch("verifier_runtime.time.perf_counter", side_effect=controlled_clock):
+            with patch(
+                "verifier_runtime._verify_container_runtime_identity",
+                return_value="fixture@sha256:" + "1" * 64,
+            ):
+                first = run_verifier(
+                    declaration,
+                    worker_context(),
+                    checkout_root=self.checkout,
+                    environment=self.environment,
+                    git_guard=self.git_guard(),
+                    container_result_cache=cache,
+                )
+                second = run_verifier(
+                    declaration,
+                    worker_context(),
+                    checkout_root=self.checkout,
+                    environment=self.environment,
+                    git_guard=self.git_guard(),
+                    container_result_cache=cache,
+                )
+
+        expected = {
+            "end_to_end_ms",
+            "setup_ms",
+            "git_guard_ms",
+            "cache_lookup_ms",
+            "snapshot_ms",
+            "command_ms",
+            "postcheck_ms",
+        }
+        self.assertEqual(expected, set(first["timings"]))
+        self.assertEqual(expected, set(second["timings"]))
+        self.assertGreater(first["duration_ms"], 0)
+        self.assertLess(first["timings"]["command_ms"], first["duration_ms"])
+        self.assertEqual(0, second["duration_ms"])
+        self.assertEqual(0, second["timings"]["command_ms"])
+        self.assertEqual(0, second["timings"]["snapshot_ms"])
+
+    def test_same_batch_snapshot_reads_archive_once_but_extracts_twice(self) -> None:
+        counter = self.root / "snapshot-counter.txt"
+        declaration = verifier(counter)
+        cache = _SnapshotArchiveCache()
+        archive_calls: list[str] = []
+        snapshot_roots: list[Path] = []
+        original_run_git = verifier_runtime.run_git
+
+        def counting_git(root, *args, **kwargs):
+            if args and args[0] == "archive":
+                archive_calls.append("archive")
+            return original_run_git(root, *args, **kwargs)
+
+        original_container = verifier_runtime._run_container_verifier
+
+        def capture_container(
+            _checkout: Path,
+            snapshot_root: Path,
+            *_args: object,
+            **_kwargs: object,
+        ):
+            snapshot_roots.append(snapshot_root)
+            return original_container(
+                _checkout,
+                snapshot_root,
+                *_args,
+                **_kwargs,
+            )
+
+        with (
+            patch("verifier_runtime.run_git", counting_git),
+            patch(
+                "verifier_runtime._run_container_verifier",
+                side_effect=capture_container,
+            ),
+        ):
+            for _ in range(2):
+                run_verifier(
+                    declaration,
+                    worker_context(),
+                    checkout_root=self.checkout,
+                    environment=self.environment,
+                    git_guard=self.git_guard(),
+                    snapshot_archive_cache=cache,
+                )
+
+        self.assertEqual(1, len(archive_calls))
+        self.assertEqual(2, len(snapshot_roots))
+        self.assertNotEqual(snapshot_roots[0], snapshot_roots[1])
+
+    def test_scheduler_fills_a_slot_while_an_exclusive_job_waits(self) -> None:
+        long_started = threading.Event()
+        short_done = threading.Event()
+        third_started = threading.Event()
+        observed_long_active: list[bool] = []
+        active: set[str] = set()
+        active_lock = threading.Lock()
+
+        def fake_run(verifier: dict[str, object], _context: object, **_kwargs: object) -> dict[str, object]:
+            job = verifier["id"]
+            with active_lock:
+                active.add(job)
+            if job == "long-exclusive":
+                long_started.set()
+                third_started.wait(1)
+            elif job == "short-free":
+                time.sleep(0.01)
+                short_done.set()
+            elif job == "third-free":
+                short_done.wait(1)
+                with active_lock:
+                    observed_long_active.append("long-exclusive" in active)
+                third_started.set()
+            with active_lock:
+                active.remove(job)
+            return {"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}}
+
+        long_job = self.batch_job("long-exclusive", resources=[{"key": "db", "access": "exclusive"}])
+        long_job["reservation"] = {"node_id": "long-exclusive", "attempt_id": "A", "nonce": "n"}
+        short_job = self.batch_job("short-free")
+        short_job["reservation"] = {"node_id": "short-free", "attempt_id": "A", "nonce": "n"}
+        third_job = self.batch_job("third-free")
+        third_job["reservation"] = {"node_id": "third-free", "attempt_id": "A", "nonce": "n"}
+        with patch("verifier_runtime.run_verifier", side_effect=fake_run):
+            result = run_verifier_batch(
+                [long_job, short_job, third_job],
+                max_parallel=2,
+            )
+
+        self.assertEqual("PASS", result["status"])
+        self.assertTrue(long_started.is_set())
+        self.assertTrue(third_started.is_set())
+        self.assertEqual([True], observed_long_active)
+        self.assertEqual(2, result["metrics"]["max_parallel"])
+
+    def test_container_execution_does_not_hold_runtime_lock_during_user_command(self) -> None:
+        self._container_patch.stop()
+        lock_seen_free = threading.Event()
+        runtime_lock = verifier_runtime._RUNTIME_EXECUTION_LOCK
+
+        def fake_runtime(*args: object, **kwargs: object):
+            acquired: list[bool] = []
+
+            def probe_lock() -> None:
+                acquired.append(runtime_lock.acquire(blocking=False))
+                if acquired[-1]:
+                    runtime_lock.release()
+
+            thread = threading.Thread(target=probe_lock)
+            thread.start()
+            thread.join(1)
+            lock_seen_free.set() if acquired == [True] else None
+            return subprocess.CompletedProcess(args[1], 0, "", "")
+
+        declaration = {
+            "id": "lock-probe",
+            "cwd": ".",
+            "argv": ["true"],
+            "pass_signal": "exit 0",
+            "execution": container_execution(),
+            "cache": {"mode": "disabled", "environment_keys": []},
+        }
+        with (
+            patch("verifier_runtime.shutil.which", return_value=str(Path(sys.executable).resolve())),
+            patch(
+                "verifier_runtime._verify_container_runtime_identity",
+                return_value="fixture@sha256:" + "1" * 64,
+            ),
+            patch("verifier_runtime._run_bound_runtime", side_effect=fake_runtime),
+        ):
+            try:
+                verifier_runtime._run_container_verifier(
+                    self.checkout,
+                    self.checkout,
+                    ".",
+                    declaration["argv"],
+                    container_execution()["sandbox"],
+                    1,
+                    sandbox_preflight(declaration),
+                )
+            finally:
+                self._container_patch.start()
+
+        self.assertTrue(lock_seen_free.is_set())
+
+    def test_retention_binding_rejects_rebound_reuse_evidence(self) -> None:
+        item = {
+            "status": "PASS", "exit_code": 0, "cache_status": "reused",
+            "cache_reason": "same_runner_container_pass",
+            "verifier": {"cache": {"mode": "session_exact", "deterministic_local": True},
+                         "read_only": True, "pass_signal": "exit 0"},
+            "context": {"layer": "worker", "cache_safe": True, "checkout_dirty": False},
+            "execution_key": "a" * 64,
+            "stdout_sha256": "b" * 64,
+            "stderr_sha256": "c" * 64,
+            "sandbox_attestation": {"image": "same"},
+            "timings": {
+                "end_to_end_ms": 2,
+                "setup_ms": 1,
+                "git_guard_ms": 0,
+                "cache_lookup_ms": 0,
+                "snapshot_ms": 1,
+                "command_ms": 1,
+                "postcheck_ms": 0,
+            },
+            "container_reuse_origin": {
+                "kind": "same_runner",
+                "execution_key": "a" * 64,
+                "verifier_id": "origin",
+                "context_sha256": "d" * 64,
+                "stdout_sha256": "b" * 64,
+                "stderr_sha256": "c" * 64,
+                "sandbox_attestation": {"image": "same"},
+            },
+        }
+        self.assertEqual([], execution_retention_binding_errors(item))
+        item["container_reuse_origin"]["execution_key"] = "e" * 64
+        errors = execution_retention_binding_errors(item)
+        self.assertTrue(any("execution key is rebound" in error for error in errors))
+        errors = verifier_runtime.container_reuse_origin_run_errors(
+            item,
+            {"verifier_executions": []},
+        )
+        self.assertEqual(
+            ["container reuse origin must match exactly one retained same-runner PASS"],
+            errors,
+        )
+
+    def test_scheduler_returns_error_after_unexpected_worker_exception(self) -> None:
+        with patch("verifier_runtime.run_verifier", side_effect=RuntimeError("sentinel")):
+            result = run_verifier_batch([self.batch_job("broken")], max_parallel=1)
+        self.assertEqual("FAIL", result["status"])
+        self.assertEqual(["sentinel"], result["results"][0]["result"]["errors"])
+
+    def test_failed_container_origin_releases_waiter_for_fresh_execution(self) -> None:
+        declaration = verifier(self.root / "failure-flight.txt")
+        declaration["cache"] = {"mode": "session_exact", "environment_keys": [], "deterministic_local": True}
+        cache = _ContainerResultCache()
+        started = threading.Event()
+        release = threading.Event()
+        calls = []
+        original_container = verifier_runtime._run_container_verifier
+
+        def first_fails(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                started.set()
+                self.assertTrue(release.wait(5))
+                raise RuntimeError("origin failed")
+            return original_container(*args, **kwargs)
+
+        def execute():
+            return run_verifier(declaration, worker_context(), checkout_root=self.checkout,
+                                environment=self.environment, git_guard=self.git_guard(),
+                                container_result_cache=cache)
+
+        with patch("verifier_runtime._run_container_verifier", side_effect=first_fails), ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(execute)
+            self.assertTrue(started.wait(5))
+            second = pool.submit(execute)
+            release.set()
+            with self.assertRaisesRegex(RuntimeError, "origin failed"):
+                first.result(10)
+            result = second.result(10)
+        self.assertEqual("PASS", result["status"])
+        self.assertEqual("bypassed", result["cache_status"])
+        self.assertEqual(2, len(calls))
+
+    def test_container_cache_does_not_cross_git_guard_identity(self) -> None:
+        counter = self.root / "guard-identity.txt"
+        declaration = verifier(counter)
+        declaration["cache"] = {"mode": "session_exact", "environment_keys": [], "deterministic_local": True}
+        cache = _ContainerResultCache()
+        for ignored in ([], ["never-created.txt"]):
+            guard = self.git_guard()
+            guard["ignored_paths"] = ignored
+            result = run_verifier(declaration, worker_context(), checkout_root=self.checkout,
+                                  environment=self.environment, git_guard=guard,
+                                  container_result_cache=cache)
+            self.assertEqual("bypassed", result["cache_status"])
+        self.assertEqual(2, self.read_count(counter))
+
+    def test_archive_single_flight_and_failed_origin_retry(self) -> None:
+        cache = _SnapshotArchiveCache()
+        entered = threading.Event()
+        release = threading.Event()
+        reads = []
+
+        def read():
+            reads.append(1)
+            entered.set()
+            self.assertTrue(release.wait(3))
+            return b"archive"
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(cache.get_or_create, self.checkout, SHA_B, read)
+            self.assertTrue(entered.wait(3))
+            second = pool.submit(cache.get_or_create, self.checkout, SHA_B, read)
+            release.set()
+            self.assertEqual(b"archive", first.result(3))
+            self.assertEqual(b"archive", second.result(3))
+        self.assertEqual([1], reads)
+        with self.assertRaisesRegex(RuntimeError, "failed"):
+            cache.get_or_create(self.checkout, SHA_A, lambda: (_ for _ in ()).throw(RuntimeError("failed")))
+        self.assertEqual(b"retry", cache.get_or_create(self.checkout, SHA_A, lambda: b"retry"))
+
+    def test_container_single_flight_and_origin_evidence_validation(self) -> None:
+        counter = self.root / "single-flight.txt"
+        declaration = verifier(counter)
+        declaration["cache"] = {"mode": "session_exact", "environment_keys": [], "deterministic_local": True}
+        cache = _ContainerResultCache()
+        started = threading.Event()
+        release = threading.Event()
+        original_container = verifier_runtime._run_container_verifier
+
+        def blocked_container(*args, **kwargs):
+            started.set()
+            self.assertTrue(release.wait(5))
+            return original_container(*args, **kwargs)
+
+        def execute(candidate):
+            return run_verifier(candidate, worker_context(), checkout_root=self.checkout,
+                                environment=self.environment, git_guard=self.git_guard(),
+                                container_result_cache=cache)
+
+        with patch("verifier_runtime._run_container_verifier", side_effect=blocked_container), patch(
+            "verifier_runtime._verify_container_runtime_identity", return_value="fixture@sha256:" + "1" * 64
+        ), ThreadPoolExecutor(max_workers=2) as pool:
+            first_future = pool.submit(execute, declaration)
+            self.assertTrue(started.wait(5))
+            consumer = copy.deepcopy(declaration)
+            consumer["id"] = "consumer"
+            second_future = pool.submit(execute, consumer)
+            release.set()
+            first, second = first_future.result(10), second_future.result(10)
+        self.assertEqual(1, self.read_count(counter))
+        self.assertEqual("reused", second["cache_status"])
+        self.assertEqual([], execution_retention_binding_errors(second))
+        self.assertEqual([], verifier_runtime.container_reuse_origin_run_errors(second, {"verifier_executions": [first, second]}))
+        for mutation in ("missing", "context", "output", "sandbox", "declaration", "fresh"):
+            changed = copy.deepcopy(second)
+            if mutation == "missing":
+                changed.pop("container_reuse_origin")
+            elif mutation == "context":
+                changed["container_reuse_origin"]["context_sha256"] = "f" * 64
+            elif mutation == "output":
+                changed["stdout"] += "forged"
+            elif mutation == "sandbox":
+                changed["container_reuse_origin"]["sandbox_attestation"]["image"] = "forged"
+            elif mutation == "declaration":
+                changed["verifier"]["cache"]["deterministic_local"] = False
+            else:
+                changed["cache_status"] = "bypassed"
+            with self.subTest(mutation=mutation):
+                self.assertTrue(execution_retention_binding_errors(changed) + verifier_runtime.container_reuse_origin_run_errors(changed, {"verifier_executions": [first]}))
 
     def batch_job(
         self,
@@ -1394,9 +1876,23 @@ class VerifierRuntimeTests(unittest.TestCase):
     def test_parallel_batch_groups_unmarked_verifiers(self) -> None:
         # A verifier with no execution block claims no resource, so it cannot
         # contend with another that also claims none. They share one wave.
+        lock = threading.Lock()
+        active = 0
+        peak = 0
+
+        def fake_run(*args: object, **kwargs: object) -> dict[str, object]:
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            time.sleep(0.03)
+            with lock:
+                active -= 1
+            return {"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}}
+
         with patch(
             "verifier_runtime.run_verifier",
-            return_value={"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}},
+            side_effect=fake_run,
         ):
             result = run_verifier_batch(
                 [
@@ -1408,6 +1904,7 @@ class VerifierRuntimeTests(unittest.TestCase):
 
         self.assertEqual(result["metrics"]["waves"], 1)
         self.assertEqual(result["metrics"]["max_parallel"], 2)
+        self.assertEqual(2, peak)
 
     def test_parallel_batch_serializes_explicit_opt_out(self) -> None:
         # Declaring parallel_safe: false still forces serial execution.

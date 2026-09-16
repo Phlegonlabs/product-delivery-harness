@@ -28,6 +28,7 @@ from harness_contract_join import (  # noqa: E402
     _load_canonical_prd_ui_contract_parser,
     _strict_ui_surface_errors,
     _resolve_source_bytes,
+    full_ui_design_checker_errors,
     validate_frozen_contract_joins,
 )
 from harness_manifest import validate_current_plan_run  # noqa: E402
@@ -397,6 +398,43 @@ class StrictAuthorityJoinTests(unittest.TestCase):
                 "required_harness_version"
             ] = "0.37.0"
             self.assertEqual([], validate_frozen_contract_joins(plan, root, run=run))
+
+    def test_legacy_ui_adapter_retains_and_rechecks_direction_captures(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, paths = self._ui_fixture(root, required=False)
+            product, architecture, stack, wireframe, hifi = (
+                paths[key] for key in ("prd", "architecture", "stack", "wireframe", "target")
+            )
+            ui = root / "docs/design/ui-design.md"
+            def validate():
+                return full_ui_design_checker_errors(
+                    ui.read_bytes(), wireframe.read_bytes(), product.read_bytes(),
+                    architecture_bytes=architecture.read_bytes(), stack_bytes=stack.read_bytes(),
+                    hifi_bytes=hifi.read_bytes(), source_root=root,
+                )
+            self.assertEqual([], validate())
+            capture = root / "docs/design/directions/primary.png"
+            capture.write_bytes(b"changed fixture capture")
+            self.assertTrue(any("Direction comparison Screenshot" in error for error in validate()))
+
+    def test_legacy_ui_adapter_rejects_linked_direction_capture_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, paths = self._ui_fixture(root, required=False)
+            product, architecture, stack, wireframe, hifi = (
+                paths[key] for key in ("prd", "architecture", "stack", "wireframe", "target")
+            )
+            import harness_contract_join
+            from unittest.mock import patch
+
+            with patch.object(harness_contract_join, "_path_has_reparse_or_link", return_value=True):
+                errors = full_ui_design_checker_errors(
+                    (root / "docs/design/ui-design.md").read_bytes(), wireframe.read_bytes(), product.read_bytes(),
+                    architecture_bytes=architecture.read_bytes(), stack_bytes=stack.read_bytes(),
+                    hifi_bytes=hifi.read_bytes(), source_root=root,
+                )
+            self.assertIn("ui-design: direction captures must not traverse a symlink or reparse point", errors)
 
     def test_not_required_pair_and_trace_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

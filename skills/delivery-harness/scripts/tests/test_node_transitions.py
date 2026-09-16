@@ -243,6 +243,10 @@ class NodeTransitionTests(unittest.TestCase):
                 mf.manifest_markdown("## Harness Run State", "harness_run", run),
                 encoding="utf-8",
             )
+            from render_tasks_view import refresh_view
+
+            view_path = root / "docs/tasks.md"
+            refresh_view(plan, run, view_path, repo_root=root)
             common = [
                 "--plan",
                 str(plan_path),
@@ -326,6 +330,20 @@ class NodeTransitionTests(unittest.TestCase):
             completed = subprocess.CompletedProcess(["verifier_runtime.py"], code, output.getvalue(), "")
             self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
             result_path.write_text(completed.stdout, encoding="utf-8")
+            request = json.loads(request_path.read_text(encoding="utf-8"))
+            self.assertIn("docs/tasks.md", request["git_guard"]["ignored_paths"])
+            saved_view = view_path.read_bytes()
+            view_path.write_bytes(saved_view + b"\nconcurrent notes\n")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                refused = harness_transition.main([
+                    *common, "record-node-result", "--node-id", "N-CLI-FINAL",
+                    "--attempt-id", "ATT-CLI-FINAL", "--outcome", "pass",
+                    "--evidence", "CLI verifier exited 0", "--verifier-result", str(result_path),
+                ])
+            self.assertEqual(2, refused)
+            self.assertIn("protected coordination files changed", stderr.getvalue())
+            view_path.write_bytes(saved_view)
             self.assertEqual(
                 0,
                 harness_transition.main(

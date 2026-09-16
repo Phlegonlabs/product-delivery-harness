@@ -38,6 +38,7 @@ from harness_manifest import (
     ManifestError,
     authorization_covers,
     load_plan,
+    load_run,
     validate_current_plan_run,
 )
 from harness_schema import RUN_DISPATCH_STATUSES, RUN_HEADING
@@ -157,6 +158,15 @@ DISPATCH_COMMANDS = {
     "close-wave",
     "reserve-node-attempt",
     "record-node-result",
+}
+TASK_VIEW_CHECKPOINTS = {
+    "accept-wave",
+    "record-worker-result",
+    "reject-worker-result",
+    "record-integration",
+    "reconcile-interrupted",
+    "reconcile-interrupted-reviews",
+    "close-wave",
 }
 
 
@@ -395,48 +405,59 @@ def _git_branch_name(repo_root: Path) -> str:
     return branch
 
 
-def _git_status_excluding_run(
-    repo_root: Path, run_path: str | Path | None
-) -> str:
-    """Return product-tree status while excluding this transition's RUN file.
+def _coordination_ignored_paths(
+    repo_root: Path, run_path: str | Path | None, run: dict[str, Any] | None = None,
+) -> list[str]:
+    """Exclude RUN and its declared generated view, never arbitrary docs."""
 
-    RUN is tracked coordination state and every transition intentionally changes
-    it. Treating that expected bookkeeping as product dirt makes the standard
-    ``docs/goal/RUN.md`` flow deadlock immediately after lock acquisition.
-    """
-
-    arguments = ["status", "--porcelain", "--untracked-files=all", "--", "."]
+    paths: list[str] = []
+    if run_path is None and run is None:
+        return paths
     if run_path is not None:
         try:
-            relative = Path(run_path).resolve().relative_to(repo_root.resolve())
+            paths.append(Path(run_path).resolve().relative_to(repo_root.resolve()).as_posix())
         except (OSError, ValueError):
-            relative = None
-        if relative is not None:
-            arguments.append(f":(exclude,top,literal){relative.as_posix()}")
+            pass
+    try:
+        if run is None:
+            run = load_run(Path(run_path))
+        integration = run.get("integration", {})
+        if "docs/tasks.md" not in integration.get("coordination_paths", []):
+            return paths
+        view = repo_root / "docs" / "tasks.md"
+        _assert_non_reparse_path(view)
+        from render_tasks_view import GENERATED_MARKER
+
+        content = view.read_text(encoding="utf-8")
+        if (GENERATED_MARKER in content
+                and f"Human view of run `{run.get('run_id')}` " in content):
+            paths.append("docs/tasks.md")
+    except (ManifestError, OSError, ValueError, TypeError, AttributeError):
+        # Missing, foreign, or retargeted views remain ordinary dirty files.
+        pass
+    return paths
+
+
+def _git_status_excluding_run(
+    repo_root: Path, run_path: str | Path | None, run: dict[str, Any] | None = None,
+) -> str:
+    """Observe product dirt without counting the run's generated coordination view."""
+
+    arguments = ["status", "--porcelain", "--untracked-files=all", "--", "."]
+    arguments.extend(
+        f":(exclude,top,literal){path}"
+        for path in _coordination_ignored_paths(repo_root, run_path, run)
+    )
     return _git_out(repo_root, *arguments)
 
 
 def _git_status_excluding_run_or_none(
-    repo_root: Path, run_path: str | Path | None
+    repo_root: Path, run_path: str | Path | None, run: dict[str, Any] | None = None,
 ) -> str | None:
-    """Return status text, or ``None`` when Git cannot observe the checkout."""
-
-    arguments = ["status", "--porcelain", "--untracked-files=all", "--", "."]
-    if run_path is not None:
-        try:
-            relative = Path(run_path).resolve().relative_to(repo_root.resolve())
-        except (OSError, ValueError):
-            relative = None
-        if relative is not None:
-            arguments.append(f":(exclude,top,literal){relative.as_posix()}")
     try:
-        reject_object_substitution(repo_root)
-        result = run_git(repo_root, *arguments, text=True, timeout=30)
-    except GitMetadataError:
+        return _git_status_excluding_run(repo_root, run_path, run)
+    except (GitMetadataError, ManifestError, OSError, subprocess.SubprocessError):
         return None
-    if result.returncode != 0:
-        return None
-    return result.stdout
 
 
 def _same_path(left: str | Path, right: str | Path) -> bool:
@@ -524,7 +545,8 @@ def _validate_security_integration_checkout(
     so their reservation and result recording both re-read branch, HEAD,
     cleanliness, and base ancestry from Git.  This keeps a reviewer from being
     reserved (or certified) against a detached, retargeted, dirty, or drifted
-    checkout.  The tracked RUN file is the sole expected transition artifact.
+    checkout. RUN and its declared generated tasks view are the expected
+    coordination artifacts; verifier dispatches also protect their exact bytes.
     """
 
     review = node.get("review")
@@ -573,10 +595,10 @@ def _validate_security_integration_checkout(
             f"integration branch HEAD is {live_head}, not {integration_head}; "
             f"{operation} security integration review requires the current integration head"
         )
-    if _git_status_excluding_run(repo_root, run_path).strip():
+    if _git_status_excluding_run(repo_root, run_path, run).strip():
         raise ManifestError(
             f"--repo-root product tree is dirty; {operation} security integration review "
-            "allows only its tracked RUN coordination file"
+            "allows only RUN and its declared generated tasks view"
         )
     batch_base = integration.get("batch_base_sha") if isinstance(integration, dict) else None
     if not is_full_sha(batch_base):
@@ -608,7 +630,7 @@ def _record_observation(
     head = _git_out(root, "rev-parse", "HEAD").strip()
     branch = _git_branch_name(root)
     porcelain = _git_status_excluding_run_or_none(
-        repo_top_level, getattr(args, "run", None)
+        repo_top_level, getattr(args, "run", None), run
     )
     worktrees_raw = _git_out(root, "worktree", "list", "--porcelain")
 
@@ -778,10 +800,10 @@ def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Names
             f"live integration head {live_head} differs from observed parent head "
             f"{observed_head}; record a fresh observation"
         )
-    if _git_status_excluding_run(repo_root, getattr(args, "run", None)).strip():
+    if _git_status_excluding_run(repo_root, getattr(args, "run", None), run).strip():
         raise ManifestError(
             "accept-wave requires a clean live integration checkout apart from "
-            "its tracked RUN coordination file"
+            "RUN and its declared generated tasks view"
         )
     integration_head = run.get("integration", {}).get("integration_head_sha")
     if is_full_sha(integration_head) and integration_head != live_head:
@@ -1109,7 +1131,7 @@ def _local_verifier_request(
         raise ManifestError(
             "local verifier request checkout head differs from integration_head_sha"
         )
-    dirty = _git_status_excluding_run(repo_root, run_path)
+    dirty = _git_status_excluding_run(repo_root, run_path, run)
     if dirty.strip():
         raise ManifestError(
             "local verifier request requires a clean integration checkout"
@@ -1135,14 +1157,7 @@ def _local_verifier_request(
             "local verifier request requires an observed clean integration checkout"
         )
     checkout_dirty = False
-    ignored_paths: list[str] = []
-    if run_path is not None:
-        try:
-            relative_run = Path(run_path).resolve().relative_to(repo_root)
-        except (OSError, ValueError):
-            relative_run = None
-        if relative_run is not None:
-            ignored_paths.append(relative_run.as_posix())
+    ignored_paths = _coordination_ignored_paths(repo_root, run_path, run)
     context = {
         "run_id": run.get("run_id"),
         "plan_revision": plan.get("revision"),
@@ -2156,11 +2171,11 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
             f"{run.get('integration', {}).get('branch')!r}"
         )
     if _git_status_excluding_run(
-        args.repo_root, getattr(args, "run", None)
+        args.repo_root, getattr(args, "run", None), run
     ).strip():
         raise ManifestError(
             "--repo-root product tree is dirty; record integration from a checkout "
-            "whose only allowed change is its tracked RUN coordination file"
+            "whose only allowed change is RUN and its declared generated tasks view"
         )
     worker_head = mission_state.get("head_sha")
     if not is_full_sha(worker_head):
@@ -2481,6 +2496,28 @@ def _open_windows_parent_chain(path: Path) -> list[tuple[Any, int]]:
 def _replace_run_document(
     path: Path, run: dict[str, Any], expected_text: str | None = None
 ) -> None:
+    path = Path(path)
+    _assert_non_reparse_path(path)
+    text = path.read_text(encoding="utf-8")
+    heading = "## Harness Run State"
+    start = text.find(heading)
+    fence_start = text.find("```json", start)
+    body_start = text.find("\n", fence_start) + 1
+    fence_end = text.find("\n```", body_start)
+    if start < 0 or fence_start < 0 or body_start == 0 or fence_end < 0:
+        raise ManifestError("RUN.md has no fenced Harness Run State JSON block")
+    body = json.dumps({"harness_run": run}, indent=2, ensure_ascii=False)
+    updated = text[:body_start] + body + text[fence_end:]
+    _replace_document_text(
+        path, updated, expected_text=text if expected_text is None else expected_text
+    )
+
+
+def _replace_document_text(
+    path: Path, updated: str, *, expected_text: str, before_commit=None
+) -> None:
+    """Share the existing compare-and-swap writer with the derived tasks view."""
+
     # Compare-and-swap: if another writer replaced the document between this
     # process's load and now, refuse instead of silently clobbering its work.
     path = Path(path)
@@ -2497,15 +2534,6 @@ def _replace_run_document(
         raise ManifestError(
             "RUN.md changed during this transition; re-load the manifest and retry"
         )
-    heading = "## Harness Run State"
-    start = text.find(heading)
-    fence_start = text.find("```json", start)
-    body_start = text.find("\n", fence_start) + 1
-    fence_end = text.find("\n```", body_start)
-    if start < 0 or fence_start < 0 or body_start == 0 or fence_end < 0:
-        raise ManifestError("RUN.md has no fenced Harness Run State JSON block")
-    body = json.dumps({"harness_run": run}, indent=2, ensure_ascii=False)
-    updated = text[:body_start] + body + text[fence_end:]
     parent.mkdir(parents=True, exist_ok=True)
     _assert_non_reparse_path(parent)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=parent)
@@ -2540,6 +2568,8 @@ def _replace_run_document(
                 "RUN.md changed during this transition; re-load the manifest and retry"
             )
         _run_replace_commit_boundary(path)
+        if before_commit is not None:
+            before_commit()
         current_version = _run_document_version_token(
             path,
             parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
@@ -3565,6 +3595,58 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _tasks_view_path(run: dict[str, Any], args: argparse.Namespace) -> Path | None:
+    """Resolve the canonical coordination path for the generated tasks view."""
+
+    if args.command not in TASK_VIEW_CHECKPOINTS:
+        return None
+    repo_root = getattr(args, "repo_root", None)
+    if repo_root is None:
+        return None
+    integration = run.get("integration", {})
+    paths = (
+        integration.get("coordination_paths", [])
+        if isinstance(integration, dict)
+        else []
+    )
+    for candidate in paths:
+        if isinstance(candidate, str) and candidate.replace("\\", "/") == "docs/tasks.md":
+            return Path(repo_root) / "docs" / "tasks.md"
+    return None
+
+
+def _refresh_tasks_view_after_run(
+    args: argparse.Namespace, plan: dict[str, Any], run: dict[str, Any],
+    *, expected_plan_text: str | None = None,
+) -> None:
+    """Refresh the declared view after a durable checkpoint, without rollback."""
+
+    view_path = _tasks_view_path(run, args)
+    if view_path is None:
+        return
+    from render_tasks_view import refresh_view, source_guard
+
+    try:
+        refresh_view(
+            plan, run, view_path, repo_root=Path(args.repo_root),
+            check_sources=source_guard(
+                plan, run, args.plan, args.run, expected_plan_text=expected_plan_text
+            ),
+        )
+    except (ManifestError, OSError, ValueError) as exc:
+        repair = (
+            f'python "{Path(__file__).with_name("render_tasks_view.py").resolve()}" '
+            f'--plan "{args.plan}" --run "{args.run}" --out "{view_path}" '
+            f'--repo-root "{args.repo_root}"'
+        )
+        print(
+            f"warning: RUN {args.command} succeeded, but the tasks-view refresh "
+            f"failed: {exc}. RUN.md is authoritative and is not rolled back. "
+            f"Repair the non-canonical view with: {repair}",
+            file=sys.stderr,
+        )
+
+
 def _transition_under_lock(
     args: argparse.Namespace,
     plan: dict[str, Any],
@@ -3734,6 +3816,7 @@ def _transition_under_lock(
                 f"{exc}; the RUN reservation is durable and its exact request remains "
                 "under attempt_log[].node_dispatch.push_request"
             ) from exc
+    _refresh_tasks_view_after_run(args, plan, run, expected_plan_text=expected_plan_text)
     return receipt, report, True
 
 

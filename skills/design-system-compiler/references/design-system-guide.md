@@ -52,6 +52,7 @@ Record:
 - the human decision owner;
 - the selected or consolidated `VD-*` direction ID;
 - the approved Style Integration direction and candidate theme rules;
+- the approved Platform rules, preserving shared brand roles and platform-specific typography, controls, density, and feedback;
 - the representative surface mode, concept thesis, and named visual world when the approved handoff includes them;
 - applicable `MR-*` market evidence, or an explicit statement that no valid market evidence supports the visual decision;
 - inspected `REF-*` sources with direct URL or attachment label and retrieval date;

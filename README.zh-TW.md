@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.39.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.40.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -39,11 +39,14 @@
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
 - **大型工作明確記錄。** PLAN v6 定義 typed graph；RUN v11 記錄授權、嘗試與佐證。
 - **先核准 Product Definition，再進 UI 設計。** 每種 release surface 都由同一份封閉 applicability matrix 決定必填架構與 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 與 agent 需要 backend/data/interface，CLI 需要明確 toolchain。Product 與 Stack 核准綁定 canonical content digest、結構化 revision、非未來時間，以及每個保留 open item 的精確接受引用。UI 產品仍只在 owner 明確要求後進 `ui-design-builder`。 CLI 與 `other_nonpublic` 共用標準 `Toolchain` 核准 area（`CLI/toolchain` 為別名），分別記錄 language、toolchain、distribution mechanism 與 testing layers。
-- **建議不等於實作權威。** 每個適用領域先提供兩到三組 coherent stack。新選擇經核准後標記 `Approved`，既有選擇是 `Selected`，硬限制是 `Required`；`Recommended` 與 `Provisional` 會阻擋 delivery。Checkpoint 的封閉 area set 必須等於適用且已解決的 areas，核准 option 的 layer map 必須等於可執行 stack rows。
+- **建議不等於實作權威。** 每個適用領域先提供兩到三組 coherent stack。新選擇經核准後標記 `Approved`，既有選擇是 `Selected`，硬限制是 `Required`；`Recommended` 與 `Provisional` 會阻擋 delivery。Checkpoint 的封閉 area set 必須等於適用且已解決的 areas，核准 option 的 layer map 必須等於可執行 stack rows。`render_stack_option_map.py` 會從既有 rows 產生供 owner review 的候選 map；它不能核准或改寫套件。明確 option map 以 `||...||` 包裹；僅用逗號的 legacy map 仍可讀取，但 layer 名稱或 selection 含逗號時必須使用明確形式。
 - **UI 設計有獨立核准主線。** `ui-design-builder` 先完成 UI/style/motion/media intake。Schema 4 wireframe 會凍結文案與顯示契約；hybrid 產品逐 `UI-*` surface 綁定 `releaseSurface`、`surfaceClass`、`captureMode` 與 responsive set。HiFi target 必須帶精確 scope、restrictive CSP，以及保留 console、network、navigation、form、popup 嘗試的人工 sandboxed-offline receipt。需要正式 design system 時走唯一窄路徑：Visual Approval 記錄 `required/pending`，compiler 驗證該核准 digest 並產生 pair，owner 再連結兩份 hash；一般 final validation 會拒絕 pending。Agent 不能代替 owner 核准。
 - **HiFi 頁面必須由產品控制項連通。** 新增或修訂的 `ui-hifi/2` 以 `index.html` 清單綁定同目錄 HTML 頁面的雜湊與控制項目的地。離線 `ui-output/2` 證據逐 responsive target 驗證點擊及鍵盤操作；缺頁、過期雜湊、無效控制項、錯誤目的地或未宣告跳轉均阻擋核准。每頁只能呈現分配給該頁的 surface。發布與保留須包含完整套件；schema-1 僅供讀取檢查，正式 Visual Approval 一律要求 schema 2。 指定 Git revision 凍結時，該 revision 必須包含所有子頁面且內容一致。
+- **視覺品質有獨立門檻。** HiFi 的 H5（避免模板感）、H7（創意辨識度）與 H9（設計一致性）各須達到 80；總分 90 不能抵銷視覺分項不足。審查須引用已檢視的截圖與已確認的方向原則；數字驗證不代表美感或人工檢視已獲證明。
+- **用代表畫面選擇方向。** 選定前，每個方向呈現相同的主要操作與壓力情境，保留已凍結內容。Direction comparison 表以路徑與雜湊綁定截圖，並驗證一個或三個方向的案例一致。人工選定後才製作完整連通 HiFi；局部研究不授權正式 UI 實作。
+- **平台共享品牌，分別定義控制項。** Platform rules 逐核准平台記錄規則。iOS 明確評估 system text styles、Dynamic Type、SF Symbols 與原生操作／版面，不強制套用 Web 元件庫。HTML 僅供審稿；原生實作先以平台工具驗證代表案例，再擴展其他畫面，最後仍須完成全矩陣驗證。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
-- **每個 graph attempt 都可追蹤，candidate code 一律隔離。** 非 mission 節點先 reserve，再在 RUN lock 外執行並記錄結果。PLAN v6 本機 verifier 只能使用 repository 與 user-writable PATH 之外、由 machine policy 核准且受 OS 保護的原生 Docker/Podman executable；attestation 綁定 path、hash、ownership proof、image RepoDigest 與 sandbox policy。Candidate input 是唯讀 Git archive，執行時關閉網路、唯讀 rootfs、使用非 root user 與有界資源。 Windows 信任檢查同時檢查執行檔與父目錄 ACL；即使目錄受保護，可寫入的執行檔仍會被拒絕。
+- **每個 graph attempt 都可追蹤，candidate code 一律隔離。** 非 mission 節點先 reserve，再在 RUN lock 外執行並記錄結果。PLAN v6 本機 verifier 只能使用 repository 與 user-writable PATH 之外、由 machine policy 核准且受 OS 保護的原生 Docker/Podman executable；attestation 綁定 path、hash、ownership proof、image RepoDigest 與 sandbox policy。Candidate input 是唯讀 Git archive，執行時關閉網路、唯讀 rootfs、使用非 root user 與有界資源。 Windows 信任檢查同時檢查執行檔與父目錄 ACL；即使目錄受保護，可寫入的執行檔仍會被拒絕。唯讀 inspector 會呈現保留的 failed dispatch 與 recovery evidence、分開 historical drift，且不會從 phase 推斷 process liveness。
 - **Runtime binding 明確可驗證。** `lease-worker` 從選取器 directive 衍生 provider、driver、model、effort 與 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精確目標可直接沿用，新精確目標只能從已啟用的 wildcard 授權 materialize，不會擴大權限。
 - **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
 - **Activation 必須讀回驗證。** Activation、Outcome、SEO 會先重驗已核准的 Product/Stack bytes 與完整 Deployment contract。Outcome coverage 保留 PRD method、owner 與逐 target 精確 source map；measurement window 必須在各 target 可用之後開始。Multi-target review 只允許一種 mode，primary fields 綁第一個有序 target，既有 rows 只能 append，aggregate verdict 與 follow-up 由規則決定。
@@ -71,9 +74,12 @@
 交付核心在啟動受管編排之前，會先做一個規模決策：
 
 - 小型工作維持直接動手，預設不啟用 planner、scheduler、PLAN/RUN、subagent，也不做外部執行環境的預檢。
-- 大型工作進入受管規劃。它可以用 `PLAN.md` 加 `RUN.md` 走受管循序交付，或處理多任務與可持久的交棒；目標專案的 `docs/tasks.md` 是按需產生的人類視圖，不是必要狀態。本原始碼儲存庫不再另外維護根目錄 `Tasks.md` 流程記錄。
+- 大型工作進入受管規劃。它可以用 `PLAN.md` 加 `RUN.md` 走受管循序交付，或處理多任務與可持久的交棒；`new_run.py` 在帶 `--out` 與 `--repo-root` 時寫出初始 `docs/tasks.md`，帶 `--repo-root` 的受管 `accept-wave`、`record-worker-result`、`reject-worker-result`、`record-integration`、`reconcile-interrupted`、`reconcile-interrupted-reviews`、`close-wave` 轉換會刷新它並保留 Update Log。Projection 失敗不會回滾 RUN；獨立的 `render_tasks_view.py` 負責修復或檢查這份非權威視圖。本原始碼儲存庫不再另外維護根目錄 `Tasks.md` 流程記錄。
+
 - 選擇器會在實際選中的安全寫入 mission 少於兩個時派生 `managed_sequential`，達到兩個或更多時派生 `parallel_graph`。只有後者才啟用 scheduler 扇出；runtime driver 仍是獨立的傳輸事實。核心只套用 runtime adapter 參考文件裡對應偵測到的 host 的那一個 provider 段落；只有在選定路線需要時，才對外部執行環境做預檢。
 - RUN 執行不等待遠端 CI；branch promotion 是獨立 closeout。精確 candidate 與適用的隔離 preview environment 驗證完成前，`main` 不得移動。
+
+只有 RUN 與它已宣告的生成 tasks view 例外於乾淨目錄檢查；verifier 仍以雜湊保護兩者。產品修改與手寫 view 仍會阻擋執行。日常 RUN 操作使用 guarded transitions；正式 revision 保留歷史並取得精確的新授權。若套件只有 `Selected`／`Required` layers，沒有新核准 option，維持 `Approved option map: None`，跳過可選的生成器。
 
 規模指的是協調範圍與影響半徑，而不是原始的檔案或行數。如果小型工作長大了，Harness 會保留已完成的部分，只針對剩下的部分重新規劃。
 
@@ -340,6 +346,8 @@ Child agent run 不負責訪談或審批。Parent 先凍結輸入，再啟動有
 
 圖節點的 `allowed_providers` 必須包含實際在執行 Harness 的 host，該節點才能被選取。Codex、Claude Code 與 Pi 不能彼此委派節點；它們之間沒有跨 host 的橋接。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
 
+Runtime 提速路徑只移除重複工作，不搬動 gate。`docs_weight.py` 用一次 `cat-file --batch` 讀取已解析 baseline 的 blobs；verifier 結果可記錄唯讀的 setup、guard、snapshot、command 與 postcheck 耗時；review packet 只移除 diff 內重複出現的材料；同一 batch 可重用 immutable archive bytes，但每個 verifier 仍有自己通過檢查的解壓目錄；verifier slot 會補入無衝突工作，不等整個 wave；只有同一 runner 產生的 deterministic opted-in PASS 可在重新檢查 guard 與 runtime/image trust 後重用 container 結果。container 結果不進入持久 cache。 新接受的重用必須在目前 parent 觀察到的 batch 中附帶原始執行；只有 RUN 歷史紀錄不足以授權。
+
 ## 安裝
 
 這是公開儲存庫，不需要存取權。你需要 Python 3.10 以上、Git，以及至少一個會探索 `~/.agents/skills/` 的 host。驗證前先安裝含 Pillow 的固定 Python 依賴：
@@ -536,6 +544,8 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.40.0** — H5、H7、H9 各須達到 80，視覺品質不再被總分抵銷。選方向須提供主要／壓力情境的可比較截圖，驗證範圍、平台覆蓋、圖像檔與雜湊。Platform rules 分開 Web 與原生字體、圖示、版面及操作；iOS 明確評估 system text styles、Dynamic Type 與 SF Symbols。HTML 僅供審稿，原生代表案例先驗證再擴展實作。既有視覺契約須補齊比較、平台與分數紀錄，並重新取得受影響的核准。破壞性 skill-bundle 變更，不自動升級舊核准。 同版納入 checkpoint 自動刷新進度頁、唯讀 stack option-map 產生器、保留的 dispatch 證據檢視、文件批次讀取、review packet 去重、verifier 計時，以及保留各自 guard 的同批 container 結果重用。
 
 - **0.39.0** — 連通 HiFi 採用 `ui-hifi/2`，綁定同目錄 HTML 頁面雜湊、產品控制項目的地，以及 `ui-output/2` 點擊／鍵盤證據。凍結的 Git revision 必須包含所有子頁面。舊 schema-1 僅供讀取檢查；正式 Visual Approval 一律使用新契約。同時修正 CLI／非公開工具的 Toolchain 核准、parity 檔名碰撞，以及 Windows 執行檔 ACL 檢查。 新增最終路徑 UI 發布檢查、分階段 Skill Bindings、已安裝命令路徑、管理員核准的 HTTPS credential helper、canonical UI digest、hybrid responsive 指引與部署前 Activation 準備。
 

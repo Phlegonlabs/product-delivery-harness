@@ -12,6 +12,7 @@ Ask one product-specific set covering:
 - desired visual character and emotional tone;
 - disliked patterns and explicit avoid rules;
 - brand, color, dark-mode, typography, language, imagery, and icon constraints;
+- shared brand principles and any distinct Web/native expression needs; platform destinations and stack remain the approved inputs;
 - supplied screenshots, URLs, Figma views, named products, or brand references; and
 - whether the owner wants one recommended direction or three comparable directions.
 

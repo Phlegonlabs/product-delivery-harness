@@ -1,0 +1,38 @@
+{
+  "scope": "warm-process weights helper; fixed main SHA; 4 alternating repetitions; full regression also running (timing affected by load); not whole CLI or product RUN",
+  "base": "1c7939de3d29d446684ea771a926efd917937e40",
+  "files": 57,
+  "output_parity": true,
+  "milliseconds": {
+    "baseline": [
+      4527.364,
+      4804.004,
+      4947.243,
+      4556.925
+    ],
+    "updated": [
+      142.623,
+      138.788,
+      236.561,
+      133.839
+    ]
+  },
+  "medians_ms": {
+    "baseline": 4680.4645,
+    "updated": 140.7055
+  },
+  "subprocess_counts": {
+    "baseline": [
+      116,
+      116,
+      116,
+      116
+    ],
+    "updated": [
+      4,
+      4,
+      4,
+      4
+    ]
+  }
+}
