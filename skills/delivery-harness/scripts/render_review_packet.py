@@ -53,13 +53,17 @@ def render_packet(
     truncated = len(encoded) > max_diff_bytes
     if truncated:
         diff = encoded[:max_diff_bytes].decode("utf-8", errors="replace")
+        changed = _git(
+            repo_root,
+            "diff",
+            "--name-only",
+            f"{base}..{head}",
+        ).strip()
     acceptance = [
         {"task_id": task["id"], "acceptance_matrix": task["acceptance_matrix"]}
         for mission in missions
         for task in mission["tasks"]
     ]
-    summary = _git(repo_root, "diff", "--stat", f"{base}..{head}").strip()
-    changed = _git(repo_root, "diff", "--name-only", f"{base}..{head}").strip()
     packet_lines = [
         f"# Review packet: {node_id}",
         "",
@@ -90,6 +94,15 @@ def render_packet(
             " changed: merge seams, conflict resolutions, cross-mission"
             " interaction, and shared-contract boundaries.",
         ]
+    if truncated:
+        # The untruncated diff already carries every path. Keep an explicit
+        # path list only when byte truncation could hide the tail.
+        packet_lines += [
+            "",
+            "## Changed files",
+            "",
+            changed,
+        ]
     packet_lines += [
         "",
         "## Contract",
@@ -119,14 +132,6 @@ def render_packet(
             ensure_ascii=False,
         ),
         "```",
-        "",
-        "## Changed files",
-        "",
-        changed or "(none)",
-        "",
-        "## Diff stat",
-        "",
-        summary or "(none)",
         "",
         f"## Diff{' (truncated)' if truncated else ''}",
         "",
