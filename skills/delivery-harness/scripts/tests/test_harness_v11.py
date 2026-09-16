@@ -363,6 +363,13 @@ class HarnessV11Tests(unittest.TestCase):
             packet = render_packet(plan, run, "N-REVIEW-M1", root, max_diff_bytes=64)
 
             self.assertIn("## Diff (truncated)", packet)
+            self.assertIn("## Changed files\n\nfile.txt", packet)
+            full_packet = render_packet(plan, run, "N-REVIEW-M1", root)
+            self.assertNotIn("## Changed files", full_packet)
+            self.assertNotIn("## Diff stat", full_packet)
+            self.assertIn("diff --git a/file.txt b/file.txt", full_packet)
+            self.assertEqual(packet.split("## Contract")[1].split("## Diff")[0],
+                             full_packet.split("## Contract")[1].split("## Diff")[0])
             self.assertIn("REVIEW-M1", packet)
             self.assertIn('"required_tools": []', packet)
             self.assertNotIn('"harness_plan"', packet)

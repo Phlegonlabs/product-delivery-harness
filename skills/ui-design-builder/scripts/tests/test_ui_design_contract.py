@@ -4,11 +4,14 @@ import importlib
 import hashlib
 import inspect
 import json
+import io
 import re
 import sys
 import unittest
 import tempfile
 from pathlib import Path
+
+from PIL import Image
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
@@ -31,6 +34,17 @@ D_HASH = hashlib.sha256(b"wireframes").hexdigest()
 E_HASH = hashlib.sha256(b"hifi").hexdigest()
 U_HASH = hashlib.sha256(b"ui-design").hexdigest()
 EVIDENCE_HASH = "e" * 64
+def capture_fixture(color):
+    """Synthetic image bytes for validator tests, not product review evidence."""
+    output = io.BytesIO()
+    Image.new("RGB", (2, 2), color).save(output, format="PNG")
+    return output.getvalue()
+
+
+PRIMARY_CAPTURE = capture_fixture("white")
+STRESS_CAPTURE = capture_fixture("black")
+PRIMARY_HASH = hashlib.sha256(PRIMARY_CAPTURE).hexdigest()
+STRESS_HASH = hashlib.sha256(STRESS_CAPTURE).hexdigest()
 
 
 def contract(*, wireframe="approved", visual="approved", author="frontend-design"):
@@ -84,7 +98,21 @@ Direction decision: approved
 Direction decision owner: Product owner
 Direction decided on: 2026-09-13
 Candidate theme: blue-gray palette, sans type, compact rhythm
+Review medium: HTML projection only
 Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}
+
+### Direction comparison
+
+| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| VD-R1-01 | UI-001 | ready | 390 | primary | Approved home copy and normal data | docs/design/directions/primary.png @ sha256:{PRIMARY_HASH} | Compact primary action hierarchy |
+| VD-R1-01 | UI-001 | ready | 1200 | stress | Approved home copy with bounded dense data | docs/design/directions/stress.png @ sha256:{STRESS_HASH} | Dense data stays aligned and readable |
+
+### Platform rules
+
+| Platform | Navigation and input | Typography | Icons | Density and layout | Feedback and motion | Native proof | Sources |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| web | Sidebar, keyboard and visible focus | Sans text with CJK fallback | Lucide with named fallback | Compact rows with responsive reflow | Functional state feedback | not_applicable | Inspected official font and icon sources with retrieval date |
 
 ## HiFi Review
 
@@ -95,7 +123,10 @@ HiFi surface check: PASS — evidence=docs/evidence/hifi-browser.json @ sha256:{
 HiFi score: 94
 H2 score: 95
 H4 score: 94
+H5 score: 90
+H7 score: 90
 H8 score: 96
+H9 score: 92
 HiFi lowest dimension: 88
 HiFi blocks or disputes: none
 
@@ -192,6 +223,10 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         ).replace("navigate-to 'self'", "navigate-to 'none'").replace(
             'href="index.html"', 'href="#home"'
         ), encoding="utf-8")
+    captures = root / "docs/design/directions"
+    captures.mkdir(parents=True, exist_ok=True)
+    (captures / "primary.png").write_bytes(PRIMARY_CAPTURE)
+    (captures / "stress.png").write_bytes(STRESS_CAPTURE)
     ui = contract()
     replacements = {
         A_HASH: hashlib.sha256(product.read_bytes()).hexdigest(),
@@ -691,6 +726,147 @@ class UiDesignContractTests(unittest.TestCase):
                 require_visual_approved=True,
             ),
         )
+
+    def test_visual_quality_dimensions_cannot_be_averaged_away(self):
+        for dimension, original in (("H5", 90), ("H7", 90), ("H9", 92)):
+            for score in (60, 79, 101, "80.0", "PASS"):
+                with self.subTest(dimension=dimension, score=score):
+                    candidate = contract().replace("HiFi score: 94", "HiFi score: 100")
+                    candidate = candidate.replace(f"{dimension} score: {original}", f"{dimension} score: {score}")
+                    problems = checker.validate_text(candidate, require_visual_approved=True)
+                    self.assertIn(f"ui-design: {dimension} score must be an integer from 80 to 100", problems)
+
+    def test_visual_quality_floor_accepts_boundary_and_requires_each_score(self):
+        for dimension, original in (("H5", 90), ("H7", 90), ("H9", 92)):
+            with self.subTest(dimension=dimension):
+                candidate = contract().replace(f"{dimension} score: {original}", f"{dimension} score: 80")
+                self.assertEqual([], checker.validate_text(candidate, require_visual_approved=True))
+                missing = candidate.replace(f"{dimension} score: 80\n", "")
+                self.assertTrue(any(f"missing '{dimension} score'" in p for p in checker.validate_text(missing, require_visual_approved=True)))
+                self.assertEqual([], checker.validate_text(missing, require_wireframe_approved=True))
+
+    def test_two_weak_visual_dimensions_block_a_ninety_one_overall(self):
+        candidate = contract().replace("HiFi score: 94", "HiFi score: 91")
+        candidate = candidate.replace("H5 score: 90", "H5 score: 60").replace("H7 score: 90", "H7 score: 60")
+        problems = checker.validate_text(candidate, require_visual_approved=True)
+        for dimension in ("H5", "H7"):
+            self.assertIn(f"ui-design: {dimension} score must be an integer from 80 to 100", problems)
+
+    def test_direction_comparison_requires_rendered_matching_cases(self):
+        base = contract()
+        start = base.index("### Direction comparison")
+        end = base.index("## HiFi Review")
+        table = base[start:end]
+        mutations = {
+            "missing": base[:start] + base[end:],
+            "duplicate": base[:end] + table + base[end:],
+            "outside scope": base.replace("| UI-001 | ready | 390 |", "| UI-099 | ready | 390 |"),
+            "wrong target": base.replace("| ready | 390 |", "| ready | 400 |"),
+            "no stress": base.replace("| stress |", "| primary |"),
+            "missing capture": base.replace(f"docs/design/directions/primary.png @ sha256:{PRIMARY_HASH}", "TBD"),
+            "text capture": base.replace("directions/primary.png", "directions/primary.md"),
+            "noncanonical capture directory": base.replace("docs/design/directions/primary.png", "docs/evidence/primary.png"),
+            "uncompared selection": base.replace("Selected direction: VD-R1-01", "Selected direction: VD-R1-99"),
+            "wrong count": base.replace("Direction mode: one recommended direction", "Direction mode: three comparable directions"),
+        }
+        for name, candidate in mutations.items():
+            with self.subTest(name=name):
+                problems = checker.validate_text(candidate, require_visual_approved=True)
+                self.assertTrue(any("comparison" in p or "compared" in p for p in problems), problems)
+
+    def test_three_directions_compare_the_same_content_and_distinct_captures(self):
+        base = contract().replace("Direction mode: one recommended direction", "Direction mode: three comparable directions")
+        rows = "\n".join(line for line in base.splitlines() if line.startswith("| VD-R1-01 |"))
+        extras = "\n".join(rows.replace("VD-R1-01", f"VD-R1-0{n}")
+                           .replace(PRIMARY_HASH, str(n) * 64).replace(STRESS_HASH, str(n + 3) * 64)
+                           for n in (2, 3))
+        base = base.replace("\n### Platform rules", "\n" + extras + "\n\n### Platform rules")
+        self.assertEqual([], checker.validate_text(base, require_visual_approved=True))
+        mixed_case = base.replace("Direction mode: three comparable directions", "Direction mode: Three comparable directions")
+        self.assertEqual([], checker.validate_text(mixed_case, require_visual_approved=True))
+        for candidate in (
+            base.replace("2" * 64, PRIMARY_HASH),
+            base.replace("Approved home copy and normal data", "different content", 1),
+            base.replace("| VD-R1-02 | UI-001 | ready | 390 |", "| VD-R1-02 | UI-001 | ready | 768 |"),
+        ):
+            self.assertTrue(any("comparison" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
+
+    def test_direction_capture_hashes_and_paths_are_checked(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
+            capture = root / "docs/design/directions/primary.png"
+            capture.write_bytes(b"changed fixture")
+            problems = checker.validate(root / "docs/design/ui-design.md", repo_root=root,
+                                        prd_path=product, wireframes_path=wireframe, hifi_path=hifi,
+                                        require_visual_approved=True)
+            self.assertTrue(any("Direction comparison Screenshot" in p for p in problems), problems)
+            style = checker._section(contract(), "## Style Integration")
+            style = style.replace("docs/design/directions/primary.png", "../primary.png")
+            problems = []
+            checker._direction_comparison(style, "Direction mode: one recommended direction", None, problems, repo_root=root)
+            self.assertTrue(any("canonical POSIX segments" in p for p in problems), problems)
+
+    def test_design_tables_do_not_ignore_rows_with_optional_outer_pipes(self):
+        base = contract()
+        for remove in ("left", "right", "both"):
+            def strip_outer(row):
+                if remove in {"left", "both"}:
+                    row = row.lstrip("|").lstrip()
+                if remove in {"right", "both"}:
+                    row = row.rstrip("|").rstrip()
+                return row
+            with self.subTest(remove=remove):
+                candidate = "\n".join(strip_outer(row) if row.startswith("|") and (
+                    row.startswith("| VD-") or row.startswith("| web |")
+                ) else row for row in base.splitlines())
+                self.assertEqual([], checker.validate_text(candidate, require_visual_approved=True))
+                extra_direction = next(row for row in base.splitlines() if row.startswith("| VD-R1-01 |"))
+                extra_direction = strip_outer(extra_direction.replace("VD-R1-01", "VD-R1-02"))
+                candidate = base.replace("\n### Platform rules", "\n" + extra_direction + "\n\n### Platform rules")
+                self.assertTrue(any("requires exactly 1 directions" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
+                extra_platform = next(row for row in base.splitlines() if row.startswith("| web |"))
+                extra_platform = strip_outer(extra_platform.replace("| web |", "| ios |"))
+                candidate = base.replace("\n## HiFi Review", "\n" + extra_platform + "\n\n## HiFi Review")
+                self.assertTrue(any("Platform rules must exactly cover" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
+
+    def test_platform_rules_match_platforms_and_keep_native_proof_separate(self):
+        web = checker._section(contract(), "## Style Integration")
+        ios_row = "| ios | Native tabs and back; keyboard safe area | system text styles with Dynamic Type | SF Symbols with documented custom fallback | Touch rows | System feedback | required before expansion | Apple HIG inspected 2026-09-13 |\n"
+        scope = {"surfaces": [{"stackSemantics": {"platform": platform}} for platform in ("web", "ios")]}
+        both = web + ios_row
+        problems = []
+        checker._platform_rules(both, scope, problems)
+        self.assertEqual([], problems)
+        mutations = {
+            "missing ios": web,
+            "duplicate": both + ios_row,
+            "extra platform": both + ios_row.replace("| ios |", "| android |"),
+            "web typography on ios": both.replace("system text styles with Dynamic Type", "fixed CSS font size"),
+            "web icons only": both.replace("SF Symbols with documented custom fallback", "Lucide"),
+            "html native claim": both.replace("required before expansion", "verified in HTML"),
+            "blank source": both.replace("Apple HIG inspected 2026-09-13", "TBD"),
+        }
+        for name, style in mutations.items():
+            with self.subTest(name=name):
+                problems = []
+                checker._platform_rules(style, scope, problems)
+                self.assertTrue(problems)
+
+    def test_visual_contract_cannot_claim_native_validation_from_html(self):
+        candidate = contract().replace("Review medium: HTML projection only", "Review medium: native verified")
+        problems = checker.validate_text(candidate, require_visual_approved=True)
+        self.assertTrue(any("it is not native verification" in p for p in problems), problems)
+
+    def test_direction_comparison_requires_each_platform(self):
+        scope = {"surfaces": [
+            {"id": "UI-001", "states": ["ready"], "stackSemantics": {"platform": "web"}, "responsive": {"targets": [390, 1200]}},
+            {"id": "UI-IOS", "states": ["ready"], "stackSemantics": {"platform": "ios"}, "responsive": {"targets": ["compact", "regular"]}},
+        ]}
+        problems = []
+        checker._direction_comparison(checker._section(contract(), "## Style Integration"),
+                                      "Direction mode: one recommended direction", scope, problems)
+        self.assertTrue(any("for platform ios" in p for p in problems), problems)
 
     def test_wireframe_approval_is_human_and_approved(self):
         problems = checker.validate_text(

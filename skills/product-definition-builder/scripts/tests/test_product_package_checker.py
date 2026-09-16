@@ -359,11 +359,36 @@ def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple
         approved_map.append(f"{option_id}={payload}")
     stack = re.sub(
         r"- Approved option map:.*",
-        "- Approved option map: " + (", ".join(approved_map) or "none"),
+        "- Approved option map: "
+        + (f"||{'||'.join(approved_map)}||" if approved_map else "none"),
         stack,
         count=1,
     )
     return contract_utils.finalize_approval_digests(prd, architecture, stack)
+
+
+def strictize_approved_package_legacy(
+    prd: str, architecture: str, stack: str
+) -> tuple[str, str, str]:
+    """Render a comma-only option map for legacy-format regression coverage."""
+
+    approved_prd, approved_architecture, approved_stack = strictize_approved_package(
+        prd, architecture, stack
+    )
+    option_map = re.search(
+        r"- Approved option map: (.*)", approved_stack
+    ).group(1)
+    legacy_map = option_map.removeprefix("||").removesuffix("||")
+    legacy_map = ",".join(legacy_map.split("||"))
+    legacy_stack = re.sub(
+        r"- Approved option map:.*",
+        f"- Approved option map: {legacy_map}",
+        approved_stack,
+        count=1,
+    )
+    return contract_utils.finalize_approval_digests(
+            approved_prd, approved_architecture, legacy_stack
+    )
 
 
 def toolchain_package(surface_classes: tuple[str, ...]) -> tuple[str, str, str]:
@@ -400,6 +425,66 @@ def toolchain_package(surface_classes: tuple[str, ...]) -> tuple[str, str, str]:
     return strictize_approved_package(valid_prd(), architecture, stack)
 
 
+def commercial_option_package() -> tuple[str, str, str]:
+    """Build an approved headless package with comma-containing commercial text."""
+
+    prd = valid_prd()
+    prd = prd.replace(
+        "| Monetization Infrastructure Gate | not_required | No commercial surface | approved | n/a |",
+        "| Monetization Infrastructure Gate | required | Paid usage needs billing surfaces | approved | TEST-001 |",
+        1,
+    )
+    prd = prd.replace(
+        "| Partner Channel Gate | not_required | No outside sellers | approved | n/a |",
+        "| Partner Channel Gate | required | Outside partners need attribution | approved | TEST-001 |",
+        1,
+    )
+    dependent = {
+        "| Monetization model | none | No payer | approved | n/a |":
+            "| Monetization model | usage_based | Payers buy metered runs | approved | TEST-001 |",
+        "| Pricing and offer | n/a | No offer | approved | n/a |":
+            "| Pricing and offer | Usage plan, $20/month base, annual or monthly | Pricing supports metered and committed use | approved | TEST-001 |",
+        "| Purchase and entitlement | n/a | No purchase | approved | n/a |":
+            "| Purchase and entitlement | Web checkout and entitlement service | Purchases create and revoke entitlements | approved | TEST-001 |",
+        "| Merchant of record / tax owner | n/a | No merchant of record | approved | n/a |":
+            "| Merchant of record / tax owner | Product company with payment provider | The company owns invoices and refunds | approved | TEST-001 |",
+        "| Partner motion | none | No outside partner | approved | n/a |":
+            "| Partner motion | Affiliate and referral | Outside partners drive trials | approved | TEST-001 |",
+        "| Partner economics and operations | n/a | No channel economics | approved | n/a |":
+            "| Partner economics and operations | Commission, payout, and reversal records | Economics stay auditable per partner | approved | TEST-001 |",
+    }
+    for old, new in dependent.items():
+        prd = prd.replace(old, new, 1)
+    architecture = valid_architecture().replace(
+        "## Monetization and Partner Channel Architecture\n"
+        "This section records concrete fixture boundaries, ownership, failure "
+        "handling, and implementation responsibilities.",
+        "## Monetization and Partner Channel Architecture\n"
+        "Purchase and billing events create entitlements; refunds and chargebacks "
+        "revoke or restore them. Reconciliation is idempotent. Partner attribution, "
+        "commission, payout, provisioning, and termination records remain separate.",
+        1,
+    )
+    stack = valid_stack().split("### Coherent Options Presented")[0] + """### Coherent Options Presented
+| Option ID | Area | Complete bundle | Best fit | Tradeoffs / ownership | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| OPT-MP-01 | Monetization or partner channel | Web billing, entitlement service, affiliate, and custom operations | Owned commercial lifecycle | Team owns reconciliation and payouts | approved |
+| OPT-MP-02 | Monetization or partner channel | Third-party affiliate and billing platform | Faster launch | External platform owns workflows | rejected |
+
+## Monetization and Partner Channel Technology Decision
+### Recorded or Approved Stack
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Store commerce / billing | Web billing, annual, monthly | Approved | Owner decision | Supports usage plans | Reconcile webhooks |
+| Subscription and entitlement source | Entitlement service | Approved | Owner decision | One lifecycle source | Test revocation |
+| Paywall / checkout | Web checkout | Approved | Owner decision | Keeps checkout owned | Preserve tax evidence |
+| Merchant of record / tax | Product company | Approved | Owner decision | Owner owns invoices | Track refunds |
+| Affiliate / referral / reseller platform | First-party links, commission, payout | Approved | Owner decision | Keeps partner facts local | Audit reversals |
+| Attribution, commission, payout, and reseller operations | Ledger, $20 monthly payout, reversal, provisioning, termination | Approved | Owner decision | Matches the approved bundle | Reconcile monthly |
+"""
+    return strictize_approved_package(prd, architecture, stack)
+
+
 class ProductPackageCheckerTests(unittest.TestCase):
     def validate(
         self,
@@ -434,6 +519,117 @@ class ProductPackageCheckerTests(unittest.TestCase):
 
     def test_approved_package_passes(self) -> None:
         self.assertEqual([], self.validate())
+
+    def test_existing_stack_accepts_none_map_with_or_without_options(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence_file = root / "package.json"
+            evidence_file.write_bytes(b"{}\n")
+            evidence = "repository:package.json@sha256:" + contract_utils.sha256_text("{}\n")
+            for status in ("Required", "Selected"):
+                for keep_options in (False, True):
+                    for sentinel in ("None", "none", "NONE"):
+                        with self.subTest(status=status, options=keep_options, sentinel=sentinel):
+                            stack = valid_stack(status=status).replace(
+                                "| approved |", "| recommended |"
+                            ).replace("Owner decision", evidence if status == "Selected" else "Owner decision")
+                            if not keep_options:
+                                stack = re.sub(
+                                    r"### Coherent Options Presented\n.*?(?=## Frontend Technology Decision)",
+                                    "", stack, flags=re.DOTALL,
+                                )
+                            prd, architecture, stack = strictize_approved_package(
+                                valid_prd(), release_architecture(), stack
+                            )
+                            stack = re.sub(r"- Approved option map:.*", f"- Approved option map: {sentinel}", stack)
+                            package = contract_utils.finalize_approval_digests(prd, architecture, stack)
+                            self.assertEqual([], check_product_package.validate_texts(
+                                *package, require_filled=True, require_approved=True, repo_root=root,
+                            ))
+
+    def test_none_map_cannot_hide_approved_options_or_layers(self) -> None:
+        for status, keep_approved_option, expected in (
+            ("Required", True, "Approved option map does not exactly match"),
+            ("Approved", False, "must retain the approved frontend option"),
+        ):
+            with self.subTest(status=status, approved_option=keep_approved_option):
+                stack = valid_stack(status=status)
+                if not keep_approved_option:
+                    stack = stack.replace("| approved |", "| recommended |")
+                prd, architecture, stack = strictize_approved_package(
+                    valid_prd(), release_architecture(), stack
+                )
+                stack = re.sub(r"- Approved option map:.*", "- Approved option map: None", stack)
+                package = contract_utils.finalize_approval_digests(prd, architecture, stack)
+                findings = check_product_package.validate_texts(
+                    *package, require_filled=True, require_approved=True,
+                )
+                self.assertIn(expected, "\n".join(findings))
+
+    def test_approved_commercial_option_map_survives_commas(self) -> None:
+        prd, architecture, stack = commercial_option_package()
+        self.assertEqual([], check_product_package.validate_texts(
+            prd, architecture, stack, require_filled=True, require_approved=True,
+        ))
+        self.assertIn("Attribution, commission, payout, and reseller operations=>Ledger, $20", stack)
+        self.assertIn("||OPT-MP-01=", stack)
+
+    def test_legacy_comma_only_option_map_remains_valid(self) -> None:
+        prd, architecture, stack = strictize_approved_package_legacy(
+            valid_prd(), valid_architecture(), valid_stack()
+        )
+        self.assertNotIn("||", stack)
+        self.assertEqual([], check_product_package.validate_texts(
+            prd, architecture, stack, require_filled=True, require_approved=True,
+        ))
+
+    def test_single_explicit_commercial_option_preserves_all_layers(self) -> None:
+        layer = "attribution, commission, payout, and reseller operations"
+        parsed, findings = check_product_package._parse_approved_option_map(
+            f"||OPT-MP-01={layer}=>Ledger, monthly payout;Billing=>None||"
+        )
+        self.assertEqual([], findings)
+        self.assertEqual({"OPT-MP-01": {
+            layer: "Ledger, monthly payout", "billing": "None",
+        }}, parsed)
+
+    def test_option_map_rejects_partial_framing_and_empty_selections(self) -> None:
+        for candidate in (
+            "||OPT-A=Layer=>Alpha", "OPT-A=Layer=>Alpha||",
+            "||OPT-A=Layer=> ||", "OPT-A=Layer=>",
+            "||OPT-A=Layer=>Alpha;Broken||", "||OPT-A==>Alpha||",
+        ):
+            with self.subTest(candidate=candidate):
+                _, findings = check_product_package._parse_approved_option_map(candidate)
+                self.assertTrue(findings)
+
+    def test_option_map_rejects_duplicate_malformed_and_mismatched_entries(self) -> None:
+        base_map = "||OPT-A=Layer=>Alpha||OPT-A=Layer=>Alpha||"
+        duplicate_layers = "OPT-A=Layer=>Alpha;Layer=>Beta"
+        empty_entry = "||OPT-A=Layer=>Alpha||||OPT-B=Other=>Beta||"
+        for candidate, expected in (
+            (base_map, "duplicate approved option map entry OPT-A"),
+            (duplicate_layers, "duplicate approved option map layer"),
+            (empty_entry, "entry 2 is empty"),
+        ):
+            with self.subTest(candidate=candidate):
+                _, findings = check_product_package._parse_approved_option_map(candidate)
+                self.assertIn(expected, " ".join(findings))
+
+        prd, architecture, stack = commercial_option_package()
+        mismatched = re.sub(
+            r"Attribution, commission, payout, and reseller operations=>Ledger, \$20 monthly payout",
+            "Attribution, commission, payout, and reseller operations=>External monthly payout",
+            stack,
+            count=1,
+        )
+        prd, architecture, mismatched = contract_utils.finalize_approval_digests(
+            prd, architecture, mismatched
+        )
+        findings = check_product_package.validate_texts(
+            prd, architecture, mismatched, require_filled=True, require_approved=True,
+        )
+        self.assertIn("Approved option map does not exactly match", "\n".join(findings))
 
     def test_toolchain_release_packages_pass_full_approval(self) -> None:
         for classes in (("cli",), ("other_nonpublic",), ("cli", "other_nonpublic")):

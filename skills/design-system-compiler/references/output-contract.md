@@ -56,7 +56,7 @@ If product behavior or stack is missing, return a bounded Product Definition upd
 - The Style Integration record names `frontend-design`, the selected direction, and its candidate theme rules.
 - The human owner approved one immutable UI target.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
-- The Direction Checkpoint records owner approval of the thesis, complementary reference-role map, representative composition, typography and density intent, interaction signature, responsive consequence, and avoid list before full HTML or token compilation.
+- The existing direction decision names a direction from the hash-bound Direction comparison table, with primary and stress cases for each platform before full HiFi or token compilation. Platform rules preserve platform-specific type, icons, controls, density, and feedback; compilation never replaces them with Web defaults.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.
 - Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set contains at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and wireframe exactly.
 - Every required PRD element maps to the final registry, and no unresolved page-local exception remains.

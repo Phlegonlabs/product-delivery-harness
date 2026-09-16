@@ -46,4 +46,6 @@ Show the proposed Adopt / Adapt / Avoid set to the human owner and end the turn.
 
 Each direction records product fit, visual rules, confirmed `REF-*` and `RP-*` evidence, tradeoffs, avoid rules, and its relationship to the approved component foundation and styling approach. A current public reference may support a direction only after it has been inspected. Market evidence (`MR-*`) and visual evidence (`REF-*`) remain separate.
 
+Use the representative studies and `### Direction comparison` table in `ui-design-pass.md` before asking the owner to select. The same primary and stress cases appear in every direction with unchanged content. Reference moodboards and written style labels do not replace rendered product studies. Preserve prior rounds as non-canonical evidence; only the current complete round belongs in the active table.
+
 Impeccable does not generate directions. After `frontend-design` creates the connected HiFi candidate, Impeccable critiques and audits it under `ui-design-pass.md`, and the PRD-bound H1-H9 rubric remains the approval score.

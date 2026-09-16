@@ -1482,7 +1482,13 @@ class WritePathTransitionTests(unittest.TestCase):
             self.assertEqual("active", live["active_wave"]["status"])
             self.assertEqual(["M1"], live["active_wave"]["selected_missions"])
             status = git(linked_root, "status", "--porcelain")
-            self.assertEqual("M docs/goal/RUN.md", status.strip())
+            self.assertIn("M docs/goal/RUN.md", status)
+            self.assertIn("?? docs/tasks.md", status)
+            self.assertTrue((linked_root / "docs/tasks.md").is_file())
+            self.assertEqual("", harness_transition._git_status_excluding_run(linked_root, run_path, live).strip())
+            with mock.patch.object(harness_transition, "observe_plan_sandboxes", return_value=(mf.sandbox_observation(plan)["entries"], [])):
+                harness_transition._record_observation(plan, live, Namespace(repo_root=linked_root, run=run_path))
+            self.assertFalse(live["observed"]["git"]["parent_dirty"])
 
     def test_transition_lock_serializes_separate_processes(self) -> None:
         target = self.root / "RUN.md"

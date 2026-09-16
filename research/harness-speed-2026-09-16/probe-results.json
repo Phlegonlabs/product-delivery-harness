@@ -1,0 +1,205 @@
+{
+  "captured_at": "2026-09-16T12:55:19.979973+00:00",
+  "head_sha": "1c7939de3d29d446684ea771a926efd917937e40",
+  "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "repetitions": 3,
+  "scope": "Warm-process local microbenchmarks, no end-to-end run, model calls, containers, or production changes. Existing per-command Git preflights retained in both blob-read variants.",
+  "inventory": [
+    {
+      "skill": "code-security-review",
+      "entry_words": 796,
+      "reference_files": 1,
+      "reference_words": 705
+    },
+    {
+      "skill": "delivery-harness",
+      "entry_words": 3594,
+      "reference_files": 21,
+      "reference_words": 60667
+    },
+    {
+      "skill": "design-system-compiler",
+      "entry_words": 1338,
+      "reference_files": 5,
+      "reference_words": 2781
+    },
+    {
+      "skill": "product-activation",
+      "entry_words": 1709,
+      "reference_files": 2,
+      "reference_words": 5186
+    },
+    {
+      "skill": "product-definition-builder",
+      "entry_words": 5152,
+      "reference_files": 11,
+      "reference_words": 35335
+    },
+    {
+      "skill": "seo-growth-review",
+      "entry_words": 1372,
+      "reference_files": 2,
+      "reference_words": 2859
+    },
+    {
+      "skill": "ui-design-builder",
+      "entry_words": 1517,
+      "reference_files": 8,
+      "reference_words": 9164
+    }
+  ],
+  "baseline_file_count": 57,
+  "baseline_word_count": 132175,
+  "baseline_weights": {
+    "samples": [
+      {
+        "wall_ms": 4669.035,
+        "subprocess_calls": {
+          "config": 58,
+          "ls-tree": 1,
+          "show": 57
+        },
+        "subprocess_ms": {
+          "config": 2007.867,
+          "ls-tree": 29.809,
+          "show": 1906.41
+        }
+      },
+      {
+        "wall_ms": 4853.064,
+        "subprocess_calls": {
+          "config": 58,
+          "ls-tree": 1,
+          "show": 57
+        },
+        "subprocess_ms": {
+          "config": 1870.713,
+          "ls-tree": 23.008,
+          "show": 2237.967
+        }
+      },
+      {
+        "wall_ms": 5277.191,
+        "subprocess_calls": {
+          "config": 58,
+          "ls-tree": 1,
+          "show": 57
+        },
+        "subprocess_ms": {
+          "config": 2199.12,
+          "ls-tree": 23.635,
+          "show": 2363.642
+        }
+      }
+    ],
+    "median_ms": 4853.064
+  },
+  "experimental_bulk_weights": {
+    "samples": [
+      {
+        "wall_ms": 231.876,
+        "subprocess_calls": {
+          "config": 2,
+          "ls-tree": 1,
+          "cat-file": 1
+        },
+        "subprocess_ms": {
+          "config": 45.626,
+          "ls-tree": 65.687,
+          "cat-file": 87.07
+        }
+      },
+      {
+        "wall_ms": 291.203,
+        "subprocess_calls": {
+          "config": 2,
+          "ls-tree": 1,
+          "cat-file": 1
+        },
+        "subprocess_ms": {
+          "config": 152.515,
+          "ls-tree": 58.171,
+          "cat-file": 49.887
+        }
+      },
+      {
+        "wall_ms": 152.193,
+        "subprocess_calls": {
+          "config": 2,
+          "ls-tree": 1,
+          "cat-file": 1
+        },
+        "subprocess_ms": {
+          "config": 45.891,
+          "ls-tree": 25.675,
+          "cat-file": 46.931
+        }
+      }
+    ],
+    "median_ms": 231.876
+  },
+  "outputs_equal": true,
+  "observe_only": {
+    "samples": [
+      {
+        "wall_ms": 747.542,
+        "subprocess_calls": {
+          "config": 8,
+          "for-each-ref": 2,
+          "rev-parse": 3,
+          "status": 1,
+          "worktree": 1,
+          "merge-base": 1
+        },
+        "subprocess_ms": {
+          "config": 264.516,
+          "for-each-ref": 74.479,
+          "rev-parse": 70.114,
+          "status": 116.571,
+          "worktree": 66.798,
+          "merge-base": 59.109
+        }
+      },
+      {
+        "wall_ms": 887.895,
+        "subprocess_calls": {
+          "config": 8,
+          "for-each-ref": 2,
+          "rev-parse": 3,
+          "status": 1,
+          "worktree": 1,
+          "merge-base": 1
+        },
+        "subprocess_ms": {
+          "config": 452.568,
+          "for-each-ref": 101.719,
+          "rev-parse": 152.302,
+          "status": 31.276,
+          "worktree": 27.827,
+          "merge-base": 25.662
+        }
+      },
+      {
+        "wall_ms": 804.314,
+        "subprocess_calls": {
+          "config": 8,
+          "for-each-ref": 2,
+          "rev-parse": 3,
+          "status": 1,
+          "worktree": 1,
+          "merge-base": 1
+        },
+        "subprocess_ms": {
+          "config": 326.284,
+          "for-each-ref": 89.427,
+          "rev-parse": 111.794,
+          "status": 69.405,
+          "worktree": 59.916,
+          "merge-base": 47.906
+        }
+      }
+    ],
+    "median_ms": 804.314
+  }
+}

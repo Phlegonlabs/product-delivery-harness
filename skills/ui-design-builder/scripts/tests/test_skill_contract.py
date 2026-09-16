@@ -208,7 +208,10 @@ if (context.window.wireframeQaResults[keys[0]].status !== "pass") throw new Erro
         self.assertIn("HiFi score:", contract)
         self.assertIn("H2 score:", contract)
         self.assertIn("H4 score:", contract)
+        self.assertIn("H5 score:", contract)
+        self.assertIn("H7 score:", contract)
         self.assertIn("H8 score:", contract)
+        self.assertIn("H9 score:", contract)
         self.assertIn("docs/design/design-system.md", contract)
 
 

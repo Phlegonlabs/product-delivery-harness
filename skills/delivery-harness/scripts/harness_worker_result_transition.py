@@ -391,6 +391,20 @@ def _retained_execution(
         "cache_reason": retained.get("cache_reason"),
         "duration_ms": retained.get("duration_ms"),
         "metrics": copy.deepcopy(retained.get("metrics")),
+        **(
+            {"timings": copy.deepcopy(retained["timings"])}
+            if isinstance(retained.get("timings"), dict)
+            else {}
+        ),
+        **(
+            {
+                "container_reuse_origin": copy.deepcopy(
+                    retained["container_reuse_origin"]
+                )
+            }
+            if isinstance(retained.get("container_reuse_origin"), dict)
+            else {}
+        ),
         "stdout_sha256": hashlib.sha256(stdout.encode("utf-8")).hexdigest(),
         "stderr_sha256": hashlib.sha256(stderr.encode("utf-8")).hexdigest(),
         "evidence_paths": list(evidence_paths),

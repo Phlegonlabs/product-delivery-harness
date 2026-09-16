@@ -520,6 +520,11 @@ def _retained_verifier_results(
     observed_task_changed_files: dict[str, list[str]] | None,
     errors: list[dict[str, str]],
 ) -> dict[str, dict[str, Any]]:
+    from verifier_runtime import (
+        execution_retention_binding_errors,
+        container_reuse_origin_run_errors,
+    )
+
     retained: dict[str, dict[str, Any]] = {}
     if not isinstance(values, list):
         _issue(
@@ -655,6 +660,15 @@ def _retained_verifier_results(
             _issue(errors, "retained_verifier_mismatch", f"{path}.exit_code", "FAIL requires a nonzero integer exit code")
         elif status in {"TIMEOUT", "ERROR"} and exit_code is not None:
             _issue(errors, "retained_verifier_mismatch", f"{path}.exit_code", f"{status} requires null exit code")
+        for issue in execution_retention_binding_errors(item):
+            _issue(errors, "retained_verifier_mismatch", f"{path}.execution_binding", issue)
+        # New reuse must bring its origin in this parent-observed batch.
+        # RUN history is not evidence that a prior process ran in this batch.
+        # Every supplied result is validated by this loop before acceptance.
+        for issue in container_reuse_origin_run_errors(item, {
+            "verifier_executions": values,
+        }):
+            _issue(errors, "retained_verifier_mismatch", f"{path}.container_reuse_origin", issue)
         declaration_binding = declarations.get(verifier_id)
         declaration = declaration_binding[0] if declaration_binding is not None else None
         expected_layer = declaration_binding[1] if declaration_binding is not None else None

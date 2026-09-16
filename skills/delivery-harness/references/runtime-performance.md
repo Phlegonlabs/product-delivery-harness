@@ -26,7 +26,7 @@ All three adapters use the same four invariants:
 1. Launch each mission or review with a fresh bounded context capsule. Keep automatic repository instruction discovery enabled, but do not replay the parent transcript or copy full PLAN/RUN manifests.
 2. Consume host terminal events. Prefer a subscription, cursor wait, workflow result, or child completion event over repeated status reads. Poll only when the host has no wait/event surface, and record that fallback.
 3. Record each terminal mission with `record-worker-result`. As soon as one active-wave mission reaches `worker_passed`, reserve its dependency-ready read-only pre-integration review in RUN, dispatch only from that receipt, and integrate that mission once the same reserved attempt PASSes. Integration stays serial: at most one mission is `integrating` at a time. Do not launch another writer, and do not run batch gates, until every selected worker result is recorded and the wave closes.
-4. Run independent local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. Batching is the default: a verifier that declares no resource cannot contend with another that declares none. Serialization is opt-in, through a resource claim or an explicit `execution.parallel_safe: false`. Use batch mode at the task and worker gates too, not only the batch gate.
+4. Run independent local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. The scheduler refills a free slot with the first deterministic-order job that does not conflict with active jobs. It does not wait for a slower job before starting another conflict-free job. Serialization is opt-in, through a resource claim or an explicit `execution.parallel_safe: false`. Use batch mode at the task and worker gates too, not only the batch gate.
 
 ## Parent Turn Boundaries
 
@@ -58,6 +58,8 @@ The parent renders one bounded context packet per node containing:
 
 The child treats that packet as its complete live task. It opens PLAN/RUN only for a named field the packet cannot safely supply. Fresh context does not disable host-native repository context discovery.
 
+Route references by the stage that names them. A worker packet names the result contract but does not paste it; load that contract only while preparing the terminal result. A review packet keeps its exact base/head, scope, evidence requirements, tools, acceptance, and finding lineage, but does not repeat paths already present in its untruncated diff. Only a byte-truncated diff repeats the changed-path list so truncation cannot hide scope.
+
 Do not compute a `capsule_sha256` or `context_bytes` for the packet. No gate, selector, or validator reads them; the bounded-context rule above is what produces the speedup.
 
 ## Resource-Safe Verifier Batches
@@ -76,7 +78,11 @@ A verifier that binds a shared resource declares it:
 }
 ```
 
-Two verifiers may share a wave when neither sets `execution.parallel_safe: false` and no shared resource key has `exclusive` access. A missing `execution` block means no resource claim and no contention, so those verifiers batch. `execution.parallel_safe: false` or a conflicting exclusive resource serializes the verifier.
+Two verifiers may run together when neither sets `execution.parallel_safe: false` and no shared resource key has `exclusive` access. A missing `execution` block means no resource claim and no contention. `execution.parallel_safe: false` or a conflicting exclusive resource serializes that verifier. Free slots refill from the deterministic job order; the legacy `waves` metric remains a compatible conflict/capacity grouping, not a wait barrier.
+
+Jobs in one batch may share immutable Git archive bytes for the same canonical checkout and exact SHA. Concurrent requests create the archive once. Each verifier still receives its own freshly checked extraction, including the existing link/device/traversal checks; no writable snapshot directory is shared. Cache ownership ends when the batch ends.
+
+Container result reuse is opt-in through `session_exact` plus `cache.deterministic_local: true`, only for a deterministic `exit 0` PASS produced by this runner invocation. The disk session cache stays disabled for containers. Equivalent concurrent requests share one execution, bound to the canonical checkout and protected Git inputs; failed origins release waiters for a fresh attempt. Reuse binds outputs to the exact immutable execution key and explicitly records its origin. Before accepting a result, each consumer freshly rechecks its live Git guard and the trusted runtime executable/image RepoDigest without rerunning the verifier command, and retains its own reservation, guard, and sandbox evidence. Never reuse failed, timed out, dirty, browser, network, mutable-environment, or cross-process results. New acceptance requires the origin in the current parent-observed batch; an origin found only in RUN history cannot authorize reuse. A forged, rebound, stale, or mismatched origin fails retained-evidence validation.
 
 Declare a resource for anything that binds a port, mutates a database, drives a browser, or otherwise cannot run twice at once. That includes a file two verifiers in the same checkout both write: a test-runner cache, an incremental build manifest, a coverage database, a lockfile. Those are easy to miss because nothing about the command looks shared, and two of them in one wave corrupt each other and fail nondeterministically. Claim the file as an `exclusive` resource key. An undeclared verifier that secretly needs one is a declaration bug, and the fix is the declaration, not a global serial default. Note the migration risk this creates: a verifier authored before batching became the default has no `execution` block, so it is now eligible to run concurrently. Audit existing declarations for shared-file contention once, rather than assuming silence meant safety. This changes scheduling only; session cache rules and gate ownership stay unchanged.
 
@@ -85,6 +91,8 @@ Declare a resource for anything that binds a port, mutates a database, drives a 
 RUN-v11 may include `runtime_metrics`. It is observational and never grants authorization or satisfies a gate.
 
 Record one append-only event for queue, context render, dispatch, wait, execute, review, verify, and integrate transitions when applicable. Each event records provider, node/attempt identity, phase, terminal status, timestamps, duration, wait time, input/output/cached tokens, and context bytes. Unknown values remain `null`; do not estimate them.
+
+Each verifier result may carry read-only `timings` for end-to-end, setup, Git guard, cache lookup, snapshot, command, and postcheck intervals. Existing `duration_ms` retains the execution interval including cleanup and postchecks; `command_ms` measures the command itself. A reused result keeps `duration_ms: 0`; its `end_to_end_ms` is observational only. Timings never grant authorization or satisfy a gate.
 
 At closeout record `run_wall_time_ms` and `critical_path_ms`. Record `baseline_wall_time_ms` only when a comparable earlier run was actually measured; otherwise leave it null rather than inventing one.
 

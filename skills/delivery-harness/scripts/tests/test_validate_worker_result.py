@@ -559,6 +559,67 @@ class ValidateWorkerResultTests(unittest.TestCase):
             [],
         )
 
+    def _same_batch_container_fixture(self):
+        plan = copy.deepcopy(self.plan)
+        mission = plan["missions"][0]
+        for declaration in [*mission["worker_verifiers"], *mission["tasks"][0]["verifiers"]]:
+            declaration.update({"pass_signal": "exit 0", "read_only": True,
+                                "cache": {"mode": "session_exact", "environment_keys": [], "deterministic_local": True}})
+        run = make_run(plan)
+        result = make_result(plan)
+        retained = [retained_verifier_result(name, plan) for name in ("task-focused", "mission-focused")]
+        for item in retained:
+            item["protocol"] = "harness-verifier-execution-v2"
+            item["verifier"].update({"pass_signal": "exit 0", "read_only": True,
+                                     "cache": {"mode": "session_exact", "environment_keys": [], "deterministic_local": True}})
+            key = item["key_document"]
+            key.update({"protocol": item["protocol"], "pass_signal": "exit 0", "execution": item["verifier"]["execution"], "cache_mode": "session_exact"})
+            for field in ("verifier_id", "layer", "mission_id", "task_id", "attempt_id", "lease_id"):
+                key.pop(field)
+            item["execution_key"] = item["evidence_key"] = subject._execution_key_from_document(key)
+            item["sandbox_attestation"] = {"fixture": "same identity"}
+        origin, consumer = retained
+        origin["cache_reason"] = "same_runner_container_origin"
+        consumer.update({"cache_status": "reused", "cache_reason": "same_runner_container_pass", "duration_ms": 0,
+                         "metrics": {"executed": 0, "reused": 1}})
+        consumer["container_reuse_origin"] = {
+            "kind": "same_runner", "execution_key": origin["execution_key"], "verifier_id": origin["verifier_id"],
+            "context_sha256": hashlib.sha256(json.dumps(origin["context"], sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "stdout_sha256": hashlib.sha256(b"").hexdigest(), "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+            "sandbox_attestation": origin["sandbox_attestation"],
+        }
+        for reported, item in zip(result["verifiers"], retained):
+            reported["evidence"] = item["evidence_key"]
+        return plan, run, result, retained
+
+    def test_same_batch_container_origin_is_accepted_and_required(self) -> None:
+        from harness_worker_result_transition import _retained_execution
+        from verifier_runtime import container_reuse_origin_run_errors
+
+        plan, run, result, retained = self._same_batch_container_fixture()
+        consumer = retained[1]
+        self.assertEqual([], validate(plan, run, result, retained=retained))
+        records = [_retained_execution(run, item, []) for item in retained]
+        self.assertEqual([], container_reuse_origin_run_errors(records[1], {"verifier_executions": records}))
+        consumer["container_reuse_origin"]["context_sha256"] = "f" * 64
+        self.assertTrue(validate(plan, run, result, retained=retained))
+        consumer.pop("container_reuse_origin")
+        self.assertTrue(validate(plan, run, result, retained=retained))
+
+    def test_prior_run_container_origin_cannot_authorize_current_reuse(self) -> None:
+        from harness_worker_result_transition import _retained_execution
+
+        plan, run, result, retained = self._same_batch_container_fixture()
+        self.assertEqual([], validate(plan, run, result, retained=retained))
+        run["verifier_executions"] = [_retained_execution(run, copy.deepcopy(retained[0]), [])]
+        # The current command ran independently. Only the prior RUN row carries
+        # the origin marker; matching output and keys do not make it current.
+        retained[0]["cache_reason"] = "container_reuse_not_requested"
+        for current in (retained, retained[1:]):
+            with self.subTest(current_execution_present=len(current) == 2):
+                errors = validate(plan, run, result, retained=current)
+                self.assertTrue(any("container_reuse_origin" in error["path"] for error in errors), errors)
+
     def test_parent_observed_diff_selects_required_verifiers(self) -> None:
         plan = copy.deepcopy(self.plan)
         selection = {

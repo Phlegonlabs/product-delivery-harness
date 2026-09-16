@@ -1429,6 +1429,85 @@ def _ids(cell: str, prefix: str) -> set[str]:
     }
 
 
+def _parse_approved_option_map(
+    option_map: str,
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Parse approved option maps, preserving comma-containing layer text.
+
+    Layer pairs are separated by ``;``. A single option's pairs stay inside its
+    ``OPT-ID=...`` entry. New explicit maps wrap every entry in ``||`` (for
+    example, ``||OPT-ID=layer=>selection||``); legacy maps that use only commas
+    remain readable. A layer name or selection that contains a comma therefore
+    requires the explicit ``||`` form.
+    """
+
+    findings: list[str] = []
+    parsed: dict[str, dict[str, str]] = {}
+    normalized = option_map.strip()
+    if normalized.casefold() == "none":
+        return {}, []
+    explicit = normalized.startswith("||") or normalized.endswith("||")
+    if explicit:
+        if not (normalized.startswith("||") and normalized.endswith("||")):
+            return {}, ["Approved option map explicit form must start and end with ||"]
+        normalized = normalized[2:-2]
+    raw_entries = normalized.split("||") if explicit else normalized.split(",")
+    for index, raw_entry in enumerate(raw_entries):
+        entry = raw_entry.strip()
+        if not entry:
+            findings.append(
+                "Approved option map entry "
+                f"{index + 1} is empty; use || between entries"
+            )
+            continue
+        if "=>" not in entry:
+            findings.append(
+                "Approved option map must use OPT-ID=layer=>selection entries"
+            )
+            continue
+        option_id, layer_payload = entry.split("=", 1)
+        option_id = option_id.strip()
+        option_id_match = re.fullmatch(r"OPT-[A-Z0-9-]+", option_id, re.I)
+        if option_id_match is None:
+            findings.append(
+                "Approved option map must use one exact OPT-ID per entry"
+            )
+            continue
+        option_id = option_id.upper()
+        if option_id in parsed:
+            findings.append(f"duplicate approved option map entry {option_id}")
+            continue
+
+        layers: dict[str, str] = {}
+        for raw_pair in layer_payload.strip().split(";"):
+            pair = raw_pair.strip()
+            if "=>" not in pair or pair.count("=>") != 1:
+                findings.append(
+                    "Approved option map must use OPT-ID=layer=>selection entries"
+                )
+                break
+            layer, pair_selection = pair.split("=>", 1)
+            layer_key = layer.strip().casefold()
+            if not layer_key:
+                findings.append(
+                    "Approved option map entry has an empty layer name"
+                )
+                break
+            if not pair_selection.strip():
+                findings.append("Approved option map entry has an empty selection")
+                break
+            if layer_key in layers:
+                findings.append(
+                    f"duplicate approved option map layer {layer.strip()!r} "
+                    f"in {option_id}"
+                )
+                break
+            layers[layer_key] = pair_selection.strip()
+        else:
+            parsed[option_id] = layers
+    return parsed, findings
+
+
 def _architecture_ids(architecture_text: str) -> set[str]:
     ids: set[str] = set()
     for heading, header in (
@@ -2765,12 +2844,12 @@ def validate_texts(
         option_map = stack_fields.get("approved option map", "")
         checkpoint_option_map = option_map
         if option_map and require_approved:
-            entries = [item.strip() for item in option_map.split(",") if item.strip()]
-            if any("=" not in item or "=>" not in item for item in entries):
+            _, option_map_findings = _parse_approved_option_map(option_map)
+            for finding in option_map_findings:
                 _add(
                     problems,
                     "stack checkpoint",
-                    "Approved option map must use OPT-ID=layer=>selection entries",
+                    finding,
                 )
         decision = stack_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
@@ -2835,7 +2914,12 @@ def validate_texts(
             "stack-decisions",
             "Approved layers require a non-empty Coherent Options Presented table",
         )
-    elif require_approved and checkpoint_option_map and not option_rows:
+    elif (
+        require_approved
+        and checkpoint_option_map
+        and checkpoint_option_map.strip().casefold() != "none"
+        and not option_rows
+    ):
         _add(
             problems,
             "stack-decisions",
@@ -2899,21 +2983,7 @@ def validate_texts(
                     f"Coherent Options Presented must retain the approved {area} option",
                 )
         if checkpoint_option_map and require_approved:
-            expected_map: dict[str, dict[str, str]] = {}
-            for item in checkpoint_option_map.split(","):
-                item = item.strip()
-                if "=" not in item:
-                    continue
-                option_id, payload = item.split("=", 1)
-                option_id = option_id.strip().upper()
-                payload = payload.strip()
-                expected_layers: dict[str, str] = {}
-                for pair in payload.split(";"):
-                    if "=>" not in pair:
-                        continue
-                    layer, selection = pair.split("=>", 1)
-                    expected_layers[layer.strip().casefold()] = selection.strip()
-                expected_map[option_id] = expected_layers
+            expected_map, _ = _parse_approved_option_map(checkpoint_option_map)
             actual_map: dict[str, dict[str, str]] = {}
             for row in option_rows:
                 if len(row) != len(STACK_OPTIONS_HEADER) or row[5].casefold() != "approved":

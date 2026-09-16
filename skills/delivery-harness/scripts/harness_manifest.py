@@ -2364,6 +2364,9 @@ def _validate_verifier_executions(
     errors: list[str], plan: dict[str, Any], run: dict[str, Any]
 ) -> None:
     value = run.get("verifier_executions")
+    from verifier_runtime import execution_retention_binding_errors
+    from verifier_runtime import container_reuse_origin_run_errors
+
     if not isinstance(value, list):
         _add(errors, "run.verifier_executions", "must be an append-only list")
         return
@@ -2435,7 +2438,13 @@ def _validate_verifier_executions(
         optional_entry_keys = {"sandbox_attestation"}
         if run.get("schema_version") == 11:
             optional_entry_keys.update(
-                {"reservation", "dispatch_attestation", "git_guard_attestation"}
+                {
+                    "reservation",
+                    "dispatch_attestation",
+                    "git_guard_attestation",
+                    "timings",
+                    "container_reuse_origin",
+                }
             )
         if not _keys(errors, path, item, entry_keys, optional_entry_keys):
             continue
@@ -3372,6 +3381,10 @@ def _validate_verifier_executions(
                         f"{path}.metrics",
                         "must record exactly one execution or exact cache reuse",
                     )
+        for issue in execution_retention_binding_errors(item):
+            _add(errors, f"{path}.execution_binding", issue)
+        for issue in container_reuse_origin_run_errors(item, run):
+            _add(errors, f"{path}.container_reuse_origin", issue)
         for key in ("stdout_sha256", "stderr_sha256"):
             digest = item[key]
             if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:

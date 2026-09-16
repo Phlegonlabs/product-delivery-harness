@@ -28,9 +28,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.39.0"', package)
+        self.assertIn('"version": "0.40.1"', package)
         self.assertEqual(
-            "0.39.0",
+            "0.40.1",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -801,7 +801,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("# Documents", documents_template)
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
-        self.assertIn("render `docs/tasks.md`", skill)
+        self.assertIn("automatically render `docs/tasks.md`", skill)
+        self.assertIn("A refresh failure leaves successful RUN state intact", skill)
         self.assertIn("no RUN grant authorizes them", skill)
         self.assertIn("## Post-Delivery Activation", project_agents)
         self.assertIn("Capability never grants permission", project_agents)
@@ -944,7 +945,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.39.0"', runbook)
+        self.assertIn('"required_harness_version": "0.40.1"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
