@@ -348,6 +348,22 @@ def bundle_output(manifest):
 
 
 class UiDesignContractTests(unittest.TestCase):
+    def test_bundle_rejects_surfaces_on_the_wrong_page(self):
+        for surface in ("UI-001", "UI-999"):
+            with self.subTest(surface=surface), tempfile.TemporaryDirectory() as temp:
+                path, manifest, scope = materialize_hifi_bundle(Path(temp))
+                child = path.parent / "details.html"
+                child.write_text(child.read_text(encoding="utf-8").replace(
+                    "</body>", '<section data-ui-surface="' + surface + '">Extra product surface</section></body>'
+                ), encoding="utf-8")
+                manifest["pages"][0]["sha256"] = hashlib.sha256(child.read_bytes()).hexdigest()
+                path.write_text(checker.HIFI_MANIFEST_RE.sub(
+                    lambda _: '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script>',
+                    path.read_text(encoding="utf-8")), encoding="utf-8")
+                problems = []
+                checker._validate_hifi_surface(path, problems, scope)
+                self.assertTrue(any("assigned to this page" in problem for problem in problems), problems)
+
     def test_malformed_bundle_surface_fields_fail_closed_without_scope(self):
         for key, value in (("states", None), ("responsive", []), ("responsive", {"kind": "viewports", "targets": [[]]}), ("navigation", [False]), ("controls", {})):
             with self.subTest(key=key, value=value), tempfile.TemporaryDirectory() as temp:

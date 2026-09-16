@@ -1137,6 +1137,8 @@ def _validate_hifi_html(
         dom_parser = _HiFiSurfaceParser()
         dom_parser.feed(html)
         dom_parser.close()
+        if set(dom_parser.counts) != set(expected_by_id):
+            _add(problems, "Connected HiFi DOM surfaces must exactly match the surfaces assigned to this page")
         for parent_surface, nested_surface in dom_parser.nested:
             _add(problems, f"Connected HiFi DOM must not nest surface {nested_surface} inside {parent_surface}")
         for surface_id, expected in expected_by_id.items():
