@@ -639,7 +639,7 @@ Keep the `Stack Decisions` title, this marker pair and fields, the Coherent Opti
 
 For example, one commercial option can use `||OPT-MP-01=attribution, commission, payout, and reseller operations=>First-party ledger, monthly payout;billing=>None||`. Explicit maps require both outer `||` markers. Inside them, `||` separates options and `;` separates layers; these delimiters and `=>` are reserved syntax. Layer names and selections must be nonempty, and option IDs and layer names must be unique within their respective map and option.
 
-Generate maps only after an accepted new bundle has been recorded. A package with only `Selected`/`Required` layers and no approved option keeps `Approved option map: None`; skip the generator in that case. The generator never verifies repository authority in place of the package checker.
+Generate maps only after an accepted new bundle has been recorded. A package with only `Selected`/`Required` layers and no approved option keeps `Approved option map: None`; skip the generator in that case. The checker accepts this sentinel case-insensitively and does not require an options table. A newly approved layer or option still requires its complete option evidence and exact map. The generator never verifies repository authority in place of the package checker.
 
 Before this checkpoint, present two or three coherent bundles for every applicable unresolved area. Each bundle names all coupled layers, fit, tradeoffs, operating and maintenance ownership, cost/license/data constraints, serious alternatives, and revisit triggers. The owner may approve the recommendation, modify layers, or rely on an explicit prior delegation. `Recommended` and `Provisional` rows keep this checkpoint blocked.
 

@@ -520,6 +520,52 @@ class ProductPackageCheckerTests(unittest.TestCase):
     def test_approved_package_passes(self) -> None:
         self.assertEqual([], self.validate())
 
+    def test_existing_stack_accepts_none_map_with_or_without_options(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence_file = root / "package.json"
+            evidence_file.write_bytes(b"{}\n")
+            evidence = "repository:package.json@sha256:" + contract_utils.sha256_text("{}\n")
+            for status in ("Required", "Selected"):
+                for keep_options in (False, True):
+                    for sentinel in ("None", "none", "NONE"):
+                        with self.subTest(status=status, options=keep_options, sentinel=sentinel):
+                            stack = valid_stack(status=status).replace(
+                                "| approved |", "| recommended |"
+                            ).replace("Owner decision", evidence if status == "Selected" else "Owner decision")
+                            if not keep_options:
+                                stack = re.sub(
+                                    r"### Coherent Options Presented\n.*?(?=## Frontend Technology Decision)",
+                                    "", stack, flags=re.DOTALL,
+                                )
+                            prd, architecture, stack = strictize_approved_package(
+                                valid_prd(), release_architecture(), stack
+                            )
+                            stack = re.sub(r"- Approved option map:.*", f"- Approved option map: {sentinel}", stack)
+                            package = contract_utils.finalize_approval_digests(prd, architecture, stack)
+                            self.assertEqual([], check_product_package.validate_texts(
+                                *package, require_filled=True, require_approved=True, repo_root=root,
+                            ))
+
+    def test_none_map_cannot_hide_approved_options_or_layers(self) -> None:
+        for status, keep_approved_option, expected in (
+            ("Required", True, "Approved option map does not exactly match"),
+            ("Approved", False, "must retain the approved frontend option"),
+        ):
+            with self.subTest(status=status, approved_option=keep_approved_option):
+                stack = valid_stack(status=status)
+                if not keep_approved_option:
+                    stack = stack.replace("| approved |", "| recommended |")
+                prd, architecture, stack = strictize_approved_package(
+                    valid_prd(), release_architecture(), stack
+                )
+                stack = re.sub(r"- Approved option map:.*", "- Approved option map: None", stack)
+                package = contract_utils.finalize_approval_digests(prd, architecture, stack)
+                findings = check_product_package.validate_texts(
+                    *package, require_filled=True, require_approved=True,
+                )
+                self.assertIn(expected, "\n".join(findings))
+
     def test_approved_commercial_option_map_survives_commas(self) -> None:
         prd, architecture, stack = commercial_option_package()
         self.assertEqual([], check_product_package.validate_texts(
