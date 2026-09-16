@@ -586,7 +586,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "### Final Visual Parity Loop",
             "`html_target`",
             "`design_system`",
-            "parity/<route>-<state>-<breakpoint>-target.png",
+            "parity/<label>-<tuple-sha256>-target.png",
+            "parity/<label>-<tuple-sha256>-actual.png",
+            "use the exact paths recorded in `manifest.json`",
             "target_comparison",
             "Stop after two failed repair rounds",
         ):
