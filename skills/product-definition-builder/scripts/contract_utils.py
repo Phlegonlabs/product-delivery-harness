@@ -126,6 +126,10 @@ def finalize_approval_digests(
     Callers must provide the applicable-area and option-map fields before this
     helper runs.  The marker blocks are excluded from both canonical payloads,
     so the resulting fields do not form a self-referential hash.
+
+    This helper does not generate an option map or turn a proposal into an
+    approval.  Use render_stack_option_map.py only before owner review, then
+    record the owner-approved map and run this helper once to bind it.
     """
 
     zero = "0" * 64
