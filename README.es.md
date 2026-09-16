@@ -345,6 +345,8 @@ Cuando Claude Code devuelve IDs reales de Workflow run, el estado de RUN puede r
 
 El `allowed_providers` de un nodo de graph debe incluir el host que realmente está ejecutando el Harness antes de que ese nodo pueda seleccionarse. Codex, Claude Code y Pi no pueden delegar un nodo entre ellos; no hay puente cross-host. Un nodo listo cuyo provider no coincide con el host actual se difiere con `runtime_unavailable` y queda para un run alojado por el adaptador coincidente.
 
+La ruta de rendimiento runtime elimina trabajo repetido sin mover un gate. `docs_weight.py` lee los blobs de un baseline resuelto con un `cat-file --batch`; los resultados verifier exponen tiempos de solo lectura para setup, guard, snapshot, command y postcheck; los review packets quitan solo material duplicado del diff; bytes de archive immutables del mismo batch se reutilizan mientras cada verifier recibe su propia extracción verificada; los slots de verifier se llenan con trabajo sin conflicto en lugar de esperar una wave; y solo un PASS determinista opt-in del mismo runner puede reutilizar un resultado container después de verificar de nuevo el guard y la confianza runtime/image. Ningún resultado container entra en un cache durable.
+
 ## Instalación
 
 El repositorio es público. Necesitas Python 3.10 o posterior, Git y al menos un host que descubra `~/.agents/skills/`. Instala antes de validar las dependencias Python fijadas, incluido Pillow:
