@@ -904,6 +904,35 @@ def _resolve_source_bytes(
             f"plan.sources: frozen {label} bytes do not match content_sha256 "
             f"(expected {expected_hash}, actual {actual_hash})"
         ]
+    if strict and label == "approved UI target" and isinstance(revision, str) and revision:
+        # The entry hash binds the page manifest; read children from that same
+        # historical revision as well as checking their current bytes.
+        try:
+            html = contents.decode("utf-8")
+            matches = list(re.finditer(
+                r'<script\s+id=["\']ui-hifi-manifest["\']\s+type=["\']application/json["\']\s*>([\s\S]*?)</script>',
+                html, re.IGNORECASE,
+            ))
+            manifest = json.loads(matches[0].group(1)) if len(matches) == 1 else None
+            if isinstance(manifest, dict) and manifest.get("schema") == "ui-hifi/2":
+                pages = manifest.get("pages")
+                if not isinstance(pages, list):
+                    raise ValueError("HiFi pages must be an array")
+                for page in pages:
+                    if not isinstance(page, dict) or not isinstance(page.get("path"), str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*\.html", page["path"]) is None:
+                        raise ValueError("HiFi page path must be a sibling HTML filename")
+                    child_location = (Path(location).parent / page["path"]).as_posix()
+                    tree = run_git(root, "ls-tree", revision, "--", child_location, text=True, timeout=30)
+                    if tree.returncode or not re.match(r"100(?:644|755) blob [0-9a-f]+\t", tree.stdout):
+                        raise ValueError(f"HiFi page must be a regular tracked blob at source_revision: {child_location}")
+                    _, child_errors = _resolve_source_bytes(
+                        {"location": child_location, "content_sha256": page.get("sha256"), "source_revision": revision},
+                        root, label="HiFi page", strict=True,
+                    )
+                    if child_errors:
+                        return None, child_errors
+        except (OSError, UnicodeError, ValueError, GitMetadataError, subprocess.SubprocessError) as exc:
+            return None, [f"plan.sources: cannot verify HiFi pages at source_revision ({exc})"]
     return contents, []
 
 

@@ -756,7 +756,7 @@ async function agent(_prompt, options) {
             self.assertIn("Impeccable", content)
             self.assertNotIn("design-taste-frontend` leads", content)
         self.assertIn("Connected HiFi reference:", contract)
-        self.assertIn("one self-contained design-reference HTML", guide)
+        self.assertIn("connected `ui-hifi/2` HTML package", guide)
         self.assertIn(
             "generationStatus: deferred",
             self.read_ui("references/wireframe-guide.md"),
@@ -2322,15 +2322,15 @@ async function agent(_prompt, options) {
         contract = self.read_ui("references/output-contract.md")
 
         lowered = guide.lower()
-        self.assertIn("one self-contained design-reference html", lowered)
+        self.assertIn("connected `ui-hifi/2` html package", lowered)
         self.assertIn("login, registration, recovery", lowered)
         self.assertIn(
             "generationstatus: deferred",
             self.read_ui("references/wireframe-guide.md").lower(),
         )
         for marker in (
-            "Each visible control navigates",
-            "opens the documented overlay",
+            "A product tab or page link uses a real anchor",
+            "Buttons change a declared local state, including overlays and feedback",
             "calls no live backend, credential, identity provider, or unapproved generation provider",
             "Generated output cannot add copy, controls, states, routes, or claims",
         ):

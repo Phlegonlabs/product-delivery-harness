@@ -50,6 +50,36 @@ for candidate in (UI_TESTS_DIR, PDB_TESTS_DIR, DS_TESTS_DIR):
 
 
 class StrictAuthorityJoinTests(unittest.TestCase):
+    def test_hifi_children_must_exist_at_the_frozen_entry_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            def git(*args):
+                return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
+            git("init", "-q")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "fixture@example.test")
+            child = root / "details.html"
+            child.write_text("<html><body>Approved detail page</body></html>", encoding="utf-8")
+            manifest = {"schema": "ui-hifi/2", "surfaces": [], "interactions": [], "pages": [{"path": "details.html", "sha256": hashlib.sha256(child.read_bytes()).hexdigest()}]}
+            entry = root / "index.html"
+            entry.write_text('<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script>', encoding="utf-8")
+            git("add", "index.html")
+            git("commit", "-qm", "Entry only")
+            source = {"location": "index.html", "content_sha256": hashlib.sha256(entry.read_bytes()).hexdigest(), "source_revision": git("rev-parse", "HEAD")}
+            contents, errors = _resolve_source_bytes(source, root, label="approved UI target", strict=True)
+            self.assertIsNone(contents)
+            self.assertTrue(any("regular tracked blob" in error for error in errors), errors)
+            git("add", "details.html")
+            git("commit", "-qm", "Complete bundle")
+            source["source_revision"] = git("rev-parse", "HEAD")
+            contents, errors = _resolve_source_bytes(source, root, label="approved UI target", strict=True)
+            self.assertEqual(errors, [])
+            self.assertEqual(contents, entry.read_bytes())
+            child.write_text("Changed child", encoding="utf-8")
+            contents, errors = _resolve_source_bytes(source, root, label="approved UI target", strict=True)
+            self.assertIsNone(contents)
+            self.assertTrue(any("current bytes differ" in error for error in errors), errors)
+
     def test_strict_source_resolver_rejects_noncanonical_segments(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

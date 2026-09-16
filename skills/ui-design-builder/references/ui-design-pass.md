@@ -54,13 +54,13 @@ Required deterministic functional UI motion may run locally in the HiFi HTML wit
 
 ## Connected HiFi Reference
 
-Produce one self-contained design-reference HTML containing every in-scope `UI-*` screen, responsive target, and non-`n/a` state. It includes complete CSS, a left review sidebar, screen/state switching, and the product actions needed to traverse every approved flow. Each visible control navigates, changes a declared state, opens the documented overlay, or shows recorded feedback. There are no dead controls or isolated stills.
+Produce a connected `ui-hifi/2` HTML package with `index.html` as its entry and sibling HTML files for separate pages. Cover every in-scope `UI-*` screen, responsive target, and non-`n/a` state. Each page embeds its CSS, scripts, fonts, and media. Keep a left review sidebar, screen/state switching, and the product actions needed to traverse every approved flow. A product tab or page link uses a real anchor to its declared HTML destination. Buttons change a declared local state, including overlays and feedback. Reviewer sidebar navigation never substitutes for product-control interaction coverage. New or revised HiFi uses schema 2; untouched schema-1 single-file references remain readable.
 
 The HTML contains exactly one canonical restrictive CSP meta:
 
-`default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`
+`default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'self'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`
 
-This closed policy is a deterministic boundary; it is not a claim that regex can prove arbitrary JavaScript safe.
+The offline browser additionally allows only the declared package pages. CSP alone does not enforce the page allowlist and cannot prove arbitrary JavaScript safe. Follow the manifest and interaction-output schemas in `output-contract.md`.
 
 The file calls no live backend, credential, identity provider, or unapproved generation provider. Login, registration, recovery, and authentication-error preview scenes may be marked `n/a` for this visual review without removing their production requirements. Native chrome may use a labeled HTML placeholder.
 
@@ -78,7 +78,9 @@ The candidate is ready for the human gate only when overall `H1`–`H9` is at le
 
 ## Browser And Human Visual Approval
 
-Render every page-target-state and overlay in a real browser inside a closed offline sandbox and record the verdict as exact `PASS`. HiFi surface evidence uses method `sandboxed-offline-browser` and retains a `ui-output/1` console+network/navigation/popup/form transcript with network disabled and top navigation, popups, and forms blocked plus matching attempt counts. Any request, navigation/popup/form attempt, or console error fails. Reject broken navigation, dead controls, unexpected requests, console errors, unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify keyboard paths, focus management, target sizes, long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
+Render every page-target-state and overlay in a real browser inside a closed offline sandbox and record the verdict as exact `PASS`. For schema 2, load the hash-checked pages into an isolated same-origin browser context using intercepted, locally fulfilled document requests; disable external network, service workers, popups, downloads, and forms. Allow only the exact declared HTML documents and block redirects or other destinations. Reset to the declared source page/state before each test. Click each product control and activate it by keyboard at every source responsive target; wait for the destination, then verify its visible surface/state and correct focus or selected-tab behavior. Begin the action transcript after trusted source-page/state setup completes. During each tested action, capture every attempted document navigation, including blocked ones, rather than filtering failures from the transcript. The review sidebar may set up a test but cannot be the tested control.
+
+HiFi surface evidence keeps method `sandboxed-offline-browser`. Schema-2 packages require `ui-output/2` with the exact interaction results and local-navigation transcript described in `output-contract.md`. A missing result, wrong destination, invisible destination, bad focus, undeclared navigation, external request, popup, form attempt, or console error fails. Schema-1 references retain their existing `ui-output/1` no-navigation policy. Also reject unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
 
 Present only a passing candidate. Record the human decision as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. Approval proves visual-direction conformance, not representative-user usability or production readiness.
 

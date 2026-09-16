@@ -827,14 +827,214 @@ class _HiFiSurfaceParser(HTMLParser):
             self.surfaces[self._stack[-1]]["text"].append(data)
 
 
-def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any] | None = None) -> None:
-    """Apply only the generic self-contained HTML safety rules to HiFi."""
+class _HiFiProductControls(HTMLParser):
+    """Collect product controls; reviewer controls outside surfaces do not count."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.stack: list[tuple[str, str | None]] = []
+        self.controls: dict[tuple[str, str], list[dict[str, str | None]]] = {}
+        self.errors: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        surface = values.get("data-ui-surface") or (self.stack[-1][1] if self.stack else None)
+        if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
+            self.stack.append((tag, surface))
+        interactive = tag in {"a", "button", "select", "textarea", "input"} or values.get("role") in {"tab", "button", "link", "menuitem"}
+        if surface and interactive:
+            control = values.get("data-navigation-id") or values.get("data-control-id")
+            if not control:
+                self.errors.append(f"HiFi product control in {surface} needs a navigation/control ID")
+            else:
+                self.controls.setdefault((surface, control), []).append(dict(values, tag=tag))
+        if tag == "a" and values.get("target") not in {None, "", "_self"}:
+            self.errors.append("HiFi links must stay in the current review page")
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                del self.stack[index:]
+                break
+
+
+def _hifi_bundle_documents(path: Path, html: str, manifest: dict[str, Any]) -> dict[str, str]:
+    """Bind sibling page bytes through the approved entry hash, without recursion."""
+    if path.name != "index.html" or set(manifest) != {"schema", "surfaces", "pages", "interactions"}:
+        raise ValueError("HiFi ui-hifi/2 requires index.html, surfaces, pages, and interactions")
+    pages = manifest.get("pages")
+    if not isinstance(pages, list):
+        raise ValueError("HiFi bundle pages must be an array")
+    documents = {"index.html": html}
+    for component in (path, *path.parents):
+        info = component.lstat()
+        if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+            raise ValueError("HiFi entry must not cross symlinks or reparse points")
+    seen = {"index.html"}
+    for row in pages:
+        if not isinstance(row, dict) or set(row) != {"path", "sha256"}:
+            raise ValueError("HiFi page must contain only path and sha256")
+        name, digest = row.get("path"), row.get("sha256")
+        if not isinstance(name, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*\.html", name) is None or name.casefold() in seen:
+            raise ValueError("HiFi page paths must be unique sibling HTML filenames")
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise ValueError("HiFi page sha256 is invalid")
+        seen.add(name.casefold())
+        page = path.parent / name
+        for component in (page, *page.parents):
+            info = component.lstat()
+            if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                raise ValueError("HiFi page paths must not cross symlinks or reparse points")
+        contents = page.read_bytes()
+        if hashlib.sha256(contents).hexdigest() != digest:
+            raise ValueError(f"HiFi page is stale: {name}")
+        text = contents.decode("utf-8")
+        if HIFI_MANIFEST_RE.search(text):
+            raise ValueError("Only index.html may contain the HiFi bundle manifest")
+        documents[name] = text
+    return documents
+
+
+def _validate_hifi_bundle(
+    path: Path, html: str, manifest: dict[str, Any], problems: list[str], scope: dict[str, Any] | None,
+) -> None:
+    try:
+        documents = _hifi_bundle_documents(path, html, manifest)
+    except (OSError, UnicodeError, ValueError) as exc:
+        _add(problems, str(exc))
+        return
+    surfaces = manifest.get("surfaces")
+    if not isinstance(surfaces, list) or not surfaces:
+        _add(problems, "HiFi bundle surfaces must be non-empty")
+        return
+    by_id: dict[str, dict[str, Any]] = {}
+    for surface in surfaces:
+        if (
+            not isinstance(surface, dict)
+            or set(surface) != {"id", "page", "route", "states", "responsive", "navigation", "controls"}
+            or not isinstance(surface.get("id"), str)
+            or surface["id"] in by_id
+            or not isinstance(surface.get("page"), str)
+            or surface["page"] not in documents
+        ):
+            _add(problems, "HiFi bundle has an invalid, duplicate, or unmapped surface")
+            return
+        responsive = surface.get("responsive")
+        if (
+            not surface["id"].strip()
+            or not isinstance(surface.get("route"), str)
+            or not surface["route"].strip()
+            or any(not isinstance(surface.get(key), list) or not surface[key] or any(not isinstance(value, str) or not value.strip() for value in surface[key]) for key in ("states", "navigation", "controls"))
+            or not isinstance(responsive, dict)
+            or set(responsive) != {"kind", "targets"}
+            or responsive.get("kind") not in ("viewports", "sizeClasses")
+            or not isinstance(responsive.get("targets"), list)
+            or not responsive["targets"]
+            or any(isinstance(value, bool) or not isinstance(value, (str, int)) for value in responsive["targets"])
+        ):
+            _add(problems, "HiFi bundle surface fields must be typed non-empty scope values")
+            return
+        by_id[surface["id"]] = surface
+    if scope is not None and set(by_id) != {row.get("id") for row in scope.get("surfaces", [])}:
+        _add(problems, "HiFi bundle surfaces must exactly match Approved target scope")
+    product_controls: dict[tuple[str, str], list[dict[str, str | None]]] = {}
+    for name, page_html in documents.items():
+        page_surfaces = [{key: value for key, value in row.items() if key != "page"} for row in surfaces if row["page"] == name]
+        if not page_surfaces:
+            _add(problems, f"HiFi bundle page has no product surface: {name}")
+            continue
+        legacy_manifest = '<script id="ui-hifi-manifest" type="application/json">' + json.dumps({"schema": "ui-hifi/1", "surfaces": page_surfaces}) + '</script>'
+        checked_html = HIFI_MANIFEST_RE.sub(lambda _: legacy_manifest, page_html) if name == "index.html" else page_html + legacy_manifest
+        page_scope = dict(scope or {}, surfaces=[row for row in (scope or {}).get("surfaces", page_surfaces) if row.get("id") in {item["id"] for item in page_surfaces}])
+        # Each page validates its own surface targets, not the global hybrid set.
+        page_scope.pop("responsive", None)
+        page_scope["surfaces"] = [dict(row, responsive=row.get("responsive", (scope or {}).get("responsive"))) for row in page_scope["surfaces"]]
+        _validate_hifi_html(checked_html, problems, page_scope, local_pages=set(documents))
+        parser = _HiFiProductControls()
+        parser.feed(page_html)
+        parser.close()
+        problems.extend(parser.errors)
+        for key, values in parser.controls.items():
+            product_controls.setdefault(key, []).extend(values)
+    if problems:
+        return
+    interactions = manifest.get("interactions")
+    if not isinstance(interactions, list) or not interactions:
+        _add(problems, "HiFi bundle requires product interactions")
+        return
+    ids: set[str] = set()
+    covered: set[tuple[str, str]] = set()
+    for action in interactions:
+        if not isinstance(action, dict) or set(action) != {"id", "source", "control", "kind", "destination"}:
+            _add(problems, "HiFi interaction key set is invalid")
+            continue
+        identifier, control = action.get("id"), action.get("control")
+        if not isinstance(identifier, str) or not identifier.strip() or identifier in ids or not isinstance(control, str):
+            _add(problems, "HiFi interaction IDs must be unique and control must be a string")
+            continue
+        ids.add(identifier)
+        valid = True
+        for endpoint in (action.get("source"), action.get("destination")):
+            if not isinstance(endpoint, dict) or set(endpoint) != {"surface", "state"} or not isinstance(endpoint.get("surface"), str) or endpoint["surface"] not in by_id or endpoint.get("state") not in by_id[endpoint["surface"]]["states"]:
+                _add(problems, f"HiFi interaction {identifier} has an unknown endpoint")
+                valid = False
+        if not valid:
+            continue
+        source = by_id[action["source"]["surface"]]
+        destination = by_id[action["destination"]["surface"]]
+        key = (source["id"], control)
+        controls = product_controls.get(key, [])
+        covered.add(key)
+        if not controls or control not in source["navigation"] + source["controls"]:
+            _add(problems, f"HiFi interaction {identifier} is not bound to a product control")
+        if action["kind"] == "navigate":
+            if any(item.get("tag") != "a" or item.get("href") != destination["page"] for item in controls):
+                _add(problems, f"HiFi interaction {identifier} link must reach its declared page")
+        elif action["kind"] == "state":
+            if source["page"] != destination["page"]:
+                _add(problems, "HiFi state interaction must stay on the same page")
+            if action["source"] == action["destination"]:
+                _add(problems, "HiFi state interaction must declare an observable destination state")
+        else:
+            _add(problems, "HiFi interaction kind must be navigate or state")
+    declared = {(row["id"], control) for row in surfaces for control in row["navigation"] + row["controls"]}
+    if covered != declared or set(product_controls) != declared:
+        _add(problems, "HiFi interactions must cover every declared and rendered product control")
+    reachable = {"index.html"}
+    for _ in documents:
+        for action in interactions:
+            if isinstance(action, dict) and action.get("kind") == "navigate":
+                source = action.get("source", {})
+                destination = action.get("destination", {})
+                if isinstance(source, dict) and isinstance(destination, dict):
+                    start = by_id.get(str(source.get("surface")), {}).get("page")
+                    end = by_id.get(str(destination.get("surface")), {}).get("page")
+                    if start in reachable and end in documents:
+                        reachable.add(end)
+    if reachable != set(documents):
+        _add(problems, "HiFi pages must be reachable from index.html through product navigation")
+
+
+def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any] | None = None) -> None:
     try:
         html = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
+        matches = list(HIFI_MANIFEST_RE.finditer(html))
+        manifest = json.loads(matches[0].group("data")) if len(matches) == 1 else None
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         _add(problems, f"Connected HiFi reference cannot be read: {exc}")
         return
+    if isinstance(manifest, dict) and manifest.get("schema") == "ui-hifi/2":
+        _validate_hifi_bundle(path, html, manifest, problems, scope)
+    else:
+        _validate_hifi_html(html, problems, scope)
+
+
+def _validate_hifi_html(
+    html: str, problems: list[str], scope: dict[str, Any] | None = None,
+    *, local_pages: set[str] | None = None,
+) -> None:
+    """Apply only the generic self-contained HTML safety rules to HiFi."""
+
     if re.search(r"<html\b", html, re.IGNORECASE) is None or re.search(r"<body\b", html, re.IGNORECASE) is None:
         _add(problems, "Connected HiFi reference must contain meaningful <html> and <body> elements")
     visible = re.sub(r"<script\b[\s\S]*?</script>|<style\b[\s\S]*?</style>|<[^>]+>", " ", html, flags=re.IGNORECASE)
@@ -856,7 +1056,13 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
         for target in responsive.get("targets", []) if isinstance(responsive, dict) else []:
             if re.search(rf"data-responsive-target=[\"']{re.escape(str(target))}[\"']", html, re.IGNORECASE) is None:
                 _add(problems, f"Connected HiFi reference is missing responsive target coverage for {target}")
-    parser = check_wireframe_html.ResourceParser()
+    class BundleResourceParser(check_wireframe_html.ResourceParser):
+        def _record_url(self, tag: str, name: str, value: str) -> None:
+            if tag == "a" and name == "href" and local_pages is not None and value in local_pages:
+                return
+            super()._record_url(tag, name, value)
+
+    parser = BundleResourceParser()
     parser.feed(html)
     parser.close()
     for finding in parser.csp_document_errors:
@@ -867,9 +1073,13 @@ def _validate_hifi_surface(path: Path, problems: list[str], scope: dict[str, Any
             "Connected HiFi reference must contain exactly one canonical restrictive CSP meta",
         )
     else:
-        for finding in check_wireframe_html.validate_hifi_csp_policy(
-            parser.content_security_policies[0]
-        ):
+        policy = parser.content_security_policies[0]
+        if local_pages is not None:
+            expected = check_wireframe_html.REQUIRED_HIFI_CSP.replace("navigate-to 'none'", "navigate-to 'self'")
+            if policy != expected:
+                _add(problems, "Connected HiFi bundle must use the exact local-page CSP policy")
+            policy = policy.replace("navigate-to 'self'", "navigate-to 'none'")
+        for finding in check_wireframe_html.validate_hifi_csp_policy(policy):
             _add(problems, finding)
     if parser.duplicate_attributes:
         _add(problems, "Connected HiFi reference has duplicate HTML attributes")
@@ -1414,6 +1624,17 @@ def _resolve_evidence(
                             _add(problems, f"{label} evidence receipt.outputArtifact must be JSON: {exc}")
                         else:
                             offline = receipt.get("method") == HIFI_SURFACE_RECEIPT_METHOD
+                            bundle = None
+                            if offline and expected_artifact:
+                                candidate = repo_root / expected_artifact
+                                try:
+                                    candidate.resolve().relative_to(repo_root.resolve())
+                                    matches = list(HIFI_MANIFEST_RE.finditer(candidate.read_text(encoding="utf-8")))
+                                    parsed_manifest = json.loads(matches[0].group("data")) if len(matches) == 1 else None
+                                    if isinstance(parsed_manifest, dict) and parsed_manifest.get("schema") == "ui-hifi/2":
+                                        bundle = parsed_manifest
+                                except (OSError, UnicodeError, ValueError):
+                                    _add(problems, "HiFi evidence bundle manifest cannot be read")
                             expected_output_keys = {
                                 "schema",
                                 "check",
@@ -1435,6 +1656,8 @@ def _resolve_evidence(
                                 "matrix",
                                 "results",
                             }
+                            if bundle is not None:
+                                expected_output_keys.add("interactions")
                             if not isinstance(output_json, dict) or set(output_json) != expected_output_keys:
                                 _add(
                                     problems,
@@ -1442,7 +1665,7 @@ def _resolve_evidence(
                                     + ("sandboxed offline ui-output/1 transcript schema" if offline else "ui-output/1 schema"),
                                 )
                             elif (
-                                output_json.get("schema") != "ui-output/1"
+                                output_json.get("schema") != ("ui-output/2" if bundle is not None else "ui-output/1")
                                 or output_json.get("check") != evidence.get("check")
                                 or output_json.get("subject") != evidence.get("reviewedArtifact")
                                 or output_json.get("matrix") != receipt.get("matrix")
@@ -1450,7 +1673,8 @@ def _resolve_evidence(
                             ):
                                 _add(problems, f"{label} output artifact does not exactly match its receipt")
                             elif offline:
-                                for finding in _offline_transcript_findings(output_json):
+                                findings = _bundle_transcript_findings(output_json, bundle) if bundle is not None else _offline_transcript_findings(output_json)
+                                for finding in findings:
                                     _add(problems, finding)
         timestamp = receipt.get("executedAt")
         try:
@@ -1484,6 +1708,40 @@ def _evidence_check(label: str, capture_mode: str | None) -> str | None:
         if label == "HiFi UI grading":
             return f"hifi-{suffix}-grading"
         return f"hifi-{suffix}-impeccable-{'critique' if 'critique' in label.casefold() else 'audit'}"
+
+
+def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
+    """Check attested click/key outcomes against the hash-bound interaction map."""
+    baseline = dict(output, navigation=[], sandbox={"network": "disabled", "topNavigation": "blocked", "popups": "blocked", "forms": "blocked"})
+    findings = _offline_transcript_findings(baseline)
+    expected_sandbox = dict(baseline["sandbox"], topNavigation="allowlisted-local-pages")
+    if output.get("sandbox") != expected_sandbox:
+        findings.append("HiFi bundle requires the allowlisted-local-pages offline sandbox")
+    try:
+        by_id = {row["id"]: row for row in manifest["surfaces"]}
+        expected = []
+        navigation = []
+        for action in manifest["interactions"]:
+            source = by_id[action["source"]["surface"]]
+            destination = by_id[action["destination"]["surface"]]
+            for target in source["responsive"]["targets"]:
+                for trigger in ("click", "keyboard"):
+                    expected.append({
+                        "id": action["id"], "target": str(target), "trigger": trigger,
+                        "source": action["source"], "destination": action["destination"],
+                        "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS",
+                    })
+                    if action["kind"] == "navigate":
+                        navigation.append({"id": action["id"], "target": str(target), "trigger": trigger, "from": source["page"], "to": destination["page"]})
+        def rows_equal(actual: Any, required: list[dict[str, Any]]) -> bool:
+            return isinstance(actual, list) and sorted(json.dumps(row, sort_keys=True) for row in actual) == sorted(json.dumps(row, sort_keys=True) for row in required)
+        if not rows_equal(output.get("interactions"), expected):
+            findings.append("HiFi interaction evidence must exactly cover click and keyboard destination, visibility, and focus results at every target")
+        if not rows_equal(output.get("navigation"), navigation):
+            findings.append("HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail")
+    except (KeyError, TypeError, ValueError):
+        findings.append("HiFi bundle interaction manifest is invalid")
+    return findings
 
 
 def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:

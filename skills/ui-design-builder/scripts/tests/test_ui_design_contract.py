@@ -301,7 +301,156 @@ def materialize_publication(root: Path, *, required: bool) -> tuple[Path, Path, 
     return product, architecture, stack, wireframe, hifi, (pair_markdown, pair_registry) if required else None
 
 
+def materialize_hifi_bundle(root):
+    """Two real linked pages, with a hash-bound child and product controls."""
+    path = root / "index.html"
+    surfaces = [
+        {"id": surface, "page": page, "route": route, "states": ["ready", "updated"],
+         "responsive": {"kind": "viewports", "targets": [390, 1200]},
+         "navigation": ["next"], "controls": ["refresh"]}
+        for surface, page, route in (("UI-001", "index.html", "/home"), ("UI-002", "details.html", "/details"))
+    ]
+    manifest = {"schema": "ui-hifi/2", "pages": [], "surfaces": surfaces, "interactions": []}
+    policy = checker.check_wireframe_html.REQUIRED_HIFI_CSP.replace("navigate-to 'none'", "navigate-to 'self'")
+    def page(row, other):
+        return ('<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="' + policy
+                + '"></head><body><main data-ui-surface="' + row["id"] + '" data-ui-route="' + row["route"]
+                + '"><h1>Connected product page with real navigation</h1><a data-navigation-id="next" href="' + other["page"]
+                + '">Next page</a><button data-control-id="refresh">Refresh</button>'
+                + ''.join('<span data-state="' + state + '" data-responsive-target="' + str(target) + '"></span>' for target in (390, 1200) for state in ("ready", "updated"))
+                + '</main></body></html>')
+    for source, destination in ((surfaces[0], surfaces[1]), (surfaces[1], surfaces[0])):
+        for control, kind, target in (("next", "navigate", destination), ("refresh", "state", source)):
+            manifest["interactions"].append({"id": source["id"] + "-" + control, "source": {"surface": source["id"], "state": "ready"},
+                                            "control": control, "kind": kind, "destination": {"surface": target["id"], "state": "updated" if kind == "state" else "ready"}})
+    child = root / "details.html"
+    child.write_text(page(surfaces[1], surfaces[0]), encoding="utf-8")
+    manifest["pages"] = [{"path": "details.html", "sha256": hashlib.sha256(child.read_bytes()).hexdigest()}]
+    html = page(surfaces[0], surfaces[1]).replace('</body>', '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script></body>')
+    path.write_text(html, encoding="utf-8")
+    return path, manifest, {"surfaces": [{key: value for key, value in row.items() if key != "page"} for row in surfaces]}
+
+
+def bundle_output(manifest):
+    output = {"sandbox": {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"},
+              "console": [], "network": [], "navigation": [], "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0, "interactions": []}
+    surfaces = {row["id"]: row for row in manifest["surfaces"]}
+    for action in manifest["interactions"]:
+        source = surfaces[action["source"]["surface"]]
+        destination = surfaces[action["destination"]["surface"]]
+        for target in source["responsive"]["targets"]:
+            for trigger in ("click", "keyboard"):
+                output["interactions"].append({"id": action["id"], "target": str(target), "trigger": trigger, "source": action["source"],
+                                               "destination": action["destination"], "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS"})
+                if action["kind"] == "navigate":
+                    output["navigation"].append({"id": action["id"], "target": str(target), "trigger": trigger, "from": source["page"], "to": destination["page"]})
+    return output
+
+
 class UiDesignContractTests(unittest.TestCase):
+    def test_malformed_bundle_surface_fields_fail_closed_without_scope(self):
+        for key, value in (("states", None), ("responsive", []), ("responsive", {"kind": "viewports", "targets": [[]]}), ("navigation", [False]), ("controls", {})):
+            with self.subTest(key=key, value=value), tempfile.TemporaryDirectory() as temp:
+                path, manifest, _ = materialize_hifi_bundle(Path(temp))
+                manifest["surfaces"][0][key] = value
+                text = checker.HIFI_MANIFEST_RE.sub(lambda _: '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script>', path.read_text(encoding="utf-8"))
+                path.write_text(text, encoding="utf-8")
+                problems = []
+                checker._validate_hifi_surface(path, problems)
+                self.assertTrue(problems)
+
+    def test_bundle_receipt_cannot_downgrade_to_static_schema_one_output(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path, manifest, _ = materialize_hifi_bundle(root)
+            subject = {"path": "index.html", "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+            cases = [{"surface": row["id"], "state": state, "target": str(target)} for row in manifest["surfaces"] for state in row["states"] for target in row["responsive"]["targets"]]
+            matrix = {"cases": cases}
+            results = [dict(case, result="PASS") for case in cases]
+            for legacy in (False, True):
+                with self.subTest(legacy=legacy):
+                    output = dict(bundle_output(manifest), schema="ui-output/2", check="hifi-browser", subject=subject, matrix=matrix, results=results)
+                    if legacy:
+                        output["schema"] = "ui-output/1"
+                        output.pop("interactions")
+                        output["navigation"] = []
+                        output["sandbox"]["topNavigation"] = "blocked"
+                    output_path = root / "output.json"
+                    output_path.write_text(json.dumps(output), encoding="utf-8")
+                    evidence = {"schema": "ui-evidence/2", "check": "hifi-browser", "result": "PASS", "reviewedArtifact": subject,
+                                "attestation": "human-attested", "owner": "Fixture human owner", "receipt": {
+                                    "tool": "playwright", "method": "sandboxed-offline-browser", "matrix": matrix, "results": results,
+                                    "outputArtifact": {"path": "output.json", "sha256": hashlib.sha256(output_path.read_bytes()).hexdigest()}, "executedAt": "2020-01-01T00:00:00Z"}}
+                    evidence_path = root / "evidence.json"
+                    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+                    problems = []
+                    checker._resolve_evidence("PASS — evidence=evidence.json @ sha256:" + hashlib.sha256(evidence_path.read_bytes()).hexdigest(),
+                                              repo_root=root, label="HiFi surface check", problems=problems, expected_artifact="index.html", expected_matrix=matrix)
+                    if legacy:
+                        self.assertTrue(problems)
+                    else:
+                        self.assertEqual(problems, [])
+
+    def test_multi_page_hifi_validates_child_hashes_and_product_links(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path, manifest, scope = materialize_hifi_bundle(root)
+            problems = []
+            checker._validate_hifi_surface(path, problems, scope)
+            self.assertEqual(problems, [])
+            self.assertEqual(checker._bundle_transcript_findings(bundle_output(manifest), manifest), [])
+            child = root / "details.html"
+            child.write_text(child.read_text(encoding="utf-8") + '<!-- changed -->', encoding="utf-8")
+            problems = []
+            checker._validate_hifi_surface(path, problems, scope)
+            self.assertTrue(any("stale" in value for value in problems), problems)
+
+    def test_multi_page_hifi_rejects_wrong_link_and_dead_control(self):
+        for old, new, error in ((
+            'href="details.html"', 'href="index.html"', "declared page"), (
+            'href="details.html"', 'href="https://example.test/"', "external"), (
+            '</main>', '<button>Unwired tab</button></main>', "needs a navigation/control ID")):
+            with self.subTest(new=new), tempfile.TemporaryDirectory() as temp:
+                path, _, scope = materialize_hifi_bundle(Path(temp))
+                path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+                problems = []
+                checker._validate_hifi_surface(path, problems, scope)
+                self.assertTrue(any(error in value for value in problems), problems)
+
+    def test_multi_page_hifi_rejects_missing_page_and_path_escape(self):
+        for name in ("missing.html", "../outside.html", "/absolute.html", "index.html", "DETAILS.html", "details.html?query=1"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temp:
+                path, manifest, scope = materialize_hifi_bundle(Path(temp))
+                manifest["pages"].append({"path": name, "sha256": "a" * 64})
+                html = checker.HIFI_MANIFEST_RE.sub(lambda _: '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script>', path.read_text(encoding="utf-8"))
+                path.write_text(html, encoding="utf-8")
+                problems = []
+                checker._validate_hifi_surface(path, problems, scope)
+                self.assertTrue(problems)
+
+    def test_multi_page_evidence_requires_actual_destinations_and_keyboard_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            _, manifest, _ = materialize_hifi_bundle(Path(temp))
+            for mutation in ("missing-click", "wrong-target", "hidden", "focus", "extra-navigation", "network", "popup"):
+                with self.subTest(mutation=mutation):
+                    output = bundle_output(manifest)
+                    if mutation == "missing-click":
+                        output["interactions"].pop()
+                    elif mutation == "wrong-target":
+                        output["interactions"][0]["destination"] = {"surface": "UI-001", "state": "ready"}
+                    elif mutation == "hidden":
+                        output["interactions"][0]["visible"] = False
+                    elif mutation == "focus":
+                        output["interactions"][0]["focusCorrect"] = False
+                    elif mutation == "extra-navigation":
+                        output["navigation"].append({"to": "outside.html"})
+                    elif mutation == "network":
+                        output["network"].append({"url": "https://example.test/"})
+                    else:
+                        output["popups"].append({"url": "details.html"})
+                        output["popupAttempts"] = 1
+                    self.assertTrue(checker._bundle_transcript_findings(output, manifest))
+
     def test_public_validator_has_no_unscoped_pair_bypass_and_preflight_is_exact(self):
         self.assertNotIn("verify_design_system_pair", inspect.signature(checker.validate).parameters)
         with tempfile.TemporaryDirectory() as temp:
