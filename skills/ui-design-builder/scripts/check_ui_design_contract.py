@@ -2208,7 +2208,10 @@ def validate_text(
                 "HiFi score",
                 "H2 score",
                 "H4 score",
+                "H5 score",
+                "H7 score",
                 "H8 score",
+                "H9 score",
                 "HiFi lowest dimension",
                 "HiFi blocks or disputes",
             ),
@@ -2232,7 +2235,10 @@ def validate_text(
             ("HiFi score", 90),
             ("H2 score", 90),
             ("H4 score", 90),
+            ("H5 score", 80),
+            ("H7 score", 80),
             ("H8 score", 90),
+            ("H9 score", 80),
             ("HiFi lowest dimension", 60),
         ):
             score = _score(review_values.get(name))

@@ -263,7 +263,10 @@ UI grading: H1-H9 overall 95; H2 95; H4 95; H8 95; no block
 HiFi score: 95
 H2 score: 95
 H4 score: 95
+H5 score: 95
+H7 score: 95
 H8 score: 95
+H9 score: 95
 HiFi lowest dimension: 90
 HiFi blocks or disputes: none
 ## Visual Approval

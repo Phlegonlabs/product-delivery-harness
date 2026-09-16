@@ -74,7 +74,7 @@ Before human visual approval:
 4. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
 5. Let `frontend-design` make one repair batch. Then re-run the authorized Impeccable critique and audit checks plus the complete rubric once on the new SHA-256.
 
-The candidate is ready for the human gate only when overall `H1`–`H9` is at least 90, `H2`, `H4`, and `H8` are each at least 90, every dimension is at least 60, and no block or disputed dimension remains. Do not repair merely to chase 100. A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+The candidate is ready for the human gate only when overall `H1`–`H9` is at least 90, `H2`, `H4`, and `H8` are each at least 90, `H5`, `H7`, and `H9` are each at least 80, every dimension is at least 60, and no block or disputed dimension remains. Do not repair merely to chase 100. A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 
 ## Browser And Human Visual Approval
 

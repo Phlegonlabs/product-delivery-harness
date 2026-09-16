@@ -95,7 +95,10 @@ HiFi surface check: PASS — evidence=docs/evidence/hifi-browser.json @ sha256:{
 HiFi score: 94
 H2 score: 95
 H4 score: 94
+H5 score: 90
+H7 score: 90
 H8 score: 96
+H9 score: 92
 HiFi lowest dimension: 88
 HiFi blocks or disputes: none
 
@@ -691,6 +694,31 @@ class UiDesignContractTests(unittest.TestCase):
                 require_visual_approved=True,
             ),
         )
+
+    def test_visual_quality_dimensions_cannot_be_averaged_away(self):
+        for dimension, original in (("H5", 90), ("H7", 90), ("H9", 92)):
+            for score in (60, 79, 101, "80.0", "PASS"):
+                with self.subTest(dimension=dimension, score=score):
+                    candidate = contract().replace("HiFi score: 94", "HiFi score: 100")
+                    candidate = candidate.replace(f"{dimension} score: {original}", f"{dimension} score: {score}")
+                    problems = checker.validate_text(candidate, require_visual_approved=True)
+                    self.assertIn(f"ui-design: {dimension} score must be an integer from 80 to 100", problems)
+
+    def test_visual_quality_floor_accepts_boundary_and_requires_each_score(self):
+        for dimension, original in (("H5", 90), ("H7", 90), ("H9", 92)):
+            with self.subTest(dimension=dimension):
+                candidate = contract().replace(f"{dimension} score: {original}", f"{dimension} score: 80")
+                self.assertEqual([], checker.validate_text(candidate, require_visual_approved=True))
+                missing = candidate.replace(f"{dimension} score: 80\n", "")
+                self.assertTrue(any(f"missing '{dimension} score'" in p for p in checker.validate_text(missing, require_visual_approved=True)))
+                self.assertEqual([], checker.validate_text(missing, require_wireframe_approved=True))
+
+    def test_two_weak_visual_dimensions_block_a_ninety_one_overall(self):
+        candidate = contract().replace("HiFi score: 94", "HiFi score: 91")
+        candidate = candidate.replace("H5 score: 90", "H5 score: 60").replace("H7 score: 90", "H7 score: 60")
+        problems = checker.validate_text(candidate, require_visual_approved=True)
+        for dimension in ("H5", "H7"):
+            self.assertIn(f"ui-design: {dimension} score must be an integer from 80 to 100", problems)
 
     def test_wireframe_approval_is_human_and_approved(self):
         problems = checker.validate_text(

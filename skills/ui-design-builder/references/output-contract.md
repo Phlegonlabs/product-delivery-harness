@@ -126,7 +126,13 @@ H2 score: [0-100]
 
 H4 score: [0-100]
 
+H5 score: [80-100 for Visual Approval]
+
+H7 score: [80-100 for Visual Approval]
+
 H8 score: [0-100]
+
+H9 score: [80-100 for Visual Approval]
 
 HiFi lowest dimension: [0-100]
 
