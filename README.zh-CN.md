@@ -38,7 +38,7 @@
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
-- **先批准 Product Definition，再进入 UI 设计。** 每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。
+- **先批准 Product Definition，再进入 UI 设计。** 每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。 CLI 与 `other_nonpublic` 共用标准 `Toolchain` 批准 area（`CLI/toolchain` 为别名），分别记录 language、toolchain、distribution mechanism 与 testing layers。
 - **建议不等于实现权威。** 每个适用领域先给出两到三组 coherent stack。新选择获批后标记 `Approved`，现有选择是 `Selected`，硬限制是 `Required`；`Recommended` 和 `Provisional` 会阻止 delivery。Checkpoint 的封闭 area set 必须等于适用且已解决的 areas，获批 option 的 layer map 必须等于可执行 stack rows。
 - **UI 设计有独立批准主线。** `ui-design-builder` 先完成 UI/style/motion/media intake。Schema 4 wireframe 冻结文案与显示契约；hybrid 产品逐 `UI-*` surface 绑定 `releaseSurface`、`surfaceClass`、`captureMode` 与 responsive set。HiFi target 必须带精确 scope、restrictive CSP，以及保留 console、network、navigation、form、popup 尝试的人工 sandboxed-offline receipt。需要正式 design system 时走唯一窄路径：Visual Approval 记录 `required/pending`，compiler 校验该批准 digest 并生成 pair，owner 再链接两份 hash；普通 final validation 会拒绝 pending。Agent 不能代替 owner 批准。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。

@@ -1165,7 +1165,8 @@ async function agent(_prompt, options) {
         monetization = self.read("references/monetization-and-partner-channel-guide.md")
 
         header = "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |"
-        self.assertEqual(5, contract.count(header))
+        self.assertEqual(6, contract.count(header))
+        self.assertIn("## CLI and Toolchain Decision", contract)
         for status_rule in (
             "`Required` means a user, organization, or hard external constraint",
             "`Selected` means the current product or repository already adopted it",

@@ -58,9 +58,7 @@ def release_area_requirements(targets: Iterable[object]) -> set[str]:
             areas.add("backend or data")
         elif surface_class == "agent":
             areas.update({"backend or data", "ai or automation"})
-        elif surface_class == "cli":
-            areas.add("cli/toolchain")
-        elif surface_class == "other_nonpublic":
+        elif surface_class in {"cli", "other_nonpublic"}:
             areas.add("toolchain")
     return areas
 
