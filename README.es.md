@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.39.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.40.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -538,6 +538,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.40.0** — H5, H7 y H9 exigen al menos 80 de forma independiente. La selección compara capturas de casos principales y exigentes, con scope, cobertura de plataformas, imágenes y hashes validados. Platform rules separa tipografía, iconos, layout e input Web/nativos; iOS evalúa system text styles, Dynamic Type y SF Symbols. HTML solo sirve para revisión; los casos nativos se verifican antes de ampliar la implementación. Los contratos anteriores requieren los nuevos registros y renovar las aprobaciones afectadas. Cambio incompatible del bundle; ninguna aprobación antigua se actualiza implícitamente.
 
 - **0.39.0** — HiFi conectado usa `ui-hifi/2` con hashes de páginas HTML hermanas, destinos de controles y evidencia de clic/teclado `ui-output/2`. La revisión Git congelada incluye todas las páginas. Schema 1 solo admite inspección; Visual Approval exige el contrato nuevo. También corrige la aprobación Toolchain de CLI, colisiones de nombres parity y ACL de ejecutables Windows. Añade validación de publicación UI en rutas finales, Skill Bindings por etapa, rutas de comandos instalados, helpers HTTPS autorizados, digest UI canónico, reglas responsive híbridas y preparación de Activation antes del despliegue.
 

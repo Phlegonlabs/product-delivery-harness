@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.39.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.40.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -539,6 +539,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.40.0** — H5、H7、H9 各须达到 80，视觉质量不再被总分抵消。选方向须提供主要／压力情境的可比较截图，验证范围、平台覆盖、图像文件与哈希。Platform rules 分开 Web 与原生字体、图标、版面及操作；iOS 明确评估 system text styles、Dynamic Type 与 SF Symbols。HTML 仅供审稿，原生代表案例先验证再扩展实作。既有视觉契约须补齐比较、平台与分数记录，并重新取得受影响的批准。破坏性 skill-bundle 变更，不自动升级旧批准。
 
 - **0.39.0** — 连通 HiFi 采用 `ui-hifi/2`，绑定同目录 HTML 页面哈希、产品控件目的地，以及 `ui-output/2` 点击／键盘证据。冻结的 Git revision 必须包含所有子页面。旧 schema-1 仅供读取检查；正式 Visual Approval 一律使用新契约。同时修复 CLI／非公开工具的 Toolchain 批准、parity 文件名冲突，以及 Windows 可执行文件 ACL 检查。 新增最终路径 UI 发布检查、分阶段 Skill Bindings、已安装命令路径、管理员批准的 HTTPS credential helper、canonical UI digest、hybrid responsive 指引与部署前 Activation 准备。
 
