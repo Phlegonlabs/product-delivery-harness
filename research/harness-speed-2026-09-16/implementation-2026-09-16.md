@@ -1,7 +1,9 @@
 # Harness speed implementation note
 
-Date: 2026-09-16  
-Base: `98fa418a5bbed1fb73d0b90b30ccd24fb98758dd`  
+Date: 2026-09-16
+
+Base: `98fa418a5bbed1fb73d0b90b30ccd24fb98758dd`
+
 UI impact: none.
 
 ## What changed
