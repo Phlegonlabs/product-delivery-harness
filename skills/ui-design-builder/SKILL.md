@@ -5,6 +5,10 @@ description: Turn an approved Product Definition into an owner-approved UI desig
 
 # UI Design Builder
 
+## Installed Commands
+
+Resolve `<ui-design-builder-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+
 ## Purpose
 
 Use this skill only after `product-definition-builder` has produced an owner-approved `PRD.md`, `architecture.md`, and `stack-decisions.md`. Product Definition decides what the product does and which frontend, backend, data, auth, deployment, mobile, and commercial technologies it uses. This skill decides how the approved UI is structured and expressed.
@@ -22,7 +26,7 @@ It does not change product scope, routes, actions, states, responsive targets, c
 
 1. Use `frontend-design` only as a visual-direction and frontend-authoring resource for structural composition and HiFi style integration. During wireframing, use only its information hierarchy, layout, and interaction judgment; do not freeze a visual theme or design tokens.
 2. Use `impeccable` only as a separately authorized quality workflow for the HiFi review: one `critique` and one `audit`. It does not author the selected direction or edit the candidate, and its side effects require their own explicit authorization; it is not the publication gate.
-3. Require an approved Product Definition and Stack Decision Checkpoint. Before UI work, run `python skills/product-definition-builder/scripts/check_product_package.py --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` from the repository root.
+3. Require an approved Product Definition and Stack Decision Checkpoint. Before UI work, run `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` from the repository root.
 4. Read the complete PRD UI Surface Contract and the approved frontend stack, including component foundation and styling approach. A design that needs a stack change returns upstream before wireframing or Style Integration continues.
 5. Read `references/artifact-lifecycle.md` and inspect any existing `ui-design.md`, `wireframes.html`, retained references, and design-system pair before drafting. Preserve stable `UI-*`, `UX-*`, `VD-*`, `REF-*`, and `RP-*` identities.
 
