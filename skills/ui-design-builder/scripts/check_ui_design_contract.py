@@ -474,7 +474,16 @@ def _design_table(style: str, heading: str, columns: list[str], problems: list[s
         _add(problems, f"Style Integration requires exactly one {heading!r}")
         return []
     body = re.split(r"^#{2,3} ", style[matches[0].end():], maxsplit=1, flags=re.MULTILINE)[0]
-    rows = _table_rows(body)
+    normalized = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if "|" in stripped:
+            if not stripped.startswith("|"):
+                stripped = "| " + stripped
+            if not stripped.endswith("|"):
+                stripped += " |"
+        normalized.append(stripped)
+    rows = _table_rows("\n".join(normalized))
     if not rows or rows[0] != columns or len(rows) == 1:
         _add(problems, f"{heading} requires its declared columns and at least one row")
         return []
@@ -538,7 +547,7 @@ def _direction_comparison(
                             capture.verify()
                     except (OSError, ValueError, Image.DecompressionBombError) as exc:
                         _add(problems, f"Direction comparison Screenshot cannot be verified as an image: {exc}")
-    expected = 3 if _field(intake, "Direction mode") == "three comparable directions" else 1
+    expected = 3 if (_field(intake, "Direction mode") or "").casefold() == "three comparable directions" else 1
     if len(cases) != expected:
         _add(problems, f"Direction comparison requires exactly {expected} directions")
     selected = re.match(r"VD-R[1-9][0-9]*-[0-9]{2,}(?=\s|$)", _field(style, "Selected direction") or "")

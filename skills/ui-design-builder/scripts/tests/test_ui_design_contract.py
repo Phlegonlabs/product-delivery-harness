@@ -781,6 +781,8 @@ class UiDesignContractTests(unittest.TestCase):
                            for n in (2, 3))
         base = base.replace("\n### Platform rules", "\n" + extras + "\n\n### Platform rules")
         self.assertEqual([], checker.validate_text(base, require_visual_approved=True))
+        mixed_case = base.replace("Direction mode: three comparable directions", "Direction mode: Three comparable directions")
+        self.assertEqual([], checker.validate_text(mixed_case, require_visual_approved=True))
         for candidate in (
             base.replace("2" * 64, PRIMARY_HASH),
             base.replace("Approved home copy and normal data", "different content", 1),
@@ -803,6 +805,29 @@ class UiDesignContractTests(unittest.TestCase):
             problems = []
             checker._direction_comparison(style, "Direction mode: one recommended direction", None, problems, repo_root=root)
             self.assertTrue(any("canonical POSIX segments" in p for p in problems), problems)
+
+    def test_design_tables_do_not_ignore_rows_with_optional_outer_pipes(self):
+        base = contract()
+        for remove in ("left", "right", "both"):
+            def strip_outer(row):
+                if remove in {"left", "both"}:
+                    row = row.lstrip("|").lstrip()
+                if remove in {"right", "both"}:
+                    row = row.rstrip("|").rstrip()
+                return row
+            with self.subTest(remove=remove):
+                candidate = "\n".join(strip_outer(row) if row.startswith("|") and (
+                    row.startswith("| VD-") or row.startswith("| web |")
+                ) else row for row in base.splitlines())
+                self.assertEqual([], checker.validate_text(candidate, require_visual_approved=True))
+                extra_direction = next(row for row in base.splitlines() if row.startswith("| VD-R1-01 |"))
+                extra_direction = strip_outer(extra_direction.replace("VD-R1-01", "VD-R1-02"))
+                candidate = base.replace("\n### Platform rules", "\n" + extra_direction + "\n\n### Platform rules")
+                self.assertTrue(any("requires exactly 1 directions" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
+                extra_platform = next(row for row in base.splitlines() if row.startswith("| web |"))
+                extra_platform = strip_outer(extra_platform.replace("| web |", "| ios |"))
+                candidate = base.replace("\n## HiFi Review", "\n" + extra_platform + "\n\n## HiFi Review")
+                self.assertTrue(any("Platform rules must exactly cover" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
 
     def test_platform_rules_match_platforms_and_keep_native_proof_separate(self):
         web = checker._section(contract(), "## Style Integration")
