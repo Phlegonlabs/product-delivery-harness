@@ -10,7 +10,10 @@ On Windows, install the native `docker.exe` or `podman.exe` under `Program Files
 or the Windows system directory. Do not point a PLAN at `.cmd`, `.bat`, `.ps1`,
 or an executable in a checkout, `%TEMP%`, `%APPDATA%`, or a user-owned tools
 directory. The preflight checks the canonical path, native `.exe` suffix, ACL-safe
-machine location, and non-reparse components. A Windows administrator should
+machine location, and non-reparse components. The runtime, Git, and browser
+launcher checks inspect the file's owner and DACL separately from its parent;
+a protected directory does not make a file with a user-write ACE trusted.
+A Windows administrator should
 verify the path with `Get-Item` and `Get-Acl`; all parent directories must deny
 ordinary users write access.
 

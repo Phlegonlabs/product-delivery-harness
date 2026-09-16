@@ -227,6 +227,8 @@ def _trusted_launcher_path(path: Path, label: str) -> Path:
         roots = list(windows_machine_roots())
         if not any(_path_within(resolved, root) for root in roots):
             raise RuntimeError(f"{label} must come from Program Files or Windows system directories")
+        if windows_parent_user_writable(resolved):
+            raise RuntimeError(f"{label} file is user-writable: {resolved}")
         if windows_parent_user_writable(resolved.parent):
             raise RuntimeError(f"{label} parent is user-writable: {resolved.parent}")
         if resolved.suffix.casefold() not in {".exe", ".com", ".js", ".py", ".cmd", ".bat"}:
