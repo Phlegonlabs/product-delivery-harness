@@ -662,10 +662,11 @@ def _retained_verifier_results(
             _issue(errors, "retained_verifier_mismatch", f"{path}.exit_code", f"{status} requires null exit code")
         for issue in execution_retention_binding_errors(item):
             _issue(errors, "retained_verifier_mismatch", f"{path}.execution_binding", issue)
-        # Origins returned in this same parent-observed batch are not in RUN
-        # yet. Every supplied result is validated by this loop before acceptance.
+        # New reuse must bring its origin in this parent-observed batch.
+        # RUN history is not evidence that a prior process ran in this batch.
+        # Every supplied result is validated by this loop before acceptance.
         for issue in container_reuse_origin_run_errors(item, {
-            "verifier_executions": [*run.get("verifier_executions", []), *values],
+            "verifier_executions": values,
         }):
             _issue(errors, "retained_verifier_mismatch", f"{path}.container_reuse_origin", issue)
         declaration_binding = declarations.get(verifier_id)

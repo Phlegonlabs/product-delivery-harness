@@ -559,10 +559,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
             [],
         )
 
-    def test_same_batch_container_origin_is_accepted_and_required(self) -> None:
-        from harness_worker_result_transition import _retained_execution
-        from verifier_runtime import container_reuse_origin_run_errors
-
+    def _same_batch_container_fixture(self):
         plan = copy.deepcopy(self.plan)
         mission = plan["missions"][0]
         for declaration in [*mission["worker_verifiers"], *mission["tasks"][0]["verifiers"]]:
@@ -593,6 +590,14 @@ class ValidateWorkerResultTests(unittest.TestCase):
         }
         for reported, item in zip(result["verifiers"], retained):
             reported["evidence"] = item["evidence_key"]
+        return plan, run, result, retained
+
+    def test_same_batch_container_origin_is_accepted_and_required(self) -> None:
+        from harness_worker_result_transition import _retained_execution
+        from verifier_runtime import container_reuse_origin_run_errors
+
+        plan, run, result, retained = self._same_batch_container_fixture()
+        consumer = retained[1]
         self.assertEqual([], validate(plan, run, result, retained=retained))
         records = [_retained_execution(run, item, []) for item in retained]
         self.assertEqual([], container_reuse_origin_run_errors(records[1], {"verifier_executions": records}))
@@ -600,6 +605,20 @@ class ValidateWorkerResultTests(unittest.TestCase):
         self.assertTrue(validate(plan, run, result, retained=retained))
         consumer.pop("container_reuse_origin")
         self.assertTrue(validate(plan, run, result, retained=retained))
+
+    def test_prior_run_container_origin_cannot_authorize_current_reuse(self) -> None:
+        from harness_worker_result_transition import _retained_execution
+
+        plan, run, result, retained = self._same_batch_container_fixture()
+        self.assertEqual([], validate(plan, run, result, retained=retained))
+        run["verifier_executions"] = [_retained_execution(run, copy.deepcopy(retained[0]), [])]
+        # The current command ran independently. Only the prior RUN row carries
+        # the origin marker; matching output and keys do not make it current.
+        retained[0]["cache_reason"] = "container_reuse_not_requested"
+        for current in (retained, retained[1:]):
+            with self.subTest(current_execution_present=len(current) == 2):
+                errors = validate(plan, run, result, retained=current)
+                self.assertTrue(any("container_reuse_origin" in error["path"] for error in errors), errors)
 
     def test_parent_observed_diff_selects_required_verifiers(self) -> None:
         plan = copy.deepcopy(self.plan)
