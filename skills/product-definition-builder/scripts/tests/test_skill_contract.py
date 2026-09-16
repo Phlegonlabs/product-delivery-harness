@@ -230,7 +230,7 @@ async function agent(_prompt, options) {
 
         self.assertIn(
             "<delivery-harness-skill-root>/scripts/"
-            "configure_project_context.py --root <target-root> --check",
+            'configure_project_context.py" --root <target-root> --check',
             skill,
         )
         self.assertIn("PROJECT_AGENTS.template.md` for `AGENTS.md`", skill)
@@ -1911,7 +1911,7 @@ async function agent(_prompt, options) {
         self.assertIn("macos", skill)
         self.assertIn("windows", skill)
         self.assertIn("including hybrids", skill)
-        self.assertIn("check_activation.py --activation", skill)
+        self.assertIn('check_activation.py" --activation', skill)
         self.assertIn("--architecture <staged architecture.md>", skill)
         self.assertIn("never falls back to a bundled default", skill)
         self.assertIn("creates it only when absent", contract)

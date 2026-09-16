@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 import re
+import sys
 from pathlib import Path
 
 
@@ -349,12 +350,27 @@ class InstallScriptTests(unittest.TestCase):
             )
 
     def test_bash_installs_complete_manifest_and_migrates_legacy_copies(self) -> None:
+        self.destination = self.home / "installed skills"
         self.seed_managed_copies()
         result = self.run_bash(
             {"SKILL_BACKUP_ROOT": str(self.backup_root)}
         )
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assert_full_install()
+        target = self.home / "empty target project"
+        target.mkdir()
+        for skill, script in (
+            ("delivery-harness", "check_skill_bindings.py"),
+            ("product-definition-builder", "check_product_package.py"),
+            ("ui-design-builder", "check_ui_publication.py"),
+            ("design-system-compiler", "check_design_system_pair.py"),
+            ("product-activation", "check_activation.py"),
+            ("seo-growth-review", "check_seo_review.py"),
+        ):
+            result = subprocess.run([sys.executable, str(self.destination / skill / "scripts" / script), "--help"],
+                                    cwd=target, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertFalse((target / "skills").exists())
 
         backups = [child for child in self.backup_root.iterdir() if child.is_dir()]
         self.assertEqual(1, len(backups))

@@ -473,7 +473,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
 
         self.assertIn(
-            "fills the new `AGENTS.md`'s Skill Bindings table from locally observed skills",
+            "Resolve new Skill Bindings from observed skills with owner confirmation",
             skill,
         )
         self.assertIn("## Skill Bindings", project_agents)

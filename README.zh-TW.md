@@ -382,7 +382,7 @@ Managed 本機 verifier 另需由 administrator/root 安裝在 OS 保護路徑�
 3. UI 產品進 `ui-design-builder`：human intake、Copy Freeze、schema-4 wireframe 驗證與核准、Style Integration、structured HiFi、human-attested receipts、H1–H9 review 與 Visual Approval。
 4. Design System Need Gate 為 `required` 時，先記錄精確 `required/pending` marker，通過 compiler 的窄 preflight，產生 schema-2 pair，由 owner 連結兩份 hash，再通過一般 final UI validation。`not_required` 時要記錄既有 pair 的 retain/retire disposition。
 5. 再呼叫 `delivery-harness`。Size gate 讓單一小改動維持 direct；大型工作才建立 PLAN-v6/RUN-v11。每個會改狀態的動作都要精確授權。
-6. Managed launch 前先通過 frozen source joins，並執行 `python skills/delivery-harness/scripts/harness_transition.py --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`；`--probe-sandboxes` 只作診斷。Mission 使用隔離 worktree；所有 candidate commands 在 pinned container 內執行。
+6. Managed launch 前先通過 frozen source joins，並執行 `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`；`--probe-sandboxes` 只作診斷。Mission 使用隔離 worktree；所有 candidate commands 在 pinned container 內執行。
 7. 完成 exact-head mission reviews、graph-ordered security checks、全新的 unified `code-security-review`、broad regression gates 與 platform-correct UI evidence。
 8. 只有 managed 工作要關閉 RUN：用 exact `main` evidence 與絕對 external `--anchor-out` dry-run/apply `archive_run.py`，commit journaled move 與 `ARCHIVE_RECEIPT.json` 為 A，再依 anchor 重驗。Direct 工作保留既有 fixed candidate，跳過 RUN archive。
 9. 另行取得 action-time authorization，以 external anchor 與 immutable request/attempt/receipt 準備 A。Trusted host 重新讀取並驗證後執行 exact URL-only no-force publication、簽署 evidence；recovery 驗證 evidence 並讀回 A。本機 agent 不執行該 argv。
@@ -390,6 +390,16 @@ Managed 本機 verifier 另需由 administrator/root 安裝在 OS 保護路徑�
 11. 另行精確授權，把未變的 candidate fast-forward 到 `main`、讀回並驗證 production。
 12. 執行 `product-activation`：精確外部動作、獨立 read-back、behavior evidence、readiness 與 verified measurement sources。
 13. 每個 target 的 measurement window 結束後執行 append-only Outcome Review；public hosted-web production target 可再選用 `seo-growth-review`。
+
+### 執行已安裝技能與發布檢查
+
+將 `<skill-name-skill-root>` 解析為已安裝技能的絕對目錄（通常是 `~/.agents/skills/<skill-name>`），為 script 路徑加引號，工作目錄與 `--repo-root` 保持指向目標專案。reference 中的 `skills/<name>/scripts/` 是邏輯安裝路徑，不代表要把 skills 複製進專案。下方來源儲存庫維護命令仍使用相對路徑。
+
+Skill Bindings 預設檢查全部 slot。Product Definition 使用 `--stage product-definition`，未進入的階段可以保留 `pending`/`pending`；UI 與編譯分別使用 `ui-design`、`design-compilation`，`backend` 僅適用於已確認無 UI 的產品或純後端範圍。每個階段重新驗證必要技能的完整 tree pin，前階段結果不代表後階段通過。
+
+UI 核准使用另行授權的 publication checkout，保留來源 HEAD、完整 Git 歷史與最終邏輯路徑。`check_ui_publication.py` 比對上游 bytes 並執行完整 Product 與最終 UI gates；授權發布後以 `--published` 確認轉移的 bytes 完全相同。`.ui-staging` 只放未核准草稿。Compiler 的 `sourceBindings.uiDesign.sha256` 使用 `ui_approval_digest.py` 排除衍生 pair/replacement linkage，其餘來源使用原始檔案 hash。單一平台使用全域 responsive set，hybrid 使用每個 surface 的 `surfaceContracts` 與已核准 stack。
+
+Private HTTPS 發布可使用 `trusted-host-publication.md` 定義的管理員 credential-helper policy，只允許精確 endpoint。Request 綁定 policy/helper hash，prepare、trusted-host push 與 recovery 都拒絕漂移，也不繼承任意 repo/user helper；evidence 不含憑證。Activation 可在固定 implementation SHA 下準備另行授權的部署前置設定；readiness 與 verified measurement handoff 仍要求精確 deployment evidence。Activation checker 命令須包含 PRD、architecture、deployment、stack-decisions、activation 路徑與 repository root。
 
 ## 常見提示詞
 
@@ -527,7 +537,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
-- **0.39.0** — 連通 HiFi 採用 `ui-hifi/2`，綁定同目錄 HTML 頁面雜湊、產品控制項目的地，以及 `ui-output/2` 點擊／鍵盤證據。凍結的 Git revision 必須包含所有子頁面。舊 schema-1 僅供讀取檢查；正式 Visual Approval 一律使用新契約。同時修正 CLI／非公開工具的 Toolchain 核准、parity 檔名碰撞，以及 Windows 執行檔 ACL 檢查。
+- **0.39.0** — 連通 HiFi 採用 `ui-hifi/2`，綁定同目錄 HTML 頁面雜湊、產品控制項目的地，以及 `ui-output/2` 點擊／鍵盤證據。凍結的 Git revision 必須包含所有子頁面。舊 schema-1 僅供讀取檢查；正式 Visual Approval 一律使用新契約。同時修正 CLI／非公開工具的 Toolchain 核准、parity 檔名碰撞，以及 Windows 執行檔 ACL 檢查。 新增最終路徑 UI 發布檢查、分階段 Skill Bindings、已安裝命令路徑、管理員核准的 HTTPS credential helper、canonical UI digest、hybrid responsive 指引與部署前 Activation 準備。
 
 - **0.38.0** — 完整加固 zero-to-one 契約。Release-surface applicability、Product/Stack digests、精確 `PD-Rn@sha256` revision、封閉 approval-reference/option sets、exact product identity、full Deployment revalidation、逐 target measurement provenance/window、typed append-only Outcome/Verdict History 與 mode-specific SEO record 關閉 Product→Activation→Outcome 證據鏈。Required design system 走 pending→compile→owner-link；Stack styling/platform 一路綁到 UI 與 schema-2 `surfaceContracts`。PLAN-v6 只透過 machine-approved、OS-protected 原生 Docker/Podman executable，保留 path/hash/owner-DACL/version/RepoDigest；拒絕假 PATH runtime 與 Windows script wrapper。Parity 遇 unsupported group 即 non-gating，且綁 trusted launcher identity。Archive C→A 使用 no-follow inventory、durable journal、canonical path/mode、isolated Git filtering 與封閉 recovery mapping；authority-file writer 先 atomic exchange 或保留 displaced backup，並行資料只能還原或保留。Trusted-host policy 與 signed evidence 可執行且留在本機 agent 邊界外。Git、transition、design-system、installer 寫入拒絕 link/reparse swap；Windows 有 targeted CI；external UI dependencies 與 Python/Pillow prerequisite 已明示。RUN 在 C local-only 關閉，direct 跳過 managed archive，失敗 A 走新 C2/A2 且不改寫 history。破壞性 skill-bundle 變更。
 - **0.37.0** — UI 設計正式拆成獨立核准邊界。`product-definition-builder` 定案產品 scope、完整 frontend/backend 架構與 stack 後即停止；新 `ui-design-builder` 負責人工 UI/style/motion/media intake、`wireframes/4` typed image/motion placeholders、W1–W5 結構評分、`frontend-design` Style Integration、連通 HiFi HTML、Impeccable critique/audit、H1–H9 評分、Visual Approval、條件式 GSAP 路由、精確授權的 Higgsfield MCP 生成動畫，以及 Design System Need Gate。Schema 4 wireframe 會在評分或結構核准前凍結靜態、動作、feedback、替代狀態文案與有界動態顯示契約；`ui-design.md` 記錄文案 owner、locale 與日期，後續文字變更會重新開啟 Product Definition、Copy Freeze、響應式檢查和 Wireframe Approval。正式 tokens 只在視覺核准後編譯；canonical UI 產物改放 `docs/design/`，Harness 0.37.0+ 對 UI delivery 強制 join 已核准 `ui-design.md`，舊設計路徑維持讀取相容。Product Definition 的唯讀分析圖改用目前 host 的原生 sibling-agent runner；Codex、Claude Code、Pi 與 generic host 共用同一份角色與 parent-ownership 契約。第七個內建 skill `seo-growth-review` 新增選用唯讀的 release 後 review，使用 production crawl/index、Search Console、GA4 與目前估算，分開搜尋可見度和站內行為、標示證據強度、排序 query-to-page 機會，並在不修改網站或外部帳戶的前提下路由 follow-up。破壞性 skill-bundle 變更。
