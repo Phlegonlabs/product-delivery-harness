@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.40.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.41.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -548,6 +548,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.41.0** — Las nuevas comprobaciones build/lint/test usan host con evidencia del ejecutable y del código; Docker/Podman son opcionales y las declaraciones container existentes conservan su modo. Se registra la capacidad real de workers y worktrees y se inician las misiones independientes antes de esperar. Se presentan enlaces completos del PRD, wireframe y HiFi para revisión, con recomendaciones para el PRD basadas en la investigación de mercado previa. La revisión UI en navegador no necesita contenedor. Las declaraciones host nuevas requieren esta versión del paquete.
 
 - **0.40.1** — Corrige la validación de stacks existentes Selected/Required con `Approved option map: None`, incluso sin tabla de opciones. Las elecciones nuevas aprobadas siguen exigiendo un mapa exacto.
 

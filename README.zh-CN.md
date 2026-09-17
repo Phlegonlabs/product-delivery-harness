@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.40.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.41.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -549,6 +549,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.41.0** — 新受管 build／lint／test 默认明确使用 host，保留可执行文件与源码证据；Docker／Podman 改为可选，现有 container 声明保持原模式。记录实际 worker／worktree 容量，先启动独立 missions 再等待。主动提供完整 PRD、wireframe 与 HiFi 审核链接，并从前期市场研究提出 PRD 改善建议。UI 浏览器审核不需要容器。新的 host 声明须使用此版包。
 
 - **0.40.1** — 修正现有 Selected／Required 选型使用 `Approved option map: None` 时的严格验证，也支持没有选项表的包件。新增批准选型仍须提供完全匹配的 option map。
 
