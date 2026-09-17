@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.41.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.42.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -553,6 +553,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.42.0** — Todo paquete ejecutable de producto requiere un Security Requirements Gate con responsable humano: cada fila required traza un requisito `PRD-*` existente a un security `TEST-*` Required-Yes, y los task gates de Harness aplican controles y pruebas negativas de denegación/ausencia de efectos no autorizados antes del commit. Los paquetes existentes requieren renovar la Product Definition Approval. PLAN-v6 exige que cada verifier node determinista de batch/final referencie `batch_verifiers`/`final_gates` y que cada gate declarado tenga un node. Cambio breaking del skill-bundle.
 
 - **0.41.1** — Detiene la CI de Windows en la primera suite de Python que falla y normaliza las rutas temporales de los fixtures. Los comandos posteriores ya no ocultan fallos anteriores.
 

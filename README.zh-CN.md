@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.41.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.42.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -554,6 +554,8 @@ Windows CI 会在任意 Python 测试组失败后立即停止。测试数据在�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.42.0** — 可执行产品包必须有人工负责的 Security Requirements Gate：required 行把既有 `PRD-*` 需求追踪到 Required-Yes security `TEST-*`，Harness task gate 在 commit 前执行控制与拒绝／无副作用 negative tests。既有产品包须重新取得 Product Definition Approval。PLAN-v6 要求每个 deterministic batch/final verifier node 引用 `batch_verifiers`／`final_gates`，且每个声明的 gate 都要有 node。破坏性 skill-bundle 变更。
 
 - **0.41.1** — Windows CI 在第一组 Python 测试失败时停止，避免后续成功指令掩盖失败；临时测试路径先规范化，再执行严格身份检查。
 
