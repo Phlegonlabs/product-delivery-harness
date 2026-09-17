@@ -23,7 +23,7 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR, UI_TESTS_DIR, PDB_TESTS_DIR, DS_SCRIPT
         sys.path.insert(0, str(candidate))
 
 from harness_contract_join import validate_frozen_contract_joins  # noqa: E402
-from manifest_fixtures import valid_plan, valid_run  # noqa: E402
+from manifest_fixtures import carry_security_requirement, valid_plan, valid_run  # noqa: E402
 from test_ui_design_contract import bundle_output, materialize_publication  # noqa: E402
 from test_product_package_checker import strictize_approved_package  # noqa: E402
 from test_wireframe_contract import render_html  # noqa: E402
@@ -482,6 +482,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                 "disposition": "planned",
                 "rationale": None,
             })
+            carry_security_requirement(plan)
             run = valid_run(plan)
             run["runtime_capabilities"]["runtime_adapter"]["version_gate"][
                 "required_harness_version"

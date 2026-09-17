@@ -49,12 +49,20 @@ Delivery owners need one observable way to reject incomplete product contracts b
 | ID | Quality attribute | Scope / requirement | Measure | Target / threshold | TEST IDs |
 | --- | --- | --- | --- | --- | --- |
 | PRD-002 | Reliability | Fixture run | Passing executions | 100% | TEST-002 |
+| PRD-003 | Security | Fixture command input boundary | Denied malformed input | 100% denied with no write | TEST-003 |
 ## UX Requirements
 not_required — the fixture exposes no shipped user interface.
 ## Data and Integration Requirements
 The fixture keeps deterministic local records and has no external data integration.
 ## Data and Trust
 Data and Trust Gate: not_required — no personal or regulated data, decided by Owner
+## Security Requirements
+Security Requirements Gate: required — executable fixture input can create unsafe writes, decided by Owner
+Security scope: executable
+
+| PRD ID | Asset / trust boundary | Abuse case | Control / safe failure | TEST IDs | Owner | Residual risk |
+| --- | --- | --- | --- | --- | --- | --- |
+| PRD-003 | Fixture command trust boundary | Untrusted input mutates run records | Validate input and fail closed without writing | TEST-003 | Owner | none — no accepted residual risk |
 ## AI and Automation
 AI and Automation Gate: not_required — no AI or autonomous action, decided by Owner
 ## Business Rules
@@ -89,6 +97,7 @@ Only an exact human-approved package may become implementation authority.
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | Complete fixture | integration | Yes | PRD-001 | Completion observed |
 | TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |
+| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |
 ## UI Design Handoff Status
 UI design: not_required — fixture is headless
 UI decision owner: n/a for headless
@@ -161,6 +170,12 @@ def valid_architecture() -> str:
             "| ARCH ID | Contract or decision | Upstream PRD / UX IDs | Downstream UI / TEST IDs |\n"
             "| --- | --- | --- | --- |\n"
             "| ARCH-001 | Fixture execution | PRD-001 | TEST-001 |"
+        ),
+        "Auth, Permissions, and Security": (
+            "PRD-003 places the fixture command at a trust boundary: validation "
+            "denies untrusted input before the run record is touched.\n"
+            "TEST-003 observes that denial: the command returns a validation error "
+            "and the record keeps zero writes."
         ),
         "Release Targets": (
             "Expected deployable surfaces: none — fixture ships no deployable surface."
@@ -313,6 +328,73 @@ def release_architecture(
         "Expected deployable surfaces: none — fixture ships no deployable surface.",
         f"Expected deployable surfaces: {expected}\n\n{targets}",
     )
+
+
+def documentation_only_package() -> tuple[str, str]:
+    security_table = """| PRD ID | Asset / trust boundary | Abuse case | Control / safe failure | TEST IDs | Owner | Residual risk |
+| --- | --- | --- | --- | --- | --- | --- |
+| PRD-003 | Fixture command trust boundary | Untrusted input mutates run records | Validate input and fail closed without writing | TEST-003 | Owner | none — no accepted residual risk |
+"""
+    prd = valid_prd().replace(
+        "Security Requirements Gate: required — executable fixture input can create "
+        "unsafe writes, decided by Owner",
+        "Security Requirements Gate: not_required — the package only documents the "
+        "fixture and executes no security-relevant scope, decided by Owner",
+    ).replace("Security scope: executable", "Security scope: documentation_only")
+    prd = prd.replace(security_table, "")
+    prd = prd.replace(
+        "| PRD-003 | Security | Fixture command input boundary | Denied malformed "
+        "input | 100% denied with no write | TEST-003 |\n",
+        "",
+    )
+    prd = prd.replace(
+        "| TEST-003 | Deny untrusted fixture input before any write | security | Yes "
+        "| PRD-003 | Denied request returns validation error and records no write |\n",
+        "",
+    )
+    documentation_wording = {
+        "A deterministic contract validation fixture": (
+            "A documentation-only product contract fixture"
+        ),
+        "At least 90% of fixture runs complete": (
+            "At least 90% of package reviews complete"
+        ),
+        "Passing executions": "Completed document reviews",
+        "PRD-001 | Complete the fixture | Must | Completion is observable": (
+            "PRD-001 | Document the fixture requirements | Must | "
+            "The approved package is observable"
+        ),
+        "The fixture keeps deterministic local records and has no external data integration.": (
+            "The package records decisions in Markdown and has no runtime data integration."
+        ),
+        "| Completion | Completed runs | 0 | 90% | 30 days | Event count | Owner |": (
+            "| Completion | Completed document reviews | 0 | 90% | 30 days | "
+            "Review log | Owner |"
+        ),
+    }
+    for old, new in documentation_wording.items():
+        prd = prd.replace(old, new)
+    architecture = valid_architecture().replace(
+        "PRD-003 places the fixture command at a trust boundary: validation "
+        "denies untrusted input before the run record is touched.\n"
+        "TEST-003 observes that denial: the command returns a validation error "
+        "and the record keeps zero writes.",
+        "This section records concrete fixture boundaries, ownership, failure "
+        "handling, and implementation responsibilities."
+    ).replace(
+        "| ARCH-001 | Fixture service | Complete fixture requests | PRD-001 | Owned by team |",
+        "| ARCH-001 | Documentation package | Record product definition decisions | PRD-001 | Owned by team |",
+    ).replace(
+        "| Fixture run | id, status | belongs to owner | Test-only record |",
+        "| Decision record | status, owner | belongs to package | Documentation-only record |",
+    ).replace(
+        "| ARCH-002 | Fixture command | explicit run | request | result | validation error | TEST-001 |",
+        "| ARCH-002 | Document review | owner review | candidate package | approval decision | validation finding | TEST-001 |",
+    ).replace(
+        "| ARCH-001 | Fixture execution | PRD-001 | TEST-001 |",
+        "| ARCH-001 | Documentation decisions | PRD-001 | TEST-001 |",
+    )
+    return prd, architecture
 
 
 def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple[str, str, str]:
@@ -883,6 +965,9 @@ class ProductPackageCheckerTests(unittest.TestCase):
         ).replace(
             "| TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |\n",
             "",
+        ).replace(
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n",
+            "",
         )
         problems = self.validate(prd=no_tests)
         self.assertTrue(any("at least one test" in item for item in problems))
@@ -991,6 +1076,517 @@ class ProductPackageCheckerTests(unittest.TestCase):
         self.assertTrue(any("cannot mark its architecture not_required" in item for item in problems))
         self.assertTrue(any("TRUST-CLASSIFICATION" in item for item in problems))
 
+    def test_security_parser_returns_contract_and_ignores_inactive_authority(self) -> None:
+        contract, errors = check_product_package.parse_security_requirements(valid_prd())
+        self.assertEqual([], errors)
+        self.assertEqual("required", contract["status"])
+        self.assertEqual("executable", contract["scope"])
+        self.assertEqual(
+            [{"prd_id": "PRD-003", "test_ids": ["TEST-003"]}],
+            [
+                {
+                    "prd_id": row["prd_id"],
+                    "test_ids": row["test_ids"],
+                }
+                for row in contract["requirements"]
+            ],
+        )
+
+        inactive = valid_prd().replace(
+            "Security scope: executable",
+            "Security scope: executable\n"
+            "```\n"
+            "Security Requirements Gate: blocked — inactive example, decided by Owner\n"
+            "Security scope: documentation_only\n"
+            "| PRD ID | Asset / trust boundary | Abuse case | Control / safe failure | TEST IDs | Owner | Residual risk |\n"
+            "```\n",
+        )
+        contract, errors = check_product_package.parse_security_requirements(inactive)
+        self.assertEqual([], errors)
+        self.assertEqual("required", contract["status"])
+
+        invalid_contract, invalid_errors = check_product_package.parse_security_requirements(object())
+        self.assertEqual({"status": "", "scope": "", "requirements": []}, invalid_contract)
+        self.assertTrue(invalid_errors)
+
+    def test_security_contract_rejects_structural_bypasses(self) -> None:
+        security_row = (
+            "| PRD-003 | Fixture command trust boundary | Untrusted input mutates "
+            "run records | Validate input and fail closed without writing | "
+            "TEST-003 | Owner | none — no accepted residual risk |"
+        )
+        mutations = (
+            (
+                valid_prd().replace(
+                    "Security Requirements Gate: required",
+                    "Security Requirements Gate: maybe",
+                ),
+                "missing complete Security Requirements Gate reason or decision owner",
+            ),
+            (
+                valid_prd().replace(
+                    "Security scope: executable",
+                    "Security scope: executable\nSecurity scope: documentation_only",
+                ),
+                "Security scope requires exactly one",
+            ),
+            (
+                valid_prd().replace(
+                    "Security scope: executable",
+                    "Security scope: deployment",
+                ),
+                "Security scope must be executable or documentation_only",
+            ),
+            (
+                valid_prd().replace(
+                    security_row,
+                    security_row + "\n" + security_row,
+                ),
+                "duplicate Security Requirements ID PRD-003",
+            ),
+            (
+                valid_prd().replace(
+                    security_row,
+                    "| PRD-003 | Fixture command trust boundary | Untrusted input "
+                    "mutates run records | Validate input and fail closed without "
+                    "writing | TEST-003 | Owner |",
+                ),
+                "Security Requirements row has 6 cells, expected 7",
+            ),
+            (
+                valid_prd().replace(
+                    security_row,
+                    "| PRD-003 | [Asset boundary] | [Abuse case] | [Safe failure] "
+                    "| TEST-003 | [Owner] | [Residual risk] |",
+                ),
+                "Security Requirements row contains an empty value or placeholder",
+            ),
+            (
+                valid_prd().replace(security_row + "\n", ""),
+                "required Security Requirements table must contain rows",
+            ),
+        )
+        for prd, expected in mutations:
+            with self.subTest(expected=expected):
+                contract, errors = check_product_package.parse_security_requirements(prd)
+                self.assertIn(expected, "\n".join(errors))
+                self.assertEqual(
+                    {"status": "", "scope": "", "requirements": []}, contract
+                )
+                self.assertTrue(any(expected in item for item in self.validate(prd=prd)))
+
+        inactive_authority = valid_prd().replace(
+            "Security scope: executable",
+            "Security scope: executable\n"
+            "<!--\n"
+            "Security Requirements Gate: blocked — hidden example, decided by Owner\n"
+            "-->\n"
+            "    Security Requirements Gate: blocked — indented example, decided by Owner\n",
+        )
+        contract, errors = check_product_package.parse_security_requirements(
+            inactive_authority
+        )
+        self.assertEqual([], errors)
+        self.assertEqual("required", contract["status"])
+        self.assertEqual("executable", contract["scope"])
+
+        start = valid_prd().index("## Security Requirements")
+        end = valid_prd().index("## AI and Automation")
+        hidden_only = (
+            valid_prd()[:start]
+            + valid_prd()[end:]
+            + "\n<!--\n"
+            + "## Security Requirements\n"
+            + "Security Requirements Gate: blocked — hidden example, decided by Owner\n"
+            + "Security scope: documentation_only\n"
+            + "-->\n"
+            + "    ## Security Requirements\n"
+            + "    Security Requirements Gate: blocked — indented example, decided by Owner\n"
+        )
+        contract, errors = check_product_package.parse_security_requirements(hidden_only)
+        self.assertEqual(
+            {"status": "", "scope": "", "requirements": []}, contract
+        )
+        self.assertIn("Security Requirements section is required", "\n".join(errors))
+        self.assertEqual([], self.validate(prd=hidden_only, require_approved=False))
+        self.assertTrue(
+            any(
+                "Security Requirements section is required" in item
+                for item in self.validate(prd=hidden_only)
+            )
+        )
+
+        blocked = valid_prd().replace(
+            "Security Requirements Gate: required",
+            "Security Requirements Gate: blocked",
+        )
+        contract, errors = check_product_package.parse_security_requirements(blocked)
+        self.assertEqual([], errors)
+        self.assertEqual("blocked", contract["status"])
+        self.assertTrue(
+            any(
+                "Security Requirements Gate is blocked" in item
+                for item in self.validate(prd=blocked)
+            )
+        )
+
+    def test_security_validation_rejects_semantic_bypasses(self) -> None:
+        test003 = (
+            "| TEST-003 | Deny untrusted fixture input before any write | security | "
+            "Yes | PRD-003 | Denied request returns validation error and records no write |"
+        )
+        unrelated_test = valid_prd().replace(
+            test003 + "\n## UI Design Handoff Status",
+            test003
+            + "\n| TEST-004 | Check unrelated command behavior | security | Yes | "
+            "PRD-001 | Behavior is observed |\n## UI Design Handoff Status",
+        ).replace("| TEST-003 | Owner |", "| TEST-004 | Owner |")
+        self.assertTrue(
+            any(
+                "TEST-004 upstream traces must name the same PRD-003" in item
+                for item in self.validate(prd=unrelated_test)
+            )
+        )
+
+        active_architecture_security = (
+            "The fixture command boundary validates input and fails closed without "
+            "writes.\n"
+            "<!--\nPRD-003 and TEST-003 are hidden here.\n-->\n"
+            "    PRD-003 and TEST-003 are indented code.\n"
+        )
+        architecture = valid_architecture().replace(
+            "PRD-003 places the fixture command at a trust boundary: validation "
+            "denies untrusted input before the run record is touched.\n"
+            "TEST-003 observes that denial: the command returns a validation error "
+            "and the record keeps zero writes.",
+            active_architecture_security,
+        )
+        problems = self.validate(architecture=architecture)
+        self.assertTrue(
+            any(
+                "PRD-003 needs an active substantive Auth, Permissions, and Security join"
+                in item
+                for item in problems
+            )
+        )
+        self.assertTrue(
+            any(
+                "TEST-003 needs an active substantive Auth, Permissions, and Security join"
+                in item
+                for item in problems
+            )
+        )
+
+        for old, new, expected in (
+            ("| TEST-003 | Owner |", "| TEST-003 | System |", "must name a human owner"),
+            (
+                "| none — no accepted residual risk |",
+                "| pending incident review |",
+                "residual risk must be an explicit decision",
+            ),
+            (
+                "| none — no accepted residual risk |",
+                "| unknown residual risk |",
+                "residual risk must be an explicit decision",
+            ),
+        ):
+            with self.subTest(expected=expected):
+                problems = self.validate(prd=valid_prd().replace(old, new))
+                self.assertTrue(any(expected in item for item in problems))
+
+    def test_security_residual_risk_requires_explicit_decision_syntax(self) -> None:
+        original = "none — no accepted residual risk"
+        for value in (
+            "none",
+            original,
+            "none - no accepted residual risk",
+            "accepted — limited retention risk; mitigation pending next release",
+        ):
+            with self.subTest(value=value):
+                self.assertEqual([], self.validate(prd=valid_prd().replace(original, value)))
+
+        for value in (
+            "pending incident review",
+            "owner review is pending",
+            "risk decision is unknown",
+            "accepted",
+            "accepted —",
+            "accepted - short",
+        ):
+            with self.subTest(value=value):
+                problems = self.validate(prd=valid_prd().replace(original, value))
+                self.assertTrue(
+                    any(
+                        "residual risk must be an explicit decision" in item
+                        for item in problems
+                    ),
+                    problems,
+                )
+
+        placeholder_problems = self.validate(
+            prd=valid_prd().replace(original, "accepted — [risk rationale]")
+        )
+        self.assertTrue(
+            any(
+                "residual risk must be an explicit decision" in item
+                for item in placeholder_problems
+            )
+        )
+
+    def test_security_section_structure_failures(self) -> None:
+        duplicate_section = """## Security Requirements
+Security Requirements Gate: required — duplicate authority must fail, decided by Owner
+Security scope: executable
+
+| PRD ID | Asset / trust boundary | Abuse case | Control / safe failure | TEST IDs | Owner | Residual risk |
+| --- | --- | --- | --- | --- | --- | --- |
+| PRD-003 | Fixture command trust boundary | Untrusted input mutates run records | Validate input and fail closed without writing | TEST-003 | Owner | none |
+"""
+        duplicate_table = """| PRD ID | Asset / trust boundary | Abuse case | Control / safe failure | TEST IDs | Owner | Residual risk |
+| --- | --- | --- | --- | --- | --- | --- |"""
+        mutations = (
+            (
+                valid_prd().replace(
+                    "Security Requirements Gate: required — executable fixture input "
+                    "can create unsafe writes, decided by Owner\n",
+                    "",
+                ),
+                "Security Requirements Gate requires exactly one active status line",
+            ),
+            (
+                valid_prd().replace(
+                    "Security Requirements Gate: required",
+                    "Security Requirements Gate: blocked",
+                ),
+                "Security Requirements Gate is blocked",
+            ),
+            (
+                valid_prd().replace(
+                    "Security Requirements Gate: required",
+                    "Security Requirements Gate: required\n"
+                    "Security Requirements Gate: required",
+                ),
+                "exactly one active status line",
+            ),
+            (
+                valid_prd().replace(
+                    "## AI and Automation",
+                    duplicate_section + "\n## AI and Automation",
+                ),
+                "duplicate Security Requirements section",
+            ),
+            (
+                valid_prd().replace(
+                    "| PRD-003 | Fixture command trust boundary | Untrusted input "
+                    "mutates run records | Validate input and fail closed without "
+                    "writing | TEST-003 | Owner | none — no accepted residual risk |",
+                    "| PRD-003 | Fixture command trust boundary | Untrusted input "
+                    "mutates run records | Validate input and fail closed without "
+                    "writing | TEST-003 | Owner | none — no accepted residual risk |\n"
+                    + duplicate_table,
+                ),
+                "duplicate Security Requirements table header",
+            ),
+        )
+        for prd, expected in mutations:
+            with self.subTest(expected=expected):
+                problems = self.validate(prd=prd)
+                self.assertIn(expected, "\n".join(problems))
+
+    def test_security_rows_require_known_required_security_tests_and_owners(self) -> None:
+        optional_prd = valid_prd().replace(
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n"
+            "## UI Design Handoff Status",
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n"
+            "| TEST-004 | Inspect optional denial behavior | security | No | PRD-003 | Denied request returns validation error |\n"
+            "## UI Design Handoff Status",
+        ).replace("| TEST-003 | Owner |", "| TEST-004 | Owner |")
+        should_prd = valid_prd().replace(
+            "| PRD-001 | Complete the fixture | Must | Completion is observable |\n",
+            "| PRD-001 | Complete the fixture | Must | Completion is observable |\n"
+            "| PRD-004 | Add optional fixture behavior | Should | Behavior is observable |\n",
+        ).replace(
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n",
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n"
+            "| TEST-004 | Check optional behavior | security | Yes | PRD-004 | Optional behavior is observed |\n",
+        ).replace(
+            "| PRD-003 | Fixture command trust boundary | Untrusted input mutates "
+            "run records | Validate input and fail closed without writing | TEST-003 "
+            "| Owner |",
+            "| PRD-004 | Fixture command trust boundary | Untrusted input mutates "
+            "run records | Validate input and fail closed without writing | TEST-004 "
+            "| Owner |",
+        )
+        self.assertIn(
+            "| TEST-004 | Inspect optional denial behavior | security | No | PRD-003 |",
+            optional_prd,
+        )
+        contract, errors = check_product_package.parse_security_requirements(optional_prd)
+        self.assertEqual([], errors)
+        self.assertEqual(
+            [{"prd_id": "PRD-003", "test_ids": ["TEST-004"]}],
+            [{"prd_id": row["prd_id"], "test_ids": row["test_ids"]} for row in contract["requirements"]],
+        )
+        mutations = (
+            (optional_prd, "references optional TEST-004"),
+            (
+                valid_prd().replace("| TEST-003 | Owner |", "| TEST-999 | Owner |"),
+                "optional or unknown TEST-999",
+            ),
+            (
+                valid_prd().replace("| TEST-003 | Owner |", "| TEST-001 | Owner |"),
+                "TEST-001 must have Test type security",
+            ),
+            (
+                valid_prd().replace(
+                    "| PRD-003 | Fixture command trust boundary",
+                    "| PRD-999 | Fixture command trust boundary",
+                ),
+                "must reference one existing Must or applicable NFR PRD ID",
+            ),
+            (should_prd, "must reference one existing Must or applicable NFR PRD ID"),
+            (
+                valid_prd().replace("| TEST-003 | Owner |", "| TEST-003 | AI |"),
+                "must name a human owner",
+            ),
+        )
+        for prd, expected in mutations:
+            with self.subTest(expected=expected):
+                problems = self.validate(prd=prd)
+                self.assertIn(expected, "\n".join(problems))
+
+    def test_security_architecture_requires_substantive_prd_and_test_joins(self) -> None:
+        for identifier in ("PRD-003", "TEST-003"):
+            with self.subTest(identifier=identifier):
+                architecture = valid_architecture().replace(
+                    f"{identifier} ",
+                    "",
+                    1,
+                )
+                problems = self.validate(architecture=architecture)
+                self.assertIn(
+                    "active substantive Auth, Permissions, and Security join",
+                    "\n".join(problems),
+                )
+
+    def test_security_scope_is_human_owned_and_release_aware(self) -> None:
+        documentation_prd, documentation_architecture = documentation_only_package()
+        contract, errors = check_product_package.parse_security_requirements(
+            documentation_prd
+        )
+        self.assertEqual([], errors)
+        self.assertEqual("not_required", contract["status"])
+        self.assertEqual("documentation_only", contract["scope"])
+        self.assertEqual([], contract["requirements"])
+        self.assertEqual(
+            [],
+            self.validate(prd=documentation_prd, architecture=documentation_architecture),
+        )
+
+        security_table_start = valid_prd().index(
+            "| PRD ID | Asset / trust boundary | Abuse case | "
+            "Control / safe failure | TEST IDs | Owner | Residual risk |"
+        )
+        security_table_end = valid_prd().index("## AI and Automation")
+        security_table = (
+            valid_prd()[security_table_start:security_table_end].rstrip() + "\n"
+        )
+        moved_table = documentation_prd.replace(
+            "## AI and Automation",
+            "## AI and Automation\n" + security_table,
+        )
+        contract, errors = check_product_package.parse_security_requirements(moved_table)
+        self.assertEqual(
+            ["prd: Security Requirements table must stay inside its own section"],
+            errors,
+        )
+        self.assertEqual(
+            {"status": "", "scope": "", "requirements": []}, contract
+        )
+        self.assertTrue(
+            any(
+                "Security Requirements table must stay inside its own section" in item
+                for item in self.validate(
+                    prd=moved_table,
+                    architecture=documentation_architecture,
+                )
+            )
+        )
+
+        self.assertEqual([], self.validate())
+
+        executable_not_required = documentation_prd.replace(
+            "Security scope: documentation_only",
+            "Security scope: executable",
+        )
+        problems = self.validate(
+            prd=executable_not_required,
+            architecture=documentation_architecture,
+        )
+        self.assertIn(
+            "not_required Security Requirements Gate requires documentation_only "
+            "scope",
+            "\n".join(problems),
+        )
+
+        problems = self.validate(
+            prd=documentation_prd,
+            architecture=release_architecture(),
+        )
+        self.assertIn(
+            "deployable surfaces require the Security Requirements Gate to be required",
+            "\n".join(problems),
+        )
+
+        self.assertEqual([], self.validate(architecture=release_architecture()))
+
+        blocked = valid_prd().replace(
+            "Security Requirements Gate: required",
+            "Security Requirements Gate: blocked",
+        )
+        architectures = (valid_architecture(), release_architecture())
+        for architecture_index, architecture in enumerate(architectures):
+            with self.subTest(release_targets=architecture_index == 1):
+                blocked_prd, blocked_architecture, blocked_stack = strictize_approved_package(
+                    blocked,
+                    architecture,
+                    valid_stack(),
+                )
+                self.assertEqual(
+                    [],
+                    self.validate(
+                        prd=blocked_prd,
+                        architecture=blocked_architecture,
+                        stack=blocked_stack,
+                        require_approved=False,
+                    ),
+                )
+                self.assertTrue(
+                    any(
+                        "Security Requirements Gate is blocked" in item
+                        for item in self.validate(
+                            prd=blocked_prd,
+                            architecture=blocked_architecture,
+                            stack=blocked_stack,
+                        )
+                    )
+                )
+
+        old_prd = valid_prd()
+        old_section_start = old_prd.index("## Security Requirements")
+        old_section_end = old_prd.index("## AI and Automation")
+        old_prd = old_prd[:old_section_start] + old_prd[old_section_end:]
+        self.assertEqual(
+            [],
+            check_product_package.validate_texts(
+                old_prd,
+                valid_architecture(),
+                valid_stack(),
+                require_filled=True,
+                require_approved=False,
+            ),
+        )
+
     def test_enhancement_changed_rows_cannot_refresh_none(self) -> None:
         impacts = """
 ## Enhancement Impact Record
@@ -1001,6 +1597,7 @@ class ProductPackageCheckerTests(unittest.TestCase):
 | Data / integrations | unchanged | none | none |
 | Architecture / stack | changed | ARCH-001, frontend framework | none |
 | Data trust / AI | unchanged | none | none |
+| Security | unchanged | none | none |
 | Monetization / partner | unchanged | none | none |
 | Release / operations | unchanged | none | none |
 """
@@ -1011,6 +1608,61 @@ class ProductPackageCheckerTests(unittest.TestCase):
         problems = self.validate(prd=prd)
         self.assertTrue(
             any("area-specific refresh" in item for item in problems)
+        )
+
+    def test_changed_security_enhancement_refreshes_product_and_architecture(self) -> None:
+        impacts = """
+## Enhancement Impact Record
+| Area | Impact | Affected IDs / decisions | Required refresh |
+| --- | --- | --- | --- |
+| Product scope / behavior | unchanged | none | none |
+| UI structure / style | none | none | none |
+| Data / integrations | unchanged | none | none |
+| Architecture / stack | unchanged | none | none |
+| Data trust / AI | unchanged | none | none |
+| Security | changed | PRD-003 | PRD.md and architecture.md with Product Definition Approval |
+| Monetization / partner | unchanged | none | none |
+| Release / operations | unchanged | none | none |
+"""
+        prd = valid_prd(mode="enhancement").replace(
+            "## Problem Statement",
+            impacts + "\n## Problem Statement",
+        )
+        self.assertEqual([], self.validate(prd=prd))
+
+        negative = impacts.replace(
+            "PRD.md and architecture.md with Product Definition Approval",
+            "PRD.md and Product Definition Approval",
+        )
+        prd = valid_prd(mode="enhancement").replace(
+            "## Problem Statement",
+            negative + "\n## Problem Statement",
+        )
+        problems = self.validate(prd=prd)
+        self.assertTrue(
+            any(
+                "Security" in item and "architecture.md" in item
+                for item in problems
+            )
+        )
+
+        trust_ai_negative = impacts.replace(
+            "| Data trust / AI | unchanged | none | none |",
+            "| Data trust / AI | changed | decision:data-trust | "
+            "PRD.md and architecture.md with Product Definition Approval |",
+        )
+        prd = valid_prd(mode="enhancement").replace(
+            "## Problem Statement",
+            trust_ai_negative + "\n## Problem Statement",
+        )
+        problems = self.validate(prd=prd)
+        self.assertTrue(
+            any(
+                "Data trust / AI" in item
+                and "stack-decisions.md" in item
+                and "stack decision checkpoint" in item
+                for item in problems
+            )
         )
 
     def test_prefix_and_placeholder_bypasses_fail(self) -> None:
@@ -1654,11 +2306,15 @@ class ProductPackageCheckerTests(unittest.TestCase):
 
     def test_nfr_and_priority_cannot_escape_test_coverage(self) -> None:
         empty_nfr = re.sub(
-            r"(## Non-Functional Requirements\n\| ID[^\n]*\n\| ---[^\n]*\n)\| PRD-002[^\n]*\n",
+            r"(## Non-Functional Requirements\n\| ID[^\n]*\n\| ---[^\n]*\n)"
+            r"\| PRD-002[^\n]*\n\| PRD-003[^\n]*\n",
             r"\1",
             valid_prd(),
         ).replace(
             "| TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |\n",
+            "",
+        ).replace(
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n",
             "",
         )
         self.assertTrue(
@@ -1856,6 +2512,7 @@ class ProductPackageCheckerTests(unittest.TestCase):
 | Data / integrations | unchanged | none | none |
 | Architecture / stack | changed | No IDs or decisions are affected | No refresh is required here |
 | Data trust / AI | unchanged | none | none |
+| Security | unchanged | none | none |
 | Monetization / partner | unchanged | none | none |
 | Release / operations | unchanged | none | none |
 """

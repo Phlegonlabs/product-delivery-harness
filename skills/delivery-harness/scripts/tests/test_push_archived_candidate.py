@@ -108,6 +108,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
             mission["write_scope"] = ["docs/README.md"]
             for task in mission["tasks"]:
                 task["write_scope"] = ["docs/README.md"]
+        mf.carry_security_requirement(plan)
         from harness_manifest import plan_digest as fixture_plan_digest
         run = valid_run(plan)
         run["plan"]["digest_sha256"] = fixture_plan_digest(plan)

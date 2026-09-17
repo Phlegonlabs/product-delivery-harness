@@ -38,7 +38,11 @@ from harness_contract_join import (  # noqa: E402
 )
 from validate_harness_plan import _viewport_floor_errors  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
-from manifest_fixtures import manifest_markdown, wireframes_html  # noqa: E402
+from manifest_fixtures import (  # noqa: E402
+    carry_security_requirement,
+    manifest_markdown,
+    wireframes_html,
+)
 from test_wireframe_contract import render_html, wireframe_data  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
     release_architecture,
@@ -810,6 +814,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
 
     def test_approval_marker_requires_and_joins_frozen_core_package(self) -> None:
         plan = valid_plan()
+        carry_security_requirement(plan)
         plan["ui_surfaces"] = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

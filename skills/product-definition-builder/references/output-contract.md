@@ -6,7 +6,7 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/architecture.md`
 - `docs/product/stack-decisions.md`
 
-Every package passes a human Product Definition Approval before UI design or implementation. The owner approves product scope, measurable requirements, complete frontend and backend architecture, applicable trust/AI/commercial gates, resolved stack choices, release targets, accepted assumptions, and non-blocking open questions as one named package revision. A UI-bearing product then stops for a later explicit `ui-design-builder` request. A headless product records UI design as `not_required` but still passes Product Definition Approval.
+Every package passes a human Product Definition Approval before UI design or implementation. The owner approves product scope, measurable requirements, complete frontend and backend architecture, applicable trust/security/AI/commercial gates, resolved stack choices, release targets, accepted assumptions, and non-blocking open questions as one named package revision. A UI-bearing product then stops for a later explicit `ui-design-builder` request. A headless product records UI design as `not_required` but still passes Product Definition Approval.
 
 This contract covers the owner-approved product, architecture, technology stack, and required UI behavior. It does not require a wireframe, visual direction, motion/media treatment, preview, token set, or design-system rules. Those belong to `ui-design-builder` and, when needed, `design-system-compiler`.
 
@@ -16,7 +16,7 @@ For a product with any deployable web, API/backend, mobile, desktop, or browser-
 
 It specifies what each UI surface must show and do. It does not decide how the surface is composed or styled and creates no HTML reviewer.
 
-`PRD.md` is the canonical source for product scope, routes, screen purpose, content responsibility, actions, states, responsive obligations, flows, trace IDs, trust/AI gates, and Product Definition Approval. `architecture.md` fixes frontend and backend structure, and `stack-decisions.md` records the separate Stack Decision Checkpoint. Later UI artifacts never override the approved Product Definition revision.
+`PRD.md` is the canonical source for product scope, routes, screen purpose, content responsibility, actions, states, responsive obligations, flows, trace IDs, trust/security/AI gates, and Product Definition Approval. `architecture.md` fixes frontend and backend structure, and `stack-decisions.md` records the separate Stack Decision Checkpoint. Later UI artifacts never override the approved Product Definition revision.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -86,10 +86,11 @@ Include this section only in enhancement mode.
 | Data / integrations | [unchanged / changed] | [IDs or none] | [Artifacts and gates or none] |
 | Architecture / stack | [unchanged / changed] | [ARCH IDs/layers or none] | [Stack checkpoint and artifacts or none] |
 | Data trust / AI | [unchanged / changed] | [Gate/IDs or none] | [Artifacts and gates or none] |
+| Security | [unchanged / changed] | [Gate/IDs or none] | [Artifacts and gates or none] |
 | Monetization / partner | [unchanged / changed] | [Gate/IDs or none] | [Artifacts and gates or none] |
 | Release / operations | [unchanged / changed] | [Targets or none] | [Artifacts and gates or none] |
 
-Changed rows use area-specific refreshes. Product behavior reopens `PRD.md` and Product Definition Approval. UI `structure`/`both` reopens `wireframes.html`, `ui-design.md`, Copy Freeze, Wireframe Approval, and Visual Approval; `style` reopens `ui-design.md` and Visual Approval. Data/integration changes reopen `PRD.md`, `architecture.md`, and Product Definition Approval. Architecture/stack changes reopen `architecture.md`, `stack-decisions.md`, Stack Decision Checkpoint, and Product Definition Approval. Trust/AI and monetization/partner changes reopen all three core package files plus both approval gates. Release/operations changes reopen `architecture.md`, `DEPLOYMENT.md`, Product Definition Approval, and the deployment checker. Naming unrelated artifacts or generic approval words does not satisfy the row.
+Changed rows use area-specific refreshes. Product behavior reopens `PRD.md` and Product Definition Approval. UI `structure`/`both` reopens `wireframes.html`, `ui-design.md`, Copy Freeze, Wireframe Approval, and Visual Approval; `style` reopens `ui-design.md` and Visual Approval. Data/integration changes reopen `PRD.md`, `architecture.md`, and Product Definition Approval. Architecture/stack changes reopen `architecture.md`, `stack-decisions.md`, Stack Decision Checkpoint, and Product Definition Approval. Trust/AI and monetization/partner changes reopen all three core package files plus both approval gates. Security changes reopen `PRD.md`, `architecture.md`, and Product Definition Approval; a security change that changes a stack decision also marks Architecture/stack changed. Release/operations changes reopen `architecture.md`, `DEPLOYMENT.md`, Product Definition Approval, and the deployment checker. Naming unrelated artifacts or generic approval words does not satisfy the row.
 
 ## Problem Statement
 [Current pain, trigger, and why now.]
@@ -180,6 +181,26 @@ When `required`, record the product decisions before selecting vendors:
 | Incident and residual risk | [Detection, response owner, accepted residual risk] | [Owner/evidence] | [TEST-*] |
 
 Each Data and Trust row has a stable test trace in order: `TRUST-CLASSIFICATION`, `TRUST-RESIDENCY`, `TRUST-RETENTION`, `TRUST-CONSENT`, `TRUST-ACCESS`, and `TRUST-INCIDENT`. At least one Required-Yes `TEST-*` named by the row includes that exact token in its Test Obligations upstream trace cell.
+
+## Security Requirements
+Security Requirements Gate: [required / not_required / blocked] — [reason], decided by [human owner]
+Security scope: [executable / documentation_only]
+
+Executable software — including static sites, clients, CLI tools, and agents — is `required` even without personal data or authentication. `not_required` is valid only when Security scope is `documentation_only`, the package has no executable or deployable surface, and the owner records that rationale. `blocked` prevents Product Definition Approval.
+
+When `required`, use exactly these seven columns. Every row references an existing `Must` or NFR `PRD-*` and at least one `Required: Yes` security `TEST-*` whose Test Obligations upstream trace names that same `PRD-*`:
+
+| PRD ID | Asset / trust boundary | Abuse case | Control / safe failure | TEST IDs | Owner | Residual risk |
+| --- | --- | --- | --- | --- | --- | --- |
+| PRD-001 | [Asset and boundary crossed] | [Adversary action and forbidden outcome] | [Control, denial/safe failure, and no unauthorized side effects] | TEST-001 | [Human owner] | [none / none — concrete reason / accepted — concrete rationale] |
+
+Each Residual risk cell uses the English machine prefixes `none` or `accepted`. Valid values are exactly `none`, `none — concrete reason`, or `accepted — concrete rationale`; a hyphen may replace the em dash. Keep these prefixes in English when surrounding prose is translated. Pending wording, unknown wording, a placeholder, or a bare `accepted` value is not an owner decision.
+
+Cover the risk classes applicable to the product: identity/session/authorization/tenant isolation; untrusted input/injection/XSS/path/command execution; secrets/logs and dependency/build supply chain; upload/outbound URL/SSRF; webhook signatures/replay/idempotency; abuse/resource limits; secure storage/deep links/IPC/permissions for clients; and AI prompt/tool boundaries. Record each inapplicable class as `n/a — reason`; do not force irrelevant backend, auth, vendor, or scanner requirements.
+
+Security tests must prove denial and absence of unauthorized side effects for the touched boundary. A generic final scan or broad review does not replace those negative tests. Discovery records prior incidents and owner-required tools or evidence. This follows the same SDLC principle reflected in [NIST SSDF](https://csrc.nist.gov/Projects/ssdf): track requirements, risks, and design decisions, then select risk-based controls and testing; it makes no compliance or certification claim.
+
+Older documents may be inspected for history, but a current approval requires this section and explicit owner reapproval. Never auto-rewrite a frozen source to synthesize it.
 
 ## AI and Automation
 AI and Automation Gate: [required / not_required / blocked] — [reason], decided by [human owner]
@@ -281,9 +302,9 @@ Research Gate: [go / clarify / stop / skipped] — [assessment date and findings
 - Blocking items: [None / exact unresolved decisions]
 <!-- product-definition-approval:end -->
 
-Keep the required level-two PRD headings, Product Definition marker pair and fields, Data and Trust/AI gate lines, Metrics/Assumptions/Open Questions headers, and Monetization/Partner decision header plus its two gate row labels in English when surrounding prose is translated; the core-package checker treats them as machine anchors.
+Keep the required level-two PRD headings, Product Definition marker pair and fields, Data and Trust/Security/AI gate lines, Metrics/Assumptions/Open Questions headers, and Monetization/Partner decision header plus its two gate row labels in English when surrounding prose is translated; the core-package checker treats them as machine anchors.
 
-The owner receives one concise package review: product scope and non-goals; Must requirements and acceptance criteria; data/trust, AI, monetization, and partner gates; metrics and required tests; complete frontend and backend architecture; release targets; the approved stack bundle; risks; and every assumption/open question. `approved` requires an approved Stack Decision Checkpoint, no unresolved question marked `Blocks approval: Yes`, no blocked trust/AI/commercial gate, and no unresolved scope-changing research finding. A substantive change to those approved contents creates a new package revision and reopens this gate. Later UI evidence lives in `docs/design/ui-design.md`; it does not reopen Product Definition unless it exposes or requests a change to the approved product or stack.
+The owner receives one concise package review: product scope and non-goals; Must requirements and acceptance criteria; data/trust, security, AI, monetization, and partner gates; metrics and required tests; complete frontend and backend architecture; release targets; the approved stack bundle; risks; and every assumption/open question. `approved` requires an approved Stack Decision Checkpoint, no unresolved question marked `Blocks approval: Yes`, no blocked trust/AI/security/commercial gate, and no unresolved scope-changing research finding. A substantive change to those approved contents creates a new package revision and reopens this gate. Later UI evidence lives in `docs/design/ui-design.md`; it does not reopen Product Definition unless it exposes or requests a change to the approved product or stack.
 
 #### Human Review Presentation
 
@@ -574,7 +595,7 @@ Describe in a few lines: service boundaries, API style, data access, and backgro
 [Describe request, background job, event, and integration flows.]
 
 ## Auth, Permissions, and Security
-[Authentication, authorization, secrets, audit, privacy, abuse cases.]
+[Authentication, authorization, secrets, audit, privacy, and abuse-case enforcement. For each required PRD Security Requirements row, explain how the named control is enforced at this boundary using the same PRD and TEST IDs; negative tests prove denial and no unauthorized side effects.]
 
 ## Data and Trust Architecture
 [Implement the PRD Data and Trust Gate: data classification and ownership, source of truth, storage/processing regions, vendor boundaries, encryption, access/audit, retention, deletion/export, consent/policy, backup/recovery, and incident ownership. When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
@@ -912,12 +933,13 @@ Before archiving earlier documents or publishing the staged package, verify:
 - `## Metrics` records baseline, target or guardrail, measurement window, source/method, and owner for every success measure; metric names are unique. Guardrails are separate metric rows when they need separate ownership or evidence.
 - `## Assumptions` and `## Open Questions` use their structured owner/decision tables. No unresolved Open Questions row marked `Blocks approval: Yes` remains when Product Definition Approval is approved; the approval record explicitly accepts any open non-blocking row or assumption.
 - Every PRD records a Data and Trust Gate and an AI and Automation Gate as `required`, `not_required`, or `blocked` with a reason and human owner. An approved package has neither gate blocked. Required gates are carried into architecture, stack decisions where technology is involved, UI surfaces, and `TEST-*` obligations.
+- Every PRD records a Security Requirements Gate and Security scope with a reason and human owner. Required rows use the exact seven-column contract, reference existing `PRD-*` requirements and Required-Yes security `TEST-*` rows, and carry into `architecture.md`'s Auth, Permissions, and Security section. `documentation_only` is the only valid `not_required` scope.
 - Every `PRD.md` records both the Monetization Infrastructure Gate and Partner Channel Gate with `required`, `not_required`, or `blocked` plus a reason. Commercial products record the monetization model, pricing/offer rules, purchase surfaces, entitlement source, and merchant-of-record/tax owner. Products with outside distribution record affiliate, referral, reseller, or hybrid motion plus attribution, commission/discount, reversal, payout, customer ownership, provisioning, support, termination, and fraud rules as applicable.
 - Product Definition Approval requires both commercial gate rows to be `selected` or `approved`; `recommended`, `provisional`, `assumed`, or `blocked` remains a draft decision.
 - A pricing strategy never silently selects RevenueCat. `stack-decisions.md` compares current relevant providers through `monetization-and-partner-channel-guide.md`, cites official evidence and retrieval date, separates store/billing, entitlement, paywall/checkout, merchant-of-record/tax, and partner-channel layers, and records rejected alternatives and revisit triggers. Affiliate, referral, and reseller remain distinct motions.
 - When either gate is required, `architecture.md` defines the applicable revenue and partner entities, stable identity joins, verified idempotent event/webhook flows, retry/replay/reconciliation, refund/chargeback effects, entitlement grant/revoke/restore, commission reversal, and reseller provisioning/deprovisioning. Required UI surfaces and `TEST-*` obligations cover the chosen lifecycle, including failure and termination states.
 - For a UI-bearing product, `PRD.md` records the human owner for later UI design plus complete surfaces, routes, actions, states, responsive obligations, copy responsibilities, accessibility, confirmation, and recovery behavior. Every new or revised surface binds its exact architecture `releaseSurface`, matching `surfaceClass`, derived `captureMode`, and its own responsive set; hybrid platforms are never flattened into one global set. It does not contain a guessed layout, style, motion/media treatment, wireframe approval, or design token.
-- An enhancement package records the complete Enhancement Impact Record across product behavior, UI structure/style, data/integrations, architecture/stack, data trust/AI, monetization/partner, and release/operations. Each changed row names affected IDs/decisions, refreshed artifacts, and rerun gates. UI keeps the `none` / `structure` / `style` / `both` classification and its existing wireframe/design consequences.
+- An enhancement package records the complete Enhancement Impact Record across product behavior, UI structure/style, data/integrations, architecture/stack, data trust/AI, security, monetization/partner, and release/operations. Each changed row names affected IDs/decisions, refreshed artifacts, and rerun gates. UI keeps the `none` / `structure` / `style` / `both` classification and its existing wireframe/design consequences.
 - UI preference is not presented as user validation. `ui-design-builder` later records those choices and keeps conflicts with user evidence or accessibility requirements explicit.
 - For every deployable web, API, mobile, desktop, or browser-extension surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, an explicit lowercase kebab-case surface suffix and release name, separate stable surface and stage-specific provider fields, a source policy naming the exact branch or ref, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Production uses the canonical `<product-slug>-<surface-suffix>` name without `-prod`; development uses that exact name plus `-dev`; release names are globally unique across surface IDs. Different providers by stage are valid for the same surface.
 - Upload, submission, deployment-command success, notarization, or store approval alone is not accepted as availability. Hosted targets prove the route/API is serving and passes smoke checks; store or signed-installer targets prove the intended audience can actually install/download the artifact and that its release smoke check passes.
@@ -944,7 +966,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
 - Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
 - When the read-only agent work graph was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Agent output is treated as a candidate; the parent still owns staging and publication.
-- Run `python skills/product-definition-builder/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` before publication. It validates substantive core sections, complete UI surfaces, Must/NFR-to-TEST coverage, gate-area traces, release-target identity, metrics, decision tables, both approval markers, executable stack statuses, live `Selected` evidence, and blocked trust/AI/commercial gates.
+- Run `python skills/product-definition-builder/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` before publication. It validates substantive core sections, complete UI surfaces, Must/NFR-to-TEST coverage, Security Requirements traces, release-target identity, metrics, decision tables, both approval markers, executable stack statuses, live `Selected` evidence, and blocked trust/AI/security/commercial gates.
 
 ### Publication
 

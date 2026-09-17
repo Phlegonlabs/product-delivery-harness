@@ -88,7 +88,7 @@ For small work:
 
 1. Inspect the bounded component and relevant instructions.
 2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint; then implement with one parent writer.
-3. Run the smallest focused checks that prove the change.
+3. Run the smallest focused checks, including security tests, that prove the change.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
 6. For code work, load `code-security-review` on that SHA; without one, report `UNVALIDATED`, not PASS.

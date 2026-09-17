@@ -67,6 +67,8 @@ A task's own module crossing the project's File Size Limit (see the seeded root 
 
 `acceptance_matrix` is a canonical list on the PLAN task object. Updating it is a plan revision even when the task is not split.
 
+When a task touches a required security boundary, its `trace_ids` name the existing upstream `PRD-*` and its acceptance-matrix `test_id` names the existing required `TEST-*`. The row proves the control, denial, and absence of unauthorized side effects using the declared verifier and retained evidence.
+
 The parallel write unit is always a mission, and one independently testable goal maps to one mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker. Give the mission one explicit `write_scope` that is also the writer's file ownership. When missions share an API, schema, or type contract, freeze and integrate that contract before cutting dependent mission worktrees.
 
 ## Runtime Slice Gate
@@ -121,6 +123,7 @@ Rules:
 - Every layer above traces to the `ARCH-*` contracts in `architecture.md` — the data model rows for layers 1-2, the API and interface contract rows for layer 3, the auth and permissions section for layer 4, the integrations table for layer 5. A backend task with no `ARCH-*` trace is scope drift.
 - Each `ARCH-*` trace needs a downstream task **and** a verification row. `harness_manifest.py` enforces both halves at plan validation — a planned trace whose every carrying task has an empty acceptance matrix fails — so author the verification row with the task instead of discovering the failure at validation time.
 - Auth enforcement lands with or after the contract it protects, never before it. An auth layer written against routes that do not exist yet cannot be verified, and the archetype mission lists in `platform-archetypes.md` are coarse mission groupings, not this task order.
+- A protected route may be scaffolded before its final UI, but it remains fail-closed until authorization, tenant/permission isolation where applicable, and denial tests are implemented and pass.
 - A migration task states its classification (`additive` / `destructive`) when it is authored, not later. The classification is not a manifest field — state it in the task's objective or acceptance matrix. See `contract-and-traceability.md`'s Stop And Ask condition for a migration task reaching integration with its classification unset.
 - Each layer is one or more tasks, never one task spanning two layers — a task that adds a column and the endpoint reading it cannot fail the migration independently.
 - For an existing product, follow the repository's established layering when it differs; this order sequences the same layers for greenfield work.

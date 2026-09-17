@@ -23,7 +23,7 @@ if str(PDB_TESTS_DIR) not in sys.path:
 import new_run  # noqa: E402
 import render_tasks_view  # noqa: E402
 from harness_manifest import load_plan  # noqa: E402
-from manifest_fixtures import manifest_markdown  # noqa: E402
+from manifest_fixtures import carry_security_requirement, manifest_markdown  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
     release_architecture,
     strictize_approved_package,
@@ -126,6 +126,7 @@ class RenderTasksViewTests(unittest.TestCase):
             ).hexdigest()
             source["source_revision"] = None
             source["staged_revision"] = None
+        carry_security_requirement(self.plan)
         self.plan_path = self.dir / "PLAN.md"
         self.plan_path.write_text(
             manifest_markdown(

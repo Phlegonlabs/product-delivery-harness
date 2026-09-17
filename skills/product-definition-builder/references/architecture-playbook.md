@@ -17,6 +17,7 @@ Every architecture should cover:
 - Authentication, authorization, and role boundaries.
 - Monetization model; product/price, purchase/subscription, entitlement, payment, tax, refund, and chargeback ownership; and the separately resolved affiliate, referral, or reseller operating model when applicable. Apply `monetization-and-partner-channel-guide.md` instead of assuming RevenueCat or treating every partner as an affiliate.
 - Security, privacy, secrets, and audit concerns.
+- Required PRD Security Requirements rows: name each asset/boundary, enforcement point, safe failure, PRD ID, and TEST ID in Auth, Permissions, and Security.
 - The Data and Trust Gate: classification, residency, retention, deletion/export, consent/policy basis, vendor and human access, encryption, incident ownership, and applicable tests.
 - The AI and Automation Gate when applicable: model/provider boundary, data use, prompt and tool permissions, human approval, evaluation, prohibited outcomes, cost/latency budgets, observability, fallback/shutoff, prompt-injection defense, and output validation.
 - Integrations and failure handling.
@@ -197,6 +198,7 @@ Use when the product is mainly a service consumed by other systems.
 - Specify idempotency for payment, notification, import, workflow, and external mutation flows.
 - Keep monetization infrastructure separate from partner distribution. Pricing makes both gates applicable but does not automatically select RevenueCat; affiliate, referral, and reseller motions keep distinct attribution, customer-ownership, commission/discount, payout, provisioning, and support contracts.
 - Specify authorization at both UI and backend layers.
+- Implement required security controls and denial/no-side-effect tests with the task that touches their boundary. A scaffolded protected route stays fail-closed until those controls and tests exist.
 - For each applicable frontend, backend/data, mobile/desktop, commercial, or AI/automation area, present coherent stack bundles and record the owner-approved result. `Recommended` and `Provisional` rows are draft inputs, never implementation authority.
 - Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
 - For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact candidate-run-branch-to-`main` promotion path.

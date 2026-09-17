@@ -32,7 +32,11 @@ from harness_contract_join import (  # noqa: E402
     validate_frozen_contract_joins,
 )
 from harness_manifest import validate_current_plan_run  # noqa: E402
-from manifest_fixtures import valid_plan, valid_run  # noqa: E402
+from manifest_fixtures import (  # noqa: E402
+    carry_security_requirement,
+    valid_plan,
+    valid_run,
+)
 from check_design_system_pair import replace_generated_contract  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
     release_architecture,
@@ -149,6 +153,7 @@ class StrictAuthorityJoinTests(unittest.TestCase):
         ]
         for trace in plan["traces"]:
             trace["source_ids"] = ["SRC-PRD"]
+        carry_security_requirement(plan)
         plan["ui_surfaces"] = []
         return plan, cls._run(plan)
 
@@ -183,6 +188,7 @@ class StrictAuthorityJoinTests(unittest.TestCase):
             cls._row("SRC-WIREFRAME", "wireframe", wireframe, root),
             cls._row("SRC-TARGET", "approved ui target", hifi, root),
         ]
+        carry_security_requirement(plan)
         if required:
             assert pair is not None
             paths["design_markdown"] = pair[0]

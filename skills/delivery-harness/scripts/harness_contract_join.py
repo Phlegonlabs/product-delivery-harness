@@ -601,6 +601,331 @@ def validate_plan_prd_text(
     return errors
 
 
+def validate_plan_security_requirements(
+    plan: dict[str, Any], security_contract: Any
+) -> list[str]:
+    """Join a validated PRD security contract to existing PLAN coverage."""
+
+    errors: list[str] = []
+    if not isinstance(plan, dict):
+        errors.append("security requirements: plan must be an object")
+    if not isinstance(security_contract, dict):
+        errors.append("security requirements: parser contract must be an object")
+        return errors
+
+    status = security_contract.get("status")
+    scope = security_contract.get("scope")
+    if not isinstance(status, str) or status not in {
+        "required",
+        "not_required",
+        "blocked",
+    }:
+        errors.append(
+            "security requirements: contract status must be "
+            "required, not_required, or blocked"
+        )
+    if not isinstance(scope, str) or scope not in {
+        "executable",
+        "documentation_only",
+    }:
+        errors.append(
+            "security requirements: contract scope must be "
+            "executable or documentation_only"
+        )
+
+    requirements = security_contract.get("requirements")
+    if not isinstance(requirements, list):
+        errors.append("security requirements: requirements must be a list")
+        return errors
+
+    parsed_requirements: list[tuple[str, list[str]]] = []
+    seen_requirement_ids: set[str] = set()
+    for index, requirement in enumerate(requirements):
+        if not isinstance(requirement, dict):
+            errors.append(
+                f"security requirements: requirements[{index}] must be an object"
+            )
+            continue
+        prd_id = requirement.get("prd_id")
+        test_ids = requirement.get("test_ids")
+        if (
+            not isinstance(prd_id, str)
+            or re.fullmatch(r"PRD-[A-Z0-9-]+", prd_id) is None
+        ):
+            errors.append(
+                f"security requirements: requirements[{index}].prd_id "
+                "must be a valid PRD ID"
+            )
+            continue
+        if prd_id in seen_requirement_ids:
+            errors.append(
+                f"security requirements: {prd_id} appears more than once in the PRD"
+            )
+            continue
+        if not isinstance(test_ids, list):
+            errors.append(
+                f"security requirements: {prd_id} test_ids must be a list"
+            )
+            continue
+        valid_test_ids = [
+            test_id
+            for test_id in test_ids
+            if isinstance(test_id, str)
+            and re.fullmatch(r"TEST-[A-Z0-9-]+", test_id) is not None
+        ]
+        if (
+            not valid_test_ids
+            or len(valid_test_ids) != len(test_ids)
+            or len(valid_test_ids) != len(set(valid_test_ids))
+        ):
+            errors.append(
+                f"security requirements: {prd_id} test_ids must contain "
+                "unique valid TEST IDs"
+            )
+            continue
+        seen_requirement_ids.add(prd_id)
+        parsed_requirements.append((prd_id, valid_test_ids))
+
+    if status == "not_required":
+        if scope != "documentation_only":
+            errors.append(
+                "security requirements: not_required scope must be documentation_only"
+            )
+        if requirements:
+            errors.append(
+                "security requirements: not_required contract must have no rows"
+            )
+        return errors
+    if status == "blocked":
+        errors.append("security requirements: blocked contract must block execution")
+        return errors
+    if status != "required" or errors:
+        return errors
+    if not parsed_requirements:
+        errors.append(
+            "security requirements: required contract must contain at least one row"
+        )
+        return errors
+    if not isinstance(plan, dict):
+        return errors
+
+    traces = plan.get("traces")
+    missions = plan.get("missions")
+    if not isinstance(traces, list):
+        errors.append("security requirements: plan.traces must be a list")
+    if not isinstance(missions, list):
+        errors.append("security requirements: plan.missions must be a list")
+    if not isinstance(traces, list) or not isinstance(missions, list):
+        return errors
+
+    tasks: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for mission_index, mission in enumerate(missions):
+        if not isinstance(mission, dict):
+            errors.append(
+                f"security requirements: missions[{mission_index}] must be an object"
+            )
+            continue
+        if not isinstance(mission.get("trace_ids"), list):
+            errors.append(
+                f"security requirements: missions[{mission_index}].trace_ids "
+                "must be a list"
+            )
+        mission_tasks = mission.get("tasks")
+        if not isinstance(mission_tasks, list):
+            errors.append(
+                f"security requirements: missions[{mission_index}].tasks "
+                "must be a list"
+            )
+            continue
+        for task in mission_tasks:
+            if not isinstance(task, dict):
+                errors.append(
+                    f"security requirements: missions[{mission_index}].tasks "
+                    "entries must be objects"
+                )
+                continue
+            if not isinstance(task.get("trace_ids"), list):
+                task_id = task.get("id")
+                task_label = task_id if isinstance(task_id, str) else "<unknown>"
+                errors.append(
+                    f"security requirements: task {task_label} trace_ids "
+                    "must be a list"
+                )
+            tasks.append((mission, task))
+
+    for trace_index, trace in enumerate(traces):
+        if not isinstance(trace, dict):
+            errors.append(
+                f"security requirements: traces[{trace_index}] must be an object"
+            )
+
+    def trace_ids(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, str)]
+
+    for prd_id, required_tests in parsed_requirements:
+        matching_traces = [
+            trace
+            for trace in traces
+            if isinstance(trace, dict) and trace.get("id") == prd_id
+        ]
+        if not matching_traces:
+            errors.append(
+                f"security requirements: {prd_id} must appear exactly once in plan.traces"
+            )
+            continue
+        if len(matching_traces) != 1:
+            errors.append(
+                f"security requirements: {prd_id} appears "
+                f"{len(matching_traces)} times in plan.traces"
+            )
+            continue
+
+        trace = matching_traces[0]
+        disposition = trace.get("disposition")
+        if (
+            not isinstance(disposition, str)
+            or disposition not in ("planned", "deferred", "out_of_scope")
+        ):
+            errors.append(
+                f"security requirements: {prd_id} trace has no explicit supported disposition"
+            )
+            continue
+
+        carrying_missions = [
+            mission
+            for mission in missions
+            if isinstance(mission, dict) and prd_id in trace_ids(mission.get("trace_ids"))
+        ]
+        carrying_tasks = [
+            (mission, task)
+            for mission, task in tasks
+            if prd_id in trace_ids(task.get("trace_ids"))
+        ]
+
+        for test_id in required_tests:
+            for _mission, task in tasks:
+                if prd_id in trace_ids(task.get("trace_ids")):
+                    continue
+                acceptance = task.get("acceptance_matrix")
+                if not isinstance(acceptance, list):
+                    continue
+                if any(
+                    isinstance(row, dict) and row.get("test_id") == test_id
+                    for row in acceptance
+                ):
+                    errors.append(
+                        f"security requirements: {test_id} is used by a task "
+                        f"that does not carry {prd_id}"
+                    )
+
+        if disposition != "planned":
+            rationale = trace.get("rationale")
+            if not isinstance(rationale, str) or not rationale.strip():
+                errors.append(
+                    f"security requirements: {prd_id} {disposition} rationale is required"
+                )
+            if carrying_missions or carrying_tasks:
+                errors.append(
+                    f"security requirements: {prd_id} {disposition} must not be "
+                    "carried by an executable mission or task"
+                )
+            continue
+
+        if not carrying_tasks:
+            errors.append(
+                f"security requirements: planned {prd_id} has no carrying task"
+            )
+            continue
+
+        for _mission, task in carrying_tasks:
+            verifiers = task.get("verifiers")
+            if not isinstance(verifiers, list) or not verifiers:
+                errors.append(
+                    f"security requirements: task carrying {prd_id} must declare a verifier"
+                )
+            task_id = task.get("id")
+            task_label = task_id if isinstance(task_id, str) else "<unknown>"
+            acceptance = task.get("acceptance_matrix")
+            if not isinstance(acceptance, list):
+                errors.append(
+                    f"security requirements: task {task_label} acceptance_matrix "
+                    "must be a list"
+                )
+                continue
+            for test_id in required_tests:
+                if not any(
+                    isinstance(row, dict)
+                    and row.get("test_id") == test_id
+                    and prd_id in trace_ids(row.get("trace_ids"))
+                    for row in acceptance
+                ):
+                    errors.append(
+                        f"security requirements: planned {prd_id} task {task_label} "
+                        f"is missing required security {test_id} on its acceptance row"
+                    )
+
+    return errors
+
+
+def product_security_requirements_join_errors(
+    plan: dict[str, Any],
+    prd_text: str,
+    *,
+    parser: Any = None,
+    sibling_scripts: Path | None = None,
+    parser_required: bool = False,
+) -> list[str]:
+    """Parse frozen PRD security authority and join it to the PLAN."""
+
+    if parser is None:
+        if not parser_required:
+            return []
+        scripts = sibling_scripts or sibling_builder_scripts_dir()
+        try:
+            parser = _load_product_security_requirements_parser(scripts)
+        except Exception as exc:
+            return [
+                "security requirements: canonical parser loader failed safely: "
+                f"{type(exc).__name__}: {exc}"
+            ]
+        if parser is None:
+            return [
+                "security requirements: canonical parser is unavailable — install "
+                "product-definition-builder next to delivery-harness"
+            ]
+
+    if not callable(parser):
+        return ["security requirements: canonical parser is not callable"]
+    try:
+        parsed = parser(prd_text)
+    except Exception as exc:
+        return [
+            "security requirements: canonical parser failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        ]
+    if not isinstance(parsed, tuple) or len(parsed) != 2:
+        return ["security requirements: canonical parser returned an invalid result"]
+    security_contract, parser_errors = parsed
+    if not isinstance(parser_errors, list) or any(
+        not isinstance(error, str) for error in parser_errors
+    ):
+        return ["security requirements: canonical parser returned invalid errors"]
+    if parser_errors:
+        return list(parser_errors)
+
+    errors: list[str] = []
+    try:
+        errors.extend(validate_plan_security_requirements(plan, security_contract))
+    except Exception as exc:
+        errors.append(
+            "security requirements: PLAN join failed safely: "
+            f"{type(exc).__name__}: {exc}"
+        )
+    return errors
+
+
 def _wireframe_screens(
     data: dict[str, Any], *, label: str = "wireframes"
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -939,6 +1264,7 @@ def _resolve_source_bytes(
 _FULL_WIREFRAME_CHECKERS: dict[Path, Any] = {}
 _FULL_UI_DESIGN_CHECKERS: dict[Path, Any] = {}
 _FULL_PRODUCT_PACKAGE_CHECKERS: dict[Path, Any] = {}
+_PRODUCT_SECURITY_REQUIREMENT_PARSERS: dict[Path, Any] = {}
 _FULL_DESIGN_SYSTEM_CHECKERS: dict[Path, Any] = {}
 _UI_CONTRACT_VIEWS: dict[Path, Any] = {}
 _PRD_UI_CONTRACT_PARSERS: dict[Path, Any] = {}
@@ -1078,6 +1404,31 @@ def _load_full_product_package_checker(sibling_scripts: Path) -> Any:
         checker = checker_module.validate_texts
     _FULL_PRODUCT_PACKAGE_CHECKERS[key] = checker
     return checker
+
+
+def _load_product_security_requirements_parser(sibling_scripts: Path) -> Any:
+    """Load the canonical Product security-contract parser once per directory."""
+
+    key = sibling_scripts.resolve()
+    if key in _PRODUCT_SECURITY_REQUIREMENT_PARSERS:
+        return _PRODUCT_SECURITY_REQUIREMENT_PARSERS[key]
+    parser: Any = None
+    checker_path = key / "check_product_package.py"
+    if checker_path.is_file():
+        sys.path.insert(0, str(key))
+        try:
+            import check_product_package as checker_module
+        finally:
+            try:
+                sys.path.remove(str(key))
+            except ValueError:
+                pass
+        loaded_path = Path(str(getattr(checker_module, "__file__", ""))).resolve()
+        if loaded_path != checker_path.resolve():
+            raise ImportError("Product security parser path does not match sibling source")
+        parser = getattr(checker_module, "parse_security_requirements", None)
+    _PRODUCT_SECURITY_REQUIREMENT_PARSERS[key] = parser
+    return parser
 
 
 def _load_ui_contract_view(sibling_scripts: Path) -> Any:
@@ -1577,6 +1928,11 @@ def _validate_strict_frozen_contract_joins(
         errors.append(f"product package: core artifact is not valid UTF-8 ({exc})")
         return sorted(set(errors))
 
+    errors.extend(
+        product_security_requirements_join_errors(
+            plan, prd_text, parser_required=True
+        )
+    )
     canonical_prd_parser = _load_canonical_prd_ui_contract_parser(
         sibling_builder_scripts_dir()
     )
@@ -1804,10 +2160,19 @@ def validate_frozen_contract_joins(
             errors.extend(validate_plan_prd_text(plan, prd_text))
             if viewports_floor:
                 errors.extend(prd_web_viewport_floor_errors(prd_text))
-            if (
-                "<!-- product-definition-approval:start -->" in prd_text
-                or "<!-- product-definition-approval:end -->" in prd_text
-            ):
+            approved_product_package = any(
+                marker in prd_text
+                for marker in (
+                    "<!-- product-definition-approval:start -->",
+                    "<!-- product-definition-approval:end -->",
+                )
+            )
+            errors.extend(
+                product_security_requirements_join_errors(
+                    plan, prd_text, parser_required=approved_product_package
+                )
+            )
+            if approved_product_package:
                 if len(architecture_sources) != 1:
                     errors.append(
                         "plan.sources: an approved Product Definition package requires "

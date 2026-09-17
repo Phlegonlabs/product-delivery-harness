@@ -28,6 +28,7 @@ Task gate:
 - Proves one task changed the intended behavior.
 - Runs focused checks selected from parent-observed changed files when the verifier declares `selection.mode: "changed_files"`; omitted selection metadata means `always`.
 - Must pass before a worker result can become `worker_passed` and before a task commit when commits are authorized.
+- For a touched security boundary, includes the declared negative test proving denial and no unauthorized side effects. A missing upstream PRD/TEST decision is `contract_gap`; unavailable required tooling or evidence blocks the task.
 - After it passes, create at most one coherent task commit using `commit-convention.md`; split the task first when independent outcomes remain.
 - Confirms every file the task touched still satisfies the project's File Size Limit (see the seeded root `CLAUDE.md`/`AGENTS.md`). A task that leaves a touched module over the limit without a stated exception fails this gate, rather than being caught, if at all, only by a later code review's subjective judgment.
 
@@ -58,6 +59,7 @@ Mission integration gate:
 
 - Runs after reviewed work lands on the exact non-protected run integration branch resolved from repository governance or the user's instruction.
 - Runs that mission's declared `integration_verifiers` on the integrated head.
+- When missions meet at a security boundary, integration checks cover the seam — enforcement, cross-mission trust/data flow, and failure/no-side-effect behavior — rather than repeating only per-task unit checks.
 - Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
 
 Batch integration gate:
@@ -107,6 +109,7 @@ Use or adapt this matrix:
 | Permissions | auth/role behavior changed | allowed/denied cases pass | test or trace |
 | Auth lifecycle | identity/session changed | signup/login/logout/session cases pass | test or trace |
 | Tenant isolation | tenant-scoped data changed | cross-tenant access denied | test or trace |
+| Security controls | a required trust boundary changed | unauthorized action denied with no unauthorized side effects | negative test or trace |
 | Billing / entitlement | plan-gated feature changed | allowed/blocked cases pass | test or trace |
 | Audit / observability | sensitive action changed | event/log/metric created | log/test output |
 | Browser journey | UI or workflow changed | primary journey completes | trace/screenshot/log |
@@ -344,6 +347,8 @@ Dependency readiness is strict: only a dependency in phase `integrated`, with `i
 ## Unified Code-Security Review
 
 Every new managed PLAN records `security_review.status` as `required` or `not_applicable`; the latter needs a concrete non-code reason. Harness 0.28.0 and later refuse to generate or validate a new-version RUN when that policy is omitted. A required policy declares `security` in `required_reviews` and includes at least one integration-stage security reviewer covering every mission, with review scope containing each covered mission's complete write scope. The Harness parent resolves the project's `code_security_verification` Skill Binding, reserves the review attempt, and dispatches a fresh sibling reviewer with `code-security-review` against the exact `integration_head_sha`.
+
+Early controls and negative tests are development evidence, not a substitute for this final independent review. Do not automatically install scanners, probe production, enable network access, or add delegated reviewers. An optional scanner that is absent is recorded as an explicit coverage gap; a required unavailable scanner, advisory source, or reviewer blocks.
 
 The security reviewer is read-only, never delegates, and reports all validated findings in one pass. It receives no write scope, commit authority, scanner-install permission, network permission, or live-target penetration authority. Optional local scanners may add evidence; a required but unavailable scanner, advisory source, or independent reviewer blocks the gate rather than producing a partial PASS. Completion passes the result as `--security-result`; the transition validates and retains its exact review type, decision, SHA, base, scope, exclusions, trust boundaries, tools, coverage, findings, and evidence. A security PASS must have an empty `exclusions` list; the current contract does not allow a PASS with narrowed or omitted coverage.
 

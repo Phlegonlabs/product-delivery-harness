@@ -54,11 +54,11 @@ Capture internally: goal, buyer, users, roles, permissions, use context, channel
 Ask the unresolved parts of these short prompts:
 
 - Walk through the most important workflows: what starts each one, the key steps, and the successful end state.
-- What data and systems does each workflow use? Which data is sensitive, where may it go, and what retention, deletion, residency, or consent rules apply?
+- What data and systems are used? Which data is sensitive, and what retention or consent rules apply? Also name security assets and trust boundaries.
 - Which rules, approvals, limits, audit needs, or forbidden outcomes apply? For AI/automation, what may it do, what needs human approval, and what limits apply?
 - Which actions need confirmation, progress feedback, undo, recovery, or human intervention, and which screens or notifications support them?
 
-Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, classification, residency, deletion/export, consent, vendor and human access, business rules, compliance boundaries, AI/automation permissions and evaluation, UI states, content responsibilities, and confirmation/recovery expectations. Leave database category, auth strategy, validation depth, and stack decision mode for `AskUserQuestion`.
+Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, classification, residency, deletion/export, consent, vendor and human access, security assets, entry points, trust boundaries, abuse cases, forbidden outcomes, prior incidents, required security evidence, owner, and residual risk, business rules, compliance boundaries, AI/automation permissions and evaluation, UI states, content responsibilities, and confirmation/recovery expectations. Leave database category, auth strategy, validation depth, and stack decision mode for `AskUserQuestion`.
 
 ### Segment 3 — Delivery, success, and risk
 
@@ -164,6 +164,7 @@ Discovery is complete enough to draft when the agent can state:
 - For mobile, desktop, or browser-extension products, the exact v1 operating-system/browser targets are separate from native-versus-cross-platform and framework/toolchain choices.
 - The Stack Decision Mode and named human decision owner; no recommendation is treated as accepted merely because the agent wrote it.
 - A Data and Trust Gate with classification, residency, retention, deletion/export, consent/policy, vendor/human access, and risk ownership when applicable, or `not_required` with a reason.
+- Security discovery inputs for `output-contract.md`'s risk list: assets, entry points, trust boundaries, adversary actions, forbidden outcomes, prior incidents, required tools/evidence, owner, and residual risk — or a concrete owner-approved documentation-only reason.
 - An AI and Automation Gate with data, model/provider boundary, tool permissions, human approval, evaluation, cost/latency, fallback/shutoff, injection defense, and output validation when applicable, or `not_required` with a reason.
 - The monetization model and both the Monetization Infrastructure Gate and Partner Channel Gate, including explicit `not_required` reasons; when applicable, the pricing/offer rules, purchase surfaces, entitlement owner, merchant-of-record/tax owner, partner motion, attribution, commission, payout, and reseller responsibilities needed to recommend current providers.
 - The UI screens or interaction points that need a canonical PRD surface entry.
@@ -179,7 +180,7 @@ If any item is missing and the user did not authorize assumptions, ask follow-up
 
 When `docs/product/PRD.md` (or another document clearly describing the same product) already exists, this run enhances it instead of starting fresh. Read the existing package in full first, then run a delta interview:
 
-- Record an `Enhancement Impact Record` before drafting. Classify product scope/behavior, UI structure/style, data/integrations, architecture/stack, data/trust/AI, monetization/partner channels, and release/operations as unchanged or changed; keep the existing `none` / `structure` / `style` / `both` vocabulary for the UI row. Each changed row names the affected IDs or decisions, artifacts to refresh, and approval gates to rerun.
+- Record an `Enhancement Impact Record` before drafting. Classify product scope/behavior, UI structure/style, data/integrations, architecture/stack, data trust / AI, Security, monetization/partner channels, and release/operations as unchanged or changed; keep the existing `none` / `structure` / `style` / `both` vocabulary for the UI row. Each changed row names the affected IDs or decisions, artifacts to refresh, and approval gates to rerun. A Security change that changes a stack decision also marks Architecture/stack changed.
 - First, classify the delta's UI impact explicitly with the owner: `none` (no UI change), `structure` (product-defined screens, routes, flows, or states change), `style` (only the downstream UI direction or design system is affected), or `both`. A `style`-only request routes to `ui-design-builder`; `structure` or `both` updates Product Definition first and then refreshes downstream UI approval.
 - Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
 - Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
