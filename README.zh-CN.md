@@ -342,6 +342,8 @@ Child agent run 不负责访谈或审批。父级先冻结输入，再启动有�
 
 非 runtime 图节点采用 reserve／execute／record 顺序：`reserve-node-attempt` 在 RUN lock 内建立 receipt，approval、external wait、deterministic verifier 或 lifecycle side effect 在 lock 外执行，`record-node-result` 只关闭相符的 attempt，并按声明的 outcome 派生 graph phase。Lifecycle transition 只记录证据，不执行动作。`lease-worker` 把选择器派生的 runtime binding 与精确 task／thread 身份写入 RUN，并遵守 compatibility 检查与现有 wildcard 授权。
 
+PLAN v6 在执行前检查 gate 绑定：每个 `local_command` 或 `harness_parent` verifier 节点只能引用 `batch_verifiers` 或 `final_gates`，且每项声明至少需要一个确定性节点。Runtime review 的引用不会执行这些命令，也不会填入 gate 结果。Task、worker 和 mission-integration verifier 保持现有执行路径。旧版 schema 仍可读取以供恢复。
+
 在 Claude Code 上，host adapter 会把 mixed frontier 按 homogeneous `tool_profile` 分成多个调用；同一组内可以使用不同模型和推理强度，但一次调用绝不混合写入 mission 与只读 review。tool profile 是标签和 prompt/result 契约，不是 permission-level tool removal。
 
 - `mission_write` 要求 `EnterWorktree` 和 mission 的有界写入契约。

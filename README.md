@@ -342,6 +342,8 @@ For engineering, the Harness validates and selects the dependency-ready frontier
 
 Non-runtime graph nodes use a reserve/execute/record sequence: `reserve-node-attempt` creates the RUN-locked receipt, the approval, external wait, deterministic verifier, or lifecycle side effect runs outside that lock, and `record-node-result` closes only the matching attempt with evidence and a phase derived from its declared outcome. Lifecycle transitions record evidence only; they never execute the action. `lease-worker` carries the selector-derived runtime binding and exact task/thread identity into RUN, subject to compatibility checks and existing wildcard authorization.
 
+PLAN v6 validates gate bindings before execution: each `local_command` or `harness_parent` verifier node must reference a `batch_verifiers` or `final_gates` entry, and every such entry needs at least one deterministic node. Runtime review references do not execute these commands or populate gate results. Task, worker, and mission-integration verifiers keep their existing execution paths. Older schemas remain readable for recovery.
+
 On Claude Code, the host adapter batches a mixed frontier into one call per homogeneous `tool_profile`; model and reasoning effort may vary inside a group, but a call never mixes write missions with read-only reviews. A tool profile is a label and prompt/result contract, not permission-level tool removal.
 
 - `mission_write` requires `EnterWorktree` and the mission's bounded write contract.
