@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from select_verifiers import VerifierSelectionError, normalize_changed_files
+import host_process
 from harness_core import (
     HOST_FINGERPRINT_KEYS,
     HOST_RUNTIME_VERSION_KEYS,
@@ -2412,15 +2413,35 @@ def run_verifier(
                         execution_environment,
                         checked_host_preflight,
                     )
-                completed = subprocess.run(
-                    execution_argv,
-                    cwd=execution_cwd,
-                    env=execution_environment,
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                    timeout=timeout_seconds,
-                )
+                    host_result = host_process.run_process_tree(
+                        execution_argv,
+                        cwd=execution_cwd,
+                        environment=execution_environment,
+                        timeout_seconds=timeout_seconds,
+                    )
+                    if host_result.timeout:
+                        raise subprocess.TimeoutExpired(
+                            execution_argv,
+                            timeout_seconds,
+                            output=host_result.stdout,
+                            stderr=host_result.stderr,
+                        )
+                    completed = subprocess.CompletedProcess(
+                        execution_argv,
+                        host_result.exit_code,
+                        host_result.stdout,
+                        host_result.stderr,
+                    )
+                else:
+                    completed = subprocess.run(
+                        execution_argv,
+                        cwd=execution_cwd,
+                        env=execution_environment,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                        timeout=timeout_seconds,
+                    )
             status = "PASS" if completed.returncode == 0 else "FAIL"
             exit_code = completed.returncode
             stdout = completed.stdout
@@ -2430,6 +2451,12 @@ def run_verifier(
             exit_code = None
             stdout = exc.stdout if isinstance(exc.stdout, str) else ""
             stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        except host_process.HostProcessError as exc:
+            status = "ERROR"
+            exit_code = None
+            stdout = exc.stdout
+            stderr = exc.stderr
+            stderr = (stderr + "\n" if stderr else "") + str(exc)
         except OSError as exc:
             status = "ERROR"
             exit_code = None

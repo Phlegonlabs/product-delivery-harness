@@ -10,6 +10,7 @@ import io
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -45,6 +46,7 @@ class HostVerifierTests(unittest.TestCase):
         (self.root / ".gitignore").write_text("build/\n", encoding="utf-8")
         (self.root / "app").mkdir()
         (self.root / "app/input.txt").write_text("input\n", encoding="utf-8")
+        (self.root / "tracked.txt").write_text("safe\n", encoding="utf-8")
         mf.git(self.root, "add", ".")
         mf.git(self.root, "commit", "-qm", "host fixture")
         self.head = mf.git(self.root, "rev-parse", "HEAD")
@@ -76,11 +78,105 @@ class HostVerifierTests(unittest.TestCase):
         self.assertEqual([], host_execution_binding_errors(result["key_document"]["host_preflight"],
                          result["host_execution_attestation"], result["key_document"], str(self.root)))
 
+    def delayed_mutation_command(self, delay, *, timeout=False, inherit_output=False):
+        path = self.root / "tracked.txt"
+        child_source = (
+            "from pathlib import Path; import time; "
+            "Path('build/child-ready').touch(); "
+            f"time.sleep({delay}); Path({str(path)!r}).write_text('mutated')\n"
+        )
+        parent_body = "print('parent-exit')"
+        if timeout:
+            parent_body = "import time; time.sleep(5); print('parent-exit')"
+        output_args = "" if inherit_output else "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, "
+        parent_source = (
+            "import subprocess, sys, time; from pathlib import Path; "
+            "Path('build').mkdir(exist_ok=True); "
+            "subprocess.Popen([sys.executable, '-c', "
+            f"{child_source!r}], stdin=subprocess.DEVNULL, "
+            + output_args + "close_fds=True)\n"
+            "while not Path('build/child-ready').exists(): time.sleep(.005)\n"
+            "print('child-ready', flush=True)\n" + parent_body
+        )
+        return host_verifier(parent_source)
+
     def test_host_only_preflight_does_not_launch_any_process(self):
         declaration = host_verifier()
         with patch.object(vr.subprocess, "run", side_effect=AssertionError("process invoked")):
             self.assertEqual(([], []), vr.observe_plan_sandboxes({"final_gates": [declaration]}))
             self.preflight(declaration)
+
+    @unittest.skipUnless(sys.platform == "win32", "uses the Windows job mechanism")
+    def test_windows_job_terminates_descendant_after_parent_success(self):
+        declaration = self.delayed_mutation_command(0.75)
+        result = self.execute(declaration)
+        self.assertEqual("PASS", result["status"])
+        time.sleep(1.0)
+        self.assertEqual("safe\n", (self.root / "tracked.txt").read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(sys.platform == "win32", "uses the Windows job mechanism")
+    def test_windows_job_terminates_descendant_on_timeout(self):
+        declaration = self.delayed_mutation_command(2, timeout=True)
+        result = self.execute(declaration, timeout_seconds=1)
+        self.assertEqual("TIMEOUT", result["status"])
+        self.assertIn("child-ready", result["stdout"])
+        time.sleep(2.25)
+        self.assertEqual("safe\n", (self.root / "tracked.txt").read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(sys.platform.startswith("linux") or sys.platform == "darwin",
+                         "uses the POSIX process-group mechanism")
+    def test_posix_group_terminates_descendant_after_parent_success(self):
+        declaration = self.delayed_mutation_command(0.75)
+        result = self.execute(declaration)
+        self.assertEqual("PASS", result["status"])
+        time.sleep(1.0)
+        self.assertEqual("safe\n", (self.root / "tracked.txt").read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(sys.platform.startswith("linux") or sys.platform == "darwin",
+                         "uses the POSIX process-group mechanism")
+    def test_posix_group_terminates_descendant_on_timeout(self):
+        declaration = self.delayed_mutation_command(2, timeout=True)
+        result = self.execute(declaration, timeout_seconds=1)
+        self.assertEqual("TIMEOUT", result["status"])
+        self.assertIn("child-ready", result["stdout"])
+        time.sleep(2.25)
+        self.assertEqual("safe\n", (self.root / "tracked.txt").read_text(encoding="utf-8"))
+
+    def test_inherited_output_does_not_delay_descendant_cleanup(self):
+        result = self.execute(self.delayed_mutation_command(0.75, inherit_output=True))
+        self.assertEqual("PASS", result["status"])
+        self.assertIn("child-ready", result["stdout"])
+        time.sleep(1.0)
+        self.assertEqual("safe\n", (self.root / "tracked.txt").read_text(encoding="utf-8"))
+
+    def test_cleanup_failure_cannot_pass(self):
+        cleanup = "_wait_job_empty" if sys.platform == "win32" else "_terminate_group"
+        with patch.object(vr.host_process, cleanup,
+                          side_effect=vr.host_process.HostProcessError("cleanup failed")):
+            result = self.execute(host_verifier())
+        self.assertEqual("ERROR", result["status"])
+        self.assertIn("cleanup failed", result["stderr"])
+
+    def test_host_stdout_stderr_and_exit_code_are_preserved(self):
+        result = self.execute(host_verifier(
+            "import sys; print('stdout marker'); "
+            "sys.stderr.write('stderr marker'); raise SystemExit(3)"
+        ))
+        self.assertEqual("FAIL", result["status"])
+        self.assertEqual(3, result["exit_code"])
+        self.assertEqual("stdout marker\n", result["stdout"])
+        self.assertEqual("stderr marker", result["stderr"])
+
+    @unittest.skipUnless(sys.platform == "win32", "forces a Windows job setup failure")
+    def test_windows_containment_setup_failure_fails_closed(self):
+        declaration = host_verifier()
+        with patch.object(vr.host_process._kernel32, "AssignProcessToJobObject",
+                          return_value=False) as assign:
+            result = self.execute(declaration)
+        self.assertEqual("ERROR", result["status"])
+        self.assertIsNone(result["exit_code"])
+        self.assertIn("Windows process-tree setup failure", result["stderr"])
+        assign.assert_called_once()
 
     def test_fail_and_timeout_are_not_pass(self):
         for source, timeout, expected in [("raise SystemExit(7)", 5, "FAIL"), ("import time; time.sleep(3)", .1, "TIMEOUT")]:
