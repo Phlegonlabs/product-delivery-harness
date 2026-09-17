@@ -63,7 +63,7 @@ Mission integration gate:
 Batch integration gate:
 
 - Runs the PLAN-level `batch_verifiers` after every selected wave has integrated serially.
-- Groups independent local-command verifiers whose typed resource claims do not conflict. Use `scripts/verifier_runtime.py` batch mode. A verifier that declares no resource batches by default; `parallel_safe: false` or a conflicting exclusive claim keeps it serial. Task and worker gates use the same batch path.
+- Uses `scripts/verifier_runtime.py` batch mode. Only container verifiers with `parallel_safe: true` and nonconflicting resource claims may run together. Host verifiers require `parallel_safe: false` and run serially within that runner; independent workers may run host checks concurrently in separate worktrees. Task and worker gates use the same batch path.
 - Contains only checks that need more than one integrated mission or shared contract. Do not repeat focused task suites here.
 - Proves cross-mission behavior did not regress and blocks the next wave on failure.
 
