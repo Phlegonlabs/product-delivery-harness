@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.41.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.41.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -526,6 +526,8 @@ The READMEs are documentation-of-record: every change that adds or alters a skil
 
 ## Releasing
 
+Windows CI stops after any failed Python suite. Test fixtures resolve temporary paths before binding executable or repository identities, including Windows 8.3 aliases.
+
 Every flow that lands on `main` is one release, and the version bump rides in the same change — patch by default, minor for a breaking skill-bundle change. Update all of these together:
 
 1. The `version` field in `package.json` and the copied-skill version in `skills/delivery-harness/VERSION`.
@@ -549,6 +551,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.41.1** — Stop Windows CI at the first failed Python suite and normalize temporary fixture paths before strict identity checks. This fixes failures hidden by later successful commands.
 
 - **0.41.0** — Default new managed build/lint/test checks to explicit host execution with executable and source evidence; keep Docker/Podman optional and existing container declarations unchanged. Record actual worker/worktree capacity and launch independent missions before waiting. Present complete PRD, wireframe and HiFi review links, and derive PRD improvement recommendations from prior market research. UI browser review needs no container. New host declarations require this bundle version.
 

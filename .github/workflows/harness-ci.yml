@@ -99,19 +99,32 @@ jobs:
       - name: Run native runtime, Git, parity, transition and context tests
         shell: pwsh
         run: |
+          python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_skill_contract.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_host_verifier_runtime.py" -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_verifier_runtime.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_harness_git.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_parity_capture.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_node_transitions.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_configure_project_context.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_write_path_transitions.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_archive_run.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_trusted_host_publication.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_harness_strict_authority.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_install_script.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s skills/design-system-compiler/scripts/tests -p "test_check_design_system_pair.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify PowerShell installer syntax and dependency check route
         shell: pwsh

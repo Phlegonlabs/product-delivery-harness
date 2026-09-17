@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.41.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.41.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -526,6 +526,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 ## 发布
 
+Windows CI 会在任意 Python 测试组失败后立即停止。测试数据在绑定可执行文件或仓库身份前先解析临时路径，包括 Windows 8.3 别名。
+
 每个落在 `main` 的流程就是一次 release，版本号提升要在同一份变更里完成——默认升 patch，skill bundle 有破坏性变更升 minor。以下几个地方要一起更新：
 
 1. `package.json` 的 `version` 字段与 `skills/delivery-harness/VERSION` 中会随技能目录复制的版本。
@@ -549,6 +551,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.41.1** — Windows CI 在第一组 Python 测试失败时停止，避免后续成功指令掩盖失败；临时测试路径先规范化，再执行严格身份检查。
 
 - **0.41.0** — 新受管 build／lint／test 默认明确使用 host，保留可执行文件与源码证据；Docker／Podman 改为可选，现有 container 声明保持原模式。记录实际 worker／worktree 容量，先启动独立 missions 再等待。主动提供完整 PRD、wireframe 与 HiFi 审核链接，并从前期市场研究提出 PRD 改善建议。UI 浏览器审核不需要容器。新的 host 声明须使用此版包。
 
