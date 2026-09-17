@@ -141,7 +141,7 @@ class NodeTransitionTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as control_dir,
         ):
             root = Path(repo_dir)
-            control = Path(control_dir)
+            control = Path(control_dir).resolve()
             mf.init_repo(root, "README.md", default_branch="codex/test")
             plan = mf.valid_plan()
             plan["final_gates"][0]["argv"] = [

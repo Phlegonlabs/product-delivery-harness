@@ -1,4 +1,6 @@
 import re
+import shutil
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -24,13 +26,38 @@ REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
 
 
 class DeliveryHarnessSkillContractTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "win32" and REPO_ROOT is not None,
+                         "Windows CI command exit propagation")
+    def test_windows_ci_stops_at_each_failed_suite(self) -> None:
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        if shell is None:
+            self.skipTest("PowerShell unavailable")
+        workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(encoding="utf-8")
+        step = workflow.split("      - name: Run native runtime, Git, parity, transition and context tests\n", 1)[1]
+        step = step.split("      - name:", 1)[0].split("        run: |\n", 1)[1]
+        script = "\n".join(line[10:] for line in step.splitlines() if line.strip())
+        count = sum(line.startswith("python -m unittest ") for line in script.splitlines())
+        self.assertGreater(count, 1)
+        for failed_suite in range(1, count + 1):
+            with self.subTest(failed_suite=failed_suite):
+                stub = (
+                    "$global:Calls = 0\nfunction python {\n"
+                    "  $global:Calls++\n  Write-Output ('suite:' + $global:Calls)\n"
+                    f"  if ($global:Calls -eq {failed_suite}) {{ $global:LASTEXITCODE = 7 }}\n"
+                    "  else { $global:LASTEXITCODE = 0 }\n}\n"
+                )
+                result = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command", stub + script],
+                                        capture_output=True, text=True, timeout=30)
+                self.assertEqual(7, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(failed_suite, result.stdout.count("suite:"))
+
     @unittest.skipIf(REPO_ROOT is None, "brand contract requires a source checkout")
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.41.0"', package)
+        self.assertIn('"version": "0.41.1"', package)
         self.assertEqual(
-            "0.41.0",
+            "0.41.1",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -945,7 +972,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.41.0"', runbook)
+        self.assertIn('"required_harness_version": "0.41.1"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.41.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.41.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -525,6 +525,8 @@ Los READMEs son la documentación de registro: cada cambio que agregue o altere 
 
 ## Releasing
 
+La CI de Windows se detiene si falla cualquier suite de Python. Los fixtures resuelven las rutas temporales antes de vincular identidades del ejecutable o repositorio, incluidos alias 8.3.
+
 Cada flujo que aterriza en `main` es un release, y el bump de versión va en el mismo cambio — patch por defecto, minor para un cambio breaking del skill-bundle. Actualiza todo esto junto:
 
 1. El campo `version` de `package.json` y la versión del copied-skill en `skills/delivery-harness/VERSION`.
@@ -548,6 +550,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.41.1** — Detiene la CI de Windows en la primera suite de Python que falla y normaliza las rutas temporales de los fixtures. Los comandos posteriores ya no ocultan fallos anteriores.
 
 - **0.41.0** — Las nuevas comprobaciones build/lint/test usan host con evidencia del ejecutable y del código; Docker/Podman son opcionales y las declaraciones container existentes conservan su modo. Se registra la capacidad real de workers y worktrees y se inician las misiones independientes antes de esperar. Se presentan enlaces completos del PRD, wireframe y HiFi para revisión, con recomendaciones para el PRD basadas en la investigación de mercado previa. La revisión UI en navegador no necesita contenedor. Las declaraciones host nuevas requieren esta versión del paquete.
 

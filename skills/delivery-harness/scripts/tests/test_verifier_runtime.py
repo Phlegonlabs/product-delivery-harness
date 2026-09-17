@@ -179,7 +179,7 @@ def build_execution_key(
 class VerifierRuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.checkout = self.root / "checkout"
         self.cache = self.root / "cache"
         self.checkout.mkdir()
