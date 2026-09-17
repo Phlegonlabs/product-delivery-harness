@@ -72,7 +72,7 @@ class HostVerifierTests(unittest.TestCase):
              patch.object(vr, "_materialize_git_snapshot", side_effect=AssertionError("archive invoked")):
             result = self.execute(declaration)
         self.assertEqual("PASS", result["status"])
-        self.assertEqual(str(self.root / "app"), result["host_execution_attestation"]["cwd"])
+        self.assertEqual(str((self.root / "app").resolve()), result["host_execution_attestation"]["cwd"])
         self.assertEqual(result["host_execution_attestation"], result["git_guard_attestation"]["host_execution_attestation"])
         self.assertEqual([], vr.execution_retention_binding_errors(result))
         self.assertEqual([], host_execution_binding_errors(result["key_document"]["host_preflight"],
