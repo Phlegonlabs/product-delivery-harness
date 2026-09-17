@@ -364,7 +364,7 @@ const rawLanes = await parallel(roles.map((role) => () => agent(
   `You are the ${role.key} role in a PRD org graph.\n` +
     `${role.task}\n\n` +
     `Frozen task context: ${sourceContext}\n\n` +
-    "Read only. Do not edit, create, move, or publish files. Preserve supplied facts, label assumptions, and return only the structured role result.",
+    "Read the supplied sources, including research-assessment.md when available, before drafting. Use its sourced market baseline and preserve RA-* evidence and unresolved gaps. Read only. Do not edit, create, move, or publish files. Preserve supplied facts, label assumptions, and return only the structured role result.",
   { label: `prd:${role.key}`, phase: "Analyze", schema: laneSchema },
 )));
 const lanes = rawLanes.map((result, index) => (
@@ -418,11 +418,12 @@ const verifyTasks = reviewers.map((reviewer) => () => agent(
 ));
 if (workflowArgs.market_research) {
   verifyTasks.push(() => agent(
-    "You are the market-research role in a PRD org graph. The package is already drafted; your job is to check it against what already exists in the market and report what is missing.\n" +
+    "You are the market-research role in a PRD org graph. The package is already drafted; compare it with the prior research and report what should improve. Read references/market-research-guide.md and its output contract. Reuse research-assessment.md and retained RA-*/MR-* evidence from the supplied sources; search only newly raised, stale, or UNVALIDATED gaps.\n" +
       "Research the alternatives users have today (named products, in-house builds, manual process, or nothing), the feature baseline that is table stakes versus a real differentiator, this product's differentiation against those alternatives, pricing reference points when it has a commercial surface, category benchmarks for the metric targets the draft sets, and market-side risks such as incumbent response, switching cost, platform dependency, and regulatory or licensing limits. " +
       "For an internal tool, the alternatives are the current spreadsheet, the existing internal system, and doing nothing — not commercial products nobody here would buy.\n" +
       "Run the Research Disclosure Check before searching: use only a public-safe category/problem summary and never send confidential inputs, personal data, customer identities, internal metrics, secrets, or contract terms to a provider. Every factual claim carries a source with publisher, URL, and retrieval date. Mark unsourced claims UNVALIDATED; never invent market facts. Do not present vendor marketing copy as verified capability.\n" +
       "Mint stable MR-* IDs for findings that could change a product decision. Each finding names the artifact and section it lands in and what should change; a finding that would widen product scope is a recommendation for the user, not a decision. Return status blocked with a null body when no web tool is available or every search failed, rather than publishing an artifact of unsourced rows.\n" +
+      "Include Platform Optimization Recommendations in market_research_markdown: up to five useful ranked proposals with affected PRD sections/IDs, RA/MR evidence, user problem, concrete action, benefit hypothesis, cost/tradeoff, priority rationale, and validation method. An evidence-backed None is valid; do not pad the list. Every new proposal stays pending. Do not change the candidate or record owner acceptance. The parent must present verified links to the complete PRD and recommendations, obtain explicit owner decisions, apply only accepted changes, and retain final Stack Decision and Product Definition Approval. A revise request returns the proposal for acceptance; deferral or rejection cannot clear an existing blocker.\n" +
       "Read only. Do not edit, create, move, or publish files, and do not ask the user anything. " +
       `Frozen task context: ${sourceContext}\n\nDraft package: ${JSON.stringify(draft)}`,
     { label: "prd:market-research", phase: "Verify", schema: researchSchema },

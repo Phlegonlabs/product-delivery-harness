@@ -26,7 +26,7 @@ All three adapters use the same four invariants:
 1. Launch each mission or review with a fresh bounded context capsule. Keep automatic repository instruction discovery enabled, but do not replay the parent transcript or copy full PLAN/RUN manifests.
 2. Consume host terminal events. Prefer a subscription, cursor wait, workflow result, or child completion event over repeated status reads. Poll only when the host has no wait/event surface, and record that fallback.
 3. Record each terminal mission with `record-worker-result`. As soon as one active-wave mission reaches `worker_passed`, reserve its dependency-ready read-only pre-integration review in RUN, dispatch only from that receipt, and integrate that mission once the same reserved attempt PASSes. Integration stays serial: at most one mission is `integrating` at a time. Do not launch another writer, and do not run batch gates, until every selected worker result is recorded and the wave closes.
-4. Run independent local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. The scheduler refills a free slot with the first deterministic-order job that does not conflict with active jobs. It does not wait for a slower job before starting another conflict-free job. Serialization is opt-in, through a resource claim or an explicit `execution.parallel_safe: false`. Use batch mode at the task and worker gates too, not only the batch gate.
+4. Run local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. Only container verifiers with `execution.parallel_safe: true` can refill free slots when their resource claims do not conflict. Host verifiers require `execution.parallel_safe: false` and run serially within that runner. Independent workers can still run host checks concurrently in separate worktrees. Use batch mode at the task and worker gates too, not only the batch gate.
 
 ## Parent Turn Boundaries
 
@@ -69,7 +69,8 @@ A verifier that binds a shared resource declares it:
 ```json
 {
   "execution": {
-    "parallel_safe": true,
+    "parallel_safe": false,
+    "isolation": "host",
     "resources": [
       {"key": "database:test", "access": "shared_read"},
       {"key": "port:4173", "access": "exclusive"}
@@ -78,13 +79,13 @@ A verifier that binds a shared resource declares it:
 }
 ```
 
-Two verifiers may run together when neither sets `execution.parallel_safe: false` and no shared resource key has `exclusive` access. A missing `execution` block means no resource claim and no contention. `execution.parallel_safe: false` or a conflicting exclusive resource serializes that verifier. Free slots refill from the deterministic job order; the legacy `waves` metric remains a compatible conflict/capacity grouping, not a wait barrier.
+Container verifiers may run together when both declare `execution.parallel_safe: true` and no shared resource key has exclusive access. Host verifiers are serialized even when the runner has free slots. Current declarations require an explicit execution mode; a missing block is invalid, not permission for parallel host execution. Free slots refill from eligible nonconflicting container work.
 
 Jobs in one batch may share immutable Git archive bytes for the same canonical checkout and exact SHA. Concurrent requests create the archive once. Each verifier still receives its own freshly checked extraction, including the existing link/device/traversal checks; no writable snapshot directory is shared. Cache ownership ends when the batch ends.
 
-Container result reuse is opt-in through `session_exact` plus `cache.deterministic_local: true`, only for a deterministic `exit 0` PASS produced by this runner invocation. The disk session cache stays disabled for containers. Equivalent concurrent requests share one execution, bound to the canonical checkout and protected Git inputs; failed origins release waiters for a fresh attempt. Reuse binds outputs to the exact immutable execution key and explicitly records its origin. Before accepting a result, each consumer freshly rechecks its live Git guard and the trusted runtime executable/image RepoDigest without rerunning the verifier command, and retains its own reservation, guard, and sandbox evidence. Never reuse failed, timed out, dirty, browser, network, mutable-environment, or cross-process results. New acceptance requires the origin in the current parent-observed batch; an origin found only in RUN history cannot authorize reuse. A forged, rebound, stale, or mismatched origin fails retained-evidence validation.
+Host verifiers run fresh and serially per runner; host results are never cached or coalesced. Container result reuse is opt-in through `session_exact` plus `cache.deterministic_local: true`, only for a deterministic `exit 0` PASS produced by this runner invocation. The disk session cache stays disabled for containers. Equivalent concurrent requests share one execution, bound to the canonical checkout and protected Git inputs; failed origins release waiters for a fresh attempt. Reuse binds outputs to the exact immutable execution key and explicitly records its origin. Before accepting a result, each consumer freshly rechecks its live Git guard and the trusted runtime executable/image RepoDigest without rerunning the verifier command, and retains its own reservation, guard, and sandbox evidence. Never reuse failed, timed out, dirty, browser, network, mutable-environment, or cross-process results. New acceptance requires the origin in the current parent-observed batch; an origin found only in RUN history cannot authorize reuse. A forged, rebound, stale, or mismatched origin fails retained-evidence validation.
 
-Declare a resource for anything that binds a port, mutates a database, drives a browser, or otherwise cannot run twice at once. That includes a file two verifiers in the same checkout both write: a test-runner cache, an incremental build manifest, a coverage database, a lockfile. Those are easy to miss because nothing about the command looks shared, and two of them in one wave corrupt each other and fail nondeterministically. Claim the file as an `exclusive` resource key. An undeclared verifier that secretly needs one is a declaration bug, and the fix is the declaration, not a global serial default. Note the migration risk this creates: a verifier authored before batching became the default has no `execution` block, so it is now eligible to run concurrently. Audit existing declarations for shared-file contention once, rather than assuming silence meant safety. This changes scheduling only; session cache rules and gate ownership stay unchanged.
+Declare resources for shared caches, generated clients, databases, ports, browsers, and external state. Containers can still conflict through resources outside their filesystem; exclusive claims serialize those operations. Host execution is serial within the runner, but does not coordinate unrelated processes or grant permission to mutate external systems. Audit shared state before authorizing the command.
 
 ## Machine Telemetry
 

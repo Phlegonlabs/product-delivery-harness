@@ -79,6 +79,8 @@ Only after the Copy Freeze Gate passes, run `references/ui-grading-rubric.md` ag
 
 Before presentation, re-run the core package checker and confirm the wireframe is still bound to the approved package revision. Present `wireframes.html` to the human product/design decision owner. Ask for one decision: approve the structure, or return named `UI-*` pages for revision.
 
+Proactively send one user-visible response with verified absolute Markdown links to the complete interactive current `wireframes.html` and affected `ui-design.md` scope. Use the final logical paths in the authorized publication checkout for approval; after publication, link canonical files in the source checkout. Do not collect approval on `.ui-staging` paths. Say that every page and required state is included, name what the owner should review, and ask explicitly for Wireframe Approval. A browser or panel open is convenience only and cannot replace the response or links; if the file or preview cannot be verified or opened, report that blockage instead of approval readiness.
+
 Before approval, open the file in a real browser and exercise the full `UI-* × responsive target × non-n/a state` matrix. For every combination, the visible runtime QA must pass, including its exact review-canvas width check; enlarge the browser when its reviewer shell cannot display the selected target at that width. No reviewer-shell or canvas element may be unintentionally overlapped, clipped, occluded, or force horizontal page scrolling, long content must stay readable, and controls must remain usable by the input modes named in `interaction`. A modal, dropdown, tooltip, sticky region, or other intended overlap passes only when the target's `interaction` rule names its stacking, focus, and dismissal behavior. Record the browser and result in `ui-design.md`. Missing browser capability blocks approval.
 
 Approval confirms only:
@@ -91,7 +93,7 @@ Approval confirms only:
 
 Wireframe Approval consumes the already approved Copy Freeze; it does not write, revise, or implicitly approve product wording. Approval does not prove usability and does not freeze a page theme or design tokens. Record the structural owner, decision, date, approved `UI-*` scope, frozen-copy identity, copy owner, primary locale, Copy Freeze date, and unresolved items in `ui-design.md`'s `## Wireframe Approval`. The HTML `approvalStatus` and `copyFreeze.status` use the same decision vocabulary as their matching records. `copyFreeze.status` must already be `approved` before `approvalStatus` can become `approved`.
 
-After structural approval, run the final combined check from the repository root:
+After explicit structural approval, run the final combined check from the repository root:
 
 ```text
 python skills/ui-design-builder/scripts/check_wireframe_html.py --html <staged wireframes.html> --prd <approved PRD.md> --require-filled --require-approved

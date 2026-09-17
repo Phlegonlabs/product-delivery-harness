@@ -33,6 +33,7 @@ When a planned review requires `chrome_devtools`, launch one read-only capabilit
 - Follow every `dispatchable_nodes[].required_actions` exactly. Never infer extra authorization.
 - Before allocating any write, verify repository, branch/ref, HEAD, and clean `git status --porcelain`.
 - Never run parallel writers in `shared_checkout`. One mission has one writer; parallel writes require separate worktrees and non-overlapping scopes.
+- Launch all selected sibling workers before waiting for completion. A blocking CLI launch must run asynchronously; never launch one worker, wait for its result, then launch the next selected worker.
 - Every worker and reviewer is a fresh sibling. Supply only the bounded context packet and do not replay the parent transcript.
 - Workers and reviewers do not delegate, edit PLAN/RUN, integrate, push, or clean up; children return blocked/refinement for contract decisions.
 - After serial integration, dispatch fresh reviewers against the exact unified integration SHA, then one planned broad final validation. Security always runs with `code_security_verification`; only non-security review may use a recorded byte-identical skip.

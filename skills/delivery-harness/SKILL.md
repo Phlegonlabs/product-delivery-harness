@@ -204,9 +204,11 @@ Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate
 
 ### 4. Execute And Integrate
 
-After the version gate, run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds runtime, RepoDigest, host, PLAN revision, and digest; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
+After the version gate, run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds the host, PLAN revision, and digest, plus runtime and RepoDigest for explicitly selected containers; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
 
 ### 5. Verify Local-First
+
+New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Containers remain optional with no fallback. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
 
 Use the verification ladder:
 
@@ -218,7 +220,7 @@ Use the verification ladder:
 6. final broad regression, browser E2E, breakpoint-by-state UI evidence, element overlap/clipping/overflow checks, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
 7. applicable `references/gitignore-contract.md` checks, then `git diff --check` and complete final-diff review.
 
-Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, and the command is cache-safe. Non-container caches must be repository-external. Container reuse is limited to read-only task/worker declarations with `cache.deterministic_local: true` in one runner batch. Each consumer rechecks its live guard and runtime/image identity, retains its own reservation and evidence, and cites the executed origin; no disk cache is used. Equivalent declarations share execution; each retains its own PASS record. Container integration, cross-mission, and final gates always execute. Never reuse browser, migration, mutable-environment, or network checks. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
+Host verifiers run fresh and serially per runner. Container `session_exact` reuse requires `exit 0`, clean matching inputs, read-only task/worker declarations, and `cache.deterministic_local: true` within one runner batch. Every consumer rechecks guards and runtime/image identity and retains its reservation, evidence, and origin. Keep request/result artifacts repository-external; no disk cache is used. Integration, cross-mission, final, browser, migration, mutable-environment, and network checks execute fresh. UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the integration head.
 
 ### 6. Complete
 

@@ -138,6 +138,29 @@ class WritePathTransitionTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._temp.cleanup()
 
+    def test_capacity_observation_records_evidence_and_preserves_other_runtime_facts(self):
+        original = copy.deepcopy(self.run["observed"]["runtime"])
+        harness_transition._record_observation(self.plan, self.run, Namespace(
+            repo_root=self.root, available_worker_slots=3, isolation_capacity=2,
+            capacity_evidence="Three runtime slots and two isolated checkouts available"))
+        self.assertEqual({**original, "available_worker_slots": 3, "isolation_capacity": 2}, self.run["observed"]["runtime"])
+        event = self.run["attempt_log"][-1]
+        self.assertEqual("runtime_capacity_observation", event["kind"])
+        self.assertIn("Three runtime slots", str(event["evidence"]))
+        self.assertEqual([], validate_run(self.plan, self.run))
+        harness_transition._record_observation(self.plan, self.run, Namespace(repo_root=self.root))
+        self.assertEqual(3, self.run["observed"]["runtime"]["available_worker_slots"])
+
+    def test_partial_or_invalid_capacity_observation_does_not_mutate_run(self):
+        for fields in [dict(available_worker_slots=4),
+                       dict(available_worker_slots=2, isolation_capacity=2, capacity_evidence=" "),
+                       dict(available_worker_slots=-1, isolation_capacity=2, capacity_evidence="probe"),
+                       dict(available_worker_slots=True, isolation_capacity=2, capacity_evidence="probe")]:
+            before = copy.deepcopy(self.run)
+            with self.subTest(fields=fields), self.assertRaisesRegex(ManifestError, "capacity observation"):
+                harness_transition._record_observation(self.plan, self.run, Namespace(repo_root=self.root, **fields))
+            self.assertEqual(before, self.run)
+
     def test_run_document_replacement_binds_parent_on_posix(self) -> None:
         if os.name == "nt":
             self.skipTest("POSIX dirfd assertion is not applicable on Windows")

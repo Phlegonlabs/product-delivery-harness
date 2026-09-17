@@ -160,6 +160,39 @@ if (context.window.wireframeQaResults[keys[0]].status !== "pass") throw new Erro
             self.assertIn(marker, contract)
         self.assertIn("--require-copy-approved", guide)
 
+    def test_ui_gate_presentations_are_visible_complete_and_blocking(self):
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        guide = self.read("references/wireframe-guide.md")
+        visual_pass = self.read("references/ui-design-pass.md")
+
+        self.assertLess(
+            skill.index("verified absolute Markdown links to the complete interactive"),
+            skill.index("Obtain explicit human Wireframe Approval"),
+        )
+        self.assertIn(
+            "verified absolute Markdown links to the complete current HiFi entrypoint",
+            skill,
+        )
+        self.assertIn("every manifest-listed sibling page", skill)
+        self.assertIn("affected `ui-design.md` design handoff", skill)
+        self.assertIn("complete actual candidate", contract)
+        for document in (skill, contract, guide, visual_pass):
+            with self.subTest(document=document[:50]):
+                self.assertIn("final logical paths in the authorized publication checkout", document)
+                self.assertIn("canonical files in the source checkout", document)
+                self.assertIn("Do not collect approval on `.ui-staging` paths", document)
+                self.assertNotIn("Use staging paths for an unapproved staged draft", document)
+        self.assertIn("Wait for the owner's explicit decision before continuing", contract)
+        self.assertIn("A changed candidate reopens the affected approval", contract)
+        self.assertIn("plain path cannot replace the links", contract)
+        self.assertIn("blocks approval readiness", contract)
+        self.assertIn("complete interactive current `wireframes.html`", guide)
+        self.assertIn("affected `ui-design.md` scope", guide)
+        self.assertIn("ask explicitly for Wireframe Approval", guide)
+        self.assertIn("every manifest-listed sibling page", visual_pass)
+        self.assertIn("ask explicitly for Visual Approval", visual_pass)
+
     def test_output_contract_keeps_tokens_after_visual_approval(self):
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")

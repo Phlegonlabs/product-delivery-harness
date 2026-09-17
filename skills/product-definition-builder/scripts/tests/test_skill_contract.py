@@ -37,12 +37,14 @@ const source = fs.readFileSync(process.argv[1], "utf8").replace(
   "const meta =",
 );
 const workflowArgs = JSON.parse(fs.readFileSync(0, "utf8"));
+const calls = [];
 function phase() {}
 async function parallel(tasks) {
   return Promise.all(tasks.map((task) => task()));
 }
 async function agent(_prompt, options) {
   const role = options.label.replace("prd:", "");
+  calls.push({ role, prompt: _prompt });
   if (role === "synthesis") {
     return {
       prd_markdown: "# PRD",
@@ -63,7 +65,7 @@ async function agent(_prompt, options) {
     return {
       role,
       status: "complete",
-      market_research_markdown: "# Market Research",
+      market_research_markdown: "# Market Research\n## Platform Optimization Recommendations\nSimplify onboarding; evidence RA-001; decision pending.",
       mr_ids: ["MR-001"],
       findings: [],
       sources: [],
@@ -85,7 +87,7 @@ async function agent(_prompt, options) {
   try {
     const workflow = new AsyncFunction("args", "phase", "parallel", "agent", source);
     const result = await workflow(workflowArgs, phase, parallel, agent);
-    process.stdout.write(JSON.stringify({ ok: true, status: result.status, research: result.research }));
+    process.stdout.write(JSON.stringify({ ok: true, status: result.status, research: result.research, draft: result.draft, calls }));
   } catch (error) {
     process.stdout.write(JSON.stringify({ ok: false, error: error.message }));
   }
@@ -789,6 +791,39 @@ async function agent(_prompt, options) {
         self.assertIn("after `product-definition-builder`", ui_skill)
         self.assertIn("End the turn and wait for the answer", intake)
         self.assertIn("one recommended direction or three comparable directions", intake)
+
+    def test_product_approval_presents_and_waits_on_the_complete_candidate(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        self.assertIn(
+            "verified absolute Markdown links to the complete actual current PRD",
+            skill,
+        )
+        for marker in (
+            "Use staging paths while the candidate remains staged",
+            "ask explicitly for Product Definition Approval",
+            "Opening a file or browser panel is convenience only",
+            "presenting the package is not approval",
+            "published canonical absolute Markdown links",
+            "if publication is deferred, report the actual staging links instead",
+            "Wait for the owner's explicit decision before continuing",
+        ):
+            self.assertIn(marker, skill)
+        self.assertIn("#### Human Review Presentation", contract)
+        self.assertIn(
+            "complete current PRD, architecture, and stack source",
+            contract,
+        )
+        for marker in (
+            "Link the staging location while the candidate remains staged",
+            "canonical locations after publication",
+            "plain path cannot replace those links",
+            "do not claim approval readiness",
+        ):
+            self.assertIn(marker, contract)
+        self.assertIn("awaiting explicit approval", lifecycle)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
@@ -1843,6 +1878,143 @@ async function agent(_prompt, options) {
             market,
         )
         self.assertIn("carry still-valid `RA-*` findings", market)
+
+    def test_research_draft_recommendations_owner_choice_then_final_approvals(
+        self,
+    ) -> None:
+        skill = self.read("SKILL.md")
+        work_graph = self.read("references/dynamic-workflow.md")
+
+        order = [
+            skill.index("4. Run the research-first assessment"),
+            skill.index("12. Draft or repair the core Markdown package"),
+            skill.index("Produce evidence-based Platform Optimization Recommendations"),
+            skill.index("14. Run the Stack Decision Checkpoint"),
+            skill.index("15. Run Product Definition Approval"),
+        ]
+        self.assertEqual(order, sorted(order))
+        self.assertIn(
+            "present the complete candidate and every recommendation to the owner",
+            skill,
+        )
+        self.assertIn(
+            "Apply only an owner-recorded accepted proposal",
+            skill,
+        )
+        self.assertIn("Recommendations stay `pending`", work_graph)
+        self.assertIn(
+            "records explicit owner decisions, and applies only accepted proposals",
+            work_graph,
+        )
+
+    def test_research_reuses_assessment_and_limits_new_search(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/research-first-guide.md")
+        market = self.read("references/market-research-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        for content in (skill, contract):
+            self.assertIn(
+                "feature baseline, differentiation, pricing/business-model baseline, and category benchmarks",
+                content,
+            )
+        for heading in (
+            "## Feature Baseline And Differentiation",
+            "## Pricing And Business Model Baseline",
+            "## Category Benchmarks",
+        ):
+            self.assertIn(heading, guide)
+        self.assertIn(
+            "Record these as evidence inputs, not speculative final requirements",
+            guide,
+        )
+        self.assertIn(
+            "research only newly raised, stale, or `UNVALIDATED` gaps",
+            market,
+        )
+        self.assertIn(
+            "research only newly raised, stale, or `UNVALIDATED` gaps",
+            skill,
+        )
+        self.assertIn(
+            "do not re-research settled market context or force a full market rerun",
+            market,
+        )
+
+    def test_platform_optimization_recommendations_require_evidence_and_owner_decision(
+        self,
+    ) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/market-research-guide.md")
+        contract = self.read("references/output-contract.md")
+        work_graph = self.read("references/dynamic-workflow.md")
+
+        for content in (guide, contract):
+            self.assertIn("## Platform Optimization Recommendations", content)
+            self.assertIn("at most five useful", content)
+            self.assertIn("None — [evidence-backed reason]", content)
+            self.assertIn("Expected benefit hypothesis", content)
+            self.assertIn(
+                "`pending | accepted | revise | deferred | rejected`",
+                content,
+            )
+        self.assertIn("Affected PRD: [sections and existing", guide)
+        self.assertIn("Affected PRD: [section names and existing", contract)
+        self.assertIn("never a measured-benefit claim", guide)
+        self.assertIn("no measured-benefit claim", contract)
+        self.assertIn("Never infer approval from silence", skill)
+        self.assertIn("cannot erase an approval-blocking gap", skill)
+        self.assertIn(
+            "Deferral or rejection never clears an approval-blocking gap",
+            contract,
+        )
+        self.assertIn("the role never applies them", work_graph)
+
+    def test_approval_presents_complete_prd_and_recommendation_links(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn(
+            "complete actual current PRD, architecture, stack decisions, every produced market/research artifact, and its Platform Optimization Recommendations",
+            skill,
+        )
+        self.assertIn(
+            "complete current PRD, architecture, and stack source; include every produced market/research artifact, its Platform Optimization Recommendations and decision statuses",
+            contract,
+        )
+        self.assertIn("verified absolute Markdown links", skill)
+        self.assertIn("plain path cannot replace those links", contract)
+
+    def test_workflow_reconciles_after_drafting_without_applying_recommendations(self) -> None:
+        args = self.base_workflow_args()
+        args["source_paths"] = ["docs/product/.prd-staging/test/research-assessment.md"]
+        args["source_summary"] = "RA-001: existing interviews found onboarding friction."
+        result = self.run_workflow(args)
+        self.assertTrue(result["ok"], result)
+        roles = [call["role"] for call in result["calls"]]
+        self.assertLess(roles.index("synthesis"), roles.index("market-research"))
+        for role in ("requirements", "synthesis", "market-research"):
+            prompt = next(call["prompt"] for call in result["calls"] if call["role"] == role)
+            self.assertIn(args["source_summary"], prompt)
+            self.assertIn(args["source_paths"][0], prompt)
+        self.assertEqual("# PRD", result["draft"]["prd_markdown"])
+        self.assertEqual("candidate_ready", result["status"])
+        self.assertIn("decision pending", result["research"]["market_research_markdown"])
+        self.assertNotIn("decision pending", result["draft"]["prd_markdown"])
+
+        args["market_research"] = False
+        skipped = self.run_workflow(args)
+        self.assertTrue(skipped["ok"], skipped)
+        self.assertIsNone(skipped["research"])
+        self.assertNotIn("market-research", [call["role"] for call in skipped["calls"]])
+
+    def test_recommendation_choices_receive_links_and_revisions_need_acceptance(self) -> None:
+        skill = self.read("SKILL.md")
+        step = skill.split("13. Run the post-draft market-research reconciliation", 1)[1].split("14. Run", 1)[0]
+        self.assertIn("verified absolute Markdown links", step)
+        self.assertLess(step.index("Verify the links"), step.index("wait for an explicit owner choice"))
+        self.assertIn("explicit acceptance before changing the PRD", step)
+        self.assertIn("no-recommendation result needs no proposal-choice round", step)
 
     def test_outcome_review_closes_the_loop_after_deployment(self) -> None:
         skill = self.read("SKILL.md")

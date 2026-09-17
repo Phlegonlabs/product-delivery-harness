@@ -48,7 +48,13 @@ from push_integration_branch import (
     validate_push_receipt,
     validate_push_target,
 )
-from verifier_runtime import observe_plan_sandboxes, sandbox_host_fingerprint
+from verifier_runtime import (
+    host_runtime_fingerprint,
+    host_executable_identity,
+    observe_plan_host_runtimes,
+    observe_plan_sandboxes,
+    sandbox_host_fingerprint,
+)
 from harness_worker_result_transition import (
     record_worker_result,
     reject_worker_result,
@@ -625,6 +631,23 @@ def _record_observation(
 
     if args.repo_root is None:
         raise ManifestError("record-observation requires --repo-root")
+    capacity_values = (
+        getattr(args, "available_worker_slots", None),
+        getattr(args, "isolation_capacity", None),
+        getattr(args, "capacity_evidence", None),
+    )
+    update_capacity = any(value is not None for value in capacity_values)
+    if update_capacity:
+        slots, isolation, evidence = capacity_values
+        if (
+            type(slots) is not int or slots < 0
+            or type(isolation) is not int or isolation < 0
+            or not isinstance(evidence, str) or not evidence.strip()
+        ):
+            raise ManifestError(
+                "capacity observation requires non-negative --available-worker-slots, "
+                "--isolation-capacity and non-empty --capacity-evidence together"
+            )
     root = args.repo_root
     repo_top_level = Path(_git_out(root, "rev-parse", "--show-toplevel").strip())
     head = _git_out(root, "rev-parse", "HEAD").strip()
@@ -724,6 +747,34 @@ def _record_observation(
         "entries": sandbox_entries,
         "errors": sandbox_errors,
     }
+    host_entries, host_errors = observe_plan_host_runtimes(
+        plan,
+        root,
+    )
+    run["observed"]["host_runtime"] = {
+        "status": "available" if not host_errors else "unavailable",
+        "plan_revision": plan.get("revision"),
+        "plan_digest_sha256": plan_digest(plan),
+        "captured_at": captured_at,
+        "host": host_runtime_fingerprint(),
+        "entries": host_entries,
+        "errors": host_errors,
+    }
+    if update_capacity:
+        run["observed"]["runtime"].update({
+            "available_worker_slots": slots,
+            "isolation_capacity": isolation,
+        })
+        run["attempt_log"].append({
+            "attempt_id": f"CAPACITY-{captured_at}-{len(run['attempt_log']) + 1}",
+            "mission_id": None, "task_id": None, "lease_id": None,
+            "kind": "runtime_capacity_observation", "result": "observed",
+            "evidence": [
+                f"{captured_at}: available_worker_slots={slots}; isolation_capacity={isolation}",
+                evidence.strip(),
+            ],
+        })
+
 
 
 def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
@@ -1091,6 +1142,27 @@ def _node_attempt_log(
     return matches[0] if matches else None
 
 
+def _declared_host_identity(
+    declaration: dict[str, Any], repo_root: Path
+) -> dict[str, str]:
+    """Resolve the declared host argv against its exact checkout cwd."""
+
+    try:
+        cwd = repo_root.resolve() / declaration["cwd"]
+        resolved = cwd.resolve()
+        resolved.relative_to(repo_root.resolve())
+        argv = declaration["argv"]
+        if not isinstance(argv, list) or not argv:
+            raise ManifestError("host verifier requires a non-empty argv")
+        return host_executable_identity(
+            str(argv[0]),
+            resolved,
+            os.environ,
+        )
+    except (OSError, ValueError) as exc:
+        raise ManifestError(f"cannot resolve host verifier executable: {exc}") from exc
+
+
 def _local_verifier_request(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -1198,15 +1270,36 @@ def _local_verifier_request(
         ),
     }
     sandbox_policy = declaration.get("execution", {}).get("sandbox") if isinstance(declaration.get("execution"), dict) else None
+    declared_isolation = (
+        declaration.get("execution", {}).get("isolation")
+        if isinstance(declaration.get("execution"), dict)
+        else None
+    )
     observed_sandbox = run.get("observed", {}).get("sandbox") if isinstance(run.get("observed"), dict) else None
+    observed_host = run.get("observed", {}).get("host_runtime") if isinstance(run.get("observed"), dict) else None
     sandbox_preflight = None
+    host_preflight = None
     if isinstance(sandbox_policy, dict) and isinstance(observed_sandbox, dict):
         for entry in observed_sandbox.get("entries", []):
             if isinstance(entry, dict) and entry.get("runtime") == sandbox_policy.get("runtime") and entry.get("image") == sandbox_policy.get("image"):
                 sandbox_preflight = copy.deepcopy(entry)
                 break
-    if sandbox_preflight is None:
+    if declared_isolation == "host" and isinstance(observed_host, dict):
+        executable_identity = _declared_host_identity(declaration, repo_root)
+        for entry in observed_host.get("entries", []):
+            if (
+                isinstance(entry, dict)
+                and entry.get("argv0") == declaration["argv"][0]
+                and entry.get("executable") == executable_identity["executable"]
+                and entry.get("executable_sha256")
+                == executable_identity["executable_sha256"]
+            ):
+                host_preflight = copy.deepcopy(entry)
+                break
+    if declared_isolation == "container" and sandbox_preflight is None:
         raise ManifestError("local verifier request requires the exact PLAN-bound sandbox preflight entry")
+    if declared_isolation == "host" and host_preflight is None:
+        raise ManifestError("local verifier request requires the exact PLAN-bound host preflight entry")
     return {
         "protocol": "harness-verifier-request-v1",
         "run_id": run.get("run_id"),
@@ -1230,6 +1323,7 @@ def _local_verifier_request(
             "ignored_paths": ignored_paths,
         },
         "sandbox_preflight": sandbox_preflight,
+        "host_preflight": host_preflight,
     }
 
 
@@ -3527,7 +3621,10 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("acquire-run-lock", "release-run-lock", "heartbeat-run-lock"):
         lock_command = subparsers.add_parser(name)
         lock_command.add_argument("--owner")
-    subparsers.add_parser("record-observation")
+    observation_parser = subparsers.add_parser("record-observation")
+    observation_parser.add_argument("--available-worker-slots", type=int)
+    observation_parser.add_argument("--isolation-capacity", type=int)
+    observation_parser.add_argument("--capacity-evidence")
     wave_command = subparsers.add_parser("accept-wave")
     wave_command.add_argument("--wave-id", required=True)
     wave_command.add_argument("--mission-id", action="append", required=True)

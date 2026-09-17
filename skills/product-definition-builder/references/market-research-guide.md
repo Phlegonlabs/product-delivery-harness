@@ -1,8 +1,8 @@
 # Market Research Guide
 
-Use this reference for the `market-research` role: a bounded, read-only research pass that runs after the core Markdown candidate is drafted but before the Stack Decision Checkpoint, Product Definition Approval, and Wireframe Approval. It reports what the package is missing while every owner gate is still open.
+Use this reference for the `market-research` role: a bounded, read-only research pass that runs after the core Markdown candidate is drafted but before the Stack Decision Checkpoint, Product Definition Approval, and Wireframe Approval. It reconciles the pre-draft evidence, reports what the package is missing, and returns evidence-based Platform Optimization Recommendations while every owner gate is still open.
 
-This role does not draft the product. Requirements, architecture, UX, and stack decisions are already written when it starts. Its job is to check those drafts against what actually exists in the market and hand back two things: the `market-research.md` artifact and a list of gap findings the parent patches into the package.
+This role does not draft the product. Requirements, architecture, UX, and stack decisions are already written when it starts. Its job is to check those drafts against what actually exists in the market and hand back two things: the `market-research.md` artifact and gap findings and optimization proposals for the parent to present before applying accepted changes.
 
 ## When It Runs
 
@@ -14,7 +14,7 @@ Skip it when any of these is true, and record which one applies:
 - No web search or fetch tool is available in the current session. Do not substitute model recall for research — see Source Rules.
 - The package is a trivial single-screen stub.
 
-In enhancement mode, run it only against what the new request adds or changes. Carry forward existing `MR-*` findings and their sources unchanged; do not re-research settled market context.
+In enhancement mode, run it only against what the new request adds or changes. Carry forward existing `MR-*` findings, sources, and recommendation decisions unchanged; do not re-research settled market context or force a full market rerun.
 
 Before any query, run the same Research Disclosure Check as `research-first-guide.md`: search only a public-safe category/problem summary and never disclose secrets, personal data, private customer identities, internal metrics, contract terms, or unreleased product details. If a useful pass would require protected context, ask the owner to approve a sanitized scope or return `blocked — confidential context`; do not search around the boundary.
 
@@ -24,7 +24,7 @@ The role receives the frozen discovery context and the candidate package bodies.
 
 - product name, archetypes, and the interview summary;
 - the drafted `PRD.md` body, which is what it checks;
-- `research-assessment.md` when the pre-draft research-first assessment ran: this pass is a reconciliation, so carry still-valid `RA-*` findings and their sources forward unchanged, re-check what the draft changed, and research only what the assessment left `UNVALIDATED` or what the draft newly raises;
+- `research-assessment.md` when the pre-draft research-first assessment ran: this pass is a reconciliation, so carry still-valid `RA-*` findings and their sources forward unchanged, re-check only what the draft changed, and research only newly raised, stale, or `UNVALIDATED` gaps;
 - whether the product is public-facing or internal, because that changes what "the market" means — an internal tool competes with spreadsheets, existing internal systems, and doing nothing, not with commercial products.
 
 ## What To Research
@@ -88,9 +88,26 @@ Typical landing sites:
 | Evidence that strengthens or contradicts a named technology choice | The applicable `stack-decisions.md` technology table (frontend, mobile/desktop, backend/data, AI/automation, or monetization/partner), citing the `MR-*` ID before the Stack Decision Checkpoint |
 | An alternative the market evidence speaks to | `stack-decisions.md` shared `Alternatives Considered` table, citing the `MR-*` ID |
 
-The role reports findings. It does not edit any file — the parent applies them, then reruns the quality checklist.
+The role reports findings. It does not edit any file — the parent records factual evidence and open gaps, presents proposed product changes for owner acceptance, then reruns the quality checklist after accepted revisions.
 
 A finding that would change product scope is a recommendation, not a decision. Scope changes belong to the user; record the finding and let the parent raise it.
+
+## Platform Optimization Recommendations
+
+After the findings, compare the candidate with the carried-forward `RA-*` and new `MR-*` evidence. Return at most five useful, ranked proposals; omit padding. If evidence does not support a useful proposal, return the explicit `None — [evidence-backed reason]`, not a decorative proposal.
+
+Each proposal states:
+
+- Affected PRD: [sections and existing `PRD-*`, `UX-*`, `ARCH-*`, or `TEST-*` IDs; name the proposed section for a gap with no existing ID];
+- supporting `RA-*` or `MR-*` evidence;
+- the user problem;
+- the proposed action, including simplify, remove, or defer when the evidence supports it;
+- Expected benefit hypothesis: [hypothesis only — never a measured-benefit claim];
+- cost, dependency, or tradeoff;
+- priority and its rationale; and
+- a validation metric or experiment.
+
+Use this decision vocabulary: `pending | accepted | revise | deferred | rejected`. A proposal starts `pending`. A `revise` choice changes the proposal and returns it for explicit acceptance before any PRD change. When there are no useful proposals, explain the evidence-backed result and continue without a proposal-choice round; existing blockers still apply. The parent proactively sends verified absolute Markdown links to the complete current staged PRD and `market-research.md`, with a short recommendation summary, waits for an explicit decision, and applies only an owner-recorded accepted change. Silence is not approval, an agent decision is not owner approval, and accepted or deferred does not authorize implementation. A deferred or rejected proposal cannot erase an approval-blocking gap; the blocking Open Question, gate, or unresolved finding remains.
 
 ## Blocked Path
 
@@ -109,4 +126,5 @@ A blocked role is recorded explicitly, never silently omitted. The package can s
 - **Researching a product that has no market.** An internal tool for one team competes with the current spreadsheet, not with commercial SaaS. Scope the research to real alternatives.
 - **Market sizing theatre.** A TAM figure nobody will use is padding. Produce it only when a drafted goal or metric depends on it.
 - **Rewriting the PRD.** This role reports gaps; the parent decides and edits.
+- **Inventing benefit.** "Could improve activation" is a hypothesis with a validation experiment. A fabricated conversion or retention gain is research failure.
 - **Reopening settled interview decisions.** If research contradicts a decision the user already made, record it as an open question. Do not overturn it.

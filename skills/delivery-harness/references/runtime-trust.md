@@ -1,10 +1,14 @@
-# Runtime trust and native executable policy
+# Host execution and optional container trust
 
-Container verifiers use an administrator-installed Docker or Podman executable.
+New PLANs default to explicit `execution.isolation: "host"`. Host verifiers run declared commands with the project's installed toolchain in the bound checkout; they do not need Docker, Podman, an image, or an administrator-managed container policy. Record command identity, host, cwd, exact SHA, exit status, and logs. Commands run with the current user's permissions; a worktree and source guards are not process isolation.
+
+Existing `container` declarations stay container-only. Never retry them on the host after a missing runtime or failed preflight. Switching a declared mode requires a PLAN revision and fresh evidence.
+
+Optional container verifiers use an administrator-installed Docker or Podman executable.
 The Harness never trusts the first `docker`/`podman` name found in a repository,
 worktree, current directory, or user-writable `PATH` entry.
 
-## Required host setup
+## Optional container setup
 
 On Windows, install the native `docker.exe` or `podman.exe` under `Program Files`
 or the Windows system directory. Do not point a PLAN at `.cmd`, `.bat`, `.ps1`,
@@ -38,8 +42,9 @@ python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <
 ```
 
 The command is diagnostic only. A managed run must still record the fresh
-preflight with `harness_transition.py record-observation`; missing or stale
-machine trust evidence blocks readiness.
+observation with `harness_transition.py record-observation`. Only declared
+container verifiers require container probes and machine trust evidence; a
+host-only PLAN records its PLAN/host binding without those probes.
 
 The supported test/runtime baseline is Python 3.10 or newer (CI runs 3.13).
 Install and verify the repository test dependencies from the repository root:

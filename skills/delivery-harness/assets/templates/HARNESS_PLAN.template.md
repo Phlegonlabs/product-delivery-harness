@@ -72,23 +72,9 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
         "argv": ["<runner>", "<final-argument>"],
         "pass_signal": "<literal pass signal>",
         "execution": {
-          "parallel_safe": true,
+          "parallel_safe": false,
           "resources": [],
-          "isolation": "container",
-          "sandbox": {
-            "runtime": "docker",
-            "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-            "network": "none",
-            "read_only_rootfs": true,
-            "no_new_privileges": true,
-            "cap_drop": ["ALL"],
-            "tmpfs": ["/tmp"],
-            "memory": "512m",
-            "cpus": "1",
-            "pids_limit": "256",
-            "user": "65532:65532",
-            "pull": "never"
-          }
+          "isolation": "host"
         }
       },
       {
@@ -97,23 +83,9 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
         "argv": ["<runner>", "<closeout-argument>"],
         "pass_signal": "<literal pass signal>",
         "execution": {
-          "parallel_safe": true,
+          "parallel_safe": false,
           "resources": [],
-          "isolation": "container",
-          "sandbox": {
-            "runtime": "docker",
-            "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-            "network": "none",
-            "read_only_rootfs": true,
-            "no_new_privileges": true,
-            "cap_drop": ["ALL"],
-            "tmpfs": ["/tmp"],
-            "memory": "512m",
-            "cpus": "1",
-            "pids_limit": "256",
-            "user": "65532:65532",
-            "pull": "never"
-          }
+          "isolation": "host"
         }
       }
     ],
@@ -267,26 +239,12 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "pass_signal": "exit 0",
             "read_only": true,
             "execution": {
-              "parallel_safe": true,
+              "parallel_safe": false,
               "resources": [],
-              "isolation": "container",
-              "sandbox": {
-                "runtime": "docker",
-                "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-                "network": "none",
-                "read_only_rootfs": true,
-                "no_new_privileges": true,
-                "cap_drop": ["ALL"],
-                "tmpfs": ["/tmp"],
-                "memory": "512m",
-                "cpus": "1",
-                "pids_limit": "256",
-                "user": "65532:65532",
-                "pull": "never"
-              }
+              "isolation": "host"
             },
             "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
-            "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
+            "cache": {"mode": "disabled", "environment_keys": []}
           }
         ],
         "integration_verifiers": [
@@ -296,23 +254,9 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "argv": ["<runner>", "<integration-argument>"],
             "pass_signal": "<literal pass signal>",
             "execution": {
-              "parallel_safe": true,
+              "parallel_safe": false,
               "resources": [],
-              "isolation": "container",
-              "sandbox": {
-                "runtime": "docker",
-                "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-                "network": "none",
-                "read_only_rootfs": true,
-                "no_new_privileges": true,
-                "cap_drop": ["ALL"],
-                "tmpfs": ["/tmp"],
-                "memory": "512m",
-                "cpus": "1",
-                "pids_limit": "256",
-                "user": "65532:65532",
-                "pull": "never"
-              }
+              "isolation": "host"
             }
           }
         ],
@@ -344,26 +288,12 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
                 "pass_signal": "exit 0",
                 "read_only": true,
                 "execution": {
-                  "parallel_safe": true,
+                  "parallel_safe": false,
                   "resources": [],
-                  "isolation": "container",
-                  "sandbox": {
-                    "runtime": "docker",
-                    "image": "verifier-image@sha256:1111111111111111111111111111111111111111111111111111111111111111",
-                    "network": "none",
-                    "read_only_rootfs": true,
-                    "no_new_privileges": true,
-                    "cap_drop": ["ALL"],
-                    "tmpfs": ["/tmp"],
-                    "memory": "512m",
-                    "cpus": "1",
-                    "pids_limit": "256",
-                    "user": "65532:65532",
-                    "pull": "never"
-                  }
+                  "isolation": "host"
                 },
                 "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
-                "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
+                "cache": {"mode": "disabled", "environment_keys": []}
               }
             ]
           }
@@ -384,7 +314,7 @@ For each `runtime_worker` node, Plan Mode may leave `preferred_provider` null an
 
 Harness 0.38 always freezes the three exact rows shown above with current `content_sha256`; if `source_revision` is present, that full-SHA Git blob and current bytes must both match. Contract joins consume those immutable bytes. UI work adds exact `ui design`, `wireframe`, and `approved ui target` rows at their canonical `docs/design/` paths. A `required` Design System Need gate adds exact `design system` and `design system json` rows; `not_required` adds neither and permits no `DS-*` trace. Every UI surface records `capture_mode: hosted-browser | browser-extension | native | desktop`. URLs are never fetched or joined as authority. A `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, clear staging, and increment PLAN revision/digest.
 
-Every executable verifier declaration uses the explicit container policy shown above. Replace the example image reference with a locally observed immutable RepoDigest before readiness; zero or fabricated template digests are rejected. External, network, browser, and mutable-environment checks use an external-wait, lifecycle, or browser route instead of a local candidate subprocess. Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. Equivalent opted-in task and worker commands on the same immutable inputs reuse one execution even though their verifier IDs differ.
+Every executable verifier declaration uses an explicit isolation mode. New templates default to `isolation: "host"`, `parallel_safe: false`, and disabled cache: the command runs in the exact checkout cwd with the project's local tools and environment, and host builds may create ignored artifacts but tracked source and protected Git state must remain unchanged. Host mode is not OS isolation and never reuses results. To use the legacy pinned container route instead, declare the full container policy explicitly and replace the example image reference with a locally observed immutable RepoDigest before readiness; zero or fabricated template digests are rejected, and omission never downgrades to host. External, network, browser, and mutable-environment checks use an external-wait, lifecycle, or browser route instead of a local candidate subprocess. Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files.
 
 Before readiness, apply `references/execution-task-decomposition.md`'s Mission Cohesion Gate to every mission. Split independent product surfaces or domain capabilities even when they share router, auth, schema, migration, or serialized resources; model the shared foundation and ordering explicitly instead of creating a catch-all mission. Plan each mission as one bounded fresh-child worker slice that normally stays within 10-20 minutes of implementation plus focused verification, treating that range as an upper shape rather than capacity to fill. Make every executable task one atomic initial commit boundary: verify and commit it before the next task begins; keep later repair commits separate and attributed to that task.
 
