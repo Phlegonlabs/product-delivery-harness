@@ -1,6 +1,6 @@
 # Research-First Guide
 
-Use this reference for the research-first assessment: a bounded, read-only pass that runs **before** the closed-set decisions and PRD drafting, and decides whether this product should be drafted at all. The post-draft market-research pass (`references/market-research-guide.md`) stays; it reconciles this assessment against the drafted package instead of researching from a blank slate.
+Use this reference for the research-first assessment: a bounded, read-only pass that runs **before** the closed-set decisions and PRD drafting, decides whether this product should be drafted at all, and gathers the applicable market baseline that makes drafting useful. The post-draft market-research pass (`references/market-research-guide.md`) stays; it reconciles this assessment against the drafted package instead of researching from a blank slate.
 
 ## When It Runs
 
@@ -27,6 +27,9 @@ Work through these in order and stop at the ones that genuinely apply to this pr
 4. **Integration baseline.** Which integrations, platforms, or data sources are table stakes for this product's category?
 5. **Adoption signals.** What evidence exists that the intended users would adopt or switch — pricing expectations, switching costs, distribution channels?
 6. **Market-side risks.** Incumbent response, platform dependency, regulatory or compliance constraints, and licensing limits on the named alternatives.
+7. **Feature baseline and differentiation.** Which capabilities the applicable category treats as table stakes versus differentiating, and where the candidate direction can be simpler or distinct. Record these as evidence inputs, not speculative final requirements.
+8. **Pricing and business model baseline.** Published model and price reference points when the product has a commercial surface.
+9. **Category benchmarks.** Evidence for the goals and success measures named during discovery; use it when drafting targets and record missing evidence instead of inventing a benchmark.
 
 ## Source Rules
 
@@ -51,6 +54,19 @@ Researched on: [YYYY-MM-DD]
 
 ## Existing Alternatives
 | Alternative | What it is | Who uses it | Where it falls short | Confidence | Sources |
+
+## Feature Baseline And Differentiation
+| Capability | Table stakes or differentiator | Evidence implication | Confidence | Sources |
+
+## Pricing And Business Model Baseline
+| Alternative | Model | Published price | Sources |
+
+Omit this section when the product has no commercial surface.
+
+## Category Benchmarks
+| Benchmark | Evidence | Confidence | Sources |
+
+Omit this section when no goal or success measure from discovery needs a category benchmark.
 
 ## Integration And Adoption Baseline
 [prose or table]

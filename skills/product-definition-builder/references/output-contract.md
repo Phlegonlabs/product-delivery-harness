@@ -10,7 +10,7 @@ Every package passes a human Product Definition Approval before UI design or imp
 
 This contract covers the owner-approved product, architecture, technology stack, and required UI behavior. It does not require a wireframe, visual direction, motion/media treatment, preview, token set, or design-system rules. Those belong to `ui-design-builder` and, when needed, `design-system-compiler`.
 
-It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass runs before Stack Decision and Product Definition approval so its findings cannot silently stale an accepted package. When the user declined it, no web tool was available, confidential context prevented a safe query, or the role returned blocked, the package records that state explicitly. See `market-research-guide.md`.
+It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass runs before Stack Decision and Product Definition approval so its findings and Platform Optimization Recommendations cannot silently stale an accepted package. Every recommendation gets an explicit owner decision before any accepted change is applied. When the user declined it, no web tool was available, confidential context prevented a safe query, or the role returned blocked, the package records that state explicitly. See `market-research-guide.md`.
 
 For a product with any deployable web, API/backend, mobile, desktop, or browser-extension release target, it also creates a one-time operational seed at `docs/ACTIVATION.md` from the sibling `product-activation` template when that path is absent. The seed maps release targets, every PRD metric, and every required `TEST-*` signal, but it contains no external authorization, account guess, secret value, or claim that a source is verified. An existing Activation record is owned by `product-activation` and is preserved byte-for-byte during product enhancement.
 
@@ -39,6 +39,8 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 
 Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`. For UI products, `docs/design/ui-design.md` and `docs/design/wireframes.html` are later downstream inputs. Optional UI/design-system and operational records never override Product Definition. Research artifacts hold evidence behind cited `RA-*` and `MR-*` findings.
+
+The research-to-approval order is research-first evidence → complete candidate → Platform Optimization Recommendations → explicit owner choices → accepted revisions → Stack Decision Checkpoint → Product Definition Approval.
 
 Two rules keep the package readable:
 
@@ -285,7 +287,7 @@ The owner receives one concise package review: product scope and non-goals; Must
 
 #### Human Review Presentation
 
-Before asking for Product Definition Approval, send a user-visible response with verified absolute Markdown links to the complete current PRD, architecture, and stack source; include every produced market/research artifact and the applicable staged Deployment, Documents, and Activation seeds. Link the staging location while the candidate remains staged and canonical locations after publication. The response names what is ready and the review focus and requests an explicit approval decision. A summary, screenshot, tool-only output, panel-only open, or plain path cannot replace those links. Opening a viewer is convenience evidence only. If a linked file is missing, stale, or cannot be opened, report the blockage and do not claim approval readiness.
+Before asking for Product Definition Approval, send a user-visible response with verified absolute Markdown links to the complete current PRD, architecture, and stack source; include every produced market/research artifact, its Platform Optimization Recommendations and decision statuses, and the applicable staged Deployment, Documents, and Activation seeds. Link the staging location while the candidate remains staged and canonical locations after publication. The response names what is ready and the review focus and requests an explicit approval decision. A summary, screenshot, tool-only output, panel-only open, or plain path cannot replace those links. Opening a viewer is convenience evidence only. If a linked file is missing, stale, or cannot be opened, report the blockage and do not claim approval readiness.
 
 ### Downstream UI Design
 
@@ -344,6 +346,21 @@ Omit this section when the product has no commercial surface.
 | --- | --- | --- | --- | --- | --- |
 | MR-001 | [What the research established] | [Artifact and section] | [What should change, or "no change — confirms current draft"] | [sourced / reported / UNVALIDATED] | [S-01] |
 
+## Platform Optimization Recommendations
+Compare the pre-draft and post-draft evidence with the candidate. Keep at most five useful, ranked proposals. Use `None — [evidence-backed reason]` when evidence supports no proposal.
+
+### Proposal 1 — [Short outcome]
+- Affected PRD: [section names and existing `PRD-*`, `UX-*`, `ARCH-*`, or `TEST-*` IDs; proposed section for a new gap]
+- Supporting evidence: [RA-*/MR-*]
+- User problem: [one line]
+- Proposed action: [add / simplify / remove / defer / other concrete action]
+- Expected benefit hypothesis: [hypothesis only; no measured-benefit claim]
+- Cost / dependency / tradeoff: [one line]
+- Priority and rationale: [1–5 with reason]
+- Validation metric or experiment: [observable signal and method]
+- Decision status: `pending | accepted | revise | deferred | rejected`
+- Decision rationale: [owner, decision date, and reason; leave pending until the owner decides]
+
 ## Unresolved
 | Question | What was searched | What would settle it |
 | --- | --- | --- |
@@ -354,7 +371,7 @@ Omit this section when the product has no commercial surface.
 | S-01 | [Publisher] | [Title] | [URL] | [YYYY-MM-DD] | [primary / secondary] |
 ```
 
-`Lands in` names the artifact and section a finding affects, so the parent can apply it without re-reading the whole package. A finding that would widen product scope is recorded as a recommendation and raised with the user; the research role never decides scope.
+`Lands in` names the artifact and section a finding affects, so the parent can apply it without re-reading the whole package. A finding that would widen product scope is recorded as a recommendation and raised with the user; the research role never decides scope. For Platform Optimization Recommendations, the parent applies only an owner-recorded accepted proposal. `revise` returns the proposal for explicit acceptance before a PRD change. Present verified absolute Markdown links to the complete staged PRD and recommendations before asking for choices. Deferral or rejection never clears an approval-blocking gap.
 
 ## `research-assessment.md`
 
@@ -379,6 +396,22 @@ Researched on: [YYYY-MM-DD]
 ## Existing Alternatives
 | Alternative | What it is | Who uses it | Where it falls short | Confidence | Sources |
 | --- | --- | --- | --- | --- | --- |
+
+## Feature Baseline And Differentiation
+| Capability | Table stakes or differentiator | Evidence implication | Confidence | Sources |
+| --- | --- | --- | --- | --- |
+
+## Pricing And Business Model Baseline
+| Alternative | Model | Published price | Sources |
+| --- | --- | --- | --- |
+
+Omit this section when the product has no commercial surface.
+
+## Category Benchmarks
+| Benchmark | Evidence | Confidence | Sources |
+| --- | --- | --- | --- |
+
+Omit this section when no goal or success measure from discovery needs a category benchmark.
 
 ## Integration And Adoption Baseline
 [Prose or table: table-stakes integrations, adoption signals, switching costs.]
@@ -903,9 +936,11 @@ Before archiving earlier documents or publishing the staged package, verify:
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - The market-research gap pass completes or records its skip/block reason before Stack Decision and Product Definition approval. Its queries pass the Research Disclosure Check; confidential inputs never leave the product context by implication.
 - For a new package, `PRD.md` records a `### Research Gate` with `go`, `clarify`, `stop`, or the permitted skip reason, including confidential-context constraints. An enhancement cites the prior gate unchanged and researches only the delta.
+- The pre-draft assessment records applicable feature baseline, differentiation, pricing/business-model baseline, and category benchmarks as research inputs, not speculative requirements.
 - A silently missing Research Gate, Stack Decision Checkpoint, or Product Definition Approval does not validate.
 - When `research-assessment.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date, or is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
 - When `market-research.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date. Any claim without one is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
+- `## Platform Optimization Recommendations` contains at most five ranked useful proposals or one explicit evidence-backed `None`. Every proposal names exact affected PRD IDs, supports its comparison with `RA-*`/`MR-*` evidence, states benefit as a hypothesis with a validation experiment, and records `pending`, `accepted`, `revise`, `deferred`, or `rejected` with rationale. The parent applies only accepted proposals after an explicit owner decision; silence is not approval and deferral/rejection never bypasses an approval-blocking gap.
 - When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
 - Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
 - When the read-only agent work graph was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Agent output is treated as a candidate; the parent still owns staging and publication.

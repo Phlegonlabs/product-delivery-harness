@@ -38,7 +38,7 @@ Cada uno de los siete skills incluidos se puede invocar por separado; el pipelin
 
 - **El trabajo pequeño se queda pequeño.** Un cambio acotado usa un ciclo directo de inspección, implementación, verificación y revisión.
 - **El trabajo grande es explícito.** PLAN v6 define el typed graph; RUN v11 registra autorización, intentos y evidencia.
-- **La Product Definition se aprueba antes del diseño UI.** Una matriz cerrada de aplicabilidad deriva arquitectura y stack de cada release surface: hosted UI exige frontend, native UI exige mobile/desktop, servicios y agentes exigen backend/data/interfaces, y CLI exige toolchain explícito. Las aprobaciones de Product y Stack ligan digests canónicos, una revisión estructurada, fecha no futura y referencias exactas para cada open item aceptado. En cada gate de revisión humana, el agente envía proactivamente enlaces Markdown absolutos verificados al candidato completo actual y espera la aprobación explícita. Un producto con UI entra en `ui-design-builder` solo tras petición explícita. CLI y `other_nonpublic` comparten el área canónica `Toolchain` (`CLI/toolchain` es un alias), con layers de lenguaje, toolchain, distribución y pruebas.
+- **La Product Definition se aprueba antes del diseño UI.** La evidencia research-first, los baselines aplicables, un candidate completo, las decisiones explícitas sobre recommendations y cualquier delta accepted preceden las aprobaciones finales. Una matriz cerrada de aplicabilidad deriva arquitectura y stack de cada release surface: hosted UI exige frontend, native UI exige mobile/desktop, servicios y agentes exigen backend/data/interfaces, y CLI exige toolchain explícito. Las aprobaciones de Product y Stack ligan digests canónicos, una revisión estructurada, fecha no futura y referencias exactas para cada open item aceptado. En cada gate de revisión humana, el agente envía proactivamente enlaces Markdown absolutos verificados al candidato completo actual y espera la aprobación explícita. Un producto con UI entra en `ui-design-builder` solo tras petición explícita. CLI y `other_nonpublic` comparten el área canónica `Toolchain` (`CLI/toolchain` es un alias), con layers de lenguaje, toolchain, distribución y pruebas.
 - **Una recomendación no autoriza implementación.** Cada área aplicable recibe dos o tres stacks coherentes. Una elección nueva aceptada queda `Approved`, una existente `Selected` y una restricción dura `Required`; `Recommended` y `Provisional` bloquean delivery. El conjunto cerrado del checkpoint debe igualar las áreas aplicables resueltas, y el mapa de layers de la opción aprobada debe igualar las filas ejecutables. `render_stack_option_map.py` imprime un mapa candidato desde las filas existentes para revisión del owner; no puede aprobar ni reescribir el paquete. Los option maps explícitos se delimitan como `||...||`; los mapas legacy de solo comas siguen siendo legibles, y las comas en un layer o una selección exigen esa forma.
 - **El diseño UI tiene su propia ruta de aprobación.** `ui-design-builder` completa primero el intake de UI/style/motion/media. El wireframe schema 4 congela copy y contratos de presentación; las respuestas de Wireframe y Visual Approval ligan el set completo actual de pages/states HTML y el design handoff afectado, con enlaces a las rutas finales en el checkout de publicación autorizado y, después de publicar, al checkout de origen. Cada surface híbrida liga `releaseSurface`, `surfaceClass`, `captureMode` y su responsive set. El HiFi conserva scope, CSP restrictivo y un receipt humano offline con intentos de console, network, navigation, forms y popups. Un design system requerido usa un único handshake: Visual Approval registra `required/pending`, el compiler valida ese digest y genera el par, y el owner liga ambos hashes; la validación final rechaza pending. Un agente no puede aprobar por el owner.
 - **Las páginas HiFi se conectan mediante controles del producto.** Las referencias nuevas o revisadas usan `ui-hifi/2`: un manifiesto en `index.html` fija los hashes de las páginas HTML hermanas y los destinos de los controles. La evidencia offline `ui-output/2` verifica clic y teclado en cada tamaño; páginas ausentes, hashes obsoletos, controles inactivos, destinos incorrectos o navegación no declarada bloquean la aprobación. Cada página muestra solo sus surfaces asignadas. Se publica y conserva el paquete completo. Schema 1 solo admite inspección; toda Visual Approval actual exige schema 2. La revisión Git congelada debe contener todas las páginas hijas con los mismos bytes.
@@ -124,11 +124,16 @@ flowchart TB
         interview[Entrevista estructurada<br/>3 segmentos de texto libre + AskUserQuestion]
         pkg["Candidate del paquete core<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
         mr["market-research.md<br/>(reconciliar candidate, omitible)"]
+        rchoice{{"Recomendaciones de platform optimization<br/>owner accepts / revise / defer / reject"}}
+        revision["Aplicar solo cambios accepted"]
         sgate{{"Stack Decision Checkpoint<br/>Required | Selected | Approved"}}
         pgate{{"Product Definition Approval<br/>todos los productos"}}
         ra["Evaluación research-first<br/>research-assessment.md (omitible)"]
         rgate{{"Research Gate<br/>go | clarify | stop"}}
-        interview --> ra --> rgate --> pkg --> mr --> sgate --> pgate
+        interview --> ra --> rgate --> pkg --> mr --> rchoice
+        rchoice -->|accepted| revision --> sgate --> pgate
+        rchoice -->|revise proposal| mr
+        rchoice -->|none, deferred, or rejected; no blockers| sgate
     end
 
     subgraph DESIGN["ui-design-builder — diseño UI (petición explícita del owner)"]
@@ -257,7 +262,7 @@ Tras el deployment de producción, `product-activation` deriva perfiles de los r
 
 Tras Activation, `seo-growth-review` puede revisar en solo lectura un target de producción hosted-web público. El informe fechado coincide con Review date, hostname de Deployment, release exacto, hash de Activation, roles de fuente, data cutoff y checks PASS; no modifica el sitio ni cuentas externas.
 
-El bucle se cierra en ambos extremos. Research-first decide si redactar; el market research post-borrador reconcilia el candidate antes de aprobar stack y producto. Las métricas ahora incluyen baseline, target/guardrail, ventana, fuente/método y owner para que el outcome review tenga un contrato medible.
+El bucle se cierra en ambos extremos. La evidencia research-first decide si redactar y aporta baselines aplicables; el candidate completo pasa por reconciliación post-borrador y decisiones explícitas del owner sobre recommendations basadas en evidencia antes de la revisión, Stack Decision Checkpoint y Product Definition Approval. Las métricas ahora incluyen baseline, target/guardrail, ventana, fuente/método y owner para que el outcome review tenga un contrato medible.
 
 Los enhancements clasifican impacto en comportamiento de producto, UI structure/style, data/integraciones, arquitectura/stack, data trust/AI, canales comerciales y release/operaciones. Un cambio de contenido reabre Product Definition Approval; UI conserva `none`/`structure`/`style`/`both` y refresca solo los artifacts afectados.
 
@@ -385,7 +390,7 @@ Los verifiers locales gestionados también necesitan Docker/Podman nativo instal
 ### Flujo Zero-to-one
 
 1. Instala un host soportado y los siete skills. El instalador bloquea el destino, respalda IDs gestionados, copia solo archivos tracked y verifica cada byte; reinicia el host.
-2. Empieza con `product-definition-builder`: discovery/research, reconciliación, stack coherente, release targets tipados, tests, Stack Decision Checkpoint y Product Definition Approval humana.
+2. Empieza con `product-definition-builder`: evidencia research-first, drafting/reconciliación del candidate, decisiones explícitas de recommendations, cambios accepted, stack coherente, release targets tipados, tests, Stack Decision Checkpoint y Product Definition Approval humana.
 3. Para UI, ejecuta `ui-design-builder`: intake humano, Copy Freeze, wireframe schema 4, Style Integration, HiFi estructurado, receipts humanos, H1–H9 y Visual Approval.
 4. Si Design System Need es `required`, registra `required/pending`, pasa el preflight estrecho del compiler, genera el par schema 2, liga ambos hashes mediante el owner y pasa la validación UI final. Si es `not_required`, registra la disposición retain/retire de cualquier par existente.
 5. Invoca `delivery-harness`. El size gate mantiene directo un cambio pequeño o crea PLAN-v6/RUN-v11 para trabajo gestionado. Cada mutación requiere autorización exacta.

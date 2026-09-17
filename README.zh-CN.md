@@ -38,7 +38,7 @@
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
-- **先批准 Product Definition，再进入 UI 设计。** 每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。每个人工 review gate 都会主动提供完整待审版本的已验证 Markdown 绝对路径链接，并在明确批准前停止。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。 CLI 与 `other_nonpublic` 共用标准 `Toolchain` 批准 area（`CLI/toolchain` 为别名），分别记录 language、toolchain、distribution mechanism 与 testing layers。
+- **先批准 Product Definition，再进入 UI 设计。** research-first evidence、适用 baseline、完整 candidate、明确 recommendation choices，以及 accepted delta 都在最终 approvals 之前。每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。每个人工 review gate 都会主动提供完整待审版本的已验证 Markdown 绝对路径链接，并在明确批准前停止。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。 CLI 与 `other_nonpublic` 共用标准 `Toolchain` 批准 area（`CLI/toolchain` 为别名），分别记录 language、toolchain、distribution mechanism 与 testing layers。
 - **建议不等于实现权威。** 每个适用领域先给出两到三组 coherent stack。新选择获批后标记 `Approved`，现有选择是 `Selected`，硬限制是 `Required`；`Recommended` 和 `Provisional` 会阻止 delivery。Checkpoint 的封闭 area set 必须等于适用且已解决的 areas，获批 option 的 layer map 必须等于可执行 stack rows。`render_stack_option_map.py` 会从既有 rows 生成供 owner review 的候选 map；它不能批准或改写包件。明确 option map 以 `||...||` 包裹；只用逗号的 legacy map 仍可读取，但 layer 名称或 selection 含逗号时必须使用明确形式。
 - **UI 设计有独立批准主线。** `ui-design-builder` 先完成 UI/style/motion/media intake。Schema 4 wireframe 冻结文案与显示契约；Wireframe 与 Visual Approval 回应会链接完整现行 HTML page/state set 与相关 design handoff，审核链接指向已授权 publication checkout 内的最终逻辑路径，发布后再链接到来源 checkout。hybrid 产品逐 `UI-*` surface 绑定 `releaseSurface`、`surfaceClass`、`captureMode` 与 responsive set。HiFi target 必须带精确 scope、restrictive CSP，以及保留 console、network、navigation、form、popup 尝试的人工 sandboxed-offline receipt。需要正式 design system 时走唯一窄路径：Visual Approval 记录 `required/pending`，compiler 校验该批准 digest 并生成 pair，owner 再链接两份 hash；普通 final validation 会拒绝 pending。Agent 不能代替 owner 批准。
 - **HiFi 页面必须由产品控件连通。** 新增或修订的 `ui-hifi/2` 以 `index.html` 清单绑定同目录 HTML 页面的哈希与控件目的地。离线 `ui-output/2` 证据逐 responsive target 验证点击及键盘操作；缺页、过期哈希、无效控件、错误目的地或未声明跳转均阻止批准。每页只能呈现分配给该页的 surface。发布与保留须包含完整包；schema-1 仅供读取检查，正式 Visual Approval 一律要求 schema 2。 指定 Git revision 冻结时，该 revision 必须包含所有子页面且内容一致。
@@ -124,11 +124,16 @@ flowchart TB
         interview[结构化访谈<br/>3 段 free-text + AskUserQuestion]
         pkg["核心套件 candidate<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
         mr["market-research.md<br/>（对账 candidate，可跳过）"]
+        rchoice{{"平台优化建议<br/>owner accepts / revise / defer / reject"}}
+        revision["只应用 accepted 变更"]
         sgate{{"Stack Decision Checkpoint<br/>Required | Selected | Approved"}}
         pgate{{"Product Definition Approval<br/>所有产品"}}
         ra["research-first 评估<br/>research-assessment.md（可跳过）"]
         rgate{{"Research Gate<br/>go | clarify | stop"}}
-        interview --> ra --> rgate --> pkg --> mr --> sgate --> pgate
+        interview --> ra --> rgate --> pkg --> mr --> rchoice
+        rchoice -->|accepted| revision --> sgate --> pgate
+        rchoice -->|revise proposal| mr
+        rchoice -->|none, deferred, or rejected; no blockers| sgate
     end
 
     subgraph DESIGN["ui-design-builder — UI 设计（owner 明确要求）"]
@@ -257,7 +262,7 @@ Production deployment 之后，`product-activation` 从 typed release targets �
 
 Activation 之后，`seo-growth-review` 可对 typed public hosted-web production target 做独立只读 review。Dated report 必须对齐 Review date、deployment hostname、exact release、Activation hash、verified source roles、data cutoff 与 PASS integrity checks；它不修改网站或外部账户。
 
-循环在两端都闭合。Research-first 先把关是否起草；post-draft market research 会在 stack 和产品批准前对账 candidate。Metrics 现在包含 baseline、target/guardrail、measurement window、source/method 和 owner，让 outcome review 有可执行的量测契约。
+循环在两端都闭合。Research-first evidence 先把关是否起草，并提供适用 baseline；完整 candidate 经过 post-draft reconciliation，owner 对 evidence-based recommendations 做明确决定后，才修订并进入 Stack Decision Checkpoint 与 Product Definition Approval。Metrics 现在包含 baseline、target/guardrail、measurement window、source/method 和 owner，让 outcome review 有可执行的量测契约。
 
 Enhancement 会分类 product behavior、UI structure/style、data/integrations、architecture/stack、data trust/AI、commercial channels 与 release/operations。产品内容变化会重新打开 Product Definition Approval；UI 仍沿用 `none`/`structure`/`style`/`both` 并只更新受影响产物。
 
@@ -386,7 +391,7 @@ Managed 本地 verifier 还需要由 administrator/root 安装在 OS 保护路�
 ### Zero-to-one 流程（从零开始）
 
 1. 安装一个受支持的宿主和七个 skills。Installer 会锁定目标目录、备份 managed IDs、只复制 Git-tracked files，并逐字节校验；完成后重启宿主。
-2. 先用 `product-definition-builder` 完成 discovery/research、candidate reconciliation、coherent stack、typed release targets、tests、Stack Decision Checkpoint 与人工 Product Definition Approval。
+2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明确 recommendation choices、accepted 变更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 与人工 Product Definition Approval。
 3. UI 产品进入 `ui-design-builder`：human intake、Copy Freeze、schema-4 wireframe 校验与批准、Style Integration、structured HiFi、human-attested receipts、H1–H9 review 与 Visual Approval。
 4. Design System Need Gate 为 `required` 时，先记录精确 `required/pending` marker，通过 compiler 的窄 preflight，生成 schema-2 pair，由 owner 链接两份 hash，再通过普通 final UI validation。`not_required` 时要记录现有 pair 的 retain/retire disposition。
 5. 再调用 `delivery-harness`。Size gate 让单一小改动保持 direct；大型工作才建立 PLAN-v6/RUN-v11。每个状态变更动作都需要精确授权。
