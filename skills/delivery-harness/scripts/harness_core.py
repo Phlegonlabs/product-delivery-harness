@@ -575,72 +575,89 @@ def _validate_verifier(
         errors,
         execution_path,
         execution,
-        {"parallel_safe", "resources", "isolation", "sandbox"},
+        {"parallel_safe", "resources", "isolation"},
+        {"sandbox"},
     ):
             if not isinstance(execution["parallel_safe"], bool):
                 _add(errors, f"{execution_path}.parallel_safe", "must be boolean")
             isolation = execution["isolation"]
-            if isolation != "container":
+            if isolation not in {"container", "host"}:
                 _add(
                     errors,
                     f"{execution_path}.isolation",
-                    "must equal container for every verifier runtime layer",
+                    "must equal container or host",
                 )
-            sandbox_path = f"{execution_path}.sandbox"
-            sandbox = execution["sandbox"]
-            try:
-                normalize_sandbox_policy(sandbox)
-            except ValueError as exc:
-                _add(errors, sandbox_path, str(exc))
-            if _keys(
-                errors,
-                sandbox_path,
-                sandbox,
-                {
-                    "runtime",
-                    "image",
-                    "network",
-                    "read_only_rootfs",
-                    "no_new_privileges",
-                    "cap_drop",
-                    "tmpfs",
-                    "memory",
-                    "cpus",
-                    "pids_limit",
-                    "user",
-                    "pull",
-                },
-            ):
-                    if sandbox["runtime"] not in {"docker", "podman"}:
-                        _add(errors, f"{sandbox_path}.runtime", "must be docker or podman")
-                    if not isinstance(sandbox["image"], str) or re.fullmatch(
-                        r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", sandbox["image"]
-                    ) is None:
-                        _add(errors, f"{sandbox_path}.image", "must be pinned by @sha256 digest")
-                    if sandbox["network"] != "none":
-                        _add(errors, f"{sandbox_path}.network", "must equal none")
-                    for flag in ("read_only_rootfs", "no_new_privileges"):
-                        if sandbox[flag] is not True:
-                            _add(errors, f"{sandbox_path}.{flag}", "must be true")
-                    if not isinstance(sandbox["cap_drop"], list) or "ALL" not in sandbox["cap_drop"]:
-                        _add(errors, f"{sandbox_path}.cap_drop", "must include ALL")
-                    if not isinstance(sandbox["tmpfs"], list) or not sandbox["tmpfs"] or any(
-                        not isinstance(item, str)
-                        or re.fullmatch(r"/[A-Za-z0-9._/-]+(?::[A-Za-z0-9_=,.-]+)?", item) is None
-                        or ".." in item.split(":", 1)[0].split("/")
-                        for item in sandbox["tmpfs"]
-                    ):
-                        _add(errors, f"{sandbox_path}.tmpfs", "must be a non-empty list")
-                    if not isinstance(sandbox["memory"], str) or re.fullmatch(r"[1-9][0-9]*(?:[bkmg])?", sandbox["memory"].lower()) is None:
-                        _add(errors, f"{sandbox_path}.memory", "must use a bounded numeric memory grammar")
-                    if not isinstance(sandbox["cpus"], str) or re.fullmatch(r"[1-9][0-9]*(?:\.[0-9]+)?", sandbox["cpus"]) is None:
-                        _add(errors, f"{sandbox_path}.cpus", "must use a numeric CPU grammar")
-                    if not isinstance(sandbox["pids_limit"], str) or re.fullmatch(r"[1-9][0-9]{0,5}", sandbox["pids_limit"]) is None:
-                        _add(errors, f"{sandbox_path}.pids_limit", "must use a bounded PID grammar")
-                    if not isinstance(sandbox["user"], str) or re.fullmatch(r"[1-9][0-9]*:[1-9][0-9]*", sandbox["user"]) is None:
-                        _add(errors, f"{sandbox_path}.user", "must be a non-root uid:gid")
-                    if sandbox["pull"] != "never":
-                        _add(errors, f"{sandbox_path}.pull", "must equal never")
+                return
+            if isolation == "host":
+                if execution["parallel_safe"] is not False:
+                    _add(
+                        errors,
+                        f"{execution_path}.parallel_safe",
+                        "must be false so host commands share one checkout serially",
+                    )
+                if "sandbox" in execution:
+                    _add(errors, execution_path, "host execution must omit sandbox")
+                if isinstance(cache, dict) and (cache.get("mode") != "disabled" or cache.get("deterministic_local", False)):
+                    _add(errors, cache_path, "host execution requires disabled cache")
+            else:
+                sandbox_path = f"{execution_path}.sandbox"
+                if "sandbox" not in execution:
+                    _add(errors, sandbox_path, "is required for container isolation")
+                    return
+                sandbox = execution["sandbox"]
+                try:
+                    normalize_sandbox_policy(sandbox)
+                except ValueError as exc:
+                    _add(errors, sandbox_path, str(exc))
+                if _keys(
+                    errors,
+                    sandbox_path,
+                    sandbox,
+                    {
+                        "runtime",
+                        "image",
+                        "network",
+                        "read_only_rootfs",
+                        "no_new_privileges",
+                        "cap_drop",
+                        "tmpfs",
+                        "memory",
+                        "cpus",
+                        "pids_limit",
+                        "user",
+                        "pull",
+                    },
+                ):
+                        if sandbox["runtime"] not in {"docker", "podman"}:
+                            _add(errors, f"{sandbox_path}.runtime", "must be docker or podman")
+                        if not isinstance(sandbox["image"], str) or re.fullmatch(
+                            r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", sandbox["image"]
+                        ) is None:
+                            _add(errors, f"{sandbox_path}.image", "must be pinned by @sha256 digest")
+                        if sandbox["network"] != "none":
+                            _add(errors, f"{sandbox_path}.network", "must equal none")
+                        for flag in ("read_only_rootfs", "no_new_privileges"):
+                            if sandbox[flag] is not True:
+                                _add(errors, f"{sandbox_path}.{flag}", "must be true")
+                        if not isinstance(sandbox["cap_drop"], list) or "ALL" not in sandbox["cap_drop"]:
+                            _add(errors, f"{sandbox_path}.cap_drop", "must include ALL")
+                        if not isinstance(sandbox["tmpfs"], list) or not sandbox["tmpfs"] or any(
+                            not isinstance(item, str)
+                            or re.fullmatch(r"/[A-Za-z0-9._/-]+(?::[A-Za-z0-9_=,.-]+)?", item) is None
+                            or ".." in item.split(":", 1)[0].split("/")
+                            for item in sandbox["tmpfs"]
+                        ):
+                            _add(errors, f"{sandbox_path}.tmpfs", "must be a non-empty list")
+                        if not isinstance(sandbox["memory"], str) or re.fullmatch(r"[1-9][0-9]*(?:[bkmg])?", sandbox["memory"].lower()) is None:
+                            _add(errors, f"{sandbox_path}.memory", "must use a bounded numeric memory grammar")
+                        if not isinstance(sandbox["cpus"], str) or re.fullmatch(r"[1-9][0-9]*(?:\.[0-9]+)?", sandbox["cpus"]) is None:
+                            _add(errors, f"{sandbox_path}.cpus", "must use a numeric CPU grammar")
+                        if not isinstance(sandbox["pids_limit"], str) or re.fullmatch(r"[1-9][0-9]{0,5}", sandbox["pids_limit"]) is None:
+                            _add(errors, f"{sandbox_path}.pids_limit", "must use a bounded PID grammar")
+                        if not isinstance(sandbox["user"], str) or re.fullmatch(r"[1-9][0-9]*:[1-9][0-9]*", sandbox["user"]) is None:
+                            _add(errors, f"{sandbox_path}.user", "must be a non-root uid:gid")
+                        if sandbox["pull"] != "never":
+                            _add(errors, f"{sandbox_path}.pull", "must equal never")
             resources = execution["resources"]
             if not isinstance(resources, list):
                 _add(errors, f"{execution_path}.resources", "must be a list")
@@ -780,6 +797,88 @@ def sandbox_execution_binding_errors(
         errors.append("sandbox attestation does not prove the read-only Git archive mount")
     if attestation.get("network") != "none":
         errors.append("sandbox attestation does not prove network isolation")
+    return errors
+
+
+HOST_FINGERPRINT_KEYS = {"system", "machine", "release", "node_sha256"}
+HOST_RUNTIME_VERSION_KEYS = {"system", "release", "machine"}
+
+
+def host_execution_binding_errors(
+    preflight: Any,
+    attestation: Any,
+    key_document: Any = None,
+    checkout_root: Any = None,
+) -> list[str]:
+    """Validate the static host-identity join retained with one execution."""
+
+    errors: list[str] = []
+    preflight_keys = {
+        "isolation",
+        "argv0",
+        "executable",
+        "executable_sha256",
+        "runtime_version",
+        "host",
+    }
+    attestation_keys = {
+        "isolation",
+        "cwd",
+        "host",
+        "runtime_version",
+        "executable",
+    }
+    if not isinstance(preflight, dict) or set(preflight) != preflight_keys:
+        return ["host preflight must retain the exact observed identity"]
+    if preflight.get("isolation") != "host":
+        errors.append("host preflight isolation differs from the declaration")
+    if not isinstance(preflight.get("argv0"), str) or not preflight["argv0"]:
+        errors.append("host preflight argv0 must be a non-empty string")
+    if not isinstance(preflight.get("executable"), str) or not Path(preflight["executable"]).is_absolute():
+        errors.append("host preflight executable must be a non-empty absolute path")
+    if re.fullmatch(r"[0-9a-f]{64}", str(preflight.get("executable_sha256", ""))) is None:
+        errors.append("host preflight executable_sha256 must be a SHA-256 digest")
+    version = preflight.get("runtime_version")
+    if not isinstance(version, dict) or set(version) != HOST_RUNTIME_VERSION_KEYS:
+        errors.append("host preflight runtime_version must retain the host OS identity")
+    elif any(not isinstance(version.get(key), str) for key in HOST_RUNTIME_VERSION_KEYS):
+        errors.append("host preflight runtime_version must contain string OS fields")
+    host = preflight.get("host")
+    if not isinstance(host, dict) or set(host) != HOST_FINGERPRINT_KEYS:
+        errors.append("host preflight must retain the non-sensitive host fingerprint")
+    elif (any(not isinstance(host[key], str) for key in HOST_FINGERPRINT_KEYS)
+          or re.fullmatch(r"[0-9a-f]{64}", host["node_sha256"]) is None):
+        errors.append("host preflight fingerprint contains invalid fields")
+    if not isinstance(attestation, dict) or set(attestation) != attestation_keys:
+        errors.append("host execution must retain the complete host attestation")
+        return errors
+    if attestation.get("isolation") != "host":
+        errors.append("host attestation isolation differs from the declaration")
+    if not isinstance(attestation.get("cwd"), str) or not Path(attestation["cwd"]).is_absolute():
+        errors.append("host attestation must retain the execution cwd")
+    if isinstance(key_document, dict):
+        argv = key_document.get("argv")
+        if not isinstance(argv, list) or not argv or preflight.get("argv0") != argv[0]:
+            errors.append("host preflight argv0 differs from the declared command")
+        if isinstance(checkout_root, str) and isinstance(key_document.get("cwd"), str):
+            expected_cwd = str((Path(checkout_root) / key_document["cwd"]).resolve())
+            if attestation.get("cwd") != expected_cwd:
+                errors.append("host attestation cwd differs from the declared checkout cwd")
+    if attestation.get("host") != preflight.get("host"):
+        errors.append("host attestation fingerprint differs from preflight")
+    if attestation.get("runtime_version") != preflight.get("runtime_version"):
+        errors.append("host attestation runtime version differs from preflight")
+    executable = attestation.get("executable")
+    if not isinstance(executable, dict) or set(executable) != {
+        "path",
+        "sha256",
+    }:
+        errors.append("host attestation must retain the executed executable identity")
+    elif (
+        executable.get("path") != preflight.get("executable")
+        or executable.get("sha256") != preflight.get("executable_sha256")
+    ):
+        errors.append("host attestation executable differs from preflight")
     return errors
 
 

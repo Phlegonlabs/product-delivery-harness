@@ -735,6 +735,7 @@ def _sandbox_observation_reasons(
     if sandbox.get("plan_digest_sha256") != plan_digest(plan):
         return {"sandbox_preflight_stale"}
     expected: set[tuple[str, str]] = set()
+    expected_host: set[tuple[str, str]] = set()
     declarations: list[dict[str, Any]] = []
     for group in ("batch_verifiers", "final_gates"):
         declarations.extend(item for item in plan.get(group, []) if isinstance(item, dict))
@@ -756,9 +757,14 @@ def _sandbox_observation_reasons(
         )
     for declaration in declarations:
         execution = declaration.get("execution")
-        sandbox_policy = execution.get("sandbox") if isinstance(execution, dict) else None
-        if isinstance(sandbox_policy, dict):
-            expected.add((sandbox_policy.get("runtime"), sandbox_policy.get("image")))
+        if isinstance(execution, dict):
+            sandbox_policy = execution.get("sandbox")
+            if isinstance(sandbox_policy, dict):
+                expected.add((sandbox_policy.get("runtime"), sandbox_policy.get("image")))
+            if execution.get("isolation") == "host":
+                argv = declaration.get("argv")
+                if isinstance(argv, list) and argv and isinstance(argv[0], str):
+                    expected_host.add(("host", argv[0]))
     entries = sandbox.get("entries")
     observed_keys = {
         (entry.get("runtime"), entry.get("image"))
@@ -792,6 +798,36 @@ def _sandbox_observation_reasons(
             for key in ("executable_sha256", "version_output_sha256")
         ):
             return {"sandbox_preflight_unavailable"}
+    if expected_host:
+        host_observation = observed.get("host_runtime") if isinstance(observed, dict) else None
+        if not isinstance(host_observation, dict):
+            return {"host_runtime_preflight_missing"}
+        if host_observation.get("status") != "available" or host_observation.get("errors") != []:
+            return {"host_runtime_preflight_unavailable"}
+        if host_observation.get("captured_at") != observed.get("captured_at"):
+            return {"host_runtime_preflight_stale"}
+        if host_observation.get("plan_revision") != plan.get("revision") or host_observation.get(
+            "plan_digest_sha256"
+        ) != plan_digest(plan):
+            return {"host_runtime_preflight_stale"}
+        observed_host_keys = {
+            (entry.get("isolation"), entry.get("argv0"))
+            for entry in host_observation.get("entries", [])
+            if isinstance(entry, dict)
+        } if isinstance(host_observation.get("entries"), list) else set()
+        if observed_host_keys != expected_host:
+            return {"host_runtime_preflight_stale"}
+        for entry in host_observation.get("entries", []) if isinstance(host_observation.get("entries"), list) else []:
+            if not isinstance(entry, dict) or entry.get("isolation") != "host":
+                return {"host_runtime_preflight_unavailable"}
+            if not isinstance(entry.get("executable"), str) or not entry["executable"].strip():
+                return {"host_runtime_preflight_unavailable"}
+            if not isinstance(entry.get("executable_sha256"), str) or re.fullmatch(
+                r"[0-9a-f]{64}", entry["executable_sha256"]
+            ) is None:
+                return {"host_runtime_preflight_unavailable"}
+            if not isinstance(entry.get("host"), dict) or not isinstance(entry.get("runtime_version"), dict):
+                return {"host_runtime_preflight_unavailable"}
     return set()
 
 
@@ -1222,7 +1258,16 @@ def select_ready_nodes(
     )
 
     def budget_reasons() -> list[str]:
-        return ["over_budget", "capability_unprobed"] if capability_unprobed else ["over_budget"]
+        reasons = {"over_budget"}
+        if capability_unprobed:
+            reasons.add("capability_unprobed")
+        if len(selected_write) >= configured_write_budget:
+            reasons.add("configured_worker_limit")
+        if isolated_write_count >= run["observed"]["runtime"]["available_worker_slots"]:
+            reasons.add("worker_slots_exhausted")
+        if isolated_write_count >= run["observed"]["runtime"]["isolation_capacity"]:
+            reasons.add("isolation_capacity_exhausted")
+        return sorted(reasons)
 
     conflict_pairs = {
         frozenset((edge["left"], edge["right"])) for edge in conflict_edges

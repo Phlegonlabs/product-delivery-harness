@@ -24,7 +24,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from select_verifiers import VerifierSelectionError, normalize_changed_files
-from harness_core import normalize_sandbox_policy
+from harness_core import (
+    HOST_FINGERPRINT_KEYS,
+    HOST_RUNTIME_VERSION_KEYS,
+    normalize_sandbox_policy,
+)
 from harness_git import (
     GitMetadataError,
     reject_object_substitution,
@@ -80,6 +84,7 @@ BATCH_JOB_OPTIONAL_FIELDS = {
     "reservation",
     "request_sha256",
     "sandbox_preflight",
+    "host_preflight",
 }
 
 
@@ -443,6 +448,27 @@ def sandbox_host_fingerprint() -> dict[str, str]:
     }
 
 
+def host_runtime_fingerprint() -> dict[str, str]:
+    """Return the stable, non-secret host and OS runtime fingerprint."""
+
+    return {
+        "system": platform.system(),
+        "machine": platform.machine(),
+        "release": platform.release(),
+        "node_sha256": _sha256_bytes(platform.node().encode("utf-8")),
+    }
+
+
+def host_runtime_version() -> dict[str, str]:
+    """Return the OS runtime version observed without running project code."""
+
+    return {
+        "system": platform.system(),
+        "release": platform.release(),
+        "machine": platform.machine(),
+    }
+
+
 def _require_string(value: Any, label: str) -> str:
     if not isinstance(value, str) or not value:
         raise VerifierRuntimeError(f"{label} must be a non-empty string")
@@ -522,6 +548,53 @@ def _validated_sandbox_preflight(
     normalized["runtime_probe"]["executable"] = canonical
     if "trust" in probe and not isinstance(probe["trust"], dict):
         raise VerifierRuntimeError("sandbox preflight runtime trust proof is malformed")
+    return normalized
+
+
+def _validated_host_preflight(value: Any) -> dict[str, Any]:
+    """Validate and normalize the host identity bound to host execution."""
+
+    required = {
+        "isolation",
+        "argv0",
+        "executable",
+        "executable_sha256",
+        "runtime_version",
+        "host",
+    }
+    if not isinstance(value, dict) or set(value) != required:
+        raise VerifierRuntimeError(
+            "host execution requires the exact host preflight entry"
+        )
+    if value.get("isolation") != "host":
+        raise VerifierRuntimeError("host preflight isolation differs from policy")
+    _require_string(value.get("argv0"), "host preflight.argv0")
+    executable = value.get("executable")
+    if not isinstance(executable, str) or not executable or not Path(executable).is_absolute():
+        raise VerifierRuntimeError(
+            "host preflight executable must be a canonical absolute path"
+        )
+    canonical = str(Path(executable).resolve())
+    if os.path.normcase(executable) != os.path.normcase(canonical):
+        raise VerifierRuntimeError(
+            "host preflight executable must be a canonical absolute path"
+        )
+    if re.fullmatch(r"[0-9a-f]{64}", str(value.get("executable_sha256", ""))) is None:
+        raise VerifierRuntimeError(
+            "host preflight executable_sha256 must be a lowercase SHA-256"
+        )
+    version = value.get("runtime_version")
+    if not isinstance(version, dict) or set(version) != HOST_RUNTIME_VERSION_KEYS or any(
+        not isinstance(version.get(key), str) for key in HOST_RUNTIME_VERSION_KEYS
+    ):
+        raise VerifierRuntimeError("host preflight runtime_version is malformed")
+    host = value.get("host")
+    if not isinstance(host, dict) or set(host) != HOST_FINGERPRINT_KEYS or any(
+        not isinstance(host.get(key), str) for key in HOST_FINGERPRINT_KEYS
+    ):
+        raise VerifierRuntimeError("host preflight host fingerprint is malformed")
+    normalized = copy_json(value)
+    normalized["executable"] = canonical
     return normalized
 
 
@@ -756,6 +829,47 @@ def _resolve_executable(argv0: str, cwd: Path, environment: Mapping[str, str]) -
     return Path(found).resolve()
 
 
+def host_executable_identity(
+    argv0: str, cwd: Path, environment: Mapping[str, str]
+) -> dict[str, Any]:
+    """Resolve and hash a declared host executable without invoking it."""
+
+    executable = _resolve_executable(argv0, cwd, environment)
+    try:
+        info = executable.lstat()
+    except OSError as exc:
+        raise VerifierRuntimeError(
+            f"host executable {argv0!r} is unavailable: {exc}"
+        ) from exc
+    if not executable.is_file():
+        raise VerifierRuntimeError(
+            f"host executable {argv0!r} must be a regular file"
+        )
+    if os.name == "nt":
+        if executable.suffix.casefold() not in {".exe", ".com"}:
+            raise VerifierRuntimeError(
+                "Windows host executable must be a native .exe or .com, not a shell wrapper"
+            )
+        if getattr(info, "st_file_attributes", 0) & 0x0400:
+            raise VerifierRuntimeError(
+                "Windows host executable must not be a reparse point"
+            )
+    elif not info.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
+        raise VerifierRuntimeError(
+            f"host executable {argv0!r} must have an execute bit"
+        )
+    try:
+        digest = _sha256_bytes(executable.read_bytes())
+    except OSError as exc:
+        raise VerifierRuntimeError(
+            f"cannot hash host executable {argv0!r}: {exc}"
+        ) from exc
+    return {
+        "executable": str(executable),
+        "executable_sha256": digest,
+    }
+
+
 def executable_identity(executable: Path) -> dict[str, Any]:
     stat = executable.stat()
     return {
@@ -780,16 +894,28 @@ def _execution_policy(verifier: dict[str, Any]) -> dict[str, Any]:
     value = verifier.get("execution")
     if value is None:
         raise VerifierRuntimeError(
-            "verifier.execution is required; runtime verifier requests must declare isolation=container"
+            "verifier.execution is required; runtime verifier requests must declare isolation=container or host"
         )
-    if not isinstance(value, dict) or not {"parallel_safe", "resources", "isolation", "sandbox"} <= set(value) or not set(value) <= {
-        "parallel_safe",
-        "resources",
-        "isolation",
-        "sandbox",
-    }:
+    isolation = value.get("isolation") if isinstance(value, dict) else None
+    if (
+        isinstance(value, dict)
+        and {"parallel_safe", "resources", "isolation"} <= set(value)
+        and isolation not in {"container", "host"}
+    ):
         raise VerifierRuntimeError(
-            "verifier.execution must contain parallel_safe/resources/isolation/sandbox"
+            "runtime verifier execution requires execution.isolation=container"
+        )
+    container_keys = {"parallel_safe", "resources", "isolation", "sandbox"}
+    host_keys = {"parallel_safe", "resources", "isolation"}
+    allowed_keys = container_keys if isolation == "container" else host_keys
+    if not isinstance(value, dict) or not {"parallel_safe", "resources", "isolation"} <= set(value) or not set(value) <= allowed_keys:
+        required_shape = (
+            "parallel_safe/resources/isolation/sandbox"
+            if isolation == "container"
+            else "parallel_safe/resources/isolation"
+        )
+        raise VerifierRuntimeError(
+            f"verifier.execution must contain {required_shape}"
         )
     if not isinstance(value["parallel_safe"], bool):
         raise VerifierRuntimeError("verifier.execution.parallel_safe must be boolean")
@@ -797,12 +923,14 @@ def _execution_policy(verifier: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(resources, list):
         raise VerifierRuntimeError("verifier.execution.resources must be an array")
     isolation = value["isolation"]
-    if isolation != "container":
+    if isolation not in {"container", "host"}:
         raise VerifierRuntimeError(
-            "runtime verifier execution requires execution.isolation=container"
+            "runtime verifier execution requires explicit execution.isolation=container or host"
         )
-    if not isinstance(value["sandbox"], dict):
+    if isolation == "container" and not isinstance(value.get("sandbox"), dict):
         raise VerifierRuntimeError("container verifier execution requires sandbox policy")
+    if isolation == "host" and value["parallel_safe"] is not False:
+        raise VerifierRuntimeError("host verifier execution requires parallel_safe=false")
     normalized_resources: list[dict[str, str]] = []
     resource_keys: set[str] = set()
     for resource in resources:
@@ -824,7 +952,11 @@ def _execution_policy(verifier: dict[str, Any]) -> dict[str, Any]:
         "parallel_safe": value["parallel_safe"],
         "resources": sorted(normalized_resources, key=lambda item: item["key"]),
         "isolation": isolation,
-        "sandbox": normalize_sandbox_policy(value["sandbox"]),
+        **(
+            {"sandbox": normalize_sandbox_policy(value["sandbox"])}
+            if isolation == "container"
+            else {}
+        ),
     }
 
 
@@ -885,6 +1017,8 @@ def observe_plan_sandboxes(
             policy = _execution_policy(verifier)
         except VerifierRuntimeError as exc:
             errors.append(f"{path}: {exc}")
+            continue
+        if policy["isolation"] == "host":
             continue
         sandbox = policy["sandbox"]
         runtime = str(sandbox["runtime"])
@@ -971,6 +1105,63 @@ def observe_plan_sandboxes(
                 }
             )
     return observations, sorted(set(errors))
+
+
+def observe_plan_host_runtimes(
+    plan: Mapping[str, Any],
+    checkout_root: Path,
+    environment: Mapping[str, str] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Observe hashed host executables without invoking project code."""
+
+    effective_environment = os.environ if environment is None else environment
+    observations: list[dict[str, Any]] = []
+    errors: list[str] = []
+    seen: set[tuple[str, str, str]] = set()
+    root = checkout_root.resolve()
+    for path, verifier in _plan_verifier_declarations(plan):
+        try:
+            policy = _execution_policy(verifier)
+            if policy["isolation"] != "host":
+                continue
+            declared_cwd = Path(_require_string(verifier.get("cwd"), "verifier.cwd")).as_posix()
+            argv = verifier.get("argv")
+            if (
+                not isinstance(argv, list)
+                or not argv
+                or any(not isinstance(item, str) or not item for item in argv)
+            ):
+                raise VerifierRuntimeError("verifier.argv must be a non-empty string array")
+            cwd = _resolve_cwd(root, declared_cwd)
+            identity = host_executable_identity(argv[0], cwd, effective_environment)
+        except (OSError, ValueError, VerifierRuntimeError) as exc:
+            errors.append(f"{path}: {exc}")
+            continue
+        key = (argv[0], identity["executable"], identity["executable_sha256"])
+        if key in seen:
+            continue
+        seen.add(key)
+        observations.append(
+            {
+                "isolation": "host",
+                "argv0": argv[0],
+                **identity,
+                "runtime_version": host_runtime_version(),
+                "host": host_runtime_fingerprint(),
+            }
+        )
+    return observations, sorted(set(errors))
+
+
+def probe_plan_host_runtimes(
+    plan: Mapping[str, Any],
+    checkout_root: Path,
+    environment: Mapping[str, str] | None = None,
+) -> list[str]:
+    """Read-only host executable preflight."""
+
+    _observations, errors = observe_plan_host_runtimes(plan, checkout_root, environment)
+    return errors
 
 
 def probe_plan_sandboxes(plan: Mapping[str, Any]) -> list[str]:
@@ -1067,16 +1258,22 @@ def _validated_inputs(
     execution = _execution_policy(verifier)
     declared_path = Path(declared_cwd)
     if declared_path.is_absolute() or ".." in declared_path.parts:
-        raise VerifierRuntimeError("container verifier cwd must be repository-relative")
+        raise VerifierRuntimeError("verifier cwd must be repository-relative")
     cwd = checkout_root.resolve()
-    image = execution["sandbox"]["image"]
-    identity = {
-        "path": f"container:{image}:{argv[0]}",
-        "size": 0,
-        "mtime_ns": 0,
-        "device": 0,
-        "inode": 0,
-    }
+    if execution["isolation"] == "container":
+        image = execution["sandbox"]["image"]
+        identity = {
+            "path": f"container:{image}:{argv[0]}",
+            "size": 0,
+            "mtime_ns": 0,
+            "device": 0,
+            "inode": 0,
+        }
+    else:
+        cwd = _resolve_cwd(checkout_root.resolve(), declared_cwd)
+        identity = executable_identity(
+            _resolve_executable(argv[0], cwd, environment)
+        )
     read_only = verifier.get("read_only", False)
     if not isinstance(read_only, bool):
         raise VerifierRuntimeError("verifier.read_only must be boolean")
@@ -1095,6 +1292,10 @@ def _validated_inputs(
         raise VerifierRuntimeError("verifier.cache.deterministic_local must be boolean")
     if cache["mode"] not in {"disabled", "session_exact"}:
         raise VerifierRuntimeError("verifier.cache.mode is unsupported")
+    if execution["isolation"] == "host" and (
+        cache["mode"] != "disabled" or deterministic_local
+    ):
+        raise VerifierRuntimeError("host verifier execution requires disabled cache")
     environment_keys = cache["environment_keys"]
     if (
         not isinstance(environment_keys, list)
@@ -1136,6 +1337,7 @@ def build_execution_key(
     checkout_root: Path,
     environment: Mapping[str, str] | None = None,
     sandbox_preflight: dict[str, Any] | None = None,
+    host_preflight: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     effective_environment = os.environ if environment is None else environment
     _, _, normalized_verifier, key_inputs = _validated_inputs(
@@ -1145,7 +1347,8 @@ def build_execution_key(
         effective_environment,
     )
     execution_key, key_document = _key_document(normalized_verifier, key_inputs)
-    if normalized_verifier.get("execution", {}).get("isolation") == "container":
+    execution = normalized_verifier.get("execution", {})
+    if execution.get("isolation") == "container":
         policy = normalized_verifier["execution"].get("sandbox")
         if not isinstance(policy, dict):
             raise VerifierRuntimeError("container sandbox policy is malformed")
@@ -1155,6 +1358,19 @@ def build_execution_key(
     elif sandbox_preflight is not None:
         raise VerifierRuntimeError(
             "sandbox_preflight is valid only for container execution"
+        )
+    if execution.get("isolation") == "host":
+        if host_preflight is None:
+            raise VerifierRuntimeError("host execution requires host_preflight")
+        key_document["host_preflight"] = copy_json(
+            _validated_host_preflight(host_preflight)
+        )
+        if host_preflight["argv0"] != normalized_verifier["argv"][0]:
+            raise VerifierRuntimeError("host preflight argv0 differs from the declaration")
+        execution_key = execution_key_from_document(key_document)
+    elif host_preflight is not None:
+        raise VerifierRuntimeError(
+            "host_preflight is valid only for host execution"
         )
     return execution_key, key_document
 
@@ -1439,6 +1655,44 @@ def _container_attestation(
     }
 
 
+def _host_attestation(
+    cwd: Path,
+    executable: Path,
+    executable_sha256: str,
+) -> dict[str, Any]:
+    return {
+        "isolation": "host",
+        "cwd": str(cwd.resolve()),
+        "host": host_runtime_fingerprint(),
+        "runtime_version": host_runtime_version(),
+        "executable": {
+            "path": str(executable.resolve()),
+            "sha256": executable_sha256,
+        },
+    }
+
+
+def _verify_host_runtime_identity(
+    argv0: str,
+    cwd: Path,
+    environment: Mapping[str, str],
+    checked_preflight: dict[str, Any],
+) -> tuple[Path, str]:
+    """Freshly verify the resolved host executable before or after invocation."""
+
+    identity = host_executable_identity(argv0, cwd, environment)
+    if checked_preflight["host"] != host_runtime_fingerprint() or checked_preflight["runtime_version"] != host_runtime_version():
+        raise VerifierRuntimeError("host identity changed since preflight")
+    executable = Path(identity["executable"])
+    if os.path.normcase(str(executable.resolve())) != os.path.normcase(
+        str(Path(checked_preflight["executable"]))
+    ):
+        raise VerifierRuntimeError("host executable path changed since preflight")
+    if identity["executable_sha256"] != checked_preflight["executable_sha256"]:
+        raise VerifierRuntimeError("host executable changed since preflight")
+    return executable, identity["executable_sha256"]
+
+
 def _run_container_verifier(
     checkout_root: Path,
     snapshot_root: Path,
@@ -1574,6 +1828,15 @@ def _container_reuse_allowed(
         and context["cache_safe"] is True
         and context["checkout_dirty"] is False
         and git_guard is not None
+    )
+
+
+def _host_cache_allowed(normalized_verifier: Mapping[str, Any]) -> bool:
+    cache = normalized_verifier["cache"]
+    return bool(
+        cache["mode"] == "disabled"
+        and cache.get("environment_keys") == []
+        and cache.get("deterministic_local", False) is False
     )
 
 
@@ -1765,6 +2028,7 @@ def run_verifier(
     reservation: dict[str, Any] | None = None,
     request_sha256: str | None = None,
     sandbox_preflight: dict[str, Any] | None = None,
+    host_preflight: dict[str, Any] | None = None,
     snapshot_archive_cache: _SnapshotArchiveCache | None = None,
     container_result_cache: _ContainerResultCache | None = None,
 ) -> dict[str, Any]:
@@ -1779,10 +2043,10 @@ def run_verifier(
         checkout_root,
         effective_environment,
     )
-    container_mode = (
-        normalized_verifier.get("execution", {}).get("isolation") == "container"
-    )
-    container_policy = normalized_verifier.get("execution", {}).get("sandbox")
+    execution_policy = normalized_verifier.get("execution", {})
+    container_mode = execution_policy.get("isolation") == "container"
+    host_mode = execution_policy.get("isolation") == "host"
+    container_policy = execution_policy.get("sandbox")
     checked_sandbox_preflight: dict[str, Any] | None = None
     if container_mode:
         if not isinstance(container_policy, dict):
@@ -1795,10 +2059,24 @@ def run_verifier(
         raise VerifierRuntimeError(
             "sandbox_preflight is valid only for container execution"
         )
+    checked_host_preflight: dict[str, Any] | None = None
+    if host_mode:
+        checked_host_preflight = _validated_host_preflight(host_preflight)
+    elif host_preflight is not None:
+        raise VerifierRuntimeError(
+            "host_preflight is valid only for host execution"
+        )
     execution_key, key_document = _key_document(normalized_verifier, key_inputs)
     if checked_sandbox_preflight is not None:
         key_document["sandbox_preflight"] = copy_json(checked_sandbox_preflight)
         execution_key = execution_key_from_document(key_document)
+    if checked_host_preflight is not None:
+        if checked_host_preflight["argv0"] != argv[0]:
+            raise VerifierRuntimeError("host preflight argv0 differs from declaration")
+        key_document["host_preflight"] = copy_json(checked_host_preflight)
+        execution_key = execution_key_from_document(key_document)
+    if host_mode and git_guard is None:
+        raise VerifierRuntimeError("host verifier requests require a live git_guard")
     checked_reservation = _validated_reservation(reservation)
     context_layer = key_inputs["context"].get("layer")
     context_role = key_inputs["context"].get("checkout_role")
@@ -1824,13 +2102,16 @@ def run_verifier(
                 "git_guard.expected_head_sha must equal context.head_sha"
             )
     worker_guarded_mode = context_layer in {"task", "worker"} and context_role == "worker"
-    if worker_guarded_mode and not container_mode:
+    if worker_guarded_mode and not (container_mode or host_mode):
         raise VerifierRuntimeError(
-            "current task/worker verifier commands require execution.isolation=container"
+            "current task/worker verifier commands require explicit container or host isolation"
         )
+    if host_mode and not _host_cache_allowed(normalized_verifier):
+        raise VerifierRuntimeError("host verifier execution requires disabled cache")
     dispatch_attestation = None
     git_guard_attestation = None
     sandbox_attestation = None
+    host_attestation: dict[str, Any] | None = None
     if checked_reservation is not None:
         if git_guard is None or not isinstance(request_sha256, str) or (
             len(request_sha256) != 64
@@ -1852,7 +2133,7 @@ def run_verifier(
         git_guard_attestation = {
             "checkout_root": str(checkout_root.resolve()),
             "git_guard": json.loads(json.dumps(git_guard)),
-            "isolation_mode": "container" if container_mode else "live",
+            "isolation_mode": execution_policy["isolation"],
             "source_head_sha": key_inputs["context"]["head_sha"],
             "tracked_files": copy_json(guard_snapshot["tracked_files"]),
             "protected_path_sha256": dict(guard_snapshot["protected_path_sha256"]),
@@ -1999,6 +2280,9 @@ def run_verifier(
         if container_mode and can_reuse:
             can_reuse = False
             cache_reason = "container_disk_cache_disabled"
+        if host_mode and cache_mode == "session_exact":
+            can_reuse = False
+            cache_reason = "host_cache_disabled"
         if (
             can_reuse
             and key_inputs["context"]["layer"] in CACHE_BANNED_LAYERS
@@ -2088,7 +2372,7 @@ def run_verifier(
 
         snapshot_temp: tempfile.TemporaryDirectory[str] | None = None
         execution_cwd = cwd
-        execution_argv = argv
+        execution_argv = ([checked_host_preflight["executable"], *argv[1:]] if host_mode else argv)
         execution_environment = effective_environment
         snapshot_started = time.perf_counter()
         if container_mode:
@@ -2120,6 +2404,14 @@ def run_verifier(
                     sandbox_preflight=checked_sandbox_preflight,
                 )
             else:
+                if host_mode:
+                    assert checked_host_preflight is not None
+                    _verify_host_runtime_identity(
+                        argv[0],
+                        execution_cwd,
+                        execution_environment,
+                        checked_host_preflight,
+                    )
                 completed = subprocess.run(
                     execution_argv,
                     cwd=execution_cwd,
@@ -2165,6 +2457,28 @@ def run_verifier(
         )
         if git_guard_attestation is not None and sandbox_attestation is not None:
             git_guard_attestation["sandbox_attestation"] = copy_json(sandbox_attestation)
+        if host_mode:
+            assert checked_host_preflight is not None
+            try:
+                executable, executable_sha256 = _verify_host_runtime_identity(
+                    argv[0],
+                    execution_cwd,
+                    execution_environment,
+                    checked_host_preflight,
+                )
+                host_attestation = _host_attestation(
+                    execution_cwd,
+                    executable,
+                    executable_sha256,
+                )
+                if git_guard_attestation is not None:
+                    git_guard_attestation["host_execution_attestation"] = copy_json(
+                        host_attestation
+                    )
+            except VerifierRuntimeError as exc:
+                status = "ERROR"
+                exit_code = None
+                stderr = (stderr + "\n" if stderr else "") + str(exc)
         duration_ms = max(0, round((time.perf_counter() - started) * 1000))
 
         if status == "PASS" and can_reuse and cache_path is not None:
@@ -2208,6 +2522,9 @@ def run_verifier(
                 if container_reuse_allowed
                 else "container_disk_cache_disabled"
             )
+        elif host_mode:
+            cache_status = "bypassed"
+            cache_reason = "host_cache_disabled"
 
         return {
             "protocol": PROTOCOL,
@@ -2253,6 +2570,11 @@ def run_verifier(
             **(
                 {"sandbox_attestation": sandbox_attestation}
                 if sandbox_attestation is not None
+                else {}
+            ),
+            **(
+                {"host_execution_attestation": host_attestation}
+                if host_attestation is not None
                 else {}
             ),
         }
@@ -2366,6 +2688,7 @@ def run_verifier_batch(
                 reservation=job.get("reservation"),
                 request_sha256=job.get("request_sha256"),
                 sandbox_preflight=job.get("sandbox_preflight"),
+                host_preflight=job.get("host_preflight"),
                 snapshot_archive_cache=snapshot_archive_cache,
                 container_result_cache=container_result_cache,
             )
@@ -2462,6 +2785,7 @@ def main(argv: list[str] | None = None) -> int:
                 reservation=request.get("reservation"),
                 request_sha256=request_sha256,
                 sandbox_preflight=request.get("sandbox_preflight"),
+                host_preflight=request.get("host_preflight"),
             )
     except (KeyError, OSError, ValueError, VerifierRuntimeError) as exc:
         print(

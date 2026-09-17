@@ -67,6 +67,8 @@ from security_review_result import validate_security_review_result
 
 from harness_core import (
     ManifestError,
+    HOST_FINGERPRINT_KEYS,
+    HOST_RUNTIME_VERSION_KEYS,
     _add,
     changed_files_digest,
     read_git_blob,
@@ -91,6 +93,7 @@ from harness_core import (
     parent_owned_path,
     path_in_scopes,
     plan_digest,
+    host_execution_binding_errors,
     resolve_runtime_options,
     route_runtime_driver,
     sandbox_execution_binding_errors,
@@ -2435,7 +2438,7 @@ def _validate_verifier_executions(
     seen_execution_ids: set[str] = set()
     for index, item in enumerate(value):
         path = f"run.verifier_executions[{index}]"
-        optional_entry_keys = {"sandbox_attestation"}
+        optional_entry_keys = {"sandbox_attestation", "host_execution_attestation"}
         if run.get("schema_version") == 11:
             optional_entry_keys.update(
                 {
@@ -2612,7 +2615,10 @@ def _validate_verifier_executions(
         if (
             run.get("schema_version") == 11
             and item.get("protocol") == "harness-verifier-execution-v2"
-            and item.get("layer") in {"task", "worker"}
+            and (item.get("layer") in {"task", "worker"} or (
+                isinstance(declaration, dict) and isinstance(declaration.get("execution"), dict)
+                and declaration["execution"].get("isolation") == "host"
+            ))
         ):
             if not isinstance(git_guard_attestation, dict):
                 _add(
@@ -2621,12 +2627,27 @@ def _validate_verifier_executions(
                     "is required for current task/worker verifier evidence",
                 )
             else:
+                declared_execution = (
+                    declaration.get("execution")
+                    if isinstance(declaration, dict)
+                    else None
+                )
+                declared_isolation = (
+                    declared_execution.get("isolation")
+                    if isinstance(declared_execution, dict)
+                    else None
+                )
+                nested_attestation_key = (
+                    "host_execution_attestation"
+                    if declared_isolation == "host"
+                    else "sandbox_attestation"
+                )
                 if set(git_guard_attestation) != {
                     "checkout_root",
                     "git_guard",
                     "isolation_mode",
                     "source_head_sha",
-                    "sandbox_attestation",
+                    nested_attestation_key,
                     "tracked_files",
                     "protected_path_sha256",
                     "protected_path_stats",
@@ -2636,19 +2657,19 @@ def _validate_verifier_executions(
                         f"{path}.git_guard_attestation",
                         "must retain the complete live git_guard snapshot",
                     )
-                if git_guard_attestation.get("isolation_mode") != "container":
+                if git_guard_attestation.get("isolation_mode") != declared_isolation:
                     _add(
                         errors,
                         f"{path}.git_guard_attestation.isolation_mode",
-                        "current task/worker evidence must use container isolation",
+                        "current task/worker evidence must use the declared isolation mode",
                     )
-                if not isinstance(git_guard_attestation.get("sandbox_attestation"), dict):
+                if not isinstance(git_guard_attestation.get(nested_attestation_key), dict):
                     _add(
                         errors,
-                        f"{path}.git_guard_attestation.sandbox_attestation",
-                        "must retain the machine-verifiable sandbox attestation",
+                        f"{path}.git_guard_attestation.{nested_attestation_key}",
+                        "must retain the machine-verifiable isolation attestation",
                     )
-                else:
+                elif declared_isolation != "host":
                     sandbox_attestation = git_guard_attestation["sandbox_attestation"]
                     required_sandbox_keys = {
                         "runtime",
@@ -2905,7 +2926,10 @@ def _validate_verifier_executions(
         else:
             key_document_keys.add("read_only")
             key_document_keys.add("execution")
-            if strict_sandbox_binding:
+            expected_execution = declaration.get("execution") if isinstance(declaration, dict) else None
+            if isinstance(expected_execution, dict) and expected_execution.get("isolation") == "host":
+                key_document_keys.add("host_preflight")
+            elif strict_sandbox_binding:
                 key_document_keys.add("sandbox_preflight")
         optional_key_document_keys = (
             {"sandbox_preflight"}
@@ -3105,45 +3129,100 @@ def _validate_verifier_executions(
                     f"{path}.key_document.execution",
                     "must encode the verifier execution isolation policy",
                 )
-            if strict_sandbox_binding:
-                declared_sandbox = (
-                    expected_execution.get("sandbox")
-                    if isinstance(expected_execution, dict)
-                    else None
+            if strict_sandbox_binding or (
+                isinstance(expected_execution, dict) and expected_execution.get("isolation") == "host"
+            ):
+                is_host = (
+                    isinstance(expected_execution, dict)
+                    and expected_execution.get("isolation") == "host"
                 )
-                preflight = key_document.get("sandbox_preflight")
-                attestation = item.get("sandbox_attestation")
-                for issue in sandbox_execution_binding_errors(
-                    declared_sandbox,
-                    preflight,
-                    attestation,
-                ):
-                    _add(errors, f"{path}.sandbox_attestation", issue)
-                matches = [
-                    entry
-                    for entry in observed_sandbox_entries
-                    if isinstance(entry, dict)
-                    and isinstance(preflight, dict)
-                    and entry.get("runtime") == preflight.get("runtime")
-                    and entry.get("image") == preflight.get("image")
-                ]
-                if len(matches) != 1 or matches[0] != preflight:
-                    _add(
-                        errors,
-                        f"{path}.key_document.sandbox_preflight",
-                        "must equal the current PLAN-bound RUN sandbox observation",
+                if is_host:
+                    observed_host = run.get("observed", {}).get("host_runtime", {})
+                    observed_host_entries = (
+                        observed_host.get("entries", [])
+                        if isinstance(observed_host, dict)
+                        and isinstance(observed_host.get("entries", []), list)
+                        else []
                     )
-                nested = (
-                    item.get("git_guard_attestation", {}).get("sandbox_attestation")
-                    if isinstance(item.get("git_guard_attestation"), dict)
-                    else None
-                )
-                if nested is not None and nested != attestation:
-                    _add(
-                        errors,
-                        f"{path}.git_guard_attestation.sandbox_attestation",
-                        "must equal the retained top-level sandbox attestation",
+                    preflight = key_document.get("host_preflight")
+                    matches = [
+                        entry
+                        for entry in observed_host_entries
+                        if isinstance(entry, dict)
+                        and isinstance(preflight, dict)
+                        and entry.get("argv0") == preflight.get("argv0")
+                        and entry.get("executable")
+                        == preflight.get("executable")
+                        and entry.get("executable_sha256")
+                        == preflight.get("executable_sha256")
+                    ]
+                    if len(matches) != 1 or matches[0] != preflight:
+                        _add(
+                            errors,
+                            f"{path}.key_document.host_preflight",
+                            "must equal the current PLAN-bound RUN host observation",
+                        )
+                    nested = (
+                        item.get("git_guard_attestation", {}).get(
+                            "host_execution_attestation"
+                        )
+                        if isinstance(item.get("git_guard_attestation"), dict)
+                        else None
                     )
+                    attestation = item.get("host_execution_attestation")
+                    if nested is not None and nested != attestation:
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.host_execution_attestation",
+                            "must equal the retained top-level host attestation",
+                        )
+                    for issue in host_execution_binding_errors(
+                        preflight,
+                        attestation,
+                        key_document,
+                        item.get("git_guard_attestation", {}).get("checkout_root")
+                        if isinstance(item.get("git_guard_attestation"), dict) else None,
+                    ):
+                        _add(errors, f"{path}.host_execution_attestation", issue)
+                if not is_host:
+                    declared_sandbox = (
+                        expected_execution.get("sandbox")
+                        if isinstance(expected_execution, dict)
+                        else None
+                    )
+                    preflight = key_document.get("sandbox_preflight")
+                    attestation = item.get("sandbox_attestation")
+                    for issue in sandbox_execution_binding_errors(
+                        declared_sandbox,
+                        preflight,
+                        attestation,
+                    ):
+                        _add(errors, f"{path}.sandbox_attestation", issue)
+                    matches = [
+                        entry
+                        for entry in observed_sandbox_entries
+                        if isinstance(entry, dict)
+                        and isinstance(preflight, dict)
+                        and entry.get("runtime") == preflight.get("runtime")
+                        and entry.get("image") == preflight.get("image")
+                    ]
+                    if len(matches) != 1 or matches[0] != preflight:
+                        _add(
+                            errors,
+                            f"{path}.key_document.sandbox_preflight",
+                            "must equal the current PLAN-bound RUN sandbox observation",
+                        )
+                    nested = (
+                        item.get("git_guard_attestation", {}).get("sandbox_attestation")
+                        if isinstance(item.get("git_guard_attestation"), dict)
+                        else None
+                    )
+                    if nested is not None and nested != attestation:
+                        _add(
+                            errors,
+                            f"{path}.git_guard_attestation.sandbox_attestation",
+                            "must equal the retained top-level sandbox attestation",
+                        )
         if isinstance(key_document, dict) and any(
             key_document.get(key) != normalized_verifier[key]
             for key in ("cwd", "argv", "pass_signal")
@@ -4301,7 +4380,7 @@ def _validate_run_observed(
         "run.observed",
         observed,
         {"captured_at", "git", "runtime"},
-        {"sandbox"},
+        {"sandbox", "host_runtime"},
     ):
         _optional_string(errors, "run.observed.captured_at", observed["captured_at"])
         git = observed["git"]
@@ -4425,6 +4504,68 @@ def _validate_run_observed(
                     seen_entries.add(key)
             if "errors" in sandbox:
                 _strings(errors, "run.observed.sandbox.errors", sandbox["errors"])
+        host_runtime = observed.get("host_runtime")
+        if host_runtime is not None and _keys(
+            errors,
+            "run.observed.host_runtime",
+            host_runtime,
+            {
+                "status",
+                "plan_revision",
+                "plan_digest_sha256",
+                "captured_at",
+                "host",
+                "entries",
+            },
+            {"errors"},
+        ):
+            if host_runtime["status"] not in {"unobserved", "available", "unavailable"}:
+                _add(errors, "run.observed.host_runtime.status", "must be unobserved, available, or unavailable")
+            if host_runtime["plan_revision"] is not None and (
+                not _is_int(host_runtime["plan_revision"]) or host_runtime["plan_revision"] < 1
+            ):
+                _add(errors, "run.observed.host_runtime.plan_revision", "must be null or a positive integer")
+            digest = host_runtime["plan_digest_sha256"]
+            if digest is not None and (
+                not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None
+            ):
+                _add(errors, "run.observed.host_runtime.plan_digest_sha256", "must be null or a lowercase SHA-256 digest")
+            _optional_string(errors, "run.observed.host_runtime.captured_at", host_runtime["captured_at"])
+            host = host_runtime["host"]
+            if _keys(errors, "run.observed.host_runtime.host", host, HOST_FINGERPRINT_KEYS):
+                if any(not isinstance(host.get(key), str) for key in HOST_FINGERPRINT_KEYS):
+                    _add(errors, "run.observed.host_runtime.host", "must retain string host fields")
+                if SHA256_RE.fullmatch(str(host.get("node_sha256", ""))) is None:
+                    _add(errors, "run.observed.host_runtime.host.node_sha256", "must be a lowercase SHA-256 digest")
+            entries = host_runtime["entries"]
+            if not isinstance(entries, list):
+                _add(errors, "run.observed.host_runtime.entries", "must be a list")
+            else:
+                seen_host_entries: set[tuple[str, str, str]] = set()
+                for index, entry in enumerate(entries):
+                    path = f"run.observed.host_runtime.entries[{index}]"
+                    if not _keys(errors, path, entry, {"isolation", "argv0", "executable", "executable_sha256", "runtime_version", "host"}):
+                        continue
+                    if entry["isolation"] != "host":
+                        _add(errors, f"{path}.isolation", "must equal host")
+                    if not _nonempty_string(entry["argv0"]):
+                        _add(errors, f"{path}.argv0", "must be a non-empty string")
+                    if not _nonempty_string(entry["executable"]) or not Path(entry["executable"]).is_absolute():
+                        _add(errors, f"{path}.executable", "must be an absolute path")
+                    if SHA256_RE.fullmatch(str(entry["executable_sha256"])) is None:
+                        _add(errors, f"{path}.executable_sha256", "must be a lowercase SHA-256 digest")
+                    if _keys(errors, f"{path}.runtime_version", entry["runtime_version"], HOST_RUNTIME_VERSION_KEYS):
+                        if any(not isinstance(entry["runtime_version"].get(key), str) for key in HOST_RUNTIME_VERSION_KEYS):
+                            _add(errors, f"{path}.runtime_version", "must contain string OS fields")
+                    if _keys(errors, f"{path}.host", entry["host"], HOST_FINGERPRINT_KEYS):
+                        if any(not isinstance(entry["host"].get(key), str) for key in HOST_FINGERPRINT_KEYS):
+                            _add(errors, f"{path}.host", "must retain string host fields")
+                    key = (str(entry["argv0"]), str(entry["executable"]), str(entry["executable_sha256"]))
+                    if key in seen_host_entries:
+                        _add(errors, path, "must not contain duplicate host executable entries")
+                    seen_host_entries.add(key)
+            if "errors" in host_runtime:
+                _strings(errors, "run.observed.host_runtime.errors", host_runtime["errors"])
 
 
 def _validate_sandbox_observation_binding(
@@ -4462,6 +4603,18 @@ def _validate_sandbox_observation_binding(
                     "run.observed.sandbox.entries",
                     "repo_digest must exactly attest the pinned image digest",
                 )
+    host_runtime = observed.get("host_runtime") if isinstance(observed, dict) else None
+    if isinstance(host_runtime, dict) and host_runtime.get("status") == "available":
+        if host_runtime.get("errors") != []:
+            _add(errors, "run.observed.host_runtime.errors", "must be empty when status is available")
+        host = host_runtime.get("host")
+        if not isinstance(host, dict) or set(host) != HOST_FINGERPRINT_KEYS:
+            _add(errors, "run.observed.host_runtime.host", "must retain the non-sensitive host fingerprint")
+        for entry in host_runtime.get("entries", []) if isinstance(host_runtime.get("entries"), list) else []:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("isolation") != "host" or not isinstance(entry.get("host"), dict) or entry.get("host") != host:
+                _add(errors, "run.observed.host_runtime.entries", "must retain the observation host fingerprint")
 
 
 

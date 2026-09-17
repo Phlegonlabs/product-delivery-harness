@@ -2215,6 +2215,19 @@ class SelectReadyNodesTests(unittest.TestCase):
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("over_budget", deferred["N-M2"])
 
+    def test_observed_capacity_limits_dispatch_without_changing_configured_limit(self):
+        for field, reason in [("available_worker_slots", "worker_slots_exhausted"),
+                              ("isolation_capacity", "isolation_capacity_exhausted")]:
+            plan, run = self._authorized_conflict_free_pair()
+            run["observed"]["runtime"][field] = 1
+            result = select_ready_nodes(plan, run)
+            self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+            deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+            self.assertIn(reason, deferred["N-M2"])
+            self.assertNotIn("configured_worker_limit", deferred["N-M2"])
+            run["observed"]["runtime"][field] = 2
+            self.assertEqual("parallel_graph", select_ready_nodes(plan, run)["execution_route"])
+
     def _unprobed_pair(self):
         plan, run = self._authorized_conflict_free_pair()
         adapter = run["runtime_capabilities"]["runtime_adapter"]
@@ -2747,7 +2760,7 @@ class DeferralCodeDocumentationTests(unittest.TestCase):
         emitted = set(re.findall(r'reasons\.add\("([a-z_]+)"\)', source))
         for group in re.findall(r'"reason_codes": \[([^\]]*)\]', source):
             emitted.update(re.findall(r'"([a-z_]+)"', group))
-        for group in re.findall(r'(?:return|else) \[([a-z_", ]+)\]', source):
+        for group in re.findall(r'(?:return|else|reasons =) [\[{]([a-z_", ]+)[\]}]', source):
             emitted.update(re.findall(r'[a-z_]+', group))
         # f-string prefixed codes carry a dynamic tool name after the colon.
         prefixed = set(re.findall(r'reasons\.add\(f"([a-z_]+):', source))

@@ -1162,7 +1162,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         runtime = self.read("scripts/verifier_runtime.py")
 
         self.assertIn("pass_signal_not_cacheable", runtime)
-        self.assertIn("`session_exact` PASS only when the verifier's pass signal is the literal `exit 0`", core)
+        self.assertIn("Container `session_exact` reuse requires `exit 0`", core)
 
 
     def test_readiness_requires_every_node_to_have_a_host(self) -> None:
@@ -1363,9 +1363,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, verification, plan, worker):
             self.assertIn('selection.mode: "changed_files"', content)
             self.assertIn("parent-observed changed files", content)
-        for content in (skill, verification, plan, run):
+        for content in (skill, verification, run):
             self.assertIn("session_exact", content)
             self.assertIn("repository-external", content)
+        self.assertIn('"isolation": "host"', plan)
+        self.assertIn('"parallel_safe": false', plan)
         self.assertIn("real cross-mission", verification)
         self.assertIn("broad regression, browser E2E", skill)
         self.assertIn("after exact-SHA review and repair converge", plan)
@@ -1387,14 +1389,15 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("SHA-256", content)
             self.assertIn("docs/goal/evidence/", content)
 
-    def test_verifier_docs_bind_current_local_container_preflight(self) -> None:
+    def test_verifier_docs_bind_explicit_host_and_container_preflight(self) -> None:
         graph = self.read("references/graph-orchestration.md")
         verification = self.read("references/verification-gates.md")
         worker = self.read("references/worker-result-contract.md")
         for content in (graph, verification, worker):
-            self.assertIn("pinned local container", content)
+            self.assertIn("host", content)
+            self.assertIn("container", content)
             self.assertIn("PLAN-bound", content)
-            self.assertIn("future separately implemented route", content)
+            self.assertNotIn("future separately implemented route", content)
             self.assertNotIn("route them through a planned external read-only verifier node", content)
 
     def test_bootstrap_seeds_agents_and_claude_governance_templates(self) -> None:

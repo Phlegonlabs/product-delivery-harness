@@ -10,6 +10,14 @@ For every execution-authorized managed run, selection is the default post-readin
 
 On an observed Codex host, Plan Readiness requires the complete RUN-v11 `capability_probe` when two writers may be selected. A single-mission or effective-budget-one managed route may omit unused parallel surfaces, but it must still prove the selected driver and cannot claim app threads or direct subagents without their required facts. A missing required surface returns `capability_snapshot_incomplete`; when all eight surfaces are present, the validator derives the driver list from the probe so a parent cannot make direct subagents win by omitting proven App Threads.
 
+## Capacity And Dispatch
+
+Before accepting a multi-mission wave, check `observed.runtime.available_worker_slots` and `isolation_capacity` against current host evidence. `new_run.py` seeds both as 1; those placeholders are not a measured one-worker limit. `max_parallel_workers: 4` alone does not override observed capacity. A Git/container observation does not discover agent slots. Record the actual available capacity through `record-observation --available-worker-slots <n> --isolation-capacity <n> --capacity-evidence <text>`; global `--repo-root` precedes the subcommand. These values must come from current host evidence, never a guessed number. If independent missions remain deferred, report the specific capacity, dependency, scope, resource, or authorization reason.
+
+Launch every selected worker in its own authorized worktree before waiting for any worker to finish. Short launch/lease bookkeeping may be sequential; implementation must overlap when the selected driver supports it. A blocking external CLI must be dispatched asynchronously before starting the next selected worker, rather than awaited to completion inside a loop. Collect each result as it finishes. Serial task checkpoints stay inside each mission and serial integration stays in the parent; neither serializes independent mission workers.
+
+Host build/test commands do not consume Docker/Podman capacity. Serial host verification within one runner/checkout does not lower the worker budget or prevent other isolated worktrees from executing. Shared ports, databases, credentials and caches still need accurate resource claims.
+
 ## Inputs And Output
 
 The selector reads only canonical machine data. In RUN schema v6 and later, provider routing comes from `runtime_capabilities.runtime_adapter`:
@@ -84,6 +92,8 @@ Rules:
 - `deny_scope` uses the same grammar. A mission is invalid when an allowed write claim overlaps one of its denied claims.
 - Unsupported or ambiguous syntax is unsafe. Defer the mission; never interpret it optimistically.
 
+Declare only the files or subtrees the mission actually needs. For independent page work, naming one shared tests directory as `/**` in every mission creates a real scope conflict even when the planned test files differ. Use exact paths where known; put genuinely shared helpers or contracts in a foundation dependency. Never narrow a scope merely to bypass a real overlap.
+
 Overlap rules are deterministic:
 
 - Exact versus exact conflicts when normalized paths are equal.
@@ -152,6 +162,15 @@ Unary ineligibility or deferral belongs on the node entry, not on a graph edge. 
 - `mission_phase_not_ready` — the mission state is not `queued` or `ready`.
 - `node_phase_not_ready` — the node is not `dormant` or `ready`, and no re-arm applies.
 - `over_budget` — the mission fell outside the write-worker budget.
+- `configured_worker_limit` — the configured worker limit is occupied.
+- `worker_slots_exhausted` — the observed worker slots are occupied.
+- `isolation_capacity_exhausted` — the observed worktree capacity is occupied.
+- `host_runtime_preflight_missing` — host execution has no observation.
+- `host_runtime_preflight_unavailable` — a declared host executable is unavailable.
+- `host_runtime_preflight_stale` — the host observation no longer matches the PLAN.
+- `sandbox_preflight_missing` — container execution has no observation.
+- `sandbox_preflight_unavailable` — the declared container runtime or image is unavailable.
+- `sandbox_preflight_stale` — the container observation no longer matches the PLAN.
 - `over_runtime_budget` — the node fell outside the shared runtime-worker budget.
 - `parent_state_unreconciled` — observed parent checkout facts are missing or dirty.
 - `permission_boundary_not_ready` — the recorded permission boundary status is not `ready`.
@@ -249,7 +268,7 @@ For `launch_kind: "create_thread"`, the parent must consume the directive after 
 3. Create one top-level app-managed worktree thread for the mission. It is a separate conversation in the Codex left sidebar; a direct subagent of the coordinator is not equivalent. Use the complete `WORKER_GOAL.template.md` handoff as the initial prompt and start from the recorded integration branch/ref that points at `batch_base_sha`.
 4. Record the returned thread ID or queued client-thread ID in the RUN worker record, bind later actions to that concrete identity, and move the mission to `worker_running` only when the task/workspace is observable.
 5. If the directive says `capability_handshake`, prohibit production edits until the thread reports its own result channel. Do not enable a nested policy in RUN-v11: workers remain sole writers, report `subagent_activity: not_applicable` with empty `children`, and route every explorer or reviewer through the parent as a sibling. Legacy v6-v9 policy records are compatibility-only.
-6. Poll through the available read-thread/status surface with backoff. Treat the terminal task output as a worker result candidate and validate it normally.
+6. After all selected missions have been launched, wait through the available task completion/status surface with backoff. Treat the terminal task output as a worker result candidate and validate it normally.
 
 If project/thread creation, worktree isolation, follow-up messaging, or polling is unavailable, do not mark the directive launched. Record the capability failure. Use sequential parent execution only when the user did not explicitly require independent left-sidebar tasks; otherwise stop at the missing-capability boundary.
 
@@ -268,9 +287,9 @@ Current Claude Code can support nested subagents, but current RUN-v11 deliberate
 
 ## Batch Integration And Recompute
 
-One wave lifecycle has a fixed mutation order. Worker-result validation accepts a result only while its wave is active. The selector still blocks new writers and every integration/lifecycle mutation while `run.active_wave.status` is `active`, but it may stream a dependency-ready, read-only pre-integration review for one selected mission that has already reached `worker_passed`. So:
+One wave lifecycle has a fixed mutation order. Worker-result validation accepts a result only while its wave is active. The selector blocks new writer waves and lifecycle mutations while `run.active_wave.status` is `active`; it may integrate a finished mission only after its exact-head review passes, and it may stream a dependency-ready, read-only pre-integration review for one selected mission that has already reached `worker_passed`. So:
 
-1. Launch the selected workers.
+1. Launch all selected workers before waiting for completion; each uses its own authorized worktree.
 2. Record each selected mission through `record-worker-result` against the still-active wave. As each mission reaches `worker_passed`, re-run selection and dispatch its ready read-only pre-integration review while sibling workers continue.
 3. Close the wave once all selected missions' worker results are recorded. A mission whose exact-head pre-integration review has PASSed may integrate before this transition, one at a time; a straggling writer must not hold finished work hostage. Batch gates still wait for wave close.
 4. Re-run selection and dispatch any remaining review nodes. Run each review to a PASS bound to the exact current worktree head, repairing findings in that worktree and re-reviewing the changed head.

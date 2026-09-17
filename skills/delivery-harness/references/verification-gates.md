@@ -37,7 +37,7 @@ Worker mission gate:
 - Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
-Current RUN-v11 task and worker verifiers execute in the declared pinned local container sandbox, with an exact PLAN-bound administrator-installed runtime executable path/hash/ownership/version proof and image RepoDigest observation recorded before readiness. The request and execution key carry that entry; `verifier_runtime.py` rechecks it immediately before invoking the bound absolute executable, and retained evidence must match the same RUN observation. Missing, stale, unavailable, or substituted preflight fails closed. A `read_only` declaration or Git snapshot alone is not process confinement and never authorizes a PASS; an external provider is only a future separately implemented route.
+Current RUN-v11 task and worker verifiers use their explicit execution policy. New declarations select `host` for ordinary local build/lint/test; `container` remains available with its exact PLAN-bound runtime trust and image RepoDigest observation. Host-only readiness does not probe Docker or Podman. Execution and retained evidence must match the declared mode and exact candidate; a container failure never falls back to the host.
 
 Non-runtime node gate:
 
@@ -136,11 +136,19 @@ The parent supplies normalized, repository-relative observed paths to `select_ve
 
 Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v11 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
 
-Every applicable declared verifier runs through an explicit machine-enforced container route with a bound runtime executable identity, pinned observed image RepoDigest, read-only Git archive mount, no network, read-only rootfs, dropped capabilities, and bounded resources. Missing, live, or `git_snapshot` isolation is rejected before execution. Local task/worker subprocess execution is rejected by `verifier_runtime.py`; external read-only providers must return the retained execution and sandbox attestation needed for the worker result's reported `evidence`. External, browser, network, and mutable-environment checks use `external_wait`, lifecycle, or browser routes instead of a local candidate subprocess. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
+Every applicable declared verifier requires an explicit execution mode. Host mode runs the declared argv in the bound checkout with the project toolchain and current user permissions. It retains command identity, cwd, exact SHA, logs, exit status, timeout and source/Git checks. It allows ignored build output but rejects changed tracked source or protected Git/coordination state; it does not automatically reset or clean up. Host verifiers execute serially within one runner and never reuse cached results. This is not a claim of network or filesystem confinement. Container mode retains the pinned image, trusted runtime, read-only Git archive, disabled network, read-only rootfs and resource limits. Missing, `live`, and `git_snapshot` modes remain invalid. Browser, external service, migration, and mutable-environment operations retain their separate routes and action authorization.
 
 A parent-owned batch/final graph verifier also carries the reserved node/attempt nonce and Git guard emitted by `reserve-node-attempt`. The runtime verifies the exact branch, HEAD, clean tree, and tracked-file fingerprint before and after execution. RUN and its declared generated `docs/tasks.md` view are coordination exceptions to dirty status, not integrity checks: their bytes and file identities are snapshotted across execution, starting SHA-256 values are attested, and `record-node-result` rehashes both before accepting evidence. Hand-authored or undeclared views and product dirt still block dispatch. A different checkout, replayed nonce, retargeted request, checkout drift, protected coordination-file change, or request/result artifact inside the reviewed checkout is rejected.
 
-A Container verifier declarations include the full execution policy:
+New local verifier declarations use:
+
+```json
+{"execution":{"parallel_safe":false,"resources":[],"isolation":"host"}}
+```
+
+Host declarations omit `sandbox`; an explicit mode prevents legacy plans from silently changing their execution boundary. They do not grant dependency installation, network side effects, or publication. Provision the declared project environment under its existing authorization before verification. On Windows, use native executables with argument arrays (for example Node plus a package-manager CLI script); do not wrap arbitrary commands in a shell.
+
+Optional container verifier declarations include the full execution policy:
 
 ```json
 {

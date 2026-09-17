@@ -550,7 +550,7 @@ class PlanValidationTests(unittest.TestCase):
 
         plan = valid_plan()
         plan["final_gates"][0]["execution"]["isolation"] = "live"
-        self.assert_error_contains(plan, "must equal container for every verifier runtime layer")
+        self.assert_error_contains(plan, "must equal container or host")
 
     def test_legacy_plan_without_execution_remains_readable(self) -> None:
         plan = legacy_plan()
@@ -1323,6 +1323,7 @@ class RunValidationTests(unittest.TestCase):
         root = SCRIPTS_DIR.parent
         plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
         run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+        run["plan"]["digest_sha256"] = plan_digest(plan)
         # The current v10 sequential-parent contract requires the parent-owned
         # isolated worktree mode.  Keep this template-based regression focused
         # on integration history rather than its legacy shared-checkout value.
@@ -1339,7 +1340,7 @@ class RunValidationTests(unittest.TestCase):
         run["integration"]["prior_head_shas"] = [SHA_B]
         self.assertEqual([], validate_run(plan, run))
 
-    def test_canonical_template_verifiers_declare_container_sandbox(self) -> None:
+    def test_canonical_template_verifiers_declare_explicit_host_mode(self) -> None:
         plan = load_plan(SCRIPTS_DIR.parent / "assets/templates/HARNESS_PLAN.template.md")
         declarations: list[dict[str, object]] = []
         declarations.extend(item for item in plan.get("batch_verifiers", []) if isinstance(item, dict))
@@ -1369,8 +1370,9 @@ class RunValidationTests(unittest.TestCase):
         for declaration in declarations:
             execution = declaration.get("execution")
             self.assertIsInstance(execution, dict, declaration.get("id"))
-            self.assertEqual(execution.get("isolation"), "container")
-            self.assertIsInstance(execution.get("sandbox"), dict)
+            self.assertEqual(execution.get("isolation"), "host")
+            self.assertIs(execution.get("parallel_safe"), False)
+            self.assertNotIn("sandbox", execution)
         self.assertEqual([], validate_plan(plan))
 
     def test_harness_028_run_requires_explicit_security_policy(self) -> None:

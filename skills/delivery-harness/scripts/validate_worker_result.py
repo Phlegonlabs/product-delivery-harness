@@ -64,6 +64,41 @@ def _execution_key_from_document(key_document: dict[str, Any]) -> str:
     return execution_key_from_document(key_document)
 
 
+def _host_preflight_matches(
+    key_document: dict[str, Any] | None,
+    attestation: Any,
+    observed: dict[str, Any],
+    checkout_root: Any = None,
+) -> list[str]:
+    from harness_core import host_execution_binding_errors
+
+    errors: list[str] = []
+    if not isinstance(key_document, dict):
+        return ["host execution requires a retained key document"]
+    preflight = key_document.get("host_preflight")
+    host_observation = observed.get("host_runtime", {})
+    host_entries = (
+        host_observation.get("entries", [])
+        if isinstance(host_observation, dict)
+        and isinstance(host_observation.get("entries", []), list)
+        else []
+    )
+    matches = [
+        entry
+        for entry in host_entries
+        if isinstance(entry, dict)
+        and isinstance(preflight, dict)
+        and entry.get("argv0") == preflight.get("argv0")
+        and entry.get("executable") == preflight.get("executable")
+        and entry.get("executable_sha256") == preflight.get("executable_sha256")
+    ]
+    if len(matches) != 1 or matches[0] != preflight:
+        errors.append("host preflight must equal the current PLAN-bound RUN host observation")
+    for issue in host_execution_binding_errors(preflight, attestation, key_document, checkout_root):
+        errors.append(issue)
+    return errors
+
+
 WORKER_RESULT_FIELDS = {
     "type",
     "run_id",
@@ -772,6 +807,42 @@ def _retained_verifier_results(
             and isinstance(declaration.get("execution"), dict)
             and declaration["execution"].get("isolation") == "container"
         )
+        declared_host = (
+            isinstance(declaration, dict)
+            and isinstance(declaration.get("execution"), dict)
+            and declaration["execution"].get("isolation") == "host"
+        )
+        if (
+            protocol == VERIFIER_PROTOCOL
+            and declared_host
+            and isinstance(key_document, dict)
+        ):
+            guarded = item.get("git_guard_attestation")
+            nested_host = (
+                guarded.get("host_execution_attestation")
+                if isinstance(guarded, dict)
+                else None
+            )
+            host_attestation = item.get("host_execution_attestation")
+            if nested_host is not None and nested_host != host_attestation:
+                _issue(
+                    errors,
+                    "retained_verifier_host_mismatch",
+                    f"{path}.git_guard_attestation.host_execution_attestation",
+                    "must equal the retained top-level host attestation",
+                )
+            for issue in _host_preflight_matches(
+                key_document,
+                host_attestation,
+                run.get("observed", {}),
+                guarded.get("checkout_root") if isinstance(guarded, dict) else None,
+            ):
+                _issue(
+                    errors,
+                    "retained_verifier_host_mismatch",
+                    f"{path}.host_execution_attestation",
+                    issue,
+                )
         if (
             strict_sandbox_binding
             and protocol == VERIFIER_PROTOCOL
@@ -835,21 +906,51 @@ def _retained_verifier_results(
                 )
             else:
                 guard = attestation.get("git_guard")
-                if attestation.get("isolation_mode") != "container":
+                declared_isolation = (
+                    declaration.get("execution", {}).get("isolation")
+                    if isinstance(declaration, dict)
+                    and isinstance(declaration.get("execution"), dict)
+                    else None
+                )
+                if attestation.get("isolation_mode") != declared_isolation:
                     _issue(
                         errors,
                         "retained_verifier_guard_mismatch",
                         f"{path}.git_guard_attestation.isolation_mode",
-                        "current task/worker evidence must use container isolation",
+                        "current task/worker evidence must use the declared isolation mode",
                     )
-                if not isinstance(attestation.get("sandbox_attestation"), dict):
+                if declared_isolation == "host":
+                    nested_host = attestation.get("host_execution_attestation")
+                    if not isinstance(nested_host, dict):
+                        _issue(
+                            errors,
+                            "retained_verifier_guard_mismatch",
+                            f"{path}.git_guard_attestation.host_execution_attestation",
+                            "must retain the machine-verifiable host attestation",
+                        )
+                    else:
+                        for issue in _host_preflight_matches(
+                            key_document,
+                            item.get("host_execution_attestation"),
+                            run.get("observed", {}),
+                            attestation.get("checkout_root"),
+                        ):
+                            _issue(
+                                errors,
+                                "retained_verifier_guard_mismatch",
+                                f"{path}.host_execution_attestation",
+                                issue,
+                            )
+                elif declared_isolation == "container" and not isinstance(
+                    attestation.get("sandbox_attestation"), dict
+                ):
                     _issue(
                         errors,
                         "retained_verifier_guard_mismatch",
                         f"{path}.git_guard_attestation.sandbox_attestation",
                         "must retain the machine-verifiable sandbox attestation",
                     )
-                else:
+                elif declared_isolation == "container":
                     sandbox_attestation = attestation["sandbox_attestation"]
                     if set(sandbox_attestation) != {
                         "runtime",

@@ -436,6 +436,11 @@ def _retained_execution(
             if isinstance(retained.get("sandbox_attestation"), dict)
             else {}
         ),
+        **(
+            {"host_execution_attestation": copy.deepcopy(retained["host_execution_attestation"])}
+            if isinstance(retained.get("host_execution_attestation"), dict)
+            else {}
+        ),
     }
 
 
