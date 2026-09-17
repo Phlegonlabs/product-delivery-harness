@@ -340,6 +340,8 @@ Para ingeniería, el Harness valida y selecciona la frontera lista por dependenc
 
 Los nodos de graph no-runtime usan una secuencia reserve/execute/record: `reserve-node-attempt` crea el recibo bajo RUN lock, la aprobación, la espera externa, el verificador determinista o el efecto secundario de ciclo de vida se ejecuta fuera de ese lock, y `record-node-result` cierra solo el attempt coincidente con evidencia y una fase derivada de su outcome declarado. Las transiciones de ciclo de vida registran evidencia solamente; nunca ejecutan la acción. `lease-worker` lleva el binding de runtime derivado del selector y la identidad exacta de task/thread hacia RUN, sujeto a checks de compatibilidad y autorización wildcard existente.
 
+PLAN v6 valida los enlaces de gates antes de ejecutar: cada nodo verificador `local_command` o `harness_parent` debe referenciar una entrada de `batch_verifiers` o `final_gates`, y cada entrada necesita al menos un nodo determinista. Las referencias de revisión runtime no ejecutan estos comandos ni registran resultados de gates. Los verificadores de task, worker e integración de misión conservan sus rutas de ejecución. Los schemas anteriores siguen siendo legibles para recuperación.
+
 En Claude Code, el adaptador del host agrupa una frontera mixta en una llamada por homogeneous `tool_profile`; el model y el reasoning effort pueden variar dentro de un grupo, pero una llamada nunca mezcla write missions con read-only reviews. Un tool profile es una etiqueta y un contrato de prompt/resultado, no una permission-level tool removal.
 
 - `mission_write` exige `EnterWorktree` y el contrato de escritura acotado de la mission.
