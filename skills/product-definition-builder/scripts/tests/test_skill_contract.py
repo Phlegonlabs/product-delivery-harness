@@ -183,6 +183,8 @@ async function agent(_prompt, options) {
             "partner_channel_model": "none",
             "stack_decision_mode": "review_recommendation",
             "data_trust_gate": "not_required",
+            "security_requirements_gate": "required",
+            "security_scope": "executable",
             "ai_automation_gate": "not_required",
             "include_implementation_plan": False,
             "market_research": True,
@@ -2745,6 +2747,8 @@ new Function(scripts.at(-1)[1]);
         self.assertIn("`Recommended` or `Provisional` blocks", skill)
 
     def test_data_trust_ai_metrics_and_open_questions_are_owner_decisions(self) -> None:
+        skill = self.read("SKILL.md")
+        work_graph = self.read("references/dynamic-workflow.md")
         contract = self.read("references/output-contract.md")
         interview = self.read("references/interview-guide.md")
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
@@ -2761,11 +2765,23 @@ new Function(scripts.at(-1)[1]);
         self.assertIn("Which data is sensitive", interview)
         self.assertIn("For AI/automation", interview)
         self.assertIn("data_trust_gate", workflow)
+        self.assertIn("Security Requirements Gate and Security scope", skill)
+        self.assertIn("args.security_requirements_gate", work_graph)
+        self.assertIn("args.security_scope", work_graph)
+        self.assertIn("security_requirements_gate", workflow)
+        self.assertIn("security_scope", workflow)
+        self.assertIn("human residual-risk decision", workflow)
         self.assertIn("ai_automation_gate", workflow)
         self.assertIn('key: "ai-automation"', workflow)
 
     def test_workflow_requires_stack_and_trust_decision_inputs(self) -> None:
-        for field in ("stack_decision_mode", "data_trust_gate", "ai_automation_gate"):
+        for field in (
+            "stack_decision_mode",
+            "data_trust_gate",
+            "security_requirements_gate",
+            "security_scope",
+            "ai_automation_gate",
+        ):
             workflow_args = self.base_workflow_args()
             workflow_args.pop(field)
             result = self.run_workflow(workflow_args)
@@ -2777,6 +2793,44 @@ new Function(scripts.at(-1)[1]);
         result = self.run_workflow(blocked)
         self.assertFalse(result["ok"])
         self.assertIn("cannot run while args.data_trust_gate is blocked", result["error"])
+
+        security_blocked = self.base_workflow_args()
+        security_blocked["security_requirements_gate"] = "blocked"
+        result = self.run_workflow(security_blocked)
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "cannot run while args.security_requirements_gate is blocked",
+            result["error"],
+        )
+
+        executable_not_required = self.base_workflow_args()
+        executable_not_required["security_requirements_gate"] = "not_required"
+        result = self.run_workflow(executable_not_required)
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "requires args.security_requirements_gate required when args.security_scope is executable",
+            result["error"],
+        )
+
+        documentation_required = self.base_workflow_args()
+        documentation_required["security_requirements_gate"] = "required"
+        documentation_required["security_scope"] = "documentation_only"
+        documentation_required["deployable"] = False
+        documentation_required["deployable_surfaces"] = []
+        documentation_required["release_targets"] = []
+        result = self.run_workflow(documentation_required)
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
+
+        deployable_not_required = self.base_workflow_args()
+        deployable_not_required["security_requirements_gate"] = "not_required"
+        deployable_not_required["security_scope"] = "documentation_only"
+        result = self.run_workflow(deployable_not_required)
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "requires args.security_requirements_gate required for deployable release targets",
+            result["error"],
+        )
 
     def test_mobile_destinations_are_separate_from_client_strategy(self) -> None:
         interview = self.read("references/interview-guide.md")

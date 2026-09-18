@@ -1,6 +1,6 @@
 # Read-Only Agent Work Graph
 
-Use this reference only after product discovery, the later UI decision owner when applicable, Stack Decision Mode, Data and Trust Gate inputs, AI and Automation Gate inputs, and source identification are complete. A running agent graph can draft recommendations and coherent stack options, but it cannot ask the user, approve a Stack Decision Checkpoint or Product Definition package, create UI design artifacts, authorize publication, or replace the parent-owned artifact lifecycle.
+Use this reference only after product discovery, the later UI decision owner when applicable, Stack Decision Mode, Data and Trust Gate inputs, Security Requirements Gate and Security scope inputs, AI and Automation Gate inputs, and source identification are complete. A running agent graph can draft recommendations and coherent stack options, but it cannot ask the user, approve a Stack Decision Checkpoint or Product Definition package, create UI design artifacts, authorize publication, or replace the parent-owned artifact lifecycle.
 
 ## Graph Model
 
@@ -30,7 +30,7 @@ Before launch, the parent must have the following frozen inputs. The field names
 - the product name and archetype;
 - an interview summary or explicit assumption authorization;
 - the human decision owner and `args.stack_decision_mode` (`review_recommendation`, `select_layers`, or `delegate`) for unresolved technology choices;
-- `args.data_trust_gate` and `args.ai_automation_gate` as `required`, `not_required`, or `blocked`; a blocked gate prevents launch because a read-only lane cannot resolve the owner decision;
+- `args.data_trust_gate`, `args.security_requirements_gate`, and `args.ai_automation_gate` as `required`, `not_required`, or `blocked`; a blocked gate prevents launch because a read-only lane cannot resolve the owner decision. Also freeze `args.security_scope` as `executable` or `documentation_only`; executable scope and any deployable target require the Security Requirements Gate to be `required`.
 - the later UI decision owner for UI-bearing products, passed as `args.ui_design_owner` alongside `args.ui_bearing`. UI-bearing is not the same as having a browser frontend: a native mobile or desktop app is UI-bearing with `browser_frontend: false`; UI layout, style, motion, and media remain deferred to `ui-design-builder`;
 - source paths or a complete source summary, including the completed `research-assessment.md` and retained evidence when available, so drafting and reconciliation use the same pre-draft research;
 - a decision on whether a browser frontend and optional implementation plan are in scope;

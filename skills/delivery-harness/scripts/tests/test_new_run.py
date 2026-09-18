@@ -29,6 +29,7 @@ from test_product_package_checker import (  # noqa: E402
     valid_prd,
     valid_stack,
 )
+from manifest_fixtures import carry_security_requirement  # noqa: E402
 from harness_manifest import (  # noqa: E402
     load_plan,
     load_run,
@@ -67,6 +68,7 @@ class NewRunTests(unittest.TestCase):
             ).hexdigest()
             source["source_revision"] = None
             source["staged_revision"] = None
+        carry_security_requirement(self.plan)
         body = json.dumps({"harness_plan": self.plan}, indent=2, ensure_ascii=False)
         template = PLAN_TEMPLATE.read_text(encoding="utf-8")
         start = template.index("```json\n") + len("```json\n")

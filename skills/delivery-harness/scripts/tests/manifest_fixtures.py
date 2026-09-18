@@ -288,6 +288,42 @@ def task(
     }
 
 
+def carry_security_requirement(
+    plan: dict[str, object],
+    *,
+    prd_id: str = "PRD-003",
+    test_id: str = "TEST-003",
+) -> dict[str, object]:
+    """Carry one synthetic security obligation through an existing PLAN task."""
+
+    prd_source = next(
+        (source for source in plan["sources"] if source.get("kind") == "prd"),
+        plan["sources"][0],
+    )
+    plan["traces"].append(
+        {
+            "id": prd_id,
+            "source_ids": [prd_source["id"]],
+            "priority": "must",
+            "requirement": "Carry the frozen security obligation",
+            "disposition": "planned",
+            "rationale": None,
+        }
+    )
+    mission = plan["missions"][0]
+    task = mission["tasks"][0]
+    mission["trace_ids"].append(prd_id)
+    task["trace_ids"].append(prd_id)
+    task["acceptance_matrix"].append(
+        {
+            "test_id": test_id,
+            "trace_ids": [prd_id],
+            "criterion": "denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes)",
+        }
+    )
+    return plan
+
+
 def mission(
     mission_id: str,
     trace_id: str,

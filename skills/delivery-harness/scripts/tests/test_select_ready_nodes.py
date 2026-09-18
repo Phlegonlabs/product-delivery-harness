@@ -226,6 +226,40 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
         review = node.get("review")
         if isinstance(review, dict):
             review["lineage_id"] = f"REVIEW-{node['id']}"
+    # Repair the v6 fixture: the cross-mission batch declaration needs its own
+    # deterministic graph node. It follows the frontend review and precedes the
+    # existing final gate.
+    plan["graph"]["nodes"].append(
+        {
+            "id": "N-BATCH-CROSS-GATE",
+            "kind": "verifier",
+            "ref": "batch-cross-mission",
+            "executor": "local_command",
+            "allowed_outcomes": ["pass", "blocked"],
+            "max_attempts": 2,
+            "runtime": None,
+        }
+    )
+    plan["graph"]["edges"].extend(
+        [
+            {
+                "id": "E-BATCH-CROSS-GATE",
+                "kind": "dependency",
+                "from": "N-FRONTEND-REVIEW",
+                "to": "N-BATCH-CROSS-GATE",
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            },
+            {
+                "id": "E-BATCH-CROSS-GATE-NEXT",
+                "kind": "dependency",
+                "from": "N-BATCH-CROSS-GATE",
+                "to": "N-FINAL-GATE",
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            },
+        ]
+    )
     run["schema_version"] = 11
     run["observed"]["sandbox"] = sandbox_observation(plan)
     run["control"] = {
@@ -254,6 +288,20 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
         for node in plan["graph"]["nodes"]
         if isinstance(node.get("review"), dict)
     }
+    run["graph_state"]["node_states"]["N-BATCH-CROSS-GATE"] = {
+        "phase": "dormant",
+        "attempts": 0,
+        "last_attempt_id": None,
+        "last_outcome": None,
+        "bound_worker_id": None,
+        "blockers": [],
+    }
+    for edge_id in ("E-BATCH-CROSS-GATE", "E-BATCH-CROSS-GATE-NEXT"):
+        run["graph_state"]["edge_states"][edge_id] = {
+            "status": "dormant",
+            "traversals": 0,
+            "source_attempt_id": None,
+        }
     digest = plan_digest(plan)
     run["plan"]["digest_sha256"] = digest
     authorize_execution(run, ["M1"], status="ready", plan=plan, digest=digest)

@@ -455,6 +455,26 @@ class PlanValidationTests(unittest.TestCase):
         always_gate = copy.deepcopy(plan["final_gates"][0])
         always_gate["id"] = "final-always"
         plan["final_gates"].append(always_gate)
+        always_node = copy.deepcopy(
+            next(
+                node
+                for node in plan["graph"]["nodes"]
+                if node.get("kind") == "verifier" and node.get("ref") == "final"
+            )
+        )
+        always_node["id"] = "N-FINAL-ALWAYS"
+        always_node["ref"] = "final-always"
+        plan["graph"]["nodes"].append(always_node)
+        plan["graph"]["edges"].append(
+            {
+                "id": "E-FINAL-ALWAYS",
+                "kind": "dependency",
+                "from": "N-FINAL",
+                "to": "N-FINAL-ALWAYS",
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            }
+        )
         plan["final_gates"][0]["selection"] = {
             "mode": "changed_files",
             "scopes": [union],

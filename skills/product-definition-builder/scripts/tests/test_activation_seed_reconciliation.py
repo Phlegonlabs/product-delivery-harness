@@ -217,6 +217,7 @@ def activation_for_hybrid_targets() -> str:
 | Completion | Completed runs | 0 | 90% | 30 days | n/a — metric row | {production_targets} | MS-001 | verified |
 | TEST-001 | Complete fixture | none recorded | n/a — required test has no numeric target | integration test | Completion observed | {production_targets} | MS-001 | verified |
 | TEST-002 | Reliable fixture | none recorded | n/a — required test has no numeric target | reliability test | All runs pass | {production_targets} | MS-001 | verified |
+| TEST-003 | Deny untrusted fixture input before any write | none recorded | n/a — required test has no numeric target | security test | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) | {production_targets} | MS-001 | verified |
 
 ## Measurement Sources
 | MS ID | Target | Environment | Retrieval | Source role | Route / capability | Release bindings | Owner | Status | Evidence IDs |
@@ -281,7 +282,7 @@ def activation_v2_for_hybrid_targets() -> str:
     )
     text = text.replace(old_header, new_header, 1)
     for line in text.splitlines():
-        if not line.startswith(("| Completion |", "| TEST-001 |", "| TEST-002 |")):
+        if not line.startswith(("| Completion |", "| TEST-001 |", "| TEST-002 |", "| TEST-003 |")):
             continue
         cells = [item.strip() for item in line.strip().strip("|").split("|")]
         if len(cells) != 9:
@@ -358,7 +359,7 @@ def seeded_activation_for_hybrid_targets() -> str:
             text,
             flags=re.MULTILINE,
         )
-    text = re.sub(r"\| (Completion|TEST-001|TEST-002) \|([^\n]+?)\| MS-001 \| planned \|", r"| \1 |\2| pending | planned |", text)
+    text = re.sub(r"\| (Completion|TEST-001|TEST-002|TEST-003) \|([^\n]+?)\| MS-001 \| planned \|", r"| \1 |\2| pending | planned |", text)
     return text
 
 

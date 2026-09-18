@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.41.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.42.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -39,6 +39,9 @@
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
 - **先批准 Product Definition，再进入 UI 设计。** research-first evidence、适用 baseline、完整 candidate、明确 recommendation choices，以及 accepted delta 都在最终 approvals 之前。每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。每个人工 review gate 都会主动提供完整待审版本的已验证 Markdown 绝对路径链接，并在明确批准前停止。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。 CLI 与 `other_nonpublic` 共用标准 `Toolchain` 批准 area（`CLI/toolchain` 为别名），分别记录 language、toolchain、distribution mechanism 与 testing layers。
+- **安全从 Product Definition 开始。** 所有可执行软件——包括 static site、client、CLI 和 agent——都记录由人工负责的 Security Requirements Gate。每条 required row 追踪既有 PRD 需求与安全 TEST；Harness task gate 会在 commit 前实现防护措施，并用 negative tests 证明拒绝访问和没有未授权副作用；最后仍须执行全新的 exact-SHA code-security review。
+
+安全豁免还须有 documentation-only 产品描述与 Product Archetype，并明确记录不存在的可执行架构接口。Required security TEST 信号与 Harness criterion 使用 `denial: rejected (<signal>); no unauthorized side effects: unchanged (<state evidence>)`，两项断言均须有具体观测。
 - **建议不等于实现权威。** 每个适用领域先给出两到三组 coherent stack。新选择获批后标记 `Approved`，现有选择是 `Selected`，硬限制是 `Required`；`Recommended` 和 `Provisional` 会阻止 delivery。Checkpoint 的封闭 area set 必须等于适用且已解决的 areas，获批 option 的 layer map 必须等于可执行 stack rows。`render_stack_option_map.py` 会从既有 rows 生成供 owner review 的候选 map；它不能批准或改写包件。明确 option map 以 `||...||` 包裹；只用逗号的 legacy map 仍可读取，但 layer 名称或 selection 含逗号时必须使用明确形式。
 - **UI 设计有独立批准主线。** `ui-design-builder` 先完成 UI/style/motion/media intake。Schema 4 wireframe 冻结文案与显示契约；Wireframe 与 Visual Approval 回应会链接完整现行 HTML page/state set 与相关 design handoff，审核链接指向已授权 publication checkout 内的最终逻辑路径，发布后再链接到来源 checkout。hybrid 产品逐 `UI-*` surface 绑定 `releaseSurface`、`surfaceClass`、`captureMode` 与 responsive set。HiFi target 必须带精确 scope、restrictive CSP，以及保留 console、network、navigation、form、popup 尝试的人工 sandboxed-offline receipt。需要正式 design system 时走唯一窄路径：Visual Approval 记录 `required/pending`，compiler 校验该批准 digest 并生成 pair，owner 再链接两份 hash；普通 final validation 会拒绝 pending。Agent 不能代替 owner 批准。 UI 审核不要求 Docker／Podman；offline receipt 记录的是实际执行的浏览器限制。
 - **HiFi 页面必须由产品控件连通。** 新增或修订的 `ui-hifi/2` 以 `index.html` 清单绑定同目录 HTML 页面的哈希与控件目的地。离线 `ui-output/2` 证据逐 responsive target 验证点击及键盘操作；缺页、过期哈希、无效控件、错误目的地或未声明跳转均阻止批准。每页只能呈现分配给该页的 surface。发布与保留须包含完整包；schema-1 仅供读取检查，正式 Visual Approval 一律要求 schema 2。 指定 Git revision 冻结时，该 revision 必须包含所有子页面且内容一致。
@@ -63,10 +66,10 @@
 
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
-| `product-definition-builder` | Discovery、research、可量测产品/UI 行为、完整 frontend/backend 架构、coherent stack、release targets、tests 与 Product Definition Approval | 已批准的 `PRD.md`、`architecture.md`、`stack-decisions.md` 和研究产物 |
+| `product-definition-builder` | Discovery、research、security requirements、可量测产品/UI 行为、完整 frontend/backend 架构、coherent stack、release targets、tests 与 Product Definition Approval | 已批准的 `PRD.md`、`architecture.md`、`stack-decisions.md` 和研究产物 |
 | `ui-design-builder` | UI Design Intake、typed motion/media、响应式 wireframe、`frontend-design` Style Integration、Impeccable HiFi review、W/H 评分、Visual Approval 与 Design System Need Gate | `docs/design/ui-design.md`、`wireframes.html` 和已批准连通 HiFi target |
 | `design-system-compiler` | Visual Approval 后按需把已批准 `ui-design.md` target 编译成冻结 design-system pair | `docs/design/design-system.md`、`docs/design/design-system.json` |
-| `delivery-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：一份共享契约，加上每个宿主（Codex、Claude Code、Pi 或 generic）各一段 provider 章节 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
+| `delivery-harness` | 共享的规模判定与 security task gate、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：一份共享契约，加上每个宿主（Codex、Claude Code、Pi 或 generic）各一段 provider 章节 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 实现与统一集成后的只读安全审查，优先由 fresh sibling agent 执行；主动渗透测试与修复不属于本技能 | 精确 SHA 决策、trust-boundary 覆盖、验证后的发现与修复测试 |
 | `product-activation` | 所有支持的 Web、API/backend、iOS、Android、macOS、Windows、browser-extension 与 hybrid release target 的交付后设置，包括 capability routing、精确外部动作授权、read-back、量测来源与 outcome-review 交接 | `docs/ACTIVATION.md` |
 | `seo-growth-review` | 只读的 release 后技术 SEO、量测完整性、关键词研究、自然流量诊断与 query-to-page 机会排序 | 默认 inline review；明确要求时才保存日期化报告 |
@@ -341,6 +344,8 @@ Child agent run 不负责访谈或审批。父级先冻结输入，再启动有�
 
 非 runtime 图节点采用 reserve／execute／record 顺序：`reserve-node-attempt` 在 RUN lock 内建立 receipt，approval、external wait、deterministic verifier 或 lifecycle side effect 在 lock 外执行，`record-node-result` 只关闭相符的 attempt，并按声明的 outcome 派生 graph phase。Lifecycle transition 只记录证据，不执行动作。`lease-worker` 把选择器派生的 runtime binding 与精确 task／thread 身份写入 RUN，并遵守 compatibility 检查与现有 wildcard 授权。
 
+PLAN v6 在执行前检查 gate 绑定：每个 `local_command` 或 `harness_parent` verifier 节点只能引用 `batch_verifiers` 或 `final_gates`，且每项声明至少需要一个确定性节点。Runtime review 的引用不会执行这些命令，也不会填入 gate 结果。Task、worker 和 mission-integration verifier 保持现有执行路径。旧版 schema 仍可读取以供恢复。
+
 在 Claude Code 上，host adapter 会把 mixed frontier 按 homogeneous `tool_profile` 分成多个调用；同一组内可以使用不同模型和推理强度，但一次调用绝不混合写入 mission 与只读 review。tool profile 是标签和 prompt/result 契约，不是 permission-level tool removal。
 
 - `mission_write` 要求 `EnterWorktree` 和 mission 的有界写入契约。
@@ -551,6 +556,8 @@ Windows CI 会在任意 Python 测试组失败后立即停止。测试数据在�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.42.0** — 可执行产品包必须有人工负责的 Security Requirements Gate：required 行把既有 `PRD-*` 需求追踪到 Required-Yes security `TEST-*`，Harness task gate 在 commit 前执行控制与拒绝／无副作用 negative tests。既有产品包须重新取得 Product Definition Approval。PLAN-v6 要求每个 deterministic batch/final verifier node 引用 `batch_verifiers`／`final_gates`，且每个声明的 gate 都要有 node。破坏性 skill-bundle 变更。
 
 - **0.41.1** — Windows CI 在第一组 Python 测试失败时停止，避免后续成功指令掩盖失败；临时测试路径先规范化，再执行严格身份检查。
 

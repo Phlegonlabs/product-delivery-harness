@@ -34,6 +34,7 @@ Scope:
 Acceptance:
 - Objective and stop conditions: <exact values>
 - Verifiers: <selected task and worker verifiers>
+- Security requirements: <in-scope PRD-*/TEST-* pairs or none>
 - Commit authorization: <true/false and source>
 
 Repair context (omit for an initial implementation):
@@ -57,6 +58,7 @@ Repair context (omit for an initial implementation):
 - Never edit PLAN/RUN, create another worker/task/branch/worktree/lease, or delegate.
 - Do not pull, rebase, merge, integrate, push, archive, remove a worktree, or delete a branch.
 - Create commits only when `create_local_commits` is authorized. For each executable task: implement only that outcome, run its focused verifier, create its atomic task commit, confirm the task is checkpointed, and only then begin the next task. Each commit names exactly one task; a repair is a separate atomic follow-up for that task. Report every SHA once in actual Git order, and make the last commit equal the reported head.
+- Before a task commit or `worker_passed`, implement each touched boundary's control and negative test proving denial and no unauthorized side effects. Keep a scaffolded protected route fail-closed until this is true.
 - For a repair handoff, fix the named root-cause family rather than applying the findings as independent patches. If another adjacent variant shows that the proposed mechanism is not closed, stop before adding another special case and return `REFINEMENT_REQUEST` or `contract_gap` with the structural strategy and missing acceptance classes.
 - If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`; do not wait for a host timeout to create the checkpoint.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
@@ -69,7 +71,7 @@ For any UI-touching mission, classify the completed change against frozen produc
 
 ## Verify
 
-Select focused checks from parent-observed changed files using `selection.mode: "changed_files"`. Run each declared verifier through `scripts/verifier_runtime.py` so the result includes an `execution_key`; a free-form shell transcript is not verifier evidence.
+Select focused checks from parent-observed changed files using `selection.mode: "changed_files"`. Run each declared verifier through `scripts/verifier_runtime.py` so the result includes an `execution_key`; a free-form shell transcript is not verifier evidence. A required security check without its tool or retained evidence is blocked, not skipped.
 
 Use a repository-external cache only when the parent supplies it and the command is an opted-in deterministic `exit 0` check with exact immutable inputs. Otherwise use `cache_root=None`.
 

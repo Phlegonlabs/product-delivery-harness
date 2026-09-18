@@ -2,7 +2,7 @@ export const meta = {
   name: "product-definition-builder-graph",
   description: "Draft and cross-check one PRD package from frozen discovery inputs.",
   phases: [
-    { title: "Analyze", detail: "Run product, architecture, trust, AI, platform, backend, and monetization roles" },
+    { title: "Analyze", detail: "Run product, architecture, trust, security, AI, platform, backend, and monetization roles" },
     { title: "Synthesize", detail: "Join role outputs into one PRD package" },
     { title: "Verify", detail: "Cross-check trace coverage and consistency, and research market gaps" },
   ],
@@ -71,13 +71,26 @@ if (!stackDecisionModes.includes(workflowArgs.stack_decision_mode)) {
   throw new Error("product-definition-builder-graph requires args.stack_decision_mode as review_recommendation, select_layers, or delegate");
 }
 const applicabilityGates = ["required", "not_required", "blocked"];
-for (const field of ["data_trust_gate", "ai_automation_gate"]) {
+for (const field of ["data_trust_gate", "security_requirements_gate", "ai_automation_gate"]) {
   if (!applicabilityGates.includes(workflowArgs[field])) {
     throw new Error(`product-definition-builder-graph requires args.${field} as required, not_required, or blocked`);
   }
   if (workflowArgs[field] === "blocked") {
     throw new Error(`product-definition-builder-graph cannot run while args.${field} is blocked`);
   }
+}
+const securityScopes = ["executable", "documentation_only"];
+if (!securityScopes.includes(workflowArgs.security_scope)) {
+  throw new Error("product-definition-builder-graph requires args.security_scope as executable or documentation_only");
+}
+if (
+  workflowArgs.security_scope === "executable"
+  && workflowArgs.security_requirements_gate !== "required"
+) {
+  throw new Error("product-definition-builder-graph requires args.security_requirements_gate required when args.security_scope is executable");
+}
+if (workflowArgs.deployable && workflowArgs.security_requirements_gate !== "required") {
+  throw new Error("product-definition-builder-graph requires args.security_requirements_gate required for deployable release targets");
 }
 const monetizationModels = ["none", "one_time", "subscription", "usage_based", "hybrid", "undecided"];
 if (!monetizationModels.includes(workflowArgs.monetization_model)) {
@@ -317,6 +330,8 @@ const sourceContext = JSON.stringify({
   partner_channel_model: workflowArgs.partner_channel_model,
   stack_decision_mode: workflowArgs.stack_decision_mode,
   data_trust_gate: workflowArgs.data_trust_gate,
+  security_requirements_gate: workflowArgs.security_requirements_gate,
+  security_scope: workflowArgs.security_scope,
   ai_automation_gate: workflowArgs.ai_automation_gate,
   market_research: workflowArgs.market_research,
   multi_agent_authorized: workflowArgs.multi_agent_authorized,
@@ -327,11 +342,11 @@ const sourceContext = JSON.stringify({
 const roles = [
   {
     key: "requirements",
-    task: "Extract product goals, non-goals, personas, journeys, functional requirements, measurable non-functional requirements, data/trust and AI/automation gates, metrics, risks, assumptions, and stable PRD/TEST trace IDs. Every metric has baseline, target or guardrail, measurement window, source/method, and owner. Every assumption and open question has an owner, decision timing, status, and approval impact. Define a required TEST obligation with upstream trace IDs and an expected signal for every Must requirement, applicable NFR, and required trust/AI obligation.",
+    task: "Extract product goals, non-goals, personas, journeys, functional requirements, measurable non-functional requirements, data/trust, Security Requirements, and AI/automation gates, metrics, risks, assumptions, and stable PRD/TEST trace IDs. Preserve the supplied Security Requirements Gate and Security scope. When security is required, define seven-column rows with a human residual-risk decision; every row names an existing PRD ID and at least one Required: Yes security TEST whose upstream trace names that same PRD ID. Every metric has baseline, target or guardrail, measurement window, source/method, and owner. Every assumption and open question has an owner, decision timing, status, and approval impact. Define a required TEST obligation with upstream trace IDs and an expected signal for every Must requirement, applicable NFR, and required trust/security/AI obligation.",
   },
   {
     key: "architecture",
-    task: "Define implementation-ready components, data, APIs, integrations, auth, security, Data and Trust Architecture, AI and Automation Architecture, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Integrations name data exchanged, auth/scopes, contract/limits, failure recovery, and owner. Cover every supplied deployable surface and preserve the supplied stable release target IDs, surface suffixes, and release names. Upload or submission is not availability. Never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
+    task: "Define implementation-ready components, data, APIs, integrations, auth, security, Data and Trust Architecture, AI and Automation Architecture, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. For a required Security Gate, enforce each PRD row in Auth, Permissions, and Security with stable ARCH enforcement IDs that name the same PRD and security TEST IDs. Integrations name data exchanged, auth/scopes, contract/limits, failure recovery, and owner. Cover every supplied deployable surface and preserve the supplied stable release target IDs, surface suffixes, and release names. Upload or submission is not availability. Never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
   },
 ];
 if (workflowArgs.browser_frontend || workflowArgs.mobile_desktop_platform) {
@@ -383,7 +398,7 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const draft = await agent(
-  "You are the synthesis role in a Product Definition org graph. Reconcile role results into candidate Markdown for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. Include the exact Data and Trust and AI and Automation gates, measurable Metrics contract, structured Assumptions and Open Questions, UI Design Handoff Status, Product Definition Decisions section, and both machine marker pairs. Product Definition Approval and Stack Decision Checkpoint remain blocked in this candidate; a workflow cannot approve them. Keep every new technology proposal Recommended and present coherent frontend, backend/data/auth, mobile/desktop, AI/automation, deployment, and commercial bundles plus alternatives. For UI products, finish the UI Surface Contract but do not create wireframe data, choose layout/style/motion/media, or claim any UI approval; those belong to a later ui-design-builder run. " +
+  "You are the synthesis role in a Product Definition org graph. Reconcile role results into candidate Markdown for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. Include the exact Data and Trust, Security Requirements Gate and Security scope, and AI and Automation gates, plus the required seven-column security rows with human residual-risk decisions. Keep the measurable Metrics contract, structured Assumptions and Open Questions, UI Design Handoff Status, Product Definition Decisions section, and both machine marker pairs. Product Definition Approval and Stack Decision Checkpoint remain blocked in this candidate; a workflow cannot approve them. Keep every new technology proposal Recommended and present coherent frontend, backend/data/auth, mobile/desktop, AI/automation, deployment, and commercial bundles plus alternatives. For UI products, finish the UI Surface Contract but do not create wireframe data, choose layout/style/motion/media, or claim any UI approval; those belong to a later ui-design-builder run. " +
     "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral release-target blocks for every expected surface, preserve each supplied surface_suffix and release_name plus the typed surface_class and public_discoverability fields, and name the exact branch or ref. Production has the canonical surface name without -prod; development has that exact name plus -dev. Keep surface separate from provider. Use the exact candidate run branch/ref for the internally tested development release and main for production after same-SHA fast-forward, recording the shared remote-main base rule and separate promotion authorization/read-back. Do not treat upload/submission as availability or force native distribution into the hosted environment table; native recovery may require a signed forward-fix. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer, except the mandated hosted environment contract in architecture.md, whose columns are all release-critical. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
@@ -396,11 +411,11 @@ if (!draft) {
 const reviewers = [
   {
     key: "trace-verifier",
-    task: "Check measurable NFR and Metrics contracts, structured assumptions/open questions, Data and Trust and AI gates, stable Test Obligations, and trace coverage. Confirm every Must, applicable NFR, and required trust/AI obligation has a required TEST row.",
+    task: "Check measurable NFR and Metrics contracts, structured assumptions/open questions, Data and Trust, Security Requirements, and AI gates, stable Test Obligations, and trace coverage. Confirm every Must, applicable NFR, and required trust/security/AI obligation has a required TEST row, and every required security row names an existing PRD ID plus a Required: Yes security TEST with the same upstream trace.",
   },
   {
     key: "consistency-verifier",
-    task: "Check the complete candidate for contradictory scope, hidden assumptions, missing ownership, unsupported claims, incoherent stack combinations, silent defaults, and invalid approvals. Confirm machine approval blocks exist but remain blocked before the parent obtains human decisions; no Recommended or Provisional row is called executable. Verify trust/AI/commercial gates, release targets, and UI draft consistency.",
+    task: "Check the complete candidate for contradictory scope, hidden assumptions, missing ownership, unsupported claims, incoherent stack combinations, silent defaults, and invalid approvals. Confirm machine approval blocks exist but remain blocked before the parent obtains human decisions; no Recommended or Provisional row is called executable. Verify trust/security/AI/commercial gates, security scope against release targets, and UI draft consistency.",
   },
 ];
 if (workflowArgs.has_public_marketing_content) {

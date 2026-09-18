@@ -52,6 +52,7 @@ REQUIRED_PRD_HEADINGS = (
     "## UX Requirements",
     "## Data and Integration Requirements",
     "## Data and Trust",
+    "## Security Requirements",
     "## AI and Automation",
     "## Business Rules",
     "## Monetization and Partner Channels",
@@ -128,6 +129,7 @@ REQUIRED_ENHANCEMENT_AREAS = {
     "data / integrations",
     "architecture / stack",
     "data trust / ai",
+    "security",
     "monetization / partner",
     "release / operations",
 }
@@ -307,6 +309,18 @@ TEST_OBLIGATIONS_HEADER = (
 )
 
 GATE_DECISION_HEADER = ("area", "decision", "owner / evidence", "test ids")
+SECURITY_PRD_HEADING = "## Security Requirements"
+SECURITY_GATE_LABEL = "Security Requirements Gate"
+SECURITY_SCOPE_LABEL = "Security scope"
+SECURITY_REQUIREMENTS_HEADER = (
+    "prd id",
+    "asset / trust boundary",
+    "abuse case",
+    "control / safe failure",
+    "test ids",
+    "owner",
+    "residual risk",
+)
 DATA_TRUST_AREAS = {
     "classification and ownership",
     "residency and vendor processing",
@@ -429,6 +443,10 @@ ENHANCEMENT_REFRESH_REQUIREMENTS = {
     "data trust / ai": (
         {"prd.md", "architecture.md", "stack-decisions.md"},
         {"product definition approval", "stack decision checkpoint"},
+    ),
+    "security": (
+        {"prd.md", "architecture.md"},
+        {"product definition approval"},
     ),
     "monetization / partner": (
         {"prd.md", "architecture.md", "stack-decisions.md"},
@@ -1174,6 +1192,256 @@ def _gate_record(text: str, label: str) -> tuple[str, str, str] | None:
     return match.group(1).casefold(), match.group(2).strip(), match.group(3).strip()
 
 
+def security_negative_evidence_valid(value: object) -> bool:
+    """Require explicit, observable denial and unchanged-state assertions."""
+
+    if not isinstance(value, str):
+        return False
+    match = re.fullmatch(
+        r"denial:\s*rejected\s*\(([^();\n]+)\);\s*"
+        r"no unauthorized side effects:\s*unchanged\s*\(([^();\n]+)\)",
+        value.strip(), re.IGNORECASE,
+    )
+    return bool(match) and all(
+        _meaningful(signal, minimum=12) and not _placeholder_cell(signal)
+        and signal.strip().casefold() not in {
+            "observable signal", "observable rejection signal",
+            "observable state evidence", "state evidence",
+        }
+        for signal in match.groups()
+    )
+
+
+def parse_security_requirements(
+    prd_text: str,
+) -> tuple[dict[str, object], list[str]]:
+    """Parse the active PRD Security Requirements contract.
+
+    Cross-artifact ID, test, architecture, and release checks remain in
+    ``validate_texts`` after those contracts have been parsed.
+    """
+
+    empty_contract: dict[str, object] = {
+        "status": "",
+        "scope": "",
+        "requirements": [],
+    }
+    if not isinstance(prd_text, str):
+        return empty_contract, ["prd: Security Requirements input must be text"]
+
+    errors: list[str] = []
+    active = active_text(prd_text)
+    section_matches = list(
+        re.finditer(
+            rf"^{re.escape(SECURITY_PRD_HEADING)}\s*$",
+            active,
+            re.MULTILINE,
+        )
+    )
+    gate_matches = list(
+        re.finditer(
+            rf"^{re.escape(SECURITY_GATE_LABEL)}:\s*.*$",
+            active,
+            re.IGNORECASE | re.MULTILINE,
+        )
+    )
+    scope_matches = list(
+        re.finditer(
+            rf"^{re.escape(SECURITY_SCOPE_LABEL)}:\s*.*$",
+            active,
+            re.IGNORECASE | re.MULTILINE,
+        )
+    )
+    expected_security_header = tuple(
+        cell.casefold() for cell in SECURITY_REQUIREMENTS_HEADER
+    )
+    table_header_matches = [
+        line
+        for line in active.splitlines()
+        if _table_cells(line) is not None
+        and tuple(cell.casefold() for cell in _table_cells(line) or ())
+        == expected_security_header
+    ]
+
+    section = _section(prd_text, SECURITY_PRD_HEADING)
+    if section is None:
+        _add(errors, "prd", "Security Requirements section is required")
+        if gate_matches or scope_matches or table_header_matches:
+            _add(
+                errors,
+                "prd",
+                "Security Requirements authority must be inside its own section",
+            )
+        return empty_contract, errors
+
+    section_table_header_matches = [
+        line
+        for line in active_text(section).splitlines()
+        if _table_cells(line) is not None
+        and tuple(cell.casefold() for cell in _table_cells(line) or ())
+        == expected_security_header
+    ]
+
+    if len(section_matches) != 1:
+        _add(errors, "prd", "duplicate Security Requirements section")
+    if len(gate_matches) != 1:
+        _add(
+            errors,
+            "prd",
+            "Security Requirements Gate requires exactly one active status line",
+        )
+    if len(scope_matches) != 1:
+        _add(
+            errors,
+            "prd",
+            "Security scope requires exactly one active executable or "
+            "documentation_only line",
+        )
+    if len(table_header_matches) > 1:
+        _add(errors, "prd", "duplicate Security Requirements table header")
+    if len(table_header_matches) != len(section_table_header_matches):
+        _add(
+            errors,
+            "prd",
+            "Security Requirements table must stay inside its own section",
+        )
+    if sum(
+        1
+        for _
+        in re.finditer(
+            rf"^{re.escape(SECURITY_GATE_LABEL)}:\s*.*$",
+            section,
+            re.IGNORECASE | re.MULTILINE,
+        )
+    ) != 1 or sum(
+        1
+        for _
+        in re.finditer(
+            rf"^{re.escape(SECURITY_SCOPE_LABEL)}:\s*.*$",
+            section,
+            re.IGNORECASE | re.MULTILINE,
+        )
+    ) != 1:
+        _add(
+            errors,
+            "prd",
+            "Security gate and scope must be inside the Security Requirements section",
+        )
+
+    security_position = section_matches[0].start()
+    data_trust_position = re.search(
+        r"^## Data and Trust\s*$", active, re.MULTILINE
+    )
+    ai_position = re.search(r"^## AI and Automation\s*$", active, re.MULTILINE)
+    if data_trust_position is not None and security_position < data_trust_position.start():
+        _add(errors, "prd", "Security Requirements must follow Data and Trust")
+    if ai_position is not None and security_position > ai_position.start():
+        _add(errors, "prd", "Security Requirements must precede AI and Automation")
+
+    gate_record = _gate_record(section, SECURITY_GATE_LABEL)
+    status = gate_record[0] if gate_record is not None else ""
+    scope_match = re.fullmatch(
+        r"(executable|documentation_only)",
+        next(
+            (
+                match.group(1).casefold()
+                for match in re.finditer(
+                    rf"^{re.escape(SECURITY_SCOPE_LABEL)}:\s*(.*?)\s*$",
+                    section,
+                    re.IGNORECASE | re.MULTILINE,
+                )
+            ),
+            "",
+        ),
+    )
+    if gate_record is None:
+        _add(
+            errors,
+            "prd",
+            "missing complete Security Requirements Gate reason or decision owner",
+        )
+    if scope_match is None:
+        _add(errors, "prd", "Security scope must be executable or documentation_only")
+
+    requirements: list[dict[str, object]] = []
+    rows = (
+        _find_table(section, SECURITY_REQUIREMENTS_HEADER)
+        if len(section_table_header_matches) == 1
+        else None
+    )
+    if status == "required" and rows is None:
+        _add(
+            errors,
+            "prd",
+            "required Security Requirements Gate must use its canonical table",
+        )
+    if rows is not None:
+        _validate_table_rows(
+            rows,
+            len(SECURITY_REQUIREMENTS_HEADER),
+            label="Security Requirements",
+            require_filled=True,
+            problems=errors,
+        )
+        seen_prd_ids: set[str] = set()
+        for row in rows:
+            if len(row) != len(SECURITY_REQUIREMENTS_HEADER):
+                continue
+            prd_ids = _ids(row[0], "PRD")
+            if len(prd_ids) != 1 or not re.fullmatch(
+                r"PRD-[A-Z0-9-]+", row[0], re.IGNORECASE
+            ):
+                _add(errors, "prd", f"invalid Security Requirements ID {row[0]!r}")
+                continue
+            prd_id = next(iter(prd_ids))
+            if prd_id in seen_prd_ids:
+                _add(errors, "prd", f"duplicate Security Requirements ID {prd_id}")
+            seen_prd_ids.add(prd_id)
+            test_ids = list(
+                dict.fromkeys(
+                    match.group(0).upper()
+                    for match in re.finditer(
+                        r"\bTEST-[A-Z0-9-]+\b", row[4], re.IGNORECASE
+                    )
+                )
+            )
+            if not test_ids:
+                _add(errors, "prd", f"{prd_id} Security Requirements row names no TEST ID")
+            requirements.append(
+                {
+                    "prd_id": prd_id,
+                    "asset_trust_boundary": row[1],
+                    "abuse_case": row[2],
+                    "control_safe_failure": row[3],
+                    "test_ids": test_ids,
+                    "owner": row[5],
+                    "residual_risk": row[6],
+                }
+            )
+        if status == "required" and not requirements:
+            _add(errors, "prd", "required Security Requirements table must contain rows")
+    if status == "not_required" and requirements:
+        _add(errors, "prd", "not_required Security Requirements Gate cannot have rows")
+    if status == "not_required" and scope_match is not None:
+        if scope_match.group(1) != "documentation_only":
+            _add(
+                errors,
+                "prd",
+                "not_required Security Requirements Gate requires documentation_only scope",
+            )
+
+    if errors:
+        return empty_contract, errors
+    return (
+        {
+            "status": status,
+            "scope": scope_match.group(1) if scope_match is not None else "",
+            "requirements": requirements,
+        },
+        errors,
+    )
+
+
 def _research_gate(text: str) -> tuple[str, str] | None:
     text = active_text(text)
     match = re.search(
@@ -1536,8 +1804,17 @@ def validate_texts(
 
     problems: list[str] = []
 
+    prd_required_headings = (
+        REQUIRED_PRD_HEADINGS
+        if require_approved
+        else tuple(
+            heading
+            for heading in REQUIRED_PRD_HEADINGS
+            if heading != SECURITY_PRD_HEADING
+        )
+    )
     _validate_heading_sequence(
-        prd_text, REQUIRED_PRD_HEADINGS, path="prd", problems=problems
+        prd_text, prd_required_headings, path="prd", problems=problems
     )
     _validate_heading_sequence(
         architecture_text,
@@ -1760,6 +2037,7 @@ def validate_texts(
     known_test_ids: set[str] = set()
     known_required_test_ids: set[str] = set()
     required_test_upstreams: dict[str, set[str]] = {}
+    test_rows_by_id: dict[str, tuple[str, ...]] = {}
     for row in test_rows:
         if len(row) != len(TEST_OBLIGATIONS_HEADER):
             continue
@@ -1773,6 +2051,7 @@ def validate_texts(
         if test_id in known_test_ids:
             _add(problems, "prd", f"duplicate Test Obligations ID {test_id}")
         known_test_ids.add(test_id)
+        test_rows_by_id[test_id] = row
         required = row[3].casefold()
         if required not in {"yes", "no"}:
             _add(problems, "prd", f"{test_id} Required must be Yes or No")
@@ -2347,6 +2626,283 @@ def validate_texts(
                 "prd",
                 "agent release targets require an AI and Automation Gate marked required",
             )
+
+    security_contract, security_errors = parse_security_requirements(prd_text)
+    security_section_present = re.search(
+        rf"^{re.escape(SECURITY_PRD_HEADING)}\s*$",
+        active_text(prd_text),
+        re.MULTILINE,
+    ) is not None
+    missing_security_section_only = (
+        not security_section_present
+        and security_errors == ["prd: Security Requirements section is required"]
+    )
+    if require_approved or not missing_security_section_only:
+        problems.extend(security_errors)
+
+    security_section = _section(prd_text, SECURITY_PRD_HEADING)
+    security_gate = (
+        _gate_record(security_section, SECURITY_GATE_LABEL)
+        if security_section is not None
+        else None
+    )
+    if security_gate is not None:
+        _, security_reason, security_owner = security_gate
+        if not _meaningful(security_reason, minimum=12) or _invalid_human_owner(
+            security_owner
+        ):
+            _add(
+                problems,
+                "prd",
+                "Security Requirements Gate needs a concrete reason and human owner",
+            )
+        if require_approved and security_gate[0] == "blocked":
+            _add(problems, "prd", "Security Requirements Gate is blocked")
+
+    security_status = str(security_contract.get("status", ""))
+    security_scope = str(security_contract.get("scope", ""))
+    deployable_surfaces = bool(
+        release_contract.expected_surfaces or release_contract.targets
+    )
+    if not security_errors:
+        if security_status == "not_required":
+            archetype = (_section(architecture_text, "## Product Archetype") or "").strip()
+            identity_rows = _find_table(_section(prd_text, "## At a Glance") or "", ("", "")) or []
+            descriptions = [row[1] for row in identity_rows if len(row) == 2 and row[0].casefold() == "what it is"]
+            documentation_archetype = re.fullmatch(
+                r"documentation_only\s+—\s+(.+)", archetype,
+            )
+            runtime_sections_absent = all(
+                _explicit_absence_reason(_section(architecture_text, heading) or "")
+                for heading in (
+                    "## Frontend Architecture", "## Backend Architecture",
+                    "## API and Interface Contracts", "## AI and Automation Architecture",
+                    "## Data Model",
+                )
+            )
+            # A concrete document inventory proves output scope without guessing
+            # executable meaning from words in a human's description.
+            components = _find_table(
+                _section(architecture_text, "## Component Architecture") or "",
+                ARCHITECTURE_TABLE_HEADERS["## Component Architecture"],
+            ) or []
+            documentation_outputs = bool(components) and all(
+                len(row) == 5
+                and re.fullmatch(
+                    r"(?:docs/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+|README(?:\.[A-Za-z-]+)?)"
+                    r"\.(?:md|rst|txt)", row[1], re.IGNORECASE,
+                )
+                for row in components
+            )
+            documentation_workflow = all(
+                re.fullmatch(
+                    rf"{kind}\s+—\s+[^\n]{{20,}}",
+                    (_section(architecture_text, heading) or "").strip(),
+                )
+                for heading, kind in (
+                    ("## Workflow and Data Flow", "human_review"),
+                    ("## Deployment and Operations", "document_distribution"),
+                )
+            )
+            if (
+                not documentation_archetype
+                or not _meaningful(documentation_archetype.group(1), minimum=20)
+                or len(descriptions) != 1
+                or not re.match(r"(?:a\s+)?documentation-only\b", descriptions[0], re.IGNORECASE)
+                or ui_surfaces
+                or not runtime_sections_absent
+                or not documentation_outputs
+                or not documentation_workflow
+                or gate_records.get("AI and Automation Gate", ("",))[0] == "required"
+            ):
+                _add(
+                    problems, "prd",
+                    "not_required Security Requirements Gate needs a documentation-only "
+                    "product description, a documentation_only — reason Product Archetype, "
+                    "and no executable product or architecture scope",
+                )
+        if security_scope == "executable" and security_status not in {
+            "required",
+            "blocked",
+        }:
+            _add(
+                problems,
+                "prd",
+                "executable Security scope requires the Security Requirements Gate "
+                "to be required; blocked remains draft-inspectable",
+            )
+        if deployable_surfaces and security_status not in {"required", "blocked"}:
+            _add(
+                problems,
+                "prd",
+                "expected or actual deployable surfaces require the Security "
+                "Requirements Gate to be required; blocked remains draft-inspectable",
+            )
+        if security_status == "not_required" and deployable_surfaces:
+            _add(
+                problems,
+                "prd",
+                "not_required Security Requirements Gate cannot have deployable surfaces",
+            )
+
+    security_requirements = security_contract.get("requirements", [])
+    if not security_errors:
+        referenced_security_tests = {
+            test_id for requirement in security_requirements
+            for test_id in requirement.get("test_ids", [])
+        }
+        for test_id, test_row in test_rows_by_id.items():
+            if test_row[3].casefold() != "yes" or test_row[2].casefold() != "security":
+                continue
+            if test_id not in referenced_security_tests:
+                _add(problems, "prd", f"required security {test_id} must be referenced by a Security Requirements row")
+            if not security_negative_evidence_valid(test_row[5]):
+                _add(
+                    problems, "prd",
+                    f"{test_id} security Expected signal must declare "
+                    "denial: rejected (observable signal); no unauthorized side "
+                    "effects: unchanged (observable state evidence)",
+                )
+    if not security_errors and security_status == "required":
+        allowed_requirement_ids = must_ids | applicable_nfr_ids
+        for requirement in security_requirements:
+            if not isinstance(requirement, dict):
+                continue
+            prd_id = str(requirement.get("prd_id", ""))
+            if prd_id not in allowed_requirement_ids:
+                _add(
+                    problems,
+                    "prd",
+                    f"Security Requirements row {prd_id} must reference one existing "
+                    "Must or applicable NFR PRD ID",
+                )
+            for field_name in (
+                "asset_trust_boundary",
+                "abuse_case",
+                "control_safe_failure",
+            ):
+                if not _meaningful(str(requirement.get(field_name, "")), minimum=12):
+                    _add(
+                        problems,
+                        "prd",
+                        f"{prd_id} Security Requirements row needs substantive "
+                        f"{field_name.replace('_', ' ')} text",
+                    )
+            if _invalid_human_owner(str(requirement.get("owner", ""))):
+                _add(
+                    problems,
+                    "prd",
+                    f"{prd_id} Security Requirements row must name a human owner",
+                )
+            residual_risk = str(requirement.get("residual_risk", ""))
+            normalized_residual = residual_risk.strip().casefold()
+            residual_decision = re.fullmatch(
+                r"(none|accepted)\s*(?:—|-)\s*(.+)",
+                residual_risk,
+                re.IGNORECASE,
+            )
+            residual_is_decision = (
+                normalized_residual == "none"
+                or (
+                    residual_decision is not None
+                    and _meaningful(residual_decision.group(2), minimum=8)
+                    and not _placeholder_cell(residual_decision.group(2))
+                )
+            )
+            if not residual_is_decision:
+                _add(
+                    problems,
+                    "prd",
+                    f"{prd_id} Security Requirements residual risk must be an explicit "
+                    "decision; use 'none', 'none — reason', or "
+                    "'accepted — rationale' (hyphen accepted)",
+                )
+            for test_id in requirement.get("test_ids", []):
+                test_row = test_rows_by_id.get(test_id)
+                if test_row is None:
+                    _add(
+                        problems,
+                        "prd",
+                        f"{prd_id} Security Requirements row references optional or "
+                        f"unknown {test_id}",
+                    )
+                    continue
+                if test_row[3].casefold() != "yes":
+                    _add(
+                        problems,
+                        "prd",
+                        f"{prd_id} Security Requirements row references optional "
+                        f"{test_id}",
+                    )
+                if test_row[2].casefold() != "security":
+                    _add(
+                        problems,
+                        "prd",
+                        f"{test_id} must have Test type security",
+                    )
+                if prd_id not in required_test_upstreams.get(test_id, set()):
+                    _add(
+                        problems,
+                        "prd",
+                        f"{test_id} upstream traces must name the same {prd_id}",
+                    )
+
+        architecture_security = _section(
+            architecture_text, "## Auth, Permissions, and Security"
+        )
+        if architecture_security is None:
+            _add(
+                problems,
+                "architecture",
+                "required Security Requirements Gate needs Auth, Permissions, and "
+                "Security architecture obligations",
+            )
+        elif _explicit_absence_reason(architecture_security) is not None:
+            _add(
+                problems,
+                "architecture",
+                "required Security Requirements Gate cannot mark Auth, Permissions, "
+                "and Security not_required",
+            )
+        elif not _meaningful(architecture_security, minimum=50):
+            _add(
+                problems,
+                "architecture",
+                "required Security Requirements Gate needs substantive enforcement "
+                "narrative",
+            )
+        else:
+            active_architecture_security = active_text(architecture_security)
+
+            def substantive_architecture_join(identifier: str, prefix: str) -> bool:
+                return any(
+                    identifier in _ids(line, prefix)
+                    and _meaningful(
+                        line.replace(identifier, " "),
+                        minimum=15,
+                    )
+                    for line in active_architecture_security.splitlines()
+                )
+
+            for requirement in security_requirements:
+                if not isinstance(requirement, dict):
+                    continue
+                prd_id = str(requirement.get("prd_id", ""))
+                if not substantive_architecture_join(prd_id, "PRD"):
+                    _add(
+                        problems,
+                        "architecture",
+                        f"required Security Requirements row {prd_id} needs an active "
+                        "substantive Auth, Permissions, and Security join",
+                    )
+                for test_id in requirement.get("test_ids", []):
+                    if not substantive_architecture_join(str(test_id), "TEST"):
+                        _add(
+                            problems,
+                            "architecture",
+                            f"{test_id} needs an active substantive Auth, Permissions, "
+                            "and Security join",
+                        )
 
     required_gate_details = (
         (

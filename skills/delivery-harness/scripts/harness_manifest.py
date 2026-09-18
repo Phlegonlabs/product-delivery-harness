@@ -1297,6 +1297,84 @@ def _validate_plan_graph(
                 "plan.required_reviews",
                 "missing runtime review nodes: " + ", ".join(missing_reviews),
             )
+        if plan["schema_version"] == 6:
+            _validate_plan_v6_verifier_node_bindings(errors, plan)
+
+
+def _validate_plan_v6_verifier_node_bindings(
+    errors: list[str], plan: dict[str, Any]
+) -> None:
+    """Bind deterministic verifier nodes to PLAN-v6 gate declarations.
+
+    A runtime review can mention any declared verifier, but it never executes
+    a command. RUN-v11 records local ``batch_gate_results`` and
+    ``final_gate_results`` only from ``local_command`` or ``harness_parent``
+    graph nodes, so executable plans must prove that binding statically.
+    """
+
+    graph = plan.get("graph")
+    if not isinstance(graph, dict):
+        # _validate_graph already reports the malformed graph shape.
+        return
+    nodes = graph.get("nodes")
+    if not isinstance(nodes, list):
+        return
+
+    owners = _verifier_owners(plan)
+    deterministic_refs: set[str] = set()
+    for index, node in enumerate(nodes):
+        if not isinstance(node, dict):
+            continue
+        if node.get("kind") != "verifier" or node.get("executor") not in {
+            "local_command",
+            "harness_parent",
+        }:
+            continue
+        ref = node.get("ref")
+        if not isinstance(ref, str) or not ref:
+            # The node shape validator reports the invalid ref.
+            continue
+        deterministic_refs.add(ref)
+        owner = owners.get(ref)
+        if owner is None:
+            # The node shape validator already reports the unknown ref.
+            continue
+        node_id = node.get("id")
+        node_label = (
+            f"{node_id!r}" if isinstance(node_id, str) and node_id else str(index)
+        )
+        if owner[0] not in {"batch", "final"}:
+            _add(
+                errors,
+                f"plan.graph.nodes[{index}].ref",
+                f"deterministic verifier node {node_label} references {owner[0]} "
+                f"verifier {ref!r}; local_command and harness_parent nodes must "
+                "reference batch_verifiers or final_gates",
+            )
+
+    for group, results_key in (
+        ("batch_verifiers", "batch_gate_results"),
+        ("final_gates", "final_gate_results"),
+    ):
+        verifiers = plan.get(group)
+        if not isinstance(verifiers, list):
+            # _validate_plan_verifier_groups already reports the bad container.
+            continue
+        declared_ids = {
+            verifier["id"]
+            for verifier in verifiers
+            if isinstance(verifier, dict)
+            and isinstance(verifier.get("id"), str)
+            and verifier.get("id")
+        }
+        for verifier_id in sorted(declared_ids - deterministic_refs):
+            _add(
+                errors,
+                f"plan.{group}",
+                f"{verifier_id!r} has no local_command or harness_parent verifier "
+                "node; a runtime_worker review cannot execute it or fill "
+                f"{results_key}",
+            )
 
 
 def _validate_plan_security_review(
