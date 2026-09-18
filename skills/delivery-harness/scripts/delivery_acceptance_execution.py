@@ -1,5 +1,8 @@
 """Validate frozen execution context and per-assertion observations."""
 
+import re
+
+PLACEHOLDER_TOKEN = re.compile(r"<[A-Za-z_][A-Za-z0-9_. /-]*>")
 
 CONTEXT_KEYS = {"target", "device", "os", "persona", "initial_data", "actions",
                 "assertions", "expected_side_effects", "dependency_mode"}
@@ -9,6 +12,7 @@ PERSONA_KEYS = {"role", "tenant", "account_state"}
 def concrete_text(item):
     return (isinstance(item, str) and bool(item.strip())
             and not (item.strip().startswith("<") and item.strip().endswith(">"))
+            and PLACEHOLDER_TOKEN.search(item) is None
             and item.strip().lower() not in {"tbd", "todo", "pending", "placeholder",
                                              "n/a", "none", "unknown", "not applicable"})
 

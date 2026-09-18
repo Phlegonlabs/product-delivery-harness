@@ -169,6 +169,30 @@ def invoke(
 
 
 class DeliveryAcceptanceTests(unittest.TestCase):
+    def test_embedded_placeholders_cannot_claim_concrete_identity(self):
+        for value in ('release-<build-id>', 'Chrome <version>', 'grant <id>',
+                      'owned:run/<resource>', 'prefix <actual device> suffix'):
+            with self.subTest(value=value):
+                self.assertFalse(checker.concrete_text(value))
+        frozen = contract()
+        observed = results()
+        for record in (frozen['tests'][0]['scenarios'][0], observed['results'][0]):
+            record['build']['build_id'] = 'release-<build-id>'
+        self.assertEqual(1, invoke(frozen, observed)[0])
+
+    def test_evidence_is_relative_but_cli_inputs_may_be_absolute(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            artifact = root / 'evidence.txt'
+            artifact.write_bytes(EVIDENCE)
+            errors = []
+            self.assertFalse(checker._evidence(root, {
+                'path': str(artifact), 'sha256': EVIDENCE_SHA}, 'evidence', errors))
+            self.assertTrue(errors)
+            self.assertTrue(checker._evidence(root, {
+                'path': 'evidence.txt', 'sha256': EVIDENCE_SHA}, 'evidence', []))
+        self.assertEqual(0, invoke()[0])
+
     def test_unauthenticated_scenario_does_not_require_invented_login(self):
         value = contract()
         observed = results()

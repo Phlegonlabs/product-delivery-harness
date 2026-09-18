@@ -229,6 +229,9 @@ def _evidence(root: Path, value: Any, path: str, errors: list[str]) -> bool:
         errors.append(f"{path}.sha256 must be a lowercase SHA-256 hex digest")
     if not raw_path:
         return False
+    if Path(raw_path).is_absolute():
+        errors.append(f"{path}.path must be repository-relative")
+        return False
 
     try:
         payload = _read_bytes(Path(raw_path), "evidence", root)

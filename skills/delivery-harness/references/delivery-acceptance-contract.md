@@ -25,6 +25,8 @@ For managed work, freeze the contract as an additional PLAN source and declare `
 
 Start from `assets/templates/DELIVERY_ACCEPTANCE.template.json` and `DELIVERY_RESULTS.template.json`. Their placeholders and unvalidated results intentionally fail. Default project paths are `docs/verification/delivery-acceptance.json` and `docs/verification/delivery-results.json`; record actual paths in DOCUMENTS. No credentials, cookies or browser storage belong in either file.
 
+Concrete identity and execution fields reject embedded placeholder tokens such as `release-<build-id>` or `Chrome <version>`; comparison text such as `latency < 200 ms` remains valid. Evidence paths must be checkout-relative even when an absolute path would point inside the current checkout. CLI input paths may be absolute.
+
 - Contract: exactly `schema: delivery-acceptance/1`, `prd_sha256`, `tests`. Each test has `test_id` and `scenarios`; each scenario has `id`, `platform`, `auth_mode`, `environment`, `build`, `execution`, `fixtures`.
 - Result: exactly `schema: delivery-results/1`, `candidate_sha`, `results`. Each row has `test_id`, `scenario_id`, `platform`, `auth_mode`, `environment`, `build`, `execution`, `status`, `assertion_results`, `fixture_cleanup`, `evidence`.
 - `execution` freezes `target`, `device`, `os`, `persona` (exactly `role`, `tenant`, `account_state`), `initial_data`, ordered `actions`, `assertions` (stable ID to expected signal), `expected_side_effects`, and `dependency_mode`. Use concrete non-secret text; explain genuine non-applicability. Results repeat the exact observed context. For native tests name the actual device/simulator and OS; for agent trials name the tool/model setup and predeclared trial counts. Reviewer inspection must confirm this matches reality.
