@@ -11,6 +11,8 @@ Resolve `<seo-growth-review-skill-root>` to the absolute directory containing th
 
 ## Purpose
 
+At every invocation with a repository, apply `../delivery-harness/references/document-sync-contract.md` read-only; a public-only review records repository checks as not applicable. Separate test traffic and synthetic content from production measurement. Report exposed test pages or polluted analytics to their implementation/activation owner, never fix external settings under review authority. Use `../delivery-harness/references/bounded-enhancement.md` for next-round handoffs rather than keeping a review open.
+
 Turn production search and behavior evidence into a short, prioritized organic-growth review. Separate observed first-party demand from market estimates and hypotheses. Explain what should be improved, why it matters, how success will be measured, and which upstream workflow owns any change.
 
 This skill owns the review and opportunity ranking only. It does not own product requirements, website implementation, external-console setup, API authentication, content publication, or a standing dashboard.

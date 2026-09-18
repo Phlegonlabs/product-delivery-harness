@@ -35,6 +35,20 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 
 ## Automated E2E Contract
 
+Apply `references/delivery-acceptance-contract.md` and `references/test-fixture-lifecycle.md`. Freeze the required TEST/scenario/platform/auth matrix independently of result rows. Run the acceptance checker as an always-run final check; a skipped required case or next-round handoff never counts as PASS. Keep the executable register as the single source of these result rows and link it rather than copying values into competing records.
+
+### Fixture Execution
+
+```text
+Exact environment identity / isolation evidence:
+Run namespace / synthetic persona definitions / seed revision:
+Setup command / mutation authority / initial-state read-back:
+Mock cases / real-auth cases / native and agent cases:
+Secret names or references only / ignored local state paths:
+Owned resource manifest / cleanup command and authority:
+Cleanup read-back / retained redacted failure evidence / leftovers:
+```
+
 | Field | Value |
 |---|---|
 | Command | `<e2e-command>` |

@@ -1,0 +1,52 @@
+{
+  "schema": "delivery-acceptance/1",
+  "prd_sha256": "<frozen PRD SHA-256>",
+  "tests": [
+    {
+      "test_id": "TEST-001",
+      "scenarios": [
+        {
+          "id": "<scenario-id>",
+          "platform": "web",
+          "auth_mode": "mock",
+          "environment": "test",
+          "build": {
+            "build_id": "<observed artifact identity>",
+            "config_digest": "<configuration SHA-256>"
+          },
+          "execution": {
+            "target": "<non-secret sandbox identity>",
+            "device": "<actual device or browser>",
+            "os": "<actual OS and version>",
+            "persona": {
+              "role": "<role>",
+              "tenant": "<synthetic tenant>",
+              "account_state": "<initial account state>"
+            },
+            "initial_data": "<seeded data>",
+            "actions": [
+              "<user action>"
+            ],
+            "assertions": {
+              "ASSERT-001": "<observable expected signal>"
+            },
+            "expected_side_effects": "<allowed changes and explicitly unchanged state>",
+            "dependency_mode": "<mock adapters or real sandbox providers>"
+          },
+          "fixtures": [
+            {
+              "namespace": "<unique synthetic-run namespace>",
+              "setup_authority": "<existing action grant reference>",
+              "cleanup_authority": "<existing action grant reference>",
+              "owned_resources": [
+                "<owned:run/resource identifier>"
+              ],
+              "production": false,
+              "auth_bypass": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

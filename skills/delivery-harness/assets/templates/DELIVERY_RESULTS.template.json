@@ -1,0 +1,45 @@
+{
+  "schema": "delivery-results/1",
+  "candidate_sha": "<parent-observed exact candidate SHA>",
+  "results": [
+    {
+      "test_id": "TEST-001",
+      "scenario_id": "<scenario-id>",
+      "platform": "web",
+      "auth_mode": "mock",
+      "environment": "test",
+      "build": {
+        "build_id": "<observed artifact identity>",
+        "config_digest": "<configuration SHA-256>"
+      },
+      "execution": {
+        "target": "<non-secret sandbox identity>",
+        "device": "<actual device or browser>",
+        "os": "<actual OS and version>",
+        "persona": {
+          "role": "<role>",
+          "tenant": "<synthetic tenant>",
+          "account_state": "<initial account state>"
+        },
+        "initial_data": "<seeded data>",
+        "actions": [
+          "<user action>"
+        ],
+        "assertions": {
+          "ASSERT-001": "<observable expected signal>"
+        },
+        "expected_side_effects": "<allowed changes and explicitly unchanged state>",
+        "dependency_mode": "<mock adapters or real sandbox providers>"
+      },
+      "status": "unvalidated",
+      "assertion_results": {
+        "ASSERT-001": "unvalidated"
+      },
+      "fixture_cleanup": "pending",
+      "evidence": {
+        "path": "<repository-relative redacted evidence>",
+        "sha256": "<evidence SHA-256>"
+      }
+    }
+  ]
+}

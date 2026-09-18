@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.42.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.43.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -274,6 +274,12 @@ Gitignore hygiene also applies to both direct and managed work. The scope scan r
 Commercial products now pass two separate Product Definition decisions. The Monetization Infrastructure Gate resolves the model, pricing/offer rules, purchase surfaces, entitlement source, and merchant-of-record/tax ownership before comparing current options such as native store billing, RevenueCat, Qonversion, Adapty, Superwall, Stripe Billing, Paddle, or Lemon Squeezy; pricing never makes RevenueCat the default. The Partner Channel Gate independently resolves `none`, affiliate, referral, reseller, or hybrid. It compares link/commission tools such as Rewardful or FirstPromoter, broader partner platforms such as PartnerStack, an integrated Lemon Squeezy affiliate route, or a custom reseller service. Billing, entitlement, paywall, tax, attribution, commission/payout, and reseller operations remain separate PRD, architecture, stack, UI, mission, and test contracts.
 
 ## Delivery model
+
+Acceptance rejects embedded identity placeholders and requires checkout-relative evidence paths, so retained results remain portable between checkouts.
+
+Every skill invocation starts with the shared [document-sync contract](skills/delivery-harness/references/document-sync-contract.md): review changed live instructions, skill/runtime identity and product documents, without rewriting historical approvals or runs. The current PRD stays the next enhancement's baseline; superseded PRDs remain linked references. [Bounded enhancement](skills/delivery-harness/references/bounded-enhancement.md) reuses one accepted scope for repairs, same-scope module replacement and retesting instead of repeated approval prompts. Stop at the repair budget and hand unresolved requirements to the next round; ending a round is not a delivery PASS or permission to publish.
+
+The [delivery-acceptance contract](skills/delivery-harness/references/delivery-acceptance-contract.md) joins required PRD TEST IDs to a frozen scenario/platform matrix and exact-version evidence. Prepare isolated synthetic accounts and owned test data only under the declared test-environment authority. Mock login proves mocked behavior, not real authentication; Web, native iOS and agent-tool outcomes need their own evidence. No production login bypass, secret-bearing fixture, skipped required test, stale build or deferred blocker can count as PASS. The checkers validate retained evidence and coverage, not whether a human attestation or external observation is truthful.
 
 The Harness is built around explicit boundaries:
 
@@ -556,6 +562,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.43.0** — Every skill invocation reviews live document and runtime drift. Preserve the current PRD as the enhancement baseline and link historical references. Add frozen requirement-to-scenario acceptance, isolated synthetic fixtures, and separate Web/native/agent evidence. Bound repair and module replacement without repeated same-scope approval; unresolved requirements never become PASS. Harden bounded contract reads. New delivery workflows require these checks; legacy RUNs are not migrated.
 
 - **0.42.0** — Executable product packages require a human-owned Security Requirements Gate: required rows trace existing `PRD-*` requirements to Required-Yes security `TEST-*` IDs, and Harness task gates enforce controls plus denial/no-side-effect tests before commit. Existing product packages require renewed Product Definition Approval. PLAN-v6 requires each deterministic batch/final verifier node to reference `batch_verifiers`/`final_gates`, and every declared gate to have a node. Breaking skill-bundle change.
 

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.42.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.43.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -274,6 +274,12 @@ Gitignore 衛生同時適用於 direct 與 managed 工作。scope scan 會記錄
 商業產品現在會經過兩個分開的 Product Definition 決策。Monetization Infrastructure Gate 先解析商業模式、定價／offer 規則、購買 surface、entitlement source 與 merchant-of-record／稅務責任，再比較 native store billing、RevenueCat、Qonversion、Adapty、Superwall、Stripe Billing、Paddle 或 Lemon Squeezy 等現行選項；有定價不代表預設 RevenueCat。Partner Channel Gate 則獨立解析 `none`、affiliate、referral、reseller 或 hybrid，再比較 Rewardful、FirstPromoter 這類 link／commission 工具、PartnerStack 這類完整 partner platform、Lemon Squeezy 的整合 affiliate 路線，或自建 reseller service。Billing、entitlement、paywall、稅務、attribution、commission／payout 與 reseller operations 會保持為分開的 PRD、architecture、stack、UI、mission 與 test 契約。
 
 ## 交付模型
+
+驗收會拒絕嵌入文字的身分佔位符，並要求證據使用 checkout 相對路徑，讓保留的結果能跨 checkout 使用。
+
+每次調用 skill 都先套用共用的[文件同步契約](skills/delivery-harness/references/document-sync-contract.md)，檢查現行指引、skill/runtime 身分與產品文件的變動，不改寫歷史批准或 RUN。現行 PRD 持續作為下一輪 enhancement 的基準，被取代的 PRD 保留連結供參考。[有界 enhancement](skills/delivery-harness/references/bounded-enhancement.md) 沿用一次確認的範圍，執行修復、範圍內 module 重寫與重測，不反覆要求批准。達修復上限就把未解決需求移交下一輪；本輪結束不等於交付 PASS，也不授權發布。
+
+[交付驗收契約](skills/delivery-harness/references/delivery-acceptance-contract.md) 把必要 PRD TEST ID、凍結的情境／平台矩陣與精確版本證據串起來。只在已授權的隔離測試環境準備合成帳號與本輪擁有的資料。Mock 登入不能證明真實認證通過；Web、原生 iOS 與 agent 工具結果各需自己的證據。Production 登入後門、含祕密的 fixture、跳過必要測試、過期 build 或延後處理的阻塞問題，都不能算 PASS。檢查器驗證覆蓋與保留證據，不宣稱能證明人工聲明或外部觀測的真實性。
 
 Harness 是圍繞明確的邊界所打造的：
 
@@ -556,6 +562,8 @@ Windows CI 會在任一 Python 測試組失敗後立即停止。測試資料在�
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.43.0** — 每次調用 skill 都檢查現行文件與 runtime 差異。現行 PRD 保留為 enhancement 基準，歷史版本保留參考連結。新增凍結的需求／情境驗收、隔離合成測試資料與分開的 Web／原生／agent 證據。有界修復與 module 重寫沿用原範圍批准；未解決需求不能算 PASS。限制契約讀取大小與路徑。新交付流程要求這些檢查，不遷移舊 RUN。
 
 - **0.42.0** — 可執行產品套件必須有人工負責的 Security Requirements Gate：required 列把既有 `PRD-*` 需求追蹤到 Required-Yes security `TEST-*`，Harness task gate 在 commit 前執行控制與拒絕／無副作用 negative tests。既有產品套件須重新取得 Product Definition Approval。PLAN-v6 要求每個 deterministic batch/final verifier node 參照 `batch_verifiers`／`final_gates`，且每個宣告的 gate 都要有 node。破壞性 skill-bundle 變更。
 

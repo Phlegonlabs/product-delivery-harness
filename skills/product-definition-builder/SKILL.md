@@ -11,6 +11,10 @@ Resolve `<product-definition-builder-skill-root>` to the absolute directory cont
 
 ## Overview
 
+At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. For accepted enhancement delivery, use `../delivery-harness/references/bounded-enhancement.md`: preserve the current PRD and IDs, reuse decisions already made, and avoid repeated approval for same-scope implementation repairs. A genuinely changed product decision is a next-round contract gap, not permission to forge approval.
+
+Before approval, define test personas (role, tenant, account/data state), applicable Web/native/agent journeys, observable success and denial/no-side-effect assertions, and mock versus real-sandbox obligations in the existing TEST rows and architecture testing section. Record non-applicability rather than inventing login for a headless or unauthenticated product. The downstream Harness freezes the executable matrix and owns fixtures and evidence through `../delivery-harness/references/delivery-acceptance-contract.md`; this skill creates no accounts or evidence register.
+
 Use this skill to turn a product idea into a decision-ready package, not an agent-selected implementation guess. Define product scope, journeys, UI surface responsibilities, routes, actions, states, data, trust, and security boundaries, acceptance signals, implementation architecture, release targets, and technology constraints. Draft and reconcile `PRD.md`, `architecture.md`, and `stack-decisions.md`; present coherent frontend, backend/data/auth, mobile/desktop, AI, deployment, and commercial technology options; then obtain an explicit Stack Decision Checkpoint and Product Definition Approval. Stop there. A later explicit UI request invokes `ui-design-builder`; a later implementation request invokes `delivery-harness` against approved inputs.
 
 ## Workflow

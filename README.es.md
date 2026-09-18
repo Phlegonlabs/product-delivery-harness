@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.42.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.43.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -274,6 +274,12 @@ La higiene de gitignore también aplica al trabajo directo y al gestionado. El s
 Los productos comerciales ahora pasan dos decisiones separadas de Product Definition. El Monetization Infrastructure Gate resuelve el modelo, las reglas de pricing/oferta, las surfaces de compra, la fuente de entitlement y el responsable de merchant-of-record/tax antes de comparar opciones actuales como native store billing, RevenueCat, Qonversion, Adapty, Superwall, Stripe Billing, Paddle o Lemon Squeezy; el pricing nunca hace de RevenueCat el default. El Partner Channel Gate resuelve de forma independiente `none`, affiliate, referral, reseller o hybrid. Compara herramientas de link/comisión como Rewardful o FirstPromoter, plataformas de partners más amplias como PartnerStack, una ruta de afiliados integrada de Lemon Squeezy o un servicio de reseller a medida. Billing, entitlement, paywall, tax, atribución, comisión/payout y operaciones de reseller siguen siendo contratos separados de PRD, arquitectura, stack, UI, mission y test.
 
 ## Modelo de entrega
+
+La aceptación rechaza marcadores de identidad sin resolver y exige rutas de evidencia relativas al checkout para conservar la portabilidad de los resultados.
+
+Cada invocación aplica el [contrato de sincronización documental](skills/delivery-harness/references/document-sync-contract.md): revisa cambios en las instrucciones vigentes, la identidad del skill/runtime y los documentos del producto, sin reescribir aprobaciones ni RUN históricos. El PRD actual sigue siendo la base de la próxima mejora; las versiones reemplazadas conservan enlaces de referencia. La [mejora acotada](skills/delivery-harness/references/bounded-enhancement.md) reutiliza un alcance aceptado para reparar, reemplazar módulos dentro de ese alcance y repetir pruebas, sin pedir la misma aprobación. Al agotar el presupuesto, entrega los pendientes a la próxima ronda; terminar una ronda no equivale a PASS ni autoriza publicar.
+
+El [contrato de aceptación](skills/delivery-harness/references/delivery-acceptance-contract.md) vincula los TEST obligatorios del PRD con la matriz congelada de escenarios/plataformas y evidencia de la versión exacta. Prepara cuentas sintéticas y datos propios solo en un entorno aislado autorizado. Un login mock no prueba autenticación real; Web, iOS nativo y herramientas de agentes necesitan evidencia propia. Un bypass de login en producción, secretos en fixtures, pruebas obligatorias omitidas, builds obsoletos o bloqueos aplazados nunca cuentan como PASS. Los verificadores comprueban cobertura y evidencia retenida, no la veracidad de una declaración humana u observación externa.
 
 El Harness se construye sobre límites explícitos:
 
@@ -555,6 +561,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.43.0** — Cada invocación revisa cambios en documentos vigentes y runtime. El PRD actual sigue como base de las mejoras, con enlaces históricos. Añade aceptación congelada por requisito y escenario, fixtures sintéticos aislados y evidencia separada para Web, nativo y agentes. Acota reparaciones y reemplazos sin repetir la aprobación del mismo alcance; los pendientes nunca son PASS. Limita las lecturas de contratos y sus rutas. Los nuevos flujos exigen estos controles; los RUN antiguos no se migran.
 
 - **0.42.0** — Todo paquete ejecutable de producto requiere un Security Requirements Gate con responsable humano: cada fila required traza un requisito `PRD-*` existente a un security `TEST-*` Required-Yes, y los task gates de Harness aplican controles y pruebas negativas de denegación/ausencia de efectos no autorizados antes del commit. Los paquetes existentes requieren renovar la Product Definition Approval. PLAN-v6 exige que cada verifier node determinista de batch/final referencie `batch_verifiers`/`final_gates` y que cada gate declarado tenga un node. Cambio breaking del skill-bundle.
 

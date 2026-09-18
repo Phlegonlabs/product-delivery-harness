@@ -29,6 +29,8 @@ Unvalidated surfaces:
 
 ## Declined Or Deferred
 
+For next-round delivery gaps, retain original PRD/TEST IDs, platform, failure and reproduction, exact SHA/build/environment, evidence paths, spent repair attempts, blocked dependents, smallest next action, unchanged acceptance condition, and fixture cleanup disposition. Record verified work separately. A deferred required failure is not PASS, does not satisfy a dependency, and never creates or launches a new task automatically.
+
 | ID | Decision | Reason |
 |---|---|---|
 | <id> | declined / deferred | <reason> |

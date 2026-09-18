@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -26,6 +27,36 @@ def create_required_skills(root: Path) -> None:
 
 
 class ContractDigestTests(unittest.TestCase):
+    def test_oversized_skill_file_and_bundle_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_required_skills(root)
+            with patch("harness_contract.MAX_FILE_BYTES", 1), self.assertRaises(ValueError):
+                contract_digest(root / "skills")
+            with patch("harness_contract.MAX_BUNDLE_BYTES", 1), self.assertRaises(ValueError):
+                contract_digest(root / "skills")
+
+    def test_reparse_guard_rejects_before_read(self):
+        from types import SimpleNamespace
+        from harness_contract import _plain_stat
+        import stat
+        with patch.object(Path, "lstat", return_value=SimpleNamespace(st_mode=stat.S_IFREG,
+                                                                     st_file_attributes=0x400)):
+            with self.assertRaises(ValueError):
+                _plain_stat(Path("linked"))
+
+    def test_linked_skill_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_required_skills(root)
+            link = root / "skills/delivery-harness/linked.md"
+            try:
+                link.symlink_to(root / "skills/delivery-harness/SKILL.md")
+            except OSError:
+                self.skipTest("symlink privilege unavailable; reparse guard tested separately")
+            with self.assertRaises(ValueError):
+                contract_digest(root / "skills")
+
     def test_line_endings_do_not_change_the_digest(self) -> None:
         # The digest gates dispatch; a Windows checkout (CRLF) and its packaged
         # copy (LF) must identify the same contract.

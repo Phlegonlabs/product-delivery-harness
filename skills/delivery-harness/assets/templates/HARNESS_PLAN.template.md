@@ -370,6 +370,10 @@ These are planning expectations, not authorization. Record explicit action autho
 
 ## Plan Readiness Gate
 
+For newly authored delivery work, also follow `references/delivery-acceptance-contract.md`: freeze `docs/verification/delivery-acceptance.json` as a source of kind `delivery acceptance`, add an always-run `check_delivery_acceptance.py` final gate and a matching `local_command` verifier node on the required closeout path. Use the parent's frozen contract hash and observed candidate SHA, never values derived from result writers. The result register is `docs/verification/delivery-results.json`; evidence remains SHA-bound. The template's neutral command placeholders must be replaced before execution.
+
+The parent reviews these bindings before readiness. The legacy manifest validator does not enforce the presence of this new gate; passing schema validation alone is insufficient. Do not retrofit or silently migrate a running legacy PLAN/RUN. Direct work runs the acceptance CLI without these artifacts.
+
 Implementation may start only after static validation passes, RUN records `plan_readiness: "ready"`, and required actions have explicit user authorization. Readiness never grants authorization.
 
 Before marking readiness, reject any mission whose objective contains independently shippable or reviewable outcomes, whose tasks hide multiple commit-sized deliverables, or whose only cohesion is a shared file or serialized resource. Every executable task must map to its own authorized atomic commit before the next task begins.
