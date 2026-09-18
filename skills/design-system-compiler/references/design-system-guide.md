@@ -17,6 +17,8 @@ The design system exists so frontend implementation can follow one set of tokens
 
 Publish the Markdown and JSON together.
 
+Generate the separate derived HTML view through `render_design_system_preview.py` after pair validation; follow `references/output-contract.md`. It shows registry values and declared contracts without becoming another source. Keep the approved wireframe and its prototype-only Design System Draft view unchanged. Recheck the preview against current pair/source bytes before handoff.
+
 ## Contract Boundary
 
 `design-system.json` is the sole structured authority. New approval pairs use `design-system/2`; its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:

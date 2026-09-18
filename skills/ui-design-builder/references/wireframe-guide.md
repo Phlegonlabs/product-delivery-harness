@@ -25,6 +25,20 @@ Before drafting the HTML, look up how comparable products structure the same tas
 
 ## HTML Requirements
 
+### Mid-Fidelity Completion Standard
+
+The target is a mid-fidelity interactive structural prototype. Use exact product copy, realistic bounded data, readable type roles, intentional spacing, task-fit proportions and distinct navigation, list, table and form structures. Inspect long copy, dense data and every PRD-required alternate state at the declared responsive targets. Images remain labeled placeholders with purpose and proportions; final brand assets and animation belong to HiFi.
+
+Walk each declared primary journey using product controls, including keyboard operation where applicable. Review-shell page/state switching is capture setup, not journey evidence. Required input, validation and recovery behavior must be represented locally from the approved PRD, with no network or real account side effects. The template's read-only field sample only proves placement; if the canonical runtime cannot express a required interaction, record the unsupported case as blocked and extend the canonical renderer and checker together before approval. Do not modify the frozen shell ad hoc, invent behavior, or call a read-only flow complete.
+
+### Design System Draft View
+
+The reviewer navigation includes `Design System` at `#design-system`, labeled `Wireframe Draft`. It is not a product surface, route or `UI-*` entry and does not join the product copy inventory. It shows prototype type sizes/weights/line heights, neutral colors, spacing, control dimensions, padding and corners, plus type, button, field, list and table specimens. Specimen wording is reviewer-only. Actual product wording remains in its approved copy records.
+
+Use the same CSS values and renderer classes as the product canvas. Read values from those sources and computed specimens; do not hand-maintain a second value table. Keep reviewer chrome separate from the `--wf-*` prototype values. These values describe the current prototype, not approved brand tokens, a production library or native rendering proof. Record additional platform or product-specific values only when the actual renderer uses them.
+
+Check navigation, keyboard focus, specimen behavior, wrapping and value equality alongside the existing browser matrix. W5 judges hierarchy and consistency, while W3 checks real product journeys. Static checks cannot certify either. A changed draft view changes the HTML approval identity. Once approved, preserve that file; later formal values appear in the compiler's separate derived preview, never by rewriting the approved wireframe.
+
 Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained file containing every `UI-*` surface. It must open directly from disk without a server, build step, package install, network request, external font, or external asset. The checker decodes CSS escapes before evaluating `url()`, `image-set()`, and `@import`, so escaped remote schemes are rejected like literal ones.
 
 New and structurally revised files use schema `wireframes/4`; the checker keeps `wireframes/2` and `wireframes/3` read compatibility for unchanged historical files. Schema 4 must provide:
@@ -55,7 +69,7 @@ An optional `mediaIntent` object on a screen or region records the approved Moti
 
 Every PRD `UI-*` entry carries one invariant `` `responsive`: `` anchor. Its kind and values match either the HTML's single global set or that screen's exact `responsiveBySurface` entry. A hybrid entry also preserves the PRD `releaseSurface`, `surfaceClass`, and `captureMode`; one platform's targets never stand in for another's. Every screen carries a non-empty `neverDrop` list and a `responsiveLayouts` object keyed by its own targets. Each target entry declares `order`, `hidden`, `columns`, a `spans` value for every region, plus filled `reflow` and `interaction` rules. `order` contains every region exactly once. `hidden` may omit secondary material only; it cannot contain a never-drop region, and every primary region belongs to `neverDrop`. These fields make responsive behavior inspectable instead of treating a generic compact stack as proof.
 
-Inline CSS and JavaScript implement the reviewer studio, page switching, working PRD actions, local overlays and feedback, viewport switching, state switching, copy inventory, reviewer-only inspector, and printing. They are not product implementation. Keep the canvas grayscale and structural: use typography, spacing, content silhouettes, and contrast only to make hierarchy legible. Add no brand palette, decorative imagery, generated media, final animation, production component library, polished marketing treatment, or design-system token decision.
+Inline CSS and JavaScript implement the reviewer studio, page switching, working PRD actions, local overlays and feedback, viewport switching, state switching, copy inventory, reviewer-only inspector, and printing. They are not product implementation. Keep the canvas grayscale and structural: use typography, spacing, content silhouettes, and contrast only to make hierarchy legible. Add no brand palette, decorative imagery, generated media, final animation, production component library, polished marketing treatment, or formal design-system token decision. Shared prototype values and their Draft view are allowed.
 
 ## Composition Before Coverage
 
@@ -143,7 +157,7 @@ A user-visible wording change is a copy delta and uses `structure` (or `both` wh
 - Every schema-4 `mediaIntent` annotation names a valid treatment (`none`, `image`, `motion`, or `image + motion`), purpose, trigger, dedicated prompt, source, reduced-motion fallback, generation route, and `generationStatus: deferred`.
 - Every page-target-state combination renders without unintended overlap, clipping, occlusion, or horizontal overflow; intended overlays have documented stacking, focus, and dismissal behavior.
 - The page switcher, overview, responsive-target control, state control, copy inventory, reviewer-only inspector, runtime layout QA, and visible section labels work from a local file.
-- No design-reference styling, generated imagery, design-system token, or product implementation code appears.
+- No design-reference styling, generated imagery, formal design-system token contract, or product implementation code appears. The prototype-only Draft view remains separate from final tokens.
 - `check_wireframe_html.py` first passes with `--prd <staged PRD.md> --require-filled --require-copy-approved` while structural status remains draft, then passes with `--require-approved` after the browser matrix and Wireframe Approval.
 - The PRD-bound diagnostic stage ran as one complete diagnostic wave with its scores, consolidated defect ledger, and bounded repair/re-review outcome recorded; an unavailable capability is a blocking outcome, not a skipped PASS.
 - `ui-design.md` records the structural owner, approval status, date, approved `UI-*` scope, unresolved items, copy owner, primary locale, Copy Freeze approval date, and that Copy Freeze passed before UI grading, final layout review, structural approval, visual design, or implementation. Any later wording change is a product-definition copy delta requiring renewed approval.

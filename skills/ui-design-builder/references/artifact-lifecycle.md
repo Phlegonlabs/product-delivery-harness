@@ -38,4 +38,6 @@ The HiFi entry and every page listed in its `ui-hifi/2` manifest publish and arc
 
 The design-system pair publishes and archives atomically. Legacy `design-system/1` files remain inspection-only and never grant new approval authority. A `not_required` decision does not silently remove an existing pair; explicitly retain or retire it with owner approval.
 
+For a required pair, retain `docs/design/design-system-preview.html` in the same authorized publication set. `check_ui_publication.py --design-system-required` checks it against the pair before and after transfer; a missing or edited view fails. Generate it with the compiler's `render_design_system_preview.py`. It is derived review output, not another authority or a product screen. An existing package gains this view through an authorized update without rewriting prior wireframe bytes or backfilling approval.
+
 For a new required pair, the pending marker is a short-lived compiler handoff, not a publishable state. The compiler consumes the exact approved UI digest, writes Markdown and JSON together, and the UI owner records both final hashes before the normal checker runs.

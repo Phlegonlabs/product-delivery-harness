@@ -90,6 +90,8 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 Wireframes use a neutral grayscale canvas with review annotations off by default. Authors compose a frequent task and a dense or alternate state before expanding the full matrix. W5 checks task/type hierarchy, spacing, content form, density, platform reflow, and review separation against inspected screenshots; its independent minimum is 80. Optional region presentations cover navigation, editorial content, lists, forms, and tables without changing product copy or selecting a production stack.
 
+The wireframe target is mid-fidelity: exact copy, readable composition, realistic data and declared primary journeys tested through product controls. Read-only fields do not prove input or recovery flows. A reviewer-only Design System Draft page shows shared prototype values and actual renderer specimens; it adds no product route or approval gate. After Visual Approval, the compiler emits `design-system-preview.html` from the validated Markdown/JSON pair. Its checker rejects stale or edited views and stale sources; the pair remains authoritative and the approved wireframe stays unchanged. Component appearance remains grounded in the approved HiFi, not inferred from registry names.
+
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]

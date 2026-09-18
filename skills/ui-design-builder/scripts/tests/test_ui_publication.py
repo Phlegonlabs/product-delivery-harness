@@ -19,6 +19,19 @@ class PublicationTests(unittest.TestCase):
                 source, candidate = Path(temp) / "source", Path(temp) / "candidate"
                 source.mkdir()
                 materialize_publication(source, required=required)
+                if required:
+                    design = source / "docs/design"
+                    (design / "design-system-preview.html").write_bytes(publication.render_preview(
+                        (design / "design-system.json").read_bytes(),
+                        (design / "design-system.md").read_bytes(),
+                    ).encode("utf-8"))
+                    renderer = publication.COMPILER / "render_design_system_preview.py"
+                    result = subprocess.run([sys.executable, str(renderer), "--repo-root", str(source),
+                                             "--registry", str(design / "design-system.json"),
+                                             "--markdown", str(design / "design-system.md"),
+                                             "--check", str(design / "design-system-preview.html")],
+                                            capture_output=True, text=True)
+                    self.assertEqual(0, result.returncode, result.stderr)
                 def git(*args):
                     subprocess.run(["git", "-C", str(source), *args], check=True, capture_output=True)
                 git("init", "-q")
@@ -31,6 +44,15 @@ class PublicationTests(unittest.TestCase):
                     return publication.validate(source, candidate, hifi=hifi, required=required, published=published)
                 self.assertEqual([], check())
                 self.assertEqual([], check(published=True))
+                if required:
+                    view = candidate / "docs/design/design-system-preview.html"
+                    original_view = view.read_bytes()
+                    view.write_bytes(original_view + b"edited")
+                    self.assertIn("preview is stale", " ".join(check()))
+                    view.unlink()
+                    self.assertTrue(check())  # Tracked-file inventory also rejects removal.
+                    view.write_bytes(original_view)
+                    self.assertEqual([], check())
                 upstream = candidate / "docs/product/PRD.md"
                 original = upstream.read_bytes()
                 upstream.write_bytes(original + b"\ndrift")

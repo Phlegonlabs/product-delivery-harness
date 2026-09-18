@@ -7,6 +7,8 @@
 - `docs/design/ui-references/<run-id>/index.html` and its manifest-listed sibling HTML pages: the approved connected HiFi design-reference package when retention is authorized.
 - `docs/design/design-system.md` and `docs/design/design-system.json`: present together only when the Design System Need Gate is `required`.
 
+The wireframe includes a reviewer-only Design System Draft view, backed by the actual prototype CSS and rendered specimens. It adds no product surface, route, copy approval or separate owner gate. These provisional values never replace the formal pair. After formal compilation, `docs/design/design-system-preview.html` is a derived view checked against that pair and its current sources, not a third editable authority. Preserve the approved wireframe when generating it; see the compiler's output contract.
+
 Legacy `docs/product/wireframes.html` and `docs/product/design-system.*` remain readable. New or revised artifacts publish under `docs/design/`; do not move an existing legacy artifact without exact owner authorization.
 
 ## Human Review Presentation

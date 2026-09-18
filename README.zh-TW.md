@@ -90,6 +90,8 @@
 
 Wireframe 預設使用中性灰階，審核標註可另行開啟。先做好常用任務與高密度或替代狀態，再展開全套頁面。W5 依實際截圖檢查任務與文字層次、留白、內容形態、密度、平台重排及審核資訊分離，獨立最低分為 80。區域可選導航、編輯式內容、列表、表單或表格呈現，不改產品文案，也不代選正式技術棧。
 
+Wireframe 以中保真為目標：實際文案、清楚排版、合理範例資料，並透過產品控制項驗證已定義的主要流程。唯讀欄位不能證明輸入或恢復流程。審閱用 Design System Draft 頁展示共用原型數值及實際 renderer 元件，不新增產品路由或批准關卡。Visual Approval 後，compiler 從通過驗證的 Markdown／JSON pair 產生 `design-system-preview.html`；檢查器拒絕過期或被手改的展示頁及過期來源。Pair 保持權威，已批准 wireframe 維持原樣。元件外觀以批准的 HiFi 為準，不從 registry 名稱猜測。
+
 ```mermaid
 flowchart LR
   Idea["產品構想或變更需求"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]

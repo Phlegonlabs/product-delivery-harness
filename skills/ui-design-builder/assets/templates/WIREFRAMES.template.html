@@ -24,6 +24,35 @@
       --radius: 14px;
       --radius-small: 9px;
       --shadow: 0 18px 48px rgb(23 23 23 / 10%);
+      /* Prototype values only. The reviewer chrome has its own variables above. */
+      --wf-ink: #1a1a1a;
+      --wf-support: #4f4f4f;
+      --wf-muted: #6d6d6d;
+      --wf-surface: #ffffff;
+      --wf-line: #dadada;
+      --wf-control-line: #262626;
+      --wf-hover: #f0f0f0;
+      --wf-primary-hover: #333333;
+      --wf-table-head: #f5f5f5;
+      --wf-body: 14px;
+      --wf-section: 22px;
+      --wf-item: 17px;
+      --wf-label: 12px;
+      --wf-display: clamp(20px, 2.2vw, 32px);
+      --wf-editorial: clamp(28px, 5cqi, 48px);
+      --wf-content-title: 26px;
+      --wf-body-leading: 1.65;
+      --wf-heading-leading: 1.2;
+      --wf-heading-weight: 720;
+      --wf-small-gap: 8px;
+      --wf-content-gap: 16px;
+      --wf-column-gap: 24px;
+      --wf-row-gap: 28px;
+      --wf-control-height: 44px;
+      --wf-button-padding: 8px 12px;
+      --wf-field-padding: 10px 12px;
+      --wf-button-radius: 9px;
+      --wf-field-radius: 5px;
     }
 
     * { box-sizing: border-box; }
@@ -221,9 +250,9 @@
     .wireframe {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
-      gap: 28px 24px;
+      gap: var(--wf-row-gap) var(--wf-column-gap);
       min-height: 0;
-      padding: 24px;
+      padding: var(--wf-column-gap);
       container-type: inline-size;
       border: 1px solid #c4c4c4;
       border-radius: var(--radius);
@@ -269,7 +298,8 @@
     .product-copy {
       display: grid;
       align-content: start;
-      gap: 16px;
+      gap: var(--wf-content-gap);
+      font-size: var(--wf-body);
       padding-top: 0;
     }
 
@@ -277,7 +307,7 @@
       display: block;
       margin: 0;
       max-width: 68ch;
-      color: var(--ink);
+      color: var(--wf-ink);
     }
 
     .copy-item[data-copy-kind="dynamic"] {
@@ -288,34 +318,34 @@
 
     .copy-item[data-copy-category="display"] {
       max-width: 22ch;
-      font-size: clamp(20px, 2.2vw, 32px);
-      font-weight: 720;
+      font-size: var(--wf-display);
+      font-weight: var(--wf-heading-weight);
       line-height: 1.12;
       letter-spacing: -0.035em;
     }
 
     .copy-item[data-copy-category="section-heading"] {
       max-width: 30ch;
-      font-size: 22px;
-      font-weight: 720;
-      line-height: 1.2;
+      font-size: var(--wf-section);
+      font-weight: var(--wf-heading-weight);
+      line-height: var(--wf-heading-leading);
       letter-spacing: -0.025em;
     }
 
     .copy-item[data-copy-category="item-heading"] {
       max-width: 36ch;
-      font-size: 17px;
+      font-size: var(--wf-item);
       font-weight: 700;
       line-height: 1.25;
     }
 
     .copy-item[data-copy-role*="body"],
-    .copy-item[data-copy-role*="support"] { color: #4f4f4f; line-height: 1.65; }
+    .copy-item[data-copy-role*="support"] { color: var(--wf-support); line-height: var(--wf-body-leading); }
 
     .copy-item[data-copy-role*="label"],
     .copy-item[data-copy-role*="eyebrow"] {
-      color: var(--muted);
-      font-size: 12px;
+      color: var(--wf-muted);
+      font-size: var(--wf-label);
       font-weight: 700;
     }
 
@@ -433,18 +463,19 @@
     }
 
     .action-button {
-      min-height: 44px;
-      padding: 8px 12px;
-      border: 1px solid #262626;
-      border-radius: var(--radius-small);
-      background: #ffffff;
-      color: var(--ink);
+      font-size: var(--wf-body);
+      min-height: var(--wf-control-height);
+      padding: var(--wf-button-padding);
+      border: 1px solid var(--wf-control-line);
+      border-radius: var(--wf-button-radius);
+      background: var(--wf-surface);
+      color: var(--wf-ink);
       cursor: pointer;
     }
 
-    .action-button:hover { background: var(--panel-subtle); }
-    .action-button[data-emphasis="primary"] { background: var(--ink); color: #fff; }
-    .action-button[data-emphasis="primary"]:hover { background: #333; }
+    .action-button:hover { background: var(--wf-hover); }
+    .action-button[data-emphasis="primary"] { background: var(--wf-ink); color: var(--wf-surface); }
+    .action-button[data-emphasis="primary"]:hover { background: var(--wf-primary-hover); }
 
     .action-feedback {
       min-height: 1.5em;
@@ -659,22 +690,34 @@
     .region[data-presentation="navigation"] .action-list { margin-left: auto; }
     .region[data-presentation="navigation"] .copy-item[data-copy-role="brand"] { font-size: 20px; font-weight: 700; }
     .region[data-presentation="editorial"] { padding-block: 28px; }
-    .region[data-presentation="editorial"] .copy-item[data-copy-category="display"] { font-size: clamp(28px, 5cqi, 48px); max-width: 22ch; line-height: 1.15; }
-    .region[data-presentation="content"] .copy-item[data-copy-category="display"] { font-size: 26px; }
+    .region[data-presentation="editorial"] .copy-item[data-copy-category="display"] { font-size: var(--wf-editorial); max-width: 22ch; line-height: 1.15; }
+    .region[data-presentation="content"] .copy-item[data-copy-category="display"] { font-size: var(--wf-content-title); }
     .content-list { list-style: none; margin: 0; padding: 0; }
-    .content-list li { padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .content-list li { padding: var(--wf-content-gap) 0; border-bottom: 1px solid var(--wf-line); }
     .content-table { border-collapse: collapse; table-layout: fixed; width: 100%; text-align: left; }
-    .content-table th, .content-table td { padding: 14px 10px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-    .content-table th { font-weight: 600; background: #f5f5f5; }
-    .content-table .copy-item { font-size: 14px; }
-    .form-field { display: grid; gap: 8px; max-width: 40rem; }
-    .field-input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line-strong); border-radius: 5px; padding: 10px 12px; font: inherit; color: var(--ink); background: #fff; }
+    .content-table th, .content-table td { padding: 14px 10px; border-bottom: 1px solid var(--wf-line); vertical-align: top; overflow-wrap: anywhere; }
+    .content-table th { font-weight: 600; background: var(--wf-table-head); }
+    .content-table .copy-item { font-size: var(--wf-body); }
+    .form-field { display: grid; gap: var(--wf-small-gap); max-width: 40rem; }
+    .field-input { width: 100%; min-width: 0; min-height: var(--wf-control-height); border: 1px solid var(--wf-control-line); border-radius: var(--wf-field-radius); padding: var(--wf-field-padding); font: inherit; color: var(--wf-ink); background: var(--wf-surface); }
     .form-field .copy-item[data-copy-role="field label"] { font-size: 14px; color: var(--ink); font-weight: 600; }
     .field-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
     body[data-annotations="true"] .region-head { display: flex; flex-wrap: wrap; margin-bottom: 16px; }
     body[data-annotations="true"] .region { outline: 1px dashed var(--line-strong); outline-offset: 5px; }
     body[data-annotations="true"] .metadata { display: grid; }
     body[data-annotations="true"] .flow-panel { display: block; }
+    .system-page { max-width: 960px; margin: auto; overflow-wrap: anywhere; }
+    .toolbar-cluster[hidden] { display: none; }
+    .system-page section { padding-block: 24px; border-top: 1px solid var(--line); }
+    .system-page h1 { font-size: 32px; margin: 0 0 12px; }
+    .system-page h2 { font-size: 22px; margin: 0 0 16px; }
+    .system-page p { max-width: 68ch; }
+    .token-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .token-row code { display: block; overflow-wrap: anywhere; }
+    .token-swatch { display: inline-block; width: 32px; height: 20px; margin-right: 8px; border: 1px solid var(--line-strong); vertical-align: middle; }
+    .system-specimen { padding: 20px 0; container-type: inline-size; }
+    .system-specimen pre { white-space: pre-wrap; font-size: 12px; }
+    @media (max-width: 600px) { .token-row { grid-template-columns: 1fr; } }
     @container (max-width: 480px) {
       .region[data-presentation="navigation"] .product-copy { gap: 12px; }
       .region[data-presentation="navigation"] .action-list { margin-left: 0; flex-basis: 100%; }
@@ -1152,6 +1195,7 @@
       const renderNavigation = () => {
         pageList.replaceChildren();
         pageList.append(makePageButton("overview", "All pages", `${data.screens.length} surfaces`));
+        pageList.append(makePageButton("design-system", "Design System", "Wireframe draft"));
         data.screens.forEach((screen) => {
           pageList.append(makePageButton(screen.id, `${screen.id} · ${screen.name}`, screen.route));
         });
@@ -1891,13 +1935,100 @@
         if (flows) content.append(flows);
       };
 
+      const renderDesignSystem = () => {
+        content.replaceChildren();
+        const page = element("article", "system-page");
+        page.id = "draft-design-system";
+        page.append(element("h1", "", "Design System · Wireframe Draft"),
+          element("p", "", "Prototype values and specimens. These are not approved brand tokens or native rendering evidence. Product copy and approvals remain on the product pages."));
+        const tokens = [
+          ["ink", "Primary text and action"], ["support", "Supporting text"],
+          ["muted", "Labels"], ["surface", "Control surface"], ["line", "Content dividers"],
+          ["control-line", "Control boundary"], ["hover", "Secondary hover"],
+          ["primary-hover", "Primary hover"], ["table-head", "Table header"],
+          ["body", "Body and table text"], ["section", "Section heading"],
+          ["item", "Item heading"], ["label", "Label text"],
+          ["display", "Page heading"], ["editorial", "Editorial heading"],
+          ["content-title", "Content heading"], ["body-leading", "Body line height"],
+          ["heading-leading", "Section line height"], ["heading-weight", "Heading weight"],
+          ["small-gap", "Field label gap"], ["content-gap", "Content spacing"],
+          ["column-gap", "Canvas inset and column gap"], ["row-gap", "Canvas row gap"],
+          ["control-height", "Minimum control height"], ["button-padding", "Button inset"],
+          ["field-padding", "Field inset"], ["button-radius", "Button corners"],
+          ["field-radius", "Field corners"]
+        ];
+        const values = element("section");
+        values.append(element("h2", "", "Current prototype values"));
+        const styles = getComputedStyle(document.documentElement);
+        tokens.forEach(([name, usage]) => {
+          const row = element("div", "token-row");
+          const value = styles.getPropertyValue(`--wf-${name}`).trim();
+          const label = element("div", "", usage);
+          if (/^#[0-9a-f]{6}$/i.test(value)) {
+            const swatch = element("span", "token-swatch");
+            swatch.style.backgroundColor = value;
+            swatch.setAttribute("aria-hidden", "true");
+            label.append(swatch);
+          }
+          row.append(label, element("code", "", `--wf-${name}: ${value}`));
+          values.append(row);
+        });
+        page.append(values);
+        const specimens = element("section");
+        specimens.append(element("h2", "", "Type and content specimens"),
+          element("p", "", "These reviewer examples use the same renderers and classes as the canvas. The measurement section reads rendered values, including inherited font and responsive sizes."));
+        const item = (role, text) => ({kind: "static", role, text});
+        [
+          ["content", [item("heading", "A clear page title"), item("section heading", "Section heading"), item("item heading", "Item heading"), item("body", "Body text explains the next step."), item("support label", "Supporting label")]],
+          ["editorial", [item("heading", "Space for the main idea")]],
+          ["form", [item("field label", "Example field"), item("field value", "Read-only structural sample")]],
+          ["list", [item("list item", "First item"), item("list item", "Second item")]],
+          ["table", [item("table header", "Item"), item("table header", "Status"), item("table cell", "Example"), item("table cell", "Ready")]]
+        ].forEach(([presentation, elements]) => {
+          const sample = element("div", "system-specimen product-copy");
+          sample.dataset.presentation = presentation;
+          // Region class shares product selectors without adding a product surface.
+          sample.className += " region";
+          renderRegionContent(sample, {presentation, elements});
+          specimens.append(sample);
+        });
+        page.append(specimens);
+        const controls = element("section");
+        controls.append(element("h2", "", "Buttons"), element("p", "", "Primary emphasizes the main task; secondary supports it. Focus and hover can be inspected here. These specimen buttons only report their own selection."));
+        const feedback = element("p", "", "Select a specimen to inspect feedback.");
+        feedback.setAttribute("role", "status");
+        const buttons = element("div", "action-list");
+        ["primary", "secondary"].forEach((emphasis) => {
+          const button = element("button", "action-button", `${emphasis} example`);
+          button.type = "button";
+          button.dataset.emphasis = emphasis;
+          button.addEventListener("click", () => { feedback.textContent = `${emphasis} specimen selected.`; });
+          buttons.append(button);
+        });
+        controls.append(buttons, feedback);
+        page.append(controls);
+        content.append(page);
+        const measurements = element("section");
+        measurements.append(element("h2", "", "Rendered specimen measurements"));
+        page.querySelectorAll(".copy-item, .field-input, .action-button").forEach((node) => {
+          const actual = getComputedStyle(node);
+          const record = element("pre", "", `${node.textContent || node.value}\nfont: ${actual.fontFamily}; size: ${actual.fontSize}; weight: ${actual.fontWeight}; line-height: ${actual.lineHeight}; padding: ${actual.padding}; min-height: ${actual.minHeight}; radius: ${actual.borderRadius}`);
+          measurements.append(record);
+        });
+        page.append(measurements);
+      };
+
       const render = () => {
-        if (state.page !== "overview" && !currentScreen()) state.page = "overview";
+        if (!["overview", "design-system"].includes(state.page) && !currentScreen()) state.page = "overview";
         renderNavigation();
         renderResponsiveControls();
         const screen = currentScreen();
         renderStateControls(screen);
-        if (screen) renderScreen(screen); else renderOverview();
+        responsiveControls.parentElement.hidden = state.page === "design-system";
+        stateControls.parentElement.hidden = state.page === "design-system";
+        annotationToggle.disabled = state.page === "design-system";
+        if (state.page === "design-system") renderDesignSystem();
+        else if (screen) renderScreen(screen); else renderOverview();
       };
 
       annotationToggle.addEventListener("click", () => {
@@ -1940,6 +2071,7 @@
       window.addEventListener("resize", () => {
         const screen = currentScreen();
         if (screen) renderScreen(screen);
+        else if (state.page === "design-system") renderDesignSystem();
       });
 
       render();

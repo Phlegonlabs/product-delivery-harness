@@ -17,4 +17,6 @@ Generated Markdown writes preserve CAS bytes, file mode, and fsync durability. C
 
 UI references remain owned by `ui-design-builder`; Design System Compiler never republishes them. Product Definition artifacts remain under `docs/product/` and are never moved into design staging.
 
+The derived `docs/design/design-system-preview.html` follows the pair's authorized staging, publication and archive scope. Run `render_design_system_preview.py --check` before and after its transfer. The UI publication check with `--design-system-required` also requires the exact derived bytes. A missing or stale preview blocks completion for a new or revised pair. Preserve prior previews when superseding them under the same explicit archive rules. Never change approved wireframe bytes to display formal tokens.
+
 Use the UI builder’s publication-checkout workflow in `../../ui-design-builder/references/artifact-lifecycle.md`: final logical paths inside an exact-source Git checkout, upstream byte comparison before publication, and exact-byte verification after publication. A `.ui-staging` draft is not an approval identity.
