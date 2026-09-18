@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.43.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.44.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -563,6 +563,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.44.0** — Wireframes en escala de grises neutra con contenido del producto por defecto y anotaciones de revisión separadas. Añade navegación, contenido editorial, tablas, listas, formularios y énfasis explícito en la acción principal. Se revisan casos representativos antes de ampliar la cobertura y W5 exige un mínimo independiente de 80. Los registros de aprobación existentes necesitan la puntuación W5 antes de volver a validarse. Cambio incompatible del paquete de skills.
 
 - **0.43.0** — Cada invocación revisa cambios en documentos vigentes y runtime. El PRD actual sigue como base de las mejoras, con enlaces históricos. Añade aceptación congelada por requisito y escenario, fixtures sintéticos aislados y evidencia separada para Web, nativo y agentes. Acota reparaciones y reemplazos sin repetir la aprobación del mismo alcance; los pendientes nunca son PASS. Limita las lecturas de contratos y sus rutas. Los nuevos flujos exigen estos controles; los RUN antiguos no se migran.
 

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.43.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.44.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -564,6 +564,8 @@ Windows CI 會在任一 Python 測試組失敗後立即停止。測試資料在�
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.44.0** — Wireframe 改用中性灰階，預設呈現產品內容，審核標註可另行開啟。加入符合任務的導航、編輯式內容、表格、列表、表單與明確的主要操作層次。先檢查代表案例再展開全套頁面，W5 構圖品質須獨立達到 80 分。既有核准記錄須補上 W5 分數才能重新驗證。破壞性 skill-bundle 變更。
 
 - **0.43.0** — 每次調用 skill 都檢查現行文件與 runtime 差異。現行 PRD 保留為 enhancement 基準，歷史版本保留參考連結。新增凍結的需求／情境驗收、隔離合成測試資料與分開的 Web／原生／agent 證據。有界修復與 module 重寫沿用原範圍批准；未解決需求不能算 PASS。限制契約讀取大小與路徑。新交付流程要求這些檢查，不遷移舊 RUN。
 
