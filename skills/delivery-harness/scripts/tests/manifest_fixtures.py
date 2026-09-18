@@ -318,7 +318,7 @@ def carry_security_requirement(
         {
             "test_id": test_id,
             "trace_ids": [prd_id],
-            "criterion": "Security control, denial, and no unauthorized write pass",
+            "criterion": "denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes)",
         }
     )
     return plan

@@ -67,7 +67,7 @@ class SecurityRequirementsJoinTests(unittest.TestCase):
             {
                 "test_id": "TEST-004",
                 "trace_ids": ["PRD-003"],
-                "criterion": "No unauthorized side effect occurs",
+                "criterion": "denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes)",
             }
         )
         self.assertEqual([], validate_plan_security_requirements(plan, contract))
@@ -174,6 +174,46 @@ class SecurityRequirementsJoinTests(unittest.TestCase):
         joined = " ".join(errors)
         self.assertIn("task M1/T02", joined, errors)
         self.assertIn("missing required security TEST-003", joined, errors)
+
+    def test_security_criterion_requires_both_observable_assertions(self) -> None:
+        for criterion in (
+            "Generic scan passes", "Trusted request creates a record",
+            "denial: rejected (observable rejection signal); no unauthorized side effects: unchanged (observable state evidence)",
+            "denial: rejected (validation error returned)",
+            "no unauthorized side effects: unchanged (run record has zero writes)",
+            "denial: accepted (request succeeds); no unauthorized side effects: unchanged (run record has zero writes)",
+            {"denial": "rejected"},
+        ):
+            with self.subTest(criterion=criterion):
+                plan = base_plan()
+                row = next(row for row in plan["missions"][0]["tasks"][0]["acceptance_matrix"] if row["test_id"] == "TEST-003")
+                row["criterion"] = criterion
+                errors = validate_plan_security_requirements(plan, security_contract())
+                self.assertIn("criterion must declare denial", " ".join(errors))
+
+    def test_strict_join_rejects_positive_only_security_criterion(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, _run = strict_authority.StrictAuthorityJoinTests._headless_fixture(root)
+            row = next(row for row in plan["missions"][0]["tasks"][0]["acceptance_matrix"] if row["test_id"] == "TEST-003")
+            row["criterion"] = "Generic scan passes"
+            self.assertIn("criterion must declare denial", " ".join(validate_frozen_contract_joins(plan, root)))
+
+    def test_frozen_join_rejects_orphan_required_security_test(self) -> None:
+        original_prd = strict_authority.valid_prd
+
+        def orphan_prd(**kwargs):
+            return original_prd(**kwargs).replace(
+                "## UI Design Handoff Status",
+                "| TEST-004 | Positive-only security happy path | security | Yes | PRD-003 | Trusted request creates a record |\n## UI Design Handoff Status",
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(strict_authority, "valid_prd", side_effect=orphan_prd):
+                plan, _run = strict_authority.StrictAuthorityJoinTests._headless_fixture(root)
+            errors = validate_frozen_contract_joins(plan, root)
+            self.assertIn("required security TEST-004 must be referenced", " ".join(errors))
 
     def test_missing_or_mismatched_trace_task_acceptance_and_verifier_fail(self) -> None:
         def remove_security_task_link(plan: dict[str, object]) -> None:

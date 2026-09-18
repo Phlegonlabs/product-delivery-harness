@@ -1192,6 +1192,26 @@ def _gate_record(text: str, label: str) -> tuple[str, str, str] | None:
     return match.group(1).casefold(), match.group(2).strip(), match.group(3).strip()
 
 
+def security_negative_evidence_valid(value: object) -> bool:
+    """Require explicit, observable denial and unchanged-state assertions."""
+
+    if not isinstance(value, str):
+        return False
+    match = re.fullmatch(
+        r"denial:\s*rejected\s*\(([^();\n]+)\);\s*"
+        r"no unauthorized side effects:\s*unchanged\s*\(([^();\n]+)\)",
+        value.strip(), re.IGNORECASE,
+    )
+    return bool(match) and all(
+        _meaningful(signal, minimum=12) and not _placeholder_cell(signal)
+        and signal.strip().casefold() not in {
+            "observable signal", "observable rejection signal",
+            "observable state evidence", "state evidence",
+        }
+        for signal in match.groups()
+    )
+
+
 def parse_security_requirements(
     prd_text: str,
 ) -> tuple[dict[str, object], list[str]]:
@@ -2645,6 +2665,62 @@ def validate_texts(
         release_contract.expected_surfaces or release_contract.targets
     )
     if not security_errors:
+        if security_status == "not_required":
+            archetype = (_section(architecture_text, "## Product Archetype") or "").strip()
+            identity_rows = _find_table(_section(prd_text, "## At a Glance") or "", ("", "")) or []
+            descriptions = [row[1] for row in identity_rows if len(row) == 2 and row[0].casefold() == "what it is"]
+            documentation_archetype = re.fullmatch(
+                r"documentation_only\s+—\s+(.+)", archetype,
+            )
+            runtime_sections_absent = all(
+                _explicit_absence_reason(_section(architecture_text, heading) or "")
+                for heading in (
+                    "## Frontend Architecture", "## Backend Architecture",
+                    "## API and Interface Contracts", "## AI and Automation Architecture",
+                    "## Data Model",
+                )
+            )
+            # A concrete document inventory proves output scope without guessing
+            # executable meaning from words in a human's description.
+            components = _find_table(
+                _section(architecture_text, "## Component Architecture") or "",
+                ARCHITECTURE_TABLE_HEADERS["## Component Architecture"],
+            ) or []
+            documentation_outputs = bool(components) and all(
+                len(row) == 5
+                and re.fullmatch(
+                    r"(?:docs/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+|README(?:\.[A-Za-z-]+)?)"
+                    r"\.(?:md|rst|txt)", row[1], re.IGNORECASE,
+                )
+                for row in components
+            )
+            documentation_workflow = all(
+                re.fullmatch(
+                    rf"{kind}\s+—\s+[^\n]{{20,}}",
+                    (_section(architecture_text, heading) or "").strip(),
+                )
+                for heading, kind in (
+                    ("## Workflow and Data Flow", "human_review"),
+                    ("## Deployment and Operations", "document_distribution"),
+                )
+            )
+            if (
+                not documentation_archetype
+                or not _meaningful(documentation_archetype.group(1), minimum=20)
+                or len(descriptions) != 1
+                or not re.match(r"(?:a\s+)?documentation-only\b", descriptions[0], re.IGNORECASE)
+                or ui_surfaces
+                or not runtime_sections_absent
+                or not documentation_outputs
+                or not documentation_workflow
+                or gate_records.get("AI and Automation Gate", ("",))[0] == "required"
+            ):
+                _add(
+                    problems, "prd",
+                    "not_required Security Requirements Gate needs a documentation-only "
+                    "product description, a documentation_only — reason Product Archetype, "
+                    "and no executable product or architecture scope",
+                )
         if security_scope == "executable" and security_status not in {
             "required",
             "blocked",
@@ -2670,6 +2746,23 @@ def validate_texts(
             )
 
     security_requirements = security_contract.get("requirements", [])
+    if not security_errors:
+        referenced_security_tests = {
+            test_id for requirement in security_requirements
+            for test_id in requirement.get("test_ids", [])
+        }
+        for test_id, test_row in test_rows_by_id.items():
+            if test_row[3].casefold() != "yes" or test_row[2].casefold() != "security":
+                continue
+            if test_id not in referenced_security_tests:
+                _add(problems, "prd", f"required security {test_id} must be referenced by a Security Requirements row")
+            if not security_negative_evidence_valid(test_row[5]):
+                _add(
+                    problems, "prd",
+                    f"{test_id} security Expected signal must declare "
+                    "denial: rejected (observable signal); no unauthorized side "
+                    "effects: unchanged (observable state evidence)",
+                )
     if not security_errors and security_status == "required":
         allowed_requirement_ids = must_ids | applicable_nfr_ids
         for requirement in security_requirements:

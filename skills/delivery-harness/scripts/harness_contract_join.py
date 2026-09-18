@@ -709,6 +709,15 @@ def validate_plan_security_requirements(
     if not isinstance(plan, dict):
         return errors
 
+    try:
+        evidence_valid = _load_product_security_attribute(
+            sibling_builder_scripts_dir(), "security_negative_evidence_valid"
+        )
+    except Exception as exc:
+        return [f"security requirements: negative-evidence validator failed safely: {exc}"]
+    if not callable(evidence_valid):
+        return ["security requirements: canonical negative-evidence validator is unavailable"]
+
     traces = plan.get("traces")
     missions = plan.get("missions")
     if not isinstance(traces, list):
@@ -855,16 +864,23 @@ def validate_plan_security_requirements(
                 )
                 continue
             for test_id in required_tests:
-                if not any(
-                    isinstance(row, dict)
+                matching_rows = [
+                    row for row in acceptance if isinstance(row, dict)
                     and row.get("test_id") == test_id
                     and prd_id in trace_ids(row.get("trace_ids"))
-                    for row in acceptance
-                ):
+                ]
+                if not matching_rows:
                     errors.append(
                         f"security requirements: planned {prd_id} task {task_label} "
                         f"is missing required security {test_id} on its acceptance row"
                     )
+                for row in matching_rows:
+                    if not evidence_valid(row.get("criterion")):
+                        errors.append(
+                            f"security requirements: {test_id} task {task_label} criterion "
+                            "must declare denial: rejected (observable signal); no unauthorized "
+                            "side effects: unchanged (observable state evidence)"
+                        )
 
     return errors
 
@@ -1412,7 +1428,15 @@ def _load_product_security_requirements_parser(sibling_scripts: Path) -> Any:
     key = sibling_scripts.resolve()
     if key in _PRODUCT_SECURITY_REQUIREMENT_PARSERS:
         return _PRODUCT_SECURITY_REQUIREMENT_PARSERS[key]
-    parser: Any = None
+    parser = _load_product_security_attribute(key, "parse_security_requirements")
+    _PRODUCT_SECURITY_REQUIREMENT_PARSERS[key] = parser
+    return parser
+
+
+def _load_product_security_attribute(sibling_scripts: Path, name: str) -> Any:
+    """Use the same canonical sibling source for parsing and evidence checks."""
+
+    key = sibling_scripts.resolve()
     checker_path = key / "check_product_package.py"
     if checker_path.is_file():
         sys.path.insert(0, str(key))
@@ -1426,9 +1450,8 @@ def _load_product_security_requirements_parser(sibling_scripts: Path) -> Any:
         loaded_path = Path(str(getattr(checker_module, "__file__", ""))).resolve()
         if loaded_path != checker_path.resolve():
             raise ImportError("Product security parser path does not match sibling source")
-        parser = getattr(checker_module, "parse_security_requirements", None)
-    _PRODUCT_SECURITY_REQUIREMENT_PARSERS[key] = parser
-    return parser
+        return getattr(checker_module, name, None)
+    return None
 
 
 def _load_ui_contract_view(sibling_scripts: Path) -> Any:

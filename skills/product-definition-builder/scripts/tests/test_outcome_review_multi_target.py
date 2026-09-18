@@ -74,7 +74,7 @@ def multi_target_outcome() -> str:
         ("Completion", "0", "90%", "observed {target}"),
         ("TEST-001", "none recorded", "Completion observed", "observed {target}"),
         ("TEST-002", "none recorded", "All runs pass", "observed {target}"),
-        ("TEST-003", "none recorded", "Denied request returns validation error and records no write", "denied with validation error and no write observed for {target}"),
+        ("TEST-003", "none recorded", "denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes)", "denied with validation error and no write observed for {target}"),
     ):
         for target in SIGNAL_TARGETS[signal]:
             target_measurement_rows.append(
@@ -109,7 +109,7 @@ def multi_target_outcome() -> str:
 | Completion | 0 | 90% | 2026-09-08 | 2026-09-09 | observed api-prod | MS-001 |
 | TEST-001 | none recorded | Completion observed | 2026-09-08 | 2026-09-09 | observed api-prod | MS-001 |
 | TEST-002 | none recorded | All runs pass | 2026-09-08 | 2026-09-09 | observed api-prod | MS-001 |
-| TEST-003 | none recorded | Denied request returns validation error and records no write | 2026-09-08 | 2026-09-09 | denied with validation error and no write observed for api-prod | MS-001 |
+| TEST-003 | none recorded | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) | 2026-09-08 | 2026-09-09 | denied with validation error and no write observed for api-prod | MS-001 |
 
 ## Target Reviews
 | Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |

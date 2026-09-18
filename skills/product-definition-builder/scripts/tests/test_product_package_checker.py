@@ -97,7 +97,7 @@ Only an exact human-approved package may become implementation authority.
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | Complete fixture | integration | Yes | PRD-001 | Completion observed |
 | TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |
-| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |
+| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |
 ## UI Design Handoff Status
 UI design: not_required — fixture is headless
 UI decision owner: n/a for headless
@@ -349,7 +349,7 @@ def documentation_only_package() -> tuple[str, str]:
     )
     prd = prd.replace(
         "| TEST-003 | Deny untrusted fixture input before any write | security | Yes "
-        "| PRD-003 | Denied request returns validation error and records no write |\n",
+        "| PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |\n",
         "",
     )
     documentation_wording = {
@@ -383,7 +383,7 @@ def documentation_only_package() -> tuple[str, str]:
         "handling, and implementation responsibilities."
     ).replace(
         "| ARCH-001 | Fixture service | Complete fixture requests | PRD-001 | Owned by team |",
-        "| ARCH-001 | Documentation package | Record product definition decisions | PRD-001 | Owned by team |",
+        "| ARCH-001 | docs/product-definition.md | Record product definition decisions | PRD-001 | Owned by team |",
     ).replace(
         "| Fixture run | id, status | belongs to owner | Test-only record |",
         "| Decision record | status, owner | belongs to package | Documentation-only record |",
@@ -394,6 +394,29 @@ def documentation_only_package() -> tuple[str, str]:
         "| ARCH-001 | Fixture execution | PRD-001 | TEST-001 |",
         "| ARCH-001 | Documentation decisions | PRD-001 | TEST-001 |",
     )
+    for heading in (
+        "Frontend Architecture", "Backend Architecture",
+        "API and Interface Contracts", "AI and Automation Architecture", "Data Model",
+    ):
+        architecture = re.sub(
+            rf"(## {re.escape(heading)}\n)[\s\S]*?(?=\n## |\Z)",
+            r"\1not_required — only human-reviewed Markdown documents are delivered.",
+            architecture,
+        )
+    architecture = re.sub(
+        r"(## Product Archetype\n)[\s\S]*?(?=\n## |\Z)",
+        r"\1documentation_only — only human-reviewed Markdown documents are delivered.",
+        architecture,
+    )
+    for heading, kind in (
+        ("Workflow and Data Flow", "human_review"),
+        ("Deployment and Operations", "document_distribution"),
+    ):
+        architecture = re.sub(
+            rf"(## {re.escape(heading)}\n)[\s\S]*?(?=\n## |\Z)",
+            rf"\1{kind} — only human-reviewed Markdown documents are delivered.",
+            architecture,
+        )
     return prd, architecture
 
 
@@ -966,7 +989,7 @@ class ProductPackageCheckerTests(unittest.TestCase):
             "| TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |\n",
             "",
         ).replace(
-            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n",
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |\n",
             "",
         )
         problems = self.validate(prd=no_tests)
@@ -1233,7 +1256,7 @@ class ProductPackageCheckerTests(unittest.TestCase):
     def test_security_validation_rejects_semantic_bypasses(self) -> None:
         test003 = (
             "| TEST-003 | Deny untrusted fixture input before any write | security | "
-            "Yes | PRD-003 | Denied request returns validation error and records no write |"
+            "Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |"
         )
         unrelated_test = valid_prd().replace(
             test003 + "\n## UI Design Handoff Status",
@@ -1333,6 +1356,72 @@ class ProductPackageCheckerTests(unittest.TestCase):
             )
         )
 
+    def test_security_expected_signal_requires_both_observable_assertions(self) -> None:
+        original = "denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes)"
+        for signal in (
+            "The trusted request succeeds and creates a record",
+            "The security check returns a result",
+            "denial: rejected (validation error returned)",
+            "no unauthorized side effects: unchanged (run record has zero writes)",
+            "not " + original,
+            original.replace("rejected", "accepted"),
+            original.replace("unchanged", "changed"),
+            original.replace("run record has zero writes", "[state evidence]"),
+            "denial: rejected (observable rejection signal); no unauthorized side effects: unchanged (observable state evidence)",
+            original + "; denial: accepted (request succeeds)",
+        ):
+            with self.subTest(signal=signal):
+                problems = self.validate(prd=valid_prd().replace(original, signal))
+                self.assertIn("TEST-003 security Expected signal must declare", "\n".join(problems))
+        self.assertEqual([], self.validate())
+
+    def test_required_security_test_cannot_be_orphaned(self) -> None:
+        prd = valid_prd().replace(
+            "## UI Design Handoff Status",
+            "| TEST-004 | Positive-only security happy path | security | Yes | PRD-003 | Trusted request creates a record |\n## UI Design Handoff Status",
+        )
+        problems = self.validate(prd=prd)
+        self.assertIn("required security TEST-004 must be referenced", "\n".join(problems))
+        self.assertIn("TEST-004 security Expected signal must declare", "\n".join(problems))
+
+    def test_documentation_exemption_requires_product_and_architecture_proof(self) -> None:
+        prd, architecture = documentation_only_package()
+        for description in (
+            "A local CLI that processes files", "An autonomous agent workflow",
+            "A static site for public readers", "A mobile client application",
+        ):
+            with self.subTest(description=description):
+                problems = self.validate(
+                    prd=prd.replace("A documentation-only product contract fixture", description),
+                    architecture=architecture,
+                )
+                self.assertIn("needs a documentation-only", "\n".join(problems))
+        problems = self.validate(prd=prd, architecture=valid_architecture())
+        self.assertIn("needs a documentation-only", "\n".join(problems))
+        for old, new in (
+            ("docs/product-definition.md | Record product definition decisions", "Executable CLI | Execute local commands against operator files"),
+            ("docs/product-definition.md", "Local binary"),
+            ("docs/product-definition.md", "scripts/process.py"),
+            ("docs/product-definition.md", "docs/../process.py"),
+            ("docs/product-definition.md", "docs/interactive.mdx"),
+        ):
+            with self.subTest(component=new):
+                mutated = architecture.replace(old, new)
+                self.assertNotEqual(architecture, mutated)
+                self.assertIn("needs a documentation-only", "\n".join(self.validate(prd=prd, architecture=mutated)))
+        for heading in ("Product Archetype", "Frontend Architecture", "Backend Architecture", "API and Interface Contracts", "AI and Automation Architecture", "Data Model", "Workflow and Data Flow", "Deployment and Operations"):
+            with self.subTest(heading=heading):
+                executable = re.sub(
+                    rf"(## {re.escape(heading)}\n)[\s\S]*?(?=\n## |\Z)",
+                    r"\1A local command executes file processing for the operator.", architecture,
+                )
+                self.assertIn("needs a documentation-only", "\n".join(self.validate(prd=prd, architecture=executable)))
+        self.assertEqual([], self.validate(prd=prd, architecture=architecture))
+        self.assertEqual([], self.validate(prd=prd, architecture=architecture.replace(
+            "Record product definition decisions",
+            "Document the command reference for a separately owned system",
+        )))
+
     def test_security_section_structure_failures(self) -> None:
         duplicate_section = """## Security Requirements
 Security Requirements Gate: required — duplicate authority must fail, decided by Owner
@@ -1395,9 +1484,9 @@ Security scope: executable
 
     def test_security_rows_require_known_required_security_tests_and_owners(self) -> None:
         optional_prd = valid_prd().replace(
-            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n"
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |\n"
             "## UI Design Handoff Status",
-            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n"
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |\n"
             "| TEST-004 | Inspect optional denial behavior | security | No | PRD-003 | Denied request returns validation error |\n"
             "## UI Design Handoff Status",
         ).replace("| TEST-003 | Owner |", "| TEST-004 | Owner |")
@@ -1406,8 +1495,8 @@ Security scope: executable
             "| PRD-001 | Complete the fixture | Must | Completion is observable |\n"
             "| PRD-004 | Add optional fixture behavior | Should | Behavior is observable |\n",
         ).replace(
-            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n",
-            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n"
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |\n",
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |\n"
             "| TEST-004 | Check optional behavior | security | Yes | PRD-004 | Optional behavior is observed |\n",
         ).replace(
             "| PRD-003 | Fixture command trust boundary | Untrusted input mutates "
@@ -2314,7 +2403,7 @@ Security scope: executable
             "| TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |\n",
             "",
         ).replace(
-            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | Denied request returns validation error and records no write |\n",
+            "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 | denial: rejected (validation error returned); no unauthorized side effects: unchanged (run record has zero writes) |\n",
             "",
         )
         self.assertTrue(
