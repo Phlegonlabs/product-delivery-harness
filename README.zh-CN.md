@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.44.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.45.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -89,6 +89,8 @@
 ## 系统如何协同
 
 Wireframe 默认使用中性灰阶，审核标注可另行开启。先做好常用任务与高密度或替代状态，再展开全套页面。W5 根据实际截图检查任务与文字层次、留白、内容形态、密度、平台重排及审核信息分离，独立最低分为 80。区域可选导航、编辑式内容、列表、表单或表格呈现，不改产品文案，也不代选正式技术栈。
+
+Wireframe 以中保真为目标：实际文案、清楚排版、合理示例数据，并通过产品控件验证已定义的主要流程。只读字段不能证明输入或恢复流程。审阅用 Design System Draft 页展示共用原型数值及实际 renderer 组件，不新增产品路由或批准关卡。Visual Approval 后，compiler 从通过验证的 Markdown／JSON pair 生成 `design-system-preview.html`；检查器拒绝过期或被手改的展示页及过期来源。Pair 保持权威，已批准 wireframe 保持原样。组件外观以批准的 HiFi 为准，不从 registry 名称猜测。
 
 ```mermaid
 flowchart LR
@@ -564,6 +566,8 @@ Windows CI 会在任意 Python 测试组失败后立即停止。测试数据在�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.45.0** — 中保真 wireframe 加入审阅用 Design System Draft 页，共用原型数值与组件示例。从通过验证的正式 pair 生成设计系统 HTML，发布时拒绝缺漏、过期或被手改的展示页。保留已批准 wireframe，正式组件外观仍以 HiFi 为准。Required pair 发布新增衍生展示页要求。破坏性 skill-bundle 变更。
 
 - **0.44.0** — Wireframe 改用中性灰阶，默认呈现产品内容，审核标注可另行开启。加入符合任务的导航、编辑式内容、表格、列表、表单与明确的主要操作层次。先检查代表案例再展开全套页面，W5 构图质量须独立达到 80 分。既有批准记录须补上 W5 分数才能重新验证。破坏性 skill-bundle 变更。
 

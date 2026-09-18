@@ -51,6 +51,23 @@ If product behavior or stack is missing, return a bounded Product Definition upd
 
 ## Final Quality Check
 
+### Derived HTML View
+
+For new or revised required pairs, provide `docs/design/design-system-preview.html` alongside the pair. It displays token names and values, safe scalar specimens, declared primitive variants, component content order, states, responsive/platform rules and source identities. The registry does not encode complete component styling: use the approved HiFi for actual component appearance and interactions, and do not fabricate button variants from token names. Native values remain platform contracts, not proof of HTML/native parity.
+
+From the target repository root, run:
+
+```text
+python "<design-system-compiler-skill-root>/scripts/render_design_system_preview.py" --repo-root <repository-root> --markdown <design-system.md> --registry <design-system.json>
+python "<design-system-compiler-skill-root>/scripts/render_design_system_preview.py" --repo-root <repository-root> --markdown <design-system.md> --registry <design-system.json> --check <design-system-preview.html>
+```
+
+The first command emits UTF-8 HTML on stdout only after filled-pair and current-source validation. Capture those exact bytes at an authorized new destination; do not redirect over an existing artifact before validation succeeds. The second command is read-only and rejects changed pair bytes, stale sources, hand-edited or missing previews. It grants no approval and does not validate visual quality. Inspect the generated view in a browser and link it with the pair in the handoff.
+
+The Markdown/JSON pair remains the authority. The HTML is reproducible, contains no scripts, remote resources or imported product CSS, and is not a product route, a HiFi manifest page or a third hand-maintained contract. It is retained as a review artifact, so do not hide it with a broad generated-HTML ignore rule. Existing pairs are not rewritten merely to add a preview. Never replace or mutate the approved wireframe Draft view with formal values.
+
+### Pair Checks
+
 - The approved `frontend-design` direction is recorded in `ui-design.md`; the compiler owns pair generation and validation.
 - `frontend-design` and Impeccable were not rerun during normal compilation; their approved consequences are read from `ui-design.md`.
 - The Style Integration record names `frontend-design`, the selected direction, and its candidate theme rules.

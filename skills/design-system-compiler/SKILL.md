@@ -61,7 +61,7 @@ Product scope, route, content, action, flow, state, responsive, architecture, or
 4. Run the UI builder's exact pair-less preflight against the PRD UI Surface Contract, `ui-design.md`, approved wireframes/4 with approved Copy Freeze, HiFi target, component foundation, styling approach, and approved Stack rows. Then verify the normal pair checker after compilation. A visual direction that needs another stack returns upstream.
 5. Read `references/design-system-guide.md` and compile only approved visual consequences with `frontend-design`. Register motion variants only for approved `functional_only` or `expressive` intents that use deterministic UI motion; `not_required` gets no decorative variant, and a blocked intent returns upstream. Generated provider assets remain media sources rather than motion variants. Every variant records reduced-motion behavior.
 6. Build a `design-system/2` pair whose JSON `sourceBindings` names the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target with their current SHA-256 values. Bind rendering model, platform, component foundation, and styling per homogeneous or hybrid surface from the approved Stack rows; do not leave executable platform fields ungrounded.
-7. Run the validation commands and final checklist, then stage and publish both files together through the existing artifact lifecycle.
+7. Run the validation commands and final checklist, then stage and publish both files together through the existing artifact lifecycle. Generate and check `docs/design/design-system-preview.html` with `scripts/render_design_system_preview.py` as described in `references/output-contract.md`. This derived view adds no approval gate or new authority; it never rewrites the approved wireframe.
 
 ## Validation
 
@@ -97,6 +97,7 @@ Also confirm:
 - Read `references/artifact-lifecycle.md` before creating staging files or publishing.
 - Use `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json` for the pair.
 - Use the three scripts under `scripts/` for deterministic pair, contrast, and type-scale validation.
+- Use `scripts/render_design_system_preview.py` to emit a derived HTML view or check its exact bytes against the current validated pair and sources.
 - When the owner asks to reopen direction, stop compilation and invoke `../ui-design-builder/SKILL.md`. Resume only after its updated `ui-design.md`, wireframe when affected, HiFi target, Impeccable review, grading, and human Visual Approval pass.
 
 ## Output Rules

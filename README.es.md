@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.44.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.45.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -89,6 +89,8 @@ Tamaño significa scope de coordinación y blast radius, no un conteo bruto de a
 ## Cómo encaja el sistema
 
 Los wireframes usan una escala de grises neutra y ocultan las anotaciones de revisión por defecto. Primero se componen una tarea frecuente y un estado denso o alternativo; después se amplía la matriz completa. W5 evalúa jerarquía, tipografía, espaciado, forma del contenido, densidad, adaptación por plataforma y separación de las notas mediante capturas inspeccionadas; exige un mínimo independiente de 80. Las regiones pueden representar navegación, contenido editorial, listas, formularios y tablas sin cambiar el texto del producto ni elegir su stack.
+
+El objetivo es un wireframe de fidelidad media: texto exacto, composición legible, datos realistas y recorridos principales probados mediante controles del producto. Los campos de solo lectura no demuestran entrada ni recuperación. La página de revisión Design System Draft muestra valores compartidos del prototipo y ejemplos del renderer; no añade rutas ni aprobaciones. Tras Visual Approval, el compilador genera `design-system-preview.html` desde el par Markdown/JSON validado. Su verificador rechaza vistas modificadas, desactualizadas o con fuentes obsoletas. El par conserva la autoridad y el wireframe aprobado no cambia. La apariencia de los componentes sigue el HiFi aprobado, sin inferirla de los nombres del registro.
 
 ```mermaid
 flowchart LR
@@ -563,6 +565,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.45.0** — Los wireframes de fidelidad media incluyen Design System Draft con valores compartidos y ejemplos del renderer. Se genera HTML del sistema formal desde el par validado y se rechazan vistas ausentes, obsoletas o editadas al publicar. Se conserva el wireframe aprobado y la apariencia de componentes sigue el HiFi. La publicación de un par obligatorio exige la vista derivada. Cambio incompatible del paquete de skills.
 
 - **0.44.0** — Wireframes en escala de grises neutra con contenido del producto por defecto y anotaciones de revisión separadas. Añade navegación, contenido editorial, tablas, listas, formularios y énfasis explícito en la acción principal. Se revisan casos representativos antes de ampliar la cobertura y W5 exige un mínimo independiente de 80. Los registros de aprobación existentes necesitan la puntuación W5 antes de volver a validarse. Cambio incompatible del paquete de skills.
 

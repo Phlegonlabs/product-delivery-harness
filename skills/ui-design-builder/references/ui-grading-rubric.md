@@ -41,6 +41,8 @@ Apply this before numeric grading. The HiFi must open as a connected local HTML 
 
 ### W5 Composition Criteria
 
+The Design System Draft view participates in existing checks: W2 covers its readable layout, W3 its navigation and working specimen controls, and W5 its agreement with actual canvas values and classes. Verify type, spacing and control specimens from rendered values, not a manually copied table. Reviewer samples add no PRD copy or product surface. W3 primary-journey evidence must use product controls; read-only fields and review-shell state switches cannot prove required input, validation or recovery behavior. An unsupported required interaction blocks readiness until the canonical renderer supports it. Keep formal brand-token approval in the later visual/compiler stages.
+
 Before expanding the complete screen set, compose one frequent task and one dense or alternate-state case from the approved scope. A single-screen product may use two states of that screen; do not invent a second task. Inspect both at the applicable wide and compact targets. This authoring checkpoint adds no approval gate and never replaces the full final matrix.
 
 Evaluate all seven criteria against the approved task, content, and platform:

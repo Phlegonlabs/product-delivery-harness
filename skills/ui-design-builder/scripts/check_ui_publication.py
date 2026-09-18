@@ -14,6 +14,10 @@ sys.path.insert(0, str(HARNESS))
 from harness_git import run_git, _path_has_reparse_or_link  # noqa: E402
 import check_product_package as product  # noqa: E402
 
+COMPILER = Path(__file__).resolve().parents[2] / "design-system-compiler" / "scripts"
+sys.path.insert(0, str(COMPILER))
+from render_design_system_preview import render_preview  # noqa: E402
+
 
 def _git(root: Path, *args: str) -> str:
     result = run_git(root, *args, encoding="utf-8", errors="strict")
@@ -74,6 +78,18 @@ def validate(source: Path, root: Path, *, hifi: Path, required: bool = False,
                                 design_system_registry_path=root / "docs/design/design-system.json" if required else None,
                                 require_filled=True, require_wireframe_approved=True,
                                 require_visual_approved=True)
+        if required:
+            # ui.validate above verifies the formal pair and its source bindings.
+            # The view is derived; it must not drift or disappear during transfer.
+            preview = root / "docs/design/design-system-preview.html"
+            expected = render_preview(
+                (root / "docs/design/design-system.json").read_bytes(),
+                (root / "docs/design/design-system.md").read_bytes(),
+            ).encode("utf-8") if not problems else None
+            if not preview.is_file():
+                problems.append("required design-system preview is missing")
+            elif expected is not None and preview.read_bytes() != expected:
+                problems.append("design-system preview is stale or modified")
         if before != inventory(source) or candidate != inventory(root) or any(
             _git(checkout, "rev-parse", "HEAD") != head for checkout in (source, root)
         ):
