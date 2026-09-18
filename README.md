@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.44.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.45.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -566,6 +566,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.45.0** — Mid-fidelity wireframes include a reviewer-only Design System Draft view with shared prototype values and live specimens. Generate formal design-system HTML from the validated pair and reject missing, stale or edited previews at publication. Preserve approved wireframe bytes and keep formal component appearance tied to HiFi. Required-pair publication now needs the derived preview. Breaking skill-bundle change.
 
 - **0.44.0** — Neutral grayscale wireframes show product content by default, with review annotations available separately. Add task-fit navigation, editorial, table, list, and form presentation plus explicit primary-action emphasis. Review representative cases before full coverage and require W5 composition quality of at least 80. Existing approval records need the new W5 score before revalidation. Breaking skill-bundle change.
 
