@@ -7,9 +7,11 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 For scripts and bindings, read `references/installed-commands.md`.
 
+Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
+
 ## Purpose
 
-Use the least ceremony that preserves safety. Keep work direct; add PLAN/RUN state, probing, workers, worktrees, and graph scheduling only when coordination requires them.
+Keep direct work simple; add PLAN/RUN orchestration only when coordination requires it.
 
 Keep upstream ownership separate:
 

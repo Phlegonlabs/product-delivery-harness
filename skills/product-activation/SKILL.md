@@ -11,6 +11,8 @@ Resolve `<product-activation-skill-root>` to the absolute directory containing t
 
 ## Purpose
 
+At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. Keep local/mock, isolated candidate, and production verification separate under `../delivery-harness/references/delivery-acceptance-contract.md`. Bind production smoke to the actual deployed build and configuration; never replay fixture creation, destructive cleanup, real payments, or synthetic messages against production under test authority. Follow `../delivery-harness/references/bounded-enhancement.md` for next-round code gaps without weakening external-action confirmation rules.
+
 Turn a delivered build into an operationally ready product. Work from the exact release identity and the product's existing contracts. Configure external systems only when the user has authorized the exact action and target, then verify the resulting state independently.
 
 This skill owns `docs/ACTIVATION.md`. It does not own product requirements, implementation, PLAN/RUN state, deployment, or the later outcome verdict.

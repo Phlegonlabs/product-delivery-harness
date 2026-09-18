@@ -11,6 +11,8 @@ Resolve `<ui-design-builder-skill-root>` to the absolute directory containing th
 
 ## Purpose
 
+At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. During accepted delivery, use `../delivery-harness/references/bounded-enhancement.md` for same-scope corrections and next-round gaps; do not repeat initial design choices for a repair that restores the frozen design. Model the PRD's synthetic personas and loading, empty, permission, expired-session, failure, and recovery states. A mockup or HTML native projection is not real-login or native E2E evidence; that belongs to Harness.
+
 Use this skill only after `product-definition-builder` has produced an owner-approved `PRD.md`, `architecture.md`, and `stack-decisions.md`. Product Definition decides what the product does and which frontend, backend, data, auth, deployment, mobile, and commercial technologies it uses. This skill decides how the approved UI is structured and expressed.
 
 For every UI-bearing product, this skill owns:

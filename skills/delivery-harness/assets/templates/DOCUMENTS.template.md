@@ -18,6 +18,9 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `docs/DEPLOYMENT.md` | `docs/` | PRD seed, implementation reconciliation, deployment check | product-definition-builder + delivery-harness + owner | name-only configuration handoff + deployment record | |
 | `docs/ACTIVATION.md` | `docs/` | create-once PRD seed, post-delivery activation | product-definition-builder seed + product-activation + owner | external action, measurement-source, and activation-readiness record | |
 | `docs/DOCUMENTS.md` | `docs/` | PRD seed, then owner | product-definition-builder + owner edits | this manifest | |
+| `document-sync.json` | `docs/` | invocation review, when retained | harness parent | byte inventory, not approval | |
+| `delivery-acceptance.json` | `docs/verification/` | new delivery before tests | harness parent | frozen TEST/scenario expectations | |
+| `delivery-results.json` | `docs/verification/` | new delivery verification | test runner + parent | exact-candidate observations and evidence links | |
 | `docs/tasks.md` | `docs/` | managed run | rendered by `render_tasks_view.py` | non-canonical view of RUN | |
 | `docs/goal/PLAN.md` | `docs/goal/` | managed run | harness parent | static plan manifest | |
 | `docs/goal/RUN.md` | `docs/goal/` | managed run | harness parent | coordination state | |
@@ -28,6 +31,9 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `docs/goal/archived/` | `docs/goal/archived/` | run closeout | harness parent | moved coordination set plus closed `ARCHIVE_RECEIPT.json` (never delete) | |
 
 Notes:
+
+- Every skill invocation checks live document and skill drift through `delivery-harness/references/document-sync-contract.md`. Keep the current PRD as the baseline, retain links to historical revisions as references, and never rewrite archived approval or execution evidence. A sync snapshot records reviewed bytes, not approval or capability.
+- Delivery acceptance uses the frozen requirement/scenario/platform matrix and evidence register from `delivery-harness/references/delivery-acceptance-contract.md`. Link its actual paths here when applicable; do not duplicate evidence rows. The direct route needs no PLAN/RUN.
 
 - The PRD family lives under `docs/product/` with its own artifact lifecycle (staging, publish, archive); run state and evidence live under `docs/goal/`; deployment, activation, this manifest, and the rendered `tasks.md` view live under `docs/`. The repository root carries only what runtimes auto-discover — `AGENTS.md` and `CLAUDE.md` — so every discoverable-by-convention file stays where tools look for it and everything else is a flow contract.
 - `PLAN.md` and `RUN.md` exist only for the managed route; small direct work creates none of the run documents.

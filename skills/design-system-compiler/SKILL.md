@@ -1,6 +1,6 @@
 ---
 name: design-system-compiler
-description: Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair. Use only after Product Definition, Stack Decision, Wireframe, Style Integration, Impeccable HiFi review, PRD-bound scoring, and Visual Approval have passed and ui-design.md records Design System Need Gate: required. It freezes tokens, primitives, product components, motion variants, responsive rules, and states; it does not choose product, stack, layout, or visual direction.
+description: "Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair. Use only after Product Definition, Stack Decision, Wireframe, Style Integration, Impeccable HiFi review, PRD-bound scoring, and Visual Approval have passed and ui-design.md records Design System Need Gate: required. It freezes tokens, primitives, product components, motion variants, responsive rules, and states; it does not choose product, stack, layout, or visual direction."
 ---
 
 `sourceBindings.uiDesign.sha256` uses the canonical UI approval digest, not the raw file hash. Run `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`; it excludes active derived pair/replacement linkage lines so linking the compiled pair does not invalidate its own input. All other source bindings use raw-file SHA-256.
@@ -12,6 +12,8 @@ description: Compile an owner-approved UI design into the frozen `docs/design/de
 Resolve `<design-system-compiler-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
 
 ## Purpose
+
+At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. Follow `../delivery-harness/references/bounded-enhancement.md` for accepted enhancement work. Compile the approved persona-dependent component states without creating accounts or changing requirements. Rechecking or rebuilding the same approved direction is technical verification, not a reason to repeat its approval; changed direction remains an upstream gap.
 
 Turn an approved UI direction into two binding reusable UI sources:
 

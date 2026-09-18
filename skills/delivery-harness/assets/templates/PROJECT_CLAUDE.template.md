@@ -4,6 +4,8 @@
 
 ## Claude Code Runtime Boundary
 
+- On each skill invocation, follow the shared document-sync and bounded-enhancement rules in `AGENTS.md`; keep runtime-specific instructions here. Preserve existing owner text when an authorized pointer correction is needed, and never copy one runtime's instructions over another's.
+
 - Treat `AGENTS.md` as the shared repository governance imported above. Keep Claude Code-only instructions in this file.
 - Use the Product Delivery Harness runtime adapter reference (Claude Code section) for Claude worker roles, model selection, native workflow orchestration, and Agent Teams behavior. Do not copy Codex or Pi launch mechanics into a Claude worker.
 

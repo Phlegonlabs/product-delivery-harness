@@ -2,6 +2,8 @@
 
 Use this reference to define task, mission, integration, and UI acceptance.
 
+For new delivery work, also apply `delivery-acceptance-contract.md` and `bounded-enhancement.md`. Freeze required TEST/scenario/platform/auth expectations before running tests, prepare only authorized isolated synthetic fixtures, and validate the evidence register before final acceptance. Managed plans declare this check as an always-run final verifier with its graph node; direct work runs it without manufacturing PLAN/RUN. Legacy frozen runs retain their original schema and evidence, never retroactive PASS.
+
 ## Verification Ladder
 
 Use the smallest reliable proof first:
@@ -91,7 +93,7 @@ Final/current-head gate:
 E2E gate:
 
 - Proves the primary user journey works through UI, API, auth/permissions, data, and error handling. When the matrix becomes materially difficult to scan or needs separate ownership, expand it into `assets/templates/E2E_VERIFICATION.template.md` and link it from `RUN.md`.
-- Blocks final PASS unless the user accepts named residual risk.
+- Blocks final PASS while a required obligation is failed, blocked, or unvalidated. A named residual risk or next-round handoff does not turn it into PASS; an explicitly changed future scope is recorded separately.
 
 ## Full-Stack E2E Matrix
 
@@ -361,6 +363,8 @@ An interrupted security reviewer does not fabricate a structured decision. `reco
 The neutral PLAN template does not guess an unknown repair mission. Its security node returns `blocked` when a validated finding needs code changes; the parent then refines PLAN with a bounded repair and re-review route before any mutation. A project that declares `fix_required` on the security node must declare that bounded route up front.
 
 ## Failure Handling
+
+Apply `bounded-enhancement.md`: reuse existing exact authority for covered repairs instead of requesting repeated approval. At the stricter repair/graph limit, report verified and incomplete scope and hand remaining failures to the next round. Finishing the session is not successful delivery closeout; keep unfinished managed state paused/reconciled and do not archive it as passed.
 
 If verification fails:
 

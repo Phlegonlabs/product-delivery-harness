@@ -31,6 +31,14 @@ These rows are intentionally unresolved in the seed. Before managed work, observ
 
 ## Core Development Principles
 
+### Bounded Enhancement And Test Evidence
+
+- At every skill invocation, apply the shared `delivery-harness/references/document-sync-contract.md`; inspect current PRD, runtime/skill identity and relevant instruction pointers before work. Preserve owner rules and immutable history.
+- Follow `delivery-harness/references/bounded-enhancement.md`: reuse the accepted scope and valid action grants for repairs, technical document synchronization, module replacement and retesting. Do not repeat approvals for unchanged decisions. Never infer external, destructive, publication or installation authority.
+- A module that fails accepted requirements may be replaced inside its write scope; preserve required interfaces, unaffected requirements, data and recoverable history. Reverify dependent behavior rather than preserving bad code through patches.
+- Use `delivery-harness/references/delivery-acceptance-contract.md` for isolated synthetic accounts, separate mock/real-auth tests and per-platform evidence. Never use production data or a test login bypass in production.
+- Bound repair attempts; retain unresolved PRD/TEST gaps for the next round. Ending a round is not a delivery PASS, a descoped requirement, or authorization to launch another task.
+
 ### Keep It Simple (KISS / YAGNI)
 
 - Only do what's asked. No unrequested features, fallbacks, or "future-proof" abstractions.

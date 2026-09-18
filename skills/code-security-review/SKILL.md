@@ -11,6 +11,8 @@ Resolve `<code-security-review-skill-root>` to the absolute directory containing
 
 ## Purpose
 
+At every invocation, apply `../delivery-harness/references/document-sync-contract.md` read-only; report drift without migrating reviewed files. Check E2E fixture provisioning, role/tenant isolation, secret handling, owned-resource cleanup, and production exclusion of mock authentication where applicable. `../delivery-harness/references/bounded-enhancement.md` permits an honest incomplete handoff, never a partial security PASS or review-side remediation.
+
 Review the completed code candidate, not the implementation process. Bind every conclusion to one exact candidate SHA and declared scope. A passing review means no validated blocking vulnerability was found in that SHA and scope, with no exclusions in the result; it is not a security certification.
 
 This skill owns repository code-security review. It does not own product requirements, implementation, deployment controls, operational hardening in external consoles, vulnerability remediation, or issue tracking.
