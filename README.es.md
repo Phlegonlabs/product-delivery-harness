@@ -88,6 +88,8 @@ Tamaño significa scope de coordinación y blast radius, no un conteo bruto de a
 
 ## Cómo encaja el sistema
 
+Los wireframes usan una escala de grises neutra y ocultan las anotaciones de revisión por defecto. Primero se componen una tarea frecuente y un estado denso o alternativo; después se amplía la matriz completa. W5 evalúa jerarquía, tipografía, espaciado, forma del contenido, densidad, adaptación por plataforma y separación de las notas mediante capturas inspeccionadas; exige un mínimo independiente de 80. Las regiones pueden representar navegación, contenido editorial, listas, formularios y tablas sin cambiar el texto del producto ni elegir su stack.
+
 ```mermaid
 flowchart LR
   Idea["Idea de producto o solicitud de cambio"] --> PRD["Candidate de Product Definition\nPRD + arquitectura + stack"]

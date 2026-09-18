@@ -25,7 +25,7 @@ Each dimension receives one integer score from `0` to `100` and a status:
 - `60–79 — advisory`: records a qualitative weakness for the human decision owner but does not trigger repair unless the evidence also proves a PRD contradiction, Technical Hard Gate failure, critical-dimension failure, or other explicit block; or
 - `0–59 — block`: a required screen, action, state, responsive behavior, readable layout, or other PRD obligation is missing or broken.
 
-The wireframe overall score is the arithmetic mean of `W1` through `W5`; it is ready for its human structural gate only when the overall score is at least `80`, every dimension is at least `60`, and it has no `block`. The design-reference overall score is the arithmetic mean of `H1` through `H9`, rounded to the nearest integer; it is ready for its human visual gate only when the overall score is at least `90`, every dimension is at least `60`, `H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility` each score at least `90`, `H5 Visual slop`, `H7 Creative distinction`, and `H9 Design consistency` each score at least `80`, and it has no `block`. Scores never average away a `block` or a critical design-reference threshold. Once those conditions pass, do not repair or regrade merely to raise a score toward 100; carry any advisory to the human gate.
+The wireframe overall score is the arithmetic mean of `W1` through `W5`; it is ready for its human structural gate only when the overall score is at least `80`, `W5` is at least `80`, every dimension is at least `60`, and it has no `block`. The design-reference overall score is the arithmetic mean of `H1` through `H9`, rounded to the nearest integer; it is ready for its human visual gate only when the overall score is at least `90`, every dimension is at least `60`, `H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility` each score at least `90`, `H5 Visual slop`, `H7 Creative distinction`, and `H9 Design consistency` each score at least `80`, and it has no `block`. Scores never average away a `block` or a critical design-reference threshold. Once those conditions pass, do not repair or regrade merely to raise a score toward 100; carry any advisory to the human gate.
 
 ## Technical Hard Gate
 
@@ -38,6 +38,24 @@ Apply this before numeric grading. The HiFi must open as a connected local HTML 
 - `W3 Interaction`: every visible region action works from the local file. It navigates to the PRD-recorded screen, opens the recorded overlay, or shows the recorded local feedback; the page switcher, all-pages overview, responsive-target control, state control, and runtime layout QA also work.
 - `W4 Responsive and state integrity`: every never-drop region stays visible with the declared order and spans, and every non-`n/a` state is selectable at every target.
 - `W5 Structural clarity and evidence`: the canvas makes product hierarchy, content density, and responsive composition legible without pretending to be final visual design; product copy is clearly separated from reviewer notes; the `WREF-*` decisions support rather than decorate the chosen structure; apply the structural items below against the PRD rather than grader taste.
+
+### W5 Composition Criteria
+
+Before expanding the complete screen set, compose one frequent task and one dense or alternate-state case from the approved scope. A single-screen product may use two states of that screen; do not invent a second task. Inspect both at the applicable wide and compact targets. This authoring checkpoint adds no approval gate and never replaces the full final matrix.
+
+Evaluate all seven criteria against the approved task, content, and platform:
+
+| Criterion | Passing evidence |
+| --- | --- |
+| Task hierarchy | The primary task and action are easy to locate; supporting content does not compete for equal emphasis. |
+| Type hierarchy | Page title, section title, body, and supporting text have distinct, readable roles without labeling every paragraph. |
+| Spacing and grouping | Related items sit together; larger gaps separate groups; alignment and line length support reading. |
+| Content form | Navigation, forms, lists, and tables look and behave like their intended structures rather than identical cards. |
+| Composition and density | Region proportions reflect task importance; no arbitrary equal boxes or empty height spacers. |
+| Platform and reflow | Compact layouts reprioritize and reflow content; platform conventions remain distinct. |
+| Review separation and neutrality | The default product canvas has no IDs, priority badges, review buttons, or inherited green tint. Annotations remain reachable separately. |
+
+Record each criterion's observation, page-target-state, and inspected screenshot path/hash in the existing grading detail. Show the representative cases with annotations off and check annotation access separately. Cite the relevant PRD/intake/reference decision for each weakness. W5 below 80 blocks readiness even when the overall score passes; merely removing color or passing geometry checks does not establish composition quality. Do not grade a preferred brand style or freeze final fonts, colors, or tokens here.
 
 ## Design-Reference HTML Scope
 

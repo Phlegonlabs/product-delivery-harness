@@ -1281,6 +1281,31 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             if not isinstance(span, int) or isinstance(span, bool) or not 1 <= span <= 12:
                 _add(problems, f"{region_path}.span", "must be an integer from 1 to 12")
             elements = region.get("elements")
+            presentation = region.get("presentation", "content")
+            if presentation not in ("content", "navigation", "editorial", "list", "form", "table"):
+                _add(problems, f"{region_path}.presentation", "must be content, navigation, editorial, list, form, or table")
+            if isinstance(elements, list):
+                roles = [item.get("role") if isinstance(item, dict) else None for item in elements]
+                if presentation == "table":
+                    headers = roles.count("table header")
+                    cells = roles.count("table cell")
+                    if not headers or not cells or cells % headers:
+                        _add(problems, region_path, "table requires headers and complete rows of table cells")
+                    start = next((index for index, role in enumerate(roles) if role in ("table header", "table cell")), len(roles))
+                    if roles[start:] != ["table header"] * headers + ["table cell"] * cells:
+                        _add(problems, region_path, "table copy must be introduction, headers, then row-major cells")
+                if presentation == "list" and "list item" not in roles:
+                    _add(problems, region_path, "list requires list item copy")
+                elif presentation == "list":
+                    start = roles.index("list item")
+                    if any(role != "list item" for role in roles[start:]):
+                        _add(problems, region_path, "list introduction must precede all list items")
+                if presentation == "form":
+                    if "field label" not in roles:
+                        _add(problems, region_path, "form requires field label copy")
+                    for index, role in enumerate(roles):
+                        if role == "field value" and (index == 0 or roles[index - 1] != "field label"):
+                            _add(problems, region_path, "field value must immediately follow its field label")
             if not isinstance(elements, list) or not elements:
                 _add(problems, f"{region_path}.elements", "must be a non-empty list")
             elif copy_contract:
@@ -1298,6 +1323,15 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     "must be a non-empty list of strings or {label, contract} objects",
                 )
             actions = region.get("actions")
+            if "primaryAction" in region and (
+                not _nonempty(region["primaryAction"])
+                or not isinstance(actions, list)
+                or sum(
+                    (action.get("label") if isinstance(action, dict) else action) == region["primaryAction"]
+                    for action in actions
+                ) != 1
+            ):
+                _add(problems, f"{region_path}.primaryAction", "must match exactly one existing action label")
             action_labels: list[str] = []
             if not isinstance(actions, list):
                 _add(problems, f"{region_path}.actions", "must be a list")

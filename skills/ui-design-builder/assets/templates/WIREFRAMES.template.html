@@ -7,23 +7,23 @@
   <style>
     :root {
       color-scheme: light;
-      --paper: #f3f5f3;
+      --paper: #f4f4f4;
       --panel: #ffffff;
-      --panel-subtle: #eef1ee;
-      --ink: #171b18;
-      --muted: #667069;
-      --line: #d6dbd7;
-      --line-strong: #9da69f;
-      --mark: #e8ece9;
-      --accent: #245b47;
-      --accent-soft: #e2eee8;
-      --focus: #245b47;
-      --success: #25643f;
-      --danger: #a53a35;
+      --panel-subtle: #f0f0f0;
+      --ink: #1a1a1a;
+      --muted: #6d6d6d;
+      --line: #dadada;
+      --line-strong: #a4a4a4;
+      --mark: #ebebeb;
+      --accent: #4e4e4e;
+      --accent-soft: #ebebeb;
+      --focus: #4e4e4e;
+      --success: #545454;
+      --danger: #505050;
       --sidebar: 18rem;
       --radius: 14px;
       --radius-small: 9px;
-      --shadow: 0 18px 48px rgb(19 28 22 / 10%);
+      --shadow: 0 18px 48px rgb(23 23 23 / 10%);
     }
 
     * { box-sizing: border-box; }
@@ -43,7 +43,7 @@
     ::selection { background: var(--accent-soft); color: var(--ink); }
 
     button:focus-visible {
-      outline: 3px solid color-mix(in srgb, var(--focus) 35%, transparent);
+      outline: 2px solid var(--focus);
       outline-offset: 2px;
     }
 
@@ -60,7 +60,7 @@
       overflow: auto;
       padding: 28px 20px;
       border-right: 1px solid var(--line);
-      background: #f9faf9;
+      background: #fafafa;
     }
 
     .eyebrow,
@@ -106,11 +106,11 @@
     .page-button:hover { border-color: var(--line); background: var(--panel-subtle); }
 
     .page-button[aria-current="page"] {
-      border-color: #c8d9d0;
+      border-color: #d5d5d5;
       background: var(--accent-soft);
     }
 
-    .page-button[aria-current="page"] span { color: #405249; }
+    .page-button[aria-current="page"] span { color: #4e4e4e; }
 
     .page-button strong,
     .page-button span { display: block; }
@@ -136,7 +136,7 @@
       min-height: 68px;
       padding: 12px 28px;
       border-bottom: 1px solid var(--line);
-      background: rgb(249 250 249 / 96%);
+      background: rgb(249 249 249 / 96%);
       backdrop-filter: blur(14px);
     }
 
@@ -160,7 +160,7 @@
     }
 
     .control {
-      min-height: 38px;
+      min-height: 44px;
       padding: 8px 12px;
       border: 1px solid var(--line);
       background: var(--panel);
@@ -174,7 +174,7 @@
     .control[aria-pressed="true"] {
       border-color: var(--accent);
       background: var(--accent);
-      color: #fff;
+      color: #ffffff;
     }
 
     .content { padding: 38px 32px 64px; }
@@ -205,27 +205,27 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--panel);
-      box-shadow: 0 8px 24px rgb(19 28 22 / 6%);
+      box-shadow: 0 8px 24px rgb(23 23 23 / 6%);
     }
 
     .canvas-shell {
       width: min(100%, 1200px);
       margin: 0 auto;
       padding: 16px;
-      border: 1px solid #cbd1cc;
-      border-radius: calc(var(--radius) + 4px);
-      background: #e3e7e4;
+      border: 1px solid #cfcfcf;
+      border-radius: 8px;
+      background: #e6e6e6;
       box-shadow: var(--shadow);
-      transition: width 160ms ease;
     }
 
     .wireframe {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
-      gap: 12px;
-      min-height: 620px;
-      padding: 14px;
-      border: 1px solid #bfc6c0;
+      gap: 28px 24px;
+      min-height: 0;
+      padding: 24px;
+      container-type: inline-size;
+      border: 1px solid #c4c4c4;
       border-radius: var(--radius);
       background: var(--panel);
     }
@@ -233,19 +233,17 @@
     .region {
       grid-column: span var(--span, 12);
       min-width: 0;
-      min-height: var(--height, 110px);
-      padding: 16px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-small);
-      background: #fbfcfb;
+      min-height: 0;
+      padding: 8px 0;
+      border: 0;
+      background: transparent;
       overflow-wrap: anywhere;
     }
 
-    .region[data-priority="primary"] { border-color: #9eaaa2; background: #fff; }
-    .region[data-priority="quiet"] { background: var(--panel-subtle); }
+    .region[data-priority="quiet"] { color: var(--muted); }
 
     .region-head {
-      display: flex;
+      display: none;
       align-items: baseline;
       justify-content: space-between;
       gap: 12px;
@@ -253,7 +251,7 @@
       border-bottom: 1px solid var(--line);
     }
 
-    .region h3 { margin: 2px 0 0; font-size: 13px; letter-spacing: -0.01em; }
+    .region-head h3 { margin: 2px 0 0; font-size: 13px; letter-spacing: -0.01em; }
 
     .priority {
       flex: 0 0 auto;
@@ -271,21 +269,20 @@
     .product-copy {
       display: grid;
       align-content: start;
-      gap: 10px;
-      padding-top: 14px;
+      gap: 16px;
+      padding-top: 0;
     }
 
     .copy-item {
+      display: block;
+      margin: 0;
       max-width: 68ch;
       color: var(--ink);
     }
 
     .copy-item[data-copy-kind="dynamic"] {
       width: fit-content;
-      padding: 7px 9px;
-      border: 1px dashed var(--line-strong);
-      border-radius: 7px;
-      background: var(--panel-subtle);
+      padding: 0;
       font-variant-numeric: tabular-nums;
     }
 
@@ -313,7 +310,7 @@
     }
 
     .copy-item[data-copy-role*="body"],
-    .copy-item[data-copy-role*="support"] { color: #48514b; line-height: 1.65; }
+    .copy-item[data-copy-role*="support"] { color: #4f4f4f; line-height: 1.65; }
 
     .copy-item[data-copy-role*="label"],
     .copy-item[data-copy-role*="eyebrow"] {
@@ -333,10 +330,10 @@
     .state-note {
       margin-top: 12px;
       padding: 10px 12px;
-      border: 1px solid #c9d8d0;
+      border: 1px solid #d4d4d4;
       border-radius: var(--radius-small);
       background: var(--accent-soft);
-      color: #254c3d;
+      color: #434343;
     }
 
     .media-placeholder {
@@ -362,8 +359,8 @@
       color: var(--muted);
     }
 
-    .layout-qa[data-layout-qa="pass"] { border-color: #a7c8b4; color: var(--success); }
-    .layout-qa[data-layout-qa="fail"] { border-color: #d5aaa7; color: var(--danger); }
+    .layout-qa[data-layout-qa="pass"] { border-color: #c0c0c0; color: var(--success); }
+    .layout-qa[data-layout-qa="fail"] { border-color: #b3b3b3; color: var(--danger); }
 
     .display-contract {
       display: grid;
@@ -436,16 +433,18 @@
     }
 
     .action-button {
-      min-height: 38px;
+      min-height: 44px;
       padding: 8px 12px;
-      border: 1px solid #222824;
+      border: 1px solid #262626;
       border-radius: var(--radius-small);
-      background: #222824;
-      color: #fff;
+      background: #ffffff;
+      color: var(--ink);
       cursor: pointer;
     }
 
-    .action-button:hover { background: #111411; }
+    .action-button:hover { background: var(--panel-subtle); }
+    .action-button[data-emphasis="primary"] { background: var(--ink); color: #fff; }
+    .action-button[data-emphasis="primary"]:hover { background: #333; }
 
     .action-feedback {
       min-height: 1.5em;
@@ -466,7 +465,7 @@
       overflow: auto;
     }
 
-    .flow-dialog::backdrop { background: rgb(32 33 31 / 45%); }
+    .flow-dialog::backdrop { background: rgb(32 32 32 / 45%); }
 
     .flow-dialog-body { padding: 20px; }
     .flow-dialog-body h2 { margin: 5px 0 8px; }
@@ -486,7 +485,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--panel);
-      box-shadow: 0 8px 22px rgb(19 28 22 / 5%);
+      box-shadow: 0 8px 22px rgb(23 23 23 / 5%);
       cursor: pointer;
     }
 
@@ -509,9 +508,9 @@
       grid-column: span var(--span, 12);
       min-height: 44px;
       padding: 5px;
-      border: 1px solid #bdc5bf;
+      border: 1px solid #c3c3c3;
       border-radius: 5px;
-      background: #fff;
+      background: #ffffff;
       color: var(--muted);
       font-size: 10px;
       overflow: hidden;
@@ -543,7 +542,7 @@
       inset: 68px 0 0;
       z-index: 9;
       border: 0;
-      background: rgb(18 24 20 / 18%);
+      background: rgb(21 21 21 / 18%);
       opacity: 0;
       pointer-events: none;
       transition: opacity 150ms ease;
@@ -561,7 +560,7 @@
       padding: 24px;
       border-left: 1px solid var(--line);
       background: var(--panel);
-      box-shadow: -18px 0 48px rgb(19 28 22 / 12%);
+      box-shadow: -18px 0 48px rgb(23 23 23 / 12%);
       overflow: auto;
       transform: translateX(100%);
       transition: transform 180ms ease;
@@ -613,7 +612,7 @@
       box-shadow: var(--shadow);
     }
 
-    .copy-dialog::backdrop { background: rgb(18 24 20 / 42%); }
+    .copy-dialog::backdrop { background: rgb(21 21 21 / 42%); }
     .copy-dialog-body { padding: 24px; }
     .copy-dialog-head { display: flex; justify-content: space-between; gap: 16px; }
     .copy-dialog h2 { margin: 0; font-size: 26px; letter-spacing: -0.035em; }
@@ -635,8 +634,8 @@
     .noscript {
       margin: 20px;
       padding: 16px;
-      border: 2px solid #8a2727;
-      background: #fff;
+      border: 2px solid #3c3c3c;
+      background: #ffffff;
     }
 
     @media (max-width: 820px) {
@@ -649,6 +648,37 @@
       .inspector { top: 0; }
       .inspector-backdrop { inset: 0; }
       .copy-record { grid-template-columns: 1fr; }
+    }
+
+
+    .metadata, .flow-panel { display: none; }
+    .screen-header { grid-template-columns: 1fr; }
+    .action-feedback:empty { display: none; }
+    .region[data-presentation="navigation"] { border-bottom: 1px solid var(--line); padding-bottom: 20px; }
+    .region[data-presentation="navigation"] .product-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+    .region[data-presentation="navigation"] .action-list { margin-left: auto; }
+    .region[data-presentation="navigation"] .copy-item[data-copy-role="brand"] { font-size: 20px; font-weight: 700; }
+    .region[data-presentation="editorial"] { padding-block: 28px; }
+    .region[data-presentation="editorial"] .copy-item[data-copy-category="display"] { font-size: clamp(28px, 5cqi, 48px); max-width: 22ch; line-height: 1.15; }
+    .region[data-presentation="content"] .copy-item[data-copy-category="display"] { font-size: 26px; }
+    .content-list { list-style: none; margin: 0; padding: 0; }
+    .content-list li { padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .content-table { border-collapse: collapse; table-layout: fixed; width: 100%; text-align: left; }
+    .content-table th, .content-table td { padding: 14px 10px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+    .content-table th { font-weight: 600; background: #f5f5f5; }
+    .content-table .copy-item { font-size: 14px; }
+    .form-field { display: grid; gap: 8px; max-width: 40rem; }
+    .field-input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line-strong); border-radius: 5px; padding: 10px 12px; font: inherit; color: var(--ink); background: #fff; }
+    .form-field .copy-item[data-copy-role="field label"] { font-size: 14px; color: var(--ink); font-weight: 600; }
+    .field-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    body[data-annotations="true"] .region-head { display: flex; flex-wrap: wrap; margin-bottom: 16px; }
+    body[data-annotations="true"] .region { outline: 1px dashed var(--line-strong); outline-offset: 5px; }
+    body[data-annotations="true"] .metadata { display: grid; }
+    body[data-annotations="true"] .flow-panel { display: block; }
+    @container (max-width: 480px) {
+      .region[data-presentation="navigation"] .product-copy { gap: 12px; }
+      .region[data-presentation="navigation"] .action-list { margin-left: 0; flex-basis: 100%; }
+      .content-table th, .content-table td { padding: 10px 6px; }
     }
 
     @media print {
@@ -682,7 +712,7 @@
         </div>
         <div class="toolbar-cluster">
           <button class="control" id="copy-inventory-button" type="button">Copy inventory</button>
-          <button class="control" id="annotation-toggle" type="button" aria-pressed="false">Review notes</button>
+          <button class="control" id="annotation-toggle" type="button" aria-pressed="false">Annotations</button>
         </div>
       </div>
       <div class="content" id="content" tabindex="-1"></div>
@@ -740,6 +770,7 @@
         "regions": [
           {
             "id": "global-header",
+            "presentation": "navigation",
             "section": "Global Header",
             "purpose": "<Orientation and primary navigation>",
             "priority": "primary",
@@ -755,6 +786,8 @@
           },
           {
             "id": "hero-content",
+            "presentation": "editorial",
+            "primaryAction": "<Exact primary CTA label>",
             "section": "Hero Section — Content",
             "purpose": "<Explain the value and next step>",
             "priority": "primary",
@@ -1198,12 +1231,80 @@
       };
 
       const renderCopyItem = (value) => {
-        const node = element("div", "copy-item", copyText(value));
+        const category = copyCategory(value);
+        const tag = {display: "h2", "section-heading": "h3", "item-heading": "h4"}[category] || "span";
+        const node = element(tag, "copy-item", copyText(value));
         const role = copyRole(value).toLowerCase();
         node.dataset.copyRole = role;
         node.dataset.copyKind = value?.kind || (value?.contract ? "dynamic" : "static");
-        node.dataset.copyCategory = copyCategory(value);
+        node.dataset.copyCategory = category;
         return node;
+      };
+
+      // Presentation uses existing copy records; it never invents product wording.
+      const renderRegionContent = (parent, region) => {
+        const kind = region.presentation || "content";
+        if (kind === "table") {
+          const table = element("table", "content-table");
+          const headers = region.elements.filter((item) => copyRole(item) === "table header");
+          const cells = region.elements.filter((item) => copyRole(item) === "table cell");
+          const head = element("thead");
+          const row = element("tr");
+          headers.forEach((item) => {
+            const cell = element("th");
+            cell.setAttribute("scope", "col");
+            cell.append(renderCopyItem(item));
+            row.append(cell);
+          });
+          head.append(row);
+          const body = element("tbody");
+          if (headers.length) {
+            for (let index = 0; index < cells.length; index += headers.length) {
+              const row = element("tr");
+              cells.slice(index, index + headers.length).forEach((item) => {
+                const cell = element("td");
+                cell.append(renderCopyItem(item));
+                row.append(cell);
+              });
+              body.append(row);
+            }
+          }
+          region.elements.filter((item) => !["table header", "table cell"].includes(copyRole(item)))
+            .forEach((item) => parent.append(renderCopyItem(item)));
+          table.append(head, body);
+          parent.append(table);
+        } else if (kind === "form") {
+          let field = null;
+          region.elements.forEach((item) => {
+            if (copyRole(item) === "field label") {
+              field = element("label", "form-field");
+              const label = renderCopyItem(item);
+              const input = element("input", "field-input");
+              input.type = "text";
+              // Read-only structural control: no invented validation or submission.
+              input.readOnly = true;
+              field.append(label, input);
+              parent.append(field);
+            } else if (copyRole(item) === "field value" && field) {
+              field.querySelector("input").value = copyText(item);
+            } else {
+              field = null;
+              parent.append(renderCopyItem(item));
+            }
+          });
+        } else if (kind === "list") {
+          const list = element("ul", "content-list");
+          region.elements.forEach((item) => {
+            if (copyRole(item) === "list item") {
+              const row = element("li");
+              row.append(renderCopyItem(item));
+              list.append(row);
+            } else parent.append(renderCopyItem(item));
+          });
+          parent.append(list);
+        } else {
+          region.elements.forEach((item) => parent.append(renderCopyItem(item)));
+        }
       };
 
       const flowTarget = (target) => {
@@ -1285,7 +1386,7 @@
         }
       };
 
-      const appendActions = (parent, screenId, actions) => {
+      const appendActions = (parent, screenId, actions, primaryAction) => {
         if (!actions?.length) return;
         const actionList = element("div", "action-list");
         const feedback = element("div", "action-feedback");
@@ -1296,6 +1397,7 @@
           const button = element("button", "action-button", label);
           button.type = "button";
           button.dataset.flowTrigger = label;
+          button.dataset.emphasis = label === primaryAction ? "primary" : "secondary";
           button.addEventListener("click", (event) => {
             event.stopPropagation();
             runFlow(flow, feedback);
@@ -1306,11 +1408,11 @@
       };
 
       const renderRegion = (screenId, region, activeState, layout, allowReview = true) => {
-        const node = element("section", "region");
+        const node = element(region.presentation === "navigation" ? "nav" : "section", "region");
         node.dataset.region = region.id;
         node.dataset.priority = region.priority || "secondary";
+        node.dataset.presentation = region.presentation || "content";
         node.style.setProperty("--span", String(layout.spans[region.id]));
-        node.style.setProperty("--height", `${region.height || 110}px`);
 
         const head = element("div", "region-head");
         const title = element("div");
@@ -1327,14 +1429,14 @@
         node.append(head);
 
         const productCopy = element("div", "product-copy");
-        region.elements.forEach((value) => productCopy.append(renderCopyItem(value)));
-        appendActions(productCopy, screenId, region.actions);
-        if (region.mediaIntent) {
+        const treatment = activeState?.treatments?.[region.id];
+        if (!treatment?.copy?.length) renderRegionContent(productCopy, region);
+        appendActions(productCopy, screenId, region.actions, region.primaryAction);
+        if (region.mediaIntent && !treatment?.copy?.length) {
           productCopy.append(
             element("div", "media-placeholder", `Deferred ${region.mediaIntent.treatment} position`)
           );
         }
-        const treatment = activeState?.treatments?.[region.id];
         if (treatment) {
           const stateNote = element("div", "state-note");
           const treatmentCopy = typeof treatment === "string" ? [] : treatment.copy || [];
@@ -1358,7 +1460,6 @@
         inspectorBackdrop.hidden = !open;
         inspector.setAttribute("aria-hidden", String(!open));
         inspector.inert = !open;
-        annotationToggle.setAttribute("aria-pressed", String(open));
         if (open) {
           inspectorClose.focus({preventScroll: true});
         } else if (wasOpen && inspectorReturnFocus?.focus) {
@@ -1588,7 +1689,7 @@
           const horizontalOverflow = canvas.scrollWidth > canvas.clientWidth + 1;
           const contentBoundaryViolations = [];
           const clippedContent = [];
-          canvas.querySelectorAll(".copy-item, .action-button").forEach((item) => {
+          canvas.querySelectorAll(".copy-item, .action-button, .field-input").forEach((item) => {
             const region = item.closest("[data-region]");
             if (!region) return;
             const itemBounds = item.getBoundingClientRect();
@@ -1608,6 +1709,7 @@
             const clipsY = ["hidden", "clip"].includes(style.overflowY);
             if (
               (clipsX && item.scrollWidth > item.clientWidth + 1) ||
+              (item.matches("input") && item.scrollWidth > item.clientWidth + 1) ||
               (clipsY && item.scrollHeight > item.clientHeight + 1)
             ) {
               clippedContent.push(
@@ -1799,9 +1901,13 @@
       };
 
       annotationToggle.addEventListener("click", () => {
-        state.selectedRegion = null;
-        renderInspector();
-        setInspectorOpen(!state.inspectorOpen);
+        const enabled = document.body.dataset.annotations !== "true";
+        document.body.dataset.annotations = String(enabled);
+        annotationToggle.setAttribute("aria-pressed", String(enabled));
+        if (!enabled) setInspectorOpen(false);
+        const screen = currentScreen();
+        if (screen) renderScreen(screen);
+        annotationToggle.focus({preventScroll: true});
       });
 
       inspectorClose.addEventListener("click", () => setInspectorOpen(false));

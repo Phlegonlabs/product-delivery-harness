@@ -74,6 +74,8 @@ UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase 
 
 Wireframe score: [0-100]
 
+W5 score: [80-100 for Wireframe Approval]
+
 Wireframe lowest dimension: [0-100]
 
 Wireframe blocks: [none / named blocks]

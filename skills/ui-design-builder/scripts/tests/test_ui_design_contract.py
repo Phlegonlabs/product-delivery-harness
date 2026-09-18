@@ -84,6 +84,7 @@ Copy approved on: 2026-09-13
 Responsive surface check: PASS — evidence=docs/evidence/wireframe-browser.json @ sha256:{EVIDENCE_HASH}
 UI grading: PASS — evidence=docs/evidence/wireframe-grading.json @ sha256:{EVIDENCE_HASH}
 Wireframe score: 90
+W5 score: 90
 Wireframe lowest dimension: 90
 Wireframe blocks: none
 Decision: {wireframe}
@@ -1341,6 +1342,15 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertIn("Wireframe score must be an integer from 80 to 100", joined)
         self.assertIn("H4 score must be an integer from 90 to 100", joined)
         self.assertIn("HiFi blocks or disputes must be none", joined)
+
+    def test_w5_cannot_be_averaged_away_or_omitted(self):
+        for value in ("79", "101", "not scored", ""):
+            with self.subTest(value=value):
+                candidate = contract().replace("W5 score: 90", f"W5 score: {value}")
+                problems = checker.validate_text(candidate, require_wireframe_approved=True)
+                self.assertIn("W5 score must be an integer from 80 to 100", "\n".join(problems))
+        candidate = contract().replace("W5 score: 90\n", "")
+        self.assertIn("W5 score", "\n".join(checker.validate_text(candidate, require_wireframe_approved=True)))
 
     def test_literal_brackets_inside_a_filled_value_are_allowed(self):
         candidate = contract().replace(

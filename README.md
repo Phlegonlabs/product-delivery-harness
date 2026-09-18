@@ -88,6 +88,8 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 ## How the system fits together
 
+Wireframes use a neutral grayscale canvas with review annotations off by default. Authors compose a frequent task and a dense or alternate state before expanding the full matrix. W5 checks task/type hierarchy, spacing, content form, density, platform reflow, and review separation against inspected screenshots; its independent minimum is 80. Optional region presentations cover navigation, editorial content, lists, forms, and tables without changing product copy or selecting a production stack.
+
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]

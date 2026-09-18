@@ -32,7 +32,7 @@ New and structurally revised files use schema `wireframes/4`; the checker keeps 
 1. an all-pages overview plus a page switcher showing each `UI-*` ID, page name, route or surface, and primary goal;
 2. controls generated from the exact PRD responsive contract: a single-platform file uses one global set of at least three ascending positive numeric `viewports` for web/extensions or at least two ordered string `sizeClasses` for native/desktop; a hybrid file omits both global keys and uses `responsiveBySurface`, with exactly one `{kind, targets, canvasWidths}` entry for every `UI-*` screen and one positive review-canvas width per target;
 3. a state selector for every required state represented by that screen;
-4. visible reviewer-only section labels such as `Global Header`, `Hero Section`, `Feature Grid`, `Primary Workspace`, `Results Table`, or `CTA`, using product-fit labels rather than a fixed catalog;
+4. annotation-mode reviewer-only section labels such as `Global Header`, `Hero Section`, `Feature Grid`, `Primary Workspace`, `Results Table`, or `CTA`, using product-fit labels rather than a fixed catalog;
 5. implementation-bound product copy rendered in the canvas, with reviewer-only purpose, priority, traces, layout rules, and source notes kept in the inspector;
 6. a copy inventory, visible structural approval status, and visible Copy Freeze status; and
 7. visible runtime layout QA for the selected page, responsive target, and state.
@@ -56,6 +56,23 @@ An optional `mediaIntent` object on a screen or region records the approved Moti
 Every PRD `UI-*` entry carries one invariant `` `responsive`: `` anchor. Its kind and values match either the HTML's single global set or that screen's exact `responsiveBySurface` entry. A hybrid entry also preserves the PRD `releaseSurface`, `surfaceClass`, and `captureMode`; one platform's targets never stand in for another's. Every screen carries a non-empty `neverDrop` list and a `responsiveLayouts` object keyed by its own targets. Each target entry declares `order`, `hidden`, `columns`, a `spans` value for every region, plus filled `reflow` and `interaction` rules. `order` contains every region exactly once. `hidden` may omit secondary material only; it cannot contain a never-drop region, and every primary region belongs to `neverDrop`. These fields make responsive behavior inspectable instead of treating a generic compact stack as proof.
 
 Inline CSS and JavaScript implement the reviewer studio, page switching, working PRD actions, local overlays and feedback, viewport switching, state switching, copy inventory, reviewer-only inspector, and printing. They are not product implementation. Keep the canvas grayscale and structural: use typography, spacing, content silhouettes, and contrast only to make hierarchy legible. Add no brand palette, decorative imagery, generated media, final animation, production component library, polished marketing treatment, or design-system token decision.
+
+## Composition Before Coverage
+
+Use the W5 composition criteria in `ui-grading-rubric.md` while authoring, before Copy Freeze. Start with a frequent task and a dense or alternate-state case at wide and compact targets; inspect their hierarchy, spacing, content form, and reflow before expanding the full surface matrix. This is an authoring checkpoint, not another human approval. Do not alter the approved product scope or wording to make a composition easier.
+
+The default canvas is a neutral grayscale interface. Keep region IDs, section labels, priority badges, review buttons, and flow notes behind the keyboard-accessible Annotations toggle. The shell keeps approval status, page/state/target controls, Copy inventory, and runtime QA available. Turning annotations on must preserve product content and flow destinations. Do not use inherited brand color, identical card wrappers, or fixed empty region heights as a substitute for hierarchy.
+
+A region may declare `presentation`: `content` (default), `navigation`, `editorial`, `list`, `form`, or `table`. These are structural treatments, not product component or stack choices. Preserve the existing copy records and sources:
+
+- `list` uses exact `list item` roles for rows; other copy precedes the list.
+- `table` uses exact `table header` roles followed by `table cell` records in row-major order. At least one header and one complete row are required. Introductory copy precedes the headers; interleaved copy is rejected rather than reordered. Preserve readable column relationships at compact targets; wide tables need a product-approved reflow design, not tiny text.
+- `form` uses exact `field label` roles and an optional immediately following `field value` record. The template displays labeled read-only text controls; this proves structural placement only. Author the PRD-required input types and interactions when these differ; read-only fields cannot prove an editable flow.
+- `navigation` groups orientation and existing actions; `editorial` provides a leading text hierarchy. Neither infers routes, action priority, or product behavior.
+
+A region may set `primaryAction` to exactly one existing action label to give that control primary emphasis. Derive it from the approved task hierarchy; array order never implies priority. Alternate-state copy replaces the baseline region content and deferred media rather than displaying stale data underneath it; existing actions retain their declared destinations.
+
+Existing files without `presentation` remain readable. New authoring must choose the content form that fits the actual task rather than leaving every region as generic content. Extend the local renderer within the approved contract when these treatments cannot express the product; never pass an inaccurate projection merely because the template can render it.
 
 ## Copy Freeze Gate
 
