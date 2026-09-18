@@ -2225,6 +2225,7 @@ def validate_text(
                 "Responsive surface check",
                 "UI grading",
                 "Wireframe score",
+                "W5 score",
                 "Wireframe lowest dimension",
                 "Wireframe blocks",
                 "Decision",
@@ -2289,6 +2290,8 @@ def validate_text(
             _pass_evidence(values.get("UI grading"), "Wireframe UI grading", problems)
             overall = _score(values.get("Wireframe score"))
             lowest = _score(values.get("Wireframe lowest dimension"))
+            if (_score(values.get("W5 score")) or 0) < 80:
+                _add(problems, "W5 score must be an integer from 80 to 100")
             if overall is None or overall < 80:
                 _add(problems, "Wireframe score must be an integer from 80 to 100")
             if lowest is None or lowest < 60:

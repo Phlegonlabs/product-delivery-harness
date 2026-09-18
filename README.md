@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.43.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.44.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -87,6 +87,8 @@ Only RUN and its declared generated tasks view are clean-checkout exceptions; ve
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
 
 ## How the system fits together
+
+Wireframes use a neutral grayscale canvas with review annotations off by default. Authors compose a frequent task and a dense or alternate state before expanding the full matrix. W5 checks task/type hierarchy, spacing, content form, density, platform reflow, and review separation against inspected screenshots; its independent minimum is 80. Optional region presentations cover navigation, editorial content, lists, forms, and tables without changing product copy or selecting a production stack.
 
 ```mermaid
 flowchart LR
@@ -562,6 +564,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.44.0** — Neutral grayscale wireframes show product content by default, with review annotations available separately. Add task-fit navigation, editorial, table, list, and form presentation plus explicit primary-action emphasis. Review representative cases before full coverage and require W5 composition quality of at least 80. Existing approval records need the new W5 score before revalidation. Breaking skill-bundle change.
 
 - **0.43.0** — Every skill invocation reviews live document and runtime drift. Preserve the current PRD as the enhancement baseline and link historical references. Add frozen requirement-to-scenario acceptance, isolated synthetic fixtures, and separate Web/native/agent evidence. Bound repair and module replacement without repeated same-scope approval; unresolved requirements never become PASS. Harden bounded contract reads. New delivery workflows require these checks; legacy RUNs are not migrated.
 
