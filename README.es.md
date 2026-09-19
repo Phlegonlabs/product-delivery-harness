@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.45.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.46.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -36,6 +36,7 @@ Cada uno de los siete skills incluidos se puede invocar por separado; el pipelin
 
 ## Garantías centrales
 
+- **Recomendaciones antes de implementar.** Cuando no hay preferencias técnicas, se propone una opción adecuada al producto y alternativas para frontend, alojamiento, backend/runtime y agentes, con compatibilidad, supuestos de coste y motivos para reconsiderar. Las mejoras comparan los casos afectados antes y después. Las referencias de plantillas y CSS requieren revisar licencia y stack, conservando las convenciones nativas. Los pedidos de hero y animación se rastrean hasta la entrega. Visual Approval exige observaciones tipadas con hashes en modo normal y reducido para cada animación; HTML solo acredita la proyección de revisión.
 - **El trabajo pequeño se queda pequeño.** Un cambio acotado usa un ciclo directo de inspección, implementación, verificación y revisión.
 - **El trabajo grande es explícito.** PLAN v6 define el typed graph; RUN v11 registra autorización, intentos y evidencia.
 - **La Product Definition se aprueba antes del diseño UI.** La evidencia research-first, los baselines aplicables, un candidate completo, las decisiones explícitas sobre recommendations y cualquier delta accepted preceden las aprobaciones finales. Una matriz cerrada de aplicabilidad deriva arquitectura y stack de cada release surface: hosted UI exige frontend, native UI exige mobile/desktop, servicios y agentes exigen backend/data/interfaces, y CLI exige toolchain explícito. Las aprobaciones de Product y Stack ligan digests canónicos, una revisión estructurada, fecha no futura y referencias exactas para cada open item aceptado. En cada gate de revisión humana, el agente envía proactivamente enlaces Markdown absolutos verificados al candidato completo actual y espera la aprobación explícita. Un producto con UI entra en `ui-design-builder` solo tras petición explícita. CLI y `other_nonpublic` comparten el área canónica `Toolchain` (`CLI/toolchain` es un alias), con layers de lenguaje, toolchain, distribución y pruebas.
@@ -566,6 +567,7 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
 
+- **0.46.0** — Recomendaciones de stack y runtime de agentes, investigación de referencias y mejoras acotadas. Las animaciones requieren intención aprobada y evidencia tipada normal/reducida de la proyección. La implementación nativa mantiene sus pruebas de plataforma. Cambio incompatible del paquete de skills.
 - **0.45.0** — Los wireframes de fidelidad media incluyen Design System Draft con valores compartidos y ejemplos del renderer. Se genera HTML del sistema formal desde el par validado y se rechazan vistas ausentes, obsoletas o editadas al publicar. Se conserva el wireframe aprobado y la apariencia de componentes sigue el HiFi. La publicación de un par obligatorio exige la vista derivada. Cambio incompatible del paquete de skills.
 
 - **0.44.0** — Wireframes en escala de grises neutra con contenido del producto por defecto y anotaciones de revisión separadas. Añade navegación, contenido editorial, tablas, listas, formularios y énfasis explícito en la acción principal. Se revisan casos representativos antes de ampliar la cobertura y W5 exige un mínimo independiente de 80. Los registros de aprobación existentes necesitan la puntuación W5 antes de volver a validarse. Cambio incompatible del paquete de skills.
