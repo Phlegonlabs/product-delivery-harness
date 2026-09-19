@@ -93,9 +93,12 @@ Follow `architecture-playbook.md`'s Native iOS Pattern and Native Android Patter
 3. Resolve native versus cross-platform, then the framework, then (for React Native) Expo versus bare, eliminating any option that cannot satisfy a hard constraint or whose current support is unverified.
 4. Build two or three coherent client bundles. Each covers target OSs, code strategy, framework/toolchain, navigation, state, local persistence, secure storage, sync, push, native modules, testing, signing/build, cost, and ownership.
 5. Recommend one bundle and present its tradeoffs plus serious alternatives under the recorded Stack Decision Mode. Do not hand the implementer an unranked shortlist.
-6. Mark accepted new choices `Approved`; retain adopted choices as `Selected` and hard constraints as `Required`. Keep unaccepted proposals `Recommended` and non-executable.
-7. Verify current Expo/React Native/Flutter and Apple/Google documentation and capture direct sources plus the check date.
-8. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+6. For each bundle, state store/developer-program and build-service cost assumptions, license/build-vs-buy and maintenance ownership, compatibility evidence or a time-boxed spike, and the revisit trigger. Keep native typography, navigation, safe areas, keyboard, gestures, accessibility, reduced motion, and haptics decisions distinct from an HTML projection.
+7. Mark accepted new choices `Approved`; retain adopted choices as `Selected` and hard constraints as `Required`. Keep unaccepted proposals `Recommended` and non-executable.
+8. Verify current Expo/React Native/Flutter and Apple/Google documentation and capture direct sources plus the check date.
+9. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+
+For a frontend or mobile enhancement, inspect the current platform baseline first. Classify its UI impact and preserve unaffected screens and stack. Hand affected UI IDs and constraints to `ui-design-builder` for same-content before/after studies. Do not author visual directions in Product Definition or use HTML screenshots as native verification; retain the representative native first-slice and final full-matrix gates.
 
 ## Required Architecture Record
 

@@ -50,6 +50,8 @@ Score or describe these inputs before selecting a stack:
 
 Do not let one factor decide by itself. A marketing route inside a large authenticated product may still justify a hybrid or separate frontend boundary.
 
+Use the proactive default for an owner with no technology preference: one coherent product-fit bundle plus one or two serious alternatives, stated in plain outcome language. The owner may approve the recommendation, change consequences or priorities, or choose another option; this is not a technical multiple-choice exam or an implicit delegation. Keep existing hard constraints as `Required`.
+
 ## Product-Fit Patterns
 
 Use these as starting hypotheses, then validate them against the decision evidence.
@@ -109,9 +111,12 @@ Platform-specific rule sets for these targets are not yet authored in this guide
 3. Choose the simplest coherent stack that covers the dominant route groups without unnecessary client JavaScript or custom infrastructure.
 4. Assemble two or three coherent stack bundles from the surviving layers. Each bundle names every applicable layer, fit, tradeoffs, ownership/maintenance cost, constraints, and revisit trigger. Do not offer disconnected framework, CSS, and component menus that could produce an incoherent combination.
 5. Recommend one bundle and explain why the serious alternatives lose here. Present the recommendation and alternatives to the owner under the recorded Stack Decision Mode: approve the recommendation, select or modify layers, or apply an explicit prior delegation.
-6. Mark accepted new choices `Approved`; preserve existing choices as `Selected` and hard constraints as `Required`. Keep an unaccepted proposal `Recommended`. Do not present advice as approved or hand `Recommended` rows to implementation.
-7. Verify current platform/framework/component/styling documentation and capture direct sources plus the check date.
-8. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+6. For each bundle, state operating-cost assumptions, license/build-vs-buy and maintenance ownership, compatibility evidence or the time-boxed spike needed, and what would make the decision change. Do not treat a build tool or package manager as a production runtime; keep production language/runtime separate from build and dependency tooling.
+7. Mark accepted new choices `Approved`; preserve existing choices as `Selected` and hard constraints as `Required`. Keep an unaccepted proposal `Recommended`. Do not present advice as approved or hand `Recommended` rows to implementation.
+8. Verify current platform/framework/component/styling documentation and capture direct sources plus the check date.
+9. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+
+For an enhancement, inspect the current UI and stack baseline before proposing anything. Classify the UI impact `none`, `style`, `structure`, or `both`, preserve unaffected pages and layers, and recommend technology changes only where the delta needs them. Hand affected UI IDs and constraints to `ui-design-builder` for same-content before/after studies; do not author visual directions in Product Definition. A tiny bug fix does not justify a redesign or reopen a healthy stack.
 
 ## Required Architecture Record
 

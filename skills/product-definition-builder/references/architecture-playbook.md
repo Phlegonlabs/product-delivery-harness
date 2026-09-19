@@ -179,6 +179,7 @@ Use for scheduled automations, event-triggered workflows, AI agents, data pipeli
 - Model and data boundary: provider/runtime, version-change policy, inputs and context sent to the model, retention/training terms, retrieval sources, and confidential-data exclusions.
 - Evaluation: representative task set, required quality and safety thresholds, prohibited outcomes, deterministic checks around model output, and regression cadence.
 - Human control: exact tools and side effects the automation may invoke, approval points, cancellation, emergency disable, fallback behavior, and who accepts residual risk.
+- Execution selection: use `agentic-runtime-selection.md` to choose a fixed workflow, single agent, or bounded multi-agent topology before naming SDKs or models. Keep durable state, tool/sandbox boundaries, retrieval, evaluation/tracing/budgets, and the model/provider as separate decisions.
 - Failure handling: partial success, retryable and non-retryable errors, dead-letter queue, alerting, resume, rollback or compensating actions.
 - Observability: run history, step-level logs, latency, success rate, cost, token or API usage, integration error rates.
 
