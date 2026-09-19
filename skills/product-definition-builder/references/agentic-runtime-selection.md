@@ -23,7 +23,7 @@ Record each applicable area separately:
 - Evaluation, tracing, and budget: golden/dangerous cases, quality target, trace/observability, rate/spend limits, and escalation on failure.
 - Model/provider: capability, latency, price, privacy/residency, fallback, and evaluation. A provider is not the execution framework.
 
-The owner may explicitly delegate implementation to the builder, but the chosen topology and controls still become architecture and stack rows. Product Definition Approval remains explicit.
+The owner may explicitly delegate final technology selection to the builder, but the chosen topology and controls still become architecture and stack rows. Product Definition Approval remains explicit. This does not authorize implementation.
 
 ## Candidate Directories, Not Automatic Vendors
 
