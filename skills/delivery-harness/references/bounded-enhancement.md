@@ -12,6 +12,8 @@ Selecting a skill alone grants no writes. Preserve every action-specific authori
 
 ## Repair Or Replace
 
+For a frontend/mobile enhancement, classify UI impact before implementation and route affected recommendations through `../../ui-design-builder/references/enhancement-recommendations.md`. Preserve current brand/stack and unaffected screens. An explicit hero or animation request remains a required UI/MM acceptance item; a placeholder or a missing effect cannot close it. Do not impose a redesign on a small repair or reopen decisions already covered by the accepted scope.
+
 Judge a module by the accepted requirements, not by the effort already invested in it. Choose a small repair when it is simpler; replace the module when its structure cannot satisfy the requirement or repeated patches obscure the invariant. A same-scope replacement needs no separate architecture approval.
 
 Before replacing it, name the failing requirement, replacement boundary, affected consumers, retained interface/data obligations, recovery point, and regression checks. Preserve unaffected requirements, compatibility required by the product contract, and existing data. Replace implementation through a reviewable diff; never treat this as permission to erase uncommitted work, user data, production resources, or Git history. Update consumers and tests together, then rerun affected integration and security checks on the new candidate.

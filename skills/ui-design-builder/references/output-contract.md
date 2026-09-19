@@ -51,8 +51,8 @@ Direction mode: [one recommended direction / three comparable directions]
 Motion direction: [not_required / functional_only / expressive] — [owner or accepted recommendation]
 
 | Intent ID | UI scope / region | Treatment | Purpose | Trigger | Draft prompt | Source | Static / reduced-motion fallback | Generation route | Status | Generation status |
-| --- | --- | --- | --- | --- | --- | --- |
-| MM-001 | [UI-* / region] | [none / image / motion / image + motion] | [purpose and trigger] | [fallback] | [none / existing asset / CSS-WAAPI / GSAP / Higgsfield MCP / other owner-approved] | [approved / deferred] |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MM-001 | [UI-* / region] | [none / image / motion / image + motion] | [purpose] | [trigger] | [draft prompt] | [owner decision or source] | [fallback] | [none / existing asset / CSS-WAAPI / GSAP / native-framework / authorized provider] | [approved / deferred] | deferred |
 
 ## Wireframe Approval
 
@@ -132,6 +132,16 @@ The CSP denies remote media, forms, frames, objects, base navigation, and connec
 
 The entry contains exactly one `<script id="ui-hifi-manifest" type="application/json">` with `schema: "ui-hifi/2"` and exactly `surfaces`, `pages`, and `interactions`. Child pages contain no manifest. `pages` lists `{ "path": "details.html", "sha256": "<64 lowercase hex>" }` rows for every child; the entry is implicitly `index.html` and is hashed by the existing Approved target field. Filenames are unique ignoring case and match `[A-Za-z0-9][A-Za-z0-9_-]*.html`; no directories, URL schemes, query strings, escapes, symlinks, or reparse points. Each page embeds all non-HTML resources. Changing any child invalidates the entry's approved package identity.
 
+Inside `## Style Integration`, every `motion` or `image + motion` intent also has exactly one row in:
+
+### Required motion evidence
+
+| Intent ID | UI scope / region | Trigger observed | End state observed | Normal-motion evidence | Reduced-motion evidence | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| MM-001 | UI-001 / hero | Entry transition visible and interruptible | Data-flow overlay ends in the approved resting state | PASS — evidence=docs/evidence/motion-normal.json @ sha256:[hash] | PASS — evidence=docs/evidence/motion-reduced.json @ sha256:[hash] | PASS |
+
+The rows exactly cover motion intents, including a deferred intent that remains in scope. Both evidence cells use schema-2 human-attested receipts for the current HiFi projection. Old contracts remain inspectable without approval flags; every new Visual Approval requires these records. The frozen wireframe generation status stays deferred; completed assets and their exact authorization/output/review are recorded here instead of rewriting that history. A missing required generated asset blocks approval. Native implementation evidence remains a later obligation.
+
 Each surface has exactly `id`, `page`, `route`, `states`, `responsive`, `navigation`, and `controls`. `page` names the entry or a listed child; the other fields keep the schema-1 surface/DOM contract. Every page renders exactly its assigned product surfaces, with one container per surface across the package, and the complete surface set equals the approved scope. Navigation/control IDs bind actual interactive elements inside that surface using `data-navigation-id` or `data-control-id`; a reviewer sidebar outside product surfaces is not interaction evidence.
 
 Each interaction has exactly `id`, `source`, `control`, `kind`, and `destination`. Both endpoints are `{ "surface": "UI-001", "state": "ready" }` and must exist in the approved scope. IDs are unique. `kind: "navigate"` binds a real anchor whose `href` exactly equals the destination surface's page filename; `kind: "state"` changes to a different declared state on the same page, including feedback and overlays. Every page is reachable from index.html through product navigation. Every declared and rendered product control has an interaction. Derive these transitions from the approved PRD and wireframe actions; discrepancies return upstream, rather than inventing a new journey. Keep review-sidebar links to every page for capture setup, but verify product journeys through their own controls.
@@ -169,6 +179,16 @@ HiFi blocks or disputes: [none / named blocks or disputes]
 Each PASS evidence file is a `ui-evidence/2` human-attested JSON receipt with exactly `schema`, `check`, `result`, `reviewedArtifact`, `receipt`, `attestation`, and `owner`. `check` is platform-specific (for example `wireframe-browser`, `wireframe-browser-grading`, `wireframe-extension`, `wireframe-native`, `wireframe-desktop`, and corresponding HiFi checks); `reviewedArtifact` carries the exact current path and SHA-256; `receipt.matrix` is `{ "cases": [{"surface":"UI-*","state":"...","target":"..."}] }` derived per surface state × responsive target, `receipt.results` repeats those exact cases with `result: PASS`, and `receipt` carries a closed tool/method, a transcript/output artifact path+hash, and a past timezone-aware `executedAt`; `owner` names a human. Every `hifi-*` surface check uses method `sandboxed-offline-browser` with its platform tool. For legacy schema-1 HiFi, its retained `ui-output/1` output artifact additionally contains the exact `sandbox` object `{ "network":"disabled", "topNavigation":"blocked", "popups":"blocked", "forms":"blocked" }`, `console`, `network`, `navigation`, `popups`, and `forms` transcript arrays plus `popupAttempts` and `formAttempts` integer counts; any console error, request, navigation, popup, or form attempt fails. Legacy targets block all top navigation; schema-2 targets use the exact local-page allowlist and `ui-output/2` interaction contract above. The receipt is an attestation record, not an automatic approval—human Visual Approval remains required.
 
 Agents may validate or draft a proposed receipt but cannot set `attestation: human-attested`, select `owner`, or approve a Wireframe/Visual gate. The owner performs or confirms the check and supplies the receipt.
+
+### Typed motion transcript
+
+For each required motion intent, retain separate normal and reduced-motion `ui-evidence/2` receipts with `check: motion-preview`. These use `playwright` or `chrome-devtools` and `sandboxed-offline-browser` for every platform: the reviewed artifact is the current connected HiFi projection, never native execution. The receipt/output matrix uses the intent surface, each responsive target, and evidence-mode state `normal` or `reduced-motion`. These mode labels are not product states.
+
+The retained `ui-output/2` includes all ordinary offline transcript fields plus exactly one `motion` object with `intent`, exact `scope` (`UI-* / region`), `mode` (`normal` or `reduced`), boolean `reducedMotion`, `observations`, and `asset`. Record the actual browser preference. Each observation has exactly `target`, an approved product `state`, observed `trigger`, observed `endState`, `samples`, and boolean `fallbackObserved`. Cover each target once. Bind observations to the named region in the inspected artifact; a relabeled generic page transcript is insufficient.
+
+Each sample is `{ "atMs": 0, "values": { "opacity": "0" } }`. Use strictly increasing finite nonnegative times and the same nonempty observed property keys. Normal motion needs before/during/after samples with an actual change; reduced motion needs at least two samples and `fallbackObserved: true`. Human inspection confirms the declared trigger, region, end state and fallback. These attestations cannot be manufactured by an agent.
+
+Use `asset: null` for code-only effects. Generated or reused media requires `asset` with exactly `path`, `sha256`, concrete `authorization`, and `review: approved`; the retained file must match that hash. A pending asset does not complete an effect. All required motion intents must have status `approved` before Visual Approval; the separate wireframe `generationStatus: deferred` remains immutable. Actual iOS/Android behavior still requires platform evidence in the implementation gates.
 
 ## Visual Approval
 

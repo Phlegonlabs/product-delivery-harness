@@ -29,6 +29,8 @@ Present the complete direction set to the human owner. End the turn and wait for
 
 Before this selection, render bounded representative studies for every direction: a frequent primary task and a stress case using dense data, long content, or an approved alternate state. A one-screen product may show two content scenarios in the same approved state; do not invent a state or rewrite frozen copy. Use the same surface, state, target, scenario, and content basis across directions. Cover each in-scope platform. Compare composition, hierarchy, density, typography, and control treatment; changing only an accent color is not a distinct direction.
 
+If proactive reference research introduced a structural option, route the structural scope back through the current wireframe review before HiFi cosmetic work. Do not use an unreviewed reference study to add a route, control, state, or responsive destination.
+
 Record the studies in `### Direction comparison` under Style Integration using the output contract's table, with inspected screenshot paths/hashes and a concrete rationale for each row. Keep their authorized files under `docs/design/directions/<round>/`. These studies are selection evidence, not the connected HiFi target or production UI. The owner selects from the recorded direction IDs; a mixed direction gets a new complete comparison round before selection. This uses the existing direction gate, not another approval step. Screenshot hashes prove identity, not aesthetic quality or honest inspection.
 
 ## Frontend Design Style Integration
@@ -67,6 +69,8 @@ Consume the approved Motion and Media Intent rows without re-asking them. Use `m
 After direction selection, an installed Higgsfield MCP or another owner-approved generation provider may create an approved generated or curated motion asset only after exact provider/action authorization. Record provider capability, prompt, output identity, usage constraints, placement, fallback, and review result. If generation is not required for visual judgment, retain the typed static placeholder and defer the call. Generated output cannot add copy, controls, states, routes, or claims.
 
 Required deterministic functional UI motion may run locally in the HiFi HTML with its normal and reduced-motion behavior. A generated video or cinematic asset has a static poster/fallback even when the generated output is present.
+
+Every `motion` or `image + motion` intent records its design-projection effect evidence under `### Required motion evidence` before Visual Approval. Intent approval and effect completion are distinct; changing its status to `deferred` cannot waive required evidence. Preserve frozen wireframe intent bytes. Native studies demonstrate the visual intent in HTML; actual native normal/reduced-motion, gesture and haptic results belong to the first implementation slice and final full matrix. The design table never proves native implementation.
 
 ## Connected HiFi Reference
 

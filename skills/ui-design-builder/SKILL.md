@@ -34,6 +34,8 @@ It does not change product scope, routes, actions, states, responsive targets, c
 
 ## Workflow
 
+For initial UI work and affected frontend/mobile enhancements, apply `references/enhancement-recommendations.md`. Reuse supplied decisions, proactively recommend task-fit reference/CSS or native treatments, and carry explicit hero/motion requests into the existing UI/MM records. Recommendations never replace the existing approvals or actual platform evidence.
+
 1. Read `references/ui-design-intake.md`. Ask only UI-design questions that the approved Product Definition did not already answer.
 2. Run the **UI Design Intake Gate**. Capture the decision owner, experience priority, guidance versus expert control, information density, preferred layout and interaction pattern, desired visual character, disliked patterns, color and typography constraints, imagery and icon preferences, validation depth, and references. Ask whether the owner wants one recommended direction or three comparable directions. End the turn and wait. Do not draft a wireframe, recommend a visual direction, or invoke a generation provider in the same turn.
 3. Run the **Motion and Media Intent Gate** from `references/motion-and-media-routing.md`. Ask whether motion is unnecessary, functional only, expressive, or delegated for a recommendation. For every marquee or media-bearing region, record exactly one treatment: `none`, `image`, `motion`, or `image + motion`, plus its purpose, trigger, static or reduced-motion fallback, and decision source. End the turn and wait when any owner decision remains open.
@@ -62,6 +64,8 @@ For a greenfield `required` pair, record the exact machine marker `Compiled desi
 - A generated image or motion asset is optional unless the approved Motion and Media Intent record makes it required. Provider failure never authorizes a substitute treatment.
 
 ## Reference Routing
+
+- Read `references/enhancement-recommendations.md` for baseline review, scoped recommendations, hero/motion completeness and Web/native before/after studies.
 
 - Read `references/ui-design-intake.md` before asking UI direction questions.
 - Read `references/motion-and-media-routing.md` for placeholder type, CSS/WAAPI, GSAP, and Higgsfield routing.
