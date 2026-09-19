@@ -86,6 +86,9 @@ def motion_findings(value: Any, expected: dict[str, Any]) -> list[str]:
                 or authorization["sha256"] != asset["sha256"]
                 or any(not isinstance(authorization[k], str) or not authorization[k].strip()
                        for k in ("owner", "provider"))
+                or (expected.get("provider") is not None and
+                    (not isinstance(authorization["provider"], str) or
+                     authorization["provider"].casefold() != expected["provider"].casefold()))
             ):
                 errors.append("media authorization must approve the provider action and exact asset")
     return errors

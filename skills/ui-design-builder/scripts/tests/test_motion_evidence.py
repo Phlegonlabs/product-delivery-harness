@@ -75,7 +75,14 @@ class MotionEvidenceTests(unittest.TestCase):
         self.assertTrue(motion_findings(self.value, self.expected))
         self.value["asset"]["authorization"] = dict(decision="approved", owner="Product owner",
             provider="Example provider", action="generate", path="docs/hero.mp4", sha256="a" * 64)
+        self.expected["provider"] = "Example provider"
         self.assertEqual(motion_findings(self.value, self.expected), [])
+        for key, value in (("decision", "pending"), ("provider", "Other provider"),
+                           ("path", "docs/other.mp4"), ("sha256", "b" * 64)):
+            with self.subTest(key=key):
+                wrong = copy.deepcopy(self.value)
+                wrong["asset"]["authorization"][key] = value
+                self.assertTrue(motion_findings(wrong, self.expected))
 
 
 if __name__ == "__main__":

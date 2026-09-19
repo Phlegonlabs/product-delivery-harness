@@ -2241,6 +2241,9 @@ def _resolve_motion_effect_evidence(
             expected_motion={
                 "intent": intent_id, "scope": intent.get("scope"), "mode": motion_case,
                 "states": surface.get("states", []), "targets": [str(t) for t in targets],
+                "provider": intent.get("generationRoute") if intent.get("generationRoute", "").casefold() not in {
+                    "css-waapi", "gsap", "native-framework", "none"
+                } else None,
                 "assetRequired": intent.get("treatment", "").casefold() == "image + motion" or intent.get("generationRoute", "").casefold() not in {
                     "css-waapi", "gsap", "native-framework", "none"
                 },
