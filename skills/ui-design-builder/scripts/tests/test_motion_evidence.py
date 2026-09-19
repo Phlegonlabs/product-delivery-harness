@@ -78,6 +78,7 @@ class MotionEvidenceTests(unittest.TestCase):
         self.expected["provider"] = "Example provider"
         self.assertEqual(motion_findings(self.value, self.expected), [])
         for key, value in (("decision", "pending"), ("provider", "Other provider"),
+                           ("provider", "authorized provider"),
                            ("path", "docs/other.mp4"), ("sha256", "b" * 64)):
             with self.subTest(key=key):
                 wrong = copy.deepcopy(self.value)

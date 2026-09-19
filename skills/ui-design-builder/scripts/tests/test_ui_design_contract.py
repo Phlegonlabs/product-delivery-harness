@@ -817,6 +817,7 @@ class UiDesignContractTests(unittest.TestCase):
             ("existing asset", "Owner asset library", "generate", False),
             ("Higgsfield", "Higgsfield", "generate", True),
             ("Higgsfield", "Other provider", "generate", False),
+            ("authorized provider", "authorized provider", "generate", False),
         ):
             with self.subTest(route=route, provider=provider, action=action), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
@@ -851,7 +852,9 @@ class UiDesignContractTests(unittest.TestCase):
                 if passes:
                     self.assertEqual(problems, [])
                 else:
-                    self.assertEqual(problems, [
+                    expected = (["ui-design: MM-001 requires a concrete generation route, not authorized provider"]
+                                if route == "authorized provider" else [])
+                    self.assertEqual(list(dict.fromkeys(problems)), expected + [
                         f"ui-design: MM-001 {mode} motion evidence: media authorization must approve the provider action and exact asset"
                         for mode in ("normal", "reduced")])
 

@@ -650,6 +650,8 @@ def _validate_motion_table(
             _add(problems, f"{intent_id} has invalid treatment {row[2]!r}")
         if require_filled and any(not _filled(cell) for cell in row):
             _add(problems, f"{intent_id} contains an empty value or placeholder")
+        if require_filled and row[8].strip().casefold() == "authorized provider":
+            _add(problems, f"{intent_id} requires a concrete generation route, not authorized provider")
         status = row[9].casefold()
         if status == "blocked" or (
             require_filled and status not in VALID_MOTION_STATUSES
