@@ -21,6 +21,7 @@ class MotionEvidenceTests(unittest.TestCase):
 
     def test_normal_and_reduced_observations(self):
         self.assertEqual(motion_findings(self.value, self.expected), [])
+
         self.expected["mode"] = self.value["mode"] = "reduced"
         self.value["reducedMotion"] = True
         row = self.value["observations"][0]
@@ -30,6 +31,15 @@ class MotionEvidenceTests(unittest.TestCase):
         self.assertEqual(motion_findings(self.value, self.expected), [])
         row["fallbackObserved"] = False
         self.assertTrue(motion_findings(self.value, self.expected))
+
+    def test_authorization_is_an_explicit_asset_bound_record(self):
+        self.expected["assetRequired"] = True
+        for authorization in ("pending owner approval", "not authorized by owner", {},
+                              {"decision": "approved"}):
+            with self.subTest(authorization=authorization):
+                self.value["asset"] = dict(path="docs/hero.mp4", sha256="a" * 64,
+                                           authorization=authorization, review="approved")
+                self.assertTrue(motion_findings(self.value, self.expected))
 
     def test_identity_and_actual_preference_cannot_be_reused(self):
         for key, value in [("intent", "MM-002"), ("scope", "UI-001 / footer"),
@@ -63,7 +73,8 @@ class MotionEvidenceTests(unittest.TestCase):
         self.value["asset"] = dict(path="docs/hero.mp4", sha256="a" * 64,
                                    authorization="pending", review="approved")
         self.assertTrue(motion_findings(self.value, self.expected))
-        self.value["asset"]["authorization"] = "Owner approved generation on 2026-09-19"
+        self.value["asset"]["authorization"] = dict(decision="approved", owner="Product owner",
+            provider="Example provider", action="generate", path="docs/hero.mp4", sha256="a" * 64)
         self.assertEqual(motion_findings(self.value, self.expected), [])
 
 

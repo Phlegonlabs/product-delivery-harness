@@ -776,8 +776,41 @@ class UiDesignContractTests(unittest.TestCase):
             )
             self.assertEqual([], problems)
 
+    def test_image_plus_code_motion_requires_retained_media(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
+            ui_path = root / "docs/design/ui-design.md"
+            ui = ui_path.read_text(encoding="utf-8")
+            old_digest = checker.canonical_ui_approval_sha256(ui)
+            old_wire_hash = hashlib.sha256(wireframe.read_bytes()).hexdigest()
+            wireframe.write_text(wireframe.read_text(encoding="utf-8").replace(
+                '"treatment": "motion"', '"treatment": "image + motion"'), encoding="utf-8")
+            new_wire_hash = hashlib.sha256(wireframe.read_bytes()).hexdigest()
+            ui = ui.replace('| MM-001 | UI-001 / hero | motion |',
+                            '| MM-001 | UI-001 / hero | image + motion |').replace(old_wire_hash, new_wire_hash)
+            for name in ("wireframe-browser.json", "wireframe-grading.json"):
+                path = root / "docs/evidence" / name
+                old_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+                receipt = json.loads(path.read_text(encoding="utf-8"))
+                output_path = root / receipt["receipt"]["outputArtifact"]["path"]
+                output_path.write_text(output_path.read_text(encoding="utf-8").replace(
+                    old_wire_hash, new_wire_hash), encoding="utf-8")
+                receipt["reviewedArtifact"]["sha256"] = new_wire_hash
+                receipt["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
+                path.write_text(json.dumps(receipt), encoding="utf-8")
+                ui = ui.replace(old_hash, hashlib.sha256(path.read_bytes()).hexdigest())
+            ui = ui.replace(old_digest, checker.canonical_ui_approval_sha256(ui))
+            ui_path.write_text(ui, encoding="utf-8")
+            problems = checker.validate(ui_path, repo_root=root, prd_path=product,
+                wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                require_wireframe_approved=True, require_visual_approved=True)
+            self.assertEqual(problems, [
+                f"ui-design: MM-001 {mode} motion evidence: generated or existing media requires a completed asset identity and review"
+                for mode in ("normal", "reduced")])
+
     def test_motion_semantics_fail_even_with_fresh_hashes(self):
-        for mutation in ("generic", "wrong-region", "static", "wrong-preference", "native-tool"):
+        for mutation in ("generic", "wrong-region", "static", "wrong-preference", "native-tool", "pending-asset", "unbound-asset"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
@@ -796,8 +829,18 @@ class UiDesignContractTests(unittest.TestCase):
                             sample["values"] = {"opacity": "1"}
                 elif mutation == "wrong-preference":
                     output["motion"]["reducedMotion"] = True
-                else:
+                elif mutation == "native-tool":
                     receipt["receipt"]["tool"] = "xcode-simulator"
+                else:
+                    asset_path = root / "docs/evidence/hero.svg"
+                    asset_path.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8")
+                    asset_hash = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+                    authorization = "pending owner approval" if mutation == "pending-asset" else {
+                        "decision": "approved", "owner": "Product owner", "provider": "Example provider",
+                        "action": "generate", "path": "docs/evidence/other.svg", "sha256": asset_hash,
+                    }
+                    output["motion"]["asset"] = {"path": "docs/evidence/hero.svg", "sha256": asset_hash,
+                                                "authorization": authorization, "review": "approved"}
                 output_path.write_text(json.dumps(output), encoding="utf-8")
                 receipt["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
                 receipt_path.write_text(json.dumps(receipt), encoding="utf-8")

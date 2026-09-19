@@ -1831,6 +1831,9 @@ def _resolve_evidence(
                                     _add(problems, f"{label}: {finding}")
                                 asset = motion.get("asset") if isinstance(motion, dict) else None
                                 if isinstance(asset, dict):
+                                    authorization = asset.get("authorization")
+                                    if isinstance(authorization, dict) and not _human_owner(authorization.get("owner") if isinstance(authorization.get("owner"), str) else None):
+                                        _add(problems, f"{label} asset authorization owner must be human")
                                     source = f"{asset.get('path', '')} @ sha256:{asset.get('sha256', '')}"
                                     if _source_syntax(source, label, problems):
                                         _resolve_source(source, repo_root=repo_root, label=label, problems=problems)
@@ -2238,7 +2241,7 @@ def _resolve_motion_effect_evidence(
             expected_motion={
                 "intent": intent_id, "scope": intent.get("scope"), "mode": motion_case,
                 "states": surface.get("states", []), "targets": [str(t) for t in targets],
-                "assetRequired": intent.get("generationRoute", "").casefold() not in {
+                "assetRequired": intent.get("treatment", "").casefold() == "image + motion" or intent.get("generationRoute", "").casefold() not in {
                     "css-waapi", "gsap", "native-framework", "none"
                 },
             },

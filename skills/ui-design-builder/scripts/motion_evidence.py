@@ -73,6 +73,19 @@ def motion_findings(value: Any, expected: dict[str, Any]) -> list[str]:
     if expected["assetRequired"] or asset is not None:
         if not isinstance(asset, dict) or set(asset) != {"path", "sha256", "authorization", "review"}:
             errors.append("generated or existing media requires a completed asset identity and review")
-        elif any(not isinstance(asset[k], str) or not asset[k].strip() for k in asset) or asset["review"] != "approved" or asset["authorization"].strip().casefold() in {"deferred", "pending", "none", "n/a"}:
-            errors.append("media asset authorization and completed review are required")
+        else:
+            if any(not isinstance(asset[k], str) or not asset[k].strip() for k in ("path", "sha256", "review")) or asset["review"] != "approved":
+                errors.append("media asset identity and completed review are required")
+            authorization = asset["authorization"]
+            if not isinstance(authorization, dict) or set(authorization) != {"decision", "owner", "provider", "action", "path", "sha256"}:
+                errors.append("media asset requires a structured approved authorization")
+            elif (
+                authorization["decision"] != "approved"
+                or authorization["action"] not in ("generate", "reuse")
+                or authorization["path"] != asset["path"]
+                or authorization["sha256"] != asset["sha256"]
+                or any(not isinstance(authorization[k], str) or not authorization[k].strip()
+                       for k in ("owner", "provider"))
+            ):
+                errors.append("media authorization must approve the provider action and exact asset")
     return errors
