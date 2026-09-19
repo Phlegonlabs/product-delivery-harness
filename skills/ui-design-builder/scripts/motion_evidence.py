@@ -82,6 +82,7 @@ def motion_findings(value: Any, expected: dict[str, Any]) -> list[str]:
             elif (
                 authorization["decision"] != "approved"
                 or authorization["action"] not in ("generate", "reuse")
+                or (expected.get("assetAction") is not None and authorization["action"] != expected["assetAction"])
                 or authorization["path"] != asset["path"]
                 or authorization["sha256"] != asset["sha256"]
                 or any(not isinstance(authorization[k], str) or not authorization[k].strip()

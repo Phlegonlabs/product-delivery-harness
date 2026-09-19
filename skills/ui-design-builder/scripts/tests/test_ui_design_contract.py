@@ -162,7 +162,7 @@ def wireframe_html(data: object) -> str:
     )
 
 
-def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False) -> tuple[Path, Path, Path, Path, Path, Path | None]:
+def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False, motion_route: str = "CSS-WAAPI") -> tuple[Path, Path, Path, Path, Path, Path | None]:
     from test_product_package_checker import valid_prd, valid_stack, ui_contract
     from test_wireframe_contract import render_html, wireframe_data
 
@@ -181,6 +181,8 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     approval_end = product_text.index("<!-- product-definition-approval:end -->") + len("<!-- product-definition-approval:end -->")
     product_text = product_text[:approval_end] + "\n" + ui_contract(copy="approved — owner-approved copy") + product_text[approval_end:]
     data = wireframe_data()
+    data = json.loads(json.dumps(data).replace('"generationRoute": "CSS-WAAPI"',
+                                             '"generationRoute": ' + json.dumps(motion_route)))
     architecture_text = __import__("test_product_package_checker").release_architecture()
     stack_text = valid_stack()
     product_text, architecture_text, stack_text = __import__(
@@ -234,7 +236,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     captures.mkdir(parents=True, exist_ok=True)
     (captures / "primary.png").write_bytes(PRIMARY_CAPTURE)
     (captures / "stress.png").write_bytes(STRESS_CAPTURE)
-    ui = contract()
+    ui = contract().replace("| CSS-WAAPI |", f"| {motion_route} |")
     replacements = {
         A_HASH: hashlib.sha256(product.read_bytes()).hexdigest(),
         B_HASH: hashlib.sha256(architecture.read_bytes()).hexdigest(),
@@ -809,6 +811,50 @@ class UiDesignContractTests(unittest.TestCase):
                 f"ui-design: MM-001 {mode} motion evidence: generated or existing media requires a completed asset identity and review"
                 for mode in ("normal", "reduced")])
 
+    def test_media_routes_accept_authorized_assets_and_reject_wrong_actions(self):
+        for route, provider, action, passes in (
+            ("existing asset", "Owner asset library", "reuse", True),
+            ("existing asset", "Owner asset library", "generate", False),
+            ("Higgsfield", "Higgsfield", "generate", True),
+            ("Higgsfield", "Other provider", "generate", False),
+        ):
+            with self.subTest(route=route, provider=provider, action=action), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                product, _, _, wireframe, hifi, _ = materialize_publication(
+                    root, required=False, motion_route=route)
+                asset_path = root / "docs/evidence/hero.svg"
+                asset_path.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8")
+                asset_hash = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+                ui_path = root / "docs/design/ui-design.md"
+                ui = ui_path.read_text(encoding="utf-8")
+                old_digest = checker.canonical_ui_approval_sha256(ui)
+                for mode in ("normal", "reduced"):
+                    receipt_path = root / f"docs/evidence/motion-{mode}.json"
+                    old_hash = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+                    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                    output_path = root / receipt["receipt"]["outputArtifact"]["path"]
+                    output = json.loads(output_path.read_text(encoding="utf-8"))
+                    output["motion"]["asset"] = {
+                        "path": "docs/evidence/hero.svg", "sha256": asset_hash, "review": "approved",
+                        "authorization": {"decision": "approved", "owner": "Product owner",
+                            "provider": provider, "action": action,
+                            "path": "docs/evidence/hero.svg", "sha256": asset_hash}}
+                    output_path.write_text(json.dumps(output), encoding="utf-8")
+                    receipt["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
+                    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+                    ui = ui.replace(old_hash, hashlib.sha256(receipt_path.read_bytes()).hexdigest())
+                ui = ui.replace(old_digest, checker.canonical_ui_approval_sha256(ui))
+                ui_path.write_text(ui, encoding="utf-8")
+                problems = checker.validate(ui_path, repo_root=root, prd_path=product,
+                    wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                    require_wireframe_approved=True, require_visual_approved=True)
+                if passes:
+                    self.assertEqual(problems, [])
+                else:
+                    self.assertEqual(problems, [
+                        f"ui-design: MM-001 {mode} motion evidence: media authorization must approve the provider action and exact asset"
+                        for mode in ("normal", "reduced")])
+
     def test_motion_semantics_fail_even_with_fresh_hashes(self):
         for mutation in ("generic", "wrong-region", "static", "wrong-preference", "native-tool", "pending-asset", "unbound-asset"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
@@ -845,14 +891,18 @@ class UiDesignContractTests(unittest.TestCase):
                 receipt["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
                 receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
                 ui_path = root / "docs/design/ui-design.md"
-                ui_path.write_text(ui_path.read_text(encoding="utf-8").replace(
-                    old_hash, hashlib.sha256(receipt_path.read_bytes()).hexdigest()), encoding="utf-8")
+                ui = ui_path.read_text(encoding="utf-8")
+                old_digest = checker.canonical_ui_approval_sha256(ui)
+                ui = ui.replace(old_hash, hashlib.sha256(receipt_path.read_bytes()).hexdigest())
+                ui = ui.replace(old_digest, checker.canonical_ui_approval_sha256(ui))
+                ui_path.write_text(ui, encoding="utf-8")
                 problems = checker.validate(ui_path, repo_root=root, prd_path=product,
                     wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
                     require_wireframe_approved=True, require_visual_approved=True)
                 self.assertTrue(problems)
                 self.assertTrue(any("motion" in problem for problem in problems), problems)
                 self.assertFalse(any("hash mismatch" in problem for problem in problems), problems)
+                self.assertFalse(any("replacement ui-design" in problem for problem in problems), problems)
 
     def test_legacy_hifi_is_readable_but_cannot_pass_visual_publication(self):
         with tempfile.TemporaryDirectory() as temp:
