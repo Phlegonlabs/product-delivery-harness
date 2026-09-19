@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import check_wireframe_html
+from motion_evidence import motion_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -1829,7 +1830,6 @@ def _resolve_evidence(
                                 for finding in findings:
                                     _add(problems, finding)
                             if expected_motion is not None and isinstance(output_json, dict):
-                                from motion_evidence import motion_findings
                                 motion = output_json.get("motion")
                                 for finding in motion_findings(motion, expected_motion):
                                     _add(problems, f"{label}: {finding}")
