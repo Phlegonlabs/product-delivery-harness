@@ -11,6 +11,7 @@ from motion_evidence import motion_findings
 class MotionEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.expected = dict(intent="MM-001", scope="UI-001 / hero", mode="normal",
+                             trigger="entry", endState="hero visible",
                              states=["ready"], targets=["390"], assetRequired=False)
         self.value = dict(intent="MM-001", scope="UI-001 / hero", mode="normal",
                           reducedMotion=False, asset=None, observations=[{
@@ -52,6 +53,7 @@ class MotionEvidenceTests(unittest.TestCase):
     def test_generic_static_and_incomplete_evidence_fail(self):
         self.assertTrue(motion_findings({"result": "PASS"}, self.expected))
         for field, value in [("state", "invented"), ("target", "768"),
+                             ("trigger", "hover"), ("endState", "spinner visible"),
                              ("trigger", "placeholder"), ("samples", []),
                              ("samples", [{"atMs": t, "values": {"opacity": "1"}}
                                           for t in (0, 100, 200)])]:

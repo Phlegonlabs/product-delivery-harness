@@ -2174,11 +2174,15 @@ def _motion_effect_evidence(
             _add(problems, f"{intent_id} motion evidence scope differs from Motion And Media Intent")
         if not _filled(trigger) or not _filled(end_state):
             _add(problems, f"{intent_id} motion trigger and end state must be observed")
+        if trigger != motion_intents[intent_id].get("trigger"):
+            _add(problems, f"{intent_id} observed trigger must match the approved motion intent")
         normal_ok = _pass_evidence(normal, f"{intent_id} normal-motion evidence", problems)
         reduced_ok = _pass_evidence(reduced, f"{intent_id} reduced-motion evidence", problems)
         if normal_ok is not None:
+            normal_ok.update(trigger=trigger, endState=end_state)
             recorded[intent_id + ":normal"] = normal_ok
         if reduced_ok is not None:
+            reduced_ok.update(trigger=trigger, endState=motion_intents[intent_id].get("fallback", ""))
             recorded[intent_id + ":reduced"] = reduced_ok
         if verdict.casefold() != "pass":
             _add(problems, f"{intent_id} motion evidence verdict must be PASS")
@@ -2244,6 +2248,7 @@ def _resolve_motion_effect_evidence(
             expected_matrix={"cases": cases},
             expected_motion={
                 "intent": intent_id, "scope": intent.get("scope"), "mode": motion_case,
+                "trigger": intent.get("trigger"), "endState": evidence.get("endState"),
                 "states": surface.get("states", []), "targets": [str(t) for t in targets],
                 "provider": intent.get("generationRoute") if intent.get("generationRoute", "").casefold() not in {
                     "css-waapi", "gsap", "native-framework", "none", "existing asset"

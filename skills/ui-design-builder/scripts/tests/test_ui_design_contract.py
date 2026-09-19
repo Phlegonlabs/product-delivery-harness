@@ -113,7 +113,7 @@ Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E
 
 | Intent ID | UI scope / region | Trigger observed | End state observed | Normal-motion evidence | Reduced-motion evidence | Verdict |
 | --- | --- | --- | --- | --- | --- | --- |
-| MM-001 | UI-001 / hero | Entry transition visible and interruptible | Data-flow overlay ends in the approved resting state | PASS — evidence=docs/evidence/motion-normal.json @ sha256:{EVIDENCE_HASH} | PASS — evidence=docs/evidence/motion-reduced.json @ sha256:{EVIDENCE_HASH} | PASS |
+| MM-001 | UI-001 / hero | on entry | Data-flow overlay ends in the approved resting state | PASS — evidence=docs/evidence/motion-normal.json @ sha256:{EVIDENCE_HASH} | PASS — evidence=docs/evidence/motion-reduced.json @ sha256:{EVIDENCE_HASH} | PASS |
 
 ### Platform rules
 
@@ -324,8 +324,8 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
             "mode": "normal" if state == "normal" else "reduced",
             "reducedMotion": state != "normal", "asset": None,
             "observations": [
-                {"target": str(target), "state": "ready", "trigger": "entry",
-                 "endState": "data flow visible", "fallbackObserved": state != "normal",
+                {"target": str(target), "state": "ready", "trigger": "on entry",
+                 "endState": "Data-flow overlay ends in the approved resting state" if state == "normal" else "Static diagram", "fallbackObserved": state != "normal",
                  "samples": [
                      {"atMs": 0, "values": {"opacity": "0" if state == "normal" else "1"}},
                      {"atMs": 100, "values": {"opacity": "0.5" if state == "normal" else "1"}},
@@ -870,12 +870,13 @@ class UiDesignContractTests(unittest.TestCase):
                         for mode in ("normal", "reduced")])
 
     def test_motion_semantics_fail_even_with_fresh_hashes(self):
-        for mutation in ("generic", "wrong-region", "static", "wrong-preference", "native-tool", "pending-asset", "unbound-asset"):
+        for mutation in ("generic", "wrong-region", "static", "wrong-preference", "wrong-trigger", "wrong-end-state", "wrong-fallback", "native-tool", "pending-asset", "unbound-asset"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
-                receipt_path = root / "docs/evidence/motion-normal.json"
-                output_path = root / "docs/evidence/motion-normal-output.json"
+                mode = "reduced" if mutation == "wrong-fallback" else "normal"
+                receipt_path = root / f"docs/evidence/motion-{mode}.json"
+                output_path = root / f"docs/evidence/motion-{mode}-output.json"
                 receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
                 old_hash = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
                 output = json.loads(output_path.read_text(encoding="utf-8"))
@@ -889,6 +890,9 @@ class UiDesignContractTests(unittest.TestCase):
                             sample["values"] = {"opacity": "1"}
                 elif mutation == "wrong-preference":
                     output["motion"]["reducedMotion"] = True
+                elif mutation in {"wrong-trigger", "wrong-end-state", "wrong-fallback"}:
+                    for observation in output["motion"]["observations"]:
+                        observation["trigger" if mutation == "wrong-trigger" else "endState"] = "Hover spinner visible"
                 elif mutation == "native-tool":
                     receipt["receipt"]["tool"] = "xcode-simulator"
                 else:

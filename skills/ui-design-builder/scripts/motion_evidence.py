@@ -32,6 +32,8 @@ def motion_findings(value: Any, expected: dict[str, Any]) -> list[str]:
         if row["state"] not in expected["states"]:
             errors.append("motion observation state is outside the approved surface")
         for field in ("trigger", "endState"):
+            if row[field] != expected[field]:
+                errors.append(f"motion observation {field} differs from the approved behavior")
             if not isinstance(row[field], str) or row[field].strip().casefold() in {
                 "", "none", "n/a", "tbd", "placeholder", "pass"
             }:
