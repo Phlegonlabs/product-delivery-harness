@@ -811,6 +811,17 @@ class UiDesignContractTests(unittest.TestCase):
                 f"ui-design: MM-001 {mode} motion evidence: generated or existing media requires a completed asset identity and review"
                 for mode in ("normal", "reduced")])
 
+    def test_motion_cannot_use_the_none_route(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(
+                root, required=False, motion_route="none")
+            problems = checker.validate(root / "docs/design/ui-design.md", repo_root=root,
+                prd_path=product, wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                require_wireframe_approved=True, require_visual_approved=True)
+            self.assertEqual(list(dict.fromkeys(problems)), [
+                "ui-design: MM-001 motion requires an implementation or media route, not none"])
+
     def test_media_routes_accept_authorized_assets_and_reject_wrong_actions(self):
         for route, provider, action, passes in (
             ("existing asset", "Owner asset library", "reuse", True),

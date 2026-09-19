@@ -652,6 +652,8 @@ def _validate_motion_table(
             _add(problems, f"{intent_id} contains an empty value or placeholder")
         if require_filled and row[8].strip().casefold() == "authorized provider":
             _add(problems, f"{intent_id} requires a concrete generation route, not authorized provider")
+        if require_filled and "motion" in row[2].casefold() and row[8].strip().casefold() == "none":
+            _add(problems, f"{intent_id} motion requires an implementation or media route, not none")
         status = row[9].casefold()
         if status == "blocked" or (
             require_filled and status not in VALID_MOTION_STATUSES
