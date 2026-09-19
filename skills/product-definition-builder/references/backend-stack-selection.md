@@ -38,6 +38,20 @@ Record the decision status (`Required`/`Selected`/`Approved`/`Recommended`/`Prov
 
 ## Collect Decision Evidence
 
+When the owner has no preference, recommend one complete bundle plus one or two serious alternatives in plain language. An accepted recommendation request lets the builder investigate; it does not approve the resulting vendors or delegate the final choice. Present the hosting/runtime choice together with its downstream consequences before the Stack Decision Checkpoint.
+
+Separate hosting, production runtime, backend framework, and build/dependency tools even when the canonical table stores them in one row. For example, record `production: Workers; framework: Hono; build: Node.js + pnpm`, with each compatibility assumption verified, instead of calling all three a runtime. A Bun package-manager choice does not select Bun as the server runtime.
+
+| Workload | Candidate directions to investigate | Decision evidence |
+| --- | --- | --- |
+| Small HTTP API near hosted assets | Workers + Hono, or a Node.js API | Required APIs, connection limits, latency, deployment ownership |
+| General long-lived service | Node.js, Bun, Deno, Python or Go on a supported service/container host | Dependency/native-module support, process lifetime, concurrency, support policy |
+| Python data/AI integrations | Python API such as FastAPI or an existing Django service | Library compatibility, jobs separated from request lifetime, team ownership |
+| Persistence/auth with little custom server behavior | Managed backend services versus a small custom API | Data export, authorization, transaction needs, operating cost and lock-in |
+| Background or agent work | Queue/worker or durable workflow; see `agentic-runtime-selection.md` | Recovery, idempotency, human waits, tool permissions, maximum duration |
+
+These are candidates to verify against current official documentation, not standing defaults. Size cost scenarios using stated request volume, compute duration, storage/egress, model usage and maintenance effort. Compare build-versus-buy for CMS, search, notifications, auth and admin operations only when the product needs them. A management UI is a product surface with roles and audit actions, not a synonym for the backend API.
+
 Score or describe these inputs before selecting a stack:
 
 1. Data shape and relationships: structured/relational records with joins and transactions, flexible/nested document shape, or simple key-value access.
@@ -124,9 +138,10 @@ Verify these rules against current official documentation on the date the PRD is
 3. Choose service topology first, then the simplest coherent combination of runtime, database, and auth that covers the dominant access patterns and identity needs without unnecessary infrastructure.
 4. Build two or three coherent backend bundles from the surviving choices. Each bundle covers topology, runtime, database category and engine, auth strategy and provider, API style, jobs/queue, storage, operational ownership, cost, and data constraints.
 5. Recommend one bundle and explain where the serious alternatives fit better, why they lose here, and what would trigger reconsideration. Present them under the recorded Stack Decision Mode instead of silently choosing vendors.
-6. Mark accepted new choices `Approved`; preserve adopted choices as `Selected` and hard constraints as `Required`. An unaccepted proposal remains `Recommended` and cannot enter implementation.
-7. Verify current platform/vendor documentation and capture direct sources plus the check date.
-8. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+6. For each bundle, state operating-cost assumptions, license/build-vs-buy and maintenance ownership, compatibility evidence or a time-boxed spike, and the change/revisit trigger. Keep production language/runtime separate from build/package-manager and framework layers.
+7. Mark accepted new choices `Approved`; preserve adopted choices as `Selected` and hard constraints as `Required`. An unaccepted proposal remains `Recommended` and cannot enter implementation.
+8. Verify current platform/vendor documentation and capture direct sources plus the check date.
+9. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
 
 ## Required Architecture Record
 

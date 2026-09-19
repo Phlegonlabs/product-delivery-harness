@@ -24,6 +24,10 @@ For every marquee or media-bearing screen region, record one treatment:
 
 The wireframe contains no final asset and invokes no provider. Its `mediaIntent` record uses a stable `id` equal to its `MM-*` row plus `treatment`, `purpose`, `trigger`, `draftPrompt`, `source`, `reducedMotionFallback`, `generationRoute`, and `generationStatus: deferred`.
 
+An explicit hero or animation request is a required intent, not optional inspiration. A hero intent still records the product message, CTA, composition, media treatment, and mobile destination; the wireframe hero remains a grayscale placeholder. An admin or native surface does not receive a marketing hero unless the owner explicitly requests that surface treatment.
+
+After direction selection, a deterministic `motion` or `image + motion` row must demonstrate its trigger, behavior, end state, and reduced-motion fallback in the HiFi review. A static poster, gray placeholder, screenshot, or documented note cannot satisfy a required effect. The frozen wireframe `generationStatus: deferred` remains an intent-time record; it is never edited to claim HiFi completion. Record actual output identity, authorization and review separately in the existing Style Integration evidence. A missing generated asset required by a `motion` or `image + motion` intent keeps its evidence gate blocked until delivered or explicitly removed from scope. Image-only intents remain under connected-HiFi and H6 human media review, including authorization, actual output identity, placement and usage constraints; they do not use normal/reduced-motion receipts. CSS/WAAPI and GSAP serve Web implementation and HTML projections; native implementation uses its approved platform/framework tools and later native evidence.
+
 ## Implementation Routing After Wireframe Approval
 
 - Use CSS transitions or the Web Animations API for small, deterministic state feedback. Do not add GSAP merely because motion exists.

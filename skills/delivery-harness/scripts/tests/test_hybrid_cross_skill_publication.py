@@ -272,10 +272,13 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
             "impeccable-audit.json": "hifi-mixed-impeccable-audit",
             "hifi-grading.json": "hifi-mixed-grading",
             "hifi-browser.json": "hifi-mixed",
+            "motion-normal.json": "motion-preview",
+            "motion-reduced.json": "motion-preview",
         }
         evidence_dir = root / "docs/evidence"
         for name, check_name in evidence_specs.items():
             is_wireframe = name.startswith("wireframe")
+            is_motion = check_name == "motion-preview"
             reviewed_path = wireframe if is_wireframe else hifi
             reviewed = {
                 "path": reviewed_path.relative_to(root).as_posix(),
@@ -286,10 +289,11 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
             evidence["check"] = check_name
             evidence["reviewedArtifact"] = reviewed
             receipt = evidence["receipt"]
-            receipt["tool"] = "rubric-grader" if check_name.endswith("grading") else "impeccable" if "impeccable" in check_name else "platform-review"
-            receipt["method"] = "rubric-grading" if check_name.endswith("grading") else "impeccable-critique" if "critique" in check_name else "impeccable-audit" if "audit" in check_name else "sandboxed-offline-browser" if check_name == "hifi-mixed" else "mixed-platform-matrix"
-            receipt["matrix"] = {"cases": evidence_cases}
-            receipt["results"] = [dict(case, result="PASS") for case in evidence_cases]
+            receipt["tool"] = "playwright" if is_motion else "rubric-grader" if check_name.endswith("grading") else "impeccable" if "impeccable" in check_name else "platform-review"
+            receipt["method"] = "rubric-grading" if check_name.endswith("grading") else "impeccable-critique" if "critique" in check_name else "impeccable-audit" if "audit" in check_name else "sandboxed-offline-browser" if check_name == "hifi-mixed" or is_motion else "mixed-platform-matrix"
+            if not is_motion:
+                receipt["matrix"] = {"cases": evidence_cases}
+                receipt["results"] = [dict(case, result="PASS") for case in evidence_cases]
             output_path = root / receipt["outputArtifact"]["path"]
             output = json.loads(output_path.read_text(encoding="utf-8"))
             if receipt["method"] != "sandboxed-offline-browser":
@@ -318,7 +322,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
         extra_rows = "\n".join(line.replace("| UI-001 |", f"| {second_id} |")
                                .replace("| 390 |", f"| {second_targets[0]} |")
                                .replace("| 1200 |", f"| {second_targets[-1]} |") for line in comparison_rows)
-        ui_text = ui_text.replace("\n### Platform rules", "\n" + extra_rows + "\n\n### Platform rules")
+        ui_text = ui_text.replace("\n### Required motion evidence", "\n" + extra_rows + "\n\n### Required motion evidence")
         if platform == "ios":
             ui_text = ui_text.replace("\n## HiFi Review", "\n| ios | Tabs and back gesture; safe areas and keyboard | system text styles with Dynamic Type and CJK fallback | SF Symbols; custom symbols only for product meaning | Native touch density | System transitions and reduced motion | required before expansion | Apple HIG and SF Symbols inspected 2026-09-13 |\n\n## HiFi Review")
         ui_text = re.sub(r"^PRD source:.*$", f"PRD source: docs/product/PRD.md @ sha256:{hashlib.sha256(product.read_bytes()).hexdigest()}", ui_text, flags=re.MULTILINE)

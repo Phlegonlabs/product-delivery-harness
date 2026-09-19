@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import check_wireframe_html
+from motion_evidence import motion_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -150,6 +151,8 @@ def _receipt_contract(check: str | None) -> tuple[set[str], str] | None:
         return None
     if check == "hifi-mixed":
         return {"platform-review"}, HIFI_SURFACE_RECEIPT_METHOD
+    if check == "motion-preview":
+        return {"playwright", "chrome-devtools"}, HIFI_SURFACE_RECEIPT_METHOD
     if check == "wireframe-mixed":
         return {"platform-review"}, "mixed-platform-matrix"
     if check in {"hifi-mixed-grading", "wireframe-mixed-grading"}:
@@ -648,6 +651,10 @@ def _validate_motion_table(
             _add(problems, f"{intent_id} has invalid treatment {row[2]!r}")
         if require_filled and any(not _filled(cell) for cell in row):
             _add(problems, f"{intent_id} contains an empty value or placeholder")
+        if require_filled and row[8].strip().casefold() == "authorized provider":
+            _add(problems, f"{intent_id} requires a concrete generation route, not authorized provider")
+        if require_filled and "motion" in row[2].casefold() and row[8].strip().casefold() == "none":
+            _add(problems, f"{intent_id} motion requires an implementation or media route, not none")
         status = row[9].casefold()
         if status == "blocked" or (
             require_filled and status not in VALID_MOTION_STATUSES
@@ -1639,6 +1646,7 @@ def _resolve_evidence(
     expected_artifact: str | None = None,
     expected_check: str | None = None,
     expected_matrix: dict[str, list[str]] | None = None,
+    expected_motion: dict[str, Any] | None = None,
 ) -> None:
     parsed = _pass_evidence(value, label, problems)
     if parsed is None:
@@ -1801,6 +1809,8 @@ def _resolve_evidence(
                             }
                             if bundle is not None:
                                 expected_output_keys.add("interactions")
+                            if expected_motion is not None:
+                                expected_output_keys.add("motion")
                             if not isinstance(output_json, dict) or set(output_json) != expected_output_keys:
                                 _add(
                                     problems,
@@ -1819,6 +1829,18 @@ def _resolve_evidence(
                                 findings = _bundle_transcript_findings(output_json, bundle) if bundle is not None else _offline_transcript_findings(output_json)
                                 for finding in findings:
                                     _add(problems, finding)
+                            if expected_motion is not None and isinstance(output_json, dict):
+                                motion = output_json.get("motion")
+                                for finding in motion_findings(motion, expected_motion):
+                                    _add(problems, f"{label}: {finding}")
+                                asset = motion.get("asset") if isinstance(motion, dict) else None
+                                if isinstance(asset, dict):
+                                    authorization = asset.get("authorization")
+                                    if isinstance(authorization, dict) and not _human_owner(authorization.get("owner") if isinstance(authorization.get("owner"), str) else None):
+                                        _add(problems, f"{label} asset authorization owner must be human")
+                                    source = f"{asset.get('path', '')} @ sha256:{asset.get('sha256', '')}"
+                                    if _source_syntax(source, label, problems):
+                                        _resolve_source(source, repo_root=repo_root, label=label, problems=problems)
         timestamp = receipt.get("executedAt")
         try:
             parsed_time = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
@@ -1845,6 +1867,8 @@ def _evidence_check(label: str, capture_mode: str | None) -> str | None:
         return EVIDENCE_CHECKS.get(label)
     if label in {"Responsive surface check", "Wireframe UI grading"}:
         return f"wireframe-{suffix}" if label.startswith("Responsive") else f"wireframe-{suffix}-grading"
+    if label == "motion":
+        return "motion-preview"
     if label in {"HiFi surface check", "HiFi UI grading", "Impeccable critique", "Impeccable audit", "Impeccable critique verdict", "Impeccable audit verdict"}:
         if label == "HiFi surface check":
             return f"hifi-{suffix}"
@@ -2113,6 +2137,127 @@ def _join_motion_intents(
         _add(
             problems,
             f"wireframe mediaIntent {intent_id} has no Motion And Media Intent row",
+        )
+
+
+def _motion_effect_evidence(
+    style: str,
+    motion_intents: dict[str, dict[str, str]],
+    problems: list[str],
+) -> dict[str, dict[str, str]]:
+    """Validate and return recorded evidence for every required effect."""
+
+    required_ids = {
+        intent_id
+        for intent_id, intent in motion_intents.items()
+        if "motion" in intent.get("treatment", "").casefold()
+    }
+    if not required_ids and "### Required motion evidence" not in style:
+        return {}
+    for intent_id in required_ids:
+        if motion_intents[intent_id].get("status", "").casefold() != "approved":
+            _add(problems, f"{intent_id} requires an approved motion intent before Visual Approval")
+    rows = _design_table(style, "### Required motion evidence", [
+        "Intent ID", "UI scope / region", "Trigger observed", "End state observed",
+        "Normal-motion evidence", "Reduced-motion evidence", "Verdict",
+    ], problems)
+    recorded: dict[str, dict[str, str]] = {}
+    seen: set[str] = set()
+    for intent_id, scope, trigger, end_state, normal, reduced, verdict in rows:
+        if intent_id in seen:
+            _add(problems, f"Required motion evidence duplicates {intent_id}")
+        seen.add(intent_id)
+        if intent_id not in required_ids:
+            _add(problems, f"Required motion evidence names non-required intent {intent_id}")
+            continue
+        if scope != motion_intents[intent_id].get("scope", ""):
+            _add(problems, f"{intent_id} motion evidence scope differs from Motion And Media Intent")
+        if not _filled(trigger) or not _filled(end_state):
+            _add(problems, f"{intent_id} motion trigger and end state must be observed")
+        if trigger != motion_intents[intent_id].get("trigger"):
+            _add(problems, f"{intent_id} observed trigger must match the approved motion intent")
+        normal_ok = _pass_evidence(normal, f"{intent_id} normal-motion evidence", problems)
+        reduced_ok = _pass_evidence(reduced, f"{intent_id} reduced-motion evidence", problems)
+        if normal_ok is not None:
+            normal_ok.update(trigger=trigger, endState=end_state)
+            recorded[intent_id + ":normal"] = normal_ok
+        if reduced_ok is not None:
+            reduced_ok.update(trigger=trigger, endState=motion_intents[intent_id].get("fallback", ""))
+            recorded[intent_id + ":reduced"] = reduced_ok
+        if verdict.casefold() != "pass":
+            _add(problems, f"{intent_id} motion evidence verdict must be PASS")
+    missing = sorted(required_ids - seen)
+    if missing:
+        _add(problems, "Required motion evidence is missing for: " + ", ".join(missing))
+    extra = sorted(seen - required_ids)
+    if extra:
+        _add(problems, "Required motion evidence names non-required intents: " + ", ".join(extra))
+    return recorded
+
+
+def _resolve_motion_effect_evidence(
+    recorded: dict[str, dict[str, str]],
+    motion_intents: dict[str, dict[str, str]],
+    target_scope: dict[str, Any] | None,
+    recorded_hifi: str | None,
+    *,
+    repo_root: Path,
+    problems: list[str],
+) -> None:
+    for evidence_key, evidence in recorded.items():
+        intent_id, motion_case = evidence_key.rsplit(":", 1)
+        intent = motion_intents.get(intent_id, {})
+        surface_id = intent.get("scope", "").split(" / ", 1)[0]
+        surface = next(
+            (
+                item
+                for item in (target_scope or {}).get("surfaces", [])
+                if isinstance(item, dict) and item.get("id") == surface_id
+            ),
+            None,
+        )
+        if surface is None:
+            _add(problems, f"{intent_id} motion surface is outside the Approved target")
+            continue
+        responsive = (
+            surface.get("responsive", (target_scope or {}).get("responsive", {}))
+            if surface
+            else (target_scope or {}).get("responsive", {})
+        )
+        targets = responsive.get("targets", []) if isinstance(responsive, dict) else []
+        cases = [
+            {"surface": surface_id, "state": "normal" if motion_case == "normal" else "reduced-motion", "target": str(target)}
+            for target in targets
+        ]
+        capture_mode = (
+            surface.get("captureMode", (target_scope or {}).get("captureMode"))
+            if surface
+            else (target_scope or {}).get("captureMode")
+        )
+        _resolve_evidence(
+            f"PASS — evidence={evidence['path']} @ sha256:{evidence['sha256']}",
+            repo_root=repo_root,
+            label=f"{intent_id} {motion_case} motion evidence",
+            problems=problems,
+            expected_artifact=(
+                SOURCE_RE.fullmatch((recorded_hifi or "").strip()).group("path")
+                if SOURCE_RE.fullmatch((recorded_hifi or "").strip())
+                else None
+            ),
+            expected_check=_evidence_check("motion", capture_mode),
+            expected_matrix={"cases": cases},
+            expected_motion={
+                "intent": intent_id, "scope": intent.get("scope"), "mode": motion_case,
+                "trigger": intent.get("trigger"), "endState": evidence.get("endState"),
+                "states": surface.get("states", []), "targets": [str(t) for t in targets],
+                "provider": intent.get("generationRoute") if intent.get("generationRoute", "").casefold() not in {
+                    "css-waapi", "gsap", "native-framework", "none", "existing asset"
+                } else None,
+                "assetAction": "reuse" if intent.get("generationRoute", "").casefold() == "existing asset" else None,
+                "assetRequired": intent.get("treatment", "").casefold() == "image + motion" or intent.get("generationRoute", "").casefold() not in {
+                    "css-waapi", "gsap", "native-framework", "none"
+                },
+            },
         )
 
 
@@ -2410,6 +2555,7 @@ def validate_text(
         scope = _target_scope(visual_values.get("Approved target"), "Approved target", problems)
         valid_scope = scope if len(problems) == scope_errors_before else None
         _direction_comparison(style, sections.get("## UI Design Intake", ""), valid_scope, problems)
+        _motion_effect_evidence(style, motion_intents, problems)
         _platform_rules(style, valid_scope, problems)
         connected = SOURCE_RE.fullmatch(
             (style_values.get("Connected HiFi reference") or "").strip()
@@ -2662,6 +2808,16 @@ def _validate_impl(
                 label="Connected HiFi reference",
                 problems=problems,
             )
+        motion_intents_for_evidence = _validate_motion_table(
+            _section(active, "## Motion And Media Intent") or "",
+            require_filled=True,
+            problems=problems,
+        )
+        motion_effect_evidence = _motion_effect_evidence(
+            style,
+            motion_intents_for_evidence,
+            problems,
+        )
         for field_name in (
             "Impeccable critique",
             "Impeccable audit",
@@ -2681,6 +2837,14 @@ def _validate_impl(
                 expected_check=_evidence_check("HiFi UI grading" if field_name == "UI grading" else field_name, capture_mode),
                 expected_matrix=evidence_matrix,
             )
+        _resolve_motion_effect_evidence(
+            motion_effect_evidence,
+            motion_intents_for_evidence,
+            target_scope_for_evidence,
+            recorded_hifi,
+            repo_root=root,
+            problems=problems,
+        )
         if checked_hifi is not None:
             target_match = TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip())
             hifi_match = SOURCE_RE.fullmatch((recorded_hifi or "").strip())

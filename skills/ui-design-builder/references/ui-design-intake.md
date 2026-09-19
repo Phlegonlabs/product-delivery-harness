@@ -2,6 +2,8 @@
 
 Use this intake only after Product Definition Approval. Read the PRD first and omit anything it already answers.
 
+For an enhancement, also read `enhancement-recommendations.md`. Carry forward the owner's supplied animation, hero, reference and platform requests instead of asking them again. When preferences are already sufficiently specified, record the existing decision source and continue to the applicable authoring step; ask only unresolved decisions. No preference calls for product-fit proposals under the existing direction gate, not silent approval.
+
 Ask one product-specific set covering:
 
 - the human UI decision owner;

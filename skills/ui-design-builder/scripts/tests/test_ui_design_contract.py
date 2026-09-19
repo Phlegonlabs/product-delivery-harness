@@ -109,6 +109,12 @@ Connected HiFi reference: docs/design/ui-references/run-1/index.html @ sha256:{E
 | VD-R1-01 | UI-001 | ready | 390 | primary | Approved home copy and normal data | docs/design/directions/primary.png @ sha256:{PRIMARY_HASH} | Compact primary action hierarchy |
 | VD-R1-01 | UI-001 | ready | 1200 | stress | Approved home copy with bounded dense data | docs/design/directions/stress.png @ sha256:{STRESS_HASH} | Dense data stays aligned and readable |
 
+### Required motion evidence
+
+| Intent ID | UI scope / region | Trigger observed | End state observed | Normal-motion evidence | Reduced-motion evidence | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| MM-001 | UI-001 / hero | on entry | Data-flow overlay ends in the approved resting state | PASS — evidence=docs/evidence/motion-normal.json @ sha256:{EVIDENCE_HASH} | PASS — evidence=docs/evidence/motion-reduced.json @ sha256:{EVIDENCE_HASH} | PASS |
+
 ### Platform rules
 
 | Platform | Navigation and input | Typography | Icons | Density and layout | Feedback and motion | Native proof | Sources |
@@ -156,7 +162,7 @@ def wireframe_html(data: object) -> str:
     )
 
 
-def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False) -> tuple[Path, Path, Path, Path, Path, Path | None]:
+def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False, motion_route: str = "CSS-WAAPI") -> tuple[Path, Path, Path, Path, Path, Path | None]:
     from test_product_package_checker import valid_prd, valid_stack, ui_contract
     from test_wireframe_contract import render_html, wireframe_data
 
@@ -175,6 +181,8 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     approval_end = product_text.index("<!-- product-definition-approval:end -->") + len("<!-- product-definition-approval:end -->")
     product_text = product_text[:approval_end] + "\n" + ui_contract(copy="approved — owner-approved copy") + product_text[approval_end:]
     data = wireframe_data()
+    data = json.loads(json.dumps(data).replace('"generationRoute": "CSS-WAAPI"',
+                                             '"generationRoute": ' + json.dumps(motion_route)))
     architecture_text = __import__("test_product_package_checker").release_architecture()
     stack_text = valid_stack()
     product_text, architecture_text, stack_text = __import__(
@@ -228,7 +236,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     captures.mkdir(parents=True, exist_ok=True)
     (captures / "primary.png").write_bytes(PRIMARY_CAPTURE)
     (captures / "stress.png").write_bytes(STRESS_CAPTURE)
-    ui = contract()
+    ui = contract().replace("| CSS-WAAPI |", f"| {motion_route} |")
     replacements = {
         A_HASH: hashlib.sha256(product.read_bytes()).hexdigest(),
         B_HASH: hashlib.sha256(architecture.read_bytes()).hexdigest(),
@@ -284,6 +292,60 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         evidence = {
             "schema": "ui-evidence/2",
             "check": check_name,
+            "result": "PASS",
+            "reviewedArtifact": subject,
+            "receipt": receipt,
+            "attestation": "human-attested",
+            "owner": "Product owner",
+        }
+        evidence_path = evidence_dir / name
+        evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+        ui = ui.replace(
+            f"evidence=docs/evidence/{name} @ sha256:{EVIDENCE_HASH}",
+            f"evidence=docs/evidence/{name} @ sha256:{hashlib.sha256(evidence_path.read_bytes()).hexdigest()}",
+        )
+    for name, state in (("motion-normal.json", "normal"), ("motion-reduced.json", "reduced-motion")):
+        motion_cases = [{"surface": "UI-001", "state": state, "target": str(target)} for target in (390, 768, 1200)]
+        output_path = evidence_dir / name.replace(".json", "-output.json")
+        output = bundle_output(json.loads(manifest))
+        output.update({
+            "schema": "ui-output/1" if legacy_hifi else "ui-output/2",
+            "check": "motion-preview",
+            "subject": subject,
+            "matrix": {"cases": motion_cases},
+            "results": [dict(case, result="PASS") for case in motion_cases],
+        })
+        if legacy_hifi:
+            output.pop("interactions", None)
+            output["navigation"] = []
+            output["sandbox"]["topNavigation"] = "blocked"
+        output["motion"] = {
+            "intent": "MM-001", "scope": "UI-001 / hero",
+            "mode": "normal" if state == "normal" else "reduced",
+            "reducedMotion": state != "normal", "asset": None,
+            "observations": [
+                {"target": str(target), "state": "ready", "trigger": "on entry",
+                 "endState": "Data-flow overlay ends in the approved resting state" if state == "normal" else "Static diagram", "fallbackObserved": state != "normal",
+                 "samples": [
+                     {"atMs": 0, "values": {"opacity": "0" if state == "normal" else "1"}},
+                     {"atMs": 100, "values": {"opacity": "0.5" if state == "normal" else "1"}},
+                     {"atMs": 200, "values": {"opacity": "1"}},
+                 ]}
+                for target in (390, 768, 1200)
+            ],
+        }
+        output_path.write_text(json.dumps(output), encoding="utf-8")
+        receipt = {
+            "tool": "playwright",
+            "method": "sandboxed-offline-browser",
+            "matrix": {"cases": motion_cases},
+            "results": [dict(case, result="PASS") for case in motion_cases],
+            "outputArtifact": {"path": output_path.relative_to(root).as_posix(), "sha256": hashlib.sha256(output_path.read_bytes()).hexdigest()},
+            "executedAt": "2020-01-01T00:00:00Z",
+        }
+        evidence = {
+            "schema": "ui-evidence/2",
+            "check": "motion-preview",
             "result": "PASS",
             "reviewedArtifact": subject,
             "receipt": receipt,
@@ -565,6 +627,43 @@ class UiDesignContractTests(unittest.TestCase):
             )
             self.assertTrue(any("disposition none conflicts" in item for item in problems))
 
+    def test_required_motion_effects_need_hashed_normal_and_reduced_evidence(self):
+        missing = contract().replace("\n### Required motion evidence", "", 1)
+        problems = checker.validate_text(missing, require_visual_approved=True)
+        self.assertIn("ui-design: Style Integration requires exactly one '### Required motion evidence'", problems)
+
+        static_only = contract().replace(
+            "PASS — evidence=docs/evidence/motion-normal.json @ sha256:" + EVIDENCE_HASH,
+            "Static poster retained",
+        )
+        joined = "\n".join(checker.validate_text(static_only, require_visual_approved=True))
+        self.assertIn("MM-001 normal-motion evidence must use", joined)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
+            ui_path = root / "docs/design/ui-design.md"
+            evidence_path = root / "docs/evidence/motion-normal.json"
+            output_path = root / "docs/evidence/motion-normal-output.json"
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            output = json.loads(output_path.read_text(encoding="utf-8"))
+            evidence["receipt"]["matrix"]["cases"].pop()
+            output["matrix"] = evidence["receipt"]["matrix"]
+            output["results"] = output["results"][:-1]
+            output_path.write_text(json.dumps(output), encoding="utf-8")
+            evidence["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
+            evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+            new = "evidence=docs/evidence/motion-normal.json @ sha256:" + hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+            ui_path.write_text(
+                re.sub(r"evidence=docs/evidence/motion-normal\.json @ sha256:[0-9a-f]{64}", new, ui_path.read_text(encoding="utf-8")),
+                encoding="utf-8",
+            )
+            problems = checker.validate(
+                ui_path, repo_root=root, prd_path=product, wireframes_path=wireframe, hifi_path=hifi,
+                require_filled=True, require_wireframe_approved=True, require_visual_approved=True,
+            )
+            self.assertTrue(any("receipt.matrix must exactly match" in item for item in problems), problems)
+
     def test_shared_contract_view_exposes_authority_without_filesystem_io(self):
         view, problems = checker.parse_ui_contract_view(contract())
 
@@ -679,6 +778,150 @@ class UiDesignContractTests(unittest.TestCase):
             )
             self.assertEqual([], problems)
 
+    def test_image_plus_code_motion_requires_retained_media(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
+            ui_path = root / "docs/design/ui-design.md"
+            ui = ui_path.read_text(encoding="utf-8")
+            old_digest = checker.canonical_ui_approval_sha256(ui)
+            old_wire_hash = hashlib.sha256(wireframe.read_bytes()).hexdigest()
+            wireframe.write_text(wireframe.read_text(encoding="utf-8").replace(
+                '"treatment": "motion"', '"treatment": "image + motion"'), encoding="utf-8")
+            new_wire_hash = hashlib.sha256(wireframe.read_bytes()).hexdigest()
+            ui = ui.replace('| MM-001 | UI-001 / hero | motion |',
+                            '| MM-001 | UI-001 / hero | image + motion |').replace(old_wire_hash, new_wire_hash)
+            for name in ("wireframe-browser.json", "wireframe-grading.json"):
+                path = root / "docs/evidence" / name
+                old_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+                receipt = json.loads(path.read_text(encoding="utf-8"))
+                output_path = root / receipt["receipt"]["outputArtifact"]["path"]
+                output_path.write_text(output_path.read_text(encoding="utf-8").replace(
+                    old_wire_hash, new_wire_hash), encoding="utf-8")
+                receipt["reviewedArtifact"]["sha256"] = new_wire_hash
+                receipt["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
+                path.write_text(json.dumps(receipt), encoding="utf-8")
+                ui = ui.replace(old_hash, hashlib.sha256(path.read_bytes()).hexdigest())
+            ui = ui.replace(old_digest, checker.canonical_ui_approval_sha256(ui))
+            ui_path.write_text(ui, encoding="utf-8")
+            problems = checker.validate(ui_path, repo_root=root, prd_path=product,
+                wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                require_wireframe_approved=True, require_visual_approved=True)
+            self.assertEqual(problems, [
+                f"ui-design: MM-001 {mode} motion evidence: generated or existing media requires a completed asset identity and review"
+                for mode in ("normal", "reduced")])
+
+    def test_motion_cannot_use_the_none_route(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(
+                root, required=False, motion_route="none")
+            problems = checker.validate(root / "docs/design/ui-design.md", repo_root=root,
+                prd_path=product, wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                require_wireframe_approved=True, require_visual_approved=True)
+            self.assertEqual(list(dict.fromkeys(problems)), [
+                "ui-design: MM-001 motion requires an implementation or media route, not none"])
+
+    def test_media_routes_accept_authorized_assets_and_reject_wrong_actions(self):
+        for route, provider, action, passes in (
+            ("existing asset", "Owner asset library", "reuse", True),
+            ("existing asset", "Owner asset library", "generate", False),
+            ("Higgsfield", "Higgsfield", "generate", True),
+            ("Higgsfield", "Other provider", "generate", False),
+            ("authorized provider", "authorized provider", "generate", False),
+        ):
+            with self.subTest(route=route, provider=provider, action=action), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                product, _, _, wireframe, hifi, _ = materialize_publication(
+                    root, required=False, motion_route=route)
+                asset_path = root / "docs/evidence/hero.svg"
+                asset_path.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8")
+                asset_hash = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+                ui_path = root / "docs/design/ui-design.md"
+                ui = ui_path.read_text(encoding="utf-8")
+                old_digest = checker.canonical_ui_approval_sha256(ui)
+                for mode in ("normal", "reduced"):
+                    receipt_path = root / f"docs/evidence/motion-{mode}.json"
+                    old_hash = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+                    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                    output_path = root / receipt["receipt"]["outputArtifact"]["path"]
+                    output = json.loads(output_path.read_text(encoding="utf-8"))
+                    output["motion"]["asset"] = {
+                        "path": "docs/evidence/hero.svg", "sha256": asset_hash, "review": "approved",
+                        "authorization": {"decision": "approved", "owner": "Product owner",
+                            "provider": provider, "action": action,
+                            "path": "docs/evidence/hero.svg", "sha256": asset_hash}}
+                    output_path.write_text(json.dumps(output), encoding="utf-8")
+                    receipt["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
+                    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+                    ui = ui.replace(old_hash, hashlib.sha256(receipt_path.read_bytes()).hexdigest())
+                ui = ui.replace(old_digest, checker.canonical_ui_approval_sha256(ui))
+                ui_path.write_text(ui, encoding="utf-8")
+                problems = checker.validate(ui_path, repo_root=root, prd_path=product,
+                    wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                    require_wireframe_approved=True, require_visual_approved=True)
+                if passes:
+                    self.assertEqual(problems, [])
+                else:
+                    expected = (["ui-design: MM-001 requires a concrete generation route, not authorized provider"]
+                                if route == "authorized provider" else [])
+                    self.assertEqual(list(dict.fromkeys(problems)), expected + [
+                        f"ui-design: MM-001 {mode} motion evidence: media authorization must approve the provider action and exact asset"
+                        for mode in ("normal", "reduced")])
+
+    def test_motion_semantics_fail_even_with_fresh_hashes(self):
+        for mutation in ("generic", "wrong-region", "static", "wrong-preference", "wrong-trigger", "wrong-end-state", "wrong-fallback", "native-tool", "pending-asset", "unbound-asset"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
+                mode = "reduced" if mutation == "wrong-fallback" else "normal"
+                receipt_path = root / f"docs/evidence/motion-{mode}.json"
+                output_path = root / f"docs/evidence/motion-{mode}-output.json"
+                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                old_hash = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+                output = json.loads(output_path.read_text(encoding="utf-8"))
+                if mutation == "generic":
+                    del output["motion"]
+                elif mutation == "wrong-region":
+                    output["motion"]["scope"] = "UI-001 / footer"
+                elif mutation == "static":
+                    for observation in output["motion"]["observations"]:
+                        for sample in observation["samples"]:
+                            sample["values"] = {"opacity": "1"}
+                elif mutation == "wrong-preference":
+                    output["motion"]["reducedMotion"] = True
+                elif mutation in {"wrong-trigger", "wrong-end-state", "wrong-fallback"}:
+                    for observation in output["motion"]["observations"]:
+                        observation["trigger" if mutation == "wrong-trigger" else "endState"] = "Hover spinner visible"
+                elif mutation == "native-tool":
+                    receipt["receipt"]["tool"] = "xcode-simulator"
+                else:
+                    asset_path = root / "docs/evidence/hero.svg"
+                    asset_path.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8")
+                    asset_hash = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+                    authorization = "pending owner approval" if mutation == "pending-asset" else {
+                        "decision": "approved", "owner": "Product owner", "provider": "Example provider",
+                        "action": "generate", "path": "docs/evidence/other.svg", "sha256": asset_hash,
+                    }
+                    output["motion"]["asset"] = {"path": "docs/evidence/hero.svg", "sha256": asset_hash,
+                                                "authorization": authorization, "review": "approved"}
+                output_path.write_text(json.dumps(output), encoding="utf-8")
+                receipt["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
+                receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+                ui_path = root / "docs/design/ui-design.md"
+                ui = ui_path.read_text(encoding="utf-8")
+                old_digest = checker.canonical_ui_approval_sha256(ui)
+                ui = ui.replace(old_hash, hashlib.sha256(receipt_path.read_bytes()).hexdigest())
+                ui = ui.replace(old_digest, checker.canonical_ui_approval_sha256(ui))
+                ui_path.write_text(ui, encoding="utf-8")
+                problems = checker.validate(ui_path, repo_root=root, prd_path=product,
+                    wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                    require_wireframe_approved=True, require_visual_approved=True)
+                self.assertTrue(problems)
+                self.assertTrue(any("motion" in problem for problem in problems), problems)
+                self.assertFalse(any("hash mismatch" in problem for problem in problems), problems)
+                self.assertFalse(any("replacement ui-design" in problem for problem in problems), problems)
+
     def test_legacy_hifi_is_readable_but_cannot_pass_visual_publication(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -781,7 +1024,7 @@ class UiDesignContractTests(unittest.TestCase):
         extras = "\n".join(rows.replace("VD-R1-01", f"VD-R1-0{n}")
                            .replace(PRIMARY_HASH, str(n) * 64).replace(STRESS_HASH, str(n + 3) * 64)
                            for n in (2, 3))
-        base = base.replace("\n### Platform rules", "\n" + extras + "\n\n### Platform rules")
+        base = base.replace("\n### Required motion evidence", "\n" + extras + "\n\n### Required motion evidence")
         self.assertEqual([], checker.validate_text(base, require_visual_approved=True))
         mixed_case = base.replace("Direction mode: three comparable directions", "Direction mode: Three comparable directions")
         self.assertEqual([], checker.validate_text(mixed_case, require_visual_approved=True))
@@ -824,7 +1067,7 @@ class UiDesignContractTests(unittest.TestCase):
                 self.assertEqual([], checker.validate_text(candidate, require_visual_approved=True))
                 extra_direction = next(row for row in base.splitlines() if row.startswith("| VD-R1-01 |"))
                 extra_direction = strip_outer(extra_direction.replace("VD-R1-01", "VD-R1-02"))
-                candidate = base.replace("\n### Platform rules", "\n" + extra_direction + "\n\n### Platform rules")
+                candidate = base.replace("\n### Required motion evidence", "\n" + extra_direction + "\n\n### Required motion evidence")
                 self.assertTrue(any("requires exactly 1 directions" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
                 extra_platform = next(row for row in base.splitlines() if row.startswith("| web |"))
                 extra_platform = strip_outer(extra_platform.replace("| web |", "| ios |"))

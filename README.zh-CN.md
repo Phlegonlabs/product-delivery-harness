@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.45.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.46.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -36,6 +36,7 @@
 
 ## 核心保证
 
+- **实现前主动提供建议.** 用户没有技术偏好时，提出符合产品的默认建议及替代方案，涵盖前端、部署、后端/runtime 和 agent 编排，说明兼容性、成本假设与重新评估条件。Enhancement 先检查现有 UI，展示受影响范围的前后比较。研究 template 与 CSS 参考时检查授权和 stack，手机界面保留原生惯例。明确要求的 hero 和动效持续跟踪至交付。Visual Approval 要求每个动效具备绑定哈希的正常及 reduced-motion 观察记录；HTML 证据只证明审阅投影。
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
 - **先批准 Product Definition，再进入 UI 设计。** research-first evidence、适用 baseline、完整 candidate、明确 recommendation choices，以及 accepted delta 都在最终 approvals 之前。每种 release surface 都由同一份封闭 applicability matrix 决定必填架构与 stack：hosted UI 需要 frontend，native UI 需要 mobile/desktop，service 与 agent 需要 backend/data/interface，CLI 需要明确 toolchain。Product 与 Stack 批准绑定 canonical content digest、结构化 revision、非未来时间，以及每个保留 open item 的精确接受引用。每个人工 review gate 都会主动提供完整待审版本的已验证 Markdown 绝对路径链接，并在明确批准前停止。UI 产品仍只在 owner 明确要求后进入 `ui-design-builder`。 CLI 与 `other_nonpublic` 共用标准 `Toolchain` 批准 area（`CLI/toolchain` 为别名），分别记录 language、toolchain、distribution mechanism 与 testing layers。
@@ -567,6 +568,7 @@ Windows CI 会在任意 Python 测试组失败后立即停止。测试数据在�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
+- **0.46.0** — 加入产品适配的 stack、agent runtime 建议、设计参考研究及局部 enhancement 指引。动效必须具备已批准 intent 和正常/reduced-motion 的结构化投影证据。原生实现仍须平台验证。破坏性 skill-bundle 变更。
 - **0.45.0** — 中保真 wireframe 加入审阅用 Design System Draft 页，共用原型数值与组件示例。从通过验证的正式 pair 生成设计系统 HTML，发布时拒绝缺漏、过期或被手改的展示页。保留已批准 wireframe，正式组件外观仍以 HiFi 为准。Required pair 发布新增衍生展示页要求。破坏性 skill-bundle 变更。
 
 - **0.44.0** — Wireframe 改用中性灰阶，默认呈现产品内容，审核标注可另行开启。加入符合任务的导航、编辑式内容、表格、列表、表单与明确的主要操作层次。先检查代表案例再展开全套页面，W5 构图质量须独立达到 80 分。既有批准记录须补上 W5 分数才能重新验证。破坏性 skill-bundle 变更。
