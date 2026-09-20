@@ -1,0 +1,226 @@
+<!-- Copy this complete fragment into every ui-hifi/2 page. Keep the CSP first in <head>. -->
+<!-- hifi-reviewer:css:start -->
+<style data-hifi-reviewer-css>
+:root{--review-shell:#e9eef6;--review-line:#c9d2df;--review-ink:#243447;--review-accent:#234f8a}
+*{box-sizing:border-box}
+body{margin:0;background:#f7f9fc;color:var(--review-ink);min-height:100vh}
+[data-hifi-reviewer-shell]{position:fixed;inset-block:0;left:0;inline-size:236px;overflow:auto;padding:20px;background:var(--review-shell);border-right:1px solid var(--review-line)}
+[data-hifi-reviewer-shell] a,[data-hifi-reviewer-shell] button{color:inherit;font:inherit}
+[data-hifi-reviewer-shell] a{display:block;padding:8px 0;text-decoration-thickness:2px}
+[data-hifi-reviewer-shell] a[aria-current="page"]{color:var(--review-accent);font-weight:700}
+[data-hifi-page-nav],fieldset[data-hifi-responsive-controls]{border:0;padding:0;margin:0 0 18px}
+[data-hifi-reviewer-shell] legend{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+[data-hifi-target-control]{display:inline-block;width:64px;margin:2px 2px 8px 0;padding:7px 0;border:1px solid var(--review-line);border-radius:5px;background:white;cursor:pointer}
+[data-hifi-target-control][aria-pressed="true"]{border-color:var(--review-accent);color:var(--review-accent);font-weight:700}
+[data-hifi-reviewer-main]{margin-left:236px;min-width:0;min-height:100vh;padding:24px;overflow:auto}
+[data-hifi-canvas]{container-type:inline-size;width:390px;max-width:none;overflow:auto;background:white;outline:1px solid var(--review-line);outline-offset:-1px;border-radius:8px}
+[data-hifi-canvas][data-hifi-target="390"]{width:390px}
+[data-hifi-canvas][data-hifi-target="768"]{width:768px}
+[data-hifi-canvas][data-hifi-target="1200"]{width:1200px}
+[data-hifi-canvas] [data-ui-surface]{margin:0;padding:20px}
+@container (max-width:779px){[data-hifi-canvas] [data-ui-surface]{padding:14px;font-size:15px}}
+@container (min-width:780px){[data-hifi-canvas] [data-ui-surface]{padding:28px;font-size:16px}}
+[data-hifi-panel]{max-width:960px;margin:0;padding:24px}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid #547cbe;outline-offset:3px}
+[data-hifi-spec]{border-bottom:1px solid var(--review-line);padding:14px 0}
+[data-hifi-spec] output{display:block;font-family:monospace}
+.product-button,.product-input,.product-select,.product-feedback{font:inherit}
+.product-button{padding:10px 14px;border:1px solid #869bb6;border-radius:5px;background:white;color:#243447}
+.product-input,.product-select{padding:10px;border:1px solid #869bb6;color:#243447}
+.product-feedback{color:#243447}
+</style>
+<!-- hifi-reviewer:css:end -->
+<!-- hifi-reviewer:shell:start -->
+<aside data-hifi-reviewer-shell data-hifi-reviewer-version="2" aria-label="HiFi review controls">
+  <a data-hifi-review-view="overview" href="index.html#overview">Overview</a>
+  <nav data-hifi-page-nav aria-label="Product screens">
+    <a href="index.html" aria-current="page">Home</a>
+    <a href="details.html">Details</a>
+  </nav>
+  <a data-hifi-review-view="design-tokens" href="index.html#design-tokens">Design Tokens</a>
+  <fieldset data-hifi-responsive-controls>
+    <legend>Responsive target</legend>
+    <button type="button" data-hifi-target-control="390" aria-pressed="true">390</button>
+    <button type="button" data-hifi-target-control="768" aria-pressed="false">768</button>
+    <button type="button" data-hifi-target-control="1200" aria-pressed="false">1200</button>
+  </fieldset>
+</aside>
+<!-- hifi-reviewer:shell:end -->
+<!-- hifi-reviewer:runtime:start -->
+<script id="hifi-reviewer-runtime">
+(function(){
+  "use strict";
+  const TARGET_KEY = "hifi-reviewer:target";
+  const SURFACE_KEY = "hifi-reviewer:surface";
+
+  function normaliseList(value) {
+    return Array.from(new Set((Array.isArray(value) ? value : []).map(item => String(item)).filter(Boolean)));
+  }
+
+  function normaliseTargetMap(value) {
+    const result = {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) return result;
+    for (const key of Object.keys(value)) result[String(key)] = normaliseList(value[key]);
+    return result;
+  }
+
+  function safeStorage(candidate) {
+    if (!candidate || typeof candidate.getItem !== "function" || typeof candidate.setItem !== "function") return null;
+    try {
+      candidate.getItem(TARGET_KEY);
+      return candidate;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function browserSessionStorage() {
+    try {
+      return safeStorage(typeof window === "object" ? window.sessionStorage : null);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function createHifiReviewerRuntime(options) {
+    const config = options || {};
+    const pages = normaliseList(config.pages);
+    const targets = normaliseList(config.targets);
+    const targetsByPage = normaliseTargetMap(config.targetsByPage);
+    const storage = safeStorage(config.storage);
+    const surfaceIds = normaliseList(config.surfaces);
+    let storedTarget = null;
+    let storedSurface = null;
+    try { storedTarget = storage ? storage.getItem(TARGET_KEY) : null; } catch (_) { storedTarget = null; }
+    try { storedSurface = storage ? storage.getItem(SURFACE_KEY) : null; } catch (_) { storedSurface = null; }
+    const initialPage = pages.includes(String(config.page)) ? String(config.page) : (pages[0] || "index.html");
+    const targetsForPage = page => targetsByPage[page] && targetsByPage[page].length ? targetsByPage[page] : targets;
+    const initialTargets = targetsForPage(initialPage);
+    const state = {
+      page: initialPage,
+      view: "product",
+      target: initialTargets.includes(String(storedTarget)) ? String(storedTarget) : (initialTargets[0] || null),
+      surface: surfaceIds.includes(String(storedSurface)) ? String(storedSurface)
+        : (config.defaultSurface ? String(config.defaultSurface) : (surfaceIds[0] || null))
+    };
+    function requirePage(page) {
+      if (!pages.includes(page)) throw new Error("Unknown HiFi product page: " + page);
+    }
+    function requireTarget(target) {
+      const supported = targetsForPage(state.page);
+      if (!supported.includes(String(target))) throw new Error("Unknown HiFi responsive target: " + target);
+    }
+    function requireView(view) {
+      if (!["product", "overview", "design-tokens"].includes(view)) throw new Error("Unknown HiFi review view: " + view);
+    }
+    function persist() {
+      if (!storage) return;
+      try {
+        if (state.target !== null) storage.setItem(TARGET_KEY, state.target);
+        if (state.surface !== null) storage.setItem(SURFACE_KEY, state.surface);
+      } catch (_) {}
+    }
+    function notify() {
+      if (typeof config.onChange === "function") config.onChange(state);
+      return this.snapshot();
+    }
+    function requireSurface(surface) {
+      if (surfaceIds.length && !surfaceIds.includes(String(surface))) throw new Error("Unknown HiFi product surface: " + surface);
+    }
+    return {
+      selectTarget(target) { requireTarget(target); state.target = String(target); persist(); return notify.call(this); },
+      setPage(page) {
+        requirePage(page);
+        state.page = page;
+        const supported = targetsForPage(page);
+        if (!supported.includes(state.target)) state.target = supported[0] || null;
+        state.view = "product";
+        persist();
+        return notify.call(this);
+      },
+      selectSurface(surface) { requireSurface(surface); if (surface !== null && surface !== undefined) state.surface = String(surface); persist(); return notify.call(this); },
+      openView(view, options) { requireView(view); state.view = view; return options && options.silent ? this.snapshot() : notify.call(this); },
+      showProduct(options) { state.view = "product"; return options && options.silent ? this.snapshot() : notify.call(this); },
+      snapshot() { return {page: state.page, view: state.view, target: state.target, surface: state.surface}; }
+    };
+  }
+
+  function connectHifiReviewer(options) {
+    const config = options || {};
+    const root = config.root || document;
+    const canvas = root.querySelector("[data-hifi-canvas]");
+    const surfaces = Array.from(root.querySelectorAll("[data-ui-surface]"));
+    const panels = Array.from(root.querySelectorAll("[data-hifi-panel]"));
+    const controls = Array.from(root.querySelectorAll("[data-hifi-target-control]"));
+    const pages = Array.from(root.querySelectorAll("[data-hifi-page-nav] a")).map(link => link.getAttribute("href"));
+    const targets = controls.map(control => control.dataset.hifiTargetControl);
+    const currentPage = config.page || (typeof location === "object" && location.pathname
+      ? location.pathname.split("/").pop() || "index.html" : pages[0]);
+    const defaultSurface = config.defaultSurface || (root.body && root.body.dataset ? root.body.dataset.hifiDefaultSurface : null)
+      || (surfaces[0] && surfaces[0].dataset ? surfaces[0].dataset.uiSurface : null);
+    const targetsByPage = normaliseTargetMap(config.targetsByPage);
+    for (const link of root.querySelectorAll("[data-hifi-page-nav] a")) {
+      const page = link.getAttribute("href");
+      const declared = link.dataset ? link.dataset.hifiPageTargets : null;
+      if (page && declared) targetsByPage[page] = normaliseList(declared.split(/\s+/));
+    }
+    targetsByPage[currentPage] = targets;
+    const runtime = createHifiReviewerRuntime({
+      storage: Object.prototype.hasOwnProperty.call(config, "storage") ? config.storage : browserSessionStorage(),
+      page: currentPage, defaultSurface, pages, surfaces: surfaces.map(item => item.dataset.uiSurface), targets,
+      targetsByPage,
+      onChange: () => apply({focus: false, syncHash: false})
+    });
+    function currentLocation() {
+      try { return typeof window === "object" && window.location ? window.location : location; } catch (_) { return {}; }
+    }
+    function apply(options) {
+      const settings = options || {};
+      const snapshot = runtime.snapshot();
+      if (canvas && canvas.dataset) canvas.dataset.hifiTarget = snapshot.target || "";
+      for (const control of controls) {
+        control.setAttribute("aria-pressed", String(control.dataset.hifiTargetControl === snapshot.target));
+      }
+      if (settings.syncHash !== false) {
+        const locationState = currentLocation();
+        const hash = locationState && typeof locationState.hash === "string" ? locationState.hash : "";
+        const view = hash === "#overview" || hash === "#design-tokens" ? hash.slice(1) : "product";
+        runtime.openView(view, {silent: true});
+      }
+      const next = runtime.snapshot();
+      for (const panel of panels) panel.hidden = panel.dataset.hifiPanel !== next.view;
+      if (canvas) canvas.hidden = next.view !== "product";
+      for (const candidate of surfaces) {
+        candidate.hidden = next.view !== "product" || (next.surface && candidate.dataset.uiSurface !== next.surface);
+      }
+      for (const link of root.querySelectorAll("[data-hifi-page-nav] a")) {
+        if (link.getAttribute("href") === next.page) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      }
+      if (settings.focus) {
+        const focusTarget = next.view === "product" ? surfaces.find(item => !item.hidden) : panels.find(panel => panel.dataset.hifiPanel === next.view);
+        const heading = focusTarget && focusTarget.querySelector("h1");
+        if (heading && typeof heading.focus === "function") heading.focus();
+      }
+    }
+    for (const control of controls) control.addEventListener("click", () => runtime.selectTarget(control.dataset.hifiTargetControl));
+    for (const link of root.querySelectorAll("[data-hifi-page-nav] a")) link.addEventListener("click", () => runtime.setPage(link.getAttribute("href")));
+    for (const link of root.querySelectorAll("[data-hifi-state-coverage]")) link.addEventListener("click", () => {
+      const surface = (link.getAttribute("data-hifi-state-coverage") || "").trim().split(/\s+/, 1)[0];
+      if (surface) {
+        try { runtime.selectSurface(surface); } catch (_) {}
+      }
+    });
+    const locationState = currentLocation();
+    if (typeof window === "object" && window.addEventListener) window.addEventListener("hashchange", () => apply({focus: true}));
+    if (typeof document === "object" && document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => apply({focus: true}), {once: true});
+    else apply({focus: !!(locationState && locationState.hash)});
+    return runtime;
+  }
+
+  window.createHifiReviewerRuntime = createHifiReviewerRuntime;
+  window.connectHifiReviewer = connectHifiReviewer;
+})();
+</script>
+<!-- hifi-reviewer:runtime:end -->
