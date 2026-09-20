@@ -60,6 +60,19 @@ product, approval, authorization and release gates remain in place.
 
 ## Results And Remaining Work
 
+At `a5b3217`, the local full suite passed (1,156 Harness tests with 16 skips,
+573 sibling tests with 3 skips, and the opt-in golden path). PR #115 CI then found
+one UI test fixture without the canvas measurement API. Its multiline `node -e`
+launcher had hidden the failure on Windows. The bounded repair uses stdin, models
+canvas width, rejects an incorrect width and asserts that execution reaches the
+final check. Product runtime and validator code are unchanged. New exact-head CI
+and reviews are required; the previous results remain historical.
+
+PR: https://github.com/Phlegonlabs/product-delivery-harness/pull/115.
+The canonical installer updated local skills and retained the previous seven
+copies in `~/.agents/skill-backups/product-delivery-harness/20260920-125038`.
+Installation is not release approval, and a fresh host session is needed to load it.
+
 The GLM attempt failed after partial work; the owner explicitly switched to local
 Codex. Existing partial work and failed reviews were retained. No old human receipt
 was rewritten and no new human approval was fabricated.
