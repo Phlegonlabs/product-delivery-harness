@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.47.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.48.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -298,7 +298,7 @@ Wireframe 审阅器一次只显示一个产品页面。目标控件会设置实�
 
 Full-stack 按完整流程实现页面、API、权限、数据保存与反馈。agent-browser 用于 Web 探索，重要流程另保留本机／CI 可重跑测试；登录、拒绝访问、重试与副作用都要有实际证据。发布涵盖 migration、健康检查、监控、成本告警与恢复，交付、发布、启用及产品效果分别报告。SEO 只应用于适用的公开页面。
 
-升级至 0.47.0 时，先让使用 skills 的工作到达安全停止点，再执行 canonical installer，保留备份并开新 session；不可热更新已加载的 worker。按文档同步影响清单局部更新当前文档，保留自定义 AGENTS 规则与历史证据。现有 document-sync/1 与 ui-hifi/2 仍可检查；新的 HiFi 批准须补左侧审阅界面及绑定各页的 ui-output/2 reviewer 观察，只重做受影响证据，不改写旧批准。小修正不必新增 Epic／PLAN／RUN。重跑受影响的 owner gates 与必需最终验证。
+升级至 0.48.0 时，先让使用 skills 的工作到达安全停止点，再执行 canonical installer，保留备份并开新 session；不可热更新已加载的 worker。按文档同步影响清单局部更新当前文档，保留自定义 AGENTS 规则与历史证据。现有 document-sync/1 与 ui-hifi/2 仍可检查；新的 HiFi 批准须补左侧审阅界面及绑定各页的 ui-output/2 reviewer 观察，只重做受影响证据，不改写旧批准。小修正不必新增 Epic／PLAN／RUN。重跑受影响的 owner gates 与必需最终验证。
 
 每次调用 skill 都先应用共享的[文档同步契约](skills/delivery-harness/references/document-sync-contract.md)，检查当前指引、skill/runtime 身份与产品文档的变化，不改写历史批准或 RUN。当前 PRD 持续作为下一轮 enhancement 的基准，被替代的 PRD 保留链接供参考。[有界 enhancement](skills/delivery-harness/references/bounded-enhancement.md) 沿用一次确认的范围，执行修复、范围内 module 重写与重测，不反复要求批准。达到修复上限就把未解决需求移交下一轮；本轮结束不等于交付 PASS，也不授权发布。
 
@@ -587,6 +587,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.48.0** — Enhancement 保留未受影响的 Wireframe／HiFi 页面并沿用已批准方向。Epic 变更记录区分新成果与小修。审阅界面加入准确宽度的 responsive 画布、可操作搜索及绑定来源的组件样式。新的 HiFi 证据验证实际 variant、选取值保留与错误数据。破坏性 skill-bundle 变更。
 
 - **0.47.0** — 加入 Epic 索引与派生执行摘要，维持一份当前 PRD；文档同步列出来源影响。AGENTS 按情境加载规则，500 行改为拆分检查点。Wireframe 默认主要页面；新的 HiFi 批准要求左栏 Overview、绑定各页的 Design Tokens，以及分开的产品与审阅操作证据。Full-stack E2E 与恢复交接沿用现有记录。破坏性 skill-bundle 变更。
 

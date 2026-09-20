@@ -48,9 +48,12 @@ product, approval, authorization and release gates remain in place.
 | Change | Reason and scope | Commit / evidence | Result |
 | --- | --- | --- | --- |
 | Wireframe composition | Explicit geometry, editable fields and preserved reviewer state | `496f70f`; 75 focused tests | Superseded by the repair below; not browser evidence |
-| Wireframe search/overlay repair | Review found inert search and guaranteed wide-dialog overflow | `bfa0d8e`; 79 focused tests | Source/runtime checks pass; exact-head review pending |
-| HiFi reviewer | Target/surface switching, specimens and source-bound evidence | Worker `7c67abf`; 22 contract and 4 runtime tests | Review found four blockers; repair in progress, not integrated |
-| Incremental scope and Epic rules | Owner reported repeated full UI redraws | Current bounded change | In progress |
+| Wireframe search/overlay repair | Review found inert search and guaranteed wide-dialog overflow | `bfa0d8e`; 79 focused tests | Review found three validator defects; repaired below |
+| Wireframe input validation | Reject legacy search, malformed references and sentinel item languages | `1415a46`; 82 focused tests | Source/runtime checks pass; unified exact-head review pending |
+| HiFi reviewer | Target/surface switching, specimens and source-bound evidence | `7c67abf`; initial 22 contract and 4 runtime tests | Review found four blockers; repaired below |
+| HiFi evidence validation | Validate actual control variants, selectable controls and closed typed evidence rows | `b0d3e9a`; 26 contract and 4 runtime tests | Integrated; unified exact-head review pending |
+| Incremental scope and Epic rules | Owner reported repeated full UI redraws | `d73b0ba`; 60 skill contract tests | Guidance and cross-skill regression pass; preserved-surface comparison remains a required review step, not an automated semantic proof |
+| Release preparation | Renewed reviewer contracts are a breaking skill-bundle change | 0.48.0 version pins and four-language documentation | Complete candidate checks and main promotion pending |
 
 ## Results And Remaining Work
 
