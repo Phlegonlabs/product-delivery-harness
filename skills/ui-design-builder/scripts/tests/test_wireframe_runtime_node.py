@@ -218,7 +218,7 @@ const emptyState = {id:"no-results", treatments:{"search-results":{copy:[item("e
 const content = new Node("main");
 let currentInput = null, renders = 0, followed = null;
 const context = {
-  data:{screens:[screen]}, state:{page:"UI-001", localSearch:Object.create(null), fieldValues:Object.create(null), screenState:"ready", screenStates:{}},
+  data:{schema:"wireframes/4",screens:[screen]}, state:{page:"UI-001", localSearch:Object.create(null), fieldValues:Object.create(null), screenState:"ready", screenStates:{}},
   content, element:(tag, cls, text) => new Node(tag, cls, text),
   copyRole:value => value.role, copyText:value => value.text || value.example || value.label || "",
   actionLabel:value => value.label || value,
@@ -227,7 +227,10 @@ const context = {
   outgoingFlow:() => ({from:"UI-001", trigger:"flow"}), runFlow:flow => { followed = flow; },
 };
 content.querySelector = () => currentInput;
-vm.runInNewContext(helper + "\n" + results + "\n" + actions + "\nthis.controls = renderLocalSearchControls; this.results = renderLocalSearchResults; this.append = appendActions; this.reset = resetLocalSearch;", context);
+vm.runInNewContext(helper + "\n" + results + "\n" + actions + "\nthis.configFor = localSearchConfigFor; this.controls = renderLocalSearchControls; this.results = renderLocalSearchResults; this.append = appendActions; this.reset = resetLocalSearch;", context);
+context.data.schema = "wireframes/3";
+if (context.configFor({localSearch:{languageOptions:null}}) !== null) throw Error("legacy schema enabled localSearch");
+context.data.schema = "wireframes/4";
 const controlsRoot = new Node("div");
 context.controls(controlsRoot, "UI-001", config);
 const controls = controlsRoot.children[0];

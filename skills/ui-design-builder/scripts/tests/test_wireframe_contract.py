@@ -478,6 +478,30 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             ),
         )
 
+    def test_local_search_requires_current_schema(self):
+        candidate = local_search_data()
+        candidate["schema"] = "wireframes/3"
+        candidate["screens"][0]["localSearch"]["languageOptions"] = None
+        self.assertIn("requires wireframes/4", "\n".join(validate_html(render_html(candidate))))
+
+    def test_local_search_malformed_references_report_errors(self):
+        for value in ([], {}, None):
+            for key in ("resultsRegion", "results", "empty"):
+                with self.subTest(value=value, key=key):
+                    candidate = local_search_data()
+                    search = candidate["screens"][0]["localSearch"]
+                    if key == "resultsRegion":
+                        search[key] = value
+                    else:
+                        search["states"][key] = value
+                    self.assertTrue(validate_html(render_html(candidate)))
+
+    def test_local_search_item_cannot_use_unfiltered_sentinel(self):
+        candidate = local_search_data()
+        search = candidate["screens"][0]["localSearch"]
+        search["items"][0]["language"] = search["languageOptions"][0]["value"]
+        self.assertIn("non-sentinel language option", "\n".join(validate_html(render_html(candidate))))
+
     def test_local_search_projection_rejects_unknown_keys_and_unbounded_values(self):
         candidate = local_search_data()
         search = candidate["screens"][0]["localSearch"]

@@ -1378,7 +1378,7 @@
       };
 
       const localSearchConfigFor = (screen) =>
-        screen && screen.localSearch && typeof screen.localSearch === "object"
+        data.schema === "wireframes/4" && screen && screen.localSearch && typeof screen.localSearch === "object"
           ? screen.localSearch
           : null;
 

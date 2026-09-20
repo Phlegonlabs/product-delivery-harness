@@ -1330,11 +1330,11 @@ def _validate_local_search(
             if item_missing:
                 _add(problems, item_path, "must include: " + ", ".join(item_missing))
             language = item.get("language")
-            if not _nonempty(language) or (option_values and language not in option_values):
+            if not _nonempty(language) or language not in option_values[1:]:
                 _add(
                     problems,
                     f"{item_path}.language",
-                    "must match a declared language option value",
+                    "must match a declared non-sentinel language option value",
                 )
             search_text = item.get("searchText")
             if not _nonempty(search_text) or len(search_text) > LOCAL_SEARCH_MAX_SEARCH_TEXT_LENGTH:
@@ -1353,18 +1353,18 @@ def _validate_local_search(
             if isinstance(item_copy, dict) and item_copy.get("kind") != "dynamic":
                 _add(problems, f"{item_path}.copy.kind", "must be dynamic copy")
 
-    if isinstance(states, dict) and results_region in region_by_id:
+    if isinstance(states, dict) and _nonempty(results_region) and results_region in region_by_id:
         # ``states`` points at existing screen treatments. Requiring copy at
         # both result branches prevents the renderer from inventing a count or
         # empty message when a local query has no matches.
         state_by_id = {
             screen_state.get("id"): screen_state
             for screen_state in state_records
-            if isinstance(screen_state, dict)
+            if isinstance(screen_state, dict) and _nonempty(screen_state.get("id"))
         }
         for key in ("results", "empty"):
             state_id = states.get(key)
-            state_record = state_by_id.get(state_id)
+            state_record = state_by_id.get(state_id) if _nonempty(state_id) else None
             treatment = (
                 state_record.get("treatments", {}).get(results_region)
                 if isinstance(state_record, dict)
@@ -1947,6 +1947,8 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                         "must include product or assistive copy for every alternate state",
                     )
 
+        if "localSearch" in screen and not copy_contract:
+            _add(problems, f"{path}.localSearch", "requires wireframes/4")
         if copy_contract and "localSearch" in screen:
             _validate_local_search(
                 screen["localSearch"],
