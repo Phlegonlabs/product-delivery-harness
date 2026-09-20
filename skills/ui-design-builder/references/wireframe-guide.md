@@ -175,9 +175,11 @@ An approved `wireframes.html`, together with the still-approved Product Definiti
 
 An enhancement run first classifies the delta's UI impact with the owner — `none`, `structure`, `style`, or `both`. Never assume `none` because the request reads backend- or data-side.
 
+Apply `enhancement-recommendations.md`'s Incremental UI Scope before authoring. Append a new screen or patch named regions in the existing data; retain all other screen objects, copy, composition and flow bindings. Necessary entry links are a named change, not permission to redesign their entire page. Re-serializing the container HTML does not authorize new product content or geometry. Review the full package without re-authoring the preserved scope.
+
 - `none`: preserve `wireframes.html` and any approved UI target verbatim.
 - `structure` or `both`: update the affected `UI-*` entries in `PRD.md` first, then regenerate the affected pages in `wireframes.html`, then re-run the Wireframe Approval Gate on the changed scope and refresh `### Wireframe Approval`. A changed PRD UI contract with a stale wireframe artifact is not a complete package.
-- `style` or `both`: re-run `references/ui-design-pass.md` for the affected scope or obtain explicit confirmation that the existing direction still applies. Keeping `ui-design.md`, an approved target, or a design-system pair unchanged requires the owner's explicit confirmation. A stale visual contract never publishes silently.
+- `style` or `both`: re-run `references/ui-design-pass.md` for the affected scope. Reuse the recorded approved direction unless the accepted delta changes it; do not seek a fresh style selection merely because a page was added. Refresh affected target and source bindings, and renew applicable approval/evidence. A stale visual contract never publishes silently.
 
 A user-visible wording change is a copy delta and uses `structure` (or `both` when style also changes) under the existing four-value UI-impact classifier. Update the affected PRD `` `copy` `` anchors and schema-4 items, return `copyFreeze.status` and the affected screen `copyStatus` to `draft`, inspect every impacted viewport and state for reflow, and renew both Copy Freeze and Wireframe Approval. A dynamic source/order/format/count/length/fallback change follows the same route even when its representative example stays unchanged.
 

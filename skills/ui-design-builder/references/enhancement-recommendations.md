@@ -2,6 +2,21 @@
 
 Use for Web, iOS, Android and other approved UI surfaces, including a direct frontend change. Apply the same recommendation quality to initial design. This is an authoring step inside the existing intake, direction and approval gates, not a new approval workflow.
 
+## Incremental UI Scope
+
+Enhancement authoring is incremental by default. Keep the complete connected package, but complete coverage is not a redraw instruction. Start from the approved files, never a fresh template populated with the whole product again.
+
+Before editing, record the baseline revision/paths/hashes and an `added / changed / preserved` UI inventory in the existing Epic or direct-task record, with the accepted delta in `ui-design.md`. Name affected regions, actions, states and responsive rules inside changed pages. Everything not named is preserved. A global redesign requires a separate explicit owner decision; an enhancement request does not imply it.
+
+- Add a feature page by adding its Wireframe screen and HiFi page, using existing components, tokens and approved direction. Add only necessary entry links and return/error/recovery paths on existing pages. A new feature within an existing page changes only that region; do not invent another page just to fit this example.
+- Retain unrelated layout, spacing, copy, content examples, responsive behavior, component variants, assets and stable IDs. Do not refresh old content samples or restyle old pages as incidental generator output.
+- Reuse resolved intake, brand, stack, motion and direction decisions. Do not repeat direction studies or the all-screen design sequence when the accepted delta retains the existing direction. New copy, structure or styling still renews the applicable approvals for its affected scope.
+- A shared component, token or stylesheet change lists all consumers before editing. Treat those consumers as affected for regression; this is not permission to redesign them. Reviewer navigation, manifest hashes and gallery bindings may change mechanically while unchanged product content and styling remain intact.
+- Compare before/after source and rendered evidence. Preserve unaffected Wireframe screen objects and outgoing flows; preserve unaffected HiFi product DOM, styles, assets and behavior. Show any unexpected changed page as a scope failure, not a harmless re-generation. Inspect shared CSS/runtime changes for indirect effects.
+- Test the new or changed screen at its required targets/states, plus entry, back, cancel, failure, recovery and state retention across old/new screens. Retain complete package coverage and all existing mandatory validation; running full regression does not authorize full re-authoring. Old receipts remain historical and changed bytes receive current evidence.
+
+Use the existing Product Definition impact record, UI approval gates and compiler contracts. This scope inventory is a derived work boundary, not another PRD or permission ledger. If the baseline is missing, stop only the dependent design work and request that source; do not reconstruct or replace it from memory.
+
 ## Inspect And Recommend
 
 1. Inspect the current affected screen and representative primary/stress cases. Record the baseline path or revision, viewport/device, content and observed problem in the Visual Preference Brief. If it cannot be inspected, record that gap instead of claiming a before/after improvement.

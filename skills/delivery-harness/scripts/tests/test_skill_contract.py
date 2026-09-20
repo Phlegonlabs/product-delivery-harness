@@ -26,6 +26,26 @@ REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
 
 
 class DeliveryHarnessSkillContractTests(unittest.TestCase):
+    def test_enhancements_preserve_ui_and_record_small_followups(self) -> None:
+        bounded = self.read("references/bounded-enhancement.md")
+        epic = self.read("assets/templates/EPIC.template.md")
+        ui_root = SKILL_ROOT.parent / "ui-design-builder"
+        recommendations = (ui_root / "references/enhancement-recommendations.md").read_text(encoding="utf-8")
+        ui_skill = (ui_root / "SKILL.md").read_text(encoding="utf-8")
+        for phrase in ("## Epic Selection And Change History", "before implementation",
+                       "same accepted outcome", "closed Epic", "small fix"):
+            self.assertIn(phrase, bounded)
+        self.assertIn("## Change Log", epic)
+        for phrase in ("## Incremental UI Scope", "added", "changed", "preserved",
+                       "complete coverage is not a redraw instruction", "entry links",
+                       "shared component", "unchanged product"):
+            self.assertIn(phrase, recommendations)
+        self.assertIn("Enhancement mode takes precedence", ui_skill)
+        self.assertIn("Do not restart the all-screen authoring sequence", ui_skill)
+        for name in ("product-definition-builder", "design-system-compiler"):
+            content = (SKILL_ROOT.parent / name / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("Incremental UI Scope", content)
+
     @unittest.skipUnless(sys.platform == "win32" and REPO_ROOT is not None,
                          "Windows CI command exit propagation")
     def test_windows_ci_stops_at_each_failed_suite(self) -> None:

@@ -286,6 +286,8 @@ Document checks now report each changed source, affected artifacts and required 
 
 Complete enhancements use one indexed Epic in `docs/epics/`, referencing the current PRD instead of duplicating it. Small fixes can keep only a direct-task record. The goal, write scope, design source, dependencies and checks are derived into that record or existing PLAN/RUN; no extra coordination specification is required.
 
+Choose the record before implementation: a new accepted outcome gets an Epic; same-outcome fixes append to its Change Log; an isolated small fix can use a direct-task record. Log the reason, affected scope, commit, tests and remaining work without rewriting closed history. UI enhancements are incremental: add or patch only named Wireframe/HiFi pages and necessary entry/return controls. Preserve unrelated product layout, content, style and IDs, and reuse the approved direction. List shared-component consumers before changing them. Complete package coverage and full regression are not instructions to redraw every screen.
+
 Project AGENTS keeps entry, reading, ownership, routing, synchronization, authorization and completion rules. Conditional commerce, activation and managed-run details live in a required reference. The 500-line rule is a split checkpoint, not a hard limit; repairs preserve interfaces and data.
 
 Wireframe and HiFi review starts on the primary product page. The left sidebar opens Overview, every page and design specifications. Fresh HiFi approval requires working product interactions plus separate reviewer-navigation and source-derived Design Tokens evidence; native HTML is still a design projection. Historical bundles remain inspection-readable.

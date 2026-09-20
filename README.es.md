@@ -286,6 +286,8 @@ La revisión documental enumera fuentes modificadas, artefactos afectados y comp
 
 Las mejoras completas usan un Epic indexado en `docs/epics/` que referencia el PRD actual. Una corrección pequeña puede conservar solo su registro directo. El objetivo, alcance, diseño, dependencias y pruebas se derivan en ese registro o en PLAN/RUN, sin otra especificación intermedia.
 
+Elige el registro antes de implementar: un resultado nuevo aceptado necesita un Epic; las correcciones del mismo objetivo se añaden a su Change Log; una corrección aislada puede usar el registro directo. Anota motivo, alcance, commit, pruebas y pendientes sin reescribir el historial cerrado. Las mejoras UI son incrementales: añade o modifica solo las páginas Wireframe/HiFi nombradas y sus controles de entrada y retorno. Conserva diseño, contenido, estilo e IDs ajenos al cambio y reutiliza la dirección aprobada. Enumera los consumidores antes de modificar un componente compartido. La cobertura completa y la regresión no autorizan redibujar todas las pantallas.
+
 AGENTS conserva entrada, lectura, responsabilidades, sincronización, autorización y cierre. Comercio, activación y ejecución gestionada pasan a una referencia obligatoria según el caso. Las 500 líneas son un punto de revisión para dividir, no un límite ni una orden de reescritura.
 
 Wireframe y HiFi abren la página principal. La barra lateral muestra Overview, páginas y especificaciones. Una nueva aprobación HiFi exige interacciones reales del producto y pruebas separadas de navegación de revisión y Design Tokens derivados del estilo. El HTML nativo sigue siendo una proyección; los paquetes históricos siguen legibles.
