@@ -38,6 +38,31 @@ class DocumentSyncTests(unittest.TestCase):
         result = self.observe(snapshot)
         self.assertEqual("unchanged", result["status"])
         self.assertIn("approval are separate", result["meaning"])
+        self.assertEqual([], result["impacts"])
+
+    def test_impacts_route_changes_without_changing_snapshot(self):
+        name = "docs/product/PRD.md"
+        path = self.root / name
+        path.parent.mkdir(parents=True)
+        path.write_text("Requirement UI-1", encoding="utf-8")
+        first = self.observe(paths=[name])
+        self.assertEqual("first_observation", first["impacts"][0]["reason"])
+        self.assertEqual({"schema", "installed_digest", "documents"}, set(first["snapshot"]))
+        path.write_text("Requirement UI-1 revised", encoding="utf-8")
+        changed = self.observe(first["snapshot"], [name])["impacts"][0]
+        self.assertEqual(name, changed["source"])
+        self.assertIn("HiFi", changed["affected_artifacts"])
+        self.assertIn("requirement-linked tests", changed["required_checks"])
+        self.assertTrue(changed["semantic_review_required"])
+        path.unlink()
+        missing = self.observe(first["snapshot"], [name])["impacts"][0]
+        self.assertEqual("missing_document", missing["reason"])
+
+    def test_unknown_source_requires_parent_review(self):
+        (self.root / "notes.md").write_text("A local rule", encoding="utf-8")
+        impact = self.observe(paths=["notes.md"])["impacts"][0]
+        self.assertEqual(["parent semantic review"], impact["affected_stages"])
+        self.assertTrue(impact["semantic_review_required"])
 
     def test_changed_missing_and_new_documents(self):
         snapshot = self.observe()["snapshot"]

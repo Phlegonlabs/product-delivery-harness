@@ -71,6 +71,28 @@ def read_bounded(path):
     return data
 
 
+def impact_for(name, reason):
+    """Conservative routing hints, never a substitute for semantic review."""
+    filename = name.rsplit("/", 1)[-1]
+    if filename in {"AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "DOCUMENTS.md"}:
+        artifacts, stages, checks = ["scoped live documents"], ["intake", "affected stages"], ["required reading", "references and skill bindings"]
+    elif name == "docs/product/PRD.md":
+        artifacts, stages, checks = ["architecture", "stack", "wireframes", "HiFi", "acceptance"], ["product", "design", "delivery"], ["product package", "affected UI gates", "requirement-linked tests"]
+    elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
+        artifacts, stages, checks = ["implementation", "deployment", "acceptance"], ["product", "delivery"], ["product package", "API and permission tests", "migration and recovery"]
+    elif name.startswith("docs/design/"):
+        artifacts, stages, checks = ["wireframes", "HiFi", "conditional design-system pair", "implementation"], ["design", "delivery"], ["UI contract", "product interactions", "visual and accessibility evidence"]
+    elif filename in {"DEPLOYMENT.md", "ACTIVATION.md"}:
+        artifacts, stages, checks = ["release evidence", "operational readiness"], ["deployment", "activation"], ["environment isolation", "build readback", "recovery and readiness"]
+    elif name.startswith("docs/epics/"):
+        artifacts, stages, checks = ["referenced PRD requirements", "affected live artifacts"], ["intake", "delivery"], ["Epic references and baseline", "accepted scope and outcomes"]
+    else:
+        artifacts, stages, checks = ["parent-selected affected sources"], ["parent semantic review"], ["source references and affected acceptance"]
+    return {"source": name, "reason": reason, "affected_artifacts": artifacts,
+            "affected_stages": stages, "required_checks": checks,
+            "semantic_review_required": True}
+
+
 def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=()):
     root = Path(root).resolve(strict=True)
     if not root.is_dir():
@@ -111,24 +133,29 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         previous = {}
         findings.append({"kind": "baseline_review_required"})
     documents = {}
+    impacts = []
     for name in paths:
         path = safe_path(root, name, document=True)
         if not path.exists():
             documents[name] = None
             if name in required or previous.get(name) is not None:
                 findings.append({"kind": "missing_document", "path": name})
+                impacts.append(impact_for(name, "missing_document"))
             continue
         data = read_bounded(path)
         text = data.decode("utf-8-sig")
         documents[name] = hashlib.sha256(data).hexdigest()
         if baseline is not None and previous.get(name) != documents[name]:
             findings.append({"kind": "document_changed", "path": name})
+            impacts.append(impact_for(name, "document_changed"))
+        elif baseline is None:
+            impacts.append(impact_for(name, "first_observation"))
         for skill in sorted(set(RETIRED.findall(text))):
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
     snapshot = {"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
     return {"status": "review_required" if findings else "unchanged",
-            "findings": findings, "snapshot": snapshot,
+            "findings": findings, "impacts": impacts, "snapshot": snapshot,
             "meaning": "Byte drift only; semantic review, capability, authorization and approval are separate."}
 
 

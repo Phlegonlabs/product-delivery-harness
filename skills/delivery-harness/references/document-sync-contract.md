@@ -1,6 +1,6 @@
 # Shared Invocation Document Check
 
-Every skill in this bundle uses this entry check. It is read-only by default and does not launch another skill, probe another host, install software, fetch a public latest version, or grant permission. A public-only SEO review with no repository records the repository portion as not applicable.
+At the first work in a new session and at every skill invocation, use this entry check. It is read-only by default and does not launch another skill, probe another host, install software, fetch a public latest version, or grant permission. A public-only SEO review with no repository records the repository portion as not applicable.
 
 ## Inventory And Observe
 
@@ -26,3 +26,9 @@ Route actual product/UI/stack decision changes to their owner as next-round gaps
 After the semantic review and any authorized correction, the parent may retain only the emitted `snapshot` object at the project-declared path (default `docs/document-sync.json`) under the existing document-write authority. Keep review findings and dispositions in the existing task report/RUN evidence, not a new approval database. Saving a snapshot is not a decision grant. If saving is not authorized, keep the inline report; the next invocation repeats the review rather than pretending it was persisted.
 
 The snapshot is a tracked non-secret inventory, not a cache to hide in .gitignore. Never include values, cookies, tokens or browser storage. Do not include the snapshot itself in its inventory. The CLI excludes historical/credential paths and rejects links, traversal, malformed JSON and oversized files. It cannot prove a document's instructions are correct, that the caller really observed a loaded digest, or that an external action occurred; the parent must verify those facts separately.
+
+## Impact Review
+
+The read-only report includes `impacts`: source path, observation reason, affected artifacts/stages, required checks and `semantic_review_required`. Present first-observation sources and changed or required/missing sources need review; unchanged bytes have no source impact rows. Unknown source types route to parent semantic review. These are conservative routing hints: inspect actual requirement references and the diff before selecting checks. Skill identity changes still require the separate restart/contract findings even when all document bytes match.
+
+Keep this report in existing task or RUN evidence. The `document-sync/1` snapshot stays unchanged; do not store impact hints as a second editable specification or use them as approval.
