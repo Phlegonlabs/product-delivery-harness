@@ -1,3 +1,4 @@
+from hifi_review_fixture import add_shell, observations
 """Tests for the UI design contract checker."""
 
 import importlib
@@ -221,6 +222,8 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
         encoding="utf-8",
     )
+    if not legacy_hifi:
+        hifi.write_text(add_shell(hifi.read_text(encoding="utf-8"), json.loads(manifest)), encoding="utf-8")
     if legacy_hifi:
         legacy = json.loads(manifest)
         legacy = {"schema": "ui-hifi/1", "surfaces": [
@@ -278,6 +281,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
             if legacy_hifi:
                 output["schema"] = "ui-output/1"
                 output.pop("interactions")
+                output.pop("reviewer", None)
                 output["navigation"] = []
                 output["sandbox"]["topNavigation"] = "blocked"
         output_path.write_text(json.dumps(output), encoding="utf-8")
@@ -317,6 +321,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         })
         if legacy_hifi:
             output.pop("interactions", None)
+            output.pop("reviewer", None)
             output["navigation"] = []
             output["sandbox"]["topNavigation"] = "blocked"
         output["motion"] = {
@@ -429,10 +434,10 @@ def materialize_hifi_bundle(root):
             manifest["interactions"].append({"id": source["id"] + "-" + control, "source": {"surface": source["id"], "state": "ready"},
                                             "control": control, "kind": kind, "destination": {"surface": target["id"], "state": "updated" if kind == "state" else "ready"}})
     child = root / "details.html"
-    child.write_text(page(surfaces[1], surfaces[0]), encoding="utf-8")
+    child.write_text(add_shell(page(surfaces[1], surfaces[0]), manifest, "details.html"), encoding="utf-8")
     manifest["pages"] = [{"path": "details.html", "sha256": hashlib.sha256(child.read_bytes()).hexdigest()}]
     html = page(surfaces[0], surfaces[1]).replace('</body>', '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script></body>')
-    path.write_text(html, encoding="utf-8")
+    path.write_text(add_shell(html, manifest), encoding="utf-8")
     return path, manifest, {"surfaces": [{key: value for key, value in row.items() if key != "page"} for row in surfaces]}
 
 
@@ -449,6 +454,7 @@ def bundle_output(manifest):
                                                "destination": action["destination"], "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS"})
                 if action["kind"] == "navigate":
                     output["navigation"].append({"id": action["id"], "target": str(target), "trigger": trigger, "from": source["page"], "to": destination["page"]})
+    output["reviewer"] = observations(manifest)
     return output
 
 
@@ -494,6 +500,7 @@ class UiDesignContractTests(unittest.TestCase):
                     if legacy:
                         output["schema"] = "ui-output/1"
                         output.pop("interactions")
+                        output.pop("reviewer", None)
                         output["navigation"] = []
                         output["sandbox"]["topNavigation"] = "blocked"
                     output_path = root / "output.json"
@@ -533,7 +540,7 @@ class UiDesignContractTests(unittest.TestCase):
             '</main>', '<button>Unwired tab</button></main>', "needs a navigation/control ID")):
             with self.subTest(new=new), tempfile.TemporaryDirectory() as temp:
                 path, _, scope = materialize_hifi_bundle(Path(temp))
-                path.write_text(path.read_text(encoding="utf-8").replace(old, new), encoding="utf-8")
+                path.write_text(path.read_text(encoding="utf-8").replace(old, new, 1), encoding="utf-8")
                 problems = []
                 checker._validate_hifi_surface(path, problems, scope)
                 self.assertTrue(any(error in value for value in problems), problems)

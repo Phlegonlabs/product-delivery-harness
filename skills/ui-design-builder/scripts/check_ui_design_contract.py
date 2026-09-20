@@ -16,6 +16,7 @@ from typing import Any
 
 import check_wireframe_html
 from motion_evidence import motion_findings
+from hifi_reviewer import reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -1040,6 +1041,7 @@ def _hifi_bundle_documents(path: Path, html: str, manifest: dict[str, Any]) -> d
 
 def _validate_hifi_bundle(
     path: Path, html: str, manifest: dict[str, Any], problems: list[str], scope: dict[str, Any] | None,
+    *, require_reviewer: bool = False,
 ) -> None:
     try:
         documents = _hifi_bundle_documents(path, html, manifest)
@@ -1080,6 +1082,9 @@ def _validate_hifi_bundle(
         by_id[surface["id"]] = surface
     if scope is not None and set(by_id) != {row.get("id") for row in scope.get("surfaces", [])}:
         _add(problems, "HiFi bundle surfaces must exactly match Approved target scope")
+    if require_reviewer or any("data-hifi-reviewer-shell" in text for text in documents.values()):
+        reviewer_errors, _ = reviewer_contract(documents, manifest)
+        problems.extend(reviewer_errors)
     product_controls: dict[tuple[str, str], list[dict[str, str | None]]] = {}
     for name, page_html in documents.items():
         page_surfaces = [{key: value for key, value in row.items() if key != "page"} for row in surfaces if row["page"] == name]
@@ -1170,7 +1175,7 @@ def _validate_hifi_surface(
         _add(problems, f"Connected HiFi reference cannot be read: {exc}")
         return
     if isinstance(manifest, dict) and manifest.get("schema") == "ui-hifi/2":
-        _validate_hifi_bundle(path, html, manifest, problems, scope)
+        _validate_hifi_bundle(path, html, manifest, problems, scope, require_reviewer=require_connected)
     else:
         if require_connected:
             _add(problems, "Visual approval requires ui-hifi/2; schema-1 HiFi is inspection-only")
@@ -1206,7 +1211,7 @@ def _validate_hifi_html(
                 _add(problems, f"Connected HiFi reference is missing responsive target coverage for {target}")
     class BundleResourceParser(check_wireframe_html.ResourceParser):
         def _record_url(self, tag: str, name: str, value: str) -> None:
-            if tag == "a" and name == "href" and local_pages is not None and value in local_pages:
+            if tag == "a" and name == "href" and local_pages is not None and (value in local_pages or ("index.html" in local_pages and value in {"index.html#overview", "index.html#design-tokens"})):
                 return
             super()._record_url(tag, name, value)
 
@@ -1776,6 +1781,7 @@ def _resolve_evidence(
                         else:
                             offline = receipt.get("method") == HIFI_SURFACE_RECEIPT_METHOD
                             bundle = None
+                            review_contract = None
                             if offline and expected_artifact:
                                 candidate = repo_root / expected_artifact
                                 try:
@@ -1784,6 +1790,10 @@ def _resolve_evidence(
                                     parsed_manifest = json.loads(matches[0].group("data")) if len(matches) == 1 else None
                                     if isinstance(parsed_manifest, dict) and parsed_manifest.get("schema") == "ui-hifi/2":
                                         bundle = parsed_manifest
+                                        documents = _hifi_bundle_documents(candidate, candidate.read_text(encoding="utf-8"), bundle)
+                                        if any("data-hifi-reviewer-shell" in text for text in documents.values()):
+                                            review_errors, review_contract = reviewer_contract(documents, bundle)
+                                            problems.extend(review_errors)
                                 except (OSError, UnicodeError, ValueError):
                                     _add(problems, "HiFi evidence bundle manifest cannot be read")
                             expected_output_keys = {
@@ -1809,6 +1819,8 @@ def _resolve_evidence(
                             }
                             if bundle is not None:
                                 expected_output_keys.add("interactions")
+                            if review_contract is not None:
+                                expected_output_keys.add("reviewer")
                             if expected_motion is not None:
                                 expected_output_keys.add("motion")
                             if not isinstance(output_json, dict) or set(output_json) != expected_output_keys:
@@ -1829,6 +1841,9 @@ def _resolve_evidence(
                                 findings = _bundle_transcript_findings(output_json, bundle) if bundle is not None else _offline_transcript_findings(output_json)
                                 for finding in findings:
                                     _add(problems, finding)
+                                if review_contract is not None:
+                                    for finding in reviewer_evidence_findings(output_json.get("reviewer"), review_contract):
+                                        _add(problems, finding)
                             if expected_motion is not None and isinstance(output_json, dict):
                                 motion = output_json.get("motion")
                                 for finding in motion_findings(motion, expected_motion):

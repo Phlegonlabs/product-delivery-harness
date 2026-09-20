@@ -31,6 +31,10 @@ The target is a mid-fidelity interactive structural prototype. Use exact product
 
 Walk each declared primary journey using product controls, including keyboard operation where applicable. Review-shell page/state switching is capture setup, not journey evidence. Required input, validation and recovery behavior must be represented locally from the approved PRD, with no network or real account side effects. The template's read-only field sample only proves placement; if the canonical runtime cannot express a required interaction, record the unsupported case as blocked and extend the canonical renderer and checker together before approval. Do not modify the frozen shell ad hoc, invent behavior, or call a read-only flow complete.
 
+### Left Sidebar And Initial Page
+
+Keep Overview, every product page and Design System in the left sidebar. Open the first declared product page by default; preserve explicit page, `#overview` and `#design-system` links. Unknown hashes recover to the first page and its first state. Put the complete screen/flow summary in Overview, reached intentionally from the sidebar. Product previews keep their own task controls; reviewer navigation is not product interaction evidence.
+
 ### Design System Draft View
 
 The reviewer navigation includes `Design System` at `#design-system`, labeled `Wireframe Draft`. It is not a product surface, route or `UI-*` entry and does not join the product copy inventory. It shows prototype type sizes/weights/line heights, neutral colors, spacing, control dimensions, padding and corners, plus type, button, field, list and table specimens. Specimen wording is reviewer-only. Actual product wording remains in its approved copy records.

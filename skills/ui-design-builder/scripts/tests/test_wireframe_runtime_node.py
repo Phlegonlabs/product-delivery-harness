@@ -9,6 +9,25 @@ from pathlib import Path
 
 
 class WireframeRuntimeNodeTests(unittest.TestCase):
+    def test_primary_page_default_preserves_explicit_review_links(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is unavailable")
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        script = r'''
+const fs = require("fs"), vm = require("vm");
+const html = fs.readFileSync(process.argv[1], "utf8");
+const source = html.match(/const resolvePage = [\s\S]*?\n      const initialPage/)[0].replace(/\n\s*const initialPage$/, "");
+const context = {data:{screens:[{id:"UI-001"},{id:"UI-002"}]}};
+vm.runInNewContext(source + "\nthis.resolve = resolvePage;", context);
+for (const [hash, expected] of [["","UI-001"],["#unknown","UI-001"],["#UI-002","UI-002"],["#overview","overview"],["#design-system","design-system"]]) {
+  if (context.resolve(hash) !== expected) throw Error(`Wrong page for ${hash}`);
+}
+if (!html.includes("state.page = resolvePage(location.hash)")) throw Error("hashchange bypasses shared routing");
+'''
+        result = subprocess.run([node, "-e", script, str(template)], capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
     def test_composition_runtime_uses_semantic_content_without_losing_copy(self) -> None:
         node = shutil.which("node")
         if node is None:

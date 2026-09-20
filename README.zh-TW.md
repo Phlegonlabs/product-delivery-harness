@@ -288,6 +288,8 @@ Gitignore 衛生同時適用於 direct 與 managed 工作。scope scan 會記錄
 
 專案 AGENTS 保留入口、必讀、文件分工、分流、同步、授權與完成條件。商業、啟用與 managed RUN 細節移到按情境必讀的參考文件。500 行改為拆分檢查點，不再硬性限制或要求出問題就刪掉重寫。
 
+Wireframe 與 HiFi 預設開啟主要產品頁，左側可進入 Overview、各頁與設計規格。新的 HiFi 批准須驗證產品互動，並另行驗證審閱導覽及取自實際樣式的 Design Tokens；原生 HTML 仍是設計投影。歷史成果保持可讀。
+
 Full-stack 依完整流程實作畫面、API、權限、資料保存與回饋。agent-browser 用於 Web 探索，重要流程另保留本機／CI 可重跑測試；登入、拒絕存取、重試與副作用都要有實際證據。發布涵蓋 migration、健康檢查、監控、成本告警與恢復，交付、發布、啟用及產品效果分開報告。SEO 只套用適用的公開頁面。
 
 每次調用 skill 都先套用共用的[文件同步契約](skills/delivery-harness/references/document-sync-contract.md)，檢查現行指引、skill/runtime 身分與產品文件的變動，不改寫歷史批准或 RUN。現行 PRD 持續作為下一輪 enhancement 的基準，被取代的 PRD 保留連結供參考。[有界 enhancement](skills/delivery-harness/references/bounded-enhancement.md) 沿用一次確認的範圍，執行修復、範圍內 module 重寫與重測，不反覆要求批准。達修復上限就把未解決需求移交下一輪；本輪結束不等於交付 PASS，也不授權發布。
