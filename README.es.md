@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.46.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.47.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -291,6 +291,8 @@ AGENTS conserva entrada, lectura, responsabilidades, sincronización, autorizaci
 Wireframe y HiFi abren la página principal. La barra lateral muestra Overview, páginas y especificaciones. Una nueva aprobación HiFi exige interacciones reales del producto y pruebas separadas de navegación de revisión y Design Tokens derivados del estilo. El HTML nativo sigue siendo una proyección; los paquetes históricos siguen legibles.
 
 La entrega full-stack sigue flujos completos: UI, API, permisos, persistencia y respuesta. agent-browser explora Web; los recorridos importantes quedan como pruebas locales y de CI. Login, denegación, reintentos y efectos requieren evidencia real. La publicación verifica migraciones, salud, monitoreo, costes y recuperación; entrega, disponibilidad, activación y resultados se informan por separado. SEO se aplica solo a superficies públicas pertinentes.
+
+Actualiza a 0.47.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria.
 
 Cada invocación aplica el [contrato de sincronización documental](skills/delivery-harness/references/document-sync-contract.md): revisa cambios en las instrucciones vigentes, la identidad del skill/runtime y los documentos del producto, sin reescribir aprobaciones ni RUN históricos. El PRD actual sigue siendo la base de la próxima mejora; las versiones reemplazadas conservan enlaces de referencia. La [mejora acotada](skills/delivery-harness/references/bounded-enhancement.md) reutiliza un alcance aceptado para reparar, reemplazar módulos dentro de ese alcance y repetir pruebas, sin pedir la misma aprobación. Al agotar el presupuesto, entrega los pendientes a la próxima ronda; terminar una ronda no equivale a PASS ni autoriza publicar.
 
@@ -576,6 +578,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.47.0** — Epics indexados y resúmenes derivados conservan un solo PRD vigente. La sincronización enumera impactos. AGENTS enlaza reglas condicionales y usa 500 líneas como punto de revisión. Wireframe abre la página principal; nuevas aprobaciones HiFi requieren Overview, Design Tokens por página y pruebas separadas del producto y de revisión. E2E full-stack y recuperación usan los registros existentes. Cambio incompatible del paquete.
 
 - **0.46.0** — Recomendaciones de stack y runtime de agentes, investigación de referencias y mejoras acotadas. Las animaciones requieren intención aprobada y evidencia tipada normal/reducida de la proyección. La implementación nativa mantiene sus pruebas de plataforma. Cambio incompatible del paquete de skills.
 - **0.45.0** — Los wireframes de fidelidad media incluyen Design System Draft con valores compartidos y ejemplos del renderer. Se genera HTML del sistema formal desde el par validado y se rechazan vistas ausentes, obsoletas o editadas al publicar. Se conserva el wireframe aprobado y la apariencia de componentes sigue el HiFi. La publicación de un par obligatorio exige la vista derivada. Cambio incompatible del paquete de skills.

@@ -98,7 +98,7 @@ For small work:
 
 For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates. Stop after two failed repair attempts and report the remaining gap.
 
-For a self-contained feature, offer `/feature-dev` as an optional richer loop; it does not change authorization, ownership, or verification.
+Optional `/feature-dev` exploration does not change authorization, ownership or verification.
 
 ## Managed Route
 
@@ -206,7 +206,7 @@ Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate
 
 ### 4. Execute And Integrate
 
-For full-stack work, implement and verify complete user-flow slices through client, service, permissions, persistence and feedback. Use the existing acceptance contract for real outcomes and reproducible E2E; see `references/delivery-acceptance-contract.md`.
+Full-stack slices and reproducible E2E follow `references/delivery-acceptance-contract.md`.
 
 After the version gate, run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds the host, PLAN revision, and digest, plus runtime and RepoDigest for explicitly selected containers; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
 

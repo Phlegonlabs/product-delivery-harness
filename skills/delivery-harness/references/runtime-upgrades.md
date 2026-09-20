@@ -57,3 +57,9 @@ An upgrade does not resume the old orchestration. Once the fresh session records
 - Claude Code: update Claude Code with its own installer, then restart. Its workflow driver also requires the currently documented minimum Claude Code version.
 - Pi: update Pi with its native updater and start a fresh Pi session afterward. Standalone skill copies are separate user data and must not be overwritten or removed silently.
 - Every host loads the Harness skills from the user skills directory, so the shared copy there is the only Harness update surface. Use the repository installer transaction above, verify that only the seven current IDs remain discoverable, then start a fresh session.
+
+## Scoped Skill-Bundle Migration
+
+On fresh-session work after a bundle update, use `document-sync-contract.md` to compare observed identities and current source inventories. Produce changed source → affected document/requirement → required recheck in existing task/RUN evidence. Inspect local rules before any same-scope patch; do not regenerate AGENTS or the whole PRD/design package from new templates. Preserve unaffected HTML pages, stable IDs, accepted decisions, closed RUNs and historical approvals. Unknown loaded identity remains unknown.
+
+For 0.47, document-sync/1 snapshots and historical ui-hifi/2 inspection remain supported. New or renewed HiFi approval requires the reviewer shell and page-bound reviewer observations described by the UI output contract. Retain old evidence and create current evidence for the changed candidate; never relabel an old receipt. Epic records link the current PRD and existing execution records, while small direct fixes may use those records alone.
