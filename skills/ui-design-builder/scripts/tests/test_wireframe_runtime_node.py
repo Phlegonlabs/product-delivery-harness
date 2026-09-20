@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import shutil
+import re
 import subprocess
 import unittest
 from pathlib import Path
 
 
 class WireframeRuntimeNodeTests(unittest.TestCase):
+    def test_product_width_is_not_reduced_by_reviewer_frame(self) -> None:
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        html = template.read_text(encoding="utf-8")
+        frame = re.search(r"\.canvas-shell\s*\{([^}]+)\}", html).group(1)
+        self.assertRegex(frame, r"padding:\s*0;")
+        self.assertRegex(frame, r"border:\s*0;")
+        self.assertIn("const actualCanvasWidth = canvas.getBoundingClientRect().width", html)
+        self.assertNotRegex(html, r"\.sidebar\s*\{\s*position:\s*static")
+        self.assertIn('.copy-item[data-copy-role="media placeholder"]', html)
+
     def test_node_stdin_reports_failures_after_the_first_line(self) -> None:
         node = shutil.which("node")
         if node is None:
@@ -72,7 +83,7 @@ if (table.children[1].children[1].children[1].children[0].text !== "Waiting") th
 parent = root();
 context.render(parent, {presentation:"form", elements:[item("field label", "Workspace"),item("field value", "<script>literal</script>")]});
 const label = parent.children[0], input = label.children[1];
-if (label.tag !== "label" || input.tag !== "input" || input.value !== "<script>literal</script>" || !input.readOnly) throw Error("field lost label, literal value, or read-only boundary");
+if (label.tag !== "label" || input.tag !== "input" || input.value !== "<script>literal</script>" || input.readOnly || !input.events.input) throw Error("field lost label, literal value, or editable local binding");
 parent = root();
 context.render(parent, {presentation:"list", elements:[item("section heading", "Pending"), item("list item", "Review"), item("list item", "Approve")]});
 if (parent.children[1].tag !== "ul" || parent.children[1].children.length !== 2 || parent.children[1].children[0].tag !== "li") throw Error("list lost semantic items");
@@ -150,7 +161,7 @@ if (body.children.length !== 1) throw new Error("overlay dialog was not appended
 const dialog = body.children[0];
 if (dialog.className !== "flow-dialog" || !dialog.open) throw new Error("overlay dialog is not open");
 const canvas = dialog.children[0].children.find((item) => item.className === "wireframe");
-if (!canvas || canvas.style.maxWidth !== "640px") throw new Error("overlay width did not use the target class");
+if (!canvas || canvas.style.width !== "640px" || canvas.style.maxWidth !== "none") throw new Error("overlay width did not use the target class");
 if (!String(canvas.attributes["aria-label"]).includes("compact") || !String(canvas.attributes["aria-label"]).includes("loading")) throw new Error("overlay state/class context is stale");
 '''
         result = subprocess.run(
@@ -160,6 +171,73 @@ if (!String(canvas.attributes["aria-label"]).includes("compact") || !String(canv
             text=True,
             timeout=15,
         )
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
+    def test_editable_form_values_survive_re_render(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is unavailable")
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        script = r'''
+const fs = require("fs"), vm = require("vm");
+const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
+const source = html.match(/const renderRegionContent = [\s\S]*?\n      const flowTarget/)[0].replace(/\n\s*const flowTarget$/, "");
+class Node {
+  constructor(tag, cls, text) { this.tag = tag; this.className = cls || ""; this.text = text || ""; this.children = []; this.attrs = {}; this.dataset = {}; this.events = {}; this.value = ""; }
+  append(...items) { this.children.push(...items.filter(Boolean)); }
+  setAttribute(key, value) { this.attrs[key] = value; }
+  addEventListener(name, callback) { this.events[name] = callback; }
+}
+const context = {
+  state: {fieldValues: Object.create(null)},
+  element: (tag, cls, text) => new Node(tag, cls, text),
+  copyRole: item => item.role,
+  copyText: item => item.text,
+  renderCopyItem: item => new Node("span", "copy-item", item.text),
+};
+vm.runInNewContext(source + "\nthis.render = renderRegionContent;", context);
+const region = {id:"settings", presentation:"form", elements:[{role:"field label", text:"Workspace"},{role:"field value", text:"Studio"}]};
+const first = new Node("div");
+context.render(first, region);
+const firstInput = first.children[0].children[1];
+if (firstInput.value !== "Studio") throw Error("initial form value missing");
+firstInput.value = "Edited locally";
+firstInput.events.input();
+const second = new Node("div");
+context.render(second, region);
+if (second.children[0].children[1].value !== "Edited locally") throw Error("form value was not retained");
+'''
+        result = subprocess.run([node, "-", str(template)], input=script, capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
+    def test_page_switch_retains_valid_target_and_page_state(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is unavailable")
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        script = r'''
+const fs = require("fs"), vm = require("vm");
+const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
+const match = html.match(/const selectPage = \(page\) => \{[\s\S]*?\n      \};\n\n      const makePageButton/);
+if (!match) throw Error("selectPage was not found");
+const screens = [
+  {id:"UI-001", states:[{id:"ready"}], responsive:{targets:["390","768","1200"]}},
+  {id:"UI-002", states:[{id:"ready"},{id:"empty"}], responsive:{targets:["390","768","1200"]}},
+];
+const context = {
+  state:{page:"UI-001", responsiveTarget:"768", screenState:"ready", screenStates:{"UI-002":"empty"}, selectedRegion:"R1", inspectorOpen:true},
+  currentScreen:() => screens.find(screen => screen.id === context.state.page),
+  responsiveSpecFor:screen => screen.responsive,
+  location:{hash:"#UI-001"},
+  render:() => {},
+  content:{focus:() => {}}
+};
+vm.runInNewContext(match[0].replace(/\n\s*const makePageButton[\s\S]*$/, "") + "\nthis.select = selectPage;", context);
+context.select("UI-002");
+if (context.state.responsiveTarget !== "768") throw Error("valid target was reset on page switch");
+if (context.state.screenState !== "empty") throw Error("page state was not retained");
+'''
+        result = subprocess.run([node, "-", str(template)], input=script, capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
 
 

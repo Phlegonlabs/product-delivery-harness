@@ -119,6 +119,17 @@ LEGACY_MEDIA_TREATMENTS = {"motion-led", "imagery-led", "motion + imagery"}
 VALID_COPY_ITEM_STATUSES = {"draft", "approved"}
 VALID_COPY_KINDS = {"static", "dynamic"}
 COPY_CONTRACT_FIELDS = ("source", "order", "format", "count", "length", "fallback")
+COMPOSITION_KEYS = {"canvas", "regions"}
+COMPOSITION_CANVAS_KEYS = {"padding", "gap"}
+COMPOSITION_REGION_KEYS = {
+    "padding",
+    "gap",
+    "maxWidth",
+    "actionsPlacement",
+    "itemColumns",
+    "mediaAspectRatio",
+}
+VALID_ACTION_PLACEMENTS = {"before", "after", "inline"}
 NON_HUMAN_OWNERS = {
     "ai",
     "agent",
@@ -1010,6 +1021,114 @@ def _responsive_key(value: Any) -> str:
     return str(value)
 
 
+def _bounded_number(value: Any, *, minimum: float, maximum: float) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and minimum <= value <= maximum
+        and math.isfinite(value)
+    )
+
+
+def _validate_composition(
+    value: Any,
+    path: str,
+    region_ids: set[str],
+    problems: list[str],
+) -> None:
+    """Validate the optional geometry metadata consumed by the template.
+
+    Composition stays deliberately small: it describes measurable spacing and
+    action/media placement for the review canvas, but never adds product
+    behavior or arbitrary CSS.  The renderer and this contract intentionally
+    share these exact keys and bounds.
+    """
+
+    if not isinstance(value, dict) or set(value) != COMPOSITION_KEYS:
+        _add(problems, path, "must contain exactly canvas and regions")
+        return
+
+    canvas = value.get("canvas")
+    if not isinstance(canvas, dict) or set(canvas) != COMPOSITION_CANVAS_KEYS:
+        _add(problems, f"{path}.canvas", "must contain exactly padding and gap")
+    elif (
+        not _bounded_number(canvas.get("padding"), minimum=0, maximum=128)
+        or not _bounded_number(canvas.get("gap"), minimum=0, maximum=128)
+    ):
+        if not _bounded_number(canvas.get("padding"), minimum=0, maximum=128):
+            _add(problems, f"{path}.canvas.padding", "must be a number from 0 to 128")
+        if not _bounded_number(canvas.get("gap"), minimum=0, maximum=128):
+            _add(problems, f"{path}.canvas.gap", "must be a number from 0 to 128")
+
+    regions = value.get("regions")
+    if not isinstance(regions, dict):
+        _add(problems, f"{path}.regions", "must be an object keyed by region ID")
+        return
+    unknown_regions = sorted(set(regions) - region_ids)
+    if unknown_regions:
+        _add(
+            problems,
+            f"{path}.regions",
+            "references unknown region IDs: " + ", ".join(unknown_regions),
+        )
+    for region_id, region in regions.items():
+        region_path = f"{path}.regions.{region_id}"
+        if not isinstance(region, dict):
+            _add(problems, region_path, "must be an object")
+            continue
+        unknown_keys = sorted(set(region) - COMPOSITION_REGION_KEYS)
+        if unknown_keys:
+            _add(
+                problems,
+                region_path,
+                "contains unknown keys: " + ", ".join(unknown_keys),
+            )
+        for key in ("padding", "gap"):
+            if key in region and not _bounded_number(
+                region[key], minimum=0, maximum=128
+            ):
+                _add(
+                    problems,
+                    f"{region_path}.{key}",
+                    "must be a number from 0 to 128",
+                )
+        if "maxWidth" in region and not _bounded_number(
+            region["maxWidth"], minimum=1, maximum=2400
+        ):
+            _add(
+                problems,
+                f"{region_path}.maxWidth",
+                "must be a number from 1 to 2400",
+            )
+        if "actionsPlacement" in region and (
+            not isinstance(region["actionsPlacement"], str)
+            or region["actionsPlacement"] not in VALID_ACTION_PLACEMENTS
+        ):
+            _add(
+                problems,
+                f"{region_path}.actionsPlacement",
+                "must be before, after, or inline",
+            )
+        if "itemColumns" in region and (
+            not isinstance(region["itemColumns"], int)
+            or isinstance(region["itemColumns"], bool)
+            or not 1 <= region["itemColumns"] <= 12
+        ):
+            _add(
+                problems,
+                f"{region_path}.itemColumns",
+                "must be an integer from 1 to 12",
+            )
+        if "mediaAspectRatio" in region and not _bounded_number(
+            region["mediaAspectRatio"], minimum=0.25, maximum=4
+        ):
+            _add(
+                problems,
+                f"{region_path}.mediaAspectRatio",
+                "must be a number from 0.25 to 4",
+            )
+
+
 def _validate_responsive_data(
     data: dict[str, Any], problems: list[str]
 ) -> list[str]:
@@ -1200,6 +1319,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
     seen_screens: set[str] = set()
     seen_routes: dict[str, str] = {}
     actions_by_screen: dict[str, list[str]] = {}
+    action_regions_by_screen: dict[str, dict[str, set[str]]] = {}
     for screen_index, screen in enumerate(screens):
         path = f"wireframe-data.screens[{screen_index}]"
         if not isinstance(screen, dict):
@@ -1351,6 +1471,16 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                 action_labels = actions
             if _nonempty(screen_id):
                 actions_by_screen.setdefault(screen_id, []).extend(action_labels)
+                by_label = action_regions_by_screen.setdefault(screen_id, {})
+                for label in action_labels:
+                    regions_for_label = by_label.setdefault(label, set())
+                    if region_id in regions_for_label:
+                        _add(
+                            problems,
+                            f"{region_path}.actions",
+                            f"must not repeat action label {label!r} within a region",
+                        )
+                    regions_for_label.add(region_id)
             if "traces" in region and not _string_list(region["traces"]):
                 _add(problems, f"{region_path}.traces", "must be a string list when present")
             if interactive_contract and "mediaIntent" in region:
@@ -1413,6 +1543,13 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             if not isinstance(layout, dict):
                 _add(problems, layout_path, "must be an object")
                 continue
+            if schema == WIREFRAME_SCHEMA and "composition" in layout:
+                _validate_composition(
+                    layout["composition"],
+                    f"{layout_path}.composition",
+                    set(region_ids),
+                    problems,
+                )
             order = layout.get("order")
             if not _string_list(order):
                 _add(problems, f"{layout_path}.order", "must be a non-empty string list")
@@ -1611,6 +1748,11 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     flow_keys.append((origin, trigger))
 
     if interactive_contract:
+        screens_by_id = {
+            screen.get("id"): screen
+            for screen in screens
+            if isinstance(screen, dict) and _nonempty(screen.get("id"))
+        }
         for origin, actions in actions_by_screen.items():
             for trigger in actions:
                 count = flow_keys.count((origin, trigger))
@@ -1622,11 +1764,33 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     )
         for origin, trigger in set(flow_keys):
             count = actions_by_screen.get(origin, []).count(trigger)
-            if count != 1:
+            if count < 1:
                 _add(
                     problems,
                     f"wireframe-data.flows.{origin}.{trigger}",
-                    f"must match exactly one visible region action (found {count})",
+                    f"must match exactly one visible region action or repeat across distinct regions (found {count})",
+                )
+                continue
+            screen = screens_by_id.get(origin)
+            regions_for_trigger = action_regions_by_screen.get(origin, {}).get(trigger, set())
+            layouts = screen.get("responsiveLayouts", {}) if isinstance(screen, dict) else {}
+            has_visible_binding = any(
+                isinstance(layout, dict)
+                and any(
+                    region_id not in (
+                        set(layout.get("hidden", []))
+                        if isinstance(layout.get("hidden", []), list)
+                        else set()
+                    )
+                    for region_id in regions_for_trigger
+                )
+                for layout in layouts.values()
+            ) if isinstance(layouts, dict) else False
+            if not has_visible_binding:
+                _add(
+                    problems,
+                    f"wireframe-data.flows.{origin}.{trigger}",
+                    "must retain a visible region action in at least one responsive target",
                 )
 
     if isinstance(responsive_by_surface, dict) and responsive_by_surface:

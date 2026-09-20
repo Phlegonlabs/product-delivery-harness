@@ -290,6 +290,8 @@ Project AGENTS keeps entry, reading, ownership, routing, synchronization, author
 
 Wireframe and HiFi review starts on the primary product page. The left sidebar opens Overview, every page and design specifications. Fresh HiFi approval requires working product interactions plus separate reviewer-navigation and source-derived Design Tokens evidence; native HTML is still a design projection. Historical bundles remain inspection-readable.
 
+The wireframe reviewer keeps one product screen visible at a time. Target controls set the actual canvas width and retain valid inputs and state across page and target switches. Per-target composition records spacing, measure, action placement and media proportions. HiFi Design Tokens render real styled buttons, fields, states and patterns bound to each page; shared specimens stay page-bound, and state coverage belongs in Overview.
+
 Reviewer evidence also covers unknown links, browser Back from each review view, and final restoration of the primary product page at every target.
 
 Full-stack delivery follows complete user flows through UI, API, permissions, persistence and feedback. Use agent-browser for Web exploration and retain important journeys as local/CI tests. Actual login, denied access, retry and side effects need evidence. Deployment checks include migrations, health, monitoring, cost alerts and recovery; delivery, release, activation and product results are reported separately. SEO applies only to relevant public surfaces.

@@ -77,14 +77,17 @@
     }
 
     .app {
-      display: grid;
-      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      display: block;
       min-height: 100vh;
     }
 
     .sidebar {
-      position: sticky;
+      position: fixed;
       top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 6;
+      width: var(--sidebar);
       height: 100vh;
       overflow: auto;
       padding: 28px 20px;
@@ -151,7 +154,35 @@
       font-size: 12px;
     }
 
-    .main { min-width: 0; }
+    .sidebar-controls {
+      display: grid;
+      gap: 16px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+    }
+
+    .sidebar-controls .toolbar-cluster {
+      display: grid;
+      align-items: start;
+      gap: 8px;
+    }
+
+    .sidebar-controls .control-group {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sidebar-controls .control {
+      min-width: 0;
+      padding-inline: 8px;
+      font-size: 12px;
+    }
+
+    .main {
+      min-width: 0;
+      margin-left: var(--sidebar);
+    }
 
     .toolbar {
       position: sticky;
@@ -206,7 +237,10 @@
       color: #ffffff;
     }
 
-    .content { padding: 38px 32px 64px; }
+    .content {
+      padding: 38px 32px 64px;
+      overflow-x: auto;
+    }
 
     .screen-header {
       display: grid;
@@ -240,8 +274,9 @@
     .canvas-shell {
       width: min(100%, 1200px);
       margin: 0 auto;
-      padding: 16px;
-      border: 1px solid #cfcfcf;
+      padding: 0;
+      border: 0;
+      outline: 1px solid #cfcfcf;
       border-radius: 8px;
       background: #e6e6e6;
       box-shadow: var(--shadow);
@@ -250,9 +285,9 @@
     .wireframe {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
-      gap: var(--wf-row-gap) var(--wf-column-gap);
+      gap: var(--wf-canvas-gap, var(--wf-row-gap)) var(--wf-canvas-gap, var(--wf-column-gap));
       min-height: 0;
-      padding: var(--wf-column-gap);
+      padding: var(--wf-canvas-padding, var(--wf-column-gap));
       container-type: inline-size;
       border: 1px solid #c4c4c4;
       border-radius: var(--radius);
@@ -263,7 +298,7 @@
       grid-column: span var(--span, 12);
       min-width: 0;
       min-height: 0;
-      padding: 8px 0;
+      padding: var(--wf-region-padding, 8px 0);
       border: 0;
       background: transparent;
       overflow-wrap: anywhere;
@@ -298,9 +333,21 @@
     .product-copy {
       display: grid;
       align-content: start;
-      gap: var(--wf-content-gap);
+      gap: var(--wf-region-gap, var(--wf-content-gap));
       font-size: var(--wf-body);
       padding-top: 0;
+      max-width: var(--wf-region-max-width, none);
+    }
+
+    .region[data-actions-placement="before"] .action-list { order: -1; }
+    .region[data-actions-placement="inline"] .product-copy {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+    .region[data-actions-placement="inline"] .action-list {
+      grid-column: 2;
+      grid-row: 1 / -1;
+      align-self: start;
     }
 
     .copy-item {
@@ -366,7 +413,7 @@
       color: #434343;
     }
 
-    .media-placeholder {
+    .media-placeholder, .copy-item[data-copy-role="media placeholder"] {
       display: grid;
       place-items: center;
       min-height: 88px;
@@ -377,6 +424,7 @@
       color: var(--muted);
       font-size: 12px;
       text-align: center;
+      aspect-ratio: var(--wf-media-aspect-ratio, auto);
     }
 
     .layout-qa {
@@ -671,8 +719,7 @@
 
     @media (max-width: 820px) {
       .app { display: block; }
-      .sidebar { position: static; width: auto; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
-      .page-list { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+      :root { --sidebar: 220px; }
       .toolbar { position: static; }
       .content { padding: 20px 12px; }
       .screen-header { grid-template-columns: 1fr; }
@@ -685,14 +732,21 @@
     .metadata, .flow-panel { display: none; }
     .screen-header { grid-template-columns: 1fr; }
     .action-feedback:empty { display: none; }
-    .region[data-presentation="navigation"] { border-bottom: 1px solid var(--line); padding-bottom: 20px; }
-    .region[data-presentation="navigation"] .product-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+    .region[data-presentation="navigation"] { border-bottom: 1px solid var(--line); padding-bottom: var(--wf-region-padding, 20px); }
+    .region[data-presentation="navigation"] .product-copy { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wf-region-gap, 20px); }
     .region[data-presentation="navigation"] .action-list { margin-left: auto; }
     .region[data-presentation="navigation"] .copy-item[data-copy-role="brand"] { font-size: 20px; font-weight: 700; }
-    .region[data-presentation="editorial"] { padding-block: 28px; }
+    .region[data-presentation="editorial"] { padding-block: var(--wf-region-padding, 28px); }
     .region[data-presentation="editorial"] .copy-item[data-copy-category="display"] { font-size: var(--wf-editorial); max-width: 22ch; line-height: 1.15; }
     .region[data-presentation="content"] .copy-item[data-copy-category="display"] { font-size: var(--wf-content-title); }
-    .content-list { list-style: none; margin: 0; padding: 0; }
+    .content-list {
+      display: grid;
+      grid-template-columns: repeat(var(--wf-item-columns, 1), minmax(0, 1fr));
+      gap: 0 var(--wf-region-gap, var(--wf-content-gap));
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
     .content-list li { padding: var(--wf-content-gap) 0; border-bottom: 1px solid var(--wf-line); }
     .content-table { border-collapse: collapse; table-layout: fixed; width: 100%; text-align: left; }
     .content-table th, .content-table td { padding: 14px 10px; border-bottom: 1px solid var(--wf-line); vertical-align: top; overflow-wrap: anywhere; }
@@ -727,6 +781,7 @@
     @media print {
       .sidebar, .toolbar, .inspector, .inspector-backdrop, .copy-dialog { display: none; }
       .app { display: block; }
+      .main { margin-left: 0; }
       .content { padding: 0; }
       .canvas-shell { width: 100%; border: 0; padding: 0; }
       .wireframe { min-height: 0; }
@@ -741,10 +796,7 @@
       <p class="sidebar-meta" id="contract-meta"></p>
       <p class="sidebar-meta" id="copy-meta"></p>
       <nav class="page-list" id="page-list"></nav>
-    </aside>
-
-    <main class="main">
-      <div class="toolbar" role="toolbar" aria-label="Wireframe controls">
+      <div class="sidebar-controls" aria-label="Review dimensions">
         <div class="toolbar-cluster">
           <span class="toolbar-label">Canvas</span>
           <div class="control-group" id="responsive-controls" role="group" aria-label="Responsive targets"></div>
@@ -753,6 +805,11 @@
           <span class="toolbar-label">State</span>
           <div class="control-group" id="state-controls" role="group" aria-label="Screen states"></div>
         </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="toolbar" role="toolbar" aria-label="Wireframe controls">
         <div class="toolbar-cluster">
           <button class="control" id="copy-inventory-button" type="button">Copy inventory</button>
           <button class="control" id="annotation-toggle" type="button" aria-pressed="false">Annotations</button>
@@ -914,7 +971,14 @@
             "columns": 1,
             "spans": {"global-header": 1, "hero-content": 1, "hero-support": 1, "feature-grid": 1, "closing-cta": 1},
             "reflow": "<Single-column order, wrapping, and content-priority rule>",
-            "interaction": "<Touch, keyboard, navigation, and overlay behavior at 390px>"
+            "interaction": "<Touch, keyboard, navigation, and overlay behavior at 390px>",
+            "composition": {
+              "canvas": {"padding": 16, "gap": 20},
+              "regions": {
+                "hero-content": {"padding": 12, "gap": 12, "maxWidth": 720, "actionsPlacement": "after", "itemColumns": 1},
+                "hero-support": {"mediaAspectRatio": 1.777}
+              }
+            }
           },
           "768": {
             "order": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
@@ -1138,6 +1202,8 @@
         page: initialPage,
         responsiveTarget: initialResponsive.targets[initialResponsive.targets.length - 1],
         screenState: initialScreen.states?.[0]?.id || "ready",
+        screenStates: Object.create(null),
+        fieldValues: Object.create(null),
         inspectorOpen: false,
         selectedRegion: null
       };
@@ -1177,9 +1243,16 @@
       const selectPage = (page) => {
         state.page = page;
         const screen = currentScreen();
-        const responsive = responsiveSpecFor(screen);
-        state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
-        state.screenState = screen?.states?.[0]?.id || "ready";
+        if (screen) {
+          const responsive = responsiveSpecFor(screen);
+          if (!responsive.targets.includes(String(state.responsiveTarget))) {
+            state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
+          }
+          const rememberedState = state.screenStates[screen.id];
+          state.screenState = screen.states?.some((item) => item.id === rememberedState)
+            ? rememberedState
+            : screen.states?.[0]?.id || "ready";
+        }
         state.selectedRegion = null;
         state.inspectorOpen = false;
         location.hash = page;
@@ -1215,6 +1288,13 @@
 
       const activeLayout = (screen, requestedTarget = state.responsiveTarget) =>
         screen.responsiveLayouts[targetFor(screen, requestedTarget)];
+
+      const applyCanvasComposition = (canvas, layout) => {
+        const composition = layout?.composition?.canvas;
+        if (!composition) return;
+        canvas.style.setProperty("--wf-canvas-padding", `${composition.padding}px`);
+        canvas.style.setProperty("--wf-canvas-gap", `${composition.gap}px`);
+      };
 
       const regionOrder = (screen, requestedTarget = state.responsiveTarget) => {
         const layout = activeLayout(screen, requestedTarget);
@@ -1291,7 +1371,7 @@
       };
 
       // Presentation uses existing copy records; it never invents product wording.
-      const renderRegionContent = (parent, region) => {
+      const renderRegionContent = (parent, region, screenId = "wireframe") => {
         const kind = region.presentation || "content";
         if (kind === "table") {
           const table = element("table", "content-table");
@@ -1324,18 +1404,39 @@
           parent.append(table);
         } else if (kind === "form") {
           let field = null;
+          let fieldIndex = 0;
           region.elements.forEach((item) => {
             if (copyRole(item) === "field label") {
-              field = element("label", "form-field");
+              const fieldKey = `${screenId}:${region.id || "form"}:${fieldIndex}`;
+              field = {node: element("label", "form-field"), input: null, key: fieldKey};
               const label = renderCopyItem(item);
               const input = element("input", "field-input");
               input.type = "text";
-              // Read-only structural control: no invented validation or submission.
-              input.readOnly = true;
-              field.append(label, input);
-              parent.append(field);
+              input.id = `wireframe-${fieldKey.replace(/[^a-z0-9_-]+/gi, "-")}`;
+              input.dataset.fieldKey = fieldKey;
+              if (
+                typeof state !== "undefined" &&
+                state.fieldValues &&
+                Object.prototype.hasOwnProperty.call(state.fieldValues, fieldKey)
+              ) {
+                input.value = state.fieldValues[fieldKey];
+              }
+              input.addEventListener("input", () => {
+                if (typeof state !== "undefined" && state.fieldValues) {
+                  state.fieldValues[fieldKey] = input.value;
+                }
+              });
+              label.setAttribute("for", input.id);
+              field.input = input;
+              field.node.append(label, input);
+              parent.append(field.node);
+              fieldIndex += 1;
             } else if (copyRole(item) === "field value" && field) {
-              field.querySelector("input").value = copyText(item);
+              const hasRememberedValue =
+                typeof state !== "undefined" &&
+                state.fieldValues &&
+                Object.prototype.hasOwnProperty.call(state.fieldValues, field.key);
+              if (!hasRememberedValue) field.input.value = copyText(item);
             } else {
               field = null;
               parent.append(renderCopyItem(item));
@@ -1390,10 +1491,15 @@
         const overlayCanvas = element("div", "wireframe");
         overlayCanvas.setAttribute("role", "group");
         overlayCanvas.style.gridTemplateColumns = `repeat(${targetLayout.columns}, minmax(0, 1fr))`;
+        const overlayComposition = targetLayout.composition?.canvas;
+        if (overlayComposition) {
+          overlayCanvas.style.setProperty("--wf-canvas-padding", `${overlayComposition.padding}px`);
+          overlayCanvas.style.setProperty("--wf-canvas-gap", `${overlayComposition.gap}px`);
+        }
         const targetCanvasWidth = targetResponsive.canvasWidths[targetResponsiveTarget];
         if (targetCanvasWidth !== undefined) {
-          overlayCanvas.style.width = `min(100%, ${targetCanvasWidth}px)`;
-          overlayCanvas.style.maxWidth = `${targetCanvasWidth}px`;
+          overlayCanvas.style.width = `${targetCanvasWidth}px`;
+          overlayCanvas.style.maxWidth = "none";
         }
         overlayCanvas.setAttribute(
           "aria-label",
@@ -1425,13 +1531,14 @@
       };
 
       const runFlow = (flow, feedback) => {
+        if (!flow) return;
         if (flow.presentation === "page") {
           document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
           selectPage(flow.to);
         } else if (flow.presentation === "overlay") {
           openFlowDialog(flow);
-        } else {
-          feedback.textContent = flow.feedback ? copyText(flow.feedback) : `Result: ${flow.to}`;
+        } else if (flow.presentation === "feedback" && flow.feedback) {
+          feedback.textContent = copyText(flow.feedback);
         }
       };
 
@@ -1462,6 +1569,24 @@
         node.dataset.priority = region.priority || "secondary";
         node.dataset.presentation = region.presentation || "content";
         node.style.setProperty("--span", String(layout.spans[region.id]));
+        const regionComposition = layout.composition?.regions?.[region.id] || {};
+        const actionsPlacement = regionComposition.actionsPlacement || "after";
+        node.dataset.actionsPlacement = actionsPlacement;
+        if (regionComposition.padding !== undefined) {
+          node.style.setProperty("--wf-region-padding", `${regionComposition.padding}px`);
+        }
+        if (regionComposition.gap !== undefined) {
+          node.style.setProperty("--wf-region-gap", `${regionComposition.gap}px`);
+        }
+        if (regionComposition.maxWidth !== undefined) {
+          node.style.setProperty("--wf-region-max-width", `${regionComposition.maxWidth}px`);
+        }
+        if (regionComposition.itemColumns !== undefined) {
+          node.style.setProperty("--wf-item-columns", String(regionComposition.itemColumns));
+        }
+        if (regionComposition.mediaAspectRatio !== undefined) {
+          node.style.setProperty("--wf-media-aspect-ratio", String(regionComposition.mediaAspectRatio));
+        }
 
         const head = element("div", "region-head");
         const title = element("div");
@@ -1479,8 +1604,13 @@
 
         const productCopy = element("div", "product-copy");
         const treatment = activeState?.treatments?.[region.id];
-        if (!treatment?.copy?.length) renderRegionContent(productCopy, region);
-        appendActions(productCopy, screenId, region.actions, region.primaryAction);
+        if (actionsPlacement === "before") {
+          appendActions(productCopy, screenId, region.actions, region.primaryAction);
+        }
+        if (!treatment?.copy?.length) renderRegionContent(productCopy, region, screenId);
+        if (actionsPlacement !== "before") {
+          appendActions(productCopy, screenId, region.actions, region.primaryAction);
+        }
         if (region.mediaIntent && !treatment?.copy?.length) {
           productCopy.append(
             element("div", "media-placeholder", `Deferred ${region.mediaIntent.treatment} position`)
@@ -1672,6 +1802,7 @@
           button.setAttribute("aria-pressed", String(state.screenState === screenState.id));
           button.addEventListener("click", () => {
             state.screenState = screenState.id;
+            state.screenStates[screen.id] = screenState.id;
             renderScreen(screen);
             renderStateControls(screen);
           });
@@ -1769,7 +1900,7 @@
           const expectedCanvasWidth = Number(
             responsiveSpecFor(qaScreen).canvasWidths[qaTarget]
           );
-          const actualCanvasWidth = shell.getBoundingClientRect().width;
+          const actualCanvasWidth = canvas.getBoundingClientRect().width;
           const canvasWidthMismatch = Math.abs(actualCanvasWidth - expectedCanvasWidth) > 1;
           const failures = [
             ...(collisions.length ? [`overlap: ${collisions.join(", ")}`] : []),
@@ -1863,10 +1994,13 @@
 
         const layout = activeLayout(screen);
         const shell = element("div", "canvas-shell");
-        shell.style.width = `min(100%, ${responsive.canvasWidths[state.responsiveTarget]}px)`;
+        const targetWidth = Number(responsive.canvasWidths[state.responsiveTarget]);
+        shell.style.width = `${targetWidth}px`;
+        shell.style.maxWidth = "none";
         const canvas = element("div", "wireframe");
         canvas.setAttribute("role", "group");
         canvas.style.gridTemplateColumns = `repeat(${layout.columns}, minmax(0, 1fr))`;
+        applyCanvasComposition(canvas, layout);
         canvas.setAttribute("aria-label", `${screen.name}, ${state.responsiveTarget}, ${state.screenState}`);
         const activeState = screen.states.find((item) => item.id === state.screenState) || screen.states[0];
         const hidden = new Set(layout.hidden);
@@ -2065,9 +2199,18 @@
         const screen = currentScreen();
         if (screen) {
           const responsive = responsiveSpecFor(screen);
-          state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
+          if (!responsive.targets.includes(String(state.responsiveTarget))) {
+            state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
+          }
         }
-        state.screenState = screen?.states?.[0]?.id || "ready";
+        if (screen) {
+          const rememberedState = state.screenStates[screen.id];
+          state.screenState = screen.states?.some((item) => item.id === rememberedState)
+            ? rememberedState
+            : screen.states?.[0]?.id || "ready";
+        } else {
+          state.screenState = "ready";
+        }
         state.selectedRegion = null;
         setInspectorOpen(false);
         render();

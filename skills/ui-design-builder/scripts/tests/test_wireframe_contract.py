@@ -260,6 +260,69 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             [],
         )
 
+    def test_target_composition_is_bounded_and_uses_known_regions(self):
+        data = wireframe_data()
+        data["screens"][0]["responsiveLayouts"]["390"]["composition"] = {
+            "canvas": {"padding": 16, "gap": 20},
+            "regions": {
+                "R1": {
+                    "padding": 12,
+                    "gap": 8,
+                    "maxWidth": 720,
+                    "actionsPlacement": "after",
+                    "itemColumns": 1,
+                    "mediaAspectRatio": 1.777,
+                }
+            },
+        }
+        self.assertEqual([], validate_html(render_html(data), require_filled=True, require_approved=True))
+
+        invalid_cases = [
+            ("canvas", {"padding": 16, "gap": 20, "radius": 4}, "must contain exactly padding and gap"),
+            ("region", {"padding": 12, "unknown": True}, "contains unknown keys"),
+            ("placement", {"actionsPlacement": []}, "must be before, after, or inline"),
+            ("columns", {"itemColumns": 0}, "must be an integer from 1 to 12"),
+            ("ratio", {"mediaAspectRatio": 9}, "must be a number from 0.25 to 4"),
+        ]
+        for name, update, expected in invalid_cases:
+            with self.subTest(name=name):
+                candidate = wireframe_data()
+                layout = candidate["screens"][0]["responsiveLayouts"]["390"]
+                layout["composition"] = {
+                    "canvas": {"padding": 16, "gap": 20},
+                    "regions": {"R1": {}},
+                }
+                if name == "canvas":
+                    layout["composition"]["canvas"] = update
+                else:
+                    layout["composition"]["regions"]["R1"].update(update)
+                joined = "\n".join(validate_html(render_html(candidate)))
+                self.assertIn(expected, joined)
+
+    def test_same_flow_can_repeat_across_regions_but_not_within_one_region(self):
+        data = wireframe_data()
+        second = copy.deepcopy(data["screens"][0]["regions"][0])
+        second["id"] = "R2"
+        data["screens"][0]["regions"].append(second)
+        data["screens"][0]["neverDrop"].append("R2")
+        for layout in data["screens"][0]["responsiveLayouts"].values():
+            layout["order"].append("R2")
+            layout["spans"]["R2"] = layout["columns"]
+        self.assertEqual([], validate_html(render_html(data)))
+
+        same_region = wireframe_data()
+        same_region["screens"][0]["regions"][0]["actions"].append(
+            copy.deepcopy(same_region["screens"][0]["regions"][0]["actions"][0])
+        )
+        joined = "\n".join(validate_html(render_html(same_region)))
+        self.assertIn("must not repeat action label 'Refresh balance' within a region", joined)
+
+        hidden = copy.deepcopy(data)
+        for layout in hidden["screens"][0]["responsiveLayouts"].values():
+            layout["hidden"] = ["R1", "R2"]
+        joined = "\n".join(validate_html(render_html(hidden)))
+        self.assertIn("must retain a visible region action in at least one responsive target", joined)
+
     def test_missing_data_block_is_reported(self):
         problems = validate_html("<html><body><p>no data block here</p></body></html>")
         self.assertTrue(any("missing wireframe-data" in p for p in problems))
