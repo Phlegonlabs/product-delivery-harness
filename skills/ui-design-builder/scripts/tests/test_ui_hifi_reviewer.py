@@ -95,6 +95,18 @@ class HiFiReviewerTests(unittest.TestCase):
                 errors, _ = reviewer_contract(docs, self.manifest)
                 self.assertTrue(any(message in error for error in errors), errors)
 
+    def test_css_comments_and_strings_are_not_live_tokens(self):
+        for css in ('/* --retired-token: #fff; */',
+                    '.example::after{content:";--example: red;"}',
+                    ".example::after{content:'/* --example: red; */'}"):
+            with self.subTest(css=css):
+                docs = dict(self.documents)
+                docs["details.html"] = docs["details.html"].replace('</style>', css + '</style>', 1)
+                self.assertEqual([], reviewer_contract(docs, self.manifest)[0])
+        docs = dict(self.documents)
+        docs["details.html"] = docs["details.html"].replace('--ink:', r'--\69 nk:')
+        self.assertEqual([], reviewer_contract(docs, self.manifest)[0])
+
     def test_sidebar_cannot_supply_product_controls(self):
         docs = dict(self.documents)
         docs["index.html"] = docs["index.html"].replace('<nav data-hifi-page-nav>', '<nav data-hifi-page-nav data-navigation-id="fake">')

@@ -4,6 +4,7 @@ import json
 import re
 from html.parser import HTMLParser
 
+from check_wireframe_html import _decode_css_escapes, _strip_css_comments
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 
@@ -109,7 +110,11 @@ def _reviewer_contract(documents, manifest):
         # Cover page-specific values: matching token names do not imply equal styles.
         for source_page, source_html in documents.items():
             css = "\n".join(re.findall(r"<style\b[^>]*>([\s\S]*?)</style>", source_html, re.I))
-            tokens = {item for item in re.findall(r"(--[\w-]+)\s*:", css) if not item.startswith("--review-")}
+            css = _strip_css_comments(css)
+            # Strings may contain declaration-shaped examples; they are values.
+            css = re.sub(r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'", '""', css, flags=re.S)
+            css = _decode_css_escapes(css)
+            tokens = {item for item in re.findall(r"(?:^|[;{])\s*(--[\w-]+)\s*:", css) if not item.startswith("--review-")}
             declared = {item["property"] for item in specimens if item["kind"] == "token" and item["sourcePage"] == source_page}
             if not tokens or tokens != declared:
                 errors.append(f"HiFi token specimens must match actual product CSS custom properties on {source_page}")
