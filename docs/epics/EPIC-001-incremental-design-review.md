@@ -56,6 +56,7 @@ product, approval, authorization and release gates remain in place.
 | Release preparation | Renewed reviewer contracts are a breaking skill-bundle change | 0.48.0 version pins and four-language documentation | Complete candidate checks and main promotion pending |
 | Unified review repair | Review of `7273a44` found product CSS leakage, missing anchor specimens, text fields impersonating selection, malformed group crashes and unfocusable headings | Bounded repair; 29 HiFi contract and 4 runtime tests | Removed product defaults from reviewer CSS, hardened control/evidence checks and added focus-semantic regressions; full candidate checks pending |
 | Workflow forward-test | Independently plan Saved Articles addition, then a post-release contrast fix | Read-only skill evaluation at `7273a44` | New feature gets its own Epic and only UI-003/UI-004 changes; Home/Search stay preserved; contrast fix appends to the same Epic |
+| Cross-skill regression repair | Full suite found stale state lists and old hybrid reviewer fixture data | `5744457`: 1,156 Harness tests, 5 failures, 16 platform/opt-in skips; sibling suites 573 tests passed with 3 platform skips | Updated state lists and two hash-bound hybrid pages with real navigation; 16 strict-authority, 2 hybrid and 1 golden-path tests pass. Validators and negative assertions unchanged; full rerun pending |
 
 ## Results And Remaining Work
 
