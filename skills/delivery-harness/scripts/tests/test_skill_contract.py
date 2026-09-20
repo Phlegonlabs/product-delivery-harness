@@ -305,8 +305,26 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("target_reduction_percent", runbook)
         self.assertIn("BATCH_PROTOCOL", verifier)
 
+    def test_project_entry_links_conditional_rules_and_epic_baseline(self) -> None:
+        entry = (SKILL_ROOT / "assets/templates/PROJECT_AGENTS.template.md").read_text(encoding="utf-8")
+        rules = self.read("references/project-operating-rules.md")
+        for title in ("Monetization And Partner Channels", "Post-Delivery Activation", "Managed Product Delivery Harness Runs"):
+            anchor = title.lower().replace(" ", "-")
+            self.assertIn("project-operating-rules.md#" + anchor, entry)
+            self.assertIn("## " + title, rules)
+        for marker in ("## Project Entry And Current Work", "## Required Reading", "## Completion", "docs/epics/EPIC-<id>.md", "unknown means unknown"):
+            self.assertIn(marker, entry)
+        epic = self.read("assets/templates/EPIC.template.md")
+        self.assertIn("Keep one current PRD", epic)
+        self.assertIn("this file grants none", epic)
+        self.assertIn("Small fixes", self.read("assets/templates/PROJECT_AGENTS.template.md"))
+        self.assertIn("docs/epics/", self.read("assets/templates/DOCUMENTS.template.md"))
+
     def read(self, relative_path: str) -> str:
-        return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+        text = (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+        if relative_path == "assets/templates/PROJECT_AGENTS.template.md":
+            text += (SKILL_ROOT / "references/project-operating-rules.md").read_text(encoding="utf-8")
+        return text
 
 
     def test_project_size_gate_keeps_small_work_direct(self) -> None:
@@ -1453,11 +1471,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "not from habit, inherited patterns, or how another project solved it",
             project_agents,
         )
-        self.assertIn("### File Size Limit", project_agents)
-        self.assertIn("deleted and rewritten from scratch", project_agents)
-        self.assertIn(
-            "no compatibility shim keeps the replaced module alive", project_agents
-        )
+        self.assertIn("### File Size Checkpoint", project_agents)
+        self.assertNotIn("deleted and rewritten from scratch", project_agents)
+        self.assertIn("checkpoint, not a hard limit", project_agents)
         self.assertIn("## Managed Product Delivery Harness Runs", project_agents)
         self.assertIn("Small bounded work may proceed directly", project_agents)
         self.assertIn("## Keep Product Contracts Current", project_agents)

@@ -43,10 +43,7 @@ Derive the goal, write scope, design source, dependencies and acceptance checks 
 
 ## Monetization And Partner Channels
 
-- When a product has pricing, paid access, purchase-gated features, or outside sellers, keep explicit Monetization Infrastructure and Partner Channel gates in `docs/product/PRD.md`; record `not_required` with a reason when either does not apply.
-- Resolve the commercial model and purchase surfaces before selecting technology. RevenueCat is one candidate, never the default: compare current official evidence for native store billing, RevenueCat, Qonversion, Adapty, Superwall, Stripe Billing, Paddle, Lemon Squeezy, or another product-fit option.
-- Treat affiliate, referral, and reseller as different motions. A reseller decision must cover deal registration, price authority or wholesale terms, customer ownership, provisioning, delegated administration, support, renewals, termination, and channel conflict; an affiliate link alone does not satisfy it.
-- Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller-operation responsibilities separate in PRD, architecture, stack decisions, implementation, and tests. Update affected UI Surface Contract entries through `product-definition-builder`, then update `ui-design.md` and `wireframes.html` through `ui-design-builder` before implementing customer, partner, pricing, purchase, or administration surfaces.
+When a product has pricing, paid access, purchase-gated features or outside sellers, read `skills/delivery-harness/references/project-operating-rules.md#monetization-and-partner-channels` before product, stack or UI changes. Keep those gates in the PRD and separate billing, entitlements and partner responsibilities.
 
 ## Mission Task Split
 

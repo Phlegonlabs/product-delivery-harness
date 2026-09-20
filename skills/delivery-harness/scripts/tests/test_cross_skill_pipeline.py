@@ -143,7 +143,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
     def test_completed_goal_documents_archive_on_completion_declaration(self) -> None:
         harness = self.read("delivery-harness/references/contract-and-traceability.md")
-        project_agents = self.read("delivery-harness/assets/templates/PROJECT_AGENTS.template.md")
+        project_agents = self.read("delivery-harness/assets/templates/PROJECT_AGENTS.template.md") + self.read("delivery-harness/references/project-operating-rules.md")
         promotion = self.read("delivery-harness/references/branch-promotion-contract.md")
 
         self.assertIn("declares the project or initiative complete", harness)
