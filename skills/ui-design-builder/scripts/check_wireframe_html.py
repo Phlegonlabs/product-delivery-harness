@@ -1734,7 +1734,9 @@ def validate(
             _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
     if RUNTIME_QA_RE.search(executable_code) is None:
         _add(problems, str(html_path), "missing reviewer-shell marker 'runLayoutQa'")
-    for required in ("All pages", "textContent"):
+    if not any(label in active_text_or_code for label in ("Overview", "All pages")):
+        _add(problems, str(html_path), "missing reviewer-shell Overview navigation")
+    for required in ("textContent",):
         if required not in active_text_or_code:
             _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
 

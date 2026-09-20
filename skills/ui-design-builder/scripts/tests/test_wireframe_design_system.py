@@ -26,7 +26,7 @@ class WireframeDesignSystemTests(unittest.TestCase):
             self.skipTest("node unavailable")
         script = r'''
 const fs = require("fs"), vm = require("vm");
-const html = fs.readFileSync(process.argv[1], "utf8");
+const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
 class Node {
   constructor(tag, cls, text) { this.tag=tag; this.className=cls||""; this.textContent=text||""; this.children=[]; this.dataset={}; this.events={}; this.style={}; }
   append(...nodes) { this.children.push(...nodes); }
@@ -73,9 +73,9 @@ if(context.state.page!=="design-system"||!context.responsiveControls.parentEleme
 context.state.page="UI-001";context.render();
 if(rendered!=="screen"||context.responsiveControls.parentElement.hidden||context.annotationToggle.disabled)throw Error("product navigation did not restore controls");
 context.state.page="unknown";context.render();
-if(rendered!=="overview")throw Error("unknown route no longer falls back");
+if(rendered!=="screen"||context.state.page!=="UI-001")throw Error("unknown route must restore the primary product page");
 '''
-        result = subprocess.run([node, "-e", script, str(TEMPLATE)], capture_output=True, text=True, timeout=15)
+        result = subprocess.run([node, "-", str(TEMPLATE)], input=script, capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stderr)
 
 

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.46.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.47.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -282,6 +282,20 @@ Gitignore 衛生同時適用於 direct 與 managed 工作。scope scan 會記錄
 
 驗收會拒絕嵌入文字的身分佔位符，並要求證據使用 checkout 相對路徑，讓保留的結果能跨 checkout 使用。
 
+文件檢查會列出變更來源、受影響成果與必須重驗項目，由父代理審查語意差異；雜湊與分流提示不代表批准。既有 `document-sync/1` snapshot 保持可讀。
+
+完整 enhancement 使用 `docs/epics/` 中有索引的 Epic，引用現行 PRD，不複製另一份。小修正可只保留直接任務紀錄。目標、寫入範圍、設計來源、依賴與驗收方式整理到該紀錄或既有 PLAN/RUN，不增加中介規格。
+
+專案 AGENTS 保留入口、必讀、文件分工、分流、同步、授權與完成條件。商業、啟用與 managed RUN 細節移到按情境必讀的參考文件。500 行改為拆分檢查點，不再硬性限制或要求出問題就刪掉重寫。
+
+Wireframe 與 HiFi 預設開啟主要產品頁，左側可進入 Overview、各頁與設計規格。新的 HiFi 批准須驗證產品互動，並另行驗證審閱導覽及取自實際樣式的 Design Tokens；原生 HTML 仍是設計投影。歷史成果保持可讀。
+
+審閱證據也須涵蓋未知連結、從各審閱面板按瀏覽器返回，以及在每個目標尺寸結束審閱後恢復主要產品頁。
+
+Full-stack 依完整流程實作畫面、API、權限、資料保存與回饋。agent-browser 用於 Web 探索，重要流程另保留本機／CI 可重跑測試；登入、拒絕存取、重試與副作用都要有實際證據。發布涵蓋 migration、健康檢查、監控、成本告警與恢復，交付、發布、啟用及產品效果分開報告。SEO 只套用適用的公開頁面。
+
+升級至 0.47.0 時，先讓使用 skills 的工作到達安全停止點，再執行 canonical installer，保留備份並開新 session；不可熱更新已載入的 worker。依文件同步影響清單局部更新現行文件，保留自訂 AGENTS 規則與歷史證據。既有 document-sync/1 與 ui-hifi/2 仍可檢查；新的 HiFi 批准須補左側審閱介面及綁定各頁的 ui-output/2 reviewer 觀察，只重做受影響證據，不改寫舊批准。小修正不必新增 Epic／PLAN／RUN。重跑受影響的 owner gates 與必需最終驗證。
+
 每次調用 skill 都先套用共用的[文件同步契約](skills/delivery-harness/references/document-sync-contract.md)，檢查現行指引、skill/runtime 身分與產品文件的變動，不改寫歷史批准或 RUN。現行 PRD 持續作為下一輪 enhancement 的基準，被取代的 PRD 保留連結供參考。[有界 enhancement](skills/delivery-harness/references/bounded-enhancement.md) 沿用一次確認的範圍，執行修復、範圍內 module 重寫與重測，不反覆要求批准。達修復上限就把未解決需求移交下一輪；本輪結束不等於交付 PASS，也不授權發布。
 
 [交付驗收契約](skills/delivery-harness/references/delivery-acceptance-contract.md) 把必要 PRD TEST ID、凍結的情境／平台矩陣與精確版本證據串起來。只在已授權的隔離測試環境準備合成帳號與本輪擁有的資料。Mock 登入不能證明真實認證通過；Web、原生 iOS 與 agent 工具結果各需自己的證據。Production 登入後門、含祕密的 fixture、跳過必要測試、過期 build 或延後處理的阻塞問題，都不能算 PASS。檢查器驗證覆蓋與保留證據，不宣稱能證明人工聲明或外部觀測的真實性。
@@ -544,6 +558,8 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 Windows CI 會在任一 Python 測試組失敗後立即停止。測試資料在綁定執行檔或儲存庫身分前先解析暫存路徑，包括 Windows 8.3 別名。
 
+HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Node 測試透過 stdin 讀取多行程式，避免 Windows 啟動器默默截斷斷言。
+
 每個落在 `main` 的流程就是一次 release，版本號提升要在同一份變更裏完成——預設升 patch，skill bundle 有破壞性變更升 minor。以下幾個地方要一起更新：
 
 1. `package.json` 的 `version` 欄位與 `skills/delivery-harness/VERSION` 中會隨技能目錄複製的版本。
@@ -567,6 +583,8 @@ Windows CI 會在任一 Python 測試組失敗後立即停止。測試資料在�
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.47.0** — 加入 Epic 索引與衍生執行摘要，維持一份現行 PRD；文件同步列出來源影響。AGENTS 按情境載入規則，500 行改為拆分檢查點。Wireframe 預設主要頁面；新的 HiFi 批准要求左欄 Overview、綁定各頁的 Design Tokens，以及分開的產品與審閱操作證據。Full-stack E2E 與恢復交接沿用既有紀錄。破壞性 skill-bundle 變更。
 
 - **0.46.0** — 加入產品適配的 stack、agent runtime 建議、設計參考研究及局部 enhancement 指引。動效必須具備已批准 intent 和正常/reduced-motion 的結構化投影證據。原生實作仍須平台驗證。破壞性 skill-bundle 變更。
 - **0.45.0** — 中保真 wireframe 加入審閱用 Design System Draft 頁，共用原型數值與元件實例。從通過驗證的正式 pair 產生設計系統 HTML，發布時拒絕缺漏、過期或被手改的展示頁。保留已批准 wireframe，正式元件外觀仍以 HiFi 為準。Required pair 發布新增衍生展示頁要求。破壞性 skill-bundle 變更。

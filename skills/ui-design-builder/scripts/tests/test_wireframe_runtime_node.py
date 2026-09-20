@@ -9,6 +9,34 @@ from pathlib import Path
 
 
 class WireframeRuntimeNodeTests(unittest.TestCase):
+    def test_node_stdin_reports_failures_after_the_first_line(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is unavailable")
+        result = subprocess.run([node, "-"], input='console.log("started");\nthrow Error("late assertion reached");',
+                                capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("late assertion reached", result.stderr)
+
+    def test_primary_page_default_preserves_explicit_review_links(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is unavailable")
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        script = r'''
+const fs = require("fs"), vm = require("vm");
+const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
+const source = html.match(/const resolvePage = [\s\S]*?\n      const initialPage/)[0].replace(/\n\s*const initialPage$/, "");
+const context = {data:{screens:[{id:"UI-001"},{id:"UI-002"}]}};
+vm.runInNewContext(source + "\nthis.resolve = resolvePage;", context);
+for (const [hash, expected] of [["","UI-001"],["#unknown","UI-001"],["#UI-002","UI-002"],["#overview","overview"],["#design-system","design-system"]]) {
+  if (context.resolve(hash) !== expected) throw Error(`Wrong page for ${hash}`);
+}
+if (!html.includes("state.page = resolvePage(location.hash)")) throw Error("hashchange bypasses shared routing");
+'''
+        result = subprocess.run([node, "-", str(template)], input=script, capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
     def test_composition_runtime_uses_semantic_content_without_losing_copy(self) -> None:
         node = shutil.which("node")
         if node is None:
@@ -17,7 +45,7 @@ class WireframeRuntimeNodeTests(unittest.TestCase):
         script = r'''
 const fs = require("fs");
 const vm = require("vm");
-const html = fs.readFileSync(process.argv[1], "utf8");
+const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
 const source = html.match(/const renderRegionContent = [\s\S]*?\n      const flowTarget/)[0].replace(/\n\s*const flowTarget$/, "");
 class Node {
   constructor(tag, cls, text) { this.tag = tag; this.cls = cls; this.text = text; this.children = []; this.attrs = {}; this.dataset = {}; this.style = {setProperty(){}}; this.events = {}; }
@@ -79,7 +107,7 @@ toggleClick();
 if (context.document.body.dataset.annotations !== "false" || renders !== 2 || closed !== 1) throw Error("annotations did not disable and refresh QA");
 if (!context.annotationToggle.focused) throw Error("annotation toggle lost keyboard focus");
 '''
-        result = subprocess.run([node, "-e", script, str(template)], capture_output=True, text=True, timeout=15)
+        result = subprocess.run([node, "-", str(template)], input=script, capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
 
     def test_open_flow_dialog_binds_cross_class_width_and_state(self) -> None:
@@ -92,7 +120,7 @@ if (!context.annotationToggle.focused) throw Error("annotation toggle lost keybo
         script = r'''
 const fs = require("fs");
 const vm = require("vm");
-const html = fs.readFileSync(process.argv[1], "utf8");
+const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
 const match = html.match(/const openFlowDialog = \(flow\) => \{[\s\S]*?\n      \};\n\n      const runFlow/);
 if (!match) throw new Error("openFlowDialog was not found in the canonical template");
 class Node {
@@ -126,7 +154,8 @@ if (!canvas || canvas.style.maxWidth !== "640px") throw new Error("overlay width
 if (!String(canvas.attributes["aria-label"]).includes("compact") || !String(canvas.attributes["aria-label"]).includes("loading")) throw new Error("overlay state/class context is stale");
 '''
         result = subprocess.run(
-            [node, "-e", script, str(template)],
+            [node, "-", str(template)],
+            input=script,
             capture_output=True,
             text=True,
             timeout=15,

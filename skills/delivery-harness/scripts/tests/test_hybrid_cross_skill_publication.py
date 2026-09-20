@@ -24,7 +24,7 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR, UI_TESTS_DIR, PDB_TESTS_DIR, DS_SCRIPT
 
 from harness_contract_join import validate_frozen_contract_joins  # noqa: E402
 from manifest_fixtures import carry_security_requirement, valid_plan, valid_run  # noqa: E402
-from test_ui_design_contract import bundle_output, materialize_publication  # noqa: E402
+from test_ui_design_contract import add_shell, bundle_output, materialize_publication  # noqa: E402
 from test_product_package_checker import strictize_approved_package  # noqa: E402
 from test_wireframe_contract import render_html  # noqa: E402
 from check_design_system_pair import replace_generated_contract  # noqa: E402
@@ -256,7 +256,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
             lambda match: match.group(1) + json.dumps(manifest) + match.group(2),
             hifi_text,
         )
-        hifi.write_text(hifi_text, encoding="utf-8")
+        hifi.write_text(add_shell(hifi_text, manifest), encoding="utf-8")
 
         evidence_cases = [
             {"surface": "UI-001", "state": "ready", "target": str(target)}

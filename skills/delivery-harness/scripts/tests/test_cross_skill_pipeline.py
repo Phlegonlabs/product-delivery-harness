@@ -24,6 +24,24 @@ from test_graph_orchestration import (  # noqa: E402
 
 
 class CrossSkillPipelineTests(unittest.TestCase):
+    def test_full_stack_handoff_preserves_ownership_and_real_evidence(self):
+        product = self.read("product-definition-builder/references/output-contract.md")
+        architecture = self.read("product-definition-builder/references/architecture-playbook.md")
+        acceptance = self.read("delivery-harness/references/delivery-acceptance-contract.md")
+        deployment = self.read("delivery-harness/references/deployment-contract.md")
+        self.assertIn("Role and initial data", product)
+        self.assertIn("Failure and recovery", product)
+        self.assertIn("authorization enforcement", architecture)
+        self.assertIn("operational owner", architecture)
+        self.assertIn("screen/client → API/service → permissions → saved data → visible result", acceptance)
+        self.assertIn("runnable locally and in CI", acceptance)
+        self.assertIn("screenshots/prose", acceptance)
+        self.assertIn("Unknown outcome blocks that operation until reconciled", acceptance)
+        self.assertIn("rollback trigger", deployment)
+        self.assertIn("actual build/artifact", deployment)
+        self.assertIn("cost alerts", self.read("product-activation/SKILL.md"))
+        self.assertIn("publicly discoverable surfaces", self.read("seo-growth-review/SKILL.md"))
+
     def read(self, relative_path: str) -> str:
         return (SKILLS_ROOT / relative_path).read_text(encoding="utf-8")
 
@@ -143,7 +161,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
     def test_completed_goal_documents_archive_on_completion_declaration(self) -> None:
         harness = self.read("delivery-harness/references/contract-and-traceability.md")
-        project_agents = self.read("delivery-harness/assets/templates/PROJECT_AGENTS.template.md")
+        project_agents = self.read("delivery-harness/assets/templates/PROJECT_AGENTS.template.md") + self.read("delivery-harness/references/project-operating-rules.md")
         promotion = self.read("delivery-harness/references/branch-promotion-contract.md")
 
         self.assertIn("declares the project or initiative complete", harness)

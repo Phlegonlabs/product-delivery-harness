@@ -315,7 +315,7 @@ async function agent(_prompt, options) {
         self.assertIn("runLayoutQa", html_template)
         self.assertIn('id="state-controls"', html_template)
         self.assertIn('id="page-list"', html_template)
-        self.assertIn("All pages", html_template)
+        self.assertIn('"Overview"', html_template)
         self.assertIn("Hero Section", html_template)
         self.assertIn("textContent", html_template)
         self.assertNotIn("https://", html_template)

@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from check_document_sync import LIMIT, inspect, main, safe_path, unique_object
+from check_document_sync import LIMIT, default_inventory, inspect, main, safe_path, unique_object
 
 
 class DocumentSyncTests(unittest.TestCase):
@@ -38,6 +38,80 @@ class DocumentSyncTests(unittest.TestCase):
         result = self.observe(snapshot)
         self.assertEqual("unchanged", result["status"])
         self.assertIn("approval are separate", result["meaning"])
+        self.assertEqual([], result["impacts"])
+
+    def test_impacts_route_changes_without_changing_snapshot(self):
+        name = "docs/product/PRD.md"
+        path = self.root / name
+        path.parent.mkdir(parents=True)
+        path.write_text("Requirement UI-1", encoding="utf-8")
+        first = self.observe(paths=[name])
+        self.assertEqual("first_observation", first["impacts"][0]["reason"])
+        self.assertEqual({"schema", "installed_digest", "documents"}, set(first["snapshot"]))
+        path.write_text("Requirement UI-1 revised", encoding="utf-8")
+        changed = self.observe(first["snapshot"], [name])["impacts"][0]
+        self.assertEqual(name, changed["source"])
+        self.assertIn("HiFi", changed["affected_artifacts"])
+        self.assertIn("requirement-linked tests", changed["required_checks"])
+        self.assertTrue(changed["semantic_review_required"])
+        path.unlink()
+        missing = self.observe(first["snapshot"], [name])["impacts"][0]
+        self.assertEqual("missing_document", missing["reason"])
+
+    def test_unknown_source_requires_parent_review(self):
+        (self.root / "notes.md").write_text("A local rule", encoding="utf-8")
+        impact = self.observe(paths=["notes.md"])["impacts"][0]
+        self.assertEqual(["parent semantic review"], impact["affected_stages"])
+        self.assertTrue(impact["semantic_review_required"])
+
+    def test_default_inventory_observes_epics_and_retains_missing_paths(self):
+        folder = self.root / "docs/epics"
+        folder.mkdir(parents=True)
+        epic = folder / "EPIC-1.md"
+        epic.write_text("Current PRD: UI-1", encoding="utf-8")
+        (folder / "archived").mkdir()
+        (folder / "archived/old.md").write_text("history", encoding="utf-8")
+        paths = default_inventory(self.root)
+        self.assertIn("docs/epics/EPIC-1.md", paths)
+        self.assertNotIn("docs/epics/archived/old.md", paths)
+        observed = self.observe(paths=paths)
+        epic.unlink()
+        paths = default_inventory(self.root, observed["snapshot"])
+        result = self.observe(observed["snapshot"], paths)
+        self.assertIn({"kind": "missing_document", "path": "docs/epics/EPIC-1.md"}, result["findings"])
+
+    def test_epic_discovery_rejects_linked_directory(self):
+        with patch.object(Path, "is_symlink", lambda path: path == self.root / "docs/epics"):
+            with self.assertRaises(ValueError):
+                default_inventory(self.root)
+
+    def test_removed_inventory_source_keeps_a_specific_impact(self):
+        first = self.observe()["snapshot"]
+        result = self.observe(first, ["CLAUDE.md"])
+        self.assertIn({"kind": "removed_from_inventory", "path": "AGENTS.md"}, result["findings"])
+        self.assertEqual("AGENTS.md", result["impacts"][0]["source"])
+        self.assertEqual("removed_from_inventory", result["impacts"][0]["reason"])
+
+    def test_explicit_nested_epic_does_not_expand_default_scope(self):
+        folder = self.root / "docs/epics/team"
+        folder.mkdir(parents=True)
+        (folder / "E.md").write_text("nested source", encoding="utf-8")
+        previous = self.observe(paths=["docs/epics/team/E.md"])["snapshot"]
+        paths = default_inventory(self.root, previous)
+        self.assertNotIn("docs/epics/team/E.md", paths)
+        result = self.observe(previous, paths)
+        self.assertEqual("removed_from_inventory", result["impacts"][0]["reason"])
+
+    def test_epic_directory_enumeration_is_bounded_before_sorting(self):
+        folder = self.root / "docs/epics"
+        folder.mkdir(parents=True)
+        for suffix in (".md", ".txt"):
+            with self.subTest(suffix=suffix):
+                entries = [type("Entry", (), {"path": str(folder / (str(i) + suffix))})() for i in range(129)]
+                with patch("check_document_sync.os.scandir") as scan:
+                    scan.return_value.__enter__.return_value = iter(entries)
+                    with self.assertRaises(ValueError):
+                        default_inventory(self.root)
 
     def test_changed_missing_and_new_documents(self):
         snapshot = self.observe()["snapshot"]

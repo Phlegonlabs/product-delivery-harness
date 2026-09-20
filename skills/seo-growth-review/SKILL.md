@@ -17,6 +17,8 @@ Turn production search and behavior evidence into a short, prioritized organic-g
 
 This skill owns the review and opportunity ranking only. It does not own product requirements, website implementation, external-console setup, API authentication, content publication, or a standing dashboard.
 
+Apply SEO only to the product's applicable publicly discoverable surfaces. Private tools, internal APIs and native-only screens do not need an SEO round unless an approved public discovery surface exists. Record the reason in the current task; do not generate an empty review or reopen product interviews.
+
 ## Required Inputs
 
 Start with the production URL or domain, target country or region, language, intended audience, and the business outcome organic traffic should support. Use the owner's measurement window when one exists.

@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -71,6 +72,57 @@ def read_bounded(path):
     return data
 
 
+def impact_for(name, reason):
+    """Conservative routing hints, never a substitute for semantic review."""
+    filename = name.rsplit("/", 1)[-1]
+    if filename in {"AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "DOCUMENTS.md"}:
+        artifacts, stages, checks = ["scoped live documents"], ["intake", "affected stages"], ["required reading", "references and skill bindings"]
+    elif name == "docs/product/PRD.md":
+        artifacts, stages, checks = ["architecture", "stack", "wireframes", "HiFi", "acceptance"], ["product", "design", "delivery"], ["product package", "affected UI gates", "requirement-linked tests"]
+    elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
+        artifacts, stages, checks = ["implementation", "deployment", "acceptance"], ["product", "delivery"], ["product package", "API and permission tests", "migration and recovery"]
+    elif name.startswith("docs/design/"):
+        artifacts, stages, checks = ["wireframes", "HiFi", "conditional design-system pair", "implementation"], ["design", "delivery"], ["UI contract", "product interactions", "visual and accessibility evidence"]
+    elif filename in {"DEPLOYMENT.md", "ACTIVATION.md"}:
+        artifacts, stages, checks = ["release evidence", "operational readiness"], ["deployment", "activation"], ["environment isolation", "build readback", "recovery and readiness"]
+    elif name.startswith("docs/epics/"):
+        artifacts, stages, checks = ["referenced PRD requirements", "affected live artifacts"], ["intake", "delivery"], ["Epic references and baseline", "accepted scope and outcomes"]
+    else:
+        artifacts, stages, checks = ["parent-selected affected sources"], ["parent semantic review"], ["source references and affected acceptance"]
+    return {"source": name, "reason": reason, "affected_artifacts": artifacts,
+            "affected_stages": stages, "required_checks": checks,
+            "semantic_review_required": True}
+
+
+def default_inventory(root, baseline=None):
+    """Include live Epic names without following links or scanning history."""
+    paths = list(DEFAULT_PATHS)
+    folder = safe_path(root, "docs/epics")
+    if folder.exists():
+        if not folder.is_dir():
+            raise ValueError("Epic inventory must be a directory")
+        entries = []
+        with os.scandir(folder) as iterator:
+            for entry in iterator:
+                if len(entries) >= 128:
+                    raise ValueError("scope the Epic directory explicitly")
+                entries.append(Path(entry.path))
+        for path in sorted(entries):
+            if path.suffix == ".md":
+                name = path.relative_to(root).as_posix()
+                safe_path(root, name, document=True)
+                paths.append(name)
+                if len(paths) > 128:
+                    raise ValueError("scope the Epic inventory explicitly")
+    # Retain removed Epic paths so a missing document cannot disappear silently.
+    if isinstance(baseline, dict) and isinstance(baseline.get("documents"), dict):
+        for name in baseline["documents"]:
+            if isinstance(name, str) and name.startswith("docs/epics/") and name.count("/") == 2 and name not in paths:
+                safe_path(root, name, document=True)
+                paths.append(name)
+    return paths
+
+
 def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=()):
     root = Path(root).resolve(strict=True)
     if not root.is_dir():
@@ -111,24 +163,33 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         previous = {}
         findings.append({"kind": "baseline_review_required"})
     documents = {}
+    impacts = []
+    for name in sorted(set(previous) - set(paths)):
+        safe_path(root, name, document=True)
+        findings.append({"kind": "removed_from_inventory", "path": name})
+        impacts.append(impact_for(name, "removed_from_inventory"))
     for name in paths:
         path = safe_path(root, name, document=True)
         if not path.exists():
             documents[name] = None
             if name in required or previous.get(name) is not None:
                 findings.append({"kind": "missing_document", "path": name})
+                impacts.append(impact_for(name, "missing_document"))
             continue
         data = read_bounded(path)
         text = data.decode("utf-8-sig")
         documents[name] = hashlib.sha256(data).hexdigest()
         if baseline is not None and previous.get(name) != documents[name]:
             findings.append({"kind": "document_changed", "path": name})
+            impacts.append(impact_for(name, "document_changed"))
+        elif baseline is None:
+            impacts.append(impact_for(name, "first_observation"))
         for skill in sorted(set(RETIRED.findall(text))):
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
     snapshot = {"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
     return {"status": "review_required" if findings else "unchanged",
-            "findings": findings, "snapshot": snapshot,
+            "findings": findings, "impacts": impacts, "snapshot": snapshot,
             "meaning": "Byte drift only; semantic review, capability, authorization and approval are separate."}
 
 
@@ -153,7 +214,7 @@ def main(argv=None):
             if path.suffix != ".json":
                 raise ValueError("baseline must be a JSON snapshot")
             baseline = json.loads(read_bounded(path).decode("utf-8-sig"), object_pairs_hook=unique_object)
-        report = inspect(root, args.paths or DEFAULT_PATHS, args.loaded_digest,
+        report = inspect(root, args.paths or default_inventory(root, baseline), args.loaded_digest,
                          installed_digest, baseline, args.required_path)
     except (ValueError, OSError, UnicodeError, RecursionError) as exc:
         # Never echo document content, JSON bodies, or credential values.

@@ -26,6 +26,12 @@ Every architecture should cover:
 - Observability, metrics, alerting, and audit logs.
 - Scaling, reliability, idempotency, retries, and rate limits.
 
+## Full-Stack Journey Handoff
+
+For each accepted journey, connect the PRD role/data/action and success/failure/recovery outcomes to the actual screen or client, API/service contract, authorization enforcement, data model and persistence, external dependencies and operational owner. Name validation errors, denied access, retry/idempotency, partial failure and recovery where applicable. Link the same requirement and TEST IDs; do not duplicate the PRD or invent a new handoff specification. Headless and local-only products record their actual client and explain inapplicable layers.
+
+Recommend a complete compatible stack when the owner has no preference, including runtime, client, backend, auth/data, agent tools and tests as applicable. Keep proposals visibly Recommended/Provisional until accepted; do not turn a recommendation into scaffold authority. Reuse the current approved stack for enhancements unless the accepted scope changes it.
+
 ## Provider-Neutral Release Target Pattern
 
 Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close an explicit inventory of expected deployable surfaces during discovery instead of leaving destinations for implementation. Give each surface a stable identity, then give each exact destination a stable target ID and a `development` or `production` stage. Each expected surface needs at least one target in each stage; reject a package that omits one. Keep `surface` separate from `provider`: the same stable surface may use different providers in development and production.

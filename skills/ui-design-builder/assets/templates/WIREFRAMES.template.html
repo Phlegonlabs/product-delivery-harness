@@ -1126,13 +1126,18 @@
           canvasWidths: data.canvasWidths
         };
       };
-      const initialPage = location.hash.slice(1) || "overview";
+      const resolvePage = (hash) => {
+        const requested = hash.slice(1);
+        return ["overview", "design-system"].includes(requested) || data.screens.some((screen) => screen.id === requested)
+          ? requested : data.screens[0].id;
+      };
+      const initialPage = resolvePage(location.hash);
       const initialScreen = data.screens.find((screen) => screen.id === initialPage) || data.screens[0];
       const initialResponsive = responsiveSpecFor(initialScreen);
       const state = {
         page: initialPage,
         responsiveTarget: initialResponsive.targets[initialResponsive.targets.length - 1],
-        screenState: "ready",
+        screenState: initialScreen.states?.[0]?.id || "ready",
         inspectorOpen: false,
         selectedRegion: null
       };
@@ -1194,7 +1199,7 @@
 
       const renderNavigation = () => {
         pageList.replaceChildren();
-        pageList.append(makePageButton("overview", "All pages", `${data.screens.length} surfaces`));
+        pageList.append(makePageButton("overview", "Overview", `${data.screens.length} surfaces`));
         pageList.append(makePageButton("design-system", "Design System", "Wireframe draft"));
         data.screens.forEach((screen) => {
           pageList.append(makePageButton(screen.id, `${screen.id} · ${screen.name}`, screen.route));
@@ -2019,7 +2024,7 @@
       };
 
       const render = () => {
-        if (!["overview", "design-system"].includes(state.page) && !currentScreen()) state.page = "overview";
+        if (!["overview", "design-system"].includes(state.page) && !currentScreen()) state.page = data.screens[0].id;
         renderNavigation();
         renderResponsiveControls();
         const screen = currentScreen();
@@ -2056,7 +2061,7 @@
       });
 
       window.addEventListener("hashchange", () => {
-        state.page = location.hash.slice(1) || "overview";
+        state.page = resolvePage(location.hash);
         const screen = currentScreen();
         if (screen) {
           const responsive = responsiveSpecFor(screen);
