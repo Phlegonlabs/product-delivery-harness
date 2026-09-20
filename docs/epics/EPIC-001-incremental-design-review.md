@@ -54,6 +54,8 @@ product, approval, authorization and release gates remain in place.
 | HiFi evidence validation | Validate actual control variants, selectable controls and closed typed evidence rows | `b0d3e9a`; 26 contract and 4 runtime tests | Integrated; unified exact-head review pending |
 | Incremental scope and Epic rules | Owner reported repeated full UI redraws | `d73b0ba`; 60 skill contract tests | Guidance and cross-skill regression pass; preserved-surface comparison remains a required review step, not an automated semantic proof |
 | Release preparation | Renewed reviewer contracts are a breaking skill-bundle change | 0.48.0 version pins and four-language documentation | Complete candidate checks and main promotion pending |
+| Unified review repair | Review of `7273a44` found product CSS leakage, missing anchor specimens, text fields impersonating selection, malformed group crashes and unfocusable headings | Bounded repair; 29 HiFi contract and 4 runtime tests | Removed product defaults from reviewer CSS, hardened control/evidence checks and added focus-semantic regressions; full candidate checks pending |
+| Workflow forward-test | Independently plan Saved Articles addition, then a post-release contrast fix | Read-only skill evaluation at `7273a44` | New feature gets its own Epic and only UI-003/UI-004 changes; Home/Search stay preserved; contrast fix appends to the same Epic |
 
 ## Results And Remaining Work
 
@@ -69,3 +71,9 @@ navigation coverage and browser/visual verification remain unresolved there.
 Skill release gates and exact-candidate main authorization remain pending. Browser
 policy prevents claiming a rendered website review; source/runtime tests are not
 visual approval. Each repair and release result must be recorded here before closeout.
+
+The initial unified security review found no security vulnerability, but its result
+is historical/blocked because the functional repairs changed the checkout. It does
+not count as security approval for the repaired candidate. Document-sync reported
+unknown loaded identity and first observation; old skill-name references are
+intentional retirement/history guidance, not live installation targets.

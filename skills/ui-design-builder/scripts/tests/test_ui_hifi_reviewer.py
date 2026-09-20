@@ -35,7 +35,7 @@ class HiFiReviewerTests(unittest.TestCase):
 
     def test_reviewer_dom_requires_exact_container_and_real_responsive_controls(self):
         for old, new, message in (
-            ('data-hifi-canvas', 'data-hifi-canvas-disabled', "exact-width product container"),
+            ('<div data-hifi-canvas ', '<div data-hifi-canvas-disabled ', "exact-width product container"),
             ('data-hifi-target-control="1200"', 'data-hifi-target-control="777"', "responsive target controls"),
             ('@container (max-width:779px)', '@media (max-width:779px)', "container queries"),
             ('container-type:inline-size', 'container-type:normal', "inline-size containment"),
@@ -150,6 +150,32 @@ class HiFiReviewerTests(unittest.TestCase):
         actual["retention"][0]["extra"] = "accepted"
         self.assertTrue(reviewer_evidence_findings(actual, expected))
 
+    def test_invalid_shared_group_identity_does_not_reach_aggregation(self):
+        _, expected = reviewer_contract(self.documents, self.manifest)
+        for invalid in (["bad"], {"bad": 1}, [], {}, None, 1, True):
+            with self.subTest(invalid=invalid):
+                actual = observations(self.manifest)
+                actual["specimens"][0]["sharedGroup"] = invalid
+                self.assertTrue(reviewer_evidence_findings(actual, expected))
+
+    def test_text_input_cannot_impersonate_checked_selection(self):
+        for attributes in ('aria-checked="true"', 'aria-selected="true" role="option"', 'checked role="checkbox"'):
+            with self.subTest(attributes=attributes):
+                docs = {page: html.replace('data-retention-input', 'type="text" data-retention-input data-retention-selected ' + attributes)
+                        .replace('<select class="product-select" data-retention-selected', '<select class="product-select"')
+                        for page, html in self.documents.items()}
+                errors, expected = reviewer_contract(docs, self.manifest)
+                self.assertEqual([], errors)
+                self.assertTrue(all(row["selectedValueBefore"] == "ready" for row in expected["retention"]))
+
+    def test_marked_product_anchor_requires_specimen_even_without_declared_anchor(self):
+        component_types = ("button", "input", "select")
+        docs = {row["page"]: add_shell(_source_html(row, component_types).replace(
+            '</main>', '<a class="product-link" data-navigation-id="home" href="index.html">Home</a></main>'),
+            self.manifest, row["page"], component_types) for row in self.manifest["surfaces"]}
+        errors, _ = reviewer_contract(docs, self.manifest)
+        self.assertTrue(any("source-bound component specimen" in error for error in errors), errors)
+
     def test_fresh_reviewer_requires_every_bound_product_variant_and_state_specimen(self):
         original = self.path.read_text(encoding="utf-8")
         self.assertIn("</main></div></main>", original)
@@ -220,7 +246,8 @@ class HiFiReviewerTests(unittest.TestCase):
         actual = observations(self.manifest)
         group = [row for row in actual["specimens"] if row["sharedGroup"] == "primary-button"]
         self.assertGreaterEqual(len(group), 2)
-        group[-1]["sourceValue"] = "#ff0000"
+        for key in ("sourceValue", "specimenValue", "displayValue"):
+            group[-1][key] = "#ff0000"
         findings = reviewer_evidence_findings(actual, expected)
         self.assertTrue(any("shared specimen group" in item for item in findings), findings)
 

@@ -182,13 +182,15 @@ def _retention_probe(nodes):
             return True
         if tag == "option":
             return "selected" in attrs and option_bound_to_select(item)
+        if tag == "input":
+            return (attrs.get("type") or "text").casefold() in {"checkbox", "radio"} and (
+                "checked" in attrs or attrs.get("aria-checked") == "true"
+            )
         role = (attrs.get("role") or "").casefold()
         selected = attrs.get("aria-selected") == "true" and role in {"button", "menuitem", "option", "tab", "radio"}
         pressed = attrs.get("aria-pressed") == "true" and tag in {"a", "button"}
-        checked = attrs.get("aria-checked") == "true" or (
-            "checked" in attrs and (attrs.get("type") or "").casefold() in {"checkbox", "radio"}
-        )
-        return (selected or pressed or (checked and tag == "input"))
+        checked = attrs.get("aria-checked") == "true" and role in {"checkbox", "radio", "switch", "menuitemcheckbox", "menuitemradio"}
+        return selected or pressed or checked
 
     selection_marked = [item for item in product if "data-retention-selected" in item[1] and eligible_selection(item)]
     if len(selection_marked) > 1:
@@ -465,15 +467,14 @@ def _reviewer_contract(documents, manifest):
             component_elements = {row["element"] for row in component_specs}
             product_elements = {tag for tag, attrs, parents in source_nodes
                                 if tag in {"button", "input", "select", "textarea"} and _in_product(attrs, parents)}
-            if "a" in component_elements:
-                product_elements.update("a" for tag, attrs, parents in source_nodes
-                                        if tag == "a" and _in_product(attrs, parents)
-                                        and ("data-navigation-id" in attrs or "data-control-id" in attrs))
+            product_elements.update("a" for tag, attrs, parents in source_nodes
+                                    if tag == "a" and _in_product(attrs, parents)
+                                    and ("data-navigation-id" in attrs or "data-control-id" in attrs))
             if not product_elements <= component_elements:
                 errors.append(f"HiFi {source_page} component specimens must cover its actual styled form controls")
             for tag, attrs, parents in source_nodes:
                 if not _in_product(attrs, parents) or tag not in {"button", "input", "select", "textarea"}:
-                    if not (tag == "a" and "a" in component_elements and _in_product(attrs, parents)
+                    if not (tag == "a" and _in_product(attrs, parents)
                             and ("data-navigation-id" in attrs or "data-control-id" in attrs)):
                         continue
                 bound = [spec for spec in component_specs
@@ -587,6 +588,7 @@ def reviewer_evidence_findings(actual, expected):
     expected_specimens = expected.get("specimens")
     if not isinstance(rows, list) or not isinstance(expected_specimens, list) or len(rows) != len(expected_specimens):
         return errors + ["HiFi computed specimen coverage is incomplete"]
+    groups = {}
     for row, spec in zip(rows, expected_specimens):
         if not isinstance(row, dict) or not isinstance(spec, dict) or set(row) != set(spec) | {"sourceValue", "specimenValue", "displayValue"} or any(row.get(key) != value for key, value in spec.items()):
             errors.append("HiFi computed specimen identity differs from its DOM source binding")
@@ -594,14 +596,13 @@ def reviewer_evidence_findings(actual, expected):
         value = row.get("sourceValue")
         if not isinstance(value, str) or not value.strip() or value != row.get("specimenValue") or value != row.get("displayValue"):
             errors.append("HiFi displayed values and computed specimens must equal the actual style source")
-    groups = {}
-    for row in rows:
-        if isinstance(row, dict) and row.get("sharedGroup"):
-            # Invalid measured values have already produced a finding above.
-            # Do not place typed containers in a set while checking group parity.
-            if not all(isinstance(row.get(key), str) for key in ("sourceValue", "specimenValue", "displayValue")):
-                continue
-            groups.setdefault(row["sharedGroup"], []).append(row)
+            continue
+        group = row.get("sharedGroup")
+        if group is not None and (not isinstance(group, str) or not group.strip()):
+            errors.append("HiFi shared specimen group must be null or nonempty text")
+            continue
+        if group:
+            groups.setdefault(group, []).append(row)
     for group in groups.values():
         values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue")) for row in group}
         if len(values) != 1:

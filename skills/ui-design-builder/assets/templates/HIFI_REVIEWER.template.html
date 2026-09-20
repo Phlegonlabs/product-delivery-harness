@@ -2,9 +2,8 @@
 <!-- hifi-reviewer:css:start -->
 <style data-hifi-reviewer-css>
 :root{--review-shell:#e9eef6;--review-line:#c9d2df;--review-ink:#243447;--review-accent:#234f8a}
-*{box-sizing:border-box}
-body{margin:0;background:#f7f9fc;color:var(--review-ink);min-height:100vh}
-[data-hifi-reviewer-shell]{position:fixed;inset-block:0;left:0;inline-size:236px;overflow:auto;padding:20px;background:var(--review-shell);border-right:1px solid var(--review-line)}
+[data-hifi-reviewer-shell],[data-hifi-reviewer-shell] *,[data-hifi-canvas],[data-hifi-panel]{box-sizing:border-box}
+[data-hifi-reviewer-shell]{position:fixed;inset-block:0;left:0;inline-size:236px;overflow:auto;padding:20px;background:var(--review-shell);color:var(--review-ink);border-right:1px solid var(--review-line)}
 [data-hifi-reviewer-shell] a,[data-hifi-reviewer-shell] button{color:inherit;font:inherit}
 [data-hifi-reviewer-shell] a{display:block;padding:8px 0;text-decoration-thickness:2px}
 [data-hifi-reviewer-shell] a[aria-current="page"]{color:var(--review-accent);font-weight:700}
@@ -13,22 +12,16 @@ body{margin:0;background:#f7f9fc;color:var(--review-ink);min-height:100vh}
 [data-hifi-target-control]{display:inline-block;width:64px;margin:2px 2px 8px 0;padding:7px 0;border:1px solid var(--review-line);border-radius:5px;background:white;cursor:pointer}
 [data-hifi-target-control][aria-pressed="true"]{border-color:var(--review-accent);color:var(--review-accent);font-weight:700}
 [data-hifi-reviewer-main]{margin-left:236px;min-width:0;min-height:100vh;padding:24px;overflow:auto}
-[data-hifi-canvas]{container-type:inline-size;width:390px;max-width:none;overflow:auto;background:white;outline:1px solid var(--review-line);outline-offset:-1px;border-radius:8px}
+[data-hifi-canvas]{container-type:inline-size;width:390px;max-width:none;overflow:auto}
 [data-hifi-canvas][data-hifi-target="390"]{width:390px}
 [data-hifi-canvas][data-hifi-target="768"]{width:768px}
 [data-hifi-canvas][data-hifi-target="1200"]{width:1200px}
-[data-hifi-canvas] [data-ui-surface]{margin:0;padding:20px}
-@container (max-width:779px){[data-hifi-canvas] [data-ui-surface]{padding:14px;font-size:15px}}
-@container (min-width:780px){[data-hifi-canvas] [data-ui-surface]{padding:28px;font-size:16px}}
+/* Product container queries and component styles belong to the approved page, not this shell. */
 [data-hifi-panel]{max-width:960px;margin:0;padding:24px}
-[hidden]{display:none!important}
-:focus-visible{outline:3px solid #547cbe;outline-offset:3px}
+[data-hifi-canvas][hidden],[data-hifi-panel][hidden]{display:none!important}
+[data-hifi-reviewer-shell] :focus-visible{outline:3px solid #547cbe;outline-offset:3px}
 [data-hifi-spec]{border-bottom:1px solid var(--review-line);padding:14px 0}
 [data-hifi-spec] output{display:block;font-family:monospace}
-.product-button,.product-input,.product-select,.product-feedback{font:inherit}
-.product-button{padding:10px 14px;border:1px solid #869bb6;border-radius:5px;background:white;color:#243447}
-.product-input,.product-select{padding:10px;border:1px solid #869bb6;color:#243447}
-.product-feedback{color:#243447}
 </style>
 <!-- hifi-reviewer:css:end -->
 <!-- hifi-reviewer:shell:start -->
@@ -201,7 +194,10 @@ body{margin:0;background:#f7f9fc;color:var(--review-ink);min-height:100vh}
       if (settings.focus) {
         const focusTarget = next.view === "product" ? surfaces.find(item => !item.hidden) : panels.find(panel => panel.dataset.hifiPanel === next.view);
         const heading = focusTarget && focusTarget.querySelector("h1");
-        if (heading && typeof heading.focus === "function") heading.focus();
+        if (heading && typeof heading.focus === "function") {
+          if (heading.getAttribute("tabindex") === null) heading.setAttribute("tabindex", "-1");
+          heading.focus();
+        }
       }
     }
     for (const control of controls) control.addEventListener("click", () => runtime.selectTarget(control.dataset.hifiTargetControl));
@@ -212,10 +208,9 @@ body{margin:0;background:#f7f9fc;color:var(--review-ink);min-height:100vh}
         try { runtime.selectSurface(surface); } catch (_) {}
       }
     });
-    const locationState = currentLocation();
     if (typeof window === "object" && window.addEventListener) window.addEventListener("hashchange", () => apply({focus: true}));
     if (typeof document === "object" && document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => apply({focus: true}), {once: true});
-    else apply({focus: !!(locationState && locationState.hash)});
+    else apply({focus: true});
     return runtime;
   }
 

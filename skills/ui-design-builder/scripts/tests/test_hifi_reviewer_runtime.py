@@ -19,7 +19,11 @@ class HiFiReviewerRuntimeTests(unittest.TestCase):
         html = TEMPLATE.read_text(encoding="utf-8")
         self.assertIn('data-hifi-canvas', html)
         self.assertIn("container-type:inline-size", html)
-        self.assertIn("@container", html)
+        css = html.split("<!-- hifi-reviewer:css:start -->", 1)[1].split("<!-- hifi-reviewer:css:end -->", 1)[0]
+        self.assertNotIn("@container", css, "product reflow belongs to the approved page")
+        self.assertNotIn(".product-", css)
+        self.assertNotIn("[data-ui-surface]", css)
+        self.assertNotRegex(css, r"(?m)^\s*(?:body|\*)\s*\{")
         self.assertIn('width:390px', html)
         self.assertIn('width:768px', html)
         self.assertIn('width:1200px', html)
@@ -92,7 +96,7 @@ class Node {
   removeAttribute(name) { delete this.attrs[name]; if (name.startsWith("data-")) delete this.dataset[name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase())]; }
   addEventListener(name, fn) { this.listeners[name] = fn; }
   click() { if (this.listeners.click) this.listeners.click({target: this}); }
-  focus() { this.focused = true; }
+  focus() { if (this.getAttribute("tabindex") !== null) this.focused = true; }
   querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
   querySelectorAll(selector) {
     const result = [];
@@ -101,6 +105,7 @@ class Node {
   }
 }
 function matches(node, selector) {
+  if (selector === "h1") return node.tagName === "H1";
   if (selector === "[data-hifi-canvas]") return node.attrs["data-hifi-canvas"] !== undefined;
   if (selector === "[data-ui-surface]") return node.attrs["data-ui-surface"] !== undefined;
   if (selector === "[data-hifi-panel]") return node.attrs["data-hifi-panel"] !== undefined;
@@ -127,13 +132,19 @@ const panelTokens = root.body.append(new Node("section", {"data-hifi-panel": "de
 root.readyState = "complete";
 const throwingStorage = {getItem() { throw Error("file storage blocked"); }, setItem() { throw Error("file storage blocked"); }};
 const context = {
-  window: {location: {pathname: "/index.html", hash: ""}, addEventListener() {}},
+  window: {location: {pathname: "/index.html", hash: ""}, listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; }},
   document: root,
 };
 vm.runInNewContext(Buffer.from(process.env.HIFI_RUNTIME_SOURCE_B64, "base64").toString("utf8"), context);
 const runtime = context.window.connectHifiReviewer({root, storage: throwingStorage});
 if (runtime.snapshot().target !== "390" || canvas.dataset.hifiTarget !== "390") throw Error("initial target was not applied");
 if (surface1.hidden || !surface2.hidden) throw Error("initial product surface visibility is not exclusive");
+if (!surface1.querySelector("h1").focused) throw Error("bare product heading did not receive navigation focus");
+context.window.location.hash = "#overview";
+context.window.listeners.hashchange();
+if (!panelOverview.querySelector("h1").focused || panelOverview.hidden) throw Error("bare reviewer heading did not receive focus");
+context.window.location.hash = "";
+context.window.listeners.hashchange();
 runtime.openView("overview");
 if (!canvas.hidden || !surface1.hidden || panelOverview.hidden || !panelTokens.hidden) throw Error("openView did not apply panel visibility");
 runtime.showProduct();

@@ -436,7 +436,7 @@ def materialize_hifi_bundle(root):
     def page(row, other):
         return ('<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="' + policy
                 + '"></head><body><main data-ui-surface="' + row["id"] + '" data-ui-route="' + row["route"]
-                + '"><h1>Connected product page with real navigation</h1><a data-navigation-id="next" href="' + other["page"]
+                + '"><h1>Connected product page with real navigation</h1><a class="product-link" data-specimen-variant="default" data-specimen-state="default" data-navigation-id="next" href="' + other["page"]
                 + '">Next page</a><button class="product-button" data-specimen-variant="default" data-specimen-state="default" data-control-id="refresh">Refresh</button>'
                 + '<input class="product-input" data-retention-input data-specimen-variant="default" data-specimen-state="default" data-control-id="filter" value="Retained input" aria-label="Filter">'
                 + '<select class="product-select" data-retention-selected data-specimen-variant="default" data-specimen-state="default" data-control-id="view" aria-label="View"><option value="ready" selected>Ready</option></select>'
@@ -455,7 +455,7 @@ def materialize_hifi_bundle(root):
     return path, manifest, {"surfaces": [{key: value for key, value in row.items() if key != "page"} for row in surfaces]}
 
 
-def bundle_output(manifest, component_types=("button", "input", "select")):
+def bundle_output(manifest, component_types=("button", "input", "select", "a")):
     output = {"sandbox": {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"},
               "console": [], "network": [], "navigation": [], "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0, "interactions": []}
     surfaces = {row["id"]: row for row in manifest["surfaces"]}
