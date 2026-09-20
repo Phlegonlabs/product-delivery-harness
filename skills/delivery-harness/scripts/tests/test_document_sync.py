@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from check_document_sync import LIMIT, inspect, main, safe_path, unique_object
+from check_document_sync import LIMIT, default_inventory, inspect, main, safe_path, unique_object
 
 
 class DocumentSyncTests(unittest.TestCase):
@@ -63,6 +63,27 @@ class DocumentSyncTests(unittest.TestCase):
         impact = self.observe(paths=["notes.md"])["impacts"][0]
         self.assertEqual(["parent semantic review"], impact["affected_stages"])
         self.assertTrue(impact["semantic_review_required"])
+
+    def test_default_inventory_observes_epics_and_retains_missing_paths(self):
+        folder = self.root / "docs/epics"
+        folder.mkdir(parents=True)
+        epic = folder / "EPIC-1.md"
+        epic.write_text("Current PRD: UI-1", encoding="utf-8")
+        (folder / "archived").mkdir()
+        (folder / "archived/old.md").write_text("history", encoding="utf-8")
+        paths = default_inventory(self.root)
+        self.assertIn("docs/epics/EPIC-1.md", paths)
+        self.assertNotIn("docs/epics/archived/old.md", paths)
+        observed = self.observe(paths=paths)
+        epic.unlink()
+        paths = default_inventory(self.root, observed["snapshot"])
+        result = self.observe(observed["snapshot"], paths)
+        self.assertIn({"kind": "missing_document", "path": "docs/epics/EPIC-1.md"}, result["findings"])
+
+    def test_epic_discovery_rejects_linked_directory(self):
+        with patch.object(Path, "is_symlink", return_value=True):
+            with self.assertRaises(ValueError):
+                default_inventory(self.root)
 
     def test_changed_missing_and_new_documents(self):
         snapshot = self.observe()["snapshot"]

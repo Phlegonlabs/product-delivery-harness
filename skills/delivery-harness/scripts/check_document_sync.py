@@ -93,6 +93,29 @@ def impact_for(name, reason):
             "semantic_review_required": True}
 
 
+def default_inventory(root, baseline=None):
+    """Include live Epic names without following links or scanning history."""
+    paths = list(DEFAULT_PATHS)
+    folder = safe_path(root, "docs/epics")
+    if folder.exists():
+        if not folder.is_dir():
+            raise ValueError("Epic inventory must be a directory")
+        for path in sorted(folder.iterdir()):
+            if path.suffix == ".md":
+                name = path.relative_to(root).as_posix()
+                safe_path(root, name, document=True)
+                paths.append(name)
+                if len(paths) > 128:
+                    raise ValueError("scope the Epic inventory explicitly")
+    # Retain removed Epic paths so a missing document cannot disappear silently.
+    if isinstance(baseline, dict) and isinstance(baseline.get("documents"), dict):
+        for name in baseline["documents"]:
+            if isinstance(name, str) and name.startswith("docs/epics/") and name not in paths:
+                safe_path(root, name, document=True)
+                paths.append(name)
+    return paths
+
+
 def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=()):
     root = Path(root).resolve(strict=True)
     if not root.is_dir():
@@ -180,7 +203,7 @@ def main(argv=None):
             if path.suffix != ".json":
                 raise ValueError("baseline must be a JSON snapshot")
             baseline = json.loads(read_bounded(path).decode("utf-8-sig"), object_pairs_hook=unique_object)
-        report = inspect(root, args.paths or DEFAULT_PATHS, args.loaded_digest,
+        report = inspect(root, args.paths or default_inventory(root, baseline), args.loaded_digest,
                          installed_digest, baseline, args.required_path)
     except (ValueError, OSError, UnicodeError, RecursionError) as exc:
         # Never echo document content, JSON bodies, or credential values.

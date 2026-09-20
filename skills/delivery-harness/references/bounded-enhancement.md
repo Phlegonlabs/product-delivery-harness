@@ -4,6 +4,10 @@ Apply this policy after the owner accepts one enhancement scope. It applies to d
 
 ## One Scope Decision
 
+Use one Epic under `docs/epics/` for a complete enhancement outcome and index its path/status in `docs/DOCUMENTS.md`. Start from `assets/templates/EPIC.template.md`. A small fix may reference an existing Epic or use only the direct-task record; never manufacture an Epic, PLAN or RUN for every edit. The Epic describes why this round exists, its current-PRD baseline, stable requirement/TEST references, accepted scope, dependencies, affected documents and actual result. It does not duplicate the PRD, authorization ledger, task scheduler or evidence register. Keep unresolved Epic work visible when starting another session; do not infer completion from a closed conversation.
+
+Derive a short execution summary from accepted sources: goal, PRD/TEST references, write scope, design source and UI impact, dependencies, valid action grants and verification commands. Keep it in the existing direct-task report or managed PLAN/RUN. It is a derived summary, not independently editable authority. Missing information produces a specific gap and blocks only dependent work. A change in source decisions routes to the owning skill; unchanged decisions and valid authorizations are reused.
+
 Record the owner's instruction, affected requirement IDs, acceptance conditions, write boundaries, test environments, permitted actions, repair budget, and stopping condition once. Reuse that instruction for covered implementation, document synchronization, synthetic fixture preparation, repair, module replacement, and retesting. Do not ask the owner to approve the same decision after each failed test or technical hash refresh.
 
 The default is at most two repair rounds per root-cause family, including a replacement strategy; a stricter graph or reviewer attempt limit wins. Record attempts across sessions and revisions. Never reset the counter by renaming the issue, changing workers, or opening another graph revision. A new task is not launched automatically.

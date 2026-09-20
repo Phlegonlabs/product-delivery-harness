@@ -19,6 +19,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `docs/ACTIVATION.md` | `docs/` | create-once PRD seed, post-delivery activation | product-definition-builder seed + product-activation + owner | external action, measurement-source, and activation-readiness record | |
 | `docs/DOCUMENTS.md` | `docs/` | PRD seed, then owner | product-definition-builder + owner edits | this manifest | |
 | `document-sync.json` | `docs/` | invocation review, when retained | harness parent | byte inventory, not approval | |
+| `EPIC-<id>.md` | `docs/epics/` | complete enhancement; optional for small fixes | owner + harness parent | round outcome and current-PRD references, not a second PRD or RUN | |
 | `delivery-acceptance.json` | `docs/verification/` | new delivery before tests | harness parent | frozen TEST/scenario expectations | |
 | `delivery-results.json` | `docs/verification/` | new delivery verification | test runner + parent | exact-candidate observations and evidence links | |
 | `docs/tasks.md` | `docs/` | managed run | rendered by `render_tasks_view.py` | non-canonical view of RUN | |
