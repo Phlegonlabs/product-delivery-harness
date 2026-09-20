@@ -10,7 +10,7 @@ This file is ready-to-use shared repository guidance. Resolve the repository's r
 
 ## Project Entry And Current Work
 
-Start with the effective repository instructions, `docs/DOCUMENTS.md` when present, current product/design sources and relevant unfinished work. At the first work in a new session and every skill invocation, apply `delivery-harness/references/document-sync-contract.md` (under `skills/` in this source repository). Observe loaded versus installed skill identity; unknown means unknown, not the current disk version.
+Start with the effective repository instructions, `docs/DOCUMENTS.md` when present, current product/design sources and relevant unfinished work. At the first work in a new session and every skill invocation, apply `delivery-harness/references/document-sync-contract.md`. Resolve every `delivery-harness/` reference against the observed installed delivery-harness skill root, not a presumed target-local `skills/` directory. Observe loaded versus installed skill identity; unknown means unknown, not the current disk version.
 
 Keep one current PRD. Complete enhancements use `docs/epics/EPIC-<id>.md`, indexed in `docs/DOCUMENTS.md`, to record the problem, baseline, accepted outcome, requirement references, dependencies, document impact and result. Small fixes may use an existing Epic or direct-task record. Follow `delivery-harness/references/bounded-enhancement.md`; an Epic never duplicates PRD or RUN and never grants actions.
 
@@ -112,6 +112,7 @@ When pricing, paid access, purchase-gated features or outside sellers apply, rea
 
 ## Git Safety
 
+- Before every authorized commit, read `delivery-harness/references/commit-convention.md`. Direct tasks use `<type>(<scope>): <imperative summary>`; managed task and mission trailers apply only inside managed runs.
 - Resolve the default branch from repository state or governance; never assume its name.
 - Use the resolved default branch (`main` for this workflow) as the only persistent protected branch and production source. Never edit or commit directly on it; the retired branch name `development` is not a release source or integration target.
 - Resolve the complete non-default run-branch name from repository governance or the user's instruction. Cut both `initial_delivery` and `enhancement` runs from observed remote `main`. If the kind or name is unresolved, ask; never add a fixed prefix or invent a name.

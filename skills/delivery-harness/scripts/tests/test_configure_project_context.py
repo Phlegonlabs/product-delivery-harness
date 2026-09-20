@@ -15,6 +15,19 @@ SCRIPT = SCRIPTS_DIR / "configure_project_context.py"
 
 
 class ConfigureProjectContextTests(unittest.TestCase):
+    def test_seed_routes_installed_references_and_direct_commits(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            self.assertFalse((root / "skills").exists())
+            text = (root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("observed installed delivery-harness skill root", text)
+            self.assertNotIn("under `skills/` in this source repository", text)
+            git_rules = text.split("## Git Safety", 1)[1].split("## Deployment", 1)[0]
+            self.assertIn("references/commit-convention.md", git_rules)
+            self.assertIn("Direct tasks use `<type>(<scope>): <imperative summary>`", git_rules)
+            self.assertIn("trailers apply only inside managed runs", git_rules)
+
     def test_product_definition_pending_bindings_check_is_read_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
