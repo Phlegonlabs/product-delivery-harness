@@ -558,6 +558,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 Windows CI 会在任意 Python 测试组失败后立即停止。测试数据在绑定可执行文件或仓库身份前先解析临时路径，包括 Windows 8.3 别名。
 
+HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node 测试通过 stdin 读取多行程序，避免 Windows 启动器静默截断断言。
+
 每个落在 `main` 的流程就是一次 release，版本号提升要在同一份变更里完成——默认升 patch，skill bundle 有破坏性变更升 minor。以下几个地方要一起更新：
 
 1. `package.json` 的 `version` 字段与 `skills/delivery-harness/VERSION` 中会随技能目录复制的版本。

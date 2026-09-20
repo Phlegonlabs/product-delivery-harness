@@ -1,0 +1,2 @@
+# The manifest hashes the exact sibling HTML bytes on every platform.
+*.html text eol=lf

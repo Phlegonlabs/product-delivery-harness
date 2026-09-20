@@ -14,6 +14,8 @@ from hifi_reviewer import reviewer_contract, reviewer_evidence_findings
 class HiFiReviewerTests(unittest.TestCase):
     def test_retained_browser_example_has_current_bundle_and_reviewer_sources(self):
         path = Path(__file__).parent / "fixtures/interactive-hifi/index.html"
+        for page in path.parent.glob("*.html"):
+            self.assertNotIn(b"\r\n", page.read_bytes(), "byte-bound fixture must retain LF across checkouts")
         problems = []
         checker._validate_hifi_surface(path, problems, require_connected=True)
         self.assertEqual([], problems)

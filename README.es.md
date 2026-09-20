@@ -557,6 +557,8 @@ Los READMEs son la documentación de registro: cada cambio que agregue o altere 
 
 La CI de Windows se detiene si falla cualquier suite de Python. Los fixtures resuelven las rutas temporales antes de vincular identidades del ejecutable o repositorio, incluidos alias 8.3.
 
+Los ejemplos HiFi conservan finales de línea LF para mantener sus hashes entre plataformas. Las pruebas Node del wireframe leen scripts multilínea por stdin para evitar que los lanzadores de Windows omitan aserciones.
+
 Cada flujo que aterriza en `main` es un release, y el bump de versión va en el mismo cambio — patch por defecto, minor para un cambio breaking del skill-bundle. Actualiza todo esto junto:
 
 1. El campo `version` de `package.json` y la versión del copied-skill en `skills/delivery-harness/VERSION`.

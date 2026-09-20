@@ -558,6 +558,8 @@ The READMEs are documentation-of-record: every change that adds or alters a skil
 
 Windows CI stops after any failed Python suite. Test fixtures resolve temporary paths before binding executable or repository identities, including Windows 8.3 aliases.
 
+Byte-bound HiFi examples retain LF line endings across checkouts. Wireframe Node tests read multiline scripts from stdin so Windows launchers cannot silently truncate assertions.
+
 Every flow that lands on `main` is one release, and the version bump rides in the same change — patch by default, minor for a breaking skill-bundle change. Update all of these together:
 
 1. The `version` field in `package.json` and the copied-skill version in `skills/delivery-harness/VERSION`.
