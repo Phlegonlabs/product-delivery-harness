@@ -152,12 +152,9 @@ def _retention_probe(nodes):
     """Find applicable product controls without inventing controls on a page."""
     product = [(tag, attrs, parents) for tag, attrs, parents in nodes if _in_product(attrs, parents)]
     input_marked = [(tag, attrs, parents) for tag, attrs, parents in product if "data-retention-input" in attrs]
-    selection_marked = [(tag, attrs, parents) for tag, attrs, parents in product if "data-retention-selected" in attrs]
     errors = []
     if len(input_marked) > 1:
         errors.append("HiFi page may mark only one retention input")
-    if len(selection_marked) > 1:
-        errors.append("HiFi page may mark only one retention selection")
 
     def eligible_input(item):
         tag, attrs, _ = item
@@ -172,10 +169,32 @@ def _retention_probe(nodes):
     if input_item is not None and not eligible_input(input_item):
         errors.append("HiFi retention input must be an actual editable product input")
 
-    selections = [item for item in product if item[0] == "select" or item[1].get("aria-selected") == "true"]
+    def option_bound_to_select(item):
+        _, _, parents = item
+        return any(
+            tag == "select" and any(parent is select_attrs for parent in parents)
+            for tag, select_attrs, _ in product
+        )
+
+    def eligible_selection(item):
+        tag, attrs, _ = item
+        if tag == "select":
+            return True
+        if tag == "option":
+            return "selected" in attrs and option_bound_to_select(item)
+        role = (attrs.get("role") or "").casefold()
+        selected = attrs.get("aria-selected") == "true" and role in {"button", "menuitem", "option", "tab", "radio"}
+        pressed = attrs.get("aria-pressed") == "true" and tag in {"a", "button"}
+        checked = attrs.get("aria-checked") == "true" or (
+            "checked" in attrs and (attrs.get("type") or "").casefold() in {"checkbox", "radio"}
+        )
+        return (selected or pressed or (checked and tag == "input"))
+
+    selection_marked = [item for item in product if "data-retention-selected" in item[1] and eligible_selection(item)]
+    if len(selection_marked) > 1:
+        errors.append("HiFi page may mark only one retention selection")
+    selections = [item for item in product if eligible_selection(item)]
     selection_item = selection_marked[0] if selection_marked else (selections[0] if selections else None)
-    if selection_item is not None and selection_item[0] not in {"select", "input", "button", "option"} and selection_item[1].get("aria-selected") != "true":
-        errors.append("HiFi retention selection must be an actual selected control")
 
     def value_for_input(item):
         if item is None:
@@ -442,7 +461,8 @@ def _reviewer_contract(documents, manifest):
             kinds = {item["kind"] for item in specimens if item["sourcePage"] == source_page}
             if kinds != {"token", "component", "pattern"}:
                 errors.append(f"HiFi {source_page} requires page-bound token, component and pattern specimens")
-            component_elements = {row["element"] for row in specimens if row["sourcePage"] == source_page and row["kind"] == "component"}
+            component_specs = [row for row in specimens if row["sourcePage"] == source_page and row["kind"] == "component"]
+            component_elements = {row["element"] for row in component_specs}
             product_elements = {tag for tag, attrs, parents in source_nodes
                                 if tag in {"button", "input", "select", "textarea"} and _in_product(attrs, parents)}
             if "a" in component_elements:
@@ -451,6 +471,20 @@ def _reviewer_contract(documents, manifest):
                                         and ("data-navigation-id" in attrs or "data-control-id" in attrs))
             if not product_elements <= component_elements:
                 errors.append(f"HiFi {source_page} component specimens must cover its actual styled form controls")
+            for tag, attrs, parents in source_nodes:
+                if not _in_product(attrs, parents) or tag not in {"button", "input", "select", "textarea"}:
+                    if not (tag == "a" and "a" in component_elements and _in_product(attrs, parents)
+                            and ("data-navigation-id" in attrs or "data-control-id" in attrs)):
+                        continue
+                bound = [spec for spec in component_specs
+                         if spec["element"] == tag and _simple_selector_matches(tag, attrs, spec["source"])]
+                if not bound:
+                    errors.append(f"HiFi {source_page} product control has no source-bound component specimen")
+                    continue
+                variant = attrs.get("data-specimen-variant") or attrs.get("data-variant") or "default"
+                state = attrs.get("data-specimen-state") or attrs.get("data-state") or "default"
+                if not any(spec["variant"] == variant and spec["state"] == state for spec in bound):
+                    errors.append(f"HiFi {source_page} component specimens must cover every bound product variant/state")
             for row in specimens:
                     if row["sourcePage"] == source_page:
                         errors.extend(_source_binding_findings(row, source_nodes, css))
@@ -532,7 +566,7 @@ def reviewer_evidence_findings(actual, expected):
         errors.append("HiFi reviewer retention does not match required browser observations")
     else:
         for row, spec in zip(rows, expected_rows):
-            if not isinstance(row, dict) or not isinstance(spec, dict):
+            if not isinstance(row, dict) or not isinstance(spec, dict) or set(row) != set(spec):
                 errors.append("HiFi reviewer retention identity differs from its DOM source binding")
                 continue
             value_keys = {
@@ -563,6 +597,10 @@ def reviewer_evidence_findings(actual, expected):
     groups = {}
     for row in rows:
         if isinstance(row, dict) and row.get("sharedGroup"):
+            # Invalid measured values have already produced a finding above.
+            # Do not place typed containers in a set while checking group parity.
+            if not all(isinstance(row.get(key), str) for key in ("sourceValue", "specimenValue", "displayValue")):
+                continue
             groups.setdefault(row["sharedGroup"], []).append(row)
     for group in groups.values():
         values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue")) for row in group}

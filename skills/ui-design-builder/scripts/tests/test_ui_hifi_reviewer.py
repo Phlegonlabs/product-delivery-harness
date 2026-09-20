@@ -132,6 +132,64 @@ class HiFiReviewerTests(unittest.TestCase):
         actual["specimens"][0] = {"sourcePage": "index.html"}
         self.assertTrue(reviewer_evidence_findings(actual, expected))
 
+    def test_typed_invalid_specimen_values_are_rejected_before_shared_grouping(self):
+        _, expected = reviewer_contract(self.documents, self.manifest)
+        for invalid in ([], {}, None):
+            with self.subTest(invalid=invalid):
+                actual = observations(self.manifest)
+                row = actual["specimens"][0]
+                row["sourceValue"] = invalid
+                row["specimenValue"] = invalid
+                row["displayValue"] = invalid
+                findings = reviewer_evidence_findings(actual, expected)
+                self.assertTrue(findings)
+
+    def test_retention_rows_have_a_closed_key_set(self):
+        _, expected = reviewer_contract(self.documents, self.manifest)
+        actual = observations(self.manifest)
+        actual["retention"][0]["extra"] = "accepted"
+        self.assertTrue(reviewer_evidence_findings(actual, expected))
+
+    def test_fresh_reviewer_requires_every_bound_product_variant_and_state_specimen(self):
+        original = self.path.read_text(encoding="utf-8")
+        self.assertIn("</main></div></main>", original)
+        mutated = original.replace(
+            "</main></div></main>",
+            '<button type="button" class="product-danger" data-control-id="refresh" '
+            'data-specimen-variant="danger" data-specimen-state="error">Delete</button>'
+            "</main></div></main>",
+            1,
+        ).replace(
+            "</style>",
+            ".product-danger{background:#900;color:white}</style>",
+            1,
+        )
+        self.path.write_text(mutated, encoding="utf-8")
+        problems = []
+        checker._validate_hifi_surface(self.path, problems, self.scope, require_connected=True)
+        self.assertTrue(any("specimen" in item.lower() or "source-bound" in item.lower() for item in problems), problems)
+
+    def test_retention_marker_on_text_input_cannot_override_real_select(self):
+        original = self.path.read_text(encoding="utf-8")
+        mutated = original.replace(
+            'data-retention-input data-specimen-variant="default"',
+            'data-retention-input data-retention-selected data-specimen-variant="default"',
+            1,
+        ).replace(
+            '<select class="product-select" data-retention-selected',
+            '<select class="product-select"',
+            1,
+        )
+        self.path.write_text(mutated, encoding="utf-8")
+        documents = checker._hifi_bundle_documents(self.path, mutated, self.manifest)
+        errors, expected = reviewer_contract(documents, self.manifest)
+        self.assertEqual([], errors)
+        self.assertTrue(expected["retention"][0]["selectedApplicable"])
+        self.assertEqual("ready", expected["retention"][0]["selectedValueBefore"])
+        problems = []
+        checker._validate_hifi_surface(self.path, problems, self.scope, require_connected=True)
+        self.assertEqual([], problems)
+
     def test_retention_presence_is_distinct_from_an_absent_control(self):
         actual = observations(self.manifest, component_types=("button",))
         _, expected = reviewer_contract(
