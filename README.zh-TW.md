@@ -290,6 +290,8 @@ Gitignore 衛生同時適用於 direct 與 managed 工作。scope scan 會記錄
 
 Wireframe 與 HiFi 預設開啟主要產品頁，左側可進入 Overview、各頁與設計規格。新的 HiFi 批准須驗證產品互動，並另行驗證審閱導覽及取自實際樣式的 Design Tokens；原生 HTML 仍是設計投影。歷史成果保持可讀。
 
+審閱證據也須涵蓋未知連結、從各審閱面板按瀏覽器返回，以及在每個目標尺寸結束審閱後恢復主要產品頁。
+
 Full-stack 依完整流程實作畫面、API、權限、資料保存與回饋。agent-browser 用於 Web 探索，重要流程另保留本機／CI 可重跑測試；登入、拒絕存取、重試與副作用都要有實際證據。發布涵蓋 migration、健康檢查、監控、成本告警與恢復，交付、發布、啟用及產品效果分開報告。SEO 只套用適用的公開頁面。
 
 升級至 0.47.0 時，先讓使用 skills 的工作到達安全停止點，再執行 canonical installer，保留備份並開新 session；不可熱更新已載入的 worker。依文件同步影響清單局部更新現行文件，保留自訂 AGENTS 規則與歷史證據。既有 document-sync/1 與 ui-hifi/2 仍可檢查；新的 HiFi 批准須補左側審閱介面及綁定各頁的 ui-output/2 reviewer 觀察，只重做受影響證據，不改寫舊批准。小修正不必新增 Epic／PLAN／RUN。重跑受影響的 owner gates 與必需最終驗證。

@@ -126,19 +126,26 @@ def _reviewer_contract(documents, manifest):
              for origin in pages for view in ("overview", "design-tokens") for target in targets for trigger in ("click", "keyboard")]
     navigation = [{"from": origin, "to": dest, "target": target, "trigger": trigger, "visible": True, "focusCorrect": True, "result": "PASS"}
                   for origin in pages for dest in pages for target in targets for trigger in ("click", "keyboard")]
+    recovery = [{"from": origin, "case": case, "target": target,
+                 "surfaces": [row["id"] for row in surfaces if row["page"] == origin],
+                 "productVisible": True, "panelsHidden": True, "result": "PASS"}
+                for origin in pages for case in ("unknown-hash", "back-from-overview", "back-from-design-tokens") for target in targets]
+    recovery.extend({"from": "index.html", "case": "final-default-restoration", "target": target,
+                     "surfaces": [surfaces[0]["id"]], "productVisible": True, "panelsHidden": True, "result": "PASS"}
+                    for target in targets)
     return errors, {"defaultSurface": surfaces[0]["id"], "defaultVisible": True,
                     "overviewInitiallyHidden": True, "overview": overview,
-                    "views": views, "navigation": navigation, "specimens": specimens}
+                    "views": views, "navigation": navigation, "recovery": recovery, "specimens": specimens}
 
 
 def reviewer_evidence_findings(actual, expected):
     if not isinstance(actual, dict) or set(actual) != set(expected):
         return ["HiFi reviewer evidence requires its closed source-bound observation record"]
     errors = []
-    for key in ("defaultSurface", "defaultVisible", "overviewInitiallyHidden", "overview", "views", "navigation"):
+    for key in ("defaultSurface", "defaultVisible", "overviewInitiallyHidden", "overview", "views", "navigation", "recovery"):
         # Order is meaningful for overview; all other lists are observation sets.
         left, right = actual[key], expected[key]
-        if key in {"views", "navigation"} and isinstance(left, list):
+        if key in {"views", "navigation", "recovery"} and isinstance(left, list):
             left = sorted(json.dumps(row, sort_keys=True) for row in left)
             right = sorted(json.dumps(row, sort_keys=True) for row in right)
         if left != right:

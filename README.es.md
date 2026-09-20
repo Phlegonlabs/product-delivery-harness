@@ -290,6 +290,8 @@ AGENTS conserva entrada, lectura, responsabilidades, sincronización, autorizaci
 
 Wireframe y HiFi abren la página principal. La barra lateral muestra Overview, páginas y especificaciones. Una nueva aprobación HiFi exige interacciones reales del producto y pruebas separadas de navegación de revisión y Design Tokens derivados del estilo. El HTML nativo sigue siendo una proyección; los paquetes históricos siguen legibles.
 
+La evidencia también cubre enlaces desconocidos, el botón Atrás desde cada vista de revisión y la restauración final de la página principal en cada tamaño objetivo.
+
 La entrega full-stack sigue flujos completos: UI, API, permisos, persistencia y respuesta. agent-browser explora Web; los recorridos importantes quedan como pruebas locales y de CI. Login, denegación, reintentos y efectos requieren evidencia real. La publicación verifica migraciones, salud, monitoreo, costes y recuperación; entrega, disponibilidad, activación y resultados se informan por separado. SEO se aplica solo a superficies públicas pertinentes.
 
 Actualiza a 0.47.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria.

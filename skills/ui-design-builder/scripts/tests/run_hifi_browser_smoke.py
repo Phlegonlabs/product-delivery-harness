@@ -107,8 +107,18 @@ def main():
             check("!!document.querySelector('#project-form') && !document.querySelector('main').hidden")
             act("click", "[data-navigation-id=details]")
             check("!!document.querySelector('#refresh')")
-            act("open", fixture.resolve().as_uri() + "#unknown")
-            check("!document.querySelector('main').hidden")
+            for page in (fixture, fixture.with_name("details.html")):
+                for view in ("overview", "design-tokens"):
+                    act("open", page.resolve().as_uri())
+                    act("click", "[data-hifi-review-view=" + view + "]")
+                    check("!document.querySelector('[data-hifi-panel=" + view + "]').hidden")
+                    act("back")
+                    check("location.pathname.endsWith(" + json.dumps(page.name) + ") && !document.querySelector('main').hidden && Array.from(document.querySelectorAll('[data-hifi-panel]')).every(n=>n.hidden)")
+                for fragment in ("#unknown", "#%5Bmalformed"):
+                    act("open", page.resolve().as_uri() + fragment)
+                    check("!document.querySelector('main').hidden && Array.from(document.querySelectorAll('[data-hifi-panel]')).every(n=>n.hidden)")
+            act("click", "[data-hifi-page-nav] a[href='index.html']")
+            check("!location.hash && !document.querySelector('[data-ui-surface=UI-001]').hidden && Array.from(document.querySelectorAll('[data-hifi-panel]')).every(n=>n.hidden)")
             no_page_errors()
         record["status"] = "pass"
     except Exception:

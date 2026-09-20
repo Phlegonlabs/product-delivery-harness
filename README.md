@@ -290,6 +290,8 @@ Project AGENTS keeps entry, reading, ownership, routing, synchronization, author
 
 Wireframe and HiFi review starts on the primary product page. The left sidebar opens Overview, every page and design specifications. Fresh HiFi approval requires working product interactions plus separate reviewer-navigation and source-derived Design Tokens evidence; native HTML is still a design projection. Historical bundles remain inspection-readable.
 
+Reviewer evidence also covers unknown links, browser Back from each review view, and final restoration of the primary product page at every target.
+
 Full-stack delivery follows complete user flows through UI, API, permissions, persistence and feedback. Use agent-browser for Web exploration and retain important journeys as local/CI tests. Actual login, denied access, retry and side effects need evidence. Deployment checks include migrations, health, monitoring, cost alerts and recovery; delivery, release, activation and product results are reported separately. SEO applies only to relevant public surfaces.
 
 Upgrade to 0.47.0 with the canonical installer after active skill-using sessions reach a safe boundary. Keep its backup and start a fresh session; installed bytes do not update a loaded worker. Review the document-sync impact report, preserve local AGENTS rules and historical evidence, and patch only affected live sources. Existing document-sync/1 and ui-hifi/2 files remain inspectable. A fresh HiFi approval adds the reviewer shell and page-bound ui-output/2 reviewer observations; regenerate only affected evidence, not old approvals. Small fixes need no new Epic/PLAN/RUN. Re-run the affected owner gates plus mandatory final verification.

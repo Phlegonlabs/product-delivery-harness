@@ -67,6 +67,22 @@ class HiFiReviewerTests(unittest.TestCase):
         actual["views"] = [row for row in actual["views"] if row["from"] == "index.html"]
         self.assertTrue(reviewer_evidence_findings(actual, expected))
 
+    def test_missing_and_failed_recovery_observations_are_rejected(self):
+        _, expected = reviewer_contract(self.documents, self.manifest)
+        for case in ("unknown-hash", "back-from-overview", "back-from-design-tokens", "final-default-restoration"):
+            for failure in ("missing", "blank-product", "panel-visible", "wrong-surface"):
+                with self.subTest(case=case, failure=failure):
+                    actual = observations(self.manifest)
+                    row = next(row for row in actual["recovery"] if row["case"] == case)
+                    if failure == "missing":
+                        actual["recovery"].remove(row)
+                    elif failure == "blank-product":
+                        row["productVisible"] = False
+                    elif failure == "panel-visible":
+                        row["panelsHidden"] = False
+                    else:
+                        row["surfaces"] = ["unrelated"]
+                    self.assertTrue(reviewer_evidence_findings(actual, expected))
     def test_missing_shell_is_historical_inspection_only(self):
         import re
         for name, text in self.documents.items():
