@@ -38,7 +38,7 @@ class ReviewerParser(HTMLParser):
 def reviewer_contract(documents, manifest):
     try:
         return _reviewer_contract(documents, manifest)
-    except (KeyError, TypeError, ValueError, AttributeError):
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError):
         return ["HiFi reviewer source manifest or DOM bindings are invalid"], None
 
 
@@ -46,6 +46,8 @@ def _reviewer_contract(documents, manifest):
     """Return static findings and the source-bound browser observation matrix."""
     errors, specimens = [], []
     surfaces = manifest["surfaces"]
+    if not isinstance(surfaces, list) or not surfaces:
+        return ["HiFi reviewer requires nonempty surfaces"], None
     pages = list(documents)
     overview = [{"surface": row["id"], "route": row["route"], "states": row["states"],
                  "targets": [str(target) for target in row["responsive"]["targets"]]} for row in surfaces]
@@ -92,6 +94,9 @@ def _reviewer_contract(documents, manifest):
                     errors.append("HiFi design specimens must be in Design Tokens")
                 spec = {key: attrs.get("data-" + key, "") for key in ("name", "source", "property", "variant", "state")}
                 spec["kind"] = attrs["data-hifi-spec"]
+                spec["sourcePage"] = attrs.get("data-source-page", "")
+                if spec["sourcePage"] not in pages:
+                    errors.append("HiFi specimen source page must belong to the bundle")
                 if spec["kind"] not in {"token", "component", "pattern"} or not all(spec.values()):
                     errors.append("HiFi specimens require kind, name, source selector, property, variant and state")
                 specimens.append(spec)
@@ -101,16 +106,19 @@ def _reviewer_contract(documents, manifest):
             errors.append("HiFi Design Tokens requires token, component and pattern specimens")
         if len({s["name"] for s in specimens}) != len(specimens):
             errors.append("HiFi specimen names must be unique")
-        # Require every actual product custom property; reviewer chrome uses --review-*.
-        css = "\n".join(
-            part for text in documents.values() for part in re.findall(r"<style\b[^>]*>([\s\S]*?)</style>", text, re.I))
-        tokens = {item for item in re.findall(r"(--[\w-]+)\s*:", css) if not item.startswith("--review-")}
-        declared = {s["property"] for s in specimens if s["kind"] == "token"}
-        if not tokens or tokens != declared:
-            errors.append("HiFi token specimens must match actual product CSS custom properties")
+        # Cover page-specific values: matching token names do not imply equal styles.
+        for source_page, source_html in documents.items():
+            css = "\n".join(re.findall(r"<style\b[^>]*>([\s\S]*?)</style>", source_html, re.I))
+            tokens = {item for item in re.findall(r"(--[\w-]+)\s*:", css) if not item.startswith("--review-")}
+            declared = {item["property"] for item in specimens if item["kind"] == "token" and item["sourcePage"] == source_page}
+            if not tokens or tokens != declared:
+                errors.append(f"HiFi token specimens must match actual product CSS custom properties on {source_page}")
+            kinds = {item["kind"] for item in specimens if item["sourcePage"] == source_page}
+            if kinds != {"token", "component", "pattern"}:
+                errors.append(f"HiFi {source_page} requires page-bound token, component and pattern specimens")
     targets = sorted({str(target) for row in surfaces for target in row["responsive"]["targets"]})
-    views = [{"view": view, "target": target, "trigger": trigger, "visible": True, "focusCorrect": True, "result": "PASS"}
-             for view in ("overview", "design-tokens") for target in targets for trigger in ("click", "keyboard")]
+    views = [{"from": origin, "view": view, "target": target, "trigger": trigger, "visible": True, "focusCorrect": True, "result": "PASS"}
+             for origin in pages for view in ("overview", "design-tokens") for target in targets for trigger in ("click", "keyboard")]
     navigation = [{"from": origin, "to": dest, "target": target, "trigger": trigger, "visible": True, "focusCorrect": True, "result": "PASS"}
                   for origin in pages for dest in pages for target in targets for trigger in ("click", "keyboard")]
     return errors, {"defaultSurface": surfaces[0]["id"], "defaultVisible": True,

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from test_ui_design_contract import checker, materialize_hifi_bundle
+from test_ui_design_contract import bundle_output, checker, materialize_hifi_bundle
 from hifi_review_fixture import observations
 from hifi_reviewer import reviewer_contract, reviewer_evidence_findings
 
@@ -28,6 +28,44 @@ class HiFiReviewerTests(unittest.TestCase):
         errors, expected = reviewer_contract(self.documents, self.manifest)
         self.assertEqual([], errors)
         self.assertEqual([], reviewer_evidence_findings(observations(self.manifest), expected))
+
+    def test_evidence_parser_rejects_casing_bypass_and_empty_surfaces(self):
+        original = self.path.read_text(encoding="utf-8")
+        for change in ("uppercase", "empty"):
+            with self.subTest(change=change):
+                html = original.replace("data-hifi-reviewer-shell", "DATA-HIFI-REVIEWER-SHELL")
+                if change == "empty":
+                    empty = dict(self.manifest, surfaces=[])
+                    html = checker.HIFI_MANIFEST_RE.sub(lambda _: '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(empty) + '</script>', html)
+                self.path.write_text(html, encoding="utf-8")
+                subject = {"path": "index.html", "sha256": hashlib.sha256(self.path.read_bytes()).hexdigest()}
+                matrix = {"cases": [{"surface": row["id"], "state": state, "target": str(target)} for row in self.manifest["surfaces"] for state in row["states"] for target in row["responsive"]["targets"]]}
+                results = [dict(case, result="PASS") for case in matrix["cases"]]
+                output = dict(bundle_output(self.manifest), schema="ui-output/2", check="hifi-browser", subject=subject, matrix=matrix, results=results)
+                output.pop("reviewer")
+                output_path = self.path.parent / "output.json"
+                output_path.write_text(json.dumps(output), encoding="utf-8")
+                evidence = {"schema": "ui-evidence/2", "check": "hifi-browser", "result": "PASS", "reviewedArtifact": subject,
+                            "attestation": "human-attested", "owner": "Synthetic fixture owner", "receipt": {
+                                "tool": "playwright", "method": "sandboxed-offline-browser", "matrix": matrix, "results": results,
+                                "outputArtifact": {"path": "output.json", "sha256": hashlib.sha256(output_path.read_bytes()).hexdigest()}, "executedAt": "2020-01-01T00:00:00Z"}}
+                evidence_path = self.path.parent / "evidence.json"
+                evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+                problems = []
+                checker._resolve_evidence("PASS — evidence=evidence.json @ sha256:" + hashlib.sha256(evidence_path.read_bytes()).hexdigest(),
+                                          repo_root=self.path.parent, label="HiFi surface check", problems=problems, expected_artifact="index.html", expected_matrix=matrix)
+                self.assertTrue(problems)
+
+    def test_child_values_and_originating_view_pages_are_required(self):
+        _, expected = reviewer_contract(self.documents, self.manifest)
+        actual = observations(self.manifest)
+        child = next(row for row in actual["specimens"] if row["sourcePage"] == "details.html" and row["kind"] == "token")
+        # Simulate the actual child measurement after a child style change.
+        child["sourceValue"] = "#ff0000"
+        self.assertTrue(reviewer_evidence_findings(actual, expected))
+        actual = observations(self.manifest)
+        actual["views"] = [row for row in actual["views"] if row["from"] == "index.html"]
+        self.assertTrue(reviewer_evidence_findings(actual, expected))
 
     def test_missing_shell_is_historical_inspection_only(self):
         import re

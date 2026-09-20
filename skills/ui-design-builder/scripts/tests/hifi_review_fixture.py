@@ -17,13 +17,14 @@ def shell(manifest, page="index.html"):
                      f'{escape(row["id"])}: {escape(row["route"])} — {escape(", ".join(row["states"]))}</article>')
     overview += '</section>'
     specs = '<section data-hifi-panel="design-tokens" hidden><h1 tabindex="-1">Design Tokens — candidate values</h1>'
-    for kind, name, source, prop in (
-        ("token", "ink", ":root", "--ink"),
-        ("component", "button-primary", ".product-button", "color"),
-        ("pattern", "feedback", ".product-feedback", "color"),
-    ):
-        specs += (f'<div data-hifi-spec="{kind}" data-name="{name}" data-source="{source}" data-property="{prop}" '
-                  f'data-variant="primary" data-state="default"><span>{name}</span><output></output></div>')
+    for source_page in pages:
+        for kind, name, source, prop in (
+            ("token", "ink", ":root", "--ink"),
+            ("component", "button-primary", ".product-button", "color"),
+            ("pattern", "feedback", ".product-feedback", "color"),
+        ):
+            specs += (f'<div data-hifi-spec="{kind}" data-name="{source_page}-{name}" data-source-page="{source_page}" data-source="{source}" data-property="{prop}" '
+                      f'data-variant="primary" data-state="default"><span>{source_page}: {name}</span><output></output></div>')
     return sidebar + overview + specs + '</section>'
 
 

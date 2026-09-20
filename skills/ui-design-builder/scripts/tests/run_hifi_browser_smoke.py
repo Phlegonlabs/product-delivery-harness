@@ -14,6 +14,7 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--inject-error", action="store_true", help="negative test: inject a local page exception")
     args = parser.parse_args()
     out = Path(args.out).resolve()
     if out.exists():
@@ -33,9 +34,15 @@ def main():
         # Windows browser daemons may inherit pipes: use retained files so CLI
         # completion does not wait for the daemon to close an inherited pipe.
         log = logs / (str(len(record["steps"])) + ".log")
+        argv = list(parts)
+        input_bytes = None
+        if "eval" in argv:
+            index = argv.index("eval")
+            input_bytes = argv[index + 1].encode("utf-8")
+            argv[index + 1:] = ["--stdin"]
         with log.open("x", encoding="utf-8") as stream:
-            result = subprocess.run([browser, "--session", session, *parts], stdout=stream,
-                                    stderr=subprocess.STDOUT, timeout=60)
+            result = subprocess.run([browser, "--session", session, *argv], input=input_bytes,
+                                    stdout=stream, stderr=subprocess.STDOUT, timeout=60)
         output = log.read_text(encoding="utf-8")
         record["steps"].append({"command": list(parts), "exit_code": result.returncode,
                                 "output": output})
@@ -51,11 +58,18 @@ def main():
         command(*parts)
         command("snapshot", "-i")
 
+    def no_page_errors():
+        if json.loads(command("--json", "errors"))["data"]["errors"]:
+            raise RuntimeError("Browser reported page errors; inspect retained log")
+
     try:
         for width in (390, 1200):
             command("set", "viewport", str(width), "900")
             act("open", fixture.resolve().as_uri())
+            if args.inject_error:
+                command("eval", "setTimeout(() => { throw new Error('Injected smoke failure'); }, 0); true")
             check("!document.querySelector('main').hidden && document.querySelector('[data-hifi-panel=overview]').hidden")
+            no_page_errors()
             act("click", "#project-form button")
             check("document.querySelector('#feedback').textContent === 'Project name is required.'")
             act("click", "#retry")
@@ -78,9 +92,16 @@ def main():
             act("press", "Enter")
             check("!document.querySelector('[data-hifi-panel=design-tokens]').hidden")
             check("Array.from(document.querySelectorAll('[data-hifi-spec]')).every(n => { const source=getComputedStyle(document.querySelector(n.dataset.source)).getPropertyValue(n.dataset.property).trim(); return source && source === n.querySelector('output').textContent && source === getComputedStyle(n).getPropertyValue(n.dataset.property).trim(); })")
+            child_values = json.loads(command("--json", "eval", "Array.from(document.querySelectorAll('[data-source-page=\"details.html\"]')).map(n=>({source:n.dataset.source,property:n.dataset.property,value:n.querySelector('output').textContent}))"))["data"]["result"]
             act("click", "[data-hifi-page-nav] a[href='details.html']")
+            check(json.dumps(child_values) + ".every(row => getComputedStyle(document.querySelector(row.source)).getPropertyValue(row.property).trim() === row.value)")
             act("click", "#refresh")
             check("document.querySelector('#feedback').textContent === 'Details updated.'")
+            for view in ("overview", "design-tokens"):
+                command("focus", "[data-hifi-review-view=" + view + "]")
+                act("press", "Enter")
+                check("!document.querySelector('[data-hifi-panel=" + view + "]').hidden")
+                act("click", "[data-hifi-page-nav] a[href='details.html']")
             command("focus", "[data-navigation-id=back]")
             act("press", "Enter")
             check("!!document.querySelector('#project-form') && !document.querySelector('main').hidden")
@@ -88,8 +109,7 @@ def main():
             check("!!document.querySelector('#refresh')")
             act("open", fixture.resolve().as_uri() + "#unknown")
             check("!document.querySelector('main').hidden")
-            if command("errors").strip():
-                raise RuntimeError("Browser reported page errors; inspect retained log")
+            no_page_errors()
         record["status"] = "pass"
     except Exception:
         record["status"] = "fail"
