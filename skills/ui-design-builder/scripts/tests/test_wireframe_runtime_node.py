@@ -149,7 +149,7 @@ const context = {
   data: { screens: [{ id: "UI-002", name: "Native screen", goal: "Native task", responsiveLayouts: { compact: { columns: 2, hidden: [] } }, states: [{ id: "loading" }], regions: [{ id: "region" }] }] },
   state: { responsiveTarget: "compact" },
   element: (tag, className, text) => new Node(tag, className, text),
-  responsiveSpecFor: () => ({ kind: "sizeClasses", targets: ["compact"], canvasWidths: { compact: 640 } }),
+  responsiveSpecFor: () => ({ kind: "sizeClasses", targets: ["compact"], canvasWidths: { compact: 1200 } }),
   targetFor: () => "compact",
   regionOrder: () => [{ id: "region" }],
   renderRegion: () => new Node("section", "region", "content"),
@@ -161,7 +161,8 @@ if (body.children.length !== 1) throw new Error("overlay dialog was not appended
 const dialog = body.children[0];
 if (dialog.className !== "flow-dialog" || !dialog.open) throw new Error("overlay dialog is not open");
 const canvas = dialog.children[0].children.find((item) => item.className === "wireframe");
-if (!canvas || canvas.style.width !== "640px" || canvas.style.maxWidth !== "none") throw new Error("overlay width did not use the target class");
+if (!canvas || canvas.style.width !== "1200px" || canvas.style.maxWidth !== "none") throw new Error("overlay width did not use the target class");
+if (dialog.style.width !== "min(calc(100vw - 32px), 1242px)" || dialog.style.maxWidth !== "calc(100vw - 32px)") throw new Error("overlay dialog did not fit the selected canvas plus body padding");
 if (!String(canvas.attributes["aria-label"]).includes("compact") || !String(canvas.attributes["aria-label"]).includes("loading")) throw new Error("overlay state/class context is stale");
 '''
         result = subprocess.run(
@@ -171,6 +172,98 @@ if (!String(canvas.attributes["aria-label"]).includes("compact") || !String(canv
             text=True,
             timeout=15,
         )
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
+    def test_local_search_controls_filter_rows_and_render_declared_states(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is unavailable")
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        script = r'''
+const fs = require("fs"), vm = require("vm");
+const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
+const helper = html.match(/const localSearchConfigFor = [\s\S]*?\n      \/\/ Presentation uses existing copy records/)[0]
+  .replace(/\n\s*\/\/ Presentation uses existing copy records$/, "");
+const results = html.match(/const renderLocalSearchResults = [\s\S]*?\n      const flowTarget/)[0]
+  .replace(/\n\s*const flowTarget$/, "");
+const actions = html.match(/const appendActions = [\s\S]*?\n      const setInspectorOpen/)[0]
+  .replace(/\n\s*const setInspectorOpen$/, "");
+class Node {
+  constructor(tag, cls, text) {
+    this.tag = tag; this.className = cls || ""; this.textContent = text || "";
+    this.children = []; this.attrs = {}; this.dataset = {}; this.events = {};
+    this.style = {setProperty(){}}; this.value = ""; this.type = ""; this.focused = false;
+  }
+  append(...items) { this.children.push(...items.filter(Boolean)); }
+  setAttribute(key, value) { this.attrs[key] = String(value); if (key.startsWith("data-")) this.dataset[key.slice(5)] = String(value); }
+  addEventListener(name, callback) { this.events[name] = callback; }
+  focus() { this.focused = true; }
+  querySelector(selector) {
+    if (selector.includes("data-local-search-query")) return this.query;
+    return null;
+  }
+}
+const item = (role, text) => ({kind:"static", role, text, status:"approved", source:"test"});
+const dynamic = (text) => ({kind:"dynamic", role:"list item", example:text, status:"approved", source:"test", contract:{source:"test", order:"curated", format:"title", count:"bounded", length:"short", fallback:"No result"}});
+const config = {
+  formRegion:"search-form", resultsRegion:"search-results",
+  queryLabel:item("field label", "Search"), languageLabel:item("field label", "Language"),
+  languageOptions:[{value:"all",copy:item("select option", "All languages")},{value:"en",copy:item("select option", "English")},{value:"zh-Hant",copy:item("select option", "Traditional Chinese")}],
+  submitAction:"Search", clearAction:"Clear", states:{initial:"ready",results:"results",empty:"no-results"},
+  items:[{language:"en",copy:dynamic("Welcome guide"),searchText:"Welcome guide account"},{language:"zh-Hant",copy:dynamic("使用指南"),searchText:"使用指南帳戶"}]
+};
+const screen = {id:"UI-001", localSearch:config};
+const resultState = {id:"results", treatments:{"search-results":{copy:[item("result count", "Matching results")]}}};
+const emptyState = {id:"no-results", treatments:{"search-results":{copy:[item("empty state", "No matching results")]}}};
+const content = new Node("main");
+let currentInput = null, renders = 0, followed = null;
+const context = {
+  data:{screens:[screen]}, state:{page:"UI-001", localSearch:Object.create(null), fieldValues:Object.create(null), screenState:"ready", screenStates:{}},
+  content, element:(tag, cls, text) => new Node(tag, cls, text),
+  copyRole:value => value.role, copyText:value => value.text || value.example || value.label || "",
+  actionLabel:value => value.label || value,
+  renderCopyItem:value => new Node("span", "copy-item", value.text || value.example),
+  renderStateControls:() => {}, renderScreen:() => { renders += 1; },
+  outgoingFlow:() => ({from:"UI-001", trigger:"flow"}), runFlow:flow => { followed = flow; },
+};
+content.querySelector = () => currentInput;
+vm.runInNewContext(helper + "\n" + results + "\n" + actions + "\nthis.controls = renderLocalSearchControls; this.results = renderLocalSearchResults; this.append = appendActions; this.reset = resetLocalSearch;", context);
+const controlsRoot = new Node("div");
+context.controls(controlsRoot, "UI-001", config);
+const controls = controlsRoot.children[0];
+const queryInput = controls.children[0].children[1];
+const languageSelect = controls.children[1].children[1];
+currentInput = queryInput;
+queryInput.value = "guide";
+queryInput.events.input();
+let prevented = false;
+queryInput.events.keydown({key:"Enter", preventDefault(){prevented = true;}});
+if (!prevented || context.state.screenState !== "results" || renders !== 1 || !queryInput.focused) throw Error("Enter did not submit local search or preserve focus");
+languageSelect.value = "zh-Hant";
+languageSelect.events.change();
+if (context.state.screenState !== "no-results") throw Error("language change did not filter to empty state");
+const resultRoot = new Node("div");
+context.results(resultRoot, {id:"search-results", presentation:"list", elements:[item("section heading", "Results"), item("list item", "stale baseline")]}, "UI-001", config, resultState, "results");
+const renderedList = resultRoot.children.find(child => child.className.includes("local-search-results"));
+if (!renderedList || renderedList.children.length !== 0) throw Error("result state rendered rows for the wrong language");
+context.state.localSearch["UI-001"].query = "guide";
+context.state.localSearch["UI-001"].language = "all";
+const matchingRoot = new Node("div");
+context.results(matchingRoot, {id:"search-results", presentation:"list", elements:[item("section heading", "Results"), item("list item", "stale baseline")]}, "UI-001", config, resultState, "results");
+const matchingList = matchingRoot.children.find(child => child.className.includes("local-search-results"));
+if (!matchingList || matchingList.children.length !== 1 || matchingList.children[0].children[0].textContent !== "Welcome guide") throw Error("matching result row was not rendered");
+const emptyRoot = new Node("div");
+context.results(emptyRoot, {id:"search-results", presentation:"list", elements:[item("section heading", "Results"), item("list item", "stale baseline")]}, "UI-001", config, emptyState, "empty");
+if (!emptyRoot.children.some(child => child.textContent === "No matching results")) throw Error("declared empty copy was not rendered");
+const actionRoot = new Node("div");
+context.append(actionRoot, "UI-001", [{label:"Search"},{label:"Clear"}], "Search", config);
+const actionList = actionRoot.children[0];
+actionList.children[0].events.click({stopPropagation(){}});
+if (followed !== null) throw Error("local Search fell through to a page flow");
+actionList.children[1].events.click({stopPropagation(){}});
+if (context.state.screenState !== "ready" || context.state.localSearch["UI-001"].query !== "") throw Error("local Clear did not reset initial state");
+'''
+        result = subprocess.run([node, "-", str(template)], input=script, capture_output=True, text=True, encoding="utf-8", timeout=15)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
 
     def test_editable_form_values_survive_re_render(self) -> None:

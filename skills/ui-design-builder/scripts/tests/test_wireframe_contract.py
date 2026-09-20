@@ -169,6 +169,174 @@ def legacy_wireframe_data(schema):
     return data
 
 
+def local_search_data():
+    data = wireframe_data()
+    screen = data["screens"][0]
+    form = screen["regions"][0]
+    form["id"] = "search-form"
+    form["section"] = "Search controls"
+    form["purpose"] = "Filter local results"
+    form["actions"] = [
+        {
+            "label": "Search",
+            "status": "approved",
+            "source": "Owner-approved search action",
+        },
+        {
+            "label": "Clear",
+            "status": "approved",
+            "source": "Owner-approved clear action",
+        },
+    ]
+    form["primaryAction"] = "Search"
+    results = {
+        "id": "search-results",
+        "section": "Search results",
+        "purpose": "Show matching local results",
+        "priority": "primary",
+        "span": 6,
+        "presentation": "list",
+        "elements": [
+            {
+                "kind": "static",
+                "role": "section heading",
+                "text": "Results",
+                "status": "approved",
+                "source": "Owner-approved results heading",
+            },
+            {
+                "kind": "dynamic",
+                "role": "list item",
+                "example": "Welcome guide",
+                "status": "approved",
+                "source": "Local search preview item",
+                "contract": {
+                    "source": "search.preview",
+                    "order": "curated",
+                    "format": "title",
+                    "count": "bounded preview",
+                    "length": "up to 80 characters",
+                    "fallback": "No preview item",
+                },
+            },
+        ],
+        "actions": [],
+    }
+    screen["regions"] = [form, results]
+    screen["neverDrop"] = ["search-form", "search-results"]
+    for layout in screen["responsiveLayouts"].values():
+        layout["order"] = ["search-form", "search-results"]
+        layout["spans"] = {"search-form": layout["columns"], "search-results": layout["columns"]}
+    screen["states"] = [
+        {"id": "ready", "label": "Ready", "treatments": {}},
+        {
+            "id": "results",
+            "label": "Results",
+            "treatments": {
+                "search-results": {
+                    "layout": "Show approved result count above matching rows",
+                    "copy": [
+                        {
+                            "kind": "static",
+                            "role": "result count",
+                            "text": "Matching results",
+                            "status": "approved",
+                            "source": "Owner-approved result treatment",
+                        }
+                    ],
+                }
+            },
+        },
+        {
+            "id": "no-results",
+            "label": "No results",
+            "treatments": {
+                "search-results": {
+                    "layout": "Show the approved empty guidance",
+                    "copy": [
+                        {
+                            "kind": "static",
+                            "role": "empty state",
+                            "text": "No matching results",
+                            "status": "approved",
+                            "source": "Owner-approved empty treatment",
+                        }
+                    ],
+                }
+            },
+        },
+    ]
+    data["flows"] = [
+        {
+            "from": "UI-001",
+            "trigger": "Search",
+            "to": "Local search completed",
+            "presentation": "feedback",
+            "feedback": {
+                "kind": "static",
+                "role": "search status",
+                "text": "Search complete.",
+                "status": "approved",
+                "source": "Owner-approved search feedback",
+            },
+        },
+        {
+            "from": "UI-001",
+            "trigger": "Clear",
+            "to": "Local search reset",
+            "presentation": "feedback",
+            "feedback": {
+                "kind": "static",
+                "role": "clear status",
+                "text": "Search cleared.",
+                "status": "approved",
+                "source": "Owner-approved clear feedback",
+            },
+        },
+    ]
+    static_copy = lambda role, text, source: {
+        "kind": "static",
+        "role": role,
+        "text": text,
+        "status": "approved",
+        "source": source,
+    }
+    dynamic_copy = lambda example, source: {
+        "kind": "dynamic",
+        "role": "list item",
+        "example": example,
+        "status": "approved",
+        "source": source,
+        "contract": {
+            "source": "search.preview",
+            "order": "curated",
+            "format": "title",
+            "count": "bounded preview",
+            "length": "up to 80 characters",
+            "fallback": "No preview item",
+        },
+    }
+    screen["localSearch"] = {
+        "formRegion": "search-form",
+        "resultsRegion": "search-results",
+        "queryLabel": static_copy("field label", "Search", "Owner-approved query label"),
+        "languageLabel": static_copy("field label", "Language", "Owner-approved language label"),
+        "languageOptions": [
+            {"value": "all", "copy": static_copy("select option", "All languages", "Owner-approved language option")},
+            {"value": "en", "copy": static_copy("select option", "English", "Owner-approved language option")},
+            {"value": "zh-Hant", "copy": static_copy("select option", "Traditional Chinese", "Owner-approved language option")},
+        ],
+        "submitAction": "Search",
+        "clearAction": "Clear",
+        "states": {"initial": "ready", "results": "results", "empty": "no-results"},
+        "items": [
+            {"language": "en", "copy": dynamic_copy("Welcome guide", "Local search preview item"), "searchText": "Welcome guide account"},
+            {"language": "zh-Hant", "copy": dynamic_copy("使用指南", "Local search preview item"), "searchText": "使用指南帳戶"},
+        ],
+    }
+    return data
+
+
 def render_html(data):
     payload = json.dumps(data, ensure_ascii=False)
     template = (
@@ -281,6 +449,7 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             ("canvas", {"padding": 16, "gap": 20, "radius": 4}, "must contain exactly padding and gap"),
             ("region", {"padding": 12, "unknown": True}, "contains unknown keys"),
             ("placement", {"actionsPlacement": []}, "must be before, after, or inline"),
+            ("placement-object", {"actionsPlacement": {}}, "must be before, after, or inline"),
             ("columns", {"itemColumns": 0}, "must be an integer from 1 to 12"),
             ("ratio", {"mediaAspectRatio": 9}, "must be a number from 0.25 to 4"),
         ]
@@ -298,6 +467,41 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
                     layout["composition"]["regions"]["R1"].update(update)
                 joined = "\n".join(validate_html(render_html(candidate)))
                 self.assertIn(expected, joined)
+
+    def test_local_search_projection_passes_and_binds_existing_states(self):
+        self.assertEqual(
+            [],
+            validate_html(
+                render_html(local_search_data()),
+                require_filled=True,
+                require_approved=True,
+            ),
+        )
+
+    def test_local_search_projection_rejects_unknown_keys_and_unbounded_values(self):
+        candidate = local_search_data()
+        search = candidate["screens"][0]["localSearch"]
+        search["unexpected"] = "no callbacks"
+        search["items"][0]["searchText"] = "x" * 4097
+        search["languageOptions"][0]["value"] = []
+        joined = "\n".join(validate_html(render_html(candidate)))
+        self.assertIn("contains unknown keys: unexpected", joined)
+        self.assertIn("must be non-empty text of at most 4096 characters", joined)
+        self.assertIn("must be a non-empty string of at most 48 characters", joined)
+        oversized = local_search_data()
+        oversized["screens"][0]["localSearch"]["items"] = [
+            copy.deepcopy(oversized["screens"][0]["localSearch"]["items"][0])
+        ] * 10001
+        oversized_joined = "\n".join(validate_html(render_html(oversized)))
+        self.assertIn("must be a list with at most 10000 items", oversized_joined)
+
+    def test_local_search_projection_requires_list_results_and_declared_treatments(self):
+        candidate = local_search_data()
+        candidate["screens"][0]["regions"][1]["presentation"] = "content"
+        candidate["screens"][0]["states"][2]["treatments"].pop("search-results")
+        joined = "\n".join(validate_html(render_html(candidate)))
+        self.assertIn("must reference a list presentation region", joined)
+        self.assertIn("must reference a screen state with declared treatment copy", joined)
 
     def test_same_flow_can_repeat_across_regions_but_not_within_one_region(self):
         data = wireframe_data()

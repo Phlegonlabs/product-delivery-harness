@@ -94,6 +94,36 @@ A region may set `primaryAction` to exactly one existing action label to give th
 
 Existing files without `presentation` remain readable. New authoring must choose the content form that fits the actual task rather than leaving every region as generic content. Extend the local renderer within the approved contract when these treatments cannot express the product; never pass an inaccurate projection merely because the template can render it.
 
+### Local Search Projection
+
+Schema-4 screens may declare one bounded, local-only search projection when the approved product flow needs an editable query and language filter. It is optional and adds no product scope or network behavior. The exact shape is:
+
+```json
+{
+  "localSearch": {
+    "formRegion": "search-form",
+    "resultsRegion": "search-results",
+    "queryLabel": {"kind": "static", "role": "field label", "text": "Search", "status": "approved", "source": "..."},
+    "languageLabel": {"kind": "static", "role": "field label", "text": "Language", "status": "approved", "source": "..."},
+    "languageOptions": [
+      {"value": "all", "copy": {"kind": "static", "role": "select option", "text": "All languages", "status": "approved", "source": "..."}}
+    ],
+    "submitAction": "Search",
+    "clearAction": "Clear",
+    "states": {"initial": "ready", "results": "results", "empty": "no-results"},
+    "items": [
+      {
+        "language": "en",
+        "copy": {"kind": "dynamic", "role": "list item", "example": "Example result", "status": "approved", "source": "...", "contract": {"source": "...", "order": "...", "format": "...", "count": "...", "length": "...", "fallback": "..."}},
+        "searchText": "Example result"
+      }
+    ]
+  }
+}
+```
+
+`formRegion` and `resultsRegion` reference existing regions; the results region uses the `list` presentation. The first language option is the unfiltered option used by Clear. Labels and options are static copy, while item copy is dynamic copy with the normal source/order/format/count/length/fallback contract. `items` is local bounded review data (at most 10,000 items and 4,096 search characters per item); it is not a network-backed result set. `states` references three existing screen states, and their results/empty treatments provide the approved count or empty copy. Search, Enter, language changes, and Clear operate only on this local item set; Search and Clear still map to the screen's declared flows for contract coverage, but the reviewer intercepts them locally. Results always render the matching rows as well as any approved results treatment, and Clear restores the first option, the initial state, and query focus.
+
 ## Copy Freeze Gate
 
 Run this gate after the first complete wireframe draft and before UI grading, final responsive review, or structural approval. The wireframe is the copy review surface: do not start visual design or frontend implementation while any product string or dynamic display contract remains unresolved.

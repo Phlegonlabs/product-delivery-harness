@@ -130,6 +130,24 @@ COMPOSITION_REGION_KEYS = {
     "mediaAspectRatio",
 }
 VALID_ACTION_PLACEMENTS = {"before", "after", "inline"}
+LOCAL_SEARCH_KEYS = {
+    "formRegion",
+    "resultsRegion",
+    "queryLabel",
+    "languageLabel",
+    "languageOptions",
+    "submitAction",
+    "clearAction",
+    "states",
+    "items",
+}
+LOCAL_SEARCH_STATE_KEYS = {"initial", "results", "empty"}
+LOCAL_SEARCH_OPTION_KEYS = {"value", "copy"}
+LOCAL_SEARCH_ITEM_KEYS = {"language", "copy", "searchText"}
+LOCAL_SEARCH_MAX_OPTIONS = 8
+LOCAL_SEARCH_MAX_ITEMS = 10000
+LOCAL_SEARCH_MAX_VALUE_LENGTH = 48
+LOCAL_SEARCH_MAX_SEARCH_TEXT_LENGTH = 4096
 NON_HUMAN_OWNERS = {
     "ai",
     "agent",
@@ -1129,6 +1147,239 @@ def _validate_composition(
             )
 
 
+def _validate_local_search(
+    value: Any,
+    path: str,
+    regions: list[dict[str, Any]],
+    state_ids: set[str],
+    state_records: list[dict[str, Any]],
+    problems: list[str],
+    *,
+    require_approved: bool,
+) -> None:
+    """Validate the bounded, local-only search projection.
+
+    The search model intentionally describes only the two reviewer regions,
+    their copy, three existing screen states, and a finite local item set. It
+    does not accept selectors, callbacks, URLs, or arbitrary renderer data.
+    """
+
+    if not isinstance(value, dict):
+        _add(problems, path, "must be an object")
+        return
+    unknown = sorted(set(value) - LOCAL_SEARCH_KEYS)
+    if unknown:
+        _add(problems, path, "contains unknown keys: " + ", ".join(unknown))
+    missing = sorted(LOCAL_SEARCH_KEYS - set(value))
+    if missing:
+        _add(problems, path, "must include: " + ", ".join(missing))
+
+    region_by_id = {
+        region.get("id"): region
+        for region in regions
+        if isinstance(region, dict) and _nonempty(region.get("id"))
+    }
+    form_region = value.get("formRegion")
+    results_region = value.get("resultsRegion")
+    if not _nonempty(form_region) or form_region not in region_by_id:
+        _add(problems, f"{path}.formRegion", "must reference an existing region ID")
+    if not _nonempty(results_region) or results_region not in region_by_id:
+        _add(problems, f"{path}.resultsRegion", "must reference an existing region ID")
+    if _nonempty(form_region) and form_region == results_region:
+        _add(problems, f"{path}.resultsRegion", "must differ from formRegion")
+    if (
+        _nonempty(results_region)
+        and results_region in region_by_id
+        and region_by_id[results_region].get("presentation", "content") != "list"
+    ):
+        _add(problems, f"{path}.resultsRegion", "must reference a list presentation region")
+
+    for key in ("queryLabel", "languageLabel"):
+        label = value.get(key)
+        _validate_copy_item(
+            label,
+            f"{path}.{key}",
+            problems,
+            require_approved=require_approved,
+        )
+        if isinstance(label, dict) and label.get("kind") != "static":
+            _add(problems, f"{path}.{key}.kind", "must be static copy")
+
+    options = value.get("languageOptions")
+    option_values: list[str] = []
+    if not isinstance(options, list) or not 1 <= len(options) <= LOCAL_SEARCH_MAX_OPTIONS:
+        _add(
+            problems,
+            f"{path}.languageOptions",
+            f"must be a list with 1 to {LOCAL_SEARCH_MAX_OPTIONS} options",
+        )
+    else:
+        for index, option in enumerate(options):
+            option_path = f"{path}.languageOptions[{index}]"
+            if not isinstance(option, dict):
+                _add(problems, option_path, "must be an object")
+                continue
+            option_unknown = sorted(set(option) - LOCAL_SEARCH_OPTION_KEYS)
+            if option_unknown:
+                _add(
+                    problems,
+                    option_path,
+                    "contains unknown keys: " + ", ".join(option_unknown),
+                )
+            option_missing = sorted(LOCAL_SEARCH_OPTION_KEYS - set(option))
+            if option_missing:
+                _add(
+                    problems,
+                    option_path,
+                    "must include: " + ", ".join(option_missing),
+                )
+            option_value = option.get("value")
+            if not _nonempty(option_value) or len(option_value) > LOCAL_SEARCH_MAX_VALUE_LENGTH:
+                _add(
+                    problems,
+                    f"{option_path}.value",
+                    f"must be a non-empty string of at most {LOCAL_SEARCH_MAX_VALUE_LENGTH} characters",
+                )
+            elif option_value in option_values:
+                _add(problems, f"{option_path}.value", f"duplicates {option_value!r}")
+            else:
+                option_values.append(option_value)
+            option_copy = option.get("copy")
+            _validate_copy_item(
+                option_copy,
+                f"{option_path}.copy",
+                problems,
+                require_approved=require_approved,
+            )
+            if isinstance(option_copy, dict) and option_copy.get("kind") != "static":
+                _add(problems, f"{option_path}.copy.kind", "must be static copy")
+
+    for key in ("submitAction", "clearAction"):
+        action = value.get(key)
+        if not _nonempty(action) or len(action) > 120:
+            _add(
+                problems,
+                f"{path}.{key}",
+                "must be a non-empty action label of at most 120 characters",
+            )
+    submit_action = value.get("submitAction")
+    clear_action = value.get("clearAction")
+    if _nonempty(submit_action) and submit_action == clear_action:
+        _add(problems, f"{path}.clearAction", "must differ from submitAction")
+    form_actions = []
+    if _nonempty(form_region) and form_region in region_by_id:
+        raw_actions = region_by_id[form_region].get("actions")
+        if isinstance(raw_actions, list):
+            form_actions = [
+                action.get("label") if isinstance(action, dict) else action
+                for action in raw_actions
+            ]
+    for key, action in (("submitAction", submit_action), ("clearAction", clear_action)):
+        if _nonempty(action) and form_actions.count(action) != 1:
+            _add(
+                problems,
+                f"{path}.{key}",
+                "must match exactly one action label in formRegion",
+            )
+
+    states = value.get("states")
+    state_values: list[str] = []
+    if not isinstance(states, dict) or set(states) != LOCAL_SEARCH_STATE_KEYS:
+        _add(
+            problems,
+            f"{path}.states",
+            "must contain exactly initial, results, and empty",
+        )
+    else:
+        for key in ("initial", "results", "empty"):
+            state_id = states.get(key)
+            if not _nonempty(state_id):
+                _add(problems, f"{path}.states.{key}", "must be a non-empty state ID")
+            elif state_id not in state_ids:
+                _add(
+                    problems,
+                    f"{path}.states.{key}",
+                    f"references unknown state ID {state_id}",
+                )
+            elif state_id in state_values:
+                _add(problems, f"{path}.states.{key}", f"duplicates {state_id}")
+            else:
+                state_values.append(state_id)
+
+    items = value.get("items")
+    if not isinstance(items, list) or len(items) > LOCAL_SEARCH_MAX_ITEMS:
+        _add(
+            problems,
+            f"{path}.items",
+            f"must be a list with at most {LOCAL_SEARCH_MAX_ITEMS} items",
+        )
+    else:
+        for index, item in enumerate(items):
+            item_path = f"{path}.items[{index}]"
+            if not isinstance(item, dict):
+                _add(problems, item_path, "must be an object")
+                continue
+            item_unknown = sorted(set(item) - LOCAL_SEARCH_ITEM_KEYS)
+            if item_unknown:
+                _add(
+                    problems,
+                    item_path,
+                    "contains unknown keys: " + ", ".join(item_unknown),
+                )
+            item_missing = sorted(LOCAL_SEARCH_ITEM_KEYS - set(item))
+            if item_missing:
+                _add(problems, item_path, "must include: " + ", ".join(item_missing))
+            language = item.get("language")
+            if not _nonempty(language) or (option_values and language not in option_values):
+                _add(
+                    problems,
+                    f"{item_path}.language",
+                    "must match a declared language option value",
+                )
+            search_text = item.get("searchText")
+            if not _nonempty(search_text) or len(search_text) > LOCAL_SEARCH_MAX_SEARCH_TEXT_LENGTH:
+                _add(
+                    problems,
+                    f"{item_path}.searchText",
+                    f"must be non-empty text of at most {LOCAL_SEARCH_MAX_SEARCH_TEXT_LENGTH} characters",
+                )
+            item_copy = item.get("copy")
+            _validate_copy_item(
+                item_copy,
+                f"{item_path}.copy",
+                problems,
+                require_approved=require_approved,
+            )
+            if isinstance(item_copy, dict) and item_copy.get("kind") != "dynamic":
+                _add(problems, f"{item_path}.copy.kind", "must be dynamic copy")
+
+    if isinstance(states, dict) and results_region in region_by_id:
+        # ``states`` points at existing screen treatments. Requiring copy at
+        # both result branches prevents the renderer from inventing a count or
+        # empty message when a local query has no matches.
+        state_by_id = {
+            screen_state.get("id"): screen_state
+            for screen_state in state_records
+            if isinstance(screen_state, dict)
+        }
+        for key in ("results", "empty"):
+            state_id = states.get(key)
+            state_record = state_by_id.get(state_id)
+            treatment = (
+                state_record.get("treatments", {}).get(results_region)
+                if isinstance(state_record, dict)
+                and isinstance(state_record.get("treatments"), dict)
+                else None
+            )
+            treatment_copy = treatment.get("copy") if isinstance(treatment, dict) else None
+            if not isinstance(treatment_copy, list) or not treatment_copy:
+                _add(
+                    problems,
+                    f"{path}.states.{key}",
+                    "must reference a screen state with declared treatment copy for resultsRegion",
+                )
+
+
 def _validate_responsive_data(
     data: dict[str, Any], problems: list[str]
 ) -> list[str]:
@@ -1695,6 +1946,17 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                         f"{state_path}.treatments",
                         "must include product or assistive copy for every alternate state",
                     )
+
+        if copy_contract and "localSearch" in screen:
+            _validate_local_search(
+                screen["localSearch"],
+                f"{path}.localSearch",
+                [region for region in regions if isinstance(region, dict)],
+                seen_states,
+                [state for state in states if isinstance(state, dict)],
+                problems,
+                require_approved=copy_is_frozen,
+            )
 
     flows = data.get("flows")
     flow_keys: list[tuple[str, str]] = []

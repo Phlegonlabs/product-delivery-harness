@@ -533,7 +533,8 @@
     }
 
     .flow-dialog {
-      width: min(96vw, 1120px);
+      width: auto;
+      max-width: calc(100vw - 32px);
       max-height: 88vh;
       padding: 0;
       border: 1px solid var(--line);
@@ -756,6 +757,11 @@
     .field-input { width: 100%; min-width: 0; min-height: var(--wf-control-height); border: 1px solid var(--wf-control-line); border-radius: var(--wf-field-radius); padding: var(--wf-field-padding); font: inherit; color: var(--wf-ink); background: var(--wf-surface); }
     .form-field .copy-item[data-copy-role="field label"] { font-size: 14px; color: var(--ink); font-weight: 600; }
     .field-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    .local-search-controls { display: grid; gap: var(--wf-content-gap); max-width: 40rem; }
+    .local-search-controls .form-field { max-width: none; }
+    .local-search-controls .action-list { margin-top: 2px; }
+    .local-search-results { display: grid; gap: 0; }
+    .local-search-results li { padding: var(--wf-content-gap) 0; border-bottom: 1px solid var(--wf-line); }
     body[data-annotations="true"] .region-head { display: flex; flex-wrap: wrap; margin-bottom: 16px; }
     body[data-annotations="true"] .region { outline: 1px dashed var(--line-strong); outline-offset: 5px; }
     body[data-annotations="true"] .metadata { display: grid; }
@@ -1204,6 +1210,7 @@
         screenState: initialScreen.states?.[0]?.id || "ready",
         screenStates: Object.create(null),
         fieldValues: Object.create(null),
+        localSearch: Object.create(null),
         inspectorOpen: false,
         selectedRegion: null
       };
@@ -1370,6 +1377,132 @@
         return node;
       };
 
+      const localSearchConfigFor = (screen) =>
+        screen && screen.localSearch && typeof screen.localSearch === "object"
+          ? screen.localSearch
+          : null;
+
+      const localSearchStateFor = (screenId, config) => {
+        if (!state.localSearch) state.localSearch = Object.create(null);
+        const firstLanguage = config?.languageOptions?.[0]?.value || "";
+        const search = state.localSearch[screenId] || {
+          query: "",
+          language: firstLanguage,
+          mode: "initial"
+        };
+        if (!config?.languageOptions?.some((option) => option.value === search.language)) {
+          search.language = firstLanguage;
+        }
+        state.localSearch[screenId] = search;
+        return search;
+      };
+
+      const localSearchRowsFor = (config, search) => {
+        const firstLanguage = config.languageOptions?.[0]?.value;
+        const query = String(search.query || "").trim().toLocaleLowerCase();
+        return (config.items || []).filter((item) => {
+          const languageMatches = search.language === firstLanguage || item.language === search.language;
+          const searchable = `${item.searchText || ""} ${copyText(item.copy)}`.toLocaleLowerCase();
+          return languageMatches && (!query || searchable.includes(query));
+        });
+      };
+
+      const localSearchModeFor = (config, search, activeState) => {
+        if (!activeState) return search.mode;
+        for (const key of ["initial", "results", "empty"]) {
+          if (activeState.id === config.states[key]) return key;
+        }
+        return null;
+      };
+
+      const focusLocalSearchQuery = (screenId) => {
+        if (state.page !== screenId || !content?.querySelector) return;
+        const input = content.querySelector(`[data-local-search-query="${screenId}"]`);
+        if (input && typeof input.focus === "function") input.focus({preventScroll: true});
+      };
+
+      const applyLocalSearch = (screenId) => {
+        const screen =
+          typeof data !== "undefined" && Array.isArray(data.screens)
+            ? data.screens.find((item) => item.id === screenId)
+            : null;
+        const config = localSearchConfigFor(screen);
+        if (!config) return;
+        const search = localSearchStateFor(screenId, config);
+        const firstLanguage = config.languageOptions?.[0]?.value;
+        const hasFilter = Boolean(String(search.query || "").trim()) || search.language !== firstLanguage;
+        const rows = localSearchRowsFor(config, search);
+        search.mode = !hasFilter ? "initial" : rows.length ? "results" : "empty";
+        state.screenState = config.states[search.mode];
+        state.screenStates[screenId] = state.screenState;
+        if (screenId === state.page) {
+          renderStateControls(screen);
+          renderScreen(screen);
+          focusLocalSearchQuery(screenId);
+        }
+      };
+
+      const resetLocalSearch = (screenId) => {
+        const screen = data.screens.find((item) => item.id === screenId);
+        const config = localSearchConfigFor(screen);
+        if (!config) return;
+        const search = localSearchStateFor(screenId, config);
+        search.query = "";
+        search.language = config.languageOptions?.[0]?.value || "";
+        search.mode = "initial";
+        state.fieldValues[`local-search:${screenId}:query`] = "";
+        applyLocalSearch(screenId);
+      };
+
+      const renderLocalSearchControls = (parent, screenId, config) => {
+        const search = localSearchStateFor(screenId, config);
+        const controls = element("div", "local-search-controls");
+        controls.dataset.localSearchScreen = screenId;
+
+        const queryField = element("label", "form-field");
+        const queryId = `local-search-query-${screenId.replace(/[^a-z0-9_-]+/gi, "-")}`;
+        const queryLabel = renderCopyItem(config.queryLabel);
+        const queryInput = element("input", "field-input");
+        queryInput.type = "search";
+        queryInput.id = queryId;
+        queryInput.value = search.query || "";
+        queryInput.setAttribute("data-local-search-query", screenId);
+        queryLabel.setAttribute("for", queryId);
+        queryInput.addEventListener("input", () => {
+          search.query = queryInput.value;
+          state.fieldValues[`local-search:${screenId}:query`] = queryInput.value;
+        });
+        queryInput.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          search.query = queryInput.value;
+          applyLocalSearch(screenId);
+        });
+        queryField.append(queryLabel, queryInput);
+
+        const languageField = element("label", "form-field");
+        const languageId = `local-search-language-${screenId.replace(/[^a-z0-9_-]+/gi, "-")}`;
+        const languageLabel = renderCopyItem(config.languageLabel);
+        const languageSelect = element("select", "field-input");
+        languageSelect.id = languageId;
+        languageSelect.setAttribute("data-local-search-language", screenId);
+        config.languageOptions.forEach((optionData) => {
+          const option = element("option", "", copyText(optionData.copy));
+          option.value = optionData.value;
+          option.textContent = copyText(optionData.copy);
+          languageSelect.append(option);
+        });
+        languageSelect.value = search.language;
+        languageLabel.setAttribute("for", languageId);
+        languageSelect.addEventListener("change", () => {
+          search.language = languageSelect.value;
+          applyLocalSearch(screenId);
+        });
+        languageField.append(languageLabel, languageSelect);
+        controls.append(queryField, languageField);
+        parent.append(controls);
+      };
+
       // Presentation uses existing copy records; it never invents product wording.
       const renderRegionContent = (parent, region, screenId = "wireframe") => {
         const kind = region.presentation || "content";
@@ -1457,6 +1590,32 @@
         }
       };
 
+      const renderLocalSearchResults = (
+        parent,
+        region,
+        screenId,
+        config,
+        activeState,
+        mode
+      ) => {
+        const search = localSearchStateFor(screenId, config);
+        region.elements
+          .filter((item) => copyRole(item) !== "list item")
+          .forEach((item) => parent.append(renderCopyItem(item)));
+        const treatment = activeState?.treatments?.[region.id];
+        const treatmentCopy = typeof treatment === "object" ? treatment.copy || [] : [];
+        treatmentCopy.forEach((item) => parent.append(renderCopyItem(item)));
+        if (mode !== "results") return;
+        const list = element("ul", "content-list local-search-results");
+        list.setAttribute("data-local-search-results", screenId);
+        localSearchRowsFor(config, search).forEach((item) => {
+          const row = element("li");
+          row.append(renderCopyItem(item.copy));
+          list.append(row);
+        });
+        parent.append(list);
+      };
+
       const flowTarget = (target) => {
         if (data.screens.some((screen) => screen.id === target)) {
           const button = element("button", "flow-target", target);
@@ -1500,6 +1659,9 @@
         if (targetCanvasWidth !== undefined) {
           overlayCanvas.style.width = `${targetCanvasWidth}px`;
           overlayCanvas.style.maxWidth = "none";
+          const dialogWidth = Number(targetCanvasWidth) + 40 + 2;
+          dialog.style.width = `min(calc(100vw - 32px), ${dialogWidth}px)`;
+          dialog.style.maxWidth = "calc(100vw - 32px)";
         }
         overlayCanvas.setAttribute(
           "aria-label",
@@ -1542,7 +1704,7 @@
         }
       };
 
-      const appendActions = (parent, screenId, actions, primaryAction) => {
+      const appendActions = (parent, screenId, actions, primaryAction, localSearch = null) => {
         if (!actions?.length) return;
         const actionList = element("div", "action-list");
         const feedback = element("div", "action-feedback");
@@ -1556,6 +1718,14 @@
           button.dataset.emphasis = label === primaryAction ? "primary" : "secondary";
           button.addEventListener("click", (event) => {
             event.stopPropagation();
+            if (localSearch && label === localSearch.submitAction) {
+              applyLocalSearch(screenId);
+              return;
+            }
+            if (localSearch && label === localSearch.clearAction) {
+              resetLocalSearch(screenId);
+              return;
+            }
             runFlow(flow, feedback);
           });
           actionList.append(button);
@@ -1603,20 +1773,39 @@
         node.append(head);
 
         const productCopy = element("div", "product-copy");
+        const screen =
+          typeof data !== "undefined" && Array.isArray(data.screens)
+            ? data.screens.find((item) => item.id === screenId)
+            : null;
+        const localSearch = allowReview ? localSearchConfigFor(screen) : null;
+        const localActionConfig = localSearch && region.id === localSearch.formRegion ? localSearch : null;
+        const searchState = localSearch ? localSearchStateFor(screenId, localSearch) : null;
+        const searchMode = localSearch
+          ? localSearchModeFor(localSearch, searchState, activeState)
+          : null;
+        const handlesSearchResults =
+          localSearch &&
+          region.id === localSearch.resultsRegion &&
+          (searchMode === "results" || searchMode === "empty");
         const treatment = activeState?.treatments?.[region.id];
         if (actionsPlacement === "before") {
-          appendActions(productCopy, screenId, region.actions, region.primaryAction);
+          appendActions(productCopy, screenId, region.actions, region.primaryAction, localActionConfig);
         }
-        if (!treatment?.copy?.length) renderRegionContent(productCopy, region, screenId);
+        if (handlesSearchResults) {
+          renderLocalSearchResults(productCopy, region, screenId, localSearch, activeState, searchMode);
+        } else if (!treatment?.copy?.length) {
+          renderRegionContent(productCopy, region, screenId);
+        }
+        if (localActionConfig) renderLocalSearchControls(productCopy, screenId, localActionConfig);
         if (actionsPlacement !== "before") {
-          appendActions(productCopy, screenId, region.actions, region.primaryAction);
+          appendActions(productCopy, screenId, region.actions, region.primaryAction, localActionConfig);
         }
         if (region.mediaIntent && !treatment?.copy?.length) {
           productCopy.append(
             element("div", "media-placeholder", `Deferred ${region.mediaIntent.treatment} position`)
           );
         }
-        if (treatment) {
+        if (treatment && !handlesSearchResults) {
           const stateNote = element("div", "state-note");
           const treatmentCopy = typeof treatment === "string" ? [] : treatment.copy || [];
           if (treatmentCopy.length) {
@@ -1756,6 +1945,25 @@
               });
             });
           });
+          const localSearch = localSearchConfigFor(screen);
+          if (localSearch) {
+            records.push(
+              {scope: `${screen.id} · localSearch · query label`, value: localSearch.queryLabel},
+              {scope: `${screen.id} · localSearch · language label`, value: localSearch.languageLabel}
+            );
+            (localSearch.languageOptions || []).forEach((option) => {
+              records.push({
+                scope: `${screen.id} · localSearch · language option · ${option.value}`,
+                value: option.copy
+              });
+            });
+            (localSearch.items || []).forEach((item, index) => {
+              records.push({
+                scope: `${screen.id} · localSearch · item ${index + 1}`,
+                value: item.copy
+              });
+            });
+          }
         });
         (data.flows || [])
           .filter((flow) => flow.presentation === "feedback" && flow.feedback)
