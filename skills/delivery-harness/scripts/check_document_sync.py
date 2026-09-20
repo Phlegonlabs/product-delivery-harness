@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -100,7 +101,13 @@ def default_inventory(root, baseline=None):
     if folder.exists():
         if not folder.is_dir():
             raise ValueError("Epic inventory must be a directory")
-        for path in sorted(folder.iterdir()):
+        entries = []
+        with os.scandir(folder) as iterator:
+            for entry in iterator:
+                if len(entries) >= 128:
+                    raise ValueError("scope the Epic directory explicitly")
+                entries.append(Path(entry.path))
+        for path in sorted(entries):
             if path.suffix == ".md":
                 name = path.relative_to(root).as_posix()
                 safe_path(root, name, document=True)
@@ -110,7 +117,7 @@ def default_inventory(root, baseline=None):
     # Retain removed Epic paths so a missing document cannot disappear silently.
     if isinstance(baseline, dict) and isinstance(baseline.get("documents"), dict):
         for name in baseline["documents"]:
-            if isinstance(name, str) and name.startswith("docs/epics/") and name not in paths:
+            if isinstance(name, str) and name.startswith("docs/epics/") and name.count("/") == 2 and name not in paths:
                 safe_path(root, name, document=True)
                 paths.append(name)
     return paths
@@ -157,6 +164,10 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         findings.append({"kind": "baseline_review_required"})
     documents = {}
     impacts = []
+    for name in sorted(set(previous) - set(paths)):
+        safe_path(root, name, document=True)
+        findings.append({"kind": "removed_from_inventory", "path": name})
+        impacts.append(impact_for(name, "removed_from_inventory"))
     for name in paths:
         path = safe_path(root, name, document=True)
         if not path.exists():

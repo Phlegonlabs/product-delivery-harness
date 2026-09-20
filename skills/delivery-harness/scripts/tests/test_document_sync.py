@@ -81,9 +81,37 @@ class DocumentSyncTests(unittest.TestCase):
         self.assertIn({"kind": "missing_document", "path": "docs/epics/EPIC-1.md"}, result["findings"])
 
     def test_epic_discovery_rejects_linked_directory(self):
-        with patch.object(Path, "is_symlink", return_value=True):
+        with patch.object(Path, "is_symlink", lambda path: path == self.root / "docs/epics"):
             with self.assertRaises(ValueError):
                 default_inventory(self.root)
+
+    def test_removed_inventory_source_keeps_a_specific_impact(self):
+        first = self.observe()["snapshot"]
+        result = self.observe(first, ["CLAUDE.md"])
+        self.assertIn({"kind": "removed_from_inventory", "path": "AGENTS.md"}, result["findings"])
+        self.assertEqual("AGENTS.md", result["impacts"][0]["source"])
+        self.assertEqual("removed_from_inventory", result["impacts"][0]["reason"])
+
+    def test_explicit_nested_epic_does_not_expand_default_scope(self):
+        folder = self.root / "docs/epics/team"
+        folder.mkdir(parents=True)
+        (folder / "E.md").write_text("nested source", encoding="utf-8")
+        previous = self.observe(paths=["docs/epics/team/E.md"])["snapshot"]
+        paths = default_inventory(self.root, previous)
+        self.assertNotIn("docs/epics/team/E.md", paths)
+        result = self.observe(previous, paths)
+        self.assertEqual("removed_from_inventory", result["impacts"][0]["reason"])
+
+    def test_epic_directory_enumeration_is_bounded_before_sorting(self):
+        folder = self.root / "docs/epics"
+        folder.mkdir(parents=True)
+        for suffix in (".md", ".txt"):
+            with self.subTest(suffix=suffix):
+                entries = [type("Entry", (), {"path": str(folder / (str(i) + suffix))})() for i in range(129)]
+                with patch("check_document_sync.os.scandir") as scan:
+                    scan.return_value.__enter__.return_value = iter(entries)
+                    with self.assertRaises(ValueError):
+                        default_inventory(self.root)
 
     def test_changed_missing_and_new_documents(self):
         snapshot = self.observe()["snapshot"]
