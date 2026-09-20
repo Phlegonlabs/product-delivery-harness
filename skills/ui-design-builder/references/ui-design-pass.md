@@ -4,6 +4,8 @@ Run this pass only inside an active `ui-design-builder` flow after Product Defin
 
 ## Frozen Inputs
 
+For enhancements, apply `enhancement-recommendations.md#incremental-ui-scope` first. Reuse the approved direction and intake unless the accepted delta changes them. The complete matrix remains covered, but only added or changed screens and necessary entry/return controls are authored again. Keep unaffected product DOM, copy, layout, style, IDs and behavior; reviewer-shell migration alone is not a product redesign. Direction studies below apply to a new or changed direction, not automatically to every added feature.
+
 Every direction and HiFi candidate uses the same:
 
 - approved `PRD.md`, `architecture.md`, and `stack-decisions.md` identities;
