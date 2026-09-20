@@ -19,6 +19,16 @@ For managed work, freeze the contract as an additional PLAN source and declare `
 - Retain redacted logs/assertions, applicable screenshots and native build/configuration evidence with content hashes and exact candidate identity. A nonempty hashed file proves retained bytes, not the truth of its contents; reviewer inspection of assertions and provenance remains required.
 - Build and configuration identity must match the artifact actually exercised. A deployed environment is read back; a local commit SHA alone cannot prove the server or native binary matches it. Candidate checks and separately authorized production smoke are distinct.
 
+## Full-Stack Slices And Reproducible E2E
+
+Implement complete accepted user flows in small slices: screen/client → API/service → permissions → saved data → visible result. For each applicable slice, prove validation, real test login, tenant/role denial, persistence after reload or a separate read, safe retry, cancellation and external side effects. A working mock screen does not prove its backend. Use existing project test tools before proposing another dependency.
+
+Use `agent-browser` for exploratory Web operation and acceptance, in an isolated named session. Preserve important paths as tests runnable locally and in CI with documented setup, fixture ownership, assertions and teardown. Browser commands are execution, not evidence by themselves: retain the observed state and data assertions, exact build and command results. Native flows use their platform runner, not a browser projection. The local HiFi smoke example in the UI skill proves its controlled Web interactions only.
+
+Use the existing acceptance contract and results register. Screenshots can support visual findings but cannot replace required auth/data/permission assertions; Agent self-reports cannot prove tool side effects. Mechanical checks validate IDs, hashes, matrix coverage and recorded assertions. Independent review must reject a structurally valid record when its logs lack the claimed execution or contain only screenshots/prose. Never describe that semantic check as something a file hash proves.
+
+After interruption, reconcile the current candidate, existing records, owned fixtures and external readbacks before resuming. Reuse verified unchanged steps; repeat only stale/missing checks. Before retrying a state-changing operation, inspect its idempotency key or actual outcome. Unknown outcome blocks that operation until reconciled; never replay a payment, message, migration or account creation just because the last response was lost.
+
 ## Acceptance And Handoff
 
 ### Record Format

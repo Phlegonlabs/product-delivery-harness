@@ -58,6 +58,12 @@ A `pending` row is allowed in the record because it is an honest human handoff. 
 - Assume branch-build semantics when the platform supports them: the exact candidate run branch for internal verification and `main` for production. Otherwise record `mode: manual` with the separately authorized deploy command and read-only check.
 - Record what is known; never invent a platform capability the project has not configured.
 
+## Release And Recovery Readiness
+
+Before an applicable release, record migration ordering and compatibility, backup/restore or forward-fix strategy, deploy command, health and user-flow probes, monitoring owner, alert destination, cost thresholds and rollback trigger in the existing deployment record. Use approved environments and exact action grants. A rollback of code is insufficient if data or an external side effect cannot roll back; name the safe forward-fix and decision owner. Exercise feasible recovery in the isolated candidate environment and retain its result. Record genuine non-applicability instead of generating empty plans for a small local-only project.
+
+After release, read back the actual build/artifact and verify health and required smoke against it. Report implementation delivery, release availability, operational activation and measured product outcomes separately. Green CI, a started deployment or successful upload proves none of the later stages.
+
 ## Post-Deploy Verification (read-only)
 
 Verify the candidate environment before promotion when it applies, then verify production after the separately authorized `main` promotion:

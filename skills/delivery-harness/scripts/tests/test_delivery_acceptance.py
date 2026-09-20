@@ -169,6 +169,34 @@ def invoke(
 
 
 class DeliveryAcceptanceTests(unittest.TestCase):
+    def test_full_stack_required_assertions_cannot_be_replaced_by_mock_or_summary(self):
+        frozen = contract()
+        observed = results()
+        expected = {"AUTH": "real sandbox login", "DENY": "other tenant rejected",
+                    "DATA": "saved data survives a separate read", "RETRY": "retry creates exactly one item"}
+        for scenario in frozen["tests"][0]["scenarios"]:
+            scenario["execution"]["assertions"] = expected.copy()
+        for row in observed["results"]:
+            row["execution"]["assertions"] = expected.copy()
+            row["assertion_results"] = {key: "pass" for key in expected}
+        self.assertEqual(0, invoke(frozen, observed)[0])
+        for change in ("summary", "mock", "stale", "skipped", "missing"):
+            import copy
+            mutated = copy.deepcopy(observed)
+            row = mutated["results"][1]
+            if change == "summary":
+                row["assertion_results"] = {"SUMMARY": "pass"}
+            elif change == "mock":
+                row["auth_mode"] = "mock"
+            elif change == "stale":
+                mutated["candidate_sha"] = "c" * 40
+            elif change == "skipped":
+                row["status"] = "skipped"
+            else:
+                row["assertion_results"].pop("DATA")
+            with self.subTest(change=change):
+                self.assertEqual(1, invoke(frozen, mutated)[0])
+
     def test_embedded_placeholders_cannot_claim_concrete_identity(self):
         for value in ('release-<build-id>', 'Chrome <version>', 'grant <id>',
                       'owned:run/<resource>', 'prefix <actual device> suffix'):

@@ -107,8 +107,11 @@ Changed rows use area-specific refreshes. Product behavior reopens `PRD.md` and 
 
 ## User Journeys
 ### Journey 1: [Name]
-1. [Step]
-2. [Step]
+Role and initial data: [actor, tenant/account state, prerequisites]
+1. [User action, affected data and expected visible result]
+2. [Persisted result, permission boundary and observable success]
+Failure and recovery: [validation, denial, dependency failure, retry or cancellation]
+Trace: [PRD/UI/TEST IDs for this complete journey]
 
 ## Functional Requirements
 | ID | Requirement | Priority | Acceptance Criteria |
