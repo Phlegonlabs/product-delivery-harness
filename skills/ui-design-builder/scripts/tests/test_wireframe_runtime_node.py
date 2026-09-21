@@ -10,6 +10,61 @@ from pathlib import Path
 
 
 class WireframeRuntimeNodeTests(unittest.TestCase):
+    def test_region_notes_read_rendered_geometry_and_keep_hidden_regions_explicit(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node unavailable")
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        script = r'''
+const fs=require('fs'),vm=require('vm');
+const html=fs.readFileSync(process.argv[2],'utf8').replace(/\r\n/g,'\n');
+const source=html.match(/const renderRegionNotes = [\s\S]*?\n      const renderScreen =/)[0].replace(/\n      const renderScreen =$/,'');
+const element=(tag,cls,text)=>({tag,cls,text,children:[],append(...items){this.children.push(...items)},setAttribute(){},addEventListener(name,fn){this[name]=fn}});
+const copy={computed:{rowGap:'17px',columnGap:'13px',maxWidth:'640px'}};
+const region={dataset:{region:'R1'},computed:{padding:'12px'},getBoundingClientRect:()=>({width:183.5}),querySelector:()=>copy,focus(){this.focused=true},scrollIntoView(){this.scrolled=true}};
+const canvas={children:[region],computed:{padding:'20px',rowGap:'24px',columnGap:'18px'},getBoundingClientRect:()=>({width:390})};
+const screen={id:'UI-001',regions:[{id:'R1',section:'Summary',purpose:'Review details',actions:[{label:'Open'}]},{id:'R2',section:'Extra',purpose:'Secondary information'}]};
+const context={element,getComputedStyle:n=>n.computed,regionOrder:s=>s.regions,actionLabel:a=>a.label,outgoingFlow:()=>({}),flowDescription:()=> 'Go to Account details.'};
+vm.runInNewContext(source+'\nthis.render=renderRegionNotes;',context);
+const before=JSON.stringify(screen);
+const result=context.render(screen,canvas,{spans:{R1:2,R2:1},columns:4,reflow:'Stack on phones.',interaction:'Keep actions reachable.'});
+const flatten=n=>[n,...(n.children||[]).flatMap(flatten)];const rows=flatten(result),text=rows.map(n=>n.text||'').join(' ');
+for(const expected of ['390px','184px','20px','17px','13px','640px','Hidden at this responsive target.','Go to Account details.'])if(!text.includes(expected))throw Error('missing rendered annotation: '+expected);
+rows.find(n=>n.tag==='button').click();if(!region.focused||!region.scrolled)throw Error('region cannot be located');
+if(JSON.stringify(screen)!==before)throw Error('notes mutated product data');
+'''
+        result = subprocess.run([node, "-", str(template)], input=script, capture_output=True, encoding="utf-8", timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_annotations_default_to_readable_destinations_and_local_results(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node unavailable")
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        html = template.read_text(encoding="utf-8")
+        self.assertIn('<body data-annotations="true">', html)
+        self.assertIn('aria-pressed="true">Hide annotations', html)
+        script = r'''
+const fs=require('fs'),vm=require('vm');
+const html=fs.readFileSync(process.argv[2],'utf8').replace(/\r\n/g,'\n');
+let selected;
+const context={data:{screens:[{id:'UI-001',name:'Search',localSearch:{submitAction:'Find',clearAction:'Reset'}},{id:'UI-002',name:'Article details',route:'/articles/detail'}]},copyText:x=>x?.text||'',selectPage:id=>selected=id,
+element:(tag,cls,text)=>({text,addEventListener(name,fn){this[name]=fn}})};
+const source=html.match(/const flowTarget = [\s\S]*?\n      const outgoingFlow/)[0].replace(/\n      const outgoingFlow$/,'');
+vm.runInNewContext(source+'\nthis.describe=flowDescription;this.target=flowTarget;',context);
+const flow={from:'UI-001',trigger:'Details',to:'UI-002',presentation:'page'};
+if(!context.describe(flow).includes('Article details (UI-002) — /articles/detail'))throw Error('unreadable page destination');
+if(!context.describe({...flow,presentation:'overlay'}).includes('dialog over this page'))throw Error('overlay indistinguishable from page');
+if(!context.describe({...flow,presentation:'feedback',feedback:{text:'Saved'}}).includes('Stay on this page and show: Saved'))throw Error('feedback destination unclear');
+if(!context.describe({...flow,trigger:'Find'}).includes('current query and language'))throw Error('search shown as fake navigation');
+if(!context.describe({...flow,trigger:'Reset'}).includes('clear the query'))throw Error('reset missing');
+if(!context.describe(null).includes('not recorded'))throw Error('missing flow invented');
+const link=context.target('UI-002');link.click();
+if(link.text!=='Article details (UI-002)'||selected!=='UI-002')throw Error('readable link changed destination');
+'''
+        result = subprocess.run([node, "-", str(template)], input=script, capture_output=True, encoding="utf-8", timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_product_width_is_not_reduced_by_reviewer_frame(self) -> None:
         template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
         html = template.read_text(encoding="utf-8")

@@ -55,9 +55,9 @@ Evaluate all seven criteria against the approved task, content, and platform:
 | Content form | Navigation, forms, lists, and tables look and behave like their intended structures rather than identical cards. |
 | Composition and density | Region proportions reflect task importance; no arbitrary equal boxes or empty height spacers. |
 | Platform and reflow | Compact layouts reprioritize and reflow content; platform conventions remain distinct. |
-| Review separation and neutrality | The default product canvas has no IDs, priority badges, review buttons, or inherited green tint. Annotations remain reachable separately. |
+| Review separation and neutrality | The formal view opens with readable annotations, named destinations and measured spacing. Notes are distinct from product copy. The optional clean view preserves the product layout rules and working flows. |
 
-Record each criterion's observation, page-target-state, and inspected screenshot path/hash in the existing grading detail. Show the representative cases with annotations off and check annotation access separately. Cite the relevant PRD/intake/reference decision for each weakness. W5 below 80 blocks readiness even when the overall score passes; merely removing color or passing geometry checks does not establish composition quality. Do not grade a preferred brand style or freeze final fonts, colors, or tokens here.
+Record each criterion's observation, page-target-state, and inspected screenshot path/hash in the existing grading detail. Review representative cases with annotations on and also verify the clean view. Check that action descriptions match real page, dialog and local-result behavior, and that token specimens apply the displayed values. Cite the relevant PRD/intake/reference decision for each weakness. W5 below 80 blocks readiness even when the overall score passes; merely removing color or passing geometry checks does not establish composition quality. Do not grade a preferred brand style or freeze final fonts, colors, or tokens here.
 
 ## Reading And Cross-Screen Cases
 
