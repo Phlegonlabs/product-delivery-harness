@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.49.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.50.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -100,9 +100,13 @@ Skills 更新后及实现前，执行[设计有效性检查](skills/ui-design-bu
 
 ## 系统如何协同
 
-Wireframe 默认使用中性灰阶，审核标注可另行开启。先做好常用任务与高密度或替代状态，再展开全套页面。W5 根据实际截图检查任务与文字层次、留白、内容形态、密度、平台重排及审核信息分离，独立最低分为 80。区域可选导航、编辑式内容、列表、表单或表格呈现，不改产品文案，也不代选正式技术栈。
+Wireframe 默认呈现有排版的中性灰阶画面与可读注释，也可切换纯画面。先做好常用任务与高密度或替代状态，再展开全套页面。W5 根据实际截图检查任务与文字层次、留白、内容形态、密度、平台重排及审核信息分离，独立最低分为 80。区域可选导航、编辑式内容、列表、表单或表格呈现，不改产品文案，也不代选正式技术栈。
 
 Wireframe 以中保真为目标：实际文案、清楚排版、合理示例数据，并通过产品控件验证已定义的主要流程。只读字段不能证明输入或恢复流程。审阅用 Design System Draft 页展示共用原型数值及实际 renderer 组件，不新增产品路由或批准关卡。Visual Approval 后，compiler 从通过验证的 Markdown／JSON pair 生成 `design-system-preview.html`；检查器拒绝过期或被手改的展示页及过期来源。Pair 保持权威，已批准 wireframe 保持原样。组件外观以批准的 HiFi 为准，不从 registry 名称猜测。
+
+正式 wireframe 默认显示可读注释、具名的页面／弹窗／原页结果，以及实测布局间距；纯画面是可选视图。Wireframe Draft 与 HiFi Design Tokens 为每个使用中的 token 提供视觉示例，并展示实际控件变体。HiFi 示例绑定使用该 token 的 CSS 属性，保留各页差异并遵守减少动态效果设置。也要盘点共用的原始样式值：列齐现有变量不代表设计覆盖完整。
+
+Token 观察分别保留来源／显示原值及浏览器规范化后的来源／应用值，让十六进制色码、rem 尺寸及关键字字重能正确比较。
 
 ```mermaid
 flowchart LR
@@ -311,7 +315,7 @@ HiFi validator 会检查侧栏中指向当前页面的链接是否带有 `aria-c
 
 Full-stack 按完整流程实现页面、API、权限、数据保存与反馈。agent-browser 用于 Web 探索，重要流程另保留本机／CI 可重跑测试；登录、拒绝访问、重试与副作用都要有实际证据。发布涵盖 migration、健康检查、监控、成本告警与恢复，交付、发布、启用及产品效果分别报告。SEO 只应用于适用的公开页面。
 
-升级至 0.49.0 时，先让使用 skills 的工作到达安全停止点，再执行 canonical installer，保留备份并开新 session；不可热更新已加载的 worker。按文档同步影响清单局部更新当前文档，保留自定义 AGENTS 规则与历史证据。现有 document-sync/1 与 ui-hifi/2 仍可检查；新的 HiFi 批准须补左侧审阅界面及绑定各页的 ui-output/2 reviewer 观察，只重做受影响证据，不改写旧批准。小修正不必新增 Epic／PLAN／RUN。重跑受影响的 owner gates 与必需最终验证。 0.49.0 在实现前检查设计有效性，严格 schema-4 编制检查须提供绑定区域的 motionSpec；保留历史批准。
+升级至 0.50.0 时，先让使用 skills 的工作到达安全停止点，再执行 canonical installer，保留备份并开新 session；不可热更新已加载的 worker。按文档同步影响清单局部更新当前文档，保留自定义 AGENTS 规则与历史证据。现有 document-sync/1 与 ui-hifi/2 仍可检查；新的 HiFi 批准须补左侧审阅界面及绑定各页的 ui-output/2 reviewer 观察，只重做受影响证据，不改写旧批准。小修正不必新增 Epic／PLAN／RUN。重跑受影响的 owner gates 与必需最终验证。 0.49.0 在实现前检查设计有效性，严格 schema-4 编制检查须提供绑定区域的 motionSpec；保留历史批准。 0.50.0 保留现有产品排版与已批准产物；新 Wireframe 默认显示注释。每个 HiFi token 须加上支持的 data-token-preview 属性及对应来源用法，再重建受影响的 reviewer 观察；保留历史批准。
 
 每次调用 skill 都先应用共享的[文档同步契约](skills/delivery-harness/references/document-sync-contract.md)，检查当前指引、skill/runtime 身份与产品文档的变化，不改写历史批准或 RUN。当前 PRD 持续作为下一轮 enhancement 的基准，被替代的 PRD 保留链接供参考。[有界 enhancement](skills/delivery-harness/references/bounded-enhancement.md) 沿用一次确认的范围，执行修复、范围内 module 重写与重测，不反复要求批准。达到修复上限就把未解决需求移交下一轮；本轮结束不等于交付 PASS，也不授权发布。
 
@@ -600,6 +604,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.50.0** — Wireframe 默认显示注释，提供实测排版信息与可读的操作去向。Wireframe 与 HiFi token 展示应用实际值；正式预览补上安全的字体、阴影及动画示例。HiFi 新增必填展示属性及新观察证据，属破坏性 skill-bundle 变更。
 
 - **0.49.0** — 新增设计衔接与保留 PRD 的完整重做流程、双语阅读、动画区间、响应式导航、Web／iPhone 模板与设计过期检查。新增审阅义务，属破坏性 skill-bundle 变更。
 

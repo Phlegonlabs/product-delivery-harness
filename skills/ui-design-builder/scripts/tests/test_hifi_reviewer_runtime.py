@@ -14,6 +14,31 @@ TEMPLATE = Path(__file__).resolve().parents[2] / "assets/templates/HIFI_REVIEWER
 
 
 class HiFiReviewerRuntimeTests(unittest.TestCase):
+    def test_token_samples_use_each_bound_style_and_reject_unsupported_properties(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node unavailable")
+        script = r'''
+const fs=require('fs'),vm=require('vm');
+const html=fs.readFileSync(process.argv[2],'utf8');
+const source=html.split('<script id="hifi-reviewer-runtime">')[1].split('</script>')[0];
+const context={window:{},CSS:{supports:(property,value)=>value!=='invalid-duration'},getComputedStyle:sample=>({getPropertyValue:()=>sample.value})};
+vm.runInNewContext(source,context);
+const sample=value=>({value,style:{setProperty(k,v){this[k]=v}}});
+const make=(value,property='color',token='--ink')=>{const s=sample(value),o={};return {dataset:{tokenPreview:property,property:token},s,o,querySelector:q=>q==='output'?o:s};};
+const rows=[make('#123456'),make('#abcdef'),make('url(https://invalid)','background-image'),make('','width'),make('400ms','transition-duration','--duration'),make('invalid-duration','transition-duration','--bad')];
+context.window.renderHifiTokenSpecimens({querySelectorAll:()=>rows});
+if(rows[0].o.textContent!=='#123456'||rows[1].o.textContent!=='#abcdef')throw Error('page-specific values lost');
+if(rows[0].s.style.color!=='var(--ink)')throw Error('token was listed without being applied');
+if(Object.keys(rows[2].s.style).length!==1)throw Error('unsafe preview property applied');
+if(rows[3].o.textContent!=='Source value missing')throw Error('missing value hidden');
+if(rows[4].s.style['transition-duration']!=='var(--duration)')throw Error('duration missing');
+if(rows[4].s.tabIndex!==0)throw Error('motion specimen inaccessible to keyboard');
+if(rows[5].o.textContent!=='No valid CSS specimen for this value')throw Error('invalid value presented as a specimen');
+'''
+        result = subprocess.run([node, "-", str(TEMPLATE)], input=script, capture_output=True, encoding="utf-8", timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_template_uses_exact_width_container_queries_without_scaling(self) -> None:
         self.assertTrue(TEMPLATE.is_file(), "reusable HiFi reviewer template is missing")
         html = TEMPLATE.read_text(encoding="utf-8")
@@ -27,7 +52,8 @@ class HiFiReviewerRuntimeTests(unittest.TestCase):
         self.assertIn('width:390px', html)
         self.assertIn('width:768px', html)
         self.assertIn('width:1200px', html)
-        self.assertNotIn("@media", html)
+        self.assertNotIn("@media", html.replace("@media(prefers-reduced-motion:reduce)", ""))
+        self.assertIn("transition:none!important;transform:none!important", css)
         self.assertNotIn("transform:scale", html.replace(" ", "").lower())
         self.assertNotIn("<iframe", html.lower())
         self.assertNotIn("fetch(", html)

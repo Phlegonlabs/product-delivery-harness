@@ -53,6 +53,12 @@
       --wf-field-padding: 10px 12px;
       --wf-button-radius: 9px;
       --wf-field-radius: 5px;
+      --wf-font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --wf-control-border: 1px;
+      --wf-control-height-large: 52px;
+      --wf-button-large-padding: 12px 20px;
+      --wf-table-padding: 14px 10px;
+      --wf-table-compact-padding: 10px 6px;
     }
 
     * { box-sizing: border-box; }
@@ -283,6 +289,7 @@
     }
 
     .wireframe {
+      font-family: var(--wf-font-family);
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
       gap: var(--wf-canvas-gap, var(--wf-row-gap)) var(--wf-canvas-gap, var(--wf-column-gap));
@@ -511,10 +518,11 @@
     }
 
     .action-button {
+      font-family: var(--wf-font-family);
       font-size: var(--wf-body);
       min-height: var(--wf-control-height);
       padding: var(--wf-button-padding);
-      border: 1px solid var(--wf-control-line);
+      border: var(--wf-control-border) solid var(--wf-control-line);
       border-radius: var(--wf-button-radius);
       background: var(--wf-surface);
       color: var(--wf-ink);
@@ -532,7 +540,7 @@
     body[data-annotations="true"] .region[data-motion-region="true"] { outline: 2px dashed var(--wf-ink); }
     .action-button[data-emphasis="tertiary"] { border-color: transparent; background: transparent; text-decoration: underline; }
     .action-button[data-emphasis="destructive"] { border: 2px dashed currentColor; font-weight: 700; }
-    .action-button[data-size="large"] { min-height: 52px; padding: 12px 20px; }
+    .action-button[data-size="large"] { min-height: var(--wf-control-height-large); padding: var(--wf-button-large-padding); }
     .action-button[data-full-width="true"] { flex-basis: 100%; width: 100%; }
     .action-button:focus-visible { outline: 2px solid var(--wf-ink); outline-offset: 3px; }
     .action-button:active { box-shadow: inset 0 0 0 2px currentColor; }
@@ -765,11 +773,11 @@
     }
     .content-list li { padding: var(--wf-content-gap) 0; border-bottom: 1px solid var(--wf-line); }
     .content-table { border-collapse: collapse; table-layout: fixed; width: 100%; text-align: left; }
-    .content-table th, .content-table td { padding: 14px 10px; border-bottom: 1px solid var(--wf-line); vertical-align: top; overflow-wrap: anywhere; }
+    .content-table th, .content-table td { padding: var(--wf-table-padding); border-bottom: 1px solid var(--wf-line); vertical-align: top; overflow-wrap: anywhere; }
     .content-table th { font-weight: 600; background: var(--wf-table-head); }
     .content-table .copy-item { font-size: var(--wf-body); }
     .form-field { display: grid; gap: var(--wf-small-gap); max-width: 40rem; }
-    .field-input { width: 100%; min-width: 0; min-height: var(--wf-control-height); border: 1px solid var(--wf-control-line); border-radius: var(--wf-field-radius); padding: var(--wf-field-padding); font: inherit; color: var(--wf-ink); background: var(--wf-surface); }
+    .field-input { width: 100%; min-width: 0; min-height: var(--wf-control-height); border: var(--wf-control-border) solid var(--wf-control-line); border-radius: var(--wf-field-radius); padding: var(--wf-field-padding); font: inherit; color: var(--wf-ink); background: var(--wf-surface); }
     .form-field .copy-item[data-copy-role="field label"] { font-size: 14px; color: var(--ink); font-weight: 600; }
     .field-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
     .local-search-controls { display: grid; gap: var(--wf-content-gap); max-width: 40rem; }
@@ -778,7 +786,19 @@
     .local-search-results { display: grid; gap: 0; }
     .local-search-results li { padding: var(--wf-content-gap) 0; border-bottom: 1px solid var(--wf-line); }
     body[data-annotations="true"] .region-head { display: flex; flex-wrap: wrap; margin-bottom: 16px; }
+    .region-notes { display: none; margin-top: 32px; max-width: 1200px; margin-inline: auto; }
+    body[data-annotations="true"] .region-notes { display: block; }
+    .region-note { padding: 20px 0; border-top: 1px solid var(--line-strong); }
+    .region-note h3 { margin: 0 0 8px; }
+    .region-note p { max-width: 78ch; margin: 8px 0; }
+    .region-note dl { display: grid; grid-template-columns: minmax(100px, 180px) minmax(0, 1fr); gap: 8px 16px; }
+    .region-note dt { font-weight: 650; }
+    .region-note dd { margin: 0; overflow-wrap: anywhere; }
+    .token-sample { display: block; max-width: 100%; min-height: 32px; margin-top: 12px; overflow-wrap: anywhere; font-family: var(--wf-font-family); }
+    .token-measure { background: var(--wf-line); min-height: 12px; }
+    .token-control { border: 1px solid var(--wf-control-line); width: fit-content; }
     body[data-annotations="true"] .region { outline: 1px dashed var(--line-strong); outline-offset: 5px; }
+    body[data-annotations="true"] .region:focus { outline: 2px solid var(--wf-ink); }
     body[data-annotations="true"] .metadata { display: grid; }
     body[data-annotations="true"] .flow-panel { display: block; }
     .system-page { max-width: 960px; margin: auto; overflow-wrap: anywhere; }
@@ -787,16 +807,16 @@
     .system-page h1 { font-size: 32px; margin: 0 0 12px; }
     .system-page h2 { font-size: 22px; margin: 0 0 16px; }
     .system-page p { max-width: 68ch; }
-    .token-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .token-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
     .token-row code { display: block; overflow-wrap: anywhere; }
     .token-swatch { display: inline-block; width: 32px; height: 20px; margin-right: 8px; border: 1px solid var(--line-strong); vertical-align: middle; }
-    .system-specimen { padding: 20px 0; container-type: inline-size; }
+    .system-specimen { padding: 20px 0; container-type: inline-size; font-family: var(--wf-font-family); }
     .system-specimen pre { white-space: pre-wrap; font-size: 12px; }
     @media (max-width: 600px) { .token-row { grid-template-columns: 1fr; } }
     @container (max-width: 480px) {
       .region[data-presentation="navigation"] .product-copy { gap: 12px; }
       .region[data-presentation="navigation"] .action-list { margin-left: 0; flex-basis: 100%; }
-      .content-table th, .content-table td { padding: 10px 6px; }
+      .content-table th, .content-table td { padding: var(--wf-table-compact-padding); }
     }
 
     @media print {
@@ -809,7 +829,7 @@
     }
   </style>
 </head>
-<body>
+<body data-annotations="true">
   <noscript><p class="noscript">Enable JavaScript to use the page, viewport, and state controls in this local wireframe file.</p></noscript>
   <div class="app">
     <aside class="sidebar" aria-label="Wireframe pages">
@@ -833,7 +853,7 @@
       <div class="toolbar" role="toolbar" aria-label="Wireframe controls">
         <div class="toolbar-cluster">
           <button class="control" id="copy-inventory-button" type="button">Copy inventory</button>
-          <button class="control" id="annotation-toggle" type="button" aria-pressed="false">Annotations</button>
+          <button class="control" id="annotation-toggle" type="button" aria-pressed="true">Hide annotations</button>
         </div>
       </div>
       <div class="content" id="content" tabindex="-1"></div>
@@ -1647,8 +1667,9 @@
       };
 
       const flowTarget = (target) => {
-        if (data.screens.some((screen) => screen.id === target)) {
-          const button = element("button", "flow-target", target);
+        const screen = data.screens.find((screen) => screen.id === target);
+        if (screen) {
+          const button = element("button", "flow-target", `${screen.name} (${screen.id})`);
           button.type = "button";
           button.addEventListener("click", () => selectPage(target));
           return button;
@@ -1658,6 +1679,19 @@
 
       const screenFlows = (screenId) =>
         (data.flows || []).filter((flow) => flow.from === screenId || flow.to === screenId);
+
+      const flowDescription = (flow) => {
+        if (!flow) return "Destination not recorded. Resolve this before approval.";
+        const target = data.screens.find((screen) => screen.id === flow.to);
+        const name = target ? `${target.name} (${target.id})` : flow.to;
+        const source = data.screens.find((screen) => screen.id === flow.from);
+        const search = source?.localSearch;
+        if (search && flow.trigger === search.submitAction) return "Stay on this page and update the search results using the current query and language.";
+        if (search && flow.trigger === search.clearAction) return "Stay on this page, clear the query and restore the initial results and language.";
+        if (flow.presentation === "overlay") return `Open the ${name} dialog over this page. Closing it returns to this page.`;
+        if (flow.presentation === "page") return `Go to ${name}${target?.route ? ` — ${target.route}` : ""}.`;
+        return `Stay on this page and show: ${copyText(flow.feedback) || "Feedback not recorded"}. Recorded result: ${name}. No external request is made in this prototype.`;
+      };
 
       const outgoingFlow = (screenId, trigger) =>
         (data.flows || []).find((flow) => flow.from === screenId && flow.trigger === trigger);
@@ -1955,6 +1989,7 @@
             const card = element("div", "inspector-card");
             card.append(
               element("p", "", actionLabel(action)),
+              element("p", "", flowDescription(outgoingFlow(screen.id, actionLabel(action)))),
               element("span", "copy-status", action.status || "legacy"),
               element("p", "", `Source: ${action.source || "legacy contract"}`)
             );
@@ -2222,27 +2257,68 @@
         if (!flows.length) return null;
         const panel = element("section", "flow-panel");
         panel.setAttribute("aria-label", `Flows for ${screen.id}`);
-        panel.append(element("div", "meta-label", "Flows"));
+        panel.append(element("h3", "", "Where this page connects"));
         const list = element("ul", "flow-list");
         flows.forEach((flow) => {
           const item = element("li");
           if (flow.from === screen.id) {
             item.append(
-              element("span", "flow-direction", "Out"),
-              element("span", "", ` via ${flow.trigger} → `),
+              element("strong", "", `Select “${flow.trigger}”: `),
+              element("span", "", flowDescription(flow)),
               flowTarget(flow.to)
             );
           } else {
             item.append(
-              element("span", "flow-direction", "In"),
+              element("span", "flow-direction", "Arrive from "),
               flowTarget(flow.from),
-              element("span", "", ` via ${flow.trigger}`)
+              element("span", "", ` by selecting “${flow.trigger}”.`)
             );
           }
           list.append(item);
         });
         panel.append(list);
         return panel;
+      };
+
+      const renderRegionNotes = (screen, canvas, layout) => {
+        const notes = element("section", "region-notes");
+        notes.setAttribute("aria-label", "Layout and interaction annotations");
+        notes.append(element("h2", "", "Layout and interactions"));
+        const canvasStyle = getComputedStyle(canvas);
+        notes.append(element("p", "", `Canvas ${Math.round(canvas.getBoundingClientRect().width)}px wide. Insets: ${canvasStyle.padding}. Row gap: ${canvasStyle.rowGap}; column gap: ${canvasStyle.columnGap}.`));
+        notes.append(element("p", "", `${layout.reflow} ${layout.interaction}`));
+        regionOrder(screen).forEach((region) => {
+          const card = element("article", "region-note");
+          card.append(element("h3", "", `${region.section} (${region.id})`), element("p", "", region.purpose));
+          const node = Array.from(canvas.children).find((item) => item.dataset.region === region.id);
+          if (node) {
+            const style = getComputedStyle(node);
+            card.append(element("p", "", `${layout.spans[region.id]} of ${layout.columns} columns; width ${Math.round(node.getBoundingClientRect().width)}px; padding ${style.padding}.`));
+            const copy = node.querySelector(".product-copy");
+            if (copy) {
+              const copyStyle = getComputedStyle(copy);
+              card.append(element("p", "", `Content row gap: ${copyStyle.rowGap}; column gap: ${copyStyle.columnGap}; maximum content width: ${copyStyle.maxWidth}.`));
+            }
+            const locate = element("button", "control", "Locate this region");
+            locate.type = "button";
+            locate.addEventListener("click", () => {
+              node.tabIndex = -1;
+              node.focus({preventScroll: true});
+              node.scrollIntoView({block: "center", inline: "nearest"});
+            });
+            card.append(locate);
+          } else card.append(element("p", "", "Hidden at this responsive target."));
+          if (region.actions?.length) {
+            const actions = element("dl");
+            region.actions.forEach((action) => {
+              const label = actionLabel(action);
+              actions.append(element("dt", "", label), element("dd", "", flowDescription(outgoingFlow(screen.id, label))));
+            });
+            card.append(actions);
+          }
+          notes.append(card);
+        });
+        return notes;
       };
 
       const renderScreen = (screen) => {
@@ -2297,6 +2373,7 @@
         responsiveNotes.textContent = `Checking layout · ${layout.reflow} · ${layout.interaction}`;
         content.append(responsiveNotes);
         runLayoutQa(canvas, shell, responsiveNotes, screen);
+        content.append(renderRegionNotes(screen, canvas, layout));
         const flows = renderScreenFlows(screen);
         if (flows) content.append(flows);
         if (state.inspectorOpen) renderInspector();
@@ -2312,7 +2389,7 @@
           const item = element("li");
           item.append(
             flowTarget(flow.from),
-            element("span", "", ` ${flow.trigger} → `),
+            element("span", "", ` — select “${flow.trigger}”: ${flowDescription(flow)} `),
             flowTarget(flow.to)
           );
           list.append(item);
@@ -2377,7 +2454,10 @@
           ["column-gap", "Canvas inset and column gap"], ["row-gap", "Canvas row gap"],
           ["control-height", "Minimum control height"], ["button-padding", "Button inset"],
           ["field-padding", "Field inset"], ["button-radius", "Button corners"],
-          ["field-radius", "Field corners"]
+          ["field-radius", "Field corners"], ["font-family", "Product font family"],
+          ["control-border", "Control border width"], ["control-height-large", "Large control height"],
+          ["button-large-padding", "Large button inset"], ["table-padding", "Table cell inset"],
+          ["table-compact-padding", "Compact table cell inset"]
         ];
         const values = element("section");
         values.append(element("h2", "", "Current prototype values"));
@@ -2393,6 +2473,37 @@
             label.append(swatch);
           }
           row.append(label, element("code", "", `--wf-${name}: ${value}`));
+          const sample = element("div", "token-sample", "");
+          sample.dataset.token = `--wf-${name}`;
+          if (/^#[0-9a-f]{6}$/i.test(value)) {
+            sample.style.backgroundColor = value;
+            sample.style.border = "1px solid #999";
+          } else if (["body", "section", "item", "label", "display", "editorial", "content-title"].includes(name)) {
+            sample.textContent = "The next step · 下一步";
+            sample.style.fontSize = value;
+          } else if (name.endsWith("leading")) {
+            sample.textContent = "First line\nSecond line\n第三行";
+            sample.style.whiteSpace = "pre-line";
+            sample.style.lineHeight = value;
+          } else if (name === "font-family") {
+            sample.textContent = "The next step · 下一步";
+            sample.style.fontFamily = value;
+          } else if (name.endsWith("weight")) {
+            sample.textContent = "Heading weight · 標題字重";
+            sample.style.fontWeight = value;
+          } else if (name.endsWith("gap")) {
+            sample.className += " token-measure";
+            sample.style.width = value;
+            sample.setAttribute("aria-label", `${usage}: ${value}`);
+          } else {
+            sample.className += " token-control";
+            sample.textContent = "Control";
+            if (name.endsWith("padding")) sample.style.padding = value;
+            else if (name.endsWith("radius")) sample.style.borderRadius = value;
+            else if (name.endsWith("border")) sample.style.borderWidth = value;
+            else sample.style.minHeight = value;
+          }
+          row.append(sample);
           values.append(row);
         });
         page.append(values);
@@ -2420,7 +2531,9 @@
         const feedback = element("p", "", "Select a specimen to inspect feedback.");
         feedback.setAttribute("role", "status");
         const buttons = element("div", "action-list");
-        ["primary", "secondary"].forEach((emphasis) => {
+        const actions = (data.screens || []).flatMap((screen) => (screen.regions || []).flatMap((region) => region.actions || []));
+        const variants = new Set(["primary", "secondary", ...actions.map((action) => action.variant || "secondary")]);
+        variants.forEach((emphasis) => {
           const button = element("button", "action-button", `${emphasis} example`);
           button.type = "button";
           button.dataset.emphasis = emphasis;
@@ -2428,6 +2541,13 @@
           buttons.append(button);
         });
         controls.append(buttons, feedback);
+        if (actions.some((action) => action.size === "large")) {
+          const large = element("button", "action-button", "Large control example");
+          large.type = "button";
+          large.dataset.size = "large";
+          large.addEventListener("click", () => { feedback.textContent = "Large control selected."; });
+          controls.append(large);
+        }
         page.append(controls);
         content.append(page);
         const measurements = element("section");
@@ -2457,6 +2577,7 @@
         const enabled = document.body.dataset.annotations !== "true";
         document.body.dataset.annotations = String(enabled);
         annotationToggle.setAttribute("aria-pressed", String(enabled));
+        annotationToggle.textContent = enabled ? "Hide annotations" : "Show annotations";
         if (!enabled) setInspectorOpen(false);
         const screen = currentScreen();
         if (screen) renderScreen(screen);

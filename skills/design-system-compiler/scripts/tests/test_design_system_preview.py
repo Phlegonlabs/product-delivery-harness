@@ -47,6 +47,18 @@ class DesignSystemPreviewTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual("Recorded value; no browser specimen", preview.specimen("fontSize", value))
 
+    def test_shadow_motion_and_type_samples_apply_values_without_resources(self):
+        cases = {"shadow": "0 4px 12px rgba(0, 0, 0, 0.2)", "duration": "200ms",
+                 "easing": "cubic-bezier(0.2, 0, 0, 1)", "fontFamily": "'Example Sans', sans-serif", "fontWeight": "650"}
+        for group, value in cases.items():
+            with self.subTest(group=group):
+                result = preview.specimen(group, value)
+                self.assertIn('style="', result)
+                self.assertNotIn("no browser specimen", result)
+                for bad in ('url(https://invalid)', '1; background:url(https://invalid)', '"><script>bad</script>'):
+                    self.assertEqual("Recorded value; no browser specimen", preview.specimen(group, bad))
+        self.assertIn("prefers-reduced-motion:reduce", preview.STYLE)
+
     def test_flat_and_nested_token_values_remain_visible(self):
         registry = json.loads(self.source())
         registry["tokens"] = {"fontFamily": "System font", "color": {"surface": {"light": "#fff", "dark": "#000"}}}

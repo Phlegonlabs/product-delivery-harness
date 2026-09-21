@@ -396,6 +396,55 @@ class HiFiReviewerTests(unittest.TestCase):
                 errors, _ = reviewer_contract(docs, self.manifest)
                 self.assertTrue(any(message in error for error in errors), errors)
 
+    def test_token_preview_requires_supported_property_and_real_source_use(self):
+        for replacement in ('', ' data-token-preview="background-image"', ' data-token-preview="width"'):
+            with self.subTest(replacement=replacement):
+                docs = dict(self.documents)
+                docs["index.html"] = docs["index.html"].replace(' data-token-preview="color"', replacement)
+                errors, _ = reviewer_contract(docs, self.manifest)
+                self.assertTrue(any("token preview" in error or "data-token-preview" in error for error in errors), errors)
+
+    def test_token_preview_follows_aliases_and_layout_dimensions(self):
+        from hifi_reviewer import _token_property_use
+        css = ':root{--base:#123456;--semantic:var(--base);--text:var(--semantic)}.label{color:var(--text)}'
+        self.assertTrue(_token_property_use(css, "--base", "color"))
+        self.assertFalse(_token_property_use(css, "--base", "width"))
+        self.assertFalse(_token_property_use(':root{--a:var(--b);--b:var(--a)}', "--a", "color"))
+        self.assertFalse(_token_property_use('.label{color:var(--ink-extra)}', "--ink", "color"))
+        self.assertTrue(_token_property_use('.control{min-height:var(--control)}', "--control", "height"))
+        for prop in ("inline-size", "min-inline-size", "max-inline-size"):
+            self.assertTrue(_token_property_use(f'.control{{{prop}:var(--size)}}', "--size", "width"))
+            self.assertFalse(_token_property_use(f'.control{{{prop}:var(--size)}}', "--size", "height"))
+        for prop in ("block-size", "min-block-size", "max-block-size"):
+            self.assertTrue(_token_property_use(f'.control{{{prop}:var(--size)}}', "--size", "height"))
+            self.assertFalse(_token_property_use(f'.control{{{prop}:var(--size)}}', "--size", "width"))
+
+    def test_token_evidence_separates_raw_and_browser_normalized_values(self):
+        _, expected = reviewer_contract(self.documents, self.manifest)
+        for raw, computed in (("#243447", "rgb(36, 52, 71)"), ("1.5rem", "24px"), ("normal", "400")):
+            actual = observations(self.manifest)
+            tokens = [row for row in actual["specimens"] if row["kind"] == "token"]
+            for token in tokens:
+                token.update(sourceValue=raw, specimenValue=raw, displayValue=raw,
+                             sourceComputedValue=computed, specimenComputedValue=computed)
+            self.assertEqual([], reviewer_evidence_findings(actual, expected))
+            tokens[0]["specimenComputedValue"] = "wrong applied value"
+            self.assertTrue(any("browser-normalized" in error for error in reviewer_evidence_findings(actual, expected)))
+
+    def test_token_evidence_requires_both_nonempty_computed_values(self):
+        _, expected = reviewer_contract(self.documents, self.manifest)
+        for invalid in (None, "", [], {}, 24):
+            actual = observations(self.manifest)
+            token = next(row for row in actual["specimens"] if row["kind"] == "token")
+            token.update(sourceComputedValue=invalid, specimenComputedValue=invalid)
+            self.assertTrue(reviewer_evidence_findings(actual, expected))
+        for key in ("sourceComputedValue", "specimenComputedValue"):
+            actual = observations(self.manifest)
+            token = next(row for row in actual["specimens"] if row["kind"] == "token")
+            del token[key]
+            self.assertTrue(reviewer_evidence_findings(actual, expected))
+
+
     def test_css_comments_and_strings_are_not_live_tokens(self):
         for css in ('/* --retired-token: #fff; */',
                     '.example::after{content:";--example: red;"}',

@@ -22,6 +22,15 @@
 [data-hifi-reviewer-shell] :focus-visible{outline:3px solid #547cbe;outline-offset:3px}
 [data-hifi-spec]{border-bottom:1px solid var(--review-line);padding:14px 0}
 [data-hifi-spec] output{display:block;font-family:monospace}
+[data-hifi-spec="token"] [data-hifi-specimen-content]{display:block;max-width:100%;min-height:48px;overflow-wrap:anywhere}
+[data-token-preview="width"] [data-hifi-specimen-content],[data-token-preview="height"] [data-hifi-specimen-content]{background:#ddd;min-height:8px}
+[data-token-preview="gap"] [data-hifi-specimen-content]{display:flex;align-items:center}
+[data-token-preview="gap"] [data-hifi-specimen-content]::before,[data-token-preview="gap"] [data-hifi-specimen-content]::after{content:"";display:block;flex:0 0 24px;height:24px;background:currentColor}
+[data-token-preview="line-height"] [data-hifi-specimen-content]::after{content:"Second line";display:block}
+[data-token-preview="border-radius"] [data-hifi-specimen-content],[data-token-preview="border-width"] [data-hifi-specimen-content],[data-token-preview="box-shadow"] [data-hifi-specimen-content]{border:1px solid #888;padding:16px;width:160px}
+[data-token-preview="transition-duration"] [data-hifi-specimen-content],[data-token-preview="transition-timing-function"] [data-hifi-specimen-content]{transition-property:transform;transition-duration:600ms}
+[data-token-preview="transition-duration"] [data-hifi-specimen-content]:is(:hover,:focus-visible),[data-token-preview="transition-timing-function"] [data-hifi-specimen-content]:is(:hover,:focus-visible){transform:translateX(8px)}
+@media(prefers-reduced-motion:reduce){[data-hifi-spec="token"] [data-hifi-specimen-content]{transition:none!important;transform:none!important}}
 </style>
 <!-- hifi-reviewer:css:end -->
 <!-- hifi-reviewer:shell:start -->
@@ -46,6 +55,32 @@
   "use strict";
   const TARGET_KEY = "hifi-reviewer:target";
   const SURFACE_KEY = "hifi-reviewer:surface";
+
+  function renderHifiTokenSpecimens(root) {
+    const properties = new Set(["color", "background-color", "background-image", "font-family", "font-size", "font-weight", "line-height", "letter-spacing", "width", "height", "gap", "padding", "border-radius", "border-width", "box-shadow", "opacity", "z-index", "transition-duration", "transition-timing-function"]);
+    for (const specimen of root.querySelectorAll('[data-hifi-spec="token"]')) {
+      const property = specimen.dataset.tokenPreview;
+      const token = specimen.dataset.property;
+      const sample = specimen.querySelector("[data-hifi-specimen-content]");
+      const output = specimen.querySelector("output");
+      if (!properties.has(property) || !/^--[\w-]+$/.test(token || "") || !sample || !output) continue;
+      // Page-specific specimen CSS supplies the source value. Do not read a
+      // sibling page's token from the entry page's :root or fetch that page.
+      const value = getComputedStyle(sample).getPropertyValue(token).trim();
+      if (!value) { output.textContent = "Source value missing"; continue; }
+      if (typeof CSS === "object" && !CSS.supports(property, value)) {
+        output.textContent = "No valid CSS specimen for this value";
+        continue;
+      }
+      if (property === "background-image" && (!/^(?:repeating-)?(?:linear|radial|conic)-gradient\(/i.test(value) || /url\s*\(|image-set\s*\(|[;{}<>\\]/i.test(value))) {
+        output.textContent = "Gradient preview unavailable for this value";
+        continue;
+      }
+      sample.style.setProperty(property, `var(${token})`);
+      if (property.startsWith("transition-")) sample.tabIndex = 0;
+      output.textContent = value;
+    }
+  }
 
   function normaliseList(value) {
     return Array.from(new Set((Array.isArray(value) ? value : []).map(item => String(item)).filter(Boolean)));
@@ -165,7 +200,7 @@
       targetsByPage,
       onChange: () => apply({focus: false, syncHash: false})
     });
-    function currentLocation() {
+  function currentLocation() {
       try { return typeof window === "object" && window.location ? window.location : location; } catch (_) { return {}; }
     }
     function apply(options) {
@@ -183,6 +218,7 @@
       }
       const next = runtime.snapshot();
       for (const panel of panels) panel.hidden = panel.dataset.hifiPanel !== next.view;
+      if (next.view === "design-tokens") renderHifiTokenSpecimens(root);
       if (canvas) canvas.hidden = next.view !== "product";
       for (const candidate of surfaces) {
         candidate.hidden = next.view !== "product" || (next.surface && candidate.dataset.uiSurface !== next.surface);
@@ -215,6 +251,7 @@
   }
 
   window.createHifiReviewerRuntime = createHifiReviewerRuntime;
+  window.renderHifiTokenSpecimens = renderHifiTokenSpecimens;
   window.connectHifiReviewer = connectHifiReviewer;
 })();
 </script>

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.49.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.50.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -100,9 +100,13 @@ Tamaño significa scope de coordinación y blast radius, no un conteo bruto de a
 
 ## Cómo encaja el sistema
 
-Los wireframes usan una escala de grises neutra y ocultan las anotaciones de revisión por defecto. Primero se componen una tarea frecuente y un estado denso o alternativo; después se amplía la matriz completa. W5 evalúa jerarquía, tipografía, espaciado, forma del contenido, densidad, adaptación por plataforma y separación de las notas mediante capturas inspeccionadas; exige un mínimo independiente de 80. Las regiones pueden representar navegación, contenido editorial, listas, formularios y tablas sin cambiar el texto del producto ni elegir su stack.
+Los wireframes usan una composición en gris neutro con anotaciones legibles visibles por defecto y una vista limpia opcional. Primero se componen una tarea frecuente y un estado denso o alternativo; después se amplía la matriz completa. W5 evalúa jerarquía, tipografía, espaciado, forma del contenido, densidad, adaptación por plataforma y separación de las notas mediante capturas inspeccionadas; exige un mínimo independiente de 80. Las regiones pueden representar navegación, contenido editorial, listas, formularios y tablas sin cambiar el texto del producto ni elegir su stack.
 
 El objetivo es un wireframe de fidelidad media: texto exacto, composición legible, datos realistas y recorridos principales probados mediante controles del producto. Los campos de solo lectura no demuestran entrada ni recuperación. La página de revisión Design System Draft muestra valores compartidos del prototipo y ejemplos del renderer; no añade rutas ni aprobaciones. Tras Visual Approval, el compilador genera `design-system-preview.html` desde el par Markdown/JSON validado. Su verificador rechaza vistas modificadas, desactualizadas o con fuentes obsoletas. El par conserva la autoridad y el wireframe aprobado no cambia. La apariencia de los componentes sigue el HiFi aprobado, sin inferirla de los nombres del registro.
+
+Los wireframes formales abren con anotaciones legibles, destinos con nombre para páginas, diálogos y resultados locales, y medidas reales del espaciado. La vista limpia es opcional. Wireframe Draft y HiFi Design Tokens muestran ejemplos visuales de cada token usado y las variantes reales de los controles. Los ejemplos HiFi vinculan la propiedad CSS que consume el token, conservan valores por página y respetan movimiento reducido. También se revisan valores compartidos sin token: enumerar variables no demuestra cobertura completa del diseño.
+
+Las observaciones conservan los valores originales y los valores normalizados por el navegador por separado, para comparar correctamente colores hexadecimales, dimensiones rem y pesos definidos por palabras clave.
 
 ```mermaid
 flowchart LR
@@ -311,7 +315,7 @@ La evidencia también cubre enlaces desconocidos, el botón Atrás desde cada vi
 
 La entrega full-stack sigue flujos completos: UI, API, permisos, persistencia y respuesta. agent-browser explora Web; los recorridos importantes quedan como pruebas locales y de CI. Login, denegación, reintentos y efectos requieren evidencia real. La publicación verifica migraciones, salud, monitoreo, costes y recuperación; entrega, disponibilidad, activación y resultados se informan por separado. SEO se aplica solo a superficies públicas pertinentes.
 
-Actualiza a 0.49.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria. En 0.49.0, revisa la vigencia del diseño antes de implementar y añade motionSpec por región en la validación estricta de schema-4; conserva las aprobaciones históricas.
+Actualiza a 0.50.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria. En 0.49.0, revisa la vigencia del diseño antes de implementar y añade motionSpec por región en la validación estricta de schema-4; conserva las aprobaciones históricas. En 0.50.0, conserva los diseños del producto y los artefactos aprobados. Los nuevos wireframes abren con anotaciones. Añade una propiedad data-token-preview admitida y su uso en la fuente para cada token HiFi; regenera solo las observaciones afectadas y conserva las aprobaciones históricas.
 
 Cada invocación aplica el [contrato de sincronización documental](skills/delivery-harness/references/document-sync-contract.md): revisa cambios en las instrucciones vigentes, la identidad del skill/runtime y los documentos del producto, sin reescribir aprobaciones ni RUN históricos. El PRD actual sigue siendo la base de la próxima mejora; las versiones reemplazadas conservan enlaces de referencia. La [mejora acotada](skills/delivery-harness/references/bounded-enhancement.md) reutiliza un alcance aceptado para reparar, reemplazar módulos dentro de ese alcance y repetir pruebas, sin pedir la misma aprobación. Al agotar el presupuesto, entrega los pendientes a la próxima ronda; terminar una ronda no equivale a PASS ni autoriza publicar.
 
@@ -599,6 +603,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.50.0** — Los wireframes abren con anotaciones, medidas del diseño y destinos legibles. Las galerías Wireframe y HiFi aplican los valores mostrados; la vista formal añade muestras seguras de tipografía, sombras y movimiento. Las propiedades de muestra HiFi obligatorias y sus nuevas observaciones son un cambio incompatible del paquete.
 
 - **0.49.0** — Traducción del diseño y reconstrucción completa conservando el PRD; lectura bilingüe, zonas de animación, navegación responsive, plantillas Web/iPhone y revisión de vigencia del diseño. Las nuevas obligaciones de revisión son un cambio incompatible del paquete.
 

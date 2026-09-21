@@ -41,6 +41,8 @@ Keep Overview, every product page, Design System, responsive targets and state c
 
 ### Design System Draft View
 
+Every displayed prototype value has an applied visual specimen, not just a number. Include the font family, control border/large sizes and wide/compact table insets actually used by the renderer. Show the action variants present in the product and read measured geometry from the active target.
+
 The reviewer navigation includes `Design System` at `#design-system`, labeled `Wireframe Draft`. It is not a product surface, route or `UI-*` entry and does not join the product copy inventory. It shows prototype type sizes/weights/line heights, neutral colors, spacing, control dimensions, padding and corners, plus type, button, field, list and table specimens. Specimen wording is reviewer-only. Actual product wording remains in its approved copy records.
 
 Use the same CSS values and renderer classes as the product canvas. Read values from those sources and computed specimens; do not hand-maintain a second value table. Keep reviewer chrome separate from the `--wf-*` prototype values. These values describe the current prototype, not approved brand tokens, a production library or native rendering proof. Record additional platform or product-specific values only when the actual renderer uses them.
@@ -85,7 +87,9 @@ Inline CSS and JavaScript implement the reviewer studio, page switching, working
 
 Use the W5 composition criteria in `ui-grading-rubric.md` while authoring, before Copy Freeze. Start with a frequent task and a dense or alternate-state case at wide and compact targets; inspect their hierarchy, spacing, content form, and reflow before expanding the full surface matrix. This is an authoring checkpoint, not another human approval. Do not alter the approved product scope or wording to make a composition easier.
 
-The default canvas is a neutral grayscale interface. Keep region IDs, section labels, priority badges, review buttons, and flow notes behind the keyboard-accessible Annotations toggle. The shell keeps approval status, page/state/target controls, Copy inventory, and runtime QA available. Turning annotations on must preserve product content and flow destinations. Do not use inherited brand color, identical card wrappers, or fixed empty region heights as a substitute for hierarchy.
+The formal wireframe opens with annotations visible over a composed neutral-grayscale interface. Hide annotations provides an optional clean view; it never substitutes for designing the page. Show each region's name, purpose, column allocation and measured width/padding, plus the canvas's measured insets and row/column gaps. Keep detailed notes outside product copy and provide a keyboard-accessible way to locate the corresponding region. Product actions, content and destinations remain unchanged when toggling notes. Do not use inherited brand color, identical card wrappers, or fixed empty region heights as a substitute for hierarchy.
+
+Describe each action in plain language with the destination page name and ID: go to a page, open a dialog over the current page, or stay here and show the recorded result. Display both incoming and outgoing connections. Local search and reset notes describe their actual local behavior. Missing destinations stay visibly unresolved; never invent a return path, state-preservation promise or backend effect. Product controls demonstrate the journey; annotation links only inspect its target.
 
 A region may declare `presentation`: `content` (default), `navigation`, `editorial`, `list`, `form`, or `table`. These are structural treatments, not product component or stack choices. Preserve the existing copy records and sources:
 

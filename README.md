@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.49.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.50.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -100,9 +100,13 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 ## How the system fits together
 
-Wireframes use a neutral grayscale canvas with review annotations off by default. Authors compose a frequent task and a dense or alternate state before expanding the full matrix. W5 checks task/type hierarchy, spacing, content form, density, platform reflow, and review separation against inspected screenshots; its independent minimum is 80. Optional region presentations cover navigation, editorial content, lists, forms, and tables without changing product copy or selecting a production stack.
+Wireframes use a composed neutral grayscale canvas with readable annotations on by default and an optional clean view. Authors compose a frequent task and a dense or alternate state before expanding the full matrix. W5 checks task/type hierarchy, spacing, content form, density, platform reflow, and review separation against inspected screenshots; its independent minimum is 80. Optional region presentations cover navigation, editorial content, lists, forms, and tables without changing product copy or selecting a production stack.
 
 The wireframe target is mid-fidelity: exact copy, readable composition, realistic data and declared primary journeys tested through product controls. Read-only fields do not prove input or recovery flows. A reviewer-only Design System Draft page shows shared prototype values and actual renderer specimens; it adds no product route or approval gate. After Visual Approval, the compiler emits `design-system-preview.html` from the validated Markdown/JSON pair. Its checker rejects stale or edited views and stale sources; the pair remains authoritative and the approved wireframe stays unchanged. Component appearance remains grounded in the approved HiFi, not inferred from registry names.
+
+Formal wireframes now open with readable annotations, named page/dialog/result destinations and measured layout spacing. The clean view remains optional. Wireframe Draft and HiFi Design Tokens show a visual sample for every used token and the actual control variants. HiFi samples bind the CSS property consuming each token, preserve page-specific values and respect reduced motion. Inventory shared raw values too: listing every existing variable does not prove complete design coverage.
+
+Token observations retain raw source/display values separately from browser-normalized source/applied values, so hex colors, rem dimensions and keyword weights compare correctly.
 
 ```mermaid
 flowchart LR
@@ -311,7 +315,7 @@ Reviewer evidence also covers unknown links, browser Back from each review view,
 
 Full-stack delivery follows complete user flows through UI, API, permissions, persistence and feedback. Use agent-browser for Web exploration and retain important journeys as local/CI tests. Actual login, denied access, retry and side effects need evidence. Deployment checks include migrations, health, monitoring, cost alerts and recovery; delivery, release, activation and product results are reported separately. SEO applies only to relevant public surfaces.
 
-Upgrade to 0.49.0 with the canonical installer after active skill-using sessions reach a safe boundary. Keep its backup and start a fresh session; installed bytes do not update a loaded worker. Review the document-sync impact report, preserve local AGENTS rules and historical evidence, and patch only affected live sources. Existing document-sync/1 and ui-hifi/2 files remain inspectable. A fresh HiFi approval adds the reviewer shell and page-bound ui-output/2 reviewer observations; regenerate only affected evidence, not old approvals. Small fixes need no new Epic/PLAN/RUN. Re-run the affected owner gates plus mandatory final verification. For 0.49.0, inspect design freshness before implementation and supply region-bound motionSpec in strict schema-4 authoring checks; preserve historical approvals.
+Upgrade to 0.50.0 with the canonical installer after active skill-using sessions reach a safe boundary. Keep its backup and start a fresh session; installed bytes do not update a loaded worker. Review the document-sync impact report, preserve local AGENTS rules and historical evidence, and patch only affected live sources. Existing document-sync/1 and ui-hifi/2 files remain inspectable. A fresh HiFi approval adds the reviewer shell and page-bound ui-output/2 reviewer observations; regenerate only affected evidence, not old approvals. Small fixes need no new Epic/PLAN/RUN. Re-run the affected owner gates plus mandatory final verification. For 0.49.0, inspect design freshness before implementation and supply region-bound motionSpec in strict schema-4 authoring checks; preserve historical approvals. For 0.50.0, retain existing product layouts and approved artifacts. New wireframes open with annotations. Add a supported data-token-preview property and a matching source consumer for each HiFi token, then regenerate affected reviewer observations; preserve historical approvals.
 
 Every skill invocation starts with the shared [document-sync contract](skills/delivery-harness/references/document-sync-contract.md): review changed live instructions, skill/runtime identity and product documents, without rewriting historical approvals or runs. The current PRD stays the next enhancement's baseline; superseded PRDs remain linked references. [Bounded enhancement](skills/delivery-harness/references/bounded-enhancement.md) reuses one accepted scope for repairs, same-scope module replacement and retesting instead of repeated approval prompts. Stop at the repair budget and hand unresolved requirements to the next round; ending a round is not a delivery PASS or permission to publish.
 
@@ -600,6 +604,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.50.0** — Annotated wireframes are the default, with measured layout notes and readable destinations. Wireframe and HiFi token galleries apply their displayed values; formal previews include safe typography, shadow and motion samples. Required HiFi preview properties and fresh observations make this a breaking skill-bundle change.
 
 - **0.49.0** — Design translation and explicit full rebuilds with retained PRDs; bilingual reading, motion boundaries, responsive navigation, Web/iPhone recipes and source-aware design freshness checks. New review obligations make this a breaking skill-bundle change.
 

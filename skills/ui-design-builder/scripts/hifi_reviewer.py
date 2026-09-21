@@ -8,6 +8,12 @@ from html.parser import HTMLParser
 from check_wireframe_html import _decode_css_escapes, _strip_css_comments
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+TOKEN_PREVIEW_PROPERTIES = {
+    "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
+    "line-height", "letter-spacing", "width", "height", "gap", "padding",
+    "border-radius", "border-width", "box-shadow", "opacity", "z-index",
+    "transition-duration", "transition-timing-function",
+}
 
 
 class ReviewerParser(HTMLParser):
@@ -264,6 +270,33 @@ def _specimen_element(spec, nodes):
     return candidates
 
 
+def _token_property_use(css, token, prop):
+    """Follow declared aliases without treating an unused alias cycle as use."""
+    aliases = {token}
+    definitions = re.findall(r"(?:^|[;{])\s*(--[\w-]+)\s*:([^;{}]*)", css)
+    while True:
+        parents = {name for name, value in definitions
+                   if aliases.intersection(re.findall(r"var\(\s*(--[\w-]+)", value))}
+        if parents <= aliases:
+            break
+        aliases.update(parents)
+    properties = {
+        "width": ("width", "min-width", "max-width", "inline-size", "min-inline-size", "max-inline-size"),
+        "height": ("height", "min-height", "max-height", "block-size", "min-block-size", "max-block-size"),
+        "gap": ("gap", "row-gap", "column-gap"),
+        "border-width": ("border-width", "border"),
+        "background-color": ("background-color", "background"),
+        "background-image": ("background-image", "background"),
+        "transition-duration": ("transition-duration", "transition"),
+        "transition-timing-function": ("transition-timing-function", "transition"),
+    }.get(prop, (prop,))
+    for property_name in properties:
+        values = re.findall(rf"(?:^|[;{{])\s*{re.escape(property_name)}\s*:([^;{{}}]*)", css)
+        if any(aliases.intersection(re.findall(r"var\(\s*(--[\w-]+)", value)) for value in values):
+            return True
+    return False
+
+
 def _source_binding_findings(spec, nodes, css):
     selector = spec["source"]
     findings = []
@@ -272,6 +305,11 @@ def _source_binding_findings(spec, nodes, css):
     if not re.search(rf"(?:^|[;{{])\s*{re.escape(spec['property'])}\s*:", css, re.I):
         findings.append("HiFi specimen property must be declared in the actual source-page CSS")
     if spec["kind"] == "token":
+        prop = spec.get("previewProperty", "")
+        if prop not in TOKEN_PREVIEW_PROPERTIES:
+            findings.append("HiFi token specimens require a supported data-token-preview CSS property")
+        elif not _token_property_use(css, spec["property"], prop):
+            findings.append("HiFi token preview must use a property that consumes that token in the source-page CSS")
         return findings if selector == ":root" else findings + ["HiFi token specimens must source CSS custom properties from :root"]
     candidates = [attrs for tag, attrs, parents in nodes if _simple_selector_matches(tag, attrs, selector) and _in_product(attrs, parents)]
     if not candidates:
@@ -396,6 +434,8 @@ def _reviewer_contract(documents, manifest):
                 spec["sharedGroup"] = attrs.get("data-shared-group") or None
                 spec["element"] = attrs.get("data-specimen-element", "")
                 spec["marker"] = ""
+                if spec["kind"] == "token":
+                    spec["previewProperty"] = attrs.get("data-token-preview", "")
                 spec["_wrapper"] = id(attrs)
                 if spec["sourcePage"] not in pages:
                     errors.append("HiFi specimen source page must belong to the bundle")
@@ -591,13 +631,21 @@ def reviewer_evidence_findings(actual, expected):
         return errors + ["HiFi computed specimen coverage is incomplete"]
     groups = {}
     for row, spec in zip(rows, expected_specimens):
-        if not isinstance(row, dict) or not isinstance(spec, dict) or set(row) != set(spec) | {"sourceValue", "specimenValue", "displayValue"} or any(row.get(key) != value for key, value in spec.items()):
+        value_keys = {"sourceValue", "specimenValue", "displayValue"}
+        if isinstance(spec, dict) and spec.get("kind") == "token":
+            value_keys |= {"sourceComputedValue", "specimenComputedValue"}
+        if not isinstance(row, dict) or not isinstance(spec, dict) or set(row) != set(spec) | value_keys or any(row.get(key) != value for key, value in spec.items()):
             errors.append("HiFi computed specimen identity differs from its DOM source binding")
             continue
         value = row.get("sourceValue")
         if not isinstance(value, str) or not value.strip() or value != row.get("specimenValue") or value != row.get("displayValue"):
             errors.append("HiFi displayed values and computed specimens must equal the actual style source")
             continue
+        if spec.get("kind") == "token":
+            computed = row.get("sourceComputedValue")
+            if not isinstance(computed, str) or not computed.strip() or computed != row.get("specimenComputedValue"):
+                errors.append("HiFi applied token values must equal the browser-normalized source property")
+                continue
         group = row.get("sharedGroup")
         if group is not None and (not isinstance(group, str) or not group.strip()):
             errors.append("HiFi shared specimen group must be null or nonempty text")
@@ -605,7 +653,8 @@ def reviewer_evidence_findings(actual, expected):
         if group:
             groups.setdefault(group, []).append(row)
     for group in groups.values():
-        values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue")) for row in group}
+        values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue"),
+                   row.get("sourceComputedValue"), row.get("specimenComputedValue")) for row in group}
         if len(values) != 1:
             errors.append("HiFi shared specimen group values must be equal across every member page")
     return errors

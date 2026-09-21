@@ -74,6 +74,8 @@ def shell(manifest, page="index.html", component_types=("button", "input", "sele
                 "select": '<select class="product-select" data-hifi-specimen-content="Choice field specimen"><option value="settings" selected>Settings</option></select>',
                 "section": '<section class="product-feedback" data-hifi-specimen-content="Feedback specimen">Saved locally.</section>',
             }[element]
+            if kind == "token":
+                attrs += ' data-token-preview="color"'
             specs += f'<article {attrs}><h3>{escape(source_page)} — {escape(name)}</h3>{sample}<output></output><p>Source {source_page} {source} {prop}</p></article>'
     return sidebar + overview + specs + '</section>'
 
@@ -132,6 +134,9 @@ def observations(manifest, component_types=("button", "input", "select", "a")):
     observed = dict(expected)
     observed["specimens"] = [dict(row, sourceValue="#243447", specimenValue="#243447", displayValue="#243447")
                              for row in expected["specimens"]]
+    for row in observed["specimens"]:
+        if row["kind"] == "token":
+            row.update(sourceComputedValue="rgb(36, 52, 71)", specimenComputedValue="rgb(36, 52, 71)")
     observed["retention"] = []
     for row in expected["retention"]:
         input_value = row["inputValueBefore"] if isinstance(row["inputValueBefore"], str) and row["inputValueBefore"].strip() else (
