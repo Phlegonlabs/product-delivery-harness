@@ -8,6 +8,12 @@ from html.parser import HTMLParser
 from check_wireframe_html import _decode_css_escapes, _strip_css_comments
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+TOKEN_PREVIEW_PROPERTIES = {
+    "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
+    "line-height", "letter-spacing", "width", "height", "gap", "padding",
+    "border-radius", "border-width", "box-shadow", "opacity", "z-index",
+    "transition-duration", "transition-timing-function",
+}
 
 
 class ReviewerParser(HTMLParser):
@@ -264,6 +270,33 @@ def _specimen_element(spec, nodes):
     return candidates
 
 
+def _token_property_use(css, token, prop):
+    """Follow declared aliases without treating an unused alias cycle as use."""
+    aliases = {token}
+    definitions = re.findall(r"(?:^|[;{])\s*(--[\w-]+)\s*:([^;{}]*)", css)
+    while True:
+        parents = {name for name, value in definitions
+                   if aliases.intersection(re.findall(r"var\(\s*(--[\w-]+)", value))}
+        if parents <= aliases:
+            break
+        aliases.update(parents)
+    properties = {
+        "width": ("width", "min-width", "max-width", "inline-size", "max-inline-size"),
+        "height": ("height", "min-height", "max-height", "block-size", "min-block-size"),
+        "gap": ("gap", "row-gap", "column-gap"),
+        "border-width": ("border-width", "border"),
+        "background-color": ("background-color", "background"),
+        "background-image": ("background-image", "background"),
+        "transition-duration": ("transition-duration", "transition"),
+        "transition-timing-function": ("transition-timing-function", "transition"),
+    }.get(prop, (prop,))
+    for property_name in properties:
+        values = re.findall(rf"(?:^|[;{{])\s*{re.escape(property_name)}\s*:([^;{{}}]*)", css)
+        if any(aliases.intersection(re.findall(r"var\(\s*(--[\w-]+)", value)) for value in values):
+            return True
+    return False
+
+
 def _source_binding_findings(spec, nodes, css):
     selector = spec["source"]
     findings = []
@@ -272,6 +305,11 @@ def _source_binding_findings(spec, nodes, css):
     if not re.search(rf"(?:^|[;{{])\s*{re.escape(spec['property'])}\s*:", css, re.I):
         findings.append("HiFi specimen property must be declared in the actual source-page CSS")
     if spec["kind"] == "token":
+        prop = spec.get("previewProperty", "")
+        if prop not in TOKEN_PREVIEW_PROPERTIES:
+            findings.append("HiFi token specimens require a supported data-token-preview CSS property")
+        elif not _token_property_use(css, spec["property"], prop):
+            findings.append("HiFi token preview must use a property that consumes that token in the source-page CSS")
         return findings if selector == ":root" else findings + ["HiFi token specimens must source CSS custom properties from :root"]
     candidates = [attrs for tag, attrs, parents in nodes if _simple_selector_matches(tag, attrs, selector) and _in_product(attrs, parents)]
     if not candidates:
@@ -396,6 +434,8 @@ def _reviewer_contract(documents, manifest):
                 spec["sharedGroup"] = attrs.get("data-shared-group") or None
                 spec["element"] = attrs.get("data-specimen-element", "")
                 spec["marker"] = ""
+                if spec["kind"] == "token":
+                    spec["previewProperty"] = attrs.get("data-token-preview", "")
                 spec["_wrapper"] = id(attrs)
                 if spec["sourcePage"] not in pages:
                     errors.append("HiFi specimen source page must belong to the bundle")

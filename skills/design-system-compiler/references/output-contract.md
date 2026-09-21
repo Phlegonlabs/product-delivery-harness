@@ -53,6 +53,8 @@ If product behavior or stack is missing, return a bounded Product Definition upd
 
 ### Derived HTML View
 
+The safe scalar preview includes typography, color, spacing, corners, shadows and user-triggered duration/easing samples. Motion respects reduced motion. Unsupported expressions stay explicitly labeled as text-only; they do not count as a visually inspected sample. The HiFi remains the source for full component styling and state behavior.
+
 For new or revised required pairs, provide `docs/design/design-system-preview.html` alongside the pair. It displays token names and values, safe scalar specimens, declared primitive variants, component content order, states, responsive/platform rules and source identities. The registry does not encode complete component styling: use the approved HiFi for actual component appearance and interactions, and do not fabricate button variants from token names. Native values remain platform contracts, not proof of HTML/native parity.
 
 From the target repository root, run:

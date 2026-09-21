@@ -25,6 +25,10 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}code{font-size:13
 .sample{display:block;max-width:100%;overflow-wrap:anywhere}.swatch{height:48px;border:1px solid #777}
 .measure{background:#ddd;height:16px}.shape{width:72px;height:48px;border:1px solid #555}
 .muted{color:#555}a{color:inherit}a:focus-visible{outline:2px solid #222;outline-offset:4px}
+.motion{display:block;width:48px;height:24px;background:#555;transition:transform 600ms linear}
+.motion-track{display:block;padding:12px;overflow:hidden;border:1px solid #aaa}
+.motion-track:hover .motion,.motion-track:focus .motion{transform:translateX(80px)}
+@media(prefers-reduced-motion:reduce){.motion{transition:none!important;transform:none!important}}
 @media(max-width:600px){main{padding:24px 16px}h1{font-size:28px}th,td{padding:8px 4px}}
 """
 
@@ -44,6 +48,20 @@ def specimen(group: str, value: object) -> str:
         return f'<span class="sample {css}" style="{prop}:{value}">{label}</span>'
     if group == "lineHeight" and re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", value):
         return f'<span class="sample" style="line-height:{value}">First line<br>Second line</span>'
+    if group == "fontWeight" and re.fullmatch(r"(?:[1-9][0-9]{0,2}|1000|normal|bold)", value):
+        return f'<span class="sample" style="font-weight:{value}">Heading 字重</span>'
+    if group == "fontFamily" and re.fullmatch(r"[\w ,\-'\"]+", value):
+        return f'<span class="sample" style="font-family:{escape(value, quote=True)}">The next step 下一步</span>'
+    length = r"(?:-?[0-9]+(?:\.[0-9]+)?(?:px|rem|em)|0)"
+    color = r"(?:#[0-9a-fA-F]{3,8}|rgba?\([0-9.,% /]+\))"
+    shadow = rf"(?:inset\s+)?{length}(?:\s+{length}){{1,3}}\s+{color}"
+    if group == "shadow" and (value == "none" or re.fullmatch(rf"{shadow}(?:\s*,\s*{shadow})*", value)):
+        return f'<span class="sample shape" style="box-shadow:{value}" aria-label="Shadow specimen"></span>'
+    if group == "duration" and re.fullmatch(r"[0-9]+(?:\.[0-9]+)?(?:ms|s)", value):
+        return f'<span class="motion-track" tabindex="0" aria-label="Hover or focus to preview duration"><span class="motion" style="transition-duration:{value}"></span></span>'
+    easing = r"(?:linear|ease|ease-in|ease-out|ease-in-out|step-start|step-end|cubic-bezier\([0-9., -]+\)|steps\([1-9][0-9]*(?:,\s*(?:start|end|jump-start|jump-end|jump-none|jump-both))?\))"
+    if group == "easing" and re.fullmatch(easing, value):
+        return f'<span class="motion-track" tabindex="0" aria-label="Hover or focus to preview easing"><span class="motion" style="transition-timing-function:{value}"></span></span>'
     return "Recorded value; no browser specimen"
 
 

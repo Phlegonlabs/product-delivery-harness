@@ -396,6 +396,24 @@ class HiFiReviewerTests(unittest.TestCase):
                 errors, _ = reviewer_contract(docs, self.manifest)
                 self.assertTrue(any(message in error for error in errors), errors)
 
+    def test_token_preview_requires_supported_property_and_real_source_use(self):
+        for replacement in ('', ' data-token-preview="background-image"', ' data-token-preview="width"'):
+            with self.subTest(replacement=replacement):
+                docs = dict(self.documents)
+                docs["index.html"] = docs["index.html"].replace(' data-token-preview="color"', replacement)
+                errors, _ = reviewer_contract(docs, self.manifest)
+                self.assertTrue(any("token preview" in error or "data-token-preview" in error for error in errors), errors)
+
+    def test_token_preview_follows_aliases_and_layout_dimensions(self):
+        from hifi_reviewer import _token_property_use
+        css = ':root{--base:#123456;--semantic:var(--base);--text:var(--semantic)}.label{color:var(--text)}'
+        self.assertTrue(_token_property_use(css, "--base", "color"))
+        self.assertFalse(_token_property_use(css, "--base", "width"))
+        self.assertFalse(_token_property_use(':root{--a:var(--b);--b:var(--a)}', "--a", "color"))
+        self.assertFalse(_token_property_use('.label{color:var(--ink-extra)}', "--ink", "color"))
+        self.assertTrue(_token_property_use('.control{min-height:var(--control)}', "--control", "height"))
+
+
     def test_css_comments_and_strings_are_not_live_tokens(self):
         for css in ('/* --retired-token: #fff; */',
                     '.example::after{content:";--example: red;"}',
