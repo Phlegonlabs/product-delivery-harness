@@ -1035,6 +1035,7 @@ def _validate_media_intent(
     problems: list[str],
     *,
     schema: str,
+    require_motion_spec: bool = False,
 ) -> None:
     if not isinstance(value, dict):
         _add(problems, path, "must be an object when present")
@@ -1064,6 +1065,8 @@ def _validate_media_intent(
     for key in required:
         if not _nonempty(value.get(key)):
             _add(problems, f"{path}.{key}", "must be a non-empty string")
+    if require_motion_spec and schema == WIREFRAME_SCHEMA and treatment in ("motion", "image + motion") and "motionSpec" not in value:
+        _add(problems, f"{path}.motionSpec", "is required for strict schema-4 motion-region validation")
     if "motionSpec" in value:
         motion = value["motionSpec"]
         fields = {"scope", "behavior", "space", "compact", "playback", "cost"}
@@ -1569,7 +1572,7 @@ def _validate_responsive_data(
     return target_keys
 
 
-def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
+def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool = False) -> list[str]:
     problems: list[str] = []
     if not isinstance(data, dict):
         return ["wireframe-data: must be a JSON object"]
@@ -1804,6 +1807,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     f"{region_path}.mediaIntent",
                     problems,
                     schema=schema,
+                    require_motion_spec=require_motion_spec,
                 )
 
         never_drop = screen.get("neverDrop")
@@ -2189,7 +2193,8 @@ def validate(
     except json.JSONDecodeError as exc:
         return [f"{html_path}: wireframe-data is invalid JSON: {exc}"]
 
-    problems.extend(_validate_data(data, require_filled=require_filled))
+    problems.extend(_validate_data(data, require_filled=require_filled,
+                                   require_motion_spec=require_filled or require_approved))
     if not isinstance(data, dict):
         return problems
     schema = data.get("schema")

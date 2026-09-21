@@ -52,6 +52,22 @@ class ReadingAndMotionTests(unittest.TestCase):
         del intent["motionSpec"]["compact"]
         self.assertIn("must contain scope", "\n".join(validate_html(render_html(data))))
 
+    def test_strict_motion_regions_require_boundary_annotations(self):
+        for treatment in ("motion", "image + motion"):
+            for flags in ({"require_filled": True}, {"require_approved": True}):
+                with self.subTest(treatment=treatment, flags=flags):
+                    data = wireframe_data()
+                    intent = dict(treatment=treatment, purpose="Explain progress", trigger="click",
+                                  draftPrompt="Show progress", source="Synthetic intent",
+                                  reducedMotionFallback="Static progress", generationRoute="CSS-WAAPI",
+                                  generationStatus="deferred")
+                    data["screens"][0]["regions"][0]["mediaIntent"] = intent
+                    self.assertEqual([], validate_html(render_html(data)))
+                    self.assertIn("required for strict schema-4", "\n".join(validate_html(render_html(data), **flags)))
+                    intent["motionSpec"] = {key: "Recorded local intent" for key in
+                                            ("scope", "behavior", "space", "compact", "playback", "cost")}
+                    self.assertEqual([], validate_html(render_html(data), **flags))
+
     def test_disclosure_requires_navigation_and_approved_target_label(self):
         data = wireframe_data()
         region = data["screens"][0]["regions"][0]
