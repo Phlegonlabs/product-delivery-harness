@@ -2,6 +2,10 @@
 
 Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval and human Wireframe Approval. It turns the approved structural wireframe into a human-approved visual target. `frontend-design` is the single design author. `impeccable` and rubric graders provide review evidence; they do not publish or approve the target.
 
+## Rebuild And Reading Scope
+
+Apply `design-translation.md` and `design-freshness.md`. An explicit full rebuild retains product/stack constraints but uses the newly approved wireframe and fresh direction instead of prior design authority. Refine provisional type, optical spacing and fine proportions without changing fixed hierarchy or behavior. Inspect repeated controls across pages, real CJK/Latin copy, stacked bilingual reading where required, text enlargement and dense/alternate states. Use source-bound before/after findings; numerical grades alone prove no improvement. New iOS scope defaults to iPhone; iPad remains conditional on Product Definition, never silently dropped from an existing PRD.
+
 ## Frozen Inputs
 
 For enhancements, apply `enhancement-recommendations.md#incremental-ui-scope` first. Reuse the approved direction and intake unless the accepted delta changes them. The complete matrix remains covered, but only added or changed screens and necessary entry/return controls are authored again. Keep unaffected product DOM, copy, layout, style, IDs and behavior; reviewer-shell migration alone is not a product redesign. Direction studies below apply to a new or changed direction, not automatically to every added feature.

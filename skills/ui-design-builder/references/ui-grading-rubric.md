@@ -59,6 +59,10 @@ Evaluate all seven criteria against the approved task, content, and platform:
 
 Record each criterion's observation, page-target-state, and inspected screenshot path/hash in the existing grading detail. Show the representative cases with annotations off and check annotation access separately. Cite the relevant PRD/intake/reference decision for each weakness. W5 below 80 blocks readiness even when the overall score passes; merely removing color or passing geometry checks does not establish composition quality. Do not grade a preferred brand style or freeze final fonts, colors, or tokens here.
 
+## Reading And Cross-Screen Cases
+
+Within W3-W5 and H4/H8/H9, inspect long real copy, bilingual pairs and language-specific wrapping where required. Check text enlargement, dates/numbers, RTL only when in scope, and repeated component appearance/meaning across pages. Verify motion boundaries and fallback separately from produced motion. iPhone review targets are smaller/larger phone cases, not an automatic iPad obligation. Preserve complete PRD-required matrices; representative language stress checks do not waive them. Screenshots identify exact spacing/type/reading failures; an unchanged score cannot hide one.
+
 ## Design-Reference HTML Scope
 
 - `H1 Product, copy, and direction conformance`: every included surface follows the frozen PRD, `ui-design.md`, approved copy-frozen wireframe, and selected `VD-*` direction. Login, registration, recovery, and authentication-error previews are excluded only when the UI design contract records them as `n/a` for this visual pass. Any design-stage wording change is a block until its copy delta is approved through Product Definition and renewed Copy Freeze.

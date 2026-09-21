@@ -521,6 +521,21 @@
       cursor: pointer;
     }
 
+    .navigation-toggle { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
+    .navigation-toggle:focus-visible { outline: 2px solid var(--wf-ink); outline-offset: 3px; }
+    .navigation-disclosure[open] > .product-copy { margin-block-start: 12px; }
+    .copy-language { display: block; line-height: 1.55; overflow-wrap: anywhere; }
+    .copy-language + .copy-language { margin-block-start: 0.25em; }
+    .motion-annotation { display: none; padding: 12px; border: 1px dashed var(--line-strong); font-size: 13px; }
+    .motion-annotation p { margin: 4px 0; }
+    body[data-annotations="true"] .motion-annotation { display: block; }
+    body[data-annotations="true"] .region[data-motion-region="true"] { outline: 2px dashed var(--wf-ink); }
+    .action-button[data-emphasis="tertiary"] { border-color: transparent; background: transparent; text-decoration: underline; }
+    .action-button[data-emphasis="destructive"] { border: 2px dashed currentColor; font-weight: 700; }
+    .action-button[data-size="large"] { min-height: 52px; padding: 12px 20px; }
+    .action-button[data-full-width="true"] { flex-basis: 100%; width: 100%; }
+    .action-button:focus-visible { outline: 2px solid var(--wf-ink); outline-offset: 3px; }
+    .action-button:active { box-shadow: inset 0 0 0 2px currentColor; }
     .action-button:hover { background: var(--wf-hover); }
     .action-button[data-emphasis="primary"] { background: var(--wf-ink); color: var(--wf-surface); }
     .action-button[data-emphasis="primary"]:hover { background: var(--wf-primary-hover); }
@@ -1374,6 +1389,21 @@
         node.dataset.copyRole = role;
         node.dataset.copyKind = value?.kind || (value?.contract ? "dynamic" : "static");
         node.dataset.copyCategory = category;
+        if (value?.locale) node.setAttribute("lang", value.locale);
+        if (value?.direction) node.setAttribute("dir", value.direction);
+        if (value?.parallel?.length) {
+          node.textContent = "";
+          const primary = element("span", "copy-language", copyText(value));
+          if (value.locale) primary.setAttribute("lang", value.locale);
+          primary.setAttribute("dir", value.direction || "auto");
+          node.append(primary);
+          value.parallel.forEach((paired) => {
+            const line = element("span", "copy-language", copyText(paired));
+            line.setAttribute("lang", paired.locale);
+            line.setAttribute("dir", paired.direction || "auto");
+            node.append(line);
+          });
+        }
         return node;
       };
 
@@ -1700,7 +1730,7 @@
         } else if (flow.presentation === "overlay") {
           openFlowDialog(flow);
         } else if (flow.presentation === "feedback" && flow.feedback) {
-          feedback.textContent = copyText(flow.feedback);
+          feedback.replaceChildren(renderCopyItem(flow.feedback));
         }
       };
 
@@ -1715,7 +1745,9 @@
           const button = element("button", "action-button", label);
           button.type = "button";
           button.dataset.flowTrigger = label;
-          button.dataset.emphasis = label === primaryAction ? "primary" : "secondary";
+          button.dataset.emphasis = label === primaryAction ? "primary" : (action.variant || "secondary");
+          button.dataset.size = action.size || "regular";
+          button.dataset.fullWidth = String(action.fullWidth === true);
           button.addEventListener("click", (event) => {
             event.stopPropagation();
             if (localSearch && label === localSearch.submitAction) {
@@ -1815,7 +1847,45 @@
           }
           productCopy.append(stateNote);
         }
-        node.append(productCopy);
+        const selectedTarget = Object.entries(screen?.responsiveLayouts || {}).find(([, candidate]) => candidate === layout)?.[0];
+        if (region.disclosure?.targets?.includes(selectedTarget)) {
+          const details = element("details", "navigation-disclosure");
+          state.navigationOpen ||= Object.create(null);
+          const disclosureKey = `${screenId}|${region.id}|${selectedTarget}`;
+          details.open = state.navigationOpen[disclosureKey] === true;
+          const summary = element("summary", "navigation-toggle");
+          const icon = element("span", "", "☰");
+          icon.setAttribute("aria-hidden", "true");
+          summary.append(icon, renderCopyItem(region.disclosure.label));
+          const close = () => { details.open = false; summary.focus(); };
+          details.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && details.open) { event.preventDefault(); close(); }
+          });
+          details.addEventListener("toggle", () => {
+            if (!details.isConnected) return;
+            state.navigationOpen[disclosureKey] = details.open;
+            const canvas = node.closest(".wireframe");
+            const shell = node.closest(".canvas-shell");
+            const panel = content.querySelector("[data-layout-qa]");
+            if (allowReview && canvas && shell && panel && screen === currentScreen()) {
+              runLayoutQa(canvas, shell, panel, screen);
+            }
+          });
+          details.append(summary, productCopy);
+          node.append(details);
+        } else node.append(productCopy);
+        if (region.mediaIntent?.motionSpec && !treatment?.copy?.length) {
+          node.dataset.motionRegion = "true";
+          const note = element("aside", "motion-annotation");
+          note.setAttribute("aria-label", "Animation intent, not produced motion");
+          note.append(element("strong", "", `Animation region — deferred: ${region.mediaIntent.motionSpec.scope}`));
+          note.append(element("p", "", `Trigger: ${region.mediaIntent.trigger}`));
+          Object.entries(region.mediaIntent.motionSpec).forEach(([key, value]) => {
+            if (key !== "scope") note.append(element("p", "", `${key}: ${value}`));
+          });
+          note.append(element("p", "", `Reduced motion: ${region.mediaIntent.reducedMotionFallback}`));
+          node.append(note);
+        }
         return node;
       };
 
@@ -1925,6 +1995,7 @@
         const records = [];
         data.screens.forEach((screen) => {
           screen.regions.forEach((region) => {
+            if (region.disclosure) records.push({scope: `${screen.id} · ${region.id} · navigation toggle`, value: region.disclosure.label});
             region.elements.forEach((value) => {
               records.push({scope: `${screen.id} · ${region.id}`, value});
             });
@@ -1970,7 +2041,9 @@
           .forEach((flow) => {
             records.push({scope: `${flow.from} · ${flow.trigger} · feedback`, value: flow.feedback});
           });
-        return records;
+        return records.flatMap((record) => [record, ...(record.value?.parallel || []).map((value) => ({
+          scope: `${record.scope} · paired ${value.locale}`, value
+        }))]);
       };
 
       const renderCopyInventory = () => {
@@ -2080,6 +2153,8 @@
           canvas.querySelectorAll(".copy-item, .action-button, .field-input").forEach((item) => {
             const region = item.closest("[data-region]");
             if (!region) return;
+            const closedDisclosure = item.closest("details:not([open])");
+            if (closedDisclosure && !closedDisclosure.querySelector("summary")?.contains(item)) return;
             const itemBounds = item.getBoundingClientRect();
             const regionBounds = region.getBoundingClientRect();
             if (

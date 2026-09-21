@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.48.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.49.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -33,6 +33,17 @@
 | 需要 SEO 或自然流量分析的 production 公開網站 | `seo-growth-review` | 唯讀技術與量測 review、按證據排序的關鍵詞／頁面機會，以及已路由的後續動作 |
 
 七個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
+
+### 設計轉譯與可重用範本
+
+完整 wireframe 前，先把已批准 PRD 轉譯為任務層級、區塊比例、responsive、閱讀順序與動畫範圍，記錄在既有 UI handoff，不新增批准關卡。先檢查主要任務與密集／異常情境，再沿用 Wireframe／Visual Approval。HiFi 保留產品行為和資訊層級，細化暫定字體、光學間距與比例；跨頁比較元件，使用真實長文案與中英文檢查，不只給分數。
+
+局部更新保留未指定範圍。明確要求「保留 PRD、整套重做」時，依實際載入規格重新構圖與選擇方向，保留產品、技術、文案約束及已知使用問題；舊設計與批准僅作歷史，替換、歸檔、安裝仍依各自授權。新 iOS 範圍預設 iPhone，以較小／較大手機和 Dynamic Type 檢查；iPad 按需加入，既有 PRD 要求不能直接刪除。HTML 不證明原生行為。
+
+共用 HTML 模板支援有界尺寸設定、帶語言／方向的雙語成對文案、按鈕變體及可切換動畫區域註解。[composition-patterns.json](skills/ui-design-builder/assets/templates/composition-patterns.json) 提供四類 Web（閱讀、產品敘事、搜尋瀏覽、工作台）及三類 iPhone（瀏覽詳情、分頁、輸入確認）範本。依 PRD 選擇、調整或放棄，不新增產品文案或路由。單語產品不增加多語矩陣；多語產品以代表畫面及高風險元件補充檢查，不縮減 PRD 明定範圍。雙語分塊並允許自然換行。
+
+Skills 更新後及實作前，執行[設計有效性檢查](skills/ui-design-builder/references/design-freshness.md)，比對產物與上游雜湊、skill 來源及下游依賴。未知身分保持未知；skill 變更需要語意判讀，不等於全部重畫。`check_design_freshness.py` 僅唯讀檢查，不給設計批准；清單包含所有 HiFi 子頁，完整驗證器仍必須執行。確認尚未實作時，先補齊受影響設計再寫程式。
+
 
 ## 核心保證
 
@@ -589,6 +600,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.49.0** — 新增設計銜接與保留 PRD 的完整重做流程、雙語閱讀、動畫區間、響應式導覽、Web／iPhone 模板與設計過期檢查。新增審閱義務，屬破壞性 skill-bundle 變更。
 
 - **0.48.0** — Enhancement 保留未受影響的 Wireframe／HiFi 畫面並沿用已批准方向。Epic 變更紀錄區分新成果與小修。審閱介面加入準確寬度的 responsive 畫布、可操作搜尋及綁定來源的元件樣式。新的 HiFi 證據驗證實際 variant、選取值保留與錯誤資料。破壞性 skill-bundle 變更。
 

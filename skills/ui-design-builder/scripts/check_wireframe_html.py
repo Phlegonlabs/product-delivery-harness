@@ -888,6 +888,35 @@ def _validate_copy_item(
         _add(problems, path, "must be an object in wireframes/4")
         return
 
+    for key in ("locale",):
+        if key in value and (not isinstance(value[key], str) or not LOCALE_RE.fullmatch(value[key])):
+            _add(problems, f"{path}.{key}", "must be a BCP 47-style language tag")
+    if "direction" in value and value["direction"] not in ("ltr", "rtl", "auto"):
+        _add(problems, f"{path}.direction", "must be ltr, rtl or auto")
+    if "parallel" in value:
+        if str(value.get("role", "")).strip().lower() in ("field value", "select option"):
+            _add(problems, f"{path}.parallel", "native input values and select options cannot display stacked language pairs")
+        parallel = value["parallel"]
+        if not isinstance(parallel, list) or not 1 <= len(parallel) <= 3:
+            _add(problems, f"{path}.parallel", "must contain 1-3 paired language copies")
+        else:
+            locales = [value.get("locale")]
+            if not isinstance(value.get("locale"), str) or not LOCALE_RE.fullmatch(value["locale"]):
+                _add(problems, f"{path}.locale", "paired copy needs an explicit primary locale")
+            for index, paired in enumerate(parallel):
+                paired_path = f"{path}.parallel[{index}]"
+                if not isinstance(paired, dict) or "parallel" in paired:
+                    _add(problems, paired_path, "must be a copy object without nested parallel copies")
+                    continue
+                locale = paired.get("locale")
+                if not isinstance(locale, str) or not LOCALE_RE.fullmatch(locale):
+                    _add(problems, paired_path, "paired copy needs a valid locale")
+                elif locale.casefold() in [v.casefold() for v in locales if isinstance(v, str)]:
+                    _add(problems, paired_path, "paired locales must be distinct")
+                locales.append(locale)
+                if paired.get("role") != value.get("role") or paired.get("kind") != value.get("kind"):
+                    _add(problems, paired_path, "paired copy must preserve role and kind")
+                _validate_copy_item(paired, paired_path, problems, require_approved=require_approved)
     kind = value.get("kind")
     if not isinstance(kind, str) or kind not in VALID_COPY_KINDS:
         _add(problems, f"{path}.kind", f"must be one of {sorted(VALID_COPY_KINDS)}")
@@ -950,6 +979,12 @@ def _validate_action(
         )
     elif require_approved and status != "approved":
         _add(problems, f"{path}.status", "must be 'approved' when copy is frozen")
+    if "variant" in value and value["variant"] not in ("secondary", "tertiary", "destructive"):
+        _add(problems, f"{path}.variant", "must be secondary, tertiary or destructive; primaryAction owns primary emphasis")
+    if "size" in value and value["size"] not in ("regular", "large"):
+        _add(problems, f"{path}.size", "must be regular or large")
+    if "fullWidth" in value and not isinstance(value["fullWidth"], bool):
+        _add(problems, f"{path}.fullWidth", "must be boolean")
     label = value.get("label")
     return label if _nonempty(label) else None
 
@@ -1010,7 +1045,7 @@ def _validate_media_intent(
         if schema == WIREFRAME_SCHEMA
         else LEGACY_MEDIA_TREATMENTS
     )
-    if treatment not in valid_treatments:
+    if not isinstance(treatment, str) or treatment not in valid_treatments:
         _add(
             problems,
             f"{path}.treatment",
@@ -1029,6 +1064,17 @@ def _validate_media_intent(
     for key in required:
         if not _nonempty(value.get(key)):
             _add(problems, f"{path}.{key}", "must be a non-empty string")
+    if "motionSpec" in value:
+        motion = value["motionSpec"]
+        fields = {"scope", "behavior", "space", "compact", "playback", "cost"}
+        if treatment not in ("motion", "image + motion"):
+            _add(problems, f"{path}.motionSpec", "requires a motion treatment")
+        if not isinstance(motion, dict) or set(motion) != fields:
+            _add(problems, f"{path}.motionSpec", "must contain scope, behavior, space, compact, playback and cost")
+        else:
+            for key in fields:
+                if not _nonempty(motion[key]):
+                    _add(problems, f"{path}.motionSpec.{key}", "must be a non-empty description")
     if value.get("generationStatus") != "deferred":
         _add(problems, f"{path}.generationStatus", "must be 'deferred'")
 
@@ -1614,6 +1660,8 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         if "traces" in screen and not _string_list(screen["traces"]):
             _add(problems, f"{path}.traces", "must be a string list when present")
         if interactive_contract and "mediaIntent" in screen:
+            if isinstance(screen["mediaIntent"], dict) and "motionSpec" in screen["mediaIntent"]:
+                _add(problems, f"{path}.mediaIntent.motionSpec", "place motionSpec on each affected region for visible boundaries")
             _validate_media_intent(
                 screen["mediaIntent"],
                 f"{path}.mediaIntent",
@@ -1734,6 +1782,22 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     regions_for_label.add(region_id)
             if "traces" in region and not _string_list(region["traces"]):
                 _add(problems, f"{region_path}.traces", "must be a string list when present")
+            if "disclosure" in region:
+                disclosure = region["disclosure"]
+                if not copy_contract or region.get("presentation") != "navigation":
+                    _add(problems, f"{region_path}.disclosure", "requires schema-4 navigation presentation")
+                if not isinstance(disclosure, dict) or set(disclosure) != {"targets", "label"}:
+                    _add(problems, f"{region_path}.disclosure", "must contain targets and label")
+                else:
+                    targets = disclosure["targets"]
+                    declared = screen.get("responsiveLayouts", {})
+                    if (not _string_list(targets) or not targets or len(set(targets)) != len(targets)
+                            or not isinstance(declared, dict) or any(t not in declared for t in targets)):
+                        _add(problems, f"{region_path}.disclosure.targets", "must name distinct declared responsive targets")
+                    _validate_copy_item(disclosure["label"], f"{region_path}.disclosure.label", problems,
+                                        require_approved=copy_is_frozen)
+                    if isinstance(disclosure["label"], dict) and disclosure["label"].get("kind") != "static":
+                        _add(problems, f"{region_path}.disclosure.label", "must be static navigation copy")
             if interactive_contract and "mediaIntent" in region:
                 _validate_media_intent(
                     region["mediaIntent"],

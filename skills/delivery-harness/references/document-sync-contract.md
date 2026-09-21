@@ -27,6 +27,10 @@ After the semantic review and any authorized correction, the parent may retain o
 
 The snapshot is a tracked non-secret inventory, not a cache to hide in .gitignore. Never include values, cookies, tokens or browser storage. Do not include the snapshot itself in its inventory. The CLI excludes historical/credential paths and rejects links, traversal, malformed JSON and oversized files. It cannot prove a document's instructions are correct, that the caller really observed a loaded digest, or that an external action occurred; the parent must verify those facts separately.
 
+## UI Artifact Impact
+
+For design consumers, continue with `../../ui-design-builder/references/design-freshness.md` after the Markdown check. Wireframe/HiFi bytes, upstream identity and applicable skill-rule changes need separate inspection even when Markdown is unchanged. No snapshot update proves freshness or grants a redesign. Record the short affected/retained/recheck list in existing task evidence.
+
 ## Impact Review
 
 The read-only report includes `impacts`: source path, observation reason, affected artifacts/stages, required checks and `semantic_review_required`. Present first-observation sources and changed or required/missing sources need review; unchanged bytes have no source impact rows. Unknown source types route to parent semantic review. These are conservative routing hints: inspect actual requirement references and the diff before selecting checks. Skill identity changes still require the separate restart/contract findings even when all document bytes match.

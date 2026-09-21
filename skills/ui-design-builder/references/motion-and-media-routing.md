@@ -28,6 +28,10 @@ An explicit hero or animation request is a required intent, not optional inspira
 
 After direction selection, a deterministic `motion` or `image + motion` row must demonstrate its trigger, behavior, end state, and reduced-motion fallback in the HiFi review. A static poster, gray placeholder, screenshot, or documented note cannot satisfy a required effect. The frozen wireframe `generationStatus: deferred` remains an intent-time record; it is never edited to claim HiFi completion. Record actual output identity, authorization and review separately in the existing Style Integration evidence. A missing generated asset required by a `motion` or `image + motion` intent keeps its evidence gate blocked until delivered or explicitly removed from scope. Image-only intents remain under connected-HiFi and H6 human media review, including authorization, actual output identity, placement and usage constraints; they do not use normal/reduced-motion receipts. CSS/WAAPI and GSAP serve Web implementation and HTML projections; native implementation uses its approved platform/framework tools and later native evidence.
 
+## Annotated Animation Boundaries
+
+For newly authored motion regions, attach `motionSpec` to the existing `mediaIntent`: non-empty `scope`, `behavior`, `space`, `compact`, `playback` and `cost` descriptions. Scope names the whole region or exact element; behavior includes the end state; space includes reserved height/pinning/scroll need; compact describes phone behavior; playback includes loop, interruption and replay; cost names loading/performance and dependency limits. Existing trigger and reducedMotionFallback remain authoritative. The canonical wireframe shows these as switchable reviewer annotations over the affected region and retains a visibly deferred placeholder. Never imply that annotated motion is implemented. New providers or dependencies keep their existing authorization/stack gates.
+
 ## Implementation Routing After Wireframe Approval
 
 - Use CSS transitions or the Web Animations API for small, deterministic state feedback. Do not add GSAP merely because motion exists.

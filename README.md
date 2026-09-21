@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.48.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.49.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -33,6 +33,17 @@ It is not a prompt collection. The skill suite separates product definition, vis
 | A public production site that needs SEO or organic-growth analysis | `seo-growth-review` | A read-only technical and measurement review, evidence-ranked keyword/page opportunities, and routed follow-ups |
 
 Each bundled skill can be invoked on its own; the full pipeline is optional. Each mode still enforces its declared inputs and dependencies.
+
+### Design translation and reusable patterns
+
+Before full wireframe authoring, translate the approved PRD into task hierarchy, region proportions, responsive behavior, reading order and annotated motion in the existing UI handoff. This adds no approval gate. Use the primary/stress composition checkpoint, then the existing Wireframe and Visual Approval gates. HiFi retains product behavior and hierarchy while refining provisional typography, optical spacing and fine geometry. Compare repeated controls across pages and use actual long/CJK copy rather than score-only visual claims.
+
+Incremental changes preserve unnamed scope. An explicit **full design rebuild with retained PRD** instead starts fresh composition and direction under the observed skill contract, preserving product/stack/copy constraints and known usability failures. Old design files and approvals remain history; replacement, archival and installation keep their own authorization. New iOS scope defaults to iPhone with smaller/larger phone review targets and Dynamic Type checks; iPad remains opt-in and existing PRD requirements stay binding. Native HTML never proves native behavior.
+
+The single canonical shell consumes bounded composition settings, paired multilingual copy with language/direction tags, action variants and switchable motion-region annotations. Four Web recipes (reading, product story, search/browse, workspace) and three iPhone recipes (browse/detail, tabs, input/confirmation) live in [composition-patterns.json](skills/ui-design-builder/assets/templates/composition-patterns.json). Select/adapt/reject them from the PRD; they contain no shipping copy or new routes. Single-language products have no added multilingual matrix; multilingual products test representative extra-language/high-risk cases without shrinking explicit PRD coverage. Stacked bilingual blocks wrap naturally.
+
+After applicable skill updates and before implementation, [design freshness](skills/ui-design-builder/references/design-freshness.md) checks inventoried artifact and input hashes, skill provenance and downstream dependencies. Unknown identity remains unknown; a changed skill requires semantic review, not automatic redesign. `check_design_freshness.py` is read-only and never approves a design. Include every HiFi sibling and still run the full package validators. Resolve affected gaps before coding when implementation is demonstrably not started.
+
 
 ## Core guarantees
 
@@ -589,6 +600,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.49.0** — Design translation and explicit full rebuilds with retained PRDs; bilingual reading, motion boundaries, responsive navigation, Web/iPhone recipes and source-aware design freshness checks. New review obligations make this a breaking skill-bundle change.
 
 - **0.48.0** — Enhancements preserve unaffected Wireframe and HiFi screens and reuse the approved direction. Epic change logs distinguish new outcomes from small fixes. Reviewers gain exact-width responsive canvases, usable local search and source-bound component specimens. Fresh HiFi evidence validates actual variants, selection retention and malformed rows. Breaking skill-bundle change.
 

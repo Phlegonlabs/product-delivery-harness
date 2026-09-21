@@ -22,6 +22,10 @@ Produce `docs/product/implementation-plan.md` only when the user explicitly asks
 
 Default all artifact content to English unless the user explicitly asks for another language.
 
+## Device And Reading Scope
+
+For newly scoped iOS products, propose iPhone first. iPad is included only when explicitly required; never remove it from an approved PRD without an owner decision. Two named iPhone review targets can satisfy the native responsive set without assuming an iPad regular layout. Record supported orientations, OS range and Dynamic Type obligations separately. Declare supported locales and whether content uses locale switching or simultaneous bilingual reading. Stacked language pairs allow natural wrapping and assistive language identification. Do not force multi-language work onto single-language products or invent language controls. The UI owner translates these obligations into composition and visual design.
+
 ## How To Read This Package
 
 Every artifact has one primary reader and one job. Write for that reader.

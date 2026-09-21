@@ -13,6 +13,10 @@ Before drafting, read the approved Product Definition package and inspect, in or
 
 If a staged UI package exists, ask whether to resume, publish, or discard it before starting a competing draft. Never delete or silently replace an existing UI artifact.
 
+## Updates And Full Rebuilds
+
+Use `design-freshness.md` after applicable skill updates and before implementation. Record sources, hashes and changed-rule impact in existing evidence. Full rebuild with retained PRD follows `design-translation.md`; inventory old files without using their layout/style as creative authority. Do not overwrite canonical artifacts or inherit approvals simply because a new design was requested.
+
 ## Locations
 
 Use `docs/design/.ui-staging/<run-id>/` only for unapproved drafts. Before collecting approvals, prepare an explicitly authorized separate publication checkout at the source HEAD, retaining its Git history and every upstream source. Put approval candidates at their final repository-relative paths inside that checkout. Do not record `.ui-staging` paths in approvals. New canonical publish locations are:
