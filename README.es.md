@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.48.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.49.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -33,6 +33,17 @@ No es una colección de prompts. La suite de skills separa la definición del pr
 | Un sitio público en producción que necesita análisis SEO o de crecimiento orgánico | `seo-growth-review` | Una revisión técnica y de medición de solo lectura, oportunidades de keyword/página ordenadas por evidencia y follow-ups enrutados |
 
 Cada uno de los siete skills incluidos se puede invocar por separado; el pipeline completo es opcional. Cada modo igual valida sus inputs y dependencias declaradas.
+
+### Traducción de diseño y patrones reutilizables
+
+Antes del wireframe completo, traduce el PRD aprobado en jerarquía de tareas, proporciones, comportamiento responsive, lectura y regiones de animación dentro del handoff existente. No añade una aprobación. Revisa los casos principal y exigente y conserva los gates Wireframe/Visual Approval. HiFi mantiene comportamiento y jerarquía mientras ajusta tipografía provisional, espaciado óptico y proporciones. Compara componentes entre páginas y contenido largo/CJK real, no solo puntuaciones.
+
+Los cambios incrementales preservan el alcance no nombrado. Una **reconstrucción completa del diseño conservando el PRD** empieza composición y dirección nuevas bajo el contrato realmente cargado, manteniendo producto, stack, copy y problemas conocidos. Los archivos y aprobaciones previos son historia; sustituir, archivar e instalar conserva sus permisos. El nuevo alcance iOS parte de iPhone, con casos de teléfono pequeño/grande y Dynamic Type; iPad es opcional sin eliminar requisitos aprobados. HTML no demuestra comportamiento nativo.
+
+La plantilla HTML única admite composición acotada, textos bilingües emparejados con idioma/dirección, variantes de botones y anotaciones de movimiento conmutables. [composition-patterns.json](skills/ui-design-builder/assets/templates/composition-patterns.json) incluye cuatro recetas Web (lectura, relato de producto, búsqueda y trabajo) y tres iPhone (lista/detalle, pestañas, entrada/confirmación). Selecciona, adapta o descarta según el PRD; no inventan copy ni rutas. Un producto monolingüe no necesita otra matriz; otros idiomas se inspeccionan en casos representativos sin reducir la cobertura explícita del PRD. Los bloques bilingües permiten saltos naturales.
+
+Tras actualizar skills y antes de implementar, [design freshness](skills/ui-design-builder/references/design-freshness.md) compara hashes de artefactos y entradas, procedencia del skill y dependencias. Una identidad desconocida sigue desconocida; cambiar el skill exige revisión semántica, no rediseño automático. `check_design_freshness.py` es de solo lectura y no aprueba diseños. Incluye todas las páginas HiFi y ejecuta los validadores completos. Si hay evidencia de que la implementación no empezó, resuelve primero las brechas de diseño.
+
 
 ## Garantías centrales
 
@@ -300,7 +311,7 @@ La evidencia también cubre enlaces desconocidos, el botón Atrás desde cada vi
 
 La entrega full-stack sigue flujos completos: UI, API, permisos, persistencia y respuesta. agent-browser explora Web; los recorridos importantes quedan como pruebas locales y de CI. Login, denegación, reintentos y efectos requieren evidencia real. La publicación verifica migraciones, salud, monitoreo, costes y recuperación; entrega, disponibilidad, activación y resultados se informan por separado. SEO se aplica solo a superficies públicas pertinentes.
 
-Actualiza a 0.48.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria.
+Actualiza a 0.49.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria. En 0.49.0, revisa la vigencia del diseño antes de implementar y añade motionSpec por región en la validación estricta de schema-4; conserva las aprobaciones históricas.
 
 Cada invocación aplica el [contrato de sincronización documental](skills/delivery-harness/references/document-sync-contract.md): revisa cambios en las instrucciones vigentes, la identidad del skill/runtime y los documentos del producto, sin reescribir aprobaciones ni RUN históricos. El PRD actual sigue siendo la base de la próxima mejora; las versiones reemplazadas conservan enlaces de referencia. La [mejora acotada](skills/delivery-harness/references/bounded-enhancement.md) reutiliza un alcance aceptado para reparar, reemplazar módulos dentro de ese alcance y repetir pruebas, sin pedir la misma aprobación. Al agotar el presupuesto, entrega los pendientes a la próxima ronda; terminar una ronda no equivale a PASS ni autoriza publicar.
 
@@ -588,6 +599,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.49.0** — Traducción del diseño y reconstrucción completa conservando el PRD; lectura bilingüe, zonas de animación, navegación responsive, plantillas Web/iPhone y revisión de vigencia del diseño. Las nuevas obligaciones de revisión son un cambio incompatible del paquete.
 
 - **0.48.0** — Las mejoras conservan las pantallas Wireframe/HiFi no afectadas y reutilizan la dirección aprobada. El historial del Epic distingue resultados nuevos de correcciones pequeñas. La revisión incorpora lienzos responsive con ancho exacto, búsqueda local funcional y muestras de componentes vinculadas a su fuente. La evidencia HiFi valida variantes reales, selección conservada y filas malformadas. Cambio incompatible del paquete.
 

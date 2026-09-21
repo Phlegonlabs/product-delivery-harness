@@ -11,6 +11,10 @@ The wireframe includes a reviewer-only Design System Draft view, backed by the a
 
 Legacy `docs/product/wireframes.html` and `docs/product/design-system.*` remain readable. New or revised artifacts publish under `docs/design/`; do not move an existing legacy artifact without exact owner authorization.
 
+## Translation And Freshness Handoff
+
+Keep the `design-translation.md` table and `design-freshness.md` observations in this existing handoff or linked task evidence. Record incremental versus explicit full rebuild, fixed/provisional decisions, selected recipe/version, language and iPhone scope, representative stress cases and animation boundaries. No new approval gate or product authority is created. Inspector metadata and bilingual/motion examples are not shipping copy unless the PRD and Copy Freeze say so.
+
 ## Reviewer Navigation And Design Specifications
 
 For an enhancement, record added, changed and preserved UI IDs against the existing baseline in the current Epic or direct task. Compare preserved Wireframe screen objects and flows, and HiFi product DOM, styles and behavior before approval. Explain every shared-component consumer that changes. Full package validation checks coverage; it does not authorize regenerating unaffected product pages. Reviewer-only shell or manifest updates must leave those product surfaces intact.

@@ -2,6 +2,10 @@
 
 Use for Web, iOS, Android and other approved UI surfaces, including a direct frontend change. Apply the same recommendation quality to initial design. This is an authoring step inside the existing intake, direction and approval gates, not a new approval workflow.
 
+## Explicit Full Rebuild
+
+An owner-requested full wireframe/HiFi rebuild with retained PRD follows `design-translation.md` instead of incremental preservation for that named scope. Preserve product/stack/copy constraints and known defects, but do not use prior composition or styling as creative inputs. Old files and approvals remain history; replacement and archival keep their existing authorization boundaries.
+
 ## Incremental UI Scope
 
 Enhancement authoring is incremental by default. Keep the complete connected package, but complete coverage is not a redraw instruction. Start from the approved files, never a fresh template populated with the whole product again.

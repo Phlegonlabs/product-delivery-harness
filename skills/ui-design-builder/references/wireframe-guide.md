@@ -9,7 +9,11 @@ Use this guide only after the core Product Definition package passes `python ski
 - `wireframes.html` is the interactive structural projection of that contract. It owns no new behavior and never changes product scope.
 - A native mobile or desktop app is UI-bearing without a browser frontend and gets the same single `wireframes.html` deliverable: every `UI-*` screen in one file, with the product's own size classes standing in as the viewport toggle. The product ships no browser surface; the file exists purely as the review projection.
 - When the HTML exposes a product gap, return it to `product-definition-builder`. A changed PRD invalidates Product Definition Approval; obtain approval for a new package revision, then regenerate only the affected `UI-*` page.
-- Later visual or implementation work consumes the approved HTML but does not edit it. Structural changes return to `product-definition-builder`.
+- Later visual or implementation work consumes the approved HTML but does not edit it. Changes to PRD-owned behavior or content return to `product-definition-builder`. UI-only composition changes within the retained PRD use a fresh wireframe candidate and renewed structural approval without rewriting unchanged product requirements.
+
+## Design Translation
+
+Apply `design-translation.md` before full authoring. Record task hierarchy, geometry, responsive/interaction rules, reading languages, motion boundaries and fixed/provisional handoff in the existing UI record. Select recipes from `composition-patterns.md`; none can add scope. Full redesign with retained PRD explicitly overrides the incremental-only authoring instructions below for its accepted scope. Product obligations remain unchanged.
 
 ## Reference Pass
 
@@ -123,6 +127,16 @@ Schema-4 screens may declare one bounded, local-only search projection when the 
 ```
 
 `formRegion` and `resultsRegion` reference existing regions; the results region uses the `list` presentation. The first language option is the unfiltered option used by Clear. Labels and options are static copy, while item copy is dynamic copy with the normal source/order/format/count/length/fallback contract. `items` is local bounded review data (at most 10,000 items and 4,096 search characters per item); it is not a network-backed result set. `states` references three existing screen states, and their results/empty treatments provide the approved count or empty copy. Search, Enter, language changes, and Clear operate only on this local item set; Search and Clear still map to the screen's declared flows for contract coverage, but the reviewer intercepts them locally. Results always render the matching rows as well as any approved results treatment, and Clear restores the first option, the initial state, and query focus.
+
+## Reading, Control And Motion Fields
+
+Schema-4 copy items may declare `locale` (BCP 47-style tag), `direction` (`ltr`, `rtl`, `auto`) and `parallel` (one to three complete copy items). Parallel items have distinct explicit locales, the same role/kind as the primary item, their own status/source and dynamic contract when needed, and no nested parallel items. The primary locale is also required. The renderer stacks each language as a naturally wrapping block in the same semantic heading/paragraph. All parallel shipping text participates in Copy Freeze; stress-only translations remain separate review evidence, never approved by implication. Input values and select options reject stacked pairs; action labels keep their existing single-language semantics; use the content pair for explanations rather than inventing bilingual control names.
+
+A navigation region may declare `disclosure: {targets: ["390"], label: <static copy item>}` using only its declared responsive target keys. The native HTML details/summary control opens inline, supports keyboard activation and Escape with focus return, and becomes expanded navigation at other targets. It adds no new route or destination. Its exact toggle label is part of Copy Freeze and the copy inventory. A modal drawer instead uses an approved overlay flow with separate focus/backdrop/dismissal checks; do not count an inline disclosure as drawer evidence.
+
+Actions may declare `variant: secondary|tertiary|destructive`, `size: regular|large` and boolean `fullWidth`. The existing `primaryAction` remains the only primary-emphasis selector and overrides a variant. Destructive styling is structural grayscale, not a substitute for an explicit action label and confirmation flow. These fields change no destinations and do not invent disabled/loading behavior: use approved state/flow treatments for those cases and verify them in the browser. Fine dimensions remain provisional for HiFi.
+
+Motion-bearing `mediaIntent` may carry the bounded `motionSpec` from `motion-and-media-routing.md`; new motion authoring supplies it. Strict schema-4 region checks (`--require-filled` or `--require-approved`) reject motion treatments without it; non-strict inspection keeps legacy records readable. The renderer outlines and labels the region in annotation mode, including trigger, behavior, layout reservation, phone treatment, playback/cost and reduced-motion fallback. Old records without this extension remain readable and require semantic migration review rather than fabricated metadata. Same source identity does not prove old records meet new authoring guidance.
 
 ## Copy Freeze Gate
 

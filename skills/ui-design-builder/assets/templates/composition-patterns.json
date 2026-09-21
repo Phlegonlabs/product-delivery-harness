@@ -1,0 +1,469 @@
+{
+  "schema": "composition-patterns/1",
+  "patterns": [
+    {
+      "id": "reading-editorial",
+      "version": 1,
+      "platform": "web",
+      "useWhen": "Long articles, reports and learning",
+      "avoidWhen": "Transactional work with many simultaneous controls",
+      "roles": [
+        "orientation",
+        "summary",
+        "article",
+        "related"
+      ],
+      "neverDropRoles": [
+        "article"
+      ],
+      "layouts": {
+        "compact": {
+          "columns": 1,
+          "spans": {
+            "orientation": 1,
+            "summary": 1,
+            "article": 1,
+            "related": 1
+          },
+          "order": [
+            "orientation",
+            "summary",
+            "article",
+            "related"
+          ],
+          "padding": 16,
+          "gap": 16,
+          "reflow": "Summary then article; related content follows reading"
+        },
+        "wide": {
+          "columns": 12,
+          "spans": {
+            "orientation": 12,
+            "summary": 12,
+            "article": 8,
+            "related": 4
+          },
+          "order": [
+            "orientation",
+            "summary",
+            "article",
+            "related"
+          ],
+          "padding": 32,
+          "gap": 24,
+          "reflow": "Preserve task hierarchy; use available width without stretching reading measure"
+        }
+      },
+      "reading": "Limit text measure; pair bilingual paragraphs; captions stay with figures",
+      "interactionChecks": [
+        "Use approved controls to reach the destination",
+        "Back/cancel and state retention",
+        "Keyboard or platform input alternatives"
+      ],
+      "stressCases": [
+        "Long actual copy and enlarged text",
+        "Dense or empty content from approved states"
+      ],
+      "motionSlots": [
+        "media within article"
+      ]
+    },
+    {
+      "id": "product-story",
+      "version": 1,
+      "platform": "web",
+      "useWhen": "Explain an approved product and its evidence",
+      "avoidWhen": "Working screens where marketing delays the task",
+      "roles": [
+        "introduction",
+        "demonstration",
+        "evidence",
+        "next-action"
+      ],
+      "neverDropRoles": [
+        "introduction",
+        "next-action"
+      ],
+      "layouts": {
+        "compact": {
+          "columns": 1,
+          "spans": {
+            "introduction": 1,
+            "demonstration": 1,
+            "evidence": 1,
+            "next-action": 1
+          },
+          "order": [
+            "introduction",
+            "demonstration",
+            "evidence",
+            "next-action"
+          ],
+          "padding": 16,
+          "gap": 16,
+          "reflow": "Message and main action before demonstration; evidence remains reachable"
+        },
+        "wide": {
+          "columns": 12,
+          "spans": {
+            "introduction": 5,
+            "demonstration": 7,
+            "evidence": 12,
+            "next-action": 12
+          },
+          "order": [
+            "introduction",
+            "demonstration",
+            "evidence",
+            "next-action"
+          ],
+          "padding": 32,
+          "gap": 24,
+          "reflow": "Preserve task hierarchy; use available width without stretching reading measure"
+        }
+      },
+      "reading": "One focal point; vary section rhythm to match content",
+      "interactionChecks": [
+        "Use approved controls to reach the destination",
+        "Back/cancel and state retention",
+        "Keyboard or platform input alternatives"
+      ],
+      "stressCases": [
+        "Long actual copy and enlarged text",
+        "Dense or empty content from approved states"
+      ],
+      "motionSlots": [
+        "demonstration"
+      ]
+    },
+    {
+      "id": "search-browse",
+      "version": 1,
+      "platform": "web",
+      "useWhen": "Find and inspect approved content",
+      "avoidWhen": "A small fixed collection that needs no search",
+      "roles": [
+        "query",
+        "filters",
+        "results",
+        "detail"
+      ],
+      "neverDropRoles": [
+        "query",
+        "results"
+      ],
+      "layouts": {
+        "compact": {
+          "columns": 1,
+          "spans": {
+            "query": 1,
+            "filters": 1,
+            "results": 1,
+            "detail": 1
+          },
+          "order": [
+            "query",
+            "filters",
+            "results",
+            "detail"
+          ],
+          "padding": 16,
+          "gap": 16,
+          "reflow": "Query then filters then results; detail is a declared destination"
+        },
+        "wide": {
+          "columns": 12,
+          "spans": {
+            "query": 12,
+            "filters": 3,
+            "results": 9,
+            "detail": 12
+          },
+          "order": [
+            "query",
+            "filters",
+            "results",
+            "detail"
+          ],
+          "padding": 32,
+          "gap": 24,
+          "reflow": "Preserve task hierarchy; use available width without stretching reading measure"
+        }
+      },
+      "reading": "Keep result metadata aligned; long labels and no results need tests",
+      "interactionChecks": [
+        "Use approved controls to reach the destination",
+        "Back/cancel and state retention",
+        "Keyboard or platform input alternatives"
+      ],
+      "stressCases": [
+        "Long actual copy and enlarged text",
+        "Dense or empty content from approved states"
+      ],
+      "motionSlots": [
+        "results feedback"
+      ]
+    },
+    {
+      "id": "task-workspace",
+      "version": 1,
+      "platform": "web",
+      "useWhen": "Complete a task with supporting context",
+      "avoidWhen": "A reading-only page",
+      "roles": [
+        "navigation",
+        "workspace",
+        "context",
+        "feedback"
+      ],
+      "neverDropRoles": [
+        "workspace",
+        "feedback"
+      ],
+      "layouts": {
+        "compact": {
+          "columns": 1,
+          "spans": {
+            "navigation": 1,
+            "workspace": 1,
+            "context": 1,
+            "feedback": 1
+          },
+          "order": [
+            "navigation",
+            "workspace",
+            "context",
+            "feedback"
+          ],
+          "padding": 16,
+          "gap": 16,
+          "reflow": "Expose current task; navigation may disclose; context follows task"
+        },
+        "wide": {
+          "columns": 12,
+          "spans": {
+            "navigation": 2,
+            "workspace": 7,
+            "context": 3,
+            "feedback": 12
+          },
+          "order": [
+            "navigation",
+            "workspace",
+            "context",
+            "feedback"
+          ],
+          "padding": 32,
+          "gap": 24,
+          "reflow": "Preserve task hierarchy; use available width without stretching reading measure"
+        }
+      },
+      "reading": "Do not flatten tables into indistinguishable cards",
+      "interactionChecks": [
+        "Use approved controls to reach the destination",
+        "Back/cancel and state retention",
+        "Keyboard or platform input alternatives"
+      ],
+      "stressCases": [
+        "Long actual copy and enlarged text",
+        "Dense or empty content from approved states"
+      ],
+      "motionSlots": [
+        "task feedback"
+      ]
+    },
+    {
+      "id": "iphone-browse-detail",
+      "version": 1,
+      "platform": "iphone",
+      "useWhen": "Browse a collection and open a detail",
+      "avoidWhen": "Many unrelated top-level areas without a navigation plan",
+      "roles": [
+        "orientation",
+        "content",
+        "actions"
+      ],
+      "neverDropRoles": [
+        "content"
+      ],
+      "layouts": {
+        "compact": {
+          "columns": 1,
+          "spans": {
+            "orientation": 1,
+            "content": 1,
+            "actions": 1
+          },
+          "order": [
+            "orientation",
+            "content",
+            "actions"
+          ],
+          "padding": 16,
+          "gap": 16,
+          "reflow": "Single reading column with return and scroll retention"
+        },
+        "wide": {
+          "columns": 1,
+          "spans": {
+            "orientation": 1,
+            "content": 1,
+            "actions": 1
+          },
+          "order": [
+            "orientation",
+            "content",
+            "actions"
+          ],
+          "padding": 20,
+          "gap": 24,
+          "reflow": "Preserve task hierarchy; use available width without stretching reading measure"
+        }
+      },
+      "reading": "Native title/body roles; safe areas and larger text",
+      "interactionChecks": [
+        "Use approved controls to reach the destination",
+        "Back/cancel and state retention",
+        "Keyboard or platform input alternatives"
+      ],
+      "stressCases": [
+        "Long actual copy and enlarged text",
+        "Dense or empty content from approved states"
+      ],
+      "motionSlots": [
+        "detail transition"
+      ]
+    },
+    {
+      "id": "iphone-tabs",
+      "version": 1,
+      "platform": "iphone",
+      "useWhen": "Switch between stable top-level destinations",
+      "avoidWhen": "Steps in a sequential form",
+      "roles": [
+        "title",
+        "content",
+        "tabs"
+      ],
+      "neverDropRoles": [
+        "content",
+        "tabs"
+      ],
+      "layouts": {
+        "compact": {
+          "columns": 1,
+          "spans": {
+            "title": 1,
+            "content": 1,
+            "tabs": 1
+          },
+          "order": [
+            "title",
+            "content",
+            "tabs"
+          ],
+          "padding": 16,
+          "gap": 16,
+          "reflow": "Keep tabs reachable above bottom safe area"
+        },
+        "wide": {
+          "columns": 1,
+          "spans": {
+            "title": 1,
+            "content": 1,
+            "tabs": 1
+          },
+          "order": [
+            "title",
+            "content",
+            "tabs"
+          ],
+          "padding": 20,
+          "gap": 24,
+          "reflow": "Preserve task hierarchy; use available width without stretching reading measure"
+        }
+      },
+      "reading": "Use short labels; bilingual body does not require doubled tab labels",
+      "interactionChecks": [
+        "Use approved controls to reach the destination",
+        "Back/cancel and state retention",
+        "Keyboard or platform input alternatives"
+      ],
+      "stressCases": [
+        "Long actual copy and enlarged text",
+        "Dense or empty content from approved states"
+      ],
+      "motionSlots": [
+        "tab feedback"
+      ]
+    },
+    {
+      "id": "iphone-input-confirmation",
+      "version": 1,
+      "platform": "iphone",
+      "useWhen": "Enter data and confirm or cancel",
+      "avoidWhen": "Content browsing without input",
+      "roles": [
+        "title",
+        "fields",
+        "feedback",
+        "actions"
+      ],
+      "neverDropRoles": [
+        "fields",
+        "actions"
+      ],
+      "layouts": {
+        "compact": {
+          "columns": 1,
+          "spans": {
+            "title": 1,
+            "fields": 1,
+            "feedback": 1,
+            "actions": 1
+          },
+          "order": [
+            "title",
+            "fields",
+            "feedback",
+            "actions"
+          ],
+          "padding": 16,
+          "gap": 16,
+          "reflow": "Keyboard must not hide focused field or completion controls"
+        },
+        "wide": {
+          "columns": 1,
+          "spans": {
+            "title": 1,
+            "fields": 1,
+            "feedback": 1,
+            "actions": 1
+          },
+          "order": [
+            "title",
+            "fields",
+            "feedback",
+            "actions"
+          ],
+          "padding": 20,
+          "gap": 24,
+          "reflow": "Preserve task hierarchy; use available width without stretching reading measure"
+        }
+      },
+      "reading": "Stack validation with its field; preserve edits on recoverable errors",
+      "interactionChecks": [
+        "Use approved controls to reach the destination",
+        "Back/cancel and state retention",
+        "Keyboard or platform input alternatives"
+      ],
+      "stressCases": [
+        "Long actual copy and enlarged text",
+        "Dense or empty content from approved states"
+      ],
+      "motionSlots": [
+        "confirmation or sheet"
+      ]
+    }
+  ]
+}
