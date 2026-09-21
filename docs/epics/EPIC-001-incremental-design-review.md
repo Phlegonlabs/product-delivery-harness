@@ -102,3 +102,67 @@ is historical/blocked because the functional repairs changed the checkout. It do
 not count as security approval for the repaired candidate. Document-sync reported
 unknown loaded identity and first observation; old skill-name references are
 intentional retirement/history guidance, not live installation targets.
+
+## Readable annotations and token coverage — 2026-09-21
+
+The owner approved local modification and verification on
+`enhancement-readable-wireframes-token-coverage`, cut from observed remote main
+`844701109e5bda254c3e238a6e8f3bedb775482a` (0.49.0). This is a bounded follow-up
+to the reviewer outcome in this Epic. No new product PRD or managed RUN is needed.
+UI impact: both, confined to the shared reviewer templates and derived preview.
+The owner chose the existing grayscale direction, annotations as the formal
+wireframe view, readable action destinations, and complete Wireframe/HiFi token
+examples. Product flows, shipping copy, stack and existing approvals are retained.
+
+Write scope: UI template/runtime/validator tests and guidance, the compiler's
+derived preview and tests, this Epic and all four README descriptions. Local
+branch creation, source edits, synthetic fixtures and verification are authorized.
+The initial grant excluded commits and publication. The owner subsequently asked
+to commit, push and merge after verification. This authorizes candidate commits,
+branch publication and PR preparation; exact-SHA main promotion still follows the
+repository contract. The required post-push canonical install is part of publication.
+Cleanup remains unauthorized.
+Untracked root scripts and other branches/worktrees are preserved.
+
+Acceptance: annotations visible initially; names and page/dialog/local-result
+behavior readable; actual active-target spacing measured; prototype tokens and
+used action variants have samples; HiFi token samples apply source-bound values;
+formal shadow/motion/type samples remain safe and reduced-motion aware. Run
+focused negative/runtime tests, synthetic browser checks, all repository-required
+checks and golden path. At most two repairs per root-cause family; preserve failures.
+
+Document-sync review: no product PRD/PLAN/RUN exists in this maintenance scope;
+loaded skill identity remains unknown. Source rules and templates are inspected
+directly, not claimed to be the session's loaded installed version. Existing Epic
+history and retired pointers remain historical. Existing .gitignore covers Python
+bytecode; logs and synthetic previews use a task-specific external temp directory.
+No new ignored artifact class or untracking is needed.
+
+First focused wave: 82 wireframe tests and 5 preview tests passed. HiFi had one
+failure: its blanket media-query assertion also rejected reduced-motion support.
+The repair permits only that preference query and retains the viewport-query ban.
+Further verification is recorded below.
+
+The first complete wave passed: Harness 1,156 (16 skips), Product Definition 217,
+UI Design 208, Design System 99 (3 skips), Activation 56, SEO 16 and golden path 1.
+The new destination test initially exposed Windows stdin encoding of the em dash;
+it now uses explicit UTF-8 and its assertion is unchanged. Browser scripts also
+needed UTF-8 output and isolated eval scope; original logs remain in the external
+evidence folder. The browser renderer checks then passed at 390/768/1200, including
+page, dialog and local feedback behavior, annotation keyboard toggling, token
+application and reduced-motion suppression. These are synthetic Web checks only.
+
+Final review repair: token consumers follow declared aliases and standard dimension
+shorthands; unused alias cycles do not count as use. Browser CSS validation rejects
+unrenderable values, motion specimens support keyboard focus, prototype samples
+share the product font, and notes show content gaps as well as region dimensions.
+The four existing default-view descriptions now agree with annotation-first behavior.
+New negative/runtime tests cover these boundaries. Final verification follows.
+
+The repaired UI suite passes all 210 tests. The final synthetic browser pass checks
+390/768/1200 targets, named navigation, dialogs, local feedback, retained input,
+34 prototype token samples and 16 HiFi samples. Reduced-motion samples stop moving.
+Release 0.50.0 records the new required HiFi preview-property contract. Three atomic
+commits separate wireframe behavior, token binding and release documentation. Full
+fixed-candidate checks and inline code-security review are required before promotion;
+evidence stays outside the checkout so its commit remains unchanged during review.
