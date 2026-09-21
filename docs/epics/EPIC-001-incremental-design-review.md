@@ -166,3 +166,16 @@ Release 0.50.0 records the new required HiFi preview-property contract. Three at
 commits separate wireframe behavior, token binding and release documentation. Full
 fixed-candidate checks and inline code-security review are required before promotion;
 evidence stays outside the checkout so its commit remains unchanged during review.
+
+PR #117 review found two bounded validator gaps at 0465d22: raw CSS values were
+compared with normalized applied values, and min-inline-size/max-block-size were
+missing. Token observations now retain raw and computed pairs separately; logical
+dimension families include both bounds. Negative tests reject missing or mismatched
+applied values. Browser checks cover hex/rgb, rem/px and keyword/numeric weights.
+All four README descriptions explain the evidence distinction. This is one repair
+of the evidence-comparison cause and the second bounded alias-family repair.
+
+Both Linux and Windows CI passed 0465d22. Its local full run encountered temporary
+Windows parent-directory locks in 12 cases across three Harness suites; all three
+suites passed unchanged when rerun after installation. Original logs are retained.
+The repair creates a new SHA and requires new exact-candidate checks and review.

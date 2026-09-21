@@ -106,6 +106,8 @@ El objetivo es un wireframe de fidelidad media: texto exacto, composición legib
 
 Los wireframes formales abren con anotaciones legibles, destinos con nombre para páginas, diálogos y resultados locales, y medidas reales del espaciado. La vista limpia es opcional. Wireframe Draft y HiFi Design Tokens muestran ejemplos visuales de cada token usado y las variantes reales de los controles. Los ejemplos HiFi vinculan la propiedad CSS que consume el token, conservan valores por página y respetan movimiento reducido. También se revisan valores compartidos sin token: enumerar variables no demuestra cobertura completa del diseño.
 
+Las observaciones conservan los valores originales y los valores normalizados por el navegador por separado, para comparar correctamente colores hexadecimales, dimensiones rem y pesos definidos por palabras clave.
+
 ```mermaid
 flowchart LR
   Idea["Idea de producto o solicitud de cambio"] --> PRD["Candidate de Product Definition\nPRD + arquitectura + stack"]

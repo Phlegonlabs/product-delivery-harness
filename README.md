@@ -106,6 +106,8 @@ The wireframe target is mid-fidelity: exact copy, readable composition, realisti
 
 Formal wireframes now open with readable annotations, named page/dialog/result destinations and measured layout spacing. The clean view remains optional. Wireframe Draft and HiFi Design Tokens show a visual sample for every used token and the actual control variants. HiFi samples bind the CSS property consuming each token, preserve page-specific values and respect reduced motion. Inventory shared raw values too: listing every existing variable does not prove complete design coverage.
 
+Token observations retain raw source/display values separately from browser-normalized source/applied values, so hex colors, rem dimensions and keyword weights compare correctly.
+
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]

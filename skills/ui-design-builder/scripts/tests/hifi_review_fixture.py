@@ -134,6 +134,9 @@ def observations(manifest, component_types=("button", "input", "select", "a")):
     observed = dict(expected)
     observed["specimens"] = [dict(row, sourceValue="#243447", specimenValue="#243447", displayValue="#243447")
                              for row in expected["specimens"]]
+    for row in observed["specimens"]:
+        if row["kind"] == "token":
+            row.update(sourceComputedValue="rgb(36, 52, 71)", specimenComputedValue="rgb(36, 52, 71)")
     observed["retention"] = []
     for row in expected["retention"]:
         input_value = row["inputValueBefore"] if isinstance(row["inputValueBefore"], str) and row["inputValueBefore"].strip() else (

@@ -106,6 +106,8 @@ Wireframe 以中保真為目標：實際文案、清楚排版、合理範例資�
 
 正式 wireframe 預設顯示可讀註解、具名的頁面／彈窗／原頁結果，以及實測版面間距；純畫面是選用視圖。Wireframe Draft 與 HiFi Design Tokens 為每個使用中的 token 提供視覺示例，並展示實際控制項變體。HiFi 示例綁定使用該 token 的 CSS 屬性，保留各頁差異並遵守減少動態效果設定。也要盤點共用的原始樣式值：列齊現有變數不代表設計覆蓋完整。
 
+Token 觀察分別保留來源／顯示原值及瀏覽器正規化後的來源／套用值，讓十六進位色碼、rem 尺寸及關鍵字字重能正確比較。
+
 ```mermaid
 flowchart LR
   Idea["產品構想或變更需求"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]

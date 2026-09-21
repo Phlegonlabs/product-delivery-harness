@@ -281,8 +281,8 @@ def _token_property_use(css, token, prop):
             break
         aliases.update(parents)
     properties = {
-        "width": ("width", "min-width", "max-width", "inline-size", "max-inline-size"),
-        "height": ("height", "min-height", "max-height", "block-size", "min-block-size"),
+        "width": ("width", "min-width", "max-width", "inline-size", "min-inline-size", "max-inline-size"),
+        "height": ("height", "min-height", "max-height", "block-size", "min-block-size", "max-block-size"),
         "gap": ("gap", "row-gap", "column-gap"),
         "border-width": ("border-width", "border"),
         "background-color": ("background-color", "background"),
@@ -631,13 +631,21 @@ def reviewer_evidence_findings(actual, expected):
         return errors + ["HiFi computed specimen coverage is incomplete"]
     groups = {}
     for row, spec in zip(rows, expected_specimens):
-        if not isinstance(row, dict) or not isinstance(spec, dict) or set(row) != set(spec) | {"sourceValue", "specimenValue", "displayValue"} or any(row.get(key) != value for key, value in spec.items()):
+        value_keys = {"sourceValue", "specimenValue", "displayValue"}
+        if isinstance(spec, dict) and spec.get("kind") == "token":
+            value_keys |= {"sourceComputedValue", "specimenComputedValue"}
+        if not isinstance(row, dict) or not isinstance(spec, dict) or set(row) != set(spec) | value_keys or any(row.get(key) != value for key, value in spec.items()):
             errors.append("HiFi computed specimen identity differs from its DOM source binding")
             continue
         value = row.get("sourceValue")
         if not isinstance(value, str) or not value.strip() or value != row.get("specimenValue") or value != row.get("displayValue"):
             errors.append("HiFi displayed values and computed specimens must equal the actual style source")
             continue
+        if spec.get("kind") == "token":
+            computed = row.get("sourceComputedValue")
+            if not isinstance(computed, str) or not computed.strip() or computed != row.get("specimenComputedValue"):
+                errors.append("HiFi applied token values must equal the browser-normalized source property")
+                continue
         group = row.get("sharedGroup")
         if group is not None and (not isinstance(group, str) or not group.strip()):
             errors.append("HiFi shared specimen group must be null or nonempty text")
@@ -645,7 +653,8 @@ def reviewer_evidence_findings(actual, expected):
         if group:
             groups.setdefault(group, []).append(row)
     for group in groups.values():
-        values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue")) for row in group}
+        values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue"),
+                   row.get("sourceComputedValue"), row.get("specimenComputedValue")) for row in group}
         if len(values) != 1:
             errors.append("HiFi shared specimen group values must be equal across every member page")
     return errors
