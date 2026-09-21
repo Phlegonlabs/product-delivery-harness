@@ -28,6 +28,7 @@ from test_ui_design_contract import add_shell, bundle_output, materialize_public
 from test_product_package_checker import strictize_approved_package  # noqa: E402
 from test_wireframe_contract import render_html  # noqa: E402
 from check_design_system_pair import replace_generated_contract  # noqa: E402
+from hifi_reviewer import reviewer_contract  # noqa: E402
 import check_ui_design_contract  # noqa: E402
 
 for candidate in (UI_TESTS_DIR, PDB_TESTS_DIR, DS_SCRIPTS_DIR):
@@ -104,7 +105,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
 - Main purpose: Let the owner inspect the secondary hybrid surface.
 - Content responsibilities: Show secondary completion data with source, order, format, count, length, and fallback bounds.
 - Actions and transitions: Refresh the secondary record, show success feedback, and expose recoverable failure behavior.
-- `states`: ready
+- `states`: ready, updated
 - `responsive`: {second_kind}: {', '.join(map(str, second_targets))}
 - `copy`: approved — owner-approved copy
 - Responsive obligations: Never drop status or recovery actions; support keyboard input and long content.
@@ -230,40 +231,57 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
         manifest = json.loads(manifest_match.group(1))
         manifest["surfaces"].append({
             "id": second_id,
-            "page": "index.html",
+            "page": "secondary.html",
             "route": second_route,
-            "states": ["ready"],
+            "states": ["ready", "updated"],
             "responsive": {"kind": second_kind, "targets": second_targets},
             "navigation": ["home"],
-            "controls": ["refresh"],
+            "controls": ["refresh", "filter"],
         })
-        manifest["interactions"].extend({
-            "id": second_id + "-" + control,
-            "source": {"surface": second_id, "state": "ready"},
-            "control": control, "kind": "navigate",
-            "destination": {"surface": second_id, "state": "ready"},
-        } for control in ("home", "refresh"))
-        second_dom = (
-            f'<main data-ui-surface="{second_id}" data-ui-route="{second_route}">'
-            f'<a data-navigation-id="home" href="index.html">Pages</a><h1>Secondary hybrid surface with meaningful content</h1>'
-            f'<a role="button" data-control-id="refresh" href="index.html">Refresh</a>'
-            + "".join(f'<span data-state="ready" data-responsive-target="{target}"></span>' for target in second_targets)
-            + "</main>"
-        )
-        hifi_text = hifi_text.replace('<script id="ui-hifi-manifest"', second_dom + '<script id="ui-hifi-manifest"')
-        hifi_text = re.sub(
-            r'(<script id="ui-hifi-manifest" type="application/json">)[\s\S]*?(</script>)',
-            lambda match: match.group(1) + json.dumps(manifest) + match.group(2),
-            hifi_text,
-        )
-        hifi.write_text(add_shell(hifi_text, manifest), encoding="utf-8")
+        for action in list(manifest["interactions"]):
+            secondary_action = copy.deepcopy(action)
+            secondary_action["id"] = second_id + "-" + action["id"]
+            secondary_action["source"]["surface"] = second_id
+            secondary_action["destination"]["surface"] = second_id
+            manifest["interactions"].append(secondary_action)
+        for action in manifest["interactions"]:
+            if action["control"] == "home":
+                action["destination"]["surface"] = second_id if action["source"]["surface"] == "UI-001" else "UI-001"
+        # Reuse the product DOM, not the already installed reviewer wrappers.
+        primary_dom = re.search(r'<main data-ui-surface="UI-001"[\s\S]*?</main>', hifi_text).group(0)
+        policy = check_ui_design_contract.check_wireframe_html.REQUIRED_HIFI_CSP.replace("navigate-to 'none'", "navigate-to 'self'")
+        def raw_page(product_dom):
+            return ('<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="'
+                    + policy + '"></head><body>' + product_dom + '</body></html>')
+        secondary_dom = primary_dom.replace('UI-001', second_id).replace('data-ui-route="/home"', f'data-ui-route="{second_route}"').replace('href="index.html"', 'href="secondary.html"')
+        secondary_dom = secondary_dom.replace('data-navigation-id="home" href="secondary.html"', 'data-navigation-id="home" href="index.html"')
+        primary_dom = primary_dom.replace('data-navigation-id="home" href="index.html"', 'data-navigation-id="home" href="secondary.html"')
+        secondary_dom = re.sub(r'<span data-state="[\s\S]*?</span>', '', secondary_dom)
+        secondary_dom = secondary_dom.replace('</main>', ''.join(
+            f'<span data-state="{state}" data-responsive-target="{target}"></span>'
+            for state in ("ready", "updated") for target in second_targets) + '</main>')
+        secondary_html = add_shell(raw_page(secondary_dom), manifest, "secondary.html", component_types=("a", "input"))
+        if platform == "ios":
+            widths = {"compact": 390, "regular": 768}
+            secondary_html = secondary_html.replace('<div data-hifi-canvas ', '<div data-hifi-canvas data-hifi-target-widths="' + json.dumps(widths).replace('"', '&quot;') + '" ', 1)
+            secondary_html = secondary_html.replace('</head>', '<style>' + ''.join(
+                f'[data-hifi-canvas][data-hifi-target="{target}"]{{width:{width}px}}'
+                for target, width in widths.items()) + '</style></head>')
+        secondary_path = hifi.parent / "secondary.html"
+        secondary_path.write_text(secondary_html, encoding="utf-8")
+        manifest["pages"] = [{"path": "secondary.html", "sha256": hashlib.sha256(secondary_path.read_bytes()).hexdigest()}]
+        primary_html = raw_page(primary_dom).replace('</body>', '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script></body>')
+        hifi.write_text(add_shell(primary_html, manifest, component_types=("a", "input")), encoding="utf-8")
+        reviewer_errors, expected_reviewer = reviewer_contract({"index.html": hifi.read_text(encoding="utf-8"), "secondary.html": secondary_html}, manifest)
+        if reviewer_errors:
+            raise AssertionError(reviewer_errors)
 
         evidence_cases = [
-            {"surface": "UI-001", "state": "ready", "target": str(target)}
-            for target in (390, 768, 1200)
+            {"surface": "UI-001", "state": state, "target": str(target)}
+            for state in ("ready", "updated") for target in (390, 768, 1200)
         ] + [
-            {"surface": second_id, "state": "ready", "target": str(target)}
-            for target in second_targets
+            {"surface": second_id, "state": state, "target": str(target)}
+            for state in ("ready", "updated") for target in second_targets
         ]
         evidence_specs = {
             "wireframe-browser.json": "wireframe-mixed",
@@ -300,7 +318,9 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                 for key in ("sandbox", "console", "network", "navigation"):
                     output.pop(key, None)
             else:
-                output.update(bundle_output(manifest))
+                output.update(bundle_output(manifest, component_types=("a", "input")))
+                # Synthetic fixture measurements use the actual named-width map.
+                output["reviewer"]["viewport"] = expected_reviewer["viewport"]
                 output["schema"] = "ui-output/2"
             output.update({"check": check_name, "subject": reviewed, "matrix": receipt["matrix"], "results": receipt["results"]})
             output_path.write_text(json.dumps(output), encoding="utf-8")
@@ -310,12 +330,12 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
         ui = root / "docs/design/ui-design.md"
         ui_text = ui.read_text(encoding="utf-8")
         scope_surfaces = [
-            {"id": "UI-001", "route": "/home", "states": ["ready"], "releaseSurface": "web-app", "surfaceClass": "hosted_web", "captureMode": "hosted-browser", "responsive": {"kind": "viewports", "targets": [390, 768, 1200]}, "stackSemantics": {"platform": "web", "renderingModel": "SPA", "componentFoundation": "shadcn/ui owned source", "stylingMechanism": "Tailwind CSS"}},
-            {"id": second_id, "route": second_route, "states": ["ready"], "releaseSurface": second_surface, "surfaceClass": second_class, "captureMode": second_mode, "responsive": {"kind": second_kind, "targets": second_targets}, "stackSemantics": {"platform": "ios" if platform == "ios" else "web", "renderingModel": "Native" if platform == "ios" else "SPA", "componentFoundation": "SwiftUI" if platform == "ios" else "shadcn/ui owned source", "stylingMechanism": "platform theme" if platform == "ios" else "Tailwind CSS"}},
+            {"id": "UI-001", "route": "/home", "states": ["ready", "updated"], "releaseSurface": "web-app", "surfaceClass": "hosted_web", "captureMode": "hosted-browser", "responsive": {"kind": "viewports", "targets": [390, 768, 1200]}, "stackSemantics": {"platform": "web", "renderingModel": "SPA", "componentFoundation": "shadcn/ui owned source", "stylingMechanism": "Tailwind CSS"}},
+            {"id": second_id, "route": second_route, "states": ["ready", "updated"], "releaseSurface": second_surface, "surfaceClass": second_class, "captureMode": second_mode, "responsive": {"kind": second_kind, "targets": second_targets}, "stackSemantics": {"platform": "ios" if platform == "ios" else "web", "renderingModel": "Native" if platform == "ios" else "SPA", "componentFoundation": "SwiftUI" if platform == "ios" else "shadcn/ui owned source", "stylingMechanism": "platform theme" if platform == "ios" else "Tailwind CSS"}},
         ]
         target_scope = (
             f"Approved target: docs/design/ui-references/run-1/index.html @ sha256:{hashlib.sha256(hifi.read_bytes()).hexdigest()}; "
-            f"scope=surfaces={json.dumps(scope_surfaces, separators=(',', ':'))}|routes=[\"/home\",\"{second_route}\"]|states=[\"ready\"]|responsive={json.dumps({'kind':'per-surface','targets':[]}, separators=(',', ':'))}|tolerance=\"exact\"|allowedDeviations=[]|captureMode=mixed"
+            f"scope=surfaces={json.dumps(scope_surfaces, separators=(',', ':'))}|routes=[\"/home\",\"{second_route}\"]|states=[\"ready\",\"updated\"]|responsive={json.dumps({'kind':'per-surface','targets':[]}, separators=(',', ':'))}|tolerance=\"exact\"|allowedDeviations=[]|captureMode=mixed"
         )
         ui_text = re.sub(r"^Approved target:.*$", target_scope, ui_text, flags=re.MULTILINE)
         comparison_rows = [line for line in ui_text.splitlines() if line.startswith("| VD-R1-01 |")]
@@ -381,7 +401,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                 "stylingMechanism": "platform theme" if platform == "ios" else "Tailwind CSS",
             },
         }
-        registry["stateMatrix"] = ["ready"]
+        registry["stateMatrix"] = ["ready", "updated"]
         bindings = registry["sourceBindings"]
         bindings["prd"]["sha256"] = hashlib.sha256(product.read_bytes()).hexdigest()
         bindings["architecture"]["sha256"] = hashlib.sha256(architecture.read_bytes()).hexdigest()
@@ -460,7 +480,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                     "trace_ids": ["REQ-001"],
                     "route": "/home",
                     "breakpoints": ["390", "768", "1200"],
-                    "states": ["ready"],
+                    "states": ["ready", "updated"],
                     "evidence_gate": "required",
                     "capture_mode": "hosted-browser",
                     "surface_class": "hosted_web",
@@ -471,7 +491,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
                     "trace_ids": ["REQ-001"],
                     "route": "/ios-home" if platform == "ios" else "/extension",
                     "breakpoints": [str(item) for item in second_targets],
-                    "states": ["ready"],
+                    "states": ["ready", "updated"],
                     "evidence_gate": "required",
                     "capture_mode": second_mode,
                     "surface_class": second_class,

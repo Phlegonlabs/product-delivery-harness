@@ -194,7 +194,7 @@ class StrictAuthorityJoinTests(unittest.TestCase):
             paths["design_markdown"] = pair[0]
             paths["design_json"] = pair[1]
             registry = json.loads(paths["design_json"].read_text(encoding="utf-8"))
-            registry["stateMatrix"] = ["ready"]
+            registry["stateMatrix"] = ["ready", "updated"]
             cls._refresh_pair(root, paths, registry)
             next(
                 source for source in plan["sources"] if source["kind"] == "ui design"
@@ -225,7 +225,7 @@ class StrictAuthorityJoinTests(unittest.TestCase):
                     "trace_ids": ["REQ-001", "DS-LAY-001"],
                     "route": "/home",
                     "breakpoints": ["390", "768", "1200"],
-                    "states": ["ready"],
+                    "states": ["ready", "updated"],
                     "evidence_gate": "required",
                     "capture_mode": "hosted-browser",
                 }
@@ -237,7 +237,7 @@ class StrictAuthorityJoinTests(unittest.TestCase):
                     "trace_ids": ["REQ-001"],
                     "route": "/home",
                     "breakpoints": ["390", "768", "1200"],
-                    "states": ["ready"],
+                    "states": ["ready", "updated"],
                     "evidence_gate": "required",
                     "capture_mode": "hosted-browser",
                 }

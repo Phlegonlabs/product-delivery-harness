@@ -25,6 +25,15 @@ Reference valid action grants in the existing task or RUN; this file grants none
 | --- | --- | --- |
 | <source and ID> | <path and affected section/page> | <gate or test> |
 
+## Change Log
+
+| Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
+| --- | --- | --- | --- |
+| <one logical feature or small fix> | <requirements, files and UI pages/regions> | <exact SHA or artifact> | <actual result, including failures> |
+
+Append same-outcome fixes here. A new accepted outcome gets a linked new Epic.
+Do not rewrite earlier results or copy the PRD, scheduler or authorization ledger.
+
 ## Results And Remaining Work
 
 Link exact implementation SHA, test evidence and direct-task or PLAN/RUN records.

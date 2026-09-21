@@ -26,7 +26,7 @@ class UiDesignBuilderSkillContractTests(unittest.TestCase):
         runner = r'''
 const fs = require("fs");
 const vm = require("vm");
-const html = fs.readFileSync(process.argv[1], "utf8");
+const html = fs.readFileSync(process.argv[2], "utf8");
 const slice = (startMarker, endMarker) => {
   const start = html.indexOf(startMarker);
   const end = html.indexOf(endMarker, start);
@@ -66,7 +66,7 @@ const ios = fixture.screens[1];
 if (context.api.targetFor(ios, "1200") !== "regular") throw new Error("native fallback did not use target-local default");
 if (context.api.activeLayout(ios, "1200") !== ios.responsiveLayouts.regular) throw new Error("native layout used a web target");
 if (context.api.regionOrder(web, "1200").map(item => item.id).join(",") !== "W2,W1") throw new Error("target-local region order failed");
-const canvas = {isConnected: true, scrollWidth: 768, clientWidth: 768, querySelectorAll: () => []};
+const canvas = {isConnected: true, scrollWidth: 768, clientWidth: 768, querySelectorAll: () => [], getBoundingClientRect() { return {width: this.clientWidth}; }};
 const shell = {isConnected: true, width: 1200, getBoundingClientRect() { return {width: this.width}; }};
 const panel = {isConnected: true, setAttribute() {}, textContent: ""};
 context.api.runLayoutQa(canvas, shell, panel, web);
@@ -80,14 +80,23 @@ callbacks[1]();
 const keys = Object.keys(context.window.wireframeQaResults || {});
 if (keys.length !== 1 || keys[0] !== "UI-IOS|regular|ready") throw new Error(`wrong QA key ${keys.join(",")}`);
 if (context.window.wireframeQaResults[keys[0]].status !== "pass") throw new Error("current QA callback did not pass");
+canvas.clientWidth = 700;
+context.api.runLayoutQa(canvas, shell, panel, ios);
+callbacks[2]();
+const mismatch = context.window.wireframeQaResults[keys[0]];
+if (mismatch.status !== "fail" || !mismatch.canvasWidthMismatch) throw new Error("incorrect product width was accepted");
+console.log("hybrid fallback and stale QA assertions completed");
 '''
         completed = subprocess.run(
-            [node, "-e", runner, str(template)],
+            [node, "-", str(template)],
+            input=runner,
             capture_output=True,
             text=True,
             check=False,
+            timeout=15,
         )
         self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("hybrid fallback and stale QA assertions completed", completed.stdout)
 
     def read(self, relative: str) -> str:
         return (SKILL_ROOT / relative).read_text(encoding="utf-8")

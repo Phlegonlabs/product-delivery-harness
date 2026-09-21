@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.47.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.48.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -286,15 +286,21 @@ La revisión documental enumera fuentes modificadas, artefactos afectados y comp
 
 Las mejoras completas usan un Epic indexado en `docs/epics/` que referencia el PRD actual. Una corrección pequeña puede conservar solo su registro directo. El objetivo, alcance, diseño, dependencias y pruebas se derivan en ese registro o en PLAN/RUN, sin otra especificación intermedia.
 
+Elige el registro antes de implementar: un resultado nuevo aceptado necesita un Epic; las correcciones del mismo objetivo se añaden a su Change Log; una corrección aislada puede usar el registro directo. Anota motivo, alcance, commit, pruebas y pendientes sin reescribir el historial cerrado. Las mejoras UI son incrementales: añade o modifica solo las páginas Wireframe/HiFi nombradas y sus controles de entrada y retorno. Conserva diseño, contenido, estilo e IDs ajenos al cambio y reutiliza la dirección aprobada. Enumera los consumidores antes de modificar un componente compartido. La cobertura completa y la regresión no autorizan redibujar todas las pantallas.
+
 AGENTS conserva entrada, lectura, responsabilidades, sincronización, autorización y cierre. Comercio, activación y ejecución gestionada pasan a una referencia obligatoria según el caso. Las 500 líneas son un punto de revisión para dividir, no un límite ni una orden de reescritura.
 
 Wireframe y HiFi abren la página principal. La barra lateral muestra Overview, páginas y especificaciones. Una nueva aprobación HiFi exige interacciones reales del producto y pruebas separadas de navegación de revisión y Design Tokens derivados del estilo. El HTML nativo sigue siendo una proyección; los paquetes históricos siguen legibles.
+
+El revisor de wireframes muestra una sola pantalla de producto a la vez. Los controles de objetivo fijan el ancho real del canvas y conservan entradas y estado válidos al cambiar de página u objetivo. La composición por objetivo registra espaciado, medida, posición de acciones y proporciones de medios. HiFi Design Tokens renderiza botones, campos, estados y patrones con estilos reales vinculados a cada página; los specimens compartidos conservan sus vínculos y la cobertura de estados vive en Overview.
+
+El validador HiFi comprueba `aria-current="page"` en el enlace de la página actual dentro de la barra lateral, incluso si está anidado. Una marca en el elemento padre u otro enlace no lo sustituye.
 
 La evidencia también cubre enlaces desconocidos, el botón Atrás desde cada vista de revisión y la restauración final de la página principal en cada tamaño objetivo.
 
 La entrega full-stack sigue flujos completos: UI, API, permisos, persistencia y respuesta. agent-browser explora Web; los recorridos importantes quedan como pruebas locales y de CI. Login, denegación, reintentos y efectos requieren evidencia real. La publicación verifica migraciones, salud, monitoreo, costes y recuperación; entrega, disponibilidad, activación y resultados se informan por separado. SEO se aplica solo a superficies públicas pertinentes.
 
-Actualiza a 0.47.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria.
+Actualiza a 0.48.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria.
 
 Cada invocación aplica el [contrato de sincronización documental](skills/delivery-harness/references/document-sync-contract.md): revisa cambios en las instrucciones vigentes, la identidad del skill/runtime y los documentos del producto, sin reescribir aprobaciones ni RUN históricos. El PRD actual sigue siendo la base de la próxima mejora; las versiones reemplazadas conservan enlaces de referencia. La [mejora acotada](skills/delivery-harness/references/bounded-enhancement.md) reutiliza un alcance aceptado para reparar, reemplazar módulos dentro de ese alcance y repetir pruebas, sin pedir la misma aprobación. Al agotar el presupuesto, entrega los pendientes a la próxima ronda; terminar una ronda no equivale a PASS ni autoriza publicar.
 
@@ -582,6 +588,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.48.0** — Las mejoras conservan las pantallas Wireframe/HiFi no afectadas y reutilizan la dirección aprobada. El historial del Epic distingue resultados nuevos de correcciones pequeñas. La revisión incorpora lienzos responsive con ancho exacto, búsqueda local funcional y muestras de componentes vinculadas a su fuente. La evidencia HiFi valida variantes reales, selección conservada y filas malformadas. Cambio incompatible del paquete.
 
 - **0.47.0** — Epics indexados y resúmenes derivados conservan un solo PRD vigente. La sincronización enumera impactos. AGENTS enlaza reglas condicionales y usa 500 líneas como punto de revisión. Wireframe abre la página principal; nuevas aprobaciones HiFi requieren Overview, Design Tokens por página y pruebas separadas del producto y de revisión. E2E full-stack y recuperación usan los registros existentes. Cambio incompatible del paquete.
 

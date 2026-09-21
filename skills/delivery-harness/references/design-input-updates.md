@@ -53,6 +53,8 @@ Do not treat general assets, logos, README covers, test snapshots, `docs/goal/ev
 
 ## Delta Record
 
+For UI enhancements, apply `../../ui-design-builder/references/enhancement-recommendations.md`'s Incremental UI Scope. Record added, changed and preserved pages before authoring or implementation. Necessary entry links and shared consumers belong in the named delta; preserve unrelated product DOM, copy, layout, style and behavior. Complete connected coverage and full regression do not mean full redraw.
+
 Every accepted change should be captured as a delta row:
 
 ```text

@@ -143,7 +143,7 @@ HiFi blocks or disputes: none
 Decision: {visual}
 Decision owner: Product owner
 Decided on: 2026-09-13
-Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=surfaces=[{{"id":"UI-001","route":"/home","states":["ready"],"stackSemantics":{{"platform":"web","renderingModel":"SPA","componentFoundation":"shadcn/ui owned source","stylingMechanism":"Tailwind CSS"}}}}]|routes=["/home"]|states=["ready"]|responsive={{"kind":"viewports","targets":[390,768,1200]}}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser
+Approved target: docs/design/ui-references/run-1/index.html @ sha256:{E_HASH}; scope=surfaces=[{{"id":"UI-001","route":"/home","states":["ready","updated"],"stackSemantics":{{"platform":"web","renderingModel":"SPA","componentFoundation":"shadcn/ui owned source","stylingMechanism":"Tailwind CSS"}}}}]|routes=["/home"]|states=["ready","updated"]|responsive={{"kind":"viewports","targets":[390,768,1200]}}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser
 
 ## Design System Need Gate
 
@@ -184,6 +184,14 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     data = wireframe_data()
     data = json.loads(json.dumps(data).replace('"generationRoute": "CSS-WAAPI"',
                                              '"generationRoute": ' + json.dumps(motion_route)))
+    data["screens"][0]["states"].append({
+        "id": "updated", "label": "Updated",
+        "treatments": {"R1": {"layout": "Keep the retained input visible", "copy": [
+            {"kind": "static", "role": "success status", "text": "Review input retained.",
+             "status": "approved", "source": "Owner-approved fixture copy"}
+        ]}},
+    })
+    product_text = product_text.replace("- `states`: ready", "- `states`: ready, updated")
     architecture_text = __import__("test_product_package_checker").release_architecture()
     stack_text = valid_stack()
     product_text, architecture_text, stack_text = __import__(
@@ -204,26 +212,29 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         "interactions": [{"id": control, "source": {"surface": "UI-001", "state": "ready"},
                           "control": control, "kind": "navigate",
                           "destination": {"surface": "UI-001", "state": "ready"}}
-                         for control in ("home", "refresh")],
+                         for control in ("home", "refresh")]
+                        + [{"id": "filter", "source": {"surface": "UI-001", "state": "ready"},
+                            "control": "filter", "kind": "state",
+                            "destination": {"surface": "UI-001", "state": "updated"}}],
         "surfaces": [{
             "id": "UI-001",
             "page": "index.html",
             "route": "/home",
-            "states": ["ready"],
+            "states": ["ready", "updated"],
             "responsive": {"kind": "viewports", "targets": [390, 768, 1200]},
             "navigation": ["home"],
-            "controls": ["refresh"],
+            "controls": ["refresh", "filter"],
         }],
     })
     hifi.write_text(
         '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="'
         + checker.check_wireframe_html.REQUIRED_HIFI_CSP.replace("navigate-to 'none'", "navigate-to 'self'")
-        + '"></head><body><main data-ui-surface="UI-001" data-ui-route="/home"><a data-navigation-id="home" href="index.html">Pages</a><h1>HiFi review surface with meaningful content</h1><a role="button" data-control-id="refresh" href="index.html">Refresh</a><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span></main>'
+        + '"></head><body><main data-ui-surface="UI-001" data-ui-route="/home"><a class="product-link" data-navigation-id="home" href="index.html">Pages</a><h1>HiFi review surface with meaningful content</h1><a role="button" class="product-link" data-retention-selected aria-selected="true" data-specimen-variant="default" data-specimen-state="default" data-control-id="refresh" href="index.html">Refresh</a><input class="product-input" data-retention-input data-specimen-variant="default" data-specimen-state="default" data-control-id="filter" value="Retained input" aria-label="Filter"><section class="product-feedback" data-specimen-variant="default" data-specimen-state="default">Saved locally.</section><span data-state="ready" data-responsive-target="390"></span><span data-state="ready" data-responsive-target="768"></span><span data-state="ready" data-responsive-target="1200"></span><span data-state="updated" data-responsive-target="390"></span><span data-state="updated" data-responsive-target="768"></span><span data-state="updated" data-responsive-target="1200"></span></main>'
         '<script id="ui-hifi-manifest" type="application/json">' + manifest + "</script></body></html>",
         encoding="utf-8",
     )
     if not legacy_hifi:
-        hifi.write_text(add_shell(hifi.read_text(encoding="utf-8"), json.loads(manifest)), encoding="utf-8")
+        hifi.write_text(add_shell(hifi.read_text(encoding="utf-8"), json.loads(manifest), component_types=("a", "input")), encoding="utf-8")
     if legacy_hifi:
         legacy = json.loads(manifest)
         legacy = {"schema": "ui-hifi/1", "surfaces": [
@@ -250,8 +261,8 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     for old, new in replacements.items():
         ui = ui.replace(old, new)
     evidence_cases = [
-        {"surface": "UI-001", "state": "ready", "target": str(target)}
-        for target in (390, 768, 1200)
+        {"surface": "UI-001", "state": state, "target": str(target)}
+        for state in ("ready", "updated") for target in (390, 768, 1200)
     ]
     evidence_specs = {
         "wireframe-browser.json": "wireframe-browser",
@@ -276,7 +287,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
             "results": [dict(case, result="PASS") for case in evidence_cases],
         }
         if check_name == "hifi-browser":
-            output.update(bundle_output(json.loads(manifest)))
+            output.update(bundle_output(json.loads(manifest), component_types=("a", "input")))
             output["schema"] = "ui-output/2"
             if legacy_hifi:
                 output["schema"] = "ui-output/1"
@@ -311,7 +322,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     for name, state in (("motion-normal.json", "normal"), ("motion-reduced.json", "reduced-motion")):
         motion_cases = [{"surface": "UI-001", "state": state, "target": str(target)} for target in (390, 768, 1200)]
         output_path = evidence_dir / name.replace(".json", "-output.json")
-        output = bundle_output(json.loads(manifest))
+        output = bundle_output(json.loads(manifest), component_types=("a", "input"))
         output.update({
             "schema": "ui-output/1" if legacy_hifi else "ui-output/2",
             "check": "motion-preview",
@@ -417,7 +428,7 @@ def materialize_hifi_bundle(root):
     surfaces = [
         {"id": surface, "page": page, "route": route, "states": ["ready", "updated"],
          "responsive": {"kind": "viewports", "targets": [390, 1200]},
-         "navigation": ["next"], "controls": ["refresh"]}
+         "navigation": ["next"], "controls": ["refresh", "filter", "view"]}
         for surface, page, route in (("UI-001", "index.html", "/home"), ("UI-002", "details.html", "/details"))
     ]
     manifest = {"schema": "ui-hifi/2", "pages": [], "surfaces": surfaces, "interactions": []}
@@ -425,12 +436,15 @@ def materialize_hifi_bundle(root):
     def page(row, other):
         return ('<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="' + policy
                 + '"></head><body><main data-ui-surface="' + row["id"] + '" data-ui-route="' + row["route"]
-                + '"><h1>Connected product page with real navigation</h1><a data-navigation-id="next" href="' + other["page"]
-                + '">Next page</a><button data-control-id="refresh">Refresh</button>'
+                + '"><h1>Connected product page with real navigation</h1><a class="product-link" data-specimen-variant="default" data-specimen-state="default" data-navigation-id="next" href="' + other["page"]
+                + '">Next page</a><button class="product-button" data-specimen-variant="default" data-specimen-state="default" data-control-id="refresh">Refresh</button>'
+                + '<input class="product-input" data-retention-input data-specimen-variant="default" data-specimen-state="default" data-control-id="filter" value="Retained input" aria-label="Filter">'
+                + '<select class="product-select" data-retention-selected data-specimen-variant="default" data-specimen-state="default" data-control-id="view" aria-label="View"><option value="ready" selected>Ready</option></select>'
+                + '<section class="product-feedback" data-specimen-variant="default" data-specimen-state="default">Saved locally.</section>'
                 + ''.join('<span data-state="' + state + '" data-responsive-target="' + str(target) + '"></span>' for target in (390, 1200) for state in ("ready", "updated"))
                 + '</main></body></html>')
     for source, destination in ((surfaces[0], surfaces[1]), (surfaces[1], surfaces[0])):
-        for control, kind, target in (("next", "navigate", destination), ("refresh", "state", source)):
+        for control, kind, target in (("next", "navigate", destination), ("refresh", "state", source), ("filter", "state", source), ("view", "state", source)):
             manifest["interactions"].append({"id": source["id"] + "-" + control, "source": {"surface": source["id"], "state": "ready"},
                                             "control": control, "kind": kind, "destination": {"surface": target["id"], "state": "updated" if kind == "state" else "ready"}})
     child = root / "details.html"
@@ -441,7 +455,7 @@ def materialize_hifi_bundle(root):
     return path, manifest, {"surfaces": [{key: value for key, value in row.items() if key != "page"} for row in surfaces]}
 
 
-def bundle_output(manifest):
+def bundle_output(manifest, component_types=("button", "input", "select", "a")):
     output = {"sandbox": {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"},
               "console": [], "network": [], "navigation": [], "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0, "interactions": []}
     surfaces = {row["id"]: row for row in manifest["surfaces"]}
@@ -454,7 +468,7 @@ def bundle_output(manifest):
                                                "destination": action["destination"], "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS"})
                 if action["kind"] == "navigate":
                     output["navigation"].append({"id": action["id"], "target": str(target), "trigger": trigger, "from": source["page"], "to": destination["page"]})
-    output["reviewer"] = observations(manifest)
+    output["reviewer"] = observations(manifest, component_types)
     return output
 
 

@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.47.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.48.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -286,15 +286,21 @@ Document checks now report each changed source, affected artifacts and required 
 
 Complete enhancements use one indexed Epic in `docs/epics/`, referencing the current PRD instead of duplicating it. Small fixes can keep only a direct-task record. The goal, write scope, design source, dependencies and checks are derived into that record or existing PLAN/RUN; no extra coordination specification is required.
 
+Choose the record before implementation: a new accepted outcome gets an Epic; same-outcome fixes append to its Change Log; an isolated small fix can use a direct-task record. Log the reason, affected scope, commit, tests and remaining work without rewriting closed history. UI enhancements are incremental: add or patch only named Wireframe/HiFi pages and necessary entry/return controls. Preserve unrelated product layout, content, style and IDs, and reuse the approved direction. List shared-component consumers before changing them. Complete package coverage and full regression are not instructions to redraw every screen.
+
 Project AGENTS keeps entry, reading, ownership, routing, synchronization, authorization and completion rules. Conditional commerce, activation and managed-run details live in a required reference. The 500-line rule is a split checkpoint, not a hard limit; repairs preserve interfaces and data.
 
 Wireframe and HiFi review starts on the primary product page. The left sidebar opens Overview, every page and design specifications. Fresh HiFi approval requires working product interactions plus separate reviewer-navigation and source-derived Design Tokens evidence; native HTML is still a design projection. Historical bundles remain inspection-readable.
+
+The wireframe reviewer keeps one product screen visible at a time. Target controls set the actual canvas width and retain valid inputs and state across page and target switches. Per-target composition records spacing, measure, action placement and media proportions. HiFi Design Tokens render real styled buttons, fields, states and patterns bound to each page; shared specimens stay page-bound, and state coverage belongs in Overview.
+
+The HiFi validator checks `aria-current="page"` on each page's own sidebar link, including nested links. A marker on a parent or another link cannot substitute for it.
 
 Reviewer evidence also covers unknown links, browser Back from each review view, and final restoration of the primary product page at every target.
 
 Full-stack delivery follows complete user flows through UI, API, permissions, persistence and feedback. Use agent-browser for Web exploration and retain important journeys as local/CI tests. Actual login, denied access, retry and side effects need evidence. Deployment checks include migrations, health, monitoring, cost alerts and recovery; delivery, release, activation and product results are reported separately. SEO applies only to relevant public surfaces.
 
-Upgrade to 0.47.0 with the canonical installer after active skill-using sessions reach a safe boundary. Keep its backup and start a fresh session; installed bytes do not update a loaded worker. Review the document-sync impact report, preserve local AGENTS rules and historical evidence, and patch only affected live sources. Existing document-sync/1 and ui-hifi/2 files remain inspectable. A fresh HiFi approval adds the reviewer shell and page-bound ui-output/2 reviewer observations; regenerate only affected evidence, not old approvals. Small fixes need no new Epic/PLAN/RUN. Re-run the affected owner gates plus mandatory final verification.
+Upgrade to 0.48.0 with the canonical installer after active skill-using sessions reach a safe boundary. Keep its backup and start a fresh session; installed bytes do not update a loaded worker. Review the document-sync impact report, preserve local AGENTS rules and historical evidence, and patch only affected live sources. Existing document-sync/1 and ui-hifi/2 files remain inspectable. A fresh HiFi approval adds the reviewer shell and page-bound ui-output/2 reviewer observations; regenerate only affected evidence, not old approvals. Small fixes need no new Epic/PLAN/RUN. Re-run the affected owner gates plus mandatory final verification.
 
 Every skill invocation starts with the shared [document-sync contract](skills/delivery-harness/references/document-sync-contract.md): review changed live instructions, skill/runtime identity and product documents, without rewriting historical approvals or runs. The current PRD stays the next enhancement's baseline; superseded PRDs remain linked references. [Bounded enhancement](skills/delivery-harness/references/bounded-enhancement.md) reuses one accepted scope for repairs, same-scope module replacement and retesting instead of repeated approval prompts. Stop at the repair budget and hand unresolved requirements to the next round; ending a round is not a delivery PASS or permission to publish.
 
@@ -583,6 +589,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.48.0** — Enhancements preserve unaffected Wireframe and HiFi screens and reuse the approved direction. Epic change logs distinguish new outcomes from small fixes. Reviewers gain exact-width responsive canvases, usable local search and source-bound component specimens. Fresh HiFi evidence validates actual variants, selection retention and malformed rows. Breaking skill-bundle change.
 
 - **0.47.0** — Indexed Epics and derived execution summaries keep one current PRD. Document sync reports source impacts. Project guidance routes conditional rules; 500 lines is a split checkpoint. Wireframe defaults to the primary page; fresh HiFi approval requires sidebar Overview, page-bound Design Tokens and separate product/reviewer browser evidence. Full-stack E2E and recovery handoffs use existing records. Breaking skill-bundle change.
 

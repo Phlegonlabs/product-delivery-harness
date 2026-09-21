@@ -16,7 +16,7 @@ from typing import Any
 
 import check_wireframe_html
 from motion_evidence import motion_findings
-from hifi_reviewer import reviewer_contract, reviewer_evidence_findings
+from hifi_reviewer import has_current_reviewer_shell, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -1082,7 +1082,10 @@ def _validate_hifi_bundle(
         by_id[surface["id"]] = surface
     if scope is not None and set(by_id) != {row.get("id") for row in scope.get("surfaces", [])}:
         _add(problems, "HiFi bundle surfaces must exactly match Approved target scope")
-    if require_reviewer or any("data-hifi-reviewer-shell" in text.lower() for text in documents.values()):
+    # Historical schema-2 pages remain statically inspectable; a fresh connected
+    # check still requires the current shell through require_reviewer below.
+    current_reviewer = has_current_reviewer_shell(documents)
+    if require_reviewer or current_reviewer:
         reviewer_errors, _ = reviewer_contract(documents, manifest)
         problems.extend(reviewer_errors)
     product_controls: dict[tuple[str, str], list[dict[str, str | None]]] = {}
@@ -1791,7 +1794,10 @@ def _resolve_evidence(
                                     if isinstance(parsed_manifest, dict) and parsed_manifest.get("schema") == "ui-hifi/2":
                                         bundle = parsed_manifest
                                         documents = _hifi_bundle_documents(candidate, candidate.read_text(encoding="utf-8"), bundle)
-                                        if any("data-hifi-reviewer-shell" in text.lower() for text in documents.values()):
+                                        # Only a current shell contributes a reviewer receipt. Legacy
+                                        # schema-2 shells keep their inspection-only output shape;
+                                        # _validate_hifi_surface(require_connected=True) is the fresh gate.
+                                        if has_current_reviewer_shell(documents):
                                             review_errors, review_contract = reviewer_contract(documents, bundle)
                                             problems.extend(review_errors)
                                 except (OSError, UnicodeError, ValueError):

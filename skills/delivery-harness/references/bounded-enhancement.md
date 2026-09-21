@@ -14,6 +14,17 @@ The default is at most two repair rounds per root-cause family, including a repl
 
 Selecting a skill alone grants no writes. Preserve every action-specific authorization, exact target, runtime boundary, and host confirmation requirement. Spending, production data, external writes, publication, installation, branch/worktree deletion, or a new product requirement are not implied by local delivery authority. Check existing grants before asking again; do not repeat a still-valid authorization.
 
+## Epic Selection And Change History
+
+Classify the record before implementation, after the owner accepts the outcome:
+
+- Create one Epic for a new feature or complete enhancement with its own goal and acceptance conditions. Index it in `docs/DOCUMENTS.md`; do not create a competing PRD.
+- Extend the existing Epic when a small fix, test, copy correction or implementation repair serves the same accepted outcome. A new commit, session, worker or release number is not a new Epic.
+- For an isolated small fix with no suitable Epic, use a concise direct-task record. Record why no Epic is needed and link the change, verifier and result.
+- A follow-up to a closed Epic may append a dated fix record without rewriting its earlier result. A new outcome or changed acceptance criteria needs a linked new Epic; do not quietly broaden the closed one.
+
+Keep a short Change Log in the chosen record: request or finding, reason, affected files/requirements and UI scope, exact commit or evidence, verification result and remaining work. Record each logical fix when it is made, including failed checks and later repairs. Group related edits; do not log every keystroke or duplicate PLAN/RUN state. Before handoff, reconcile the log with the actual diff and keep unresolved criteria visible. A documentation-only internal enhancement may reference its existing contract/tests instead of inventing a product PRD.
+
 ## Repair Or Replace
 
 For a frontend/mobile enhancement, classify UI impact before implementation and route affected recommendations through `../../ui-design-builder/references/enhancement-recommendations.md`. Preserve current brand/stack and unaffected screens. An explicit hero or animation request remains a required UI/MM acceptance item; a placeholder or a missing effect cannot close it. Do not impose a redesign on a small repair or reopen decisions already covered by the accepted scope.

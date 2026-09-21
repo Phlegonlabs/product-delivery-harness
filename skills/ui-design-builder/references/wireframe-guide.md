@@ -29,11 +29,11 @@ Before drafting the HTML, look up how comparable products structure the same tas
 
 The target is a mid-fidelity interactive structural prototype. Use exact product copy, realistic bounded data, readable type roles, intentional spacing, task-fit proportions and distinct navigation, list, table and form structures. Inspect long copy, dense data and every PRD-required alternate state at the declared responsive targets. Images remain labeled placeholders with purpose and proportions; final brand assets and animation belong to HiFi.
 
-Walk each declared primary journey using product controls, including keyboard operation where applicable. Review-shell page/state switching is capture setup, not journey evidence. Required input, validation and recovery behavior must be represented locally from the approved PRD, with no network or real account side effects. The template's read-only field sample only proves placement; if the canonical runtime cannot express a required interaction, record the unsupported case as blocked and extend the canonical renderer and checker together before approval. Do not modify the frozen shell ad hoc, invent behavior, or call a read-only flow complete.
+Walk each declared primary journey using product controls, including keyboard operation where applicable. Review-shell page/state switching is capture setup, not journey evidence. Required input, validation and recovery behavior must be represented locally from the approved PRD, with no network or real account side effects. The template's local field inputs retain edits for review, but only declared actions and flows prove a product journey; if the canonical runtime cannot express a required interaction, record the unsupported case as blocked and extend the canonical renderer and checker together before approval. Do not modify the frozen shell ad hoc, invent behavior, or call an undeclared flow complete.
 
 ### Left Sidebar And Initial Page
 
-Keep Overview, every product page and Design System in the left sidebar. Open the first declared product page by default; preserve explicit page, `#overview` and `#design-system` links. Unknown hashes recover to the first page and its first state. Put the complete screen/flow summary in Overview, reached intentionally from the sidebar. Product previews keep their own task controls; reviewer navigation is not product interaction evidence.
+Keep Overview, every product page, Design System, responsive targets and state controls in the fixed left reviewer sidebar. Open the first declared product page by default; preserve explicit page, `#overview` and `#design-system` links. Unknown hashes recover to the first page and its first state. Put the complete screen/flow summary in Overview, reached intentionally from the sidebar. Product previews keep their own task controls; reviewer navigation is not product interaction evidence.
 
 ### Design System Draft View
 
@@ -67,11 +67,13 @@ Schema 4's top-level `copyFreeze` records `status`, human `owner`, primary BCP 4
 
 Use the template's embedded data block as the only product-specific input. Replace its example screens with the complete surface set and escape `<`, `>`, `&`, U+2028, and U+2029 inside JSON string values before embedding untrusted or user-supplied text. Render values through `textContent`, not `innerHTML`.
 
-Project the PRD's flows and traces through the same block. `flows` lists each flow as `{from, trigger, to, presentation}` plus structured `feedback` copy when that presentation applies, where `from` is a screen ID, `trigger` exactly matches one visible action object's `label` on that screen, and `presentation` is `page`, `overlay`, or `feedback`. A `page` or `overlay` target is another `UI-*` screen in the same file; `feedback` may name a local result or external destination but never performs a network request. The reviewer shell renders region actions as working buttons: `page` switches screens, `overlay` opens an accessible local dialog for the target screen, and `feedback` shows its exact approved local message. Every visible region action maps to exactly one outgoing flow, and every outgoing flow maps back to one visible action. Per-screen or per-region `traces` list the `UX-*` IDs the surface traces to.
+Project the PRD's flows and traces through the same block. `flows` lists each flow as `{from, trigger, to, presentation}` plus structured `feedback` copy when that presentation applies, where `from` is a screen ID, `trigger` exactly matches one visible action object's `label` on that screen, and `presentation` is `page`, `overlay`, or `feedback`. A `page` or `overlay` target is another `UI-*` screen in the same file; `feedback` may name a local result or external destination but never performs a network request. The reviewer shell renders region actions as working buttons: `page` switches screens, `overlay` opens an accessible local dialog for the target screen, and `feedback` shows its exact approved local message. A label may repeat across distinct regions only when all copies resolve to the same single outgoing flow; repeating it within one region fails, and at least one copy must remain visible in a responsive target. Per-screen or per-region `traces` list the `UX-*` IDs the surface traces to.
 
 An optional `mediaIntent` object on a screen or region records the approved Motion and Media Intent decision. It carries a stable `id` equal to its `MM-*` row plus `treatment` — `none`, `image`, `motion`, or `image + motion` — plus non-empty `purpose`, `trigger`, `draftPrompt`, `source`, `reducedMotionFallback`, and `generationRoute`, with `generationStatus: deferred`. Add one only where a decision exists. A blocked region returns to the owner before wireframe approval. The reviewer shell renders the record as a visible note. The wireframe implements no final image or animation and invokes no provider. Deterministic UI motion and generated assets are routed only after structural approval under `motion-and-media-routing.md`.
 
 Every PRD `UI-*` entry carries one invariant `` `responsive`: `` anchor. Its kind and values match either the HTML's single global set or that screen's exact `responsiveBySurface` entry. A hybrid entry also preserves the PRD `releaseSurface`, `surfaceClass`, and `captureMode`; one platform's targets never stand in for another's. Every screen carries a non-empty `neverDrop` list and a `responsiveLayouts` object keyed by its own targets. Each target entry declares `order`, `hidden`, `columns`, a `spans` value for every region, plus filled `reflow` and `interaction` rules. `order` contains every region exactly once. `hidden` may omit secondary material only; it cannot contain a never-drop region, and every primary region belongs to `neverDrop`. These fields make responsive behavior inspectable instead of treating a generic compact stack as proof.
+
+Schema-4 may add a bounded `composition` object to a target layout when relative geometry needs to be explicit. Its shape is `{ "canvas": { "padding": number, "gap": number }, "regions": { "region-id": { "padding"?: number, "gap"?: number, "maxWidth"?: number, "actionsPlacement"?: "before" | "after" | "inline", "itemColumns"?: integer, "mediaAspectRatio"?: number } } }`. `canvas.padding` and `canvas.gap` are 0–128; region padding and gap are 0–128; `maxWidth` is 1–2400; `itemColumns` is 1–12; and `mediaAspectRatio` is 0.25–4. Unknown keys or region IDs fail validation. The template applies these values to the review canvas, region spacing and measure, action position, list columns and media placeholder ratio; they are not arbitrary CSS or product behavior.
 
 Inline CSS and JavaScript implement the reviewer studio, page switching, working PRD actions, local overlays and feedback, viewport switching, state switching, copy inventory, reviewer-only inspector, and printing. They are not product implementation. Keep the canvas grayscale and structural: use typography, spacing, content silhouettes, and contrast only to make hierarchy legible. Add no brand palette, decorative imagery, generated media, final animation, production component library, polished marketing treatment, or formal design-system token decision. Shared prototype values and their Draft view are allowed.
 
@@ -85,12 +87,42 @@ A region may declare `presentation`: `content` (default), `navigation`, `editori
 
 - `list` uses exact `list item` roles for rows; other copy precedes the list.
 - `table` uses exact `table header` roles followed by `table cell` records in row-major order. At least one header and one complete row are required. Introductory copy precedes the headers; interleaved copy is rejected rather than reordered. Preserve readable column relationships at compact targets; wide tables need a product-approved reflow design, not tiny text.
-- `form` uses exact `field label` roles and an optional immediately following `field value` record. The template displays labeled read-only text controls; this proves structural placement only. Author the PRD-required input types and interactions when these differ; read-only fields cannot prove an editable flow.
+- `form` uses exact `field label` roles and an optional immediately following `field value` record. The template renders labeled local text inputs that can be edited in the review file and retain their values across page, target and reviewer-panel switches. Submission, validation and recovery still require declared PRD actions and flows; editable placement alone never invents a product journey or side effect.
 - `navigation` groups orientation and existing actions; `editorial` provides a leading text hierarchy. Neither infers routes, action priority, or product behavior.
 
 A region may set `primaryAction` to exactly one existing action label to give that control primary emphasis. Derive it from the approved task hierarchy; array order never implies priority. Alternate-state copy replaces the baseline region content and deferred media rather than displaying stale data underneath it; existing actions retain their declared destinations.
 
 Existing files without `presentation` remain readable. New authoring must choose the content form that fits the actual task rather than leaving every region as generic content. Extend the local renderer within the approved contract when these treatments cannot express the product; never pass an inaccurate projection merely because the template can render it.
+
+### Local Search Projection
+
+Schema-4 screens may declare one bounded, local-only search projection when the approved product flow needs an editable query and language filter. It is optional and adds no product scope or network behavior. The exact shape is:
+
+```json
+{
+  "localSearch": {
+    "formRegion": "search-form",
+    "resultsRegion": "search-results",
+    "queryLabel": {"kind": "static", "role": "field label", "text": "Search", "status": "approved", "source": "..."},
+    "languageLabel": {"kind": "static", "role": "field label", "text": "Language", "status": "approved", "source": "..."},
+    "languageOptions": [
+      {"value": "all", "copy": {"kind": "static", "role": "select option", "text": "All languages", "status": "approved", "source": "..."}}
+    ],
+    "submitAction": "Search",
+    "clearAction": "Clear",
+    "states": {"initial": "ready", "results": "results", "empty": "no-results"},
+    "items": [
+      {
+        "language": "en",
+        "copy": {"kind": "dynamic", "role": "list item", "example": "Example result", "status": "approved", "source": "...", "contract": {"source": "...", "order": "...", "format": "...", "count": "...", "length": "...", "fallback": "..."}},
+        "searchText": "Example result"
+      }
+    ]
+  }
+}
+```
+
+`formRegion` and `resultsRegion` reference existing regions; the results region uses the `list` presentation. The first language option is the unfiltered option used by Clear. Labels and options are static copy, while item copy is dynamic copy with the normal source/order/format/count/length/fallback contract. `items` is local bounded review data (at most 10,000 items and 4,096 search characters per item); it is not a network-backed result set. `states` references three existing screen states, and their results/empty treatments provide the approved count or empty copy. Search, Enter, language changes, and Clear operate only on this local item set; Search and Clear still map to the screen's declared flows for contract coverage, but the reviewer intercepts them locally. Results always render the matching rows as well as any approved results treatment, and Clear restores the first option, the initial state, and query focus.
 
 ## Copy Freeze Gate
 
@@ -143,9 +175,11 @@ An approved `wireframes.html`, together with the still-approved Product Definiti
 
 An enhancement run first classifies the delta's UI impact with the owner — `none`, `structure`, `style`, or `both`. Never assume `none` because the request reads backend- or data-side.
 
+Apply `enhancement-recommendations.md`'s Incremental UI Scope before authoring. Append a new screen or patch named regions in the existing data; retain all other screen objects, copy, composition and flow bindings. Necessary entry links are a named change, not permission to redesign their entire page. Re-serializing the container HTML does not authorize new product content or geometry. Review the full package without re-authoring the preserved scope.
+
 - `none`: preserve `wireframes.html` and any approved UI target verbatim.
 - `structure` or `both`: update the affected `UI-*` entries in `PRD.md` first, then regenerate the affected pages in `wireframes.html`, then re-run the Wireframe Approval Gate on the changed scope and refresh `### Wireframe Approval`. A changed PRD UI contract with a stale wireframe artifact is not a complete package.
-- `style` or `both`: re-run `references/ui-design-pass.md` for the affected scope or obtain explicit confirmation that the existing direction still applies. Keeping `ui-design.md`, an approved target, or a design-system pair unchanged requires the owner's explicit confirmation. A stale visual contract never publishes silently.
+- `style` or `both`: re-run `references/ui-design-pass.md` for the affected scope. Reuse the recorded approved direction unless the accepted delta changes it; do not seek a fresh style selection merely because a page was added. Refresh affected target and source bindings, and renew applicable approval/evidence. A stale visual contract never publishes silently.
 
 A user-visible wording change is a copy delta and uses `structure` (or `both` when style also changes) under the existing four-value UI-impact classifier. Update the affected PRD `` `copy` `` anchors and schema-4 items, return `copyFreeze.status` and the affected screen `copyStatus` to `draft`, inspect every impacted viewport and state for reflow, and renew both Copy Freeze and Wireframe Approval. A dynamic source/order/format/count/length/fallback change follows the same route even when its representative example stays unchanged.
 
