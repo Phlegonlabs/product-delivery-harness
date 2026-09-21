@@ -60,6 +60,17 @@ product, approval, authorization and release gates remain in place.
 
 ## Results And Remaining Work
 
+PR #115's current-page review found a second blocker at `9d017fa`: the validator
+looked for the navigation marker on the anchor instead of its parent chain. The
+owner authorized a bounded repair and push, with a new exact-SHA merge decision
+afterward. UI impact is `none`: only validation and tests change, not product HTML.
+The validator now uses the same sidebar anchor collection for page coverage and
+current-page checks. Three new tests cover both pages, five missing/invalid values,
+markers on parents/other links/outside navigation, and valid nested links. Before
+the fix, 16 negative subcases failed; afterward all 32 reviewer tests passed.
+Full new-candidate verification and independent review remain pending. This is a
+small fix within this Epic; previous CI PASS does not cover the repaired candidate.
+
 At `a5b3217`, the local full suite passed (1,156 Harness tests with 16 skips,
 573 sibling tests with 3 skips, and the opt-in golden path). PR #115 CI then found
 one UI test fixture without the canvas measurement API. Its multiline `node -e`

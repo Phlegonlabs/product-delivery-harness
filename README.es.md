@@ -294,6 +294,8 @@ Wireframe y HiFi abren la página principal. La barra lateral muestra Overview, 
 
 El revisor de wireframes muestra una sola pantalla de producto a la vez. Los controles de objetivo fijan el ancho real del canvas y conservan entradas y estado válidos al cambiar de página u objetivo. La composición por objetivo registra espaciado, medida, posición de acciones y proporciones de medios. HiFi Design Tokens renderiza botones, campos, estados y patrones con estilos reales vinculados a cada página; los specimens compartidos conservan sus vínculos y la cobertura de estados vive en Overview.
 
+El validador HiFi comprueba `aria-current="page"` en el enlace de la página actual dentro de la barra lateral, incluso si está anidado. Una marca en el elemento padre u otro enlace no lo sustituye.
+
 La evidencia también cubre enlaces desconocidos, el botón Atrás desde cada vista de revisión y la restauración final de la página principal en cada tamaño objetivo.
 
 La entrega full-stack sigue flujos completos: UI, API, permisos, persistencia y respuesta. agent-browser explora Web; los recorridos importantes quedan como pruebas locales y de CI. Login, denegación, reintentos y efectos requieren evidencia real. La publicación verifica migraciones, salud, monitoreo, costes y recuperación; entrega, disponibilidad, activación y resultados se informan por separado. SEO se aplica solo a superficies públicas pertinentes.

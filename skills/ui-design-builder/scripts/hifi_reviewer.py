@@ -310,12 +310,13 @@ def _reviewer_contract(documents, manifest):
             errors.append(f"HiFi {name} requires the current version-2 reviewer shell")
         if len(navs) != 1 or navs[0][0] != "nav" or not any("data-hifi-reviewer-shell" in p for p in navs[0][1]):
             errors.append(f"HiFi {name} requires one sidebar page navigation")
-        links = [attrs.get("href") for tag, attrs, parents in nodes if tag == "a" and any("data-hifi-page-nav" in p for p in parents)]
+        page_links = [attrs for tag, attrs, parents in nodes if tag == "a" and any("data-hifi-page-nav" in p for p in parents)]
+        links = [attrs.get("href") for attrs in page_links]
         if sorted(str(link) for link in links) != sorted(pages):
             errors.append(f"HiFi {name} sidebar must link every bundle page exactly once")
         else:
-            for tag, attrs, _ in nodes:
-                if tag == "a" and attrs.get("href") == name and "data-hifi-page-nav" in attrs:
+            for attrs in page_links:
+                if attrs.get("href") == name:
                     if attrs.get("aria-current") != "page":
                         errors.append(f"HiFi {name} sidebar must mark its current product screen")
         views = [(tag, attrs, parents) for tag, attrs, parents in nodes if "data-hifi-review-view" in attrs]

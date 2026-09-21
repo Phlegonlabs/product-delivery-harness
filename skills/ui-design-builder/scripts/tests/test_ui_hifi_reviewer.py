@@ -33,6 +33,45 @@ class HiFiReviewerTests(unittest.TestCase):
         self.assertEqual([], errors)
         self.assertEqual([], reviewer_evidence_findings(observations(self.manifest), expected))
 
+    def test_sidebar_self_link_requires_its_own_current_page_marker(self):
+        for page in self.documents:
+            marked = f'<a href="{page}" aria-current="page">'
+            self.assertEqual(1, self.documents[page].count(marked))
+            for value in (None, "", "false", "true", "step"):
+                with self.subTest(page=page, value=value):
+                    docs = dict(self.documents)
+                    marker = "" if value is None else f' aria-current="{value}"'
+                    docs[page] = docs[page].replace(marked, f'<a href="{page}"{marker}>', 1)
+                    errors, _ = reviewer_contract(docs, self.manifest)
+                    self.assertIn(f"HiFi {page} sidebar must mark its current product screen", errors)
+
+    def test_current_page_marker_outside_self_link_cannot_substitute(self):
+        for page in self.documents:
+            marked = f'<a href="{page}" aria-current="page">'
+            for location in ("parent", "other-link", "outside-nav"):
+                with self.subTest(page=page, location=location):
+                    docs = dict(self.documents)
+                    html = docs[page].replace(marked, f'<a href="{page}">', 1)
+                    if location == "parent":
+                        html = html.replace('<nav data-hifi-page-nav ', '<nav data-hifi-page-nav aria-current="page" ', 1)
+                    elif location == "other-link":
+                        other = next(name for name in self.documents if name != page)
+                        html = html.replace(f'<a href="{other}">', f'<a href="{other}" aria-current="page">', 1)
+                    else:
+                        html = html.replace('</nav>', f'</nav><a href="{page}" aria-current="page">Outside</a>', 1)
+                    docs[page] = html
+                    errors, _ = reviewer_contract(docs, self.manifest)
+                    self.assertIn(f"HiFi {page} sidebar must mark its current product screen", errors)
+
+    def test_nested_sidebar_self_link_keeps_its_current_page_marker(self):
+        docs = dict(self.documents)
+        for page, html in docs.items():
+            start = html.index('<nav data-hifi-page-nav ')
+            end = html.index('</nav>', start)
+            nav = html[start:end].replace('<a ', '<li><a ').replace('</a>', '</a></li>')
+            docs[page] = html[:start] + nav.replace('>', '><ul>', 1) + '</ul>' + html[end:]
+        self.assertEqual([], reviewer_contract(docs, self.manifest)[0])
+
     def test_reviewer_dom_requires_exact_container_and_real_responsive_controls(self):
         for old, new, message in (
             ('<div data-hifi-canvas ', '<div data-hifi-canvas-disabled ', "exact-width product container"),

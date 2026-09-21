@@ -294,6 +294,8 @@ Wireframe and HiFi review starts on the primary product page. The left sidebar o
 
 The wireframe reviewer keeps one product screen visible at a time. Target controls set the actual canvas width and retain valid inputs and state across page and target switches. Per-target composition records spacing, measure, action placement and media proportions. HiFi Design Tokens render real styled buttons, fields, states and patterns bound to each page; shared specimens stay page-bound, and state coverage belongs in Overview.
 
+The HiFi validator checks `aria-current="page"` on each page's own sidebar link, including nested links. A marker on a parent or another link cannot substitute for it.
+
 Reviewer evidence also covers unknown links, browser Back from each review view, and final restoration of the primary product page at every target.
 
 Full-stack delivery follows complete user flows through UI, API, permissions, persistence and feedback. Use agent-browser for Web exploration and retain important journeys as local/CI tests. Actual login, denied access, retry and side effects need evidence. Deployment checks include migrations, health, monitoring, cost alerts and recovery; delivery, release, activation and product results are reported separately. SEO applies only to relevant public surfaces.
