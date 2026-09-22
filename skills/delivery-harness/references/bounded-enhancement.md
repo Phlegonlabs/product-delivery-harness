@@ -4,7 +4,7 @@ Apply this policy after the owner accepts one enhancement scope. It applies to d
 
 ## One Scope Decision
 
-Use one Epic under `docs/epics/` for a complete enhancement outcome and index its path/status in `docs/DOCUMENTS.md`. Start from `assets/templates/EPIC.template.md`. A small fix may reference an existing Epic or use only the direct-task record; never manufacture an Epic, PLAN or RUN for every edit. The Epic describes why this round exists, its current-PRD baseline, stable requirement/TEST references, accepted scope, dependencies, affected documents and actual result. It does not duplicate the PRD, authorization ledger, task scheduler or evidence register. Keep unresolved Epic work visible when starting another session; do not infer completion from a closed conversation.
+Use one Epic under `docs/epics/` for a complete enhancement outcome and index its path/status in `docs/DOCUMENTS.md`. Start from `assets/templates/EPIC.template.md`. Small fixes append to the matching Epic, linking detailed direct-task evidence when useful; create a bounded Epic only when none fits, never an Epic, PLAN or RUN for every edit. The Epic describes why this round exists, its current-PRD baseline, stable requirement/TEST references, accepted scope, dependencies, affected documents and actual result. It does not duplicate the PRD, authorization ledger, task scheduler or evidence register. Keep unresolved Epic work visible when starting another session; do not infer completion from a closed conversation.
 
 Derive a short execution summary from accepted sources: goal, PRD/TEST references, write scope, design source and UI impact, dependencies, valid action grants and verification commands. Keep it in the existing direct-task report or managed PLAN/RUN. It is a derived summary, not independently editable authority. Missing information produces a specific gap and blocks only dependent work. A change in source decisions routes to the owning skill; unchanged decisions and valid authorizations are reused.
 
@@ -20,10 +20,14 @@ Classify the record before implementation, after the owner accepts the outcome:
 
 - Create one Epic for a new feature or complete enhancement with its own goal and acceptance conditions. Index it in `docs/DOCUMENTS.md`; do not create a competing PRD.
 - Extend the existing Epic when a small fix, test, copy correction or implementation repair serves the same accepted outcome. A new commit, session, worker or release number is not a new Epic.
-- For an isolated small fix with no suitable Epic, use a concise direct-task record. Record why no Epic is needed and link the change, verifier and result.
+- For an isolated small fix with no suitable Epic, create a concise bounded Epic; it may link detailed direct-task evidence rather than duplicate it.
 - A follow-up to a closed Epic may append a dated fix record without rewriting its earlier result. A new outcome or changed acceptance criteria needs a linked new Epic; do not quietly broaden the closed one.
 
 Keep a short Change Log in the chosen record: request or finding, reason, affected files/requirements and UI scope, exact commit or evidence, verification result and remaining work. Record each logical fix when it is made, including failed checks and later repairs. Group related edits; do not log every keystroke or duplicate PLAN/RUN state. Before handoff, reconcile the log with the actual diff and keep unresolved criteria visible. A documentation-only internal enhancement may reference its existing contract/tests instead of inventing a product PRD.
+
+## Repository Change Checkpoints
+
+Repository observations also happen outside this delivery flow. Follow the self-contained **Repository Change Checkpoints** in project `AGENTS.md` at task start, significant change boundaries and completion/handoff. Compare local HEAD/history and staged, unstaged and non-ignored untracked changes with prior Epic evidence. Missing or changed baselines stay explicit. Record meaningful external changes as observed/unverified until scope and evidence are known; never infer approval or rewrite historical results. An unchanged observation needs no log row. Read-only tasks report proposed updates instead of writing. This requires no PLAN/RUN, installed Harness tooling or background service.
 
 ## Repair Or Replace
 

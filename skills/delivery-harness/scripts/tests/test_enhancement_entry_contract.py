@@ -14,6 +14,19 @@ NAMES = (
 
 
 class EnhancementEntryContractTests(unittest.TestCase):
+    def test_repository_checkpoints_are_standalone_and_preserve_authority(self):
+        template = (SKILLS / "delivery-harness/assets/templates/PROJECT_AGENTS.template.md").read_text(encoding="utf-8")
+        section = template.split("## Repository Change Checkpoints\n", 1)[1].split("\n## ", 1)[0]
+        for phrase in ("outside Product Delivery Harness", "task start", "significant edit",
+                       "before completion or handoff", "commits made outside Harness",
+                       "baseline gap", "observed / unverified", "working-tree", "actual verification separately",
+                       "fingerprint", "no-change check", "read-only or no-write task",
+                       "not a background timer", "Keep `docs/DOCUMENTS.md` indexed"):
+            self.assertIn(phrase, section)
+        if (REPO / "AGENTS.md").exists():
+            root = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertEqual(section, root.split("## Repository Change Checkpoints\n", 1)[1].split("\n## ", 1)[0])
+
     def test_every_entry_routes_to_shared_sync_and_bounded_policy(self):
         for name in NAMES:
             with self.subTest(skill=name):
