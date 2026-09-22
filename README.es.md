@@ -8,12 +8,14 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
-  <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.50.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.51.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
+
+Product Definition redacta las fuentes canónicas en inglés `PRD.md` y `architecture.md` junto con copias completas en chino tradicional `PRD.zh-TW.md` y `architecture.zh-TW.md`. El propietario revisa en chino; la implementación y los digests de aprobación usan inglés. Los cambios aceptados se reflejan en ambas versiones. El [contrato de revisión bilingüe](skills/product-definition-builder/references/bilingual-review.md) exige hashes de origen, IDs coincidentes y revisión semántica antes de revisar y publicar cada par. Al detectar un PRD o una arquitectura existente solo en inglés, el agente crea la traducción completa al chino en el mismo directorio y conserva el original y sus aprobaciones. Un proyecto con solo PRD puede validar ese par sin crear una arquitectura. Las tareas de solo lectura informan de la copia ausente; los archivos históricos no se traducen automáticamente.
+
+`AGENTS.md` exige revisar el repositorio local al iniciar la tarea, tras cambios importantes y al terminar, incluso sin Harness ni PLAN/RUN. Los cambios relevantes, confirmados o sin commit, se registran en el Epic correspondiente y en `docs/DOCUMENTS.md`; los externos quedan observados y sin verificar. Una base desconocida se declara; una revisión sin cambios no duplica entradas. Las tareas de solo lectura proponen el registro sin escribir. Esto no crea un monitor ni concede nuevas autorizaciones.
 
 Repositorio de skills para convertir una idea de producto o una solicitud de cambio en un flujo de entrega verificado con Codex, Claude Code, Pi o cualquier host que descubra un directorio de skills de usuario.
 
@@ -81,7 +83,7 @@ La exención de seguridad requiere una descripción y un Product Archetype de do
 | `product-definition-builder` | Discovery, research, security requirements, comportamiento medible de producto/UI, arquitectura frontend/backend completa, stack coherente, release targets, tests y Product Definition Approval | `PRD.md`, `architecture.md`, `stack-decisions.md` y artifacts de research aprobados |
 | `ui-design-builder` | UI Design Intake, motion/media tipado, wireframe responsive, Style Integration con `frontend-design`, review HiFi de Impeccable, scoring W/H, Visual Approval y Design System Need Gate | `docs/design/ui-design.md`, `wireframes.html` y target HiFi conectado aprobado |
 | `design-system-compiler` | Compilar el target aprobado de `ui-design.md` en el par design-system congelado tras Visual Approval cuando sea necesario | `docs/design/design-system.md`, `docs/design/design-system.json` |
-| `delivery-harness` | Size gate compartido, security task gates, PLAN/RUN, autorización, verificación local e integración, más la referencia de adaptadores de runtime (`references/runtime-adapters.md`) que contiene un contrato compartido y una sección de provider por host (Codex, Claude Code, Pi o generic) | Trabajo directo o `PLAN.md` + `RUN.md` |
+| `delivery-harness` | Size gate compartido, security task gates, PLAN/RUN, autorización, verificación local e integración, más la referencia de adaptadores de runtime (`references/runtime-adapters.md`) que contiene un contrato general de capacidades que el agente asigna a las herramientas nativas observadas | Trabajo directo o `PLAN.md` + `RUN.md` |
 | `code-security-review` | Revisión de seguridad de solo lectura tras la implementación y la integración unificada, preferentemente en un agente sibling fresco; el penetration testing activo y la remediación quedan fuera de este skill | Decisión de SHA exacto, cobertura de trust boundaries, hallazgos validados y tests de remediación |
 | `product-activation` | Configuración post-entrega para todos los targets web, API/backend, iOS, Android, macOS, Windows, browser-extension e híbridos compatibles, incluyendo capability routing, autorización exacta de acciones externas, read-back, fuentes de medición y handoff del outcome review | `docs/ACTIVATION.md` |
 | `seo-growth-review` | SEO técnico post-release de solo lectura, integridad de medición, keyword research, diagnóstico de tráfico orgánico y priorización de oportunidades query-to-page | Revisión inline por defecto; informe datado opcional con pedido explícito |
@@ -91,7 +93,7 @@ El núcleo de entrega toma una decisión de tamaño antes de invocar la orquesta
 - El trabajo pequeño sigue siendo directo, sin planner, scheduler, PLAN/RUN, subagent ni preflight de runtime externo por defecto.
 - El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; `new_run.py` escribe el `docs/tasks.md` inicial con `--out` y `--repo-root`, y las transiciones gestionadas `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews` y `close-wave` con `--repo-root` lo refrescan conservando el Update Log. Un fallo de proyección nunca revierte el RUN; el `render_tasks_view.py` independiente repara o verifica esa vista no canónica. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
 
-- El selector deriva `managed_sequential` para menos de dos missions de escritura segura realmente seleccionadas y `parallel_graph` para dos o más. El fan-out del scheduler arranca solo para el segundo; el runtime driver sigue siendo un hecho de transporte separado. El núcleo aplica exactamente una sección de provider del host desde la referencia de adaptadores de runtime; los runtimes externos se preflightean solo cuando la ruta seleccionada los necesita.
+- El selector deriva `managed_sequential` para menos de dos missions de escritura segura realmente seleccionadas y `parallel_graph` para dos o más. El fan-out del scheduler arranca solo para el segundo; el runtime driver sigue siendo un hecho de transporte separado. El núcleo usa un contrato general de capacidades; el agente asigna las herramientas actuales sin secciones por proveedor.
 - La ejecución del RUN nunca espera al CI remoto. La promoción de branches es una etapa de closeout separada: la verificación del candidato exacto y del preview environment aislado aplicable debe terminar antes de que `main` pueda moverse.
 
 Solo RUN y su vista tasks generada y declarada son excepciones al checkout limpio; los hashes del verifier protegen ambos. Los cambios de producto y las vistas escritas a mano siguen bloqueando. Las operaciones rutinarias de RUN usan transiciones protegidas; una revisión formal conserva el historial y requiere nueva autorización exacta. Si solo hay layers `Selected`/`Required` sin una opción nueva aprobada, conserva `Approved option map: None` y omite el generador opcional. El validador acepta `None` sin distinguir mayúsculas y permite omitir la tabla solo cuando no hay layers ni opciones recién aprobados.
@@ -118,7 +120,7 @@ flowchart LR
   ProductGate -->|"aprobado, fase UI diferida"| Harness["delivery-harness\nNúcleo de entrega compartido"]
   ProductGate -->|"producto headless aprobado"| Harness
   Design -->|"referencia HTML de todas las páginas aprobada o par design-system"| Harness
-  Harness --> Runtime["Una sección de provider del host\nCodex, Claude Code, Pi o generic"]
+  Harness --> Runtime["Capacidades nativas observadas\nUn contrato general"]
   Runtime --> Security["code-security-review\nrevisión unificada fresca de SHA exacto"]
   Security --> Evidence["Tests finales amplios y evidencia de UI"]
   Evidence --> Close["RUN cierra en el integration head exacto"]
@@ -299,9 +301,9 @@ La aceptación rechaza marcadores de identidad sin resolver y exige rutas de evi
 
 La revisión documental enumera fuentes modificadas, artefactos afectados y comprobaciones necesarias. El agente principal revisa el cambio semántico; los hashes no conceden aprobación. Los snapshots `document-sync/1` siguen siendo legibles.
 
-Las mejoras completas usan un Epic indexado en `docs/epics/` que referencia el PRD actual. Una corrección pequeña puede conservar solo su registro directo. El objetivo, alcance, diseño, dependencias y pruebas se derivan en ese registro o en PLAN/RUN, sin otra especificación intermedia.
+Las mejoras completas usan un Epic indexado en `docs/epics/` que referencia el PRD actual. Una corrección pequeña se añade al Epic correspondiente y puede enlazar evidencia directa detallada. El objetivo, alcance, diseño, dependencias y pruebas se derivan en ese registro o en PLAN/RUN, sin otra especificación intermedia.
 
-Elige el registro antes de implementar: un resultado nuevo aceptado necesita un Epic; las correcciones del mismo objetivo se añaden a su Change Log; una corrección aislada puede usar el registro directo. Anota motivo, alcance, commit, pruebas y pendientes sin reescribir el historial cerrado. Las mejoras UI son incrementales: añade o modifica solo las páginas Wireframe/HiFi nombradas y sus controles de entrada y retorno. Conserva diseño, contenido, estilo e IDs ajenos al cambio y reutiliza la dirección aprobada. Enumera los consumidores antes de modificar un componente compartido. La cobertura completa y la regresión no autorizan redibujar todas las pantallas.
+Elige el registro antes de implementar: un resultado nuevo aceptado necesita un Epic; las correcciones del mismo objetivo se añaden a su Change Log; una corrección aislada recibe una entrada breve en un Epic con evidencia directa enlazada. Anota motivo, alcance, commit, pruebas y pendientes sin reescribir el historial cerrado. Las mejoras UI son incrementales: añade o modifica solo las páginas Wireframe/HiFi nombradas y sus controles de entrada y retorno. Conserva diseño, contenido, estilo e IDs ajenos al cambio y reutiliza la dirección aprobada. Enumera los consumidores antes de modificar un componente compartido. La cobertura completa y la regresión no autorizan redibujar todas las pantallas.
 
 AGENTS conserva entrada, lectura, responsabilidades, sincronización, autorización y cierre. Comercio, activación y ejecución gestionada pasan a una referencia obligatoria según el caso. Las 500 líneas son un punto de revisión para dividir, no un límite ni una orden de reescritura.
 
@@ -315,7 +317,7 @@ La evidencia también cubre enlaces desconocidos, el botón Atrás desde cada vi
 
 La entrega full-stack sigue flujos completos: UI, API, permisos, persistencia y respuesta. agent-browser explora Web; los recorridos importantes quedan como pruebas locales y de CI. Login, denegación, reintentos y efectos requieren evidencia real. La publicación verifica migraciones, salud, monitoreo, costes y recuperación; entrega, disponibilidad, activación y resultados se informan por separado. SEO se aplica solo a superficies públicas pertinentes.
 
-Actualiza a 0.50.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas no requieren Epic/PLAN/RUN. Repite las puertas afectadas y la verificación final obligatoria. En 0.49.0, revisa la vigencia del diseño antes de implementar y añade motionSpec por región en la validación estricta de schema-4; conserva las aprobaciones históricas. En 0.50.0, conserva los diseños del producto y los artefactos aprobados. Los nuevos wireframes abren con anotaciones. Añade una propiedad data-token-preview admitida y su uso en la fuente para cada token HiFi; regenera solo las observaciones afectadas y conserva las aprobaciones históricas.
+Actualiza a 0.50.0 con el instalador canónico después de detener las sesiones en un punto seguro. Conserva la copia y abre una sesión nueva; no actualices workers en caliente. Aplica solo los cambios documentales afectados y conserva reglas locales e historia. document-sync/1 y ui-hifi/2 siguen siendo legibles. Una nueva aprobación HiFi necesita la interfaz lateral y observaciones reviewer de ui-output/2 por página; renueva evidencia afectada sin reescribir aprobaciones antiguas. Las correcciones pequeñas reutilizan un Epic sin PLAN/RUN; solo crean un Epic breve cuando ninguno corresponde. Repite las puertas afectadas y la verificación final obligatoria. En 0.49.0, revisa la vigencia del diseño antes de implementar y añade motionSpec por región en la validación estricta de schema-4; conserva las aprobaciones históricas. En 0.50.0, conserva los diseños del producto y los artefactos aprobados. Los nuevos wireframes abren con anotaciones. Añade una propiedad data-token-preview admitida y su uso en la fuente para cada token HiFi; regenera solo las observaciones afectadas y conserva las aprobaciones históricas.
 
 Cada invocación aplica el [contrato de sincronización documental](skills/delivery-harness/references/document-sync-contract.md): revisa cambios en las instrucciones vigentes, la identidad del skill/runtime y los documentos del producto, sin reescribir aprobaciones ni RUN históricos. El PRD actual sigue siendo la base de la próxima mejora; las versiones reemplazadas conservan enlaces de referencia. La [mejora acotada](skills/delivery-harness/references/bounded-enhancement.md) reutiliza un alcance aceptado para reparar, reemplazar módulos dentro de ese alcance y repetir pruebas, sin pedir la misma aprobación. Al agotar el presupuesto, entrega los pendientes a la próxima ronda; terminar una ronda no equivale a PASS ni autoriza publicar.
 
@@ -363,45 +365,23 @@ flowchart TB
   Main --> Prod["Read-back de producción<br/>y smoke"]
 ```
 
-## Adaptadores de runtime ligeros
+## Adaptador general de runtime
 
-El núcleo compartido es dueño del único plano de control de PLAN/RUN. Los detalles de lanzamiento específicos del host viven en una referencia — `delivery-harness/references/runtime-adapters.md` — con un contrato de adaptador compartido y una sección de provider por host, aplicadas de forma perezosa:
+Todos los hosts usan el contrato de capacidades de `delivery-harness/references/runtime-adapters.md`. El agente inspecciona las herramientas nativas actuales y asigna sus llamadas a `app_threads`, `subagents` o `sequential_parent`. No hay secciones por proveedor, modelos predeterminados fijos ni scripts de ejecución nativos incluidos.
 
-- Un host aplica solo su propia sección de provider y ejecuta solo los nodos de PLAN cuyo `allowed_providers` incluye ese host.
-- Un host Pi deja la selección de role/model/fallback a la configuración instalada de Pi.
-- Ninguna sección de provider puede invocar otro runtime. Un nodo listo cuyo provider no coincide con el host actual se difiere con `runtime_unavailable` y queda para un run alojado por un host coincidente.
-- Agregar un nuevo host de runtime agrega una sección de provider a esa referencia, no un skill nuevo.
+El proveedor solo determina la elegibilidad explícita del PLAN. El orden de drivers depende de capacidades observadas; el nombre del host no demuestra ninguna. La delegación exige evidencia de creación, resultados y espacio de trabajo. Una capacidad desconocida bloquea el lanzamiento. Modelo y esfuerzo nulos preservan los roles y valores instalados; una opción explícita no soportada bloquea el nodo sin sustitución.
 
-Los scripts, schemas, referencias y templates compartidos quedan bajo `delivery-harness`; las secciones de provider enlazan a ellos en vez de duplicar runtimes. Esto mantiene el prompt por defecto pequeño.
+El padre conserva autorizaciones, PLAN/RUN, leases, escritura aislada, validación del SHA exacto e integración secuencial. Cada revisor empieza con contexto nuevo y demuestra sus herramientas en su propia sesión. La finalización nativa, los reintentos y la caché no reemplazan estas comprobaciones. Las tareas independientes solicitadas no se sustituyen silenciosamente por subagentes.
 
-Un run tiene un solo active host a la vez. Un handoff en el mismo repositorio (same-repository) solo se permite después de que el Host A cierre su wave y `RUN.active_wave.status` no sea ni `active` ni `proposed`; el objeto `active_wave` permanece en RUN, así que su ausencia no es una señal de handoff. El Host B preserva PLAN/RUN y el estado del graph, vuelve a probar su runtime y revisa el SHA exacto actual (exact SHA) antes de seleccionar la siguiente wave. Una reparación regresa al Host A e invalida la revisión vieja; el handoff cross-machine no está soportado hasta que un schema futuro agregue identidad portable de repositorio/estado.
+Product Definition ejecuta su grafo de análisis de solo lectura únicamente con autorización. `product_agent_graph.cjs` valida entradas congeladas y genera paquetes; no lanza agentes. El padre asigna herramientas nativas y conserva síntesis, decisiones humanas y publicación. Si no puede imponerse el límite de solo lectura, realiza los mismos roles secuencialmente.
 
-## Ejecución del graph entre hosts de agentes
-
-Los skills usan dos capas de graph:
-
-- El **org graph** es el contrato estable de roles: producto, arquitectura, UX, design-system, mission-worker, reviewer de surface, reviewer de seguridad, aprobación, integración y responsabilidades de ciclo de vida.
-- El **work graph** es el graph de tareas temporal de un run. Los skills de Product Definition y diseño usan graphs de agentes read-only acotados solo cuando el host actual puede imponer el límite de tools requerido; si no, caen al parent secuencial. La ingeniería usa el graph canónico de PLAN v6 y el estado de RUN v11.
-
-Los runs de child agents nunca son dueños de entrevistas ni aprobaciones. El parent congela primero los inputs, inicia un run de agentes host-native acotado y luego es dueño de las escrituras por etapas, la resolución de conflictos, la aprobación y la publicación. Codex, Claude Code, Pi y los hosts generic siguen el mismo contrato.
-
-Para ingeniería, el Harness valida y selecciona la frontera lista por dependencias antes de crear o pedir worktrees. Las missions nativas de Claude usan worktrees gestionados por el parent bajo `.claude/worktrees/`, ligan cada worker a la base exacta del lote y exigen `EnterWorktree` antes del acceso al repositorio. En cada ruta, el parent valida el commit devuelto y el diff real de Git, integra los commits aceptados en serie y recalcula la frontera del graph.
-
-Los nodos de graph no-runtime usan una secuencia reserve/execute/record: `reserve-node-attempt` crea el recibo bajo RUN lock, la aprobación, la espera externa, el verificador determinista o el efecto secundario de ciclo de vida se ejecuta fuera de ese lock, y `record-node-result` cierra solo el attempt coincidente con evidencia y una fase derivada de su outcome declarado. Las transiciones de ciclo de vida registran evidencia solamente; nunca ejecutan la acción. `lease-worker` lleva el binding de runtime derivado del selector y la identidad exacta de task/thread hacia RUN, sujeto a checks de compatibilidad y autorización wildcard existente.
-
-PLAN v6 valida los enlaces de gates antes de ejecutar: cada nodo verificador `local_command` o `harness_parent` debe referenciar una entrada de `batch_verifiers` o `final_gates`, y cada entrada necesita al menos un nodo determinista. Las referencias de revisión runtime no ejecutan estos comandos ni registran resultados de gates. Los verificadores de task, worker e integración de misión conservan sus rutas de ejecución. Los schemas anteriores siguen siendo legibles para recuperación.
-
-En Claude Code, el adaptador del host agrupa una frontera mixta en una llamada por homogeneous `tool_profile`; el model y el reasoning effort pueden variar dentro de un grupo, pero una llamada nunca mezcla write missions con read-only reviews. Un tool profile es una etiqueta y un contrato de prompt/resultado, no una permission-level tool removal.
-
-- `mission_write` exige `EnterWorktree` y el contrato de escritura acotado de la mission.
-- `code_review_readonly` exige revisión de rutas exactas y evidencia de resultado de solo lectura para revisión de frontend, backend, integración o seguridad; no elimina las tools heredadas.
-- `visual_review_readonly` revisa screenshots retenidos u otra evidencia existente con las tools heredadas del host; el acceso nuevo a navegador debe ser vetado y agregado al contrato del profile antes de usarse.
-
-Cuando Claude Code devuelve IDs reales de Workflow run, el estado de RUN puede retener el ID de workflow/task, el digest del script, el grupo de nodos, el binding graph/base, el tool profile, el estado y las métricas disponibles. El resume en la misma sesión puede usar ese binding; la recuperación cross-session arranca un nuevo attempt de workflow desde el estado canónico de PLAN/RUN.
-
-El `allowed_providers` de un nodo de graph debe incluir el host que realmente está ejecutando el Harness antes de que ese nodo pueda seleccionarse. Codex, Claude Code y Pi no pueden delegar un nodo entre ellos; no hay puente cross-host. Un nodo listo cuyo provider no coincide con el host actual se difiere con `runtime_unavailable` y queda para un run alojado por el adaptador coincidente.
+Se eliminan el driver nativo de workflow, sus plantillas y la compatibilidad con `workflow_runs`. Los archivos históricos del usuario quedan intactos. El trabajo pendiente con esos bindings necesita replanificación explícita y nuevas pruebas de capacidad y autorización; no se migra silenciosamente.
 
 La ruta de rendimiento runtime elimina trabajo repetido sin mover un gate. `docs_weight.py` lee los blobs de un baseline resuelto con un `cat-file --batch`; los resultados verifier exponen tiempos de solo lectura para setup, guard, snapshot, command y postcheck; los review packets quitan solo material duplicado del diff; bytes de archive immutables del mismo batch se reutilizan mientras cada verifier recibe su propia extracción verificada; los slots de verifier se llenan con trabajo sin conflicto en lugar de esperar una wave; y solo un PASS determinista opt-in del mismo runner puede reutilizar un resultado container después de verificar de nuevo el guard y la confianza runtime/image. Ningún resultado container entra en un cache durable. Cada reutilización nueva debe incluir su ejecución de origen en el lote actual observado por el parent; el historial de RUN por sí solo no la autoriza.
+
+Workers y reviewers nunca delegan. El parent mantiene un writer por worktree aislado, integra en serie y despacha fresh reviewers para exact-head review. Los alcances de lectura y escritura quedan separados; una etiqueta de perfil no demuestra permission-level tool removal. Si el host no coincide con PLAN, el nodo se difiere con `runtime_unavailable` sin lanzar otro runtime.
+
+Un run tiene un solo active host a la vez. Un handoff en el mismo repositorio (same-repository) solo se permite después de que el Host A cierre su wave y `RUN.active_wave.status` no sea ni `active` ni `proposed`; el objeto `active_wave` permanece en RUN, así que su ausencia no es una señal de handoff. El Host B preserva PLAN/RUN y el estado del graph, vuelve a probar su runtime y revisa el SHA exacto actual (exact SHA) antes de seleccionar la siguiente wave. Una reparación regresa al Host A e invalida la revisión vieja; el handoff cross-machine no está soportado hasta que un schema futuro agregue identidad portable de repositorio/estado.
 
 ## Instalación
 
@@ -522,24 +502,11 @@ Usa delivery-harness en este host Pi para ejecutar este plan. Preserva los ajust
 
 Para una entrega multi-mission, declara el resultado local y remoto previsto. La creación de branches, los commits, la integración, cada push, el despliegue, la eliminación de worktrees y el borrado siguen siendo acciones separadas. La promoción post-RUN solo puede actualizar `main` con autorización exacta al momento de la acción, prueba de fast-forward, read-back y testing completo del candidate.
 
-## Ejecución en Codex, Claude Code y Pi
+## Ejecución nativa
 
-El Harness registra la capacidad real del runtime en vez de asumir una desde un CLI instalado.
+Elige llamadas según la sesión actual, no el nombre del runtime. Las tareas independientes requieren contratos observados y autorizados de identidad, worktree y resultados. Los agentes hermanos necesitan contexto nuevo y resultados terminales. El padre ejecuta secuencialmente el trabajo que pueda asumir; una revisión independiente sigue requiriendo un revisor nuevo.
 
-| Runtime | Ruta paralela preferida | Fallback |
-| --- | --- | --- |
-| Codex app | App tasks en worktrees app-managed aislados | Subagents directos, luego un parent secuencial |
-| Claude Code | Runner plano de sibling agents con worktrees `.claude/worktrees/` parent-managed de base exacta | Subagents directos, luego un parent secuencial |
-| Pi | Roles instalados de Pi en worktrees parent-managed, con Pi eligiendo models y fallbacks configurados | Un parent secuencial |
-| Cualquier otro host | Subagents frescos con aislamiento propiedad del parent | Un parent secuencial |
-
-En Codex, cada mission seleccionada abre una conversación separada de nivel superior en la barra lateral con su propio worktree app-managed. El parent del Harness despacha por separado cualquier explorer o reviewer de solo lectura como sibling; una task de mission nunca crea child agents. Los subagents directos propiedad del coordinator no reemplazan las top-level tasks pedidas. El adaptador busca en la superficie de tools actual de Codex las tools de project y thread de lazy-loading antes de usar un fallback. Cuando el usuario pide esta topología explícitamente, la falta de capacidad de thread es un blocker, no permiso para colapsar el trabajo de nuevo en una conversación.
-
-Las instrucciones del repositorio objetivo tienen prioridad. Si no hay otras, la entrega inicial y los enhancements arrancan su run branch desde el `main` remoto observado. Los worktrees de mission se integran solo en ese run branch y pasan la revisión de exact-head. Tras cerrar el RUN, el candidate pasa todos los gates locales y del preview environment aislado, y luego llega sin cambios por fast-forward a `main` bajo autorización separada. Los fixes reinician la verificación del candidate en el SHA nuevo.
-
-Cada sección de provider ejecuta solo los nodos de PLAN cuyos allowed providers incluyen su propio host; no hay ruta cross-host. Un nodo que requiere el provider de otro host se difiere con `runtime_unavailable` en vez de ejecutarse aquí.
-
-La implementación en paralelo no tiene un tope fijo pequeño por defecto; el máximo configurado de write-workers es generosamente alto, y la wave efectiva queda acotada por los slots de worker observados, la capacidad de aislamiento y el tamaño de la frontera lista sin conflictos por dependencias. Una meta independiente testeable corresponde a una mission. Cada escritor recibe propiedad explícita de archivos y un worktree limpio de base exacta separado. Las APIs, schemas y types compartidos se congelan antes de que los escritores dependientes hagan fan-out. Explorers, writers y reviewers son siblings despachados por el parent; los workers y los reviewers nunca delegan (nunca delegan — workers and reviewers never delegate). Tras la revisión de exact-head de cada mission, el parent integra los heads que pasan en serie, arranca fresh reviewers (reviewers frescos) sobre el head de integración unificado, ejecuta el `code-security-review` requerido desde un agente sibling y luego corre una validación final amplia sobre el SHA candidato fijo. Los workers nunca editan el `PLAN.md` o `RUN.md` del parent, no hacen push, no abren PRs, no hacen merge, no despliegan ni eliminan worktrees. El parent es dueño de la integración y de cada acción de landing o ciclo de vida.
+Preserva la topología solicitada, los roles instalados, los modelos y las instrucciones efectivas. Resuelve herramientas diferidas, registra identidades reales y lanza todos los hermanos seleccionados antes de esperar. Prefiere eventos o cursores. Ante una creación ambigua, reconcilia las tareas existentes antes de reintentar; no crees duplicados automáticamente.
 
 ## Estructura del repositorio
 
@@ -603,6 +570,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.51.0** — La adaptación general por capacidades sustituye los drivers por proveedor y las antiguas plantillas de workflow. PRD y arquitectura en inglés incluyen copias sincronizadas en chino, también para documentos existentes en su directorio original. AGENTS registra cambios del repositorio en Epics en cada punto de control, incluso sin Harness. Es un cambio incompatible del paquete de skills.
 
 - **0.50.0** — Los wireframes abren con anotaciones, medidas del diseño y destinos legibles. Las galerías Wireframe y HiFi aplican los valores mostrados; la vista formal añade muestras seguras de tipografía, sombras y movimiento. Las propiedades de muestra HiFi obligatorias y sus nuevas observaciones son un cambio incompatible del paquete.
 

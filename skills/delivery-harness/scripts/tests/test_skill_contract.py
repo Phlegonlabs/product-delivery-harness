@@ -75,9 +75,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.50.0"', package)
+        self.assertIn('"version": "0.51.0"', package)
         self.assertEqual(
-            "0.50.0",
+            "0.51.0",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -814,7 +814,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("fast-forward exact A to `main`", project_agents)
         self.assertIn("Protected resources preview must never bind", project_agents)
         self.assertIn(
-            "runtime adapter reference (Claude Code section)", project_claude
+            "general runtime adapter reference", project_claude
         )
         deployment_template = self.read("assets/templates/DEPLOYMENT.template.md")
         documents_template = self.read("assets/templates/DOCUMENTS.template.md")
@@ -949,7 +949,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Do not probe for another runtime's CLI, binary, or plugin as a substitute route",
             adapters,
         )
-        self.assertIn("there is no cross-host preflight, no bridged process, and no declared fallback", research)
+        self.assertIn("There is no cross-host preflight, no bridged process, and no declared fallback", research)
         self.assertIn("blocked on provider mismatch rather than probing or launching the other runtime", research)
 
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
@@ -960,14 +960,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("Do not stop after printing a non-empty app-task wave", adapters)
         self.assertIn("consume every accepted dispatch entry", adapters)
-        self.assertIn("Search the current Codex tool surface", adapters)
-        self.assertIn("top-level left-sidebar app task", adapters)
-        self.assertIn("## Launch Selected Codex App Threads", orchestration)
-        self.assertIn("one top-level worktree task/thread per mission", orchestration)
-        self.assertIn("Read-only explorers and reviewers are parent-dispatched siblings", orchestration)
-        self.assertIn("never children of a mission task", orchestration)
+        self.assertIn("resolves deferred tools", adapters)
+        self.assertIn("distinct user-owned task", adapters)
+        self.assertIn("## Launch Selected Native Workers", orchestration)
+        self.assertIn("one clean exact-base app-managed worktree", orchestration)
+        self.assertIn("Every explorer, writer and reviewer remains a parent-dispatched sibling", orchestration)
+        self.assertIn("fresh-context packets", orchestration)
         self.assertIn("direct subagent of the coordinator is not equivalent", selector)
-        self.assertIn("one top-level left-sidebar task", goal)
+        self.assertIn("explicitly requested user-owned tasks", goal)
         self.assertIn("Never replace explicitly requested independent app tasks", adapters)
 
     def test_plan_backed_runs_detect_then_select_full_frontier(self) -> None:
@@ -981,21 +981,21 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Default Runtime And Wave Policy", skill)
         self.assertIn("Proactively inspect the current-session native tool surface", skill)
         self.assertIn("Missing authorization must never make an available driver disappear", skill)
-        self.assertIn("complete per-surface `capability_probe`", skill)
-        self.assertIn("provably sequential route", skill)
+        self.assertIn("observed `capability_probe` facts", skill)
+        self.assertIn("unrelated surfaces", skill)
         self.assertIn("Do not cap `max_parallel_workers` at a small fixed number", skill)
         self.assertIn("default immediately after Plan Readiness", state)
         self.assertIn("capability_snapshot_incomplete", state)
         self.assertIn("capability_snapshot_incomplete", selector)
-        self.assertIn("full eight-entry `capability_probe`", orchestration)
-        self.assertIn("may omit unused surfaces", orchestration)
-        self.assertIn("may select two writers", runbook)
-        self.assertIn("provably sequential route records only", runbook)
+        self.assertIn("evidenced capability facts", orchestration)
+        self.assertIn("Record only relevant capabilities", orchestration)
+        self.assertIn("every advertised delegated driver", runbook)
+        self.assertIn("unrelated capabilities need no inventory", runbook)
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
         self.assertIn("lightest safe direct or PLAN-v6/RUN-v11 delivery path", agent)
-        self.assertIn("Host adapter: none | codex | claude_code | pi | generic", skill)
+        self.assertIn("Host adapter: none | general (observed host identity or generic)", skill)
 
     def test_runtime_upgrade_gate_blocks_old_or_stale_sessions(self) -> None:
         skill = self.read("SKILL.md")
@@ -1010,7 +1010,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.50.0"', runbook)
+        self.assertIn('"required_harness_version": "0.51.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1058,28 +1058,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Design System Need Gate", updates)
         self.assertIn("user explicitly requests faithful conformance", skill)
 
-    def test_schema_v6_routes_claude_workflow_driver(self) -> None:
-        skill = self.read("references/runtime-adapters.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        orchestration = self.read("references/worktree-thread-orchestration.md")
-        selector_reference = self.read("references/parallel-mission-selection.md")
-        workflow = self.read("assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js")
-
-        for content in (skill, runbook, orchestration, selector_reference):
-            self.assertIn("runtime_adapter", content)
-            self.assertIn("dynamic_workflow", content)
-        self.assertIn("## Launch The Selected Claude Workflow Driver", orchestration)
-        self.assertIn("`scriptPath`", orchestration)
-        self.assertIn("run_dynamic_workflow", selector_reference)
-        self.assertIn("CLAUDE_DYNAMIC_WORKFLOW.template.js", skill)
-        self.assertIn("pipeline(workflowArgs.missions", workflow)
-        self.assertIn('"worker_result"', workflow)
-        self.assertIn('"lease_id"', workflow)
-        self.assertIn('"task_results"', workflow)
-        self.assertIn('"REFINEMENT_REQUEST"', workflow)
-        self.assertNotIn("capsule_sha256", workflow)
-        self.assertNotIn("context_bytes", workflow)
-        self.assertIn("complete live task", workflow)
+    def test_native_workflow_templates_are_removed(self) -> None:
+        for name in ("CLAUDE_DYNAMIC_WORKFLOW.template.js", "CLAUDE_GRAPH_WORKFLOW.template.js"):
+            self.assertFalse((SKILL_ROOT / "assets/templates" / name).exists())
+        self.assertNotIn('"workflow_runs"', self.read("assets/templates/MISSION_RUNBOOK.template.md"))
 
     @unittest.skipIf(REPO_ROOT is None, "host-neutral documentation check requires a source checkout")
     def test_human_facing_docs_use_host_neutral_agent_graph_language(self) -> None:
@@ -1092,7 +1074,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "skills/delivery-harness/assets/templates/GOAL.template.md",
             "skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md",
             "skills/delivery-harness/assets/templates/PROJECT_CLAUDE.template.md",
-            "skills/delivery-harness/assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js",
             "skills/delivery-harness/references/execution-state-model.md",
             "skills/delivery-harness/references/graph-orchestration.md",
             "skills/delivery-harness/references/orchestration-research-notes.md",
@@ -1101,7 +1082,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "skills/delivery-harness/references/runtime-upgrades.md",
             "skills/delivery-harness/references/worktree-thread-orchestration.md",
             "skills/product-definition-builder/SKILL.md",
-            "skills/product-definition-builder/references/dynamic-workflow.md",
+            "skills/product-definition-builder/references/agent-work-graph.md",
             "skills/product-definition-builder/references/output-contract.md",
             "skills/product-definition-builder/references/research-first-guide.md",
         )
@@ -1113,7 +1094,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 self.assertNotIn("動態工作流", content)
 
         self.assertIn(
-            "## Graph execution across agent hosts",
+            "## General runtime adapter",
             (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
         )
         self.assertIn(
@@ -1123,7 +1104,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 / "skills"
                 / "product-definition-builder"
                 / "references"
-                / "dynamic-workflow.md"
+                / "agent-work-graph.md"
             ).read_text(encoding="utf-8"),
         )
 
@@ -1132,13 +1113,13 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("Keep all 12 schema-v11 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
-        self.assertIn("one top-level left-sidebar task with its own clean exact-base app-managed worktree", goal)
+        self.assertIn("record real identities", goal)
         self.assertIn(
-            "Never replace explicitly requested top-level app tasks with coordinator-owned subagents or sequential parent execution",
+            "Do not replace explicitly requested user-owned tasks with direct agents or parent execution",
             goal,
         )
         self.assertIn(
-            "Only when the user did not require independent top-level app tasks",
+            "Missing required capability blocks the affected work",
             goal,
         )
 
@@ -1347,76 +1328,24 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertEqual([expected, expected], commands)
 
     def test_schema_v5_graph_is_first_class(self) -> None:
-        skill = self.read("SKILL.md")
-        graph = self.read("references/graph-orchestration.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        workflow = self.read("assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js")
-        selector = self.read("scripts/select_ready_nodes.py")
-
-        for content in (skill, run):
-            self.assertIn("invoke_external_runtime", content)
         self.assertIn('"schema_version": 6', plan)
         self.assertIn('"schema_version": 11', run)
         self.assertIn('"graph_state"', run)
-        self.assertIn("dependency", graph)
-        self.assertIn("max_traversals", graph)
-        self.assertIn("pipeline(workflowArgs.nodes", workflow)
-        self.assertIn("tool_profile", selector)
-        self.assertIn('"workflow_runs"', run)
-        self.assertIn("mission_write", run)
-        self.assertIn("EnterWorktree", workflow)
-        self.assertNotIn("capsule_sha256", workflow)
-        self.assertNotIn("context_bytes", workflow)
-        self.assertIn("complete live task", workflow)
+        self.assertIn("max_traversals", self.read("references/graph-orchestration.md"))
+        self.assertIn("invoke_external_runtime", run)
+        self.assertNotIn('"workflow_runs"', run)
 
     def test_plan_provider_options_bind_worker_models(self) -> None:
-        skill = "\n".join(
-            (
-                self.read("SKILL.md"),
-                self.read("references/runtime-adapters.md"),
-            )
-        )
-        graph = self.read("references/graph-orchestration.md")
-        state = self.read("references/execution-state-model.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
-        run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        selector = self.read("scripts/select_ready_nodes.py")
-
-        self.assertIn('"provider_options"', plan)
-        self.assertIn('"preferred_provider": null', plan)
-        self.assertIn('"allowed_providers": ["codex", "claude_code", "pi", "generic"]', plan)
-        self.assertIn('"pi": {"model": null, "reasoning_effort": "high"}', plan)
-        self.assertIn('"pi": {"model": null, "reasoning_effort": "medium"}', plan)
+        adapters = self.read("references/runtime-adapters.md")
+        self.assertIn('"allowed_providers": ["generic"]', plan)
         self.assertIn('"generic": {"model": null, "reasoning_effort": null}', plan)
-        self.assertIn("10-20 minutes", plan)
-        # A delegated Claude Code node never defaults above sonnet: the pinned
-        # top-tier model is reserved for the parent's own coordination/planning,
-        # not assigned to any worker/review node by default.
-        self.assertGreaterEqual(plan.count('"model": "sonnet"'), 3)
-        self.assertGreaterEqual(plan.count('"model": "gpt-5.6-sol"'), 3)
-        self.assertIn("gpt-5.6-terra", skill)
-        self.assertIn('"reasoning_effort": "high"', plan)
-        self.assertIn("Plan Mode chooses", graph)
-        self.assertIn("provider-specific model options", skill)
-        self.assertIn("general and backend implementation: Codex `gpt-5.6-terra`, `high`", skill)
-        self.assertIn("prefer Codex `gpt-5.6-terra` with `high` reasoning", plan)
-        self.assertIn("routine deterministic `backend_code` or `security` review: Codex `gpt-5.6-terra`, `medium`", skill)
-        self.assertIn("routine frontend, backend, visual, security, and integration review: `sonnet`, `medium`", skill)
-        self.assertIn("reserve", skill.lower())
-        # The premium Claude model name is illustrative, not normative, so it is
-        # deliberately not pinned here: pinning `claude-opus-4-8` in three files
-        # is what let it rot in place. Assert the rule that outlives the name.
-        for content in (skill, graph, plan):
-            self.assertIn("for the parent's own coordination and planning", content)
-            self.assertIn("sonnet", content)
-            self.assertIn("gpt-5.6-sol", content)
-            self.assertIn("xhigh", content)
-        for content in (skill, graph):
-            self.assertIn("haiku", content)
-        self.assertIn("workers[].runtime_binding", state)
-        self.assertIn("task creation `model` and `thinking`", run)
-        self.assertIn('"runtime_binding": binding', selector)
+        self.assertIn("Unsupported explicit choices block", adapters)
+        self.assertIn("installed defaults", adapters)
+        for model in ("gpt-5.6-sol", "gpt-5.6-terra", "sonnet", "haiku"):
+            self.assertNotIn(model, plan + adapters)
 
     def test_verification_policy_selects_and_reuses_only_exact_focused_checks(self) -> None:
         skill = self.read("SKILL.md")
@@ -1477,14 +1406,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Repository Context Contract", skill)
         self.assertIn("scripts/configure_project_context.py --root <target-root>", skill)
         self.assertIn("generated files are intentionally different", skill)
-        self.assertIn("Pi's native per-directory priority", skill)
+        self.assertIn("current host's effective instruction precedence", skill)
         self.assertIn("Never overwrite, merge, normalize, or silently copy", skill)
         self.assertIn("Host-specific repository context:", worker_goal)
         self.assertIn("Runtime-specific worker contract:", worker_goal)
         self.assertIn("Keep automatic context discovery enabled", worker_goal)
         self.assertIn('path.open("xb")', configurator)
         self.assertIn("## Runtime Boundary", project_agents)
-        self.assertIn("Codex and Pi load it as their native project context", project_agents)
+        self.assertIn("Preserve the current host's effective instruction discovery", project_agents)
         self.assertIn("## Core Development Principles", project_agents)
         self.assertIn("### First Principles", project_agents)
         self.assertIn(
@@ -1515,9 +1444,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("current v10", project_agents)
         self.assertIn("immutable external request/attempt/receipt", project_agents)
         self.assertIn("@AGENTS.md", project_claude)
-        self.assertIn("## Claude Code Runtime Boundary", project_claude)
-        self.assertIn("Direct Claude Code work follows `AGENTS.md`", project_claude)
-        self.assertIn("does not transfer to the worker", project_claude)
+        self.assertIn("general runtime adapter reference", project_claude)
+        self.assertIn("Direct work follows `AGENTS.md`", project_claude)
+        self.assertIn("parent retains authorization", project_claude)
 
         if REPO_ROOT is not None:
             root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
@@ -1526,8 +1455,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("never add a fixed prefix", root_agents.lower())
             self.assertIn("## Keep Product Contracts Current", root_agents)
             self.assertIn("@AGENTS.md", root_claude)
-            self.assertIn("Direct Claude Code work follows `AGENTS.md`", root_claude)
-            self.assertIn("does not transfer to the worker", root_claude)
+            self.assertIn("Direct work follows `AGENTS.md`", root_claude)
+            self.assertIn("parent retains authorization", root_claude)
 
     def test_gitignore_contract_is_toolchain_specific_and_applies_to_both_routes(self) -> None:
         skill = self.read("SKILL.md")

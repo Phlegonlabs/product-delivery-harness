@@ -8,12 +8,14 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
-  <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.50.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.51.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
+
+Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，同步產出完整繁體中文審閱版 `PRD.zh-TW.md`、`architecture.zh-TW.md`。Owner 透過中文審閱；實作與核准 digest 以英文為準，接受的修改同步至兩份內容。[雙語審閱契約](skills/product-definition-builder/references/bilingual-review.md) 要求在審閱及成對發佈前核對來源雜湊、ID 與完整語意。 任務檢查發現既有 PRD 或 architecture 只有英文時，agent 會在同一目錄補上完整中文審閱版，保留英文原稿與核准紀錄。只有 PRD 的專案可單獨檢查，不必建立 architecture。唯讀任務只回報缺漏，不自動翻譯封存文件。
+
+`AGENTS.md` 要求在任務開始、重要變更後及結束時檢查本地 repository，即使不使用 Harness 或 PLAN/RUN。將有意義的已提交與未提交變更記錄到對應 Epic，外部修改標示為觀察到但未驗證，並更新 `docs/DOCUMENTS.md`。缺少基線就明確記錄；沒有新變化不重複寫入。唯讀任務只提出紀錄內容，不建立背景監控，也不增加動作授權。
 
 技能儲存庫，讓你用 Codex、Claude Code、Pi 或任何會探索使用者 skills 目錄的 host，把產品構想或變更需求轉化為經過驗證的交付流程。
 
@@ -81,7 +83,7 @@ Skills 更新後及實作前，執行[設計有效性檢查](skills/ui-design-bu
 | `product-definition-builder` | Discovery、research、security requirements、可量測產品/UI 行為、完整 frontend/backend 架構、coherent stack、release targets、tests 與 Product Definition Approval | 已核准的 `PRD.md`、`architecture.md`、`stack-decisions.md` 與研究產物 |
 | `ui-design-builder` | UI Design Intake、typed motion/media、responsive wireframe、`frontend-design` Style Integration、Impeccable HiFi review、W/H 評分、Visual Approval 與 Design System Need Gate | `docs/design/ui-design.md`、`wireframes.html` 與已核准連通 HiFi target |
 | `design-system-compiler` | Visual Approval 後按需把已核准 `ui-design.md` target 編譯成凍結 design-system pair | `docs/design/design-system.md`、`docs/design/design-system.json` |
-| `delivery-harness` | 共用的規模判定與 security task gate、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：一份共用契約，加上每個 host（Codex、Claude Code、Pi 或 generic）各一段 provider 段落 | 直接動手，或 `PLAN.md` + `RUN.md` |
+| `delivery-harness` | 共用的規模判定與 security task gate、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：由所有 host 共用的能力契約，agent 依觀察到的原生工具自動對應 | 直接動手，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 實作與統一整合後的唯讀安全審查，優先由 fresh sibling agent 執行；主動滲透測試與修復不屬於本技能 | 精確 SHA 決策、trust-boundary 覆蓋、驗證後的發現與修復測試 |
 | `product-activation` | 所有支援的 Web、API/backend、iOS、Android、macOS、Windows、browser-extension 與 hybrid release target 的交付後設定，包含 capability routing、精確外部動作授權、read-back、量測來源與 outcome-review 交接 | `docs/ACTIVATION.md` |
 | `seo-growth-review` | 唯讀的 release 後技術 SEO、量測完整性、關鍵詞研究、自然流量診斷與 query-to-page 機會排序 | 預設 inline review；明確要求時才保存日期化報告 |
@@ -91,7 +93,7 @@ Skills 更新後及實作前，執行[設計有效性檢查](skills/ui-design-bu
 - 小型工作維持直接動手，預設不啟用 planner、scheduler、PLAN/RUN、subagent，也不做外部執行環境的預檢。
 - 大型工作進入受管規劃。它可以用 `PLAN.md` 加 `RUN.md` 走受管循序交付，或處理多任務與可持久的交棒；`new_run.py` 在帶 `--out` 與 `--repo-root` 時寫出初始 `docs/tasks.md`，帶 `--repo-root` 的受管 `accept-wave`、`record-worker-result`、`reject-worker-result`、`record-integration`、`reconcile-interrupted`、`reconcile-interrupted-reviews`、`close-wave` 轉換會刷新它並保留 Update Log。Projection 失敗不會回滾 RUN；獨立的 `render_tasks_view.py` 負責修復或檢查這份非權威視圖。本原始碼儲存庫不再另外維護根目錄 `Tasks.md` 流程記錄。
 
-- 選擇器會在實際選中的安全寫入 mission 少於兩個時派生 `managed_sequential`，達到兩個或更多時派生 `parallel_graph`。只有後者才啟用 scheduler 扇出；runtime driver 仍是獨立的傳輸事實。核心只套用 runtime adapter 參考文件裡對應偵測到的 host 的那一個 provider 段落；只有在選定路線需要時，才對外部執行環境做預檢。
+- 選擇器會在實際選中的安全寫入 mission 少於兩個時派生 `managed_sequential`，達到兩個或更多時派生 `parallel_graph`。只有後者才啟用 scheduler 扇出；runtime driver 仍是獨立的傳輸事實。核心共用一份能力契約，由 agent 對應目前原生工具，不按 provider 分流。
 - RUN 執行不等待遠端 CI；branch promotion 是獨立 closeout。精確 candidate 與適用的隔離 preview environment 驗證完成前，`main` 不得移動。
 
 只有 RUN 與它已宣告的生成 tasks view 例外於乾淨目錄檢查；verifier 仍以雜湊保護兩者。產品修改與手寫 view 仍會阻擋執行。日常 RUN 操作使用 guarded transitions；正式 revision 保留歷史並取得精確的新授權。若套件只有 `Selected`／`Required` layers，沒有新核准 option，維持 `Approved option map: None`，跳過可選的生成器。 檢查器接受不分大小寫的 `None`；只有沒有新增核准 layer 或 option 時，才可省略選項表。
@@ -118,7 +120,7 @@ flowchart LR
   ProductGate -->|"核准、延後 UI 階段"| Harness["delivery-harness\n共用交付核心"]
   ProductGate -->|"核准的 headless 產品"| Harness
   Design -->|"核可的全頁面 HTML reference 或設計系統契約"| Harness
-  Harness --> Runtime["單一 host provider section\nCodex、Claude Code、Pi 或 generic"]
+  Harness --> Runtime["觀察原生能力\n共用通用契約"]
   Runtime --> Security["code-security-review\n全新統一 exact-SHA 審查"]
   Security --> Evidence["完整最終測試與 UI 佐證"]
   Evidence --> Close["RUN 在精確 integration head 關閉"]
@@ -299,9 +301,9 @@ Gitignore 衛生同時適用於 direct 與 managed 工作。scope scan 會記錄
 
 文件檢查會列出變更來源、受影響成果與必須重驗項目，由父代理審查語意差異；雜湊與分流提示不代表批准。既有 `document-sync/1` snapshot 保持可讀。
 
-完整 enhancement 使用 `docs/epics/` 中有索引的 Epic，引用現行 PRD，不複製另一份。小修正可只保留直接任務紀錄。目標、寫入範圍、設計來源、依賴與驗收方式整理到該紀錄或既有 PLAN/RUN，不增加中介規格。
+完整 enhancement 使用 `docs/epics/` 中有索引的 Epic，引用現行 PRD，不複製另一份。小修正追加到對應 Epic，必要時連結詳細的直接任務紀錄。目標、寫入範圍、設計來源、依賴與驗收方式整理到該紀錄或既有 PLAN/RUN，不增加中介規格。
 
-實作前先選紀錄方式：新的已接受目標建立 Epic；同一目標的小修追加到原 Epic 的 Change Log；獨立小修可使用直接任務紀錄。記下原因、影響範圍、commit、測試和未完成事項，不改寫已結束的歷史。UI enhancement 預設增量修改：只新增或修改指定的 Wireframe／HiFi 頁面及必要入口／返回控制項，保留其餘版面、內容、樣式與 ID，沿用已批准方向。改共用元件前先列出受影響頁面。完整畫面覆蓋和全套回歸，不代表全部重新設計。
+實作前先選紀錄方式：新的已接受目標建立 Epic；同一目標的小修追加到原 Epic 的 Change Log；獨立小修建立精簡 Epic 條目，可連結直接任務紀錄。記下原因、影響範圍、commit、測試和未完成事項，不改寫已結束的歷史。UI enhancement 預設增量修改：只新增或修改指定的 Wireframe／HiFi 頁面及必要入口／返回控制項，保留其餘版面、內容、樣式與 ID，沿用已批准方向。改共用元件前先列出受影響頁面。完整畫面覆蓋和全套回歸，不代表全部重新設計。
 
 專案 AGENTS 保留入口、必讀、文件分工、分流、同步、授權與完成條件。商業、啟用與 managed RUN 細節移到按情境必讀的參考文件。500 行改為拆分檢查點，不再硬性限制或要求出問題就刪掉重寫。
 
@@ -315,7 +317,7 @@ HiFi validator 會檢查側欄中指向目前頁面的連結是否帶有 `aria-c
 
 Full-stack 依完整流程實作畫面、API、權限、資料保存與回饋。agent-browser 用於 Web 探索，重要流程另保留本機／CI 可重跑測試；登入、拒絕存取、重試與副作用都要有實際證據。發布涵蓋 migration、健康檢查、監控、成本告警與恢復，交付、發布、啟用及產品效果分開報告。SEO 只套用適用的公開頁面。
 
-升級至 0.50.0 時，先讓使用 skills 的工作到達安全停止點，再執行 canonical installer，保留備份並開新 session；不可熱更新已載入的 worker。依文件同步影響清單局部更新現行文件，保留自訂 AGENTS 規則與歷史證據。既有 document-sync/1 與 ui-hifi/2 仍可檢查；新的 HiFi 批准須補左側審閱介面及綁定各頁的 ui-output/2 reviewer 觀察，只重做受影響證據，不改寫舊批准。小修正不必新增 Epic／PLAN／RUN。重跑受影響的 owner gates 與必需最終驗證。 0.49.0 在實作前檢查設計有效性，嚴格 schema-4 編製檢查須提供綁定區域的 motionSpec；保留歷史批准。 0.50.0 保留既有產品排版與已批准產物；新 Wireframe 預設顯示註解。每個 HiFi token 須加上支援的 data-token-preview 屬性及對應來源用法，再重建受影響的 reviewer 觀察；保留歷史批准。
+升級至 0.50.0 時，先讓使用 skills 的工作到達安全停止點，再執行 canonical installer，保留備份並開新 session；不可熱更新已載入的 worker。依文件同步影響清單局部更新現行文件，保留自訂 AGENTS 規則與歷史證據。既有 document-sync/1 與 ui-hifi/2 仍可檢查；新的 HiFi 批准須補左側審閱介面及綁定各頁的 ui-output/2 reviewer 觀察，只重做受影響證據，不改寫舊批准。小修正沿用對應 Epic，不建立 PLAN／RUN；沒有適合的 Epic 才建立精簡紀錄。重跑受影響的 owner gates 與必需最終驗證。 0.49.0 在實作前檢查設計有效性，嚴格 schema-4 編製檢查須提供綁定區域的 motionSpec；保留歷史批准。 0.50.0 保留既有產品排版與已批准產物；新 Wireframe 預設顯示註解。每個 HiFi token 須加上支援的 data-token-preview 屬性及對應來源用法，再重建受影響的 reviewer 觀察；保留歷史批准。
 
 每次調用 skill 都先套用共用的[文件同步契約](skills/delivery-harness/references/document-sync-contract.md)，檢查現行指引、skill/runtime 身分與產品文件的變動，不改寫歷史批准或 RUN。現行 PRD 持續作為下一輪 enhancement 的基準，被取代的 PRD 保留連結供參考。[有界 enhancement](skills/delivery-harness/references/bounded-enhancement.md) 沿用一次確認的範圍，執行修復、範圍內 module 重寫與重測，不反覆要求批准。達修復上限就把未解決需求移交下一輪；本輪結束不等於交付 PASS，也不授權發布。
 
@@ -364,45 +366,23 @@ flowchart TB
 ```
 
 
-## 輕量的執行環境轉接器
+## 通用執行環境適配
 
-共用核心掌管唯一的 PLAN/RUN 控制平面。執行環境專屬的啟動細節放在同一份參考文件 —— `delivery-harness/references/runtime-adapters.md` —— 內含一份共用轉接契約，加上每個 host 一段 provider 段落，按需套用：
+所有 host 共用 `delivery-harness/references/runtime-adapters.md` 的能力契約。Agent 讀取當前原生工具說明、觀察能力，再把實際呼叫對應到 `app_threads`、`subagents` 或 `sequential_parent`。不再提供平台專屬 adapter、固定模型預設或原生 workflow 腳本。
 
-- 每個 host 只套用自己的 provider 段落，也只執行 `allowed_providers` 包含該 host 的 PLAN 節點。
-- Pi host 沿用 Pi 已安裝的角色、模型與 fallback 設定。
-- 任何 provider 段落都無法呼叫另一個執行環境。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應 host 主持的執行去處理。
-- 未來新增一個執行環境 host，只是在這份參考文件加一段 provider 段落，不需要新增 skill。
+Provider 身分只控制 PLAN 明確允許的 host。Driver 順序由觀察到的適用能力決定；平台名稱不代表能力。委派必須有任務建立、結果回傳及適用工作目錄的證據。能力未知就不能啟動。模型與 effort 為 null 時保留已安裝的角色、模型與 fallback；明確指定但不支援的選項會阻擋該節點，不會偷偷替換。
 
-共用的 script、schema、參考文件與範本仍放在 `delivery-harness` 底下；各 provider 段落只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡。
+授權、PLAN/RUN、lease、隔離寫入、精確 SHA 驗證與循序整合仍由 parent 掌握。Reviewer 使用新 context，所需工具必須在它自己的 session 內驗證。原生完成、重試與快取不取代這些關卡。明確要求的獨立 app task 不能默默換成直接子代理。
 
-一次執行只有一個 active host。same-repository handoff 只有在 Host A 關閉 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 後才允許；`active_wave` 物件仍保留在 RUN 中，不能把物件缺失當成交接訊號：Host B 保留 PLAN/RUN 與 graph state，重新探測 runtime，並在選取下一波前審查目前的 exact SHA。若需要修復，路由回 Host A 且舊 review 立即失效；除非未來 schema 增加可攜式的儲存庫／狀態身分，否則不支援 cross-machine handoff。
+Product Definition 只在獲授權時執行有界的唯讀分析圖。`product_agent_graph.cjs` 驗證凍結輸入並產生交接資料，不啟動 agent。Parent 對應原生工具，保留綜合分析、人類決策與發布關卡；無法強制唯讀邊界時，由 parent 循序完成相同角色工作。
 
-## 跨 agent host 的圖執行
-
-這些技能使用兩層圖：
-
-- **org 圖**是穩定的角色契約：產品、架構、UX、設計系統、mission-worker、surface reviewer、security reviewer、審批、整合，以及生命週期職責。
-- **work 圖**是單次執行的暫時性任務圖。Product Definition 與設計技能只有在目前 host 能夠強制套用必要的唯讀工具邊界時，才會使用有界的 agent 分析圖；否則退回循序 parent。工程流則使用標準的 PLAN v6 圖與 RUN v11 狀態。
-
-Child agent run 不負責訪談或審批。Parent 先凍結輸入，再啟動有界的 host-native agent run，並自行掌管分階段寫入、衝突解決、審批與發佈。Codex、Claude Code、Pi 與 generic host 都遵守同一份契約。
-
-在工程流中，Harness 會先驗證並選出相依已就緒的 frontier，才建立或請求 worktree。原生的 Claude mission 使用位於 `.claude/worktrees/` 底下、由 parent 管理的 worktree，把每個 worker 綁到精確的批次 base，並要求在存取儲存庫前先 `EnterWorktree`。在每一條路線上，parent 都會驗證回傳的 commit 與實際的 Git diff、序列化地整合被接受的 commit，並重新計算圖的 frontier。
-
-非 runtime graph 節點採用 reserve／execute／record 順序：`reserve-node-attempt` 在 RUN lock 內建立 receipt，approval、external wait、deterministic verifier 或 lifecycle side effect 在 lock 外執行，`record-node-result` 只關閉相符的 attempt，並以宣告的 outcome 推導 graph phase。Lifecycle transition 只記錄佐證，不執行動作。`lease-worker` 把選取器衍生的 runtime binding 與精確 task／thread 身分帶入 RUN，並遵守 compatibility 檢查與既有 wildcard 授權。
-
-PLAN v6 在執行前檢查 gate 綁定：每個 `local_command` 或 `harness_parent` verifier 節點只能引用 `batch_verifiers` 或 `final_gates`，且每項宣告至少需要一個確定性節點。Runtime review 的引用不會執行這些命令，也不會填入 gate 結果。Task、worker 與 mission-integration verifier 維持既有執行路徑。舊版 schema 仍可讀取以供復原。
-
-在 Claude Code 上，host adapter 會把 mixed frontier 按 homogeneous `tool_profile` 分成多個呼叫；同一組內可以使用不同模型與推理強度，但一次呼叫絕不混合寫入 mission 與唯讀 review。tool profile 是標籤與 prompt/result 契約，不是 permission-level tool removal。
-
-- `mission_write` 要求 `EnterWorktree` 與 mission 的有界寫入契約。
-- `code_review_readonly` 要求 frontend、backend、integration 或 security 的精確路徑審查與唯讀結果佐證；它不會移除繼承的工具。
-- `visual_review_readonly` 使用 host 繼承的工具審查保留下來的截圖或其他既有佐證；新增瀏覽器存取必須先審核並加入設定檔契約，才能使用。
-
-當 Claude Code 回傳真實的 Workflow 執行 ID 時，RUN 狀態可以保留 workflow/task ID、script digest、node group、圖/base 綁定、工具設定檔、狀態，以及可取得的度量。同一 session 內的續跑可以沿用該綁定；跨 session 的復原則從標準的 PLAN/RUN 狀態重新啟動一次新的 workflow 嘗試。
-
-圖節點的 `allowed_providers` 必須包含實際在執行 Harness 的 host，該節點才能被選取。Codex、Claude Code 與 Pi 不能彼此委派節點；它們之間沒有跨 host 的橋接。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
+舊原生 workflow driver、啟動模板與 `workflow_runs` 相容路徑已移除。歷史使用者檔案保持不動；使用舊 binding 的未完成工作，需要明確重新規劃並重驗能力與授權，不會自動遷移。
 
 Runtime 提速路徑只移除重複工作，不搬動 gate。`docs_weight.py` 用一次 `cat-file --batch` 讀取已解析 baseline 的 blobs；verifier 結果可記錄唯讀的 setup、guard、snapshot、command 與 postcheck 耗時；review packet 只移除 diff 內重複出現的材料；同一 batch 可重用 immutable archive bytes，但每個 verifier 仍有自己通過檢查的解壓目錄；verifier slot 會補入無衝突工作，不等整個 wave；只有同一 runner 產生的 deterministic opted-in PASS 可在重新檢查 guard 與 runtime/image trust 後重用 container 結果。container 結果不進入持久 cache。 新接受的重用必須在目前 parent 觀察到的 batch 中附帶原始執行；只有 RUN 歷史紀錄不足以授權。
+
+Worker 與 reviewer 不能再次分派。Parent 保持每個隔離 worktree 只有一個 writer、串行整合，再派發 fresh reviewers 執行 exact-head review。唯讀與寫入範圍保持分離；profile 名稱不能證明 permission-level tool removal。PLAN 的 host 不符時以 `runtime_unavailable` 延後，不會啟動另一個 runtime。
+
+一次執行只有一個 active host。same-repository handoff 只有在 Host A 關閉 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 後才允許；`active_wave` 物件仍保留在 RUN 中，不能把物件缺失當成交接訊號：Host B 保留 PLAN/RUN 與 graph state，重新探測 runtime，並在選取下一波前審查目前的 exact SHA。若需要修復，路由回 Host A 且舊 review 立即失效；除非未來 schema 增加可攜式的儲存庫／狀態身分，否則不支援 cross-machine handoff。
 
 ## 安裝
 
@@ -518,29 +498,16 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 ```
 
 ```text
-Use delivery-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+Use delivery-harness on this host to execute this plan. Observe native capabilities and preserve installed roles, models and fallbacks.
 ```
 
 多任務交付仍要說清楚本機與遠端結果；建立分支、commit、整合、每次 push、deployment、移除 worktree 與刪除分支都是獨立動作。Post-RUN promotion 只有在 exact action-time authorization、fast-forward 證明、read-back 與完整 candidate 測試齊全時才能更新 `main`。
 
-## Codex、Claude Code 與 Pi 的執行
+## 原生執行
 
-Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI 去假設一個。
+依目前 session 的工具選擇啟動方式，不按 runtime 名稱套規則。只有觀察並授權任務、worktree 與回傳契約後才建立獨立 app task；具備新子代理與終端結果能力時使用 sibling agents；其餘可由 parent 執行的工作採循序方式。獨立 review 仍需要新的 reviewer，能力不足就阻擋。
 
-| 執行環境 | 偏好的平行路線 | 退回方案 |
-| --- | --- | --- |
-| Codex app | 在隔離、由 app 管理的 worktree 中執行 app 任務 | 直接使用 subagent，再退到單一循序的 parent |
-| Claude Code | 在對齊 base、由 parent 管理的 `.claude/worktrees/` worktree 中執行平面的 sibling-agent runner | 直接使用 subagent，再退到單一循序的 parent |
-| Pi | 在 parent 管理的 worktree 中使用已安裝的 Pi 角色，並由 Pi 選擇模型與 fallback | 單一循序的 parent |
-| 其他任何 host | 由 parent 隔離的 fresh subagent | 單一循序的 parent |
-
-在 Codex 中，每個選中的 mission 都會在左側欄開一個獨立的 top-level conversation，並綁定自己的 app-managed worktree。任何唯讀 explorer 或 reviewer 都由 Harness parent 另行作為同層節點派發；mission 任務不能建立子代理。Coordinator 直接建立的 subagent 不能取代這些 top-level 任務。若 project/thread 工具一開始尚未載入，轉接器會先從目前的 Codex 工具介面找出它們，再考慮退回方案。當使用者明確要求這個結構時，缺少 thread 能力是 blocker，不能把工作縮回同一個 conversation。
-
-目標 repo 的 branch 規則優先；否則第一次交付與 enhancement 都從觀察到的 remote `main` 建立 run branch。Mission worktree 只整合進 run branch 並接受 exact-head review。RUN 關閉後，candidate 通過所有必要的本機與隔離 preview environment gate，再以獨立授權把未變更的同一 SHA fast-forward 到 `main`。任何修正都要在新 SHA 上重跑 candidate 驗證。
-
-每個 provider 段落只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要其他 host 的 provider，會被 deferred with `runtime_unavailable`，而不會在這裡執行。
-
-平行實作預設沒有固定的小上限；設定中的寫入 worker 上限刻意設得很高，實際波次由觀察到的 worker 名額、隔離容量，以及相依已就緒、無衝突的 frontier 大小界定。一個可獨立驗證的目標對應一個 mission。每個 writer 都有明確的檔案 ownership，以及獨立、乾淨、固定基線的 worktree。共享 API、schema 與型別必須先凍結，再開始依賴它們的平行寫入。探索、寫入與 reviewer 都由 parent 作為同層節點派發；worker 與 reviewer 都不能再次分派。每個 mission 通過 exact-head review 後，由 parent 串行整合；統一整合完成後啟動 fresh reviewers，由 sibling agent 執行必要的 `code-security-review`，最後只對固定候選 SHA 執行一次完整驗證。Worker 絕不編輯 parent 的 `PLAN.md` 或 `RUN.md`，也不推送、開 PR、合併、部署或移除 worktree。Parent 掌管整合以及每一個落地或生命週期動作。
+保留使用者要求的拓撲、已安裝角色、模型選擇與有效專案指令。解析延遲載入工具、綁定真實身分、先啟動所有選定 sibling 再等待，優先使用事件或游標等待。建立結果不明時先核對現有任務，不能自動建立重複任務。
 
 ## 儲存庫結構
 
@@ -604,6 +571,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.51.0** — 改用依能力自動適配的通用 runtime，移除平台專屬 driver 與舊 workflow 模板。英文 PRD 與 architecture 同步提供中文審閱版，既有英文文件會在原目錄補上翻譯。AGENTS 在任務節點將 repository 變更記錄到 Epic，即使未執行 Harness。此為不相容的 skill bundle 變更。
 
 - **0.50.0** — Wireframe 預設顯示註解，提供實測排版資訊與可讀的操作去向。Wireframe 與 HiFi token 展示套用實際值；正式預覽補上安全的字體、陰影及動畫範例。HiFi 新增必填展示屬性及新觀察證據，屬破壞性 skill-bundle 變更。
 

@@ -8,7 +8,7 @@ The System Review And Route stage completes before this file exists. It is paren
 
 Every non-mission graph node uses a durable reserve/execute/record sequence. Reserve an `approval`, `external_wait`, `lifecycle`, or deterministic batch/final verifier node with `reserve-node-attempt` under the RUN lock, perform the check, wait, or lifecycle side effect after that lock is released, then record the matching outcome and evidence with `record-node-result`. A local verifier persists its exact request and attempt nonce in RUN, publishes `--request-out` outside the checkout, and runs it through `verifier_runtime.py`; Git guards run before and after the command, and result recording rejects replay or retargeting. An interrupted verifier records `blocked` with a blocker and no fabricated result. Lifecycle transitions record evidence only; they never invoke Git, a process, or a remote action, and they retry only through an explicit bounded route.
 
-Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. On an observed Codex route that may select two writers, record the complete eight-entry `runtime_adapter.capability_probe`; a provably sequential route records only the facts needed to prove its selected driver. For every PLAN review `required_tools` entry, replace the generic `reviewer_tools` placeholder with a fresh reviewer-session probe from the exact selected provider and driver. Never mark a parent-only probe available. Never run parallel writers in `shared_checkout`.
+Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. Record `runtime_adapter.capability_probe` facts for every advertised delegated driver; unrelated capabilities need no inventory. For every PLAN review `required_tools` entry, replace the generic `reviewer_tools` placeholder with a fresh reviewer-session probe from the exact selected provider and driver. Never mark a parent-only probe available. Never run parallel writers in `shared_checkout`.
 
 A managed-sequential route is selected when fewer than two safe write missions are actually selected. It avoids fan-out-only ceremony but keeps the isolated writer, scope/head, review, and final gates. Two or more safe writers produce `parallel_graph`; this selector output is not persisted. Harness 0.38 RUNs start and finish `local_only`. `integration_push` remains legacy recovery state only; archive candidate A is published after RUN close through the separate external request/attempt/receipt protocol.
 
@@ -63,7 +63,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.50.0",
+          "required_harness_version": "0.51.0",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
@@ -220,7 +220,6 @@ A managed-sequential route is selected when fewer than two safe write missions a
         "owner_decisions": []
       }
     },
-    "workflow_runs": [],
     "verifier_executions": [],
     "runtime_metrics": null,
     "attempt_log": []
@@ -234,7 +233,7 @@ Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `record-obs
 
 RUN schema v11 keeps all 12 action entries. For Harness 0.38, `push` stays false, `landing.mode` stays `local_only`, `pushed_head_sha` stays null, and PLAN has no push lifecycle node. After RUN close, archive-only A may be published only through `push_archived_candidate.py` with a separate explicit remote instruction and checkout-external immutable artifacts; `main` promotion is another action. Explicitly pinned pre-0.38 RUNs retain their historical push shape for recovery. RUN-v11 workers never delegate; all reviews are parent-dispatched graph nodes, and the fresh security review never uses a tree-identity skip.
 
-The archive apply writes a required immutable anchor outside the checkout; archive-candidate publication requires that same anchor and external request/attempt/receipt. It never mutates the archived RUN. The `dynamic_workflow` and `app_threads` adapters retain their typed `mission_write` profile; task creation `model` and `thinking` values pass only after the parent proves the route.
+The archive apply writes a required immutable anchor outside the checkout; archive-candidate publication requires that same anchor and external request/attempt/receipt. It never mutates the archived RUN. The general adapter maps observed native tools to the selected driver; explicit model and effort options pass only when their support is observed.
 
 When the selected driver is `sequential_parent`, follow `references/execution-state-model.md`'s Sequential Parent Route: the PLAN mission keeps `executor: runtime_worker`, and the route blocks rather than writing in `shared_checkout` when its worktree is unavailable or unauthorized.
 
