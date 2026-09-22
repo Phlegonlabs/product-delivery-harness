@@ -28,14 +28,10 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         node = shutil.which("node")
         if node is None:
             self.skipTest("Node.js is required for workflow behavior tests")
-        workflow_path = SKILL_ROOT / "assets/templates/CLAUDE_PRD_WORKFLOW.template.js"
+        workflow_path = SKILL_ROOT / "scripts/product_agent_graph.cjs"
         runner = r"""
 const fs = require("fs");
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const source = fs.readFileSync(process.argv[1], "utf8").replace(
-  "export const meta =",
-  "const meta =",
-);
+const { createProductAgentGraph } = require(process.argv[1]);
 const workflowArgs = JSON.parse(fs.readFileSync(0, "utf8"));
 const calls = [];
 function phase() {}
@@ -85,8 +81,12 @@ async function agent(_prompt, options) {
 }
 (async () => {
   try {
-    const workflow = new AsyncFunction("args", "phase", "parallel", "agent", source);
-    const result = await workflow(workflowArgs, phase, parallel, agent);
+    const graph = createProductAgentGraph(workflowArgs);
+    const execute = (item) => agent(item.prompt, item);
+    const lanes = await Promise.all(graph.analyze().map(execute));
+    const draft = await execute(graph.synthesize(lanes));
+    const reviews = await Promise.all(graph.review(draft).map(execute));
+    const result = graph.finish(lanes, draft, reviews);
     process.stdout.write(JSON.stringify({ ok: true, status: result.status, research: result.research, draft: result.draft, calls }));
   } catch (error) {
     process.stdout.write(JSON.stringify({ ok: false, error: error.message }));
@@ -287,7 +287,7 @@ async function agent(_prompt, options) {
         lifecycle = self.read("references/artifact-lifecycle.md")
         guide = self.read("references/wireframe-guide.md")
         html_template = self.read("assets/templates/WIREFRAMES.template.html")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
         for content in (skill, contract, lifecycle):
             self.assertIn("ui-design-builder", content)
@@ -1173,7 +1173,7 @@ async function agent(_prompt, options) {
         contract = self.read("references/output-contract.md")
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
         self.assertIn("Reuse the canonical `TEST-*` IDs from `PRD.md`", contract)
         self.assertIn(
@@ -1226,7 +1226,7 @@ async function agent(_prompt, options) {
         backend = self.read("references/backend-stack-selection.md")
         architecture = self.read("references/architecture-playbook.md")
         skill = self.read("SKILL.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
         agent = self.read_agent_prompt()
 
         backend_section = contract[
@@ -1261,7 +1261,7 @@ async function agent(_prompt, options) {
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
         agent = self.read_agent_prompt()
 
         self.assertIn("## Provider-Neutral Release Target Pattern", architecture)
@@ -1328,7 +1328,7 @@ async function agent(_prompt, options) {
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
         agent = self.read_agent_prompt()
 
         for content in (skill, interview, architecture, contract, workflow, agent):
@@ -1346,7 +1346,7 @@ async function agent(_prompt, options) {
         self.assertIn("halting a phased or staged rollout", contract)
 
     def test_workflow_requires_stable_release_targets_for_each_stage(self) -> None:
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
         self.assertIn(
             'throw new Error("product-definition-builder-graph requires boolean args.deployable");',
@@ -1581,7 +1581,7 @@ async function agent(_prompt, options) {
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
         frontend = self.read("references/frontend-stack-selection.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
         for content in (interview, architecture, contract, frontend, workflow):
             for retired in (
@@ -1702,8 +1702,8 @@ async function agent(_prompt, options) {
 
     def test_market_research_delegation_requires_explicit_authorization(self) -> None:
         skill = self.read("SKILL.md")
-        work_graph = self.read("references/dynamic-workflow.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        work_graph = self.read("references/agent-work-graph.md")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
         self.assertIn(
             "a single read-only subagent only when the parent has a separate explicit subagent/delegation authorization",
@@ -1753,18 +1753,18 @@ async function agent(_prompt, options) {
             )
 
     def test_market_research_never_blocks_the_package(self) -> None:
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
-        status_expression = workflow[
-            workflow.index("status: lanes.some") : workflow.index("lanes,\n  draft,")
-        ]
+        status_match = re.search(r"status: lanes\.some.*?(?=\n\s*lanes,)", workflow, re.S)
+        self.assertIsNotNone(status_match)
+        status_expression = status_match.group(0)
         self.assertNotIn("research", status_expression)
         self.assertIn(
-            'unresolved: ["The market-research workflow agent returned no result',
+            'unresolved: ["The market-research analysis agent returned no result',
             workflow,
         )
         self.assertIn(
-            'evidence: [rawResearch ? "workflow-role-mismatch" : "workflow-agent-null"]',
+            'evidence: [rawResearch ? "analysis-role-mismatch" : "analysis-agent-null"]',
             workflow,
         )
 
@@ -1772,8 +1772,8 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         guide = self.read("references/market-research-guide.md")
         contract = self.read("references/output-contract.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
-        work_graph = self.read("references/dynamic-workflow.md")
+        workflow = self.read("scripts/product_agent_graph.cjs")
+        work_graph = self.read("references/agent-work-graph.md")
 
         for content in (skill, guide, contract, workflow):
             self.assertIn("UNVALIDATED", content)
@@ -1885,7 +1885,7 @@ async function agent(_prompt, options) {
         self,
     ) -> None:
         skill = self.read("SKILL.md")
-        work_graph = self.read("references/dynamic-workflow.md")
+        work_graph = self.read("references/agent-work-graph.md")
 
         order = [
             skill.index("4. Run the research-first assessment"),
@@ -1949,7 +1949,7 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         guide = self.read("references/market-research-guide.md")
         contract = self.read("references/output-contract.md")
-        work_graph = self.read("references/dynamic-workflow.md")
+        work_graph = self.read("references/agent-work-graph.md")
 
         for content in (guide, contract):
             self.assertIn("## Platform Optimization Recommendations", content)
@@ -2094,23 +2094,23 @@ async function agent(_prompt, options) {
 
     def test_agent_work_graph_uses_org_roles_and_parent_owned_staging(self) -> None:
         skill = self.read("SKILL.md")
-        guide = self.read("references/dynamic-workflow.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        guide = self.read("references/agent-work-graph.md")
+        workflow = self.read("scripts/product_agent_graph.cjs")
         contract = self.read("references/output-contract.md")
 
         self.assertIn("stable PRD roles as an org graph", skill)
         self.assertIn("The stable org graph", guide)
         self.assertIn("The temporary work graph", guide)
-        self.assertIn("Codex and generic hosts dispatch read-only sibling agents", guide)
-        self.assertIn("Pi uses its installed read-only roles", guide)
-        self.assertIn("Claude Code invokes", guide)
+        self.assertIn("current session's observed native tools", guide)
+        self.assertIn("Preserve installed roles", guide)
+        self.assertIn("Do not use a bundled launch script", guide)
         self.assertIn('typeof args === "string" ? JSON.parse(args) : args', workflow)
-        self.assertIn('phase("Analyze")', workflow)
-        self.assertIn("await parallel", workflow)
-        self.assertIn('phase("Synthesize")', workflow)
-        self.assertIn('phase("Verify")', workflow)
-        self.assertIn("workflow-agent-null", workflow)
-        self.assertIn("workflow-role-mismatch", workflow)
+        self.assertIn('function analyze()', workflow)
+        self.assertIn("function synthesize(rawLanes)", workflow)
+        self.assertIn('function review(draft)', workflow)
+        self.assertIn('function finish(rawLanes, draft, verifyResults)', workflow)
+        self.assertIn("analysis-agent-null", workflow)
+        self.assertIn("analysis-role-mismatch", workflow)
         self.assertIn("builder_readonly", workflow)
         self.assertIn(
             "`builder_readonly` launch profile, asserted via `args.tool_profile`", guide
@@ -2122,7 +2122,7 @@ async function agent(_prompt, options) {
         self.assertIn("not a canonical Harness PLAN or RUN graph", contract)
 
     def test_workflow_lanes_receive_resolved_platform_and_ui_owner(self) -> None:
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
         self.assertIn(
             'throw new Error("product-definition-builder-graph requires boolean args.ui_bearing");',
@@ -2240,7 +2240,7 @@ async function agent(_prompt, options) {
         guide = self.read("references/monetization-and-partner-channel-guide.md")
         contract = self.read("references/output-contract.md")
         architecture = self.read("references/architecture-playbook.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
         agent = self.read_agent_prompt()
 
         self.assertIn("references/monetization-and-partner-channel-guide.md", skill)
@@ -2748,10 +2748,10 @@ new Function(scripts.at(-1)[1]);
 
     def test_data_trust_ai_metrics_and_open_questions_are_owner_decisions(self) -> None:
         skill = self.read("SKILL.md")
-        work_graph = self.read("references/dynamic-workflow.md")
+        work_graph = self.read("references/agent-work-graph.md")
         contract = self.read("references/output-contract.md")
         interview = self.read("references/interview-guide.md")
-        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        workflow = self.read("scripts/product_agent_graph.cjs")
 
         for marker in (
             "Data and Trust Gate:",

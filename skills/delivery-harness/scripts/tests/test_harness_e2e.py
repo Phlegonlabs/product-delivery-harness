@@ -23,7 +23,7 @@ if str(TESTS_DIR) not in sys.path:
 from manifest_fixtures import manifest_markdown  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
     authorize_execution,
-    codex_capability_probe,
+    native_capability_probe,
     current_version_gate,
     legacy_plan,
     legacy_run,
@@ -145,7 +145,7 @@ class HarnessCliE2ETests(unittest.TestCase):
             self.assertEqual(run_text, run_path.read_text(encoding="utf-8"))
             return proposal
 
-    def test_validated_claude_run_selects_workflow_driver_launch_path(self) -> None:
+    def test_validated_host_run_selects_native_subagent_launch_path(self) -> None:
         plan = valid_graph_plan()
         detach_mission_edges(plan)
         plan["max_parallel_workers"] = 2
@@ -164,9 +164,9 @@ class HarnessCliE2ETests(unittest.TestCase):
                 "completion_channel": "agent_result",
                 "max_parallel_workers": 2,
                 "runtime_adapter": {
+                    "capability_probe": native_capability_probe(subagents=True),
                     "provider": "claude_code",
                     "available_drivers": [
-                        "dynamic_workflow",
                         "subagents",
                         "sequential_parent",
                     ],
@@ -193,13 +193,13 @@ class HarnessCliE2ETests(unittest.TestCase):
             [item["node_id"] for item in proposal["dispatchable_nodes"]],
         )
         self.assertEqual(
-            ["run_dynamic_workflow", "run_dynamic_workflow"],
+            ["spawn_subagent", "spawn_subagent"],
             [item["launch_kind"] for item in proposal["dispatchable_nodes"]],
         )
         self.assertTrue(
             all(
                 item["runtime_provider"] == "claude_code"
-                and item["runtime_driver"] == "dynamic_workflow"
+                and item["runtime_driver"] == "subagents"
                 and item["runtime_source"] == "host"
                 for item in proposal["dispatchable_nodes"]
             )
@@ -231,7 +231,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                         "sequential_parent",
                     ],
                     "detection_source": "observed",
-                    "capability_probe": codex_capability_probe(
+                    "capability_probe": native_capability_probe(
                         app_threads=True,
                         subagents=True,
                     ),
@@ -398,7 +398,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                 "provider": "codex",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
-                "capability_probe": codex_capability_probe(subagents=True),
+                "capability_probe": native_capability_probe(subagents=True),
             }
             run["observed"]["git"].update(
                 {

@@ -1,17 +1,17 @@
-# Claude Code Project Instructions
+# Project Instructions
 
 @AGENTS.md
 
-## Claude Code Runtime Boundary
+## Runtime Boundary
 
-- Treat `AGENTS.md` as the shared repository governance imported above. Keep Claude Code-only instructions in this file.
-- Use the Product Delivery Harness Claude Code adapter for Claude worker roles, model selection, native workflow orchestration, and Agent Teams behavior. Do not copy Codex or Pi launch mechanics into a Claude worker.
+- Treat `AGENTS.md` as the shared repository governance imported above. Preserve the current host's effective context discovery.
+- Use the general runtime adapter reference (`delivery-harness/references/runtime-adapters.md`) to map observed native tools to the shared capability contract. The parent retains authorization; host names do not choose launch APIs, roles or models.
 
-The rules below apply only when this Claude session is executing a managed Product Delivery Harness PLAN/RUN mission. Direct Claude Code work follows `AGENTS.md` and the user's request without creating Harness state or worker topology.
+The rules below apply only when this session is executing a managed Product Delivery Harness PLAN/RUN mission. Direct work follows `AGENTS.md` and the user's request without creating Harness state or worker topology.
 
 ## Managed Harness Missions
 
-- A Claude mission worker is one bounded writer. It never delegates, edits parent-owned PLAN/RUN state, integrates, pushes, or cleans up. Authorization for those actions remains with the Harness parent and does not transfer to the worker.
-- Claude explorers, mission writers, and reviewers are parent-dispatched siblings. Each writer has explicit file ownership and a separate clean exact-base worktree.
+- A mission worker is one bounded writer. It never delegates, edits parent-owned PLAN/RUN state, integrates, pushes, or cleans up. Authorization for those actions remains with the Harness parent and does not transfer to the worker.
+- Explorers, mission writers, and reviewers are parent-dispatched siblings. Each writer has explicit file ownership and a separate clean exact-base worktree.
 - After serial integration, the parent starts fresh reviewers on the unified head, including the required read-only `code-security-review` sibling, and runs one broad final validation only after those reviewers pass.
 - Return the exact worktree, branch, head SHA, changed files, verifier evidence, and blocking state through the completion channel supplied by the Harness parent.

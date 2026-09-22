@@ -119,7 +119,9 @@ class CloseWaveCliTests(unittest.TestCase):
         run["integration"]["integration_head_sha"] = None
         run["landing"]["continuity"]["branch_ref"] = "refs/heads/integration"
         adapter = run["runtime_capabilities"]["runtime_adapter"]
-        adapter["available_drivers"] = ["sequential_parent", "subagents"]
+        adapter["available_drivers"] = ["subagents", "sequential_parent"]
+        adapter["detection_source"] = "observed"
+        adapter["capability_probe"] = mf.native_capability_probe(subagents=True)
         run["runtime_capabilities"]["worker_runtime"] = "subagent"
         run["runtime_capabilities"]["max_parallel_workers"] = 2
         self.plan_path = self.root / "PLAN.md"
@@ -434,7 +436,7 @@ class AcceptWaveGuardTests(unittest.TestCase):
             {
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
-                "capability_probe": mf.codex_capability_probe(subagents=True),
+                "capability_probe": mf.native_capability_probe(subagents=True),
                 "version_gate": mf.current_version_gate(),
             }
         )

@@ -312,7 +312,6 @@
     "closed_waves": [],
     "workers": [],
     "review_workers": [],
-    "workflow_runs": [],
     "verifier_executions": [],
     "attempt_log": []
   }

@@ -349,38 +349,11 @@ RUN records them together under `runtime_capabilities`, along with `max_parallel
 
 ### Runtime adapter and routing
 
-RUN v11 records observed host capabilities without replacing the three portable axes:
+`runtime_adapter` records `provider` (any lowercase host identity, or `generic`), ordered `available_drivers`, `detection_source` and the version gate. Providers do not select a driver or a model. The first advertised supported driver wins; `sequential_parent` is the safe fallback. Use `app_threads` for independent user-owned app tasks, `subagents` for fresh native children, and `sequential_parent` for actual parent execution.
 
-```json
-{
-  "runtime_adapter": {
-    "provider": "claude_code",
-    "available_drivers": ["dynamic_workflow", "subagents", "sequential_parent"],
-    "detection_source": "observed"
-  }
-}
-```
+For schema 10/11 ready or running delegation, `detection_source` must be `observed` and `capability_probe` must prove every advertised delegated driver. Each fact has exactly `status` (`available`, `unavailable`, or `unobserved`) and non-empty `evidence`. App tasks require `app_project_list`, `app_thread_create`, `app_thread_read`, `app_thread_message`, `app_thread_wait` and `app_managed_worktree`; subagents require `direct_subagent_spawn` and `direct_agent_result`. These are semantic capabilities, not native API names. Only advertised driver requirements must be available. The parent inspects the current interface and records actual native calls and limits; unrelated capability inventory is optional.
 
-`provider` is `codex`, `claude_code`, `pi`, or `generic`. `detection_source` is `observed`, `explicit`, or `fallback`, and the three are not interchangeable: `observed` means the host was probed and the recorded capacity is real, `explicit` means the route was chosen on purpose, and `fallback` means the capability was never determined. A multi-mission plan may not run sequentially on `fallback` — the selector withholds the proposal with `capability_unprobed` until the parent probes or declares. How to probe differs per host and belongs to the adapter; whether it happened is checked here, the same way for all three. `available_drivers` contains only capabilities proven in the current surface and always includes `sequential_parent`. The selector applies a fixed route: Codex uses `app_threads`, then `subagents`, then `sequential_parent`; Claude Code uses `dynamic_workflow`, then `subagents`, then `sequential_parent`; Pi and generic use `subagents`, then `sequential_parent`.
-
-RUN v11 adds an optional `runtime_adapter.capability_probe` that is valid only for an observed Codex adapter. A route that may select two writers must complete it before entering `ready` or `running`; a provably sequential route may omit the unrelated surfaces and records only the facts needed to prove its selected driver:
-
-```json
-{
-  "capability_probe": {
-    "app_project_list": {"status": "available", "evidence": "tool:codex_app__list_projects"},
-    "app_thread_create": {"status": "available", "evidence": "tool:codex_app__create_thread"},
-    "app_thread_read": {"status": "available", "evidence": "tool:codex_app__read_thread"},
-    "app_thread_message": {"status": "available", "evidence": "tool:codex_app__send_message_to_thread"},
-    "app_thread_wait": {"status": "available", "evidence": "tool:codex_app__wait_threads"},
-    "app_managed_worktree": {"status": "available", "evidence": "create_thread supports a worktree target"},
-    "direct_subagent_spawn": {"status": "available", "evidence": "tool:spawn_agent"},
-    "direct_agent_result": {"status": "available", "evidence": "direct agent-result channel"}
-  }
-}
-```
-
-Every supplied probe entry has exactly `status` and `evidence`; status is `available`, `unavailable`, or `unobserved`, and evidence is non-empty. A parallel-capable ready/running Codex execution rejects a missing probe or any `unobserved` entry with `capability_snapshot_incomplete`. A sequential route may omit the probe when `sequential_parent` is selected, or provide only the selected driver's required available surfaces; it still cannot claim an app-thread or subagent driver without those facts. When all eight entries are supplied, all six `app_*` entries being available derives `app_threads`; both `direct_*` entries being available derives `subagents`; `sequential_parent` is always derived, and `available_drivers` must equal those derived drivers in Codex priority order. Historical/superseded RUN evidence remains readable, but a resumed parallel route re-probes before launch.
+Explicit provider identity is not an observed capability. A missing grant never changes an available capability into unavailable. Keep the live session identity, loaded/installed contract digests and version evidence in the existing version gate. No public latest-version query is needed.
 
 ### Reviewer tool capabilities
 
@@ -393,9 +366,9 @@ RUN records the selected driver's observation separately from its orchestration 
   "reviewer_tools": {
     "chrome_devtools": {
       "status": "available",
-      "provider": "codex",
+      "provider": "generic",
       "driver": "subagents",
-      "surface": "raw_cdp",
+      "surface": "browser_inspection",
       "probe_scope": "reviewer_session",
       "session_id": "reviewer-probe-01",
       "evidence": "Fresh reviewer attached to the active tab and Runtime.evaluate returned 2 for 1+1"
@@ -404,27 +377,11 @@ RUN records the selected driver's observation separately from its orchestration 
 }
 ```
 
-`status` is `available`, `unavailable`, or `unobserved`. `provider` must be the active host and an available entry's `driver` must be the selected runtime driver. `surface` is provider-specific: Codex uses `raw_cdp`, Claude Code uses `claude_in_chrome`, Pi uses `pi_chrome_devtools`, and an unobserved generic default uses `none`. An available entry requires `probe_scope: reviewer_session` and a non-empty fresh reviewer session ID. Parent-session access, configuration, a package listing, or a launch flag is supporting evidence only; none proves the child surface. The read-only probe child uses the same provider, driver, role, and extension inheritance as the planned reviewer, requires the matching launch authorization, and cannot submit a review verdict or update review state.
+`status` is `available`, `unavailable`, or `unobserved`. An available entry's provider and driver must match the current adapter; its lowercase `surface` names the actual native browser interface, never `none`, `unknown` or `unobserved`. It requires `probe_scope: reviewer_session`, a real reviewer session ID and evidence from a deterministic inspection inside that reviewer. The parent's browser connection is not proof. Missing capability defers the review.
 
-The selector defers a node with `reviewer_tool_unobserved:<tool>` until this probe is completed, or `reviewer_tool_unavailable:<tool>` when the probed child lacks it. The dispatch directive and bounded review packet carry the exact requirement and capability evidence. A required browser tool is not silently replaced by retained screenshots, Playwright in another process, or the parent's browser connection. Those remain valid separate evidence only when PLAN does not require reviewer-side Chrome DevTools.
+PLAN runtime-worker nodes may add `provider_options` with exactly `model` and `reasoning_effort`. Null preserves the host default. The validator checks portable value syntax; the parent verifies support using the current native interface before launch. Unsupported explicit options block without substitution. Copy selected options and `option_source` into each mission or review worker's `runtime_binding`; bindings still match PLAN, provider, driver and exact attempt. Provider names never impose a model or effort rule.
 
-PLAN v6 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex, Claude Code, and Pi, while generic providers keep it null. Pi model remains null because the installed role owns primary-model and fallback selection; a non-null Pi effort changes only that run's thinking tier. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`; a missing Pi option preserves the installed Pi role/model/effort configuration. The destination host still validates current model and effort support.
-
-When the parent allocates a PLAN-v6 graph worker in RUN v11, copy a mission binding into `workers[].runtime_binding` or a read-only verifier binding into `review_workers[].runtime_binding`, with provider, driver, source, model, reasoning effort, and option source. A live mission or review attempt must match the current RUN runtime adapter's provider and selected driver. Before any managed review launch, `reserve-review-dispatch` must atomically persist the selected directive as a leased `review_workers[]` binding and a running graph attempt; only the matching receipt may later become a terminal review result. This makes a Pi-hosted attempt stay on Pi's role-aware `subagents` surface; it cannot be rebound to Claude Code or its `dynamic_workflow` driver. A review worker also records node/attempt identity, graph revision, review path, and exact reviewed SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null values through task creation. A Claude Code host passes each node's own model and non-null reasoning effort directly into that node's own `agent()` call inside the Workflow script; one wave may freely mix models and reasoning efforts across nodes since selection happens per spawned agent, not per wave. Pi keeps the installed role's resolved model and fallbacks, then applies a non-null binding effort through the per-run thinking suffix. Never silently replace a rejected model or effort; replan the affected node and increment the PLAN revision.
-
-For a managed route that may fan out, capture this adapter before the first production edit or worker launch. A managed-sequential route proves only its selected driver and does not inventory unused parallel driver surfaces. Capability observation and action authorization are separate facts: record a usable driver even when its launch actions remain false. In particular, do not omit `app_threads` because `create_user_owned_tasks` or worktree authorization is missing. Record the capability, request the launch bundle once at Plan Readiness, and rerun selection after the answer.
-
-Provider means the host session running the Harness, not every CLI installed on the machine. Observe current-session native tools first: Codex project/thread creation and polling for `app_threads`, Claude Code's `Workflow` tool and supported runtime for `dynamic_workflow`, and current-session child-agent tools for `subagents`. In Pi, the installed subagent workflow plus a terminal child result proves `subagents`; Pi agent files or package settings alone do not. Use `explicit` only when the host surface is opaque; otherwise use `generic` + `fallback`. A binary or plugin version may confirm feature compatibility after provider detection, but it does not select the provider or authorize a launch.
-
-The chosen host driver must match the portable host axes. `app_threads` requires `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` requires `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use `subagent` with a supported shared or parent-managed workspace and direct result/report channel. `sequential_parent` requires `parent` + `parent_managed_worktree` + `agent_result`; parent-managed worktree creation is mandatory and an unavailable or unauthorized worktree blocks the route. It never implies a delegated or spawned worker.
-
-For a plan-backed graph, every mission node remains a write mission with PLAN `executor: runtime_worker` and must bind to `parent_managed_worktree` or `app_managed_worktree`. A `sequential_parent` mission runs one mission at a time under the binding defined above. The selector never rewrites that node into a deterministic parent action or a shared-checkout write. If the required parent-managed worktree and its worktree/branch/commit authorizations cannot be obtained, the route remains deferred or blocked rather than downgrading.
-
-A current PLAN-v6 typed node's `allowed_providers` must include the current host's provider for the node to be selectable at all; there is no other-host adapter to fall back into. A node whose `allowed_providers` excludes the current host provider is deferred with `runtime_unavailable` and reported as needing a run hosted by the matching adapter.
-
-The Claude workflow driver is a wave-level flat script, not a nested mission worker. The parent preallocates one worktree, branch, and lease per selected write mission. The workflow coordinates sibling agents and returns structured result candidates. Omit `nested_subagents` for this flat route. If a workflow stage needs human sign-off, return a refinement/blocker result and run a later workflow after the parent updates canonical state; never let a workflow script or agent edit PLAN/RUN directly.
-
-RUN may record the outer Claude Workflow task/run identity, script digest, node group, options, and status in `workflow_runs`. A retry creates a new graph attempt.
+`app_threads` requires `app_task` + `app_managed_worktree` + `thread_poll`. `subagents` requires `subagent`, a supported isolated/read-only workspace and an observed result channel. `sequential_parent` requires `parent` + `parent_managed_worktree` + `agent_result` and cannot satisfy an independent review. Native runs have no separate bundled workflow state: canonical graph attempts, leases, results and `runtime_metrics` remain authoritative.
 
 ### Worker runtime
 
@@ -434,7 +391,7 @@ parent | subagent | app_task
 
 - `parent`: the parent executes the mission loop itself.
 - `subagent`: a child agent is owned and coordinated by the parent thread.
-- `app_task`: a user-owned Codex app task runs independently of the parent task.
+- `app_task`: a user-owned app task runs independently of the parent task.
 
 ### Workspace mode
 
@@ -444,7 +401,7 @@ shared_checkout | parent_managed_worktree | app_managed_worktree
 
 - `shared_checkout`: one checkout; all writes are serialized.
 - `parent_managed_worktree`: the parent creates and records a Git worktree and branch when separately authorized.
-- `app_managed_worktree`: the Codex app owns worktree creation and retention; the harness records, but does not control, that lifecycle.
+- `app_managed_worktree`: the host app owns worktree creation and retention; the harness records, but does not control, that lifecycle.
 
 ### Completion channel
 
@@ -571,3 +528,5 @@ Each mission lease and worker record repeats the lease ID, plan revision/digest,
 Worker status, head SHA, integration result, and evidence are live RUN state. A wave stays `active` while its selected workers run, and `record-worker-result` accepts a result only against that active wave and the current bound attempt. During the active wave the selector blocks new writers and lifecycle mutations, but dispatches any dependency-ready read-only node: a pre-integration review for a selected mission already at `worker_passed`, an approval, or an external wait. Read-only nodes hold no lease, produce no commit, and move no head, so they cannot perturb a live writer. The parent records terminal worker results as they arrive and re-runs selection so review overlaps remaining workers. A mission whose exact-head pre-integration review has PASSed may integrate before the wave closes; integration stays strictly serial, so at most one mission is `integrating` at a time. The wave closes as soon as every selected mission's worker result is recorded. Batch gates always follow wave close. Any worker failure, integration failure, dependency change, or plan revision also closes the wave and forces a recompute from current state. A plan revision supersedes every active old-revision lease: quiesce those workers at safe boundaries and issue new leases only after validating their preserved heads against the new plan. Never carry forward an old result, conflict, or readiness assumption.
 
 Closing a wave is a guarded transition, never a hand edit: `harness_transition.py ... close-wave --source <text>` refuses while any worker or review worker is still live (reconcile them first) and while any selected mission is still queued or running. A `worker_passed` mission may close with the wave — its worker result was recorded by `record-worker-result` and its integration may complete after the close — but only while overall execution authorization survives the boundary: a `run_complete`-bounded grant does, while a `wave_closed`-bounded grant dies at close and therefore requires those missions to integrate, fail, or reconcile first. The command appends the `{ wave_id, batch_base_sha }` tombstone, flips the wave to `closed`, resets every `wave_closed`-bounded action grant to `{ "authorized": false, "source": null }`, and clears overall execution authorization when it used the same boundary; `run_complete`-bounded grants survive as closeout evidence. The next `accept-wave` must name a fresh wave identity and base pair. The write-path guards are likewise enforced by the tooling: `accept-wave` requires a live clean product tree on the observed non-protected run integration branch and head; `lease-worker` binds the mission's own graph node, derives its full runtime binding, validates the portable axes, and refuses conflicting concurrent missions; `reserve-node-attempt` records a non-runtime receipt before its external action; `record-node-result` closes only the matching receipt and derives its graph phase from the declared outcome; `record-worker-result` observes the bound worktree and atomically records accepted or validator-rejected terminal state; `reject-worker-result` records a parent-rejected current candidate; and `record-integration` proves the integrated head against live Git. Each command fails closed on stale state.
+
+Missing required native probe facts fail with `capability_snapshot_incomplete`; no host-name or explicit-route exception bypasses this check.

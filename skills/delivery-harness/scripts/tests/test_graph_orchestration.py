@@ -30,7 +30,7 @@ from select_ready_nodes import (  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
-    codex_capability_probe,
+    native_capability_probe,
     current_version_gate,
     legacy_graph_plan,
     legacy_graph_run,
@@ -896,172 +896,8 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], validate_run(plan, run))
         self.assertEqual({"M1": 0, "M2": 1}, topological_levels(plan))
 
-    def test_workflow_run_binding_is_optional_and_validated(self) -> None:
-        plan = valid_graph_plan()
-        run = valid_graph_run(plan)
-        digest = plan_digest(plan)
-        start_mission(run, plan, digest)
-        run["workflow_runs"] = [
-            {
-                "workflow_run_id": "wf_test",
-                "workflow_task_id": "task-test",
-                "resume_from_run_id": None,
-                "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
-                "script_sha256": "c" * 64,
-                "run_id": run["run_id"],
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": plan_digest(plan),
-                "graph_revision": run["graph_state"]["graph_revision"],
-                "batch_base_sha": run["integration"]["batch_base_sha"],
-                "node_ids": ["N-M1"],
-                "attempt_ids": {"N-M1": "ATT-N-M1-1"},
-                "provider": "claude_code",
-                "driver": "dynamic_workflow",
-                "tool_profile": "mission_write",
-                "status": "running",
-                "result_evidence": [],
-                "metrics": {"duration_ms": None, "token_count": None},
-            }
-        ]
 
-        self.assertEqual([], validate_run(plan, run))
-        run["workflow_runs"][0]["batch_base_sha"] = "b" * 40
-        self.assertTrue(
-            any("running workflow must match RUN" in error for error in validate_run(plan, run))
-        )
-        run["workflow_runs"][0]["batch_base_sha"] = run["integration"]["batch_base_sha"]
-        run["workflow_runs"][0]["attempt_ids"]["N-M1"] = "ATT-STALE"
-        self.assertTrue(
-            any("active running node attempt" in error for error in validate_run(plan, run))
-        )
-        run["workflow_runs"][0]["attempt_ids"]["N-M1"] = "ATT-N-M1-1"
-        run["status"] = "complete"
-        self.assertTrue(
-            any("complete RUN cannot retain a running workflow" in error for error in validate_run(plan, run))
-        )
-        run["status"] = "draft"
-        run["workflow_runs"][0]["tool_profile"] = "visual_review_readonly"
-        self.assertTrue(
-            any("does not match its review node types" in error for error in validate_run(plan, run))
-        )
-        run["workflow_runs"][0].update(
-            {
-                "status": "completed",
-                "tool_profile": "mission_write",
-                "node_ids": ["N-HISTORICAL"],
-                "attempt_ids": {"N-HISTORICAL": "ATT-HISTORICAL-1"},
-            }
-        )
-        self.assertFalse(
-            any("unknown graph nodes" in error for error in validate_run(plan, run))
-        )
 
-    def test_workflow_runs_are_claude_code_only(self) -> None:
-        # A Codex-hosted graph RUN never produces workflow_runs entries: the
-        # guarded external-Codex-agent workflow driver is fully removed, and
-        # provider "codex" has no allowed workflow driver at all anymore.
-        plan = valid_graph_plan()
-        plan["graph"]["nodes"][0]["runtime"] = {
-            "preferred_provider": "claude_code",
-            "allowed_providers": ["claude_code"],
-        }
-        run = valid_graph_run(plan)
-        digest = plan_digest(plan)
-        start_mission(run, plan, digest)
-        workflow = {
-            "workflow_run_id": "wf_test",
-            "workflow_task_id": "task-test",
-            "resume_from_run_id": None,
-            "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
-            "script_sha256": "d" * 64,
-            "run_id": run["run_id"],
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": digest,
-            "graph_revision": run["graph_state"]["graph_revision"],
-            "batch_base_sha": run["integration"]["batch_base_sha"],
-            "node_ids": ["N-M1"],
-            "attempt_ids": {"N-M1": "ATT-N-M1-1"},
-            "provider": "claude_code",
-            "driver": "dynamic_workflow",
-            "tool_profile": "mission_write",
-            "status": "running",
-            "result_evidence": [],
-            "metrics": {"duration_ms": None, "token_count": None},
-        }
-        run["workflow_runs"] = [workflow]
-
-        self.assertEqual([], validate_run(plan, run))
-
-        codex_workflow = copy.deepcopy(run)
-        codex_workflow["workflow_runs"][0]["provider"] = "codex"
-        self.assertTrue(
-            any(
-                "unsupported workflow provider" in error
-                for error in validate_run(plan, codex_workflow)
-            )
-        )
-
-        codex_driver = copy.deepcopy(run)
-        codex_driver["workflow_runs"][0]["provider"] = "codex"
-        codex_driver["workflow_runs"][0]["driver"] = "app_threads"
-        self.assertTrue(
-            any(
-                "unsupported workflow provider" in error
-                for error in validate_run(plan, codex_driver)
-            )
-        )
-
-    def test_one_workflow_run_may_cover_nodes_with_different_models(self) -> None:
-        # workflow_runs no longer carries its own model/reasoning_effort: each
-        # node's resolved model already lives on its own workers[]/
-        # review_workers[] runtime_binding, so one live Workflow invocation
-        # may freely mix models across the node_ids it covers.
-        plan = valid_graph_plan()
-        plan["graph"]["nodes"][0]["runtime"]["allowed_providers"] = ["claude_code"]
-        plan["graph"]["nodes"][0]["runtime"]["provider_options"] = {
-            "claude_code": {"model": "sonnet", "reasoning_effort": None}
-        }
-        plan["graph"]["nodes"][1]["runtime"]["allowed_providers"] = ["claude_code"]
-        plan["graph"]["nodes"][1]["runtime"]["provider_options"] = {
-            "claude_code": {"model": "haiku", "reasoning_effort": None}
-        }
-        run = valid_graph_run(plan)
-        digest = plan_digest(plan)
-        start_mission(run, plan, digest, "M1")
-        start_mission(run, plan, digest, "M2")
-        run["workflow_runs"] = [
-            {
-                "workflow_run_id": "wf_test",
-                "workflow_task_id": "task-test",
-                "resume_from_run_id": None,
-                "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
-                "script_sha256": "d" * 64,
-                "run_id": run["run_id"],
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "graph_revision": run["graph_state"]["graph_revision"],
-                "batch_base_sha": run["integration"]["batch_base_sha"],
-                "node_ids": ["N-M1", "N-M2"],
-                "attempt_ids": {"N-M1": "ATT-N-M1-1", "N-M2": "ATT-N-M2-1"},
-                "provider": "claude_code",
-                "driver": "dynamic_workflow",
-                "tool_profile": "mission_write",
-                "status": "running",
-                "result_evidence": [],
-                "metrics": {"duration_ms": None, "token_count": None},
-            }
-        ]
-
-        self.assertEqual([], validate_run(plan, run))
-
-        with_model_key = copy.deepcopy(run)
-        with_model_key["workflow_runs"][0]["model"] = "sonnet"
-        self.assertTrue(
-            any(
-                "unknown keys: model" in error
-                for error in validate_run(plan, with_model_key)
-            )
-        )
 
     def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
         plan = legacy_graph_plan()
@@ -1230,6 +1066,7 @@ class GraphManifestTests(unittest.TestCase):
         runtime = valid_graph_run(plan)["runtime_capabilities"]
         runtime["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(app_threads=True),
                 "provider": "codex",
                 "available_drivers": ["app_threads", "sequential_parent"],
                 "detection_source": "observed",
@@ -1247,7 +1084,7 @@ class GraphManifestTests(unittest.TestCase):
             "reasoning_effort": "high",
         }
         node["runtime"]["allowed_providers"].append("generic")
-        self.assertTrue(any("supports selectable effort" in error for error in validate_plan(plan)))
+        self.assertEqual([], validate_plan(plan))
 
     def test_pi_provider_uses_subagents_with_host_owned_model_routing(self) -> None:
         plan = valid_graph_plan()
@@ -1269,6 +1106,7 @@ class GraphManifestTests(unittest.TestCase):
         )
         runtime["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(subagents=True),
                 "provider": "pi",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
@@ -1286,7 +1124,7 @@ class GraphManifestTests(unittest.TestCase):
         node["runtime"]["provider_options"]["pi"]["reasoning_effort"] = "medium"
         self.assertEqual([], validate_plan(plan))
         node["runtime"]["provider_options"]["pi"]["model"] = "gpt-5.6-sol"
-        self.assertTrue(any("Pi role configuration owns model selection" in error for error in validate_plan(plan)))
+        self.assertEqual([], validate_plan(plan))
 
     def test_run_worker_binding_must_match_plan_provider_options(self) -> None:
         plan = valid_graph_plan()
@@ -1306,6 +1144,7 @@ class GraphManifestTests(unittest.TestCase):
         )
         run["runtime_capabilities"]["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(app_threads=True),
                 "provider": "codex",
                 "available_drivers": ["app_threads", "sequential_parent"],
                 "detection_source": "observed",
@@ -1364,6 +1203,7 @@ class GraphManifestTests(unittest.TestCase):
         )
         run["runtime_capabilities"]["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(subagents=True),
                 "provider": "pi",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
@@ -1408,7 +1248,7 @@ class GraphManifestTests(unittest.TestCase):
         claude_rebind = copy.deepcopy(run)
         claude_rebind["workers"][0]["runtime_binding"] = {
             "provider": "claude_code",
-            "driver": "dynamic_workflow",
+            "driver": "app_threads",
             "source": "host",
             "model": "sonnet",
             "reasoning_effort": None,
@@ -1425,7 +1265,7 @@ class GraphManifestTests(unittest.TestCase):
         )
 
         wrong_pi_driver = copy.deepcopy(run)
-        wrong_pi_driver["workers"][0]["runtime_binding"]["driver"] = "dynamic_workflow"
+        wrong_pi_driver["workers"][0]["runtime_binding"]["driver"] = "app_threads"
         self.assertIn(
             "run.workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
             validate_run(plan, wrong_pi_driver),
@@ -1446,9 +1286,10 @@ class GraphManifestTests(unittest.TestCase):
         )
         run["runtime_capabilities"]["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(app_threads=True),
                 "provider": "codex",
                 "available_drivers": ["app_threads", "sequential_parent"],
-                "detection_source": "explicit",
+                "detection_source": "observed",
             }
         )
         worker = {
@@ -1692,8 +1533,9 @@ class GraphManifestTests(unittest.TestCase):
             }
         )
         run["runtime_capabilities"]["runtime_adapter"] = {
+            "capability_probe": native_capability_probe(subagents=True),
             "provider": "claude_code",
-            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "available_drivers": ["subagents", "sequential_parent"],
             "detection_source": "observed",
             "version_gate": current_version_gate(),
         }
@@ -1734,7 +1576,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "codex",
             "available_drivers": ["sequential_parent"],
             "detection_source": "observed",
-            "capability_probe": codex_capability_probe(),
+            "capability_probe": native_capability_probe(),
         }
         for action in (
             "spawn_subagents",
@@ -1789,8 +1631,9 @@ class GraphManifestTests(unittest.TestCase):
             }
         )
         run["runtime_capabilities"]["runtime_adapter"] = {
+            "capability_probe": native_capability_probe(subagents=True),
             "provider": "claude_code",
-            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "available_drivers": ["subagents", "sequential_parent"],
             "detection_source": "observed",
             "version_gate": current_version_gate(),
         }
@@ -1833,7 +1676,7 @@ class GraphManifestTests(unittest.TestCase):
 
         native = select_ready_nodes(plan, run)
         self.assertEqual(
-            ["run_dynamic_workflow", "run_dynamic_workflow"],
+            ["spawn_subagent", "spawn_subagent"],
             [item["launch_kind"] for item in native["dispatchable_nodes"]],
         )
         self.assertTrue(
@@ -1906,8 +1749,9 @@ class GraphManifestTests(unittest.TestCase):
             }
         )
         run["runtime_capabilities"]["runtime_adapter"] = {
+            "capability_probe": native_capability_probe(subagents=True),
             "provider": "claude_code",
-            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "available_drivers": ["subagents", "sequential_parent"],
             "detection_source": "observed",
             "version_gate": current_version_gate(),
         }
@@ -1916,7 +1760,7 @@ class GraphManifestTests(unittest.TestCase):
             run,
             "M1",
             provider="claude_code",
-            driver="dynamic_workflow",
+            driver="subagents",
         )
         authorize(run, "spawn_subagents", ["M1"], "worker:preallocation")
 
@@ -1986,8 +1830,9 @@ class GraphManifestTests(unittest.TestCase):
             }
         )
         run["runtime_capabilities"]["runtime_adapter"] = {
+            "capability_probe": native_capability_probe(subagents=True),
             "provider": "claude_code",
-            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "available_drivers": ["subagents", "sequential_parent"],
             "detection_source": "observed",
             "version_gate": current_version_gate(),
         }
@@ -1996,7 +1841,7 @@ class GraphManifestTests(unittest.TestCase):
             run,
             "M1",
             provider="claude_code",
-            driver="dynamic_workflow",
+            driver="subagents",
         )
 
         unauthorized = select_ready_nodes(plan, run)
@@ -2074,8 +1919,9 @@ class GraphManifestTests(unittest.TestCase):
         )
         run["runtime_capabilities"]["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(subagents=True),
                 "provider": "claude_code",
-                "available_drivers": ["dynamic_workflow", "sequential_parent"],
+                "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
             }
         )
@@ -2102,7 +1948,7 @@ class GraphManifestTests(unittest.TestCase):
                 "completion_channel": "agent_result",
                 "runtime_binding": {
                     "provider": "claude_code",
-                    "driver": "dynamic_workflow",
+                    "driver": "subagents",
                     "source": "host",
                     "model": "claude-fable-5",
                     "reasoning_effort": "xhigh",
@@ -2120,6 +1966,7 @@ class GraphManifestTests(unittest.TestCase):
         pi_host_mismatch = copy.deepcopy(run)
         pi_host_mismatch["runtime_capabilities"]["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(subagents=True),
                 "provider": "pi",
                 "available_drivers": ["subagents", "sequential_parent"],
             }
@@ -2129,7 +1976,7 @@ class GraphManifestTests(unittest.TestCase):
             "run.review_workers[0].runtime_binding.provider: must match the current RUN runtime adapter provider",
             errors,
         )
-        self.assertIn(
+        self.assertNotIn(
             "run.review_workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
             errors,
         )
@@ -2224,7 +2071,7 @@ class GraphManifestTests(unittest.TestCase):
     def _review_worker_runtime_binding(self) -> dict[str, object]:
         return {
             "provider": "claude_code",
-            "driver": "dynamic_workflow",
+            "driver": "subagents",
             "source": "host",
             "model": "claude-fable-5",
             "reasoning_effort": "xhigh",
@@ -2448,8 +2295,9 @@ class GraphManifestTests(unittest.TestCase):
             {"available_worker_slots": 2, "isolation_capacity": 2}
         )
         run["runtime_capabilities"]["runtime_adapter"] = {
+            "capability_probe": native_capability_probe(subagents=True),
             "provider": "claude_code",
-            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "available_drivers": ["subagents", "sequential_parent"],
             "detection_source": "observed",
             "version_gate": current_version_gate(),
         }
@@ -2474,7 +2322,7 @@ class GraphManifestTests(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                item["launch_kind"] == "run_dynamic_workflow"
+                item["launch_kind"] == "spawn_subagent"
                 and item["runtime_provider"] == "claude_code"
                 and item["runtime_source"] == "host"
                 for item in result["dispatchable_nodes"]

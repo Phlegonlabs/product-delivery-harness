@@ -863,13 +863,13 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
     return run
 
 
-def codex_capability_probe(
+def native_capability_probe(
     *,
     app_threads: bool = False,
     subagents: bool = False,
     unobserved: set[str] | None = None,
 ) -> dict[str, object]:
-    """Return a complete RUN-v10 Codex capability probe for focused tests."""
+    """Return a complete native capability probe for focused tests."""
     unobserved = unobserved or set()
     app_capabilities = {
         "app_project_list",

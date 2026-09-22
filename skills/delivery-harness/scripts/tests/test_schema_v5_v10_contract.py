@@ -87,22 +87,14 @@ class SchemaV6V11ContractTests(unittest.TestCase):
         self.assertEqual(["M1"], nodes["N-SECURITY-REVIEW"]["review"]["mission_ids"])
         self.assertEqual("security", nodes["N-SECURITY-REVIEW"]["review"]["type"])
         self.assertEqual(["security"], plan["required_reviews"])
-        expected_pi_effort = {
-            "N-M1": "high",
-            "N-M1-REVIEW": "medium",
-            "N-SECURITY-REVIEW": "medium",
-        }
         for node_id in ("N-M1", "N-M1-REVIEW", "N-SECURITY-REVIEW"):
             runtime = nodes[node_id]["runtime"]
             self.assertIsNone(runtime["preferred_provider"])
             self.assertEqual(
-                {"codex", "claude_code", "pi", "generic"},
+                {"generic"},
                 set(runtime["allowed_providers"]),
             )
-            self.assertEqual(
-                {"model": None, "reasoning_effort": expected_pi_effort[node_id]},
-                runtime["provider_options"]["pi"],
-            )
+            self.assertEqual({"generic"}, set(runtime["provider_options"]))
             self.assertEqual(
                 {"model": None, "reasoning_effort": None},
                 runtime["provider_options"]["generic"],

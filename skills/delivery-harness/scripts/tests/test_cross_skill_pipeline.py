@@ -23,6 +23,9 @@ from test_graph_orchestration import (  # noqa: E402
 )
 
 
+from manifest_fixtures import native_capability_probe
+
+
 class CrossSkillPipelineTests(unittest.TestCase):
     def test_full_stack_handoff_preserves_ownership_and_real_evidence(self):
         product = self.read("product-definition-builder/references/output-contract.md")
@@ -270,6 +273,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
         runtime = valid_graph_run(plan)["runtime_capabilities"]
         runtime["runtime_adapter"] = {
+            "capability_probe": native_capability_probe(app_threads=True),
             "provider": "codex",
             "available_drivers": ["app_threads", "sequential_parent"],
             "detection_source": "observed",

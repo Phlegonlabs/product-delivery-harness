@@ -4,6 +4,8 @@ Use this playbook to make architecture sections implementation-ready. The overal
 
 ## Baseline Architecture Coverage
 
+Write the canonical `architecture.md` in English and draft its complete `architecture.zh-TW.md` review copy alongside it under `bilingual-review.md`. Preserve architecture IDs, interfaces, numeric constraints and literal code in both. Implementers and downstream skills reference the approved English architecture.
+
 Every architecture should cover:
 
 - Product archetype and target surfaces.

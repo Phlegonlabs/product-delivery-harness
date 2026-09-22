@@ -101,11 +101,8 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": null,
-            "allowed_providers": ["codex", "claude_code", "pi", "generic"],
+            "allowed_providers": ["generic"],
             "provider_options": {
-              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "high"},
-              "claude_code": {"model": "sonnet", "reasoning_effort": "high"},
-              "pi": {"model": null, "reasoning_effort": "high"},
               "generic": {"model": null, "reasoning_effort": null}
             }
           }
@@ -119,11 +116,8 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": null,
-            "allowed_providers": ["codex", "claude_code", "pi", "generic"],
+            "allowed_providers": ["generic"],
             "provider_options": {
-              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "medium"},
-              "claude_code": {"model": "sonnet", "reasoning_effort": "medium"},
-              "pi": {"model": null, "reasoning_effort": "medium"},
               "generic": {"model": null, "reasoning_effort": null}
             }
           },
@@ -145,11 +139,8 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": null,
-            "allowed_providers": ["codex", "claude_code", "pi", "generic"],
+            "allowed_providers": ["generic"],
             "provider_options": {
-              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "medium"},
-              "claude_code": {"model": "sonnet", "reasoning_effort": "medium"},
-              "pi": {"model": null, "reasoning_effort": "medium"},
               "generic": {"model": null, "reasoning_effort": null}
             }
           },
@@ -312,7 +303,7 @@ Planned security requirements reuse upstream `PRD-*` traces and required `TEST-*
 
 The single-mission example deliberately leaves `batch_verifiers` empty: a one-mission managed route has no true cross-mission batch gate. It still proves the selected runtime driver, allocates an isolated writer, checks exact authorization and scope/head bindings, runs the direct singleton pre-integration review, integrates the candidate, dispatches a fresh `security` reviewer with the project's `code_security_verification` binding, and closes through final gates. The neutral example has no predeclared security-repair mission, so a validated finding returns `blocked` and requires an explicit PLAN refinement before any write; a project that declares `fix_required` must also declare the bounded repair and re-review route. If two or more safe write missions are selected, the selector reports `parallel_graph` and the plan may declare real cross-mission checks.
 
-For each `runtime_worker` node, Plan Mode may leave `preferred_provider` null and list every supported host (`codex`, `claude_code`, `pi`, and `generic`) under `allowed_providers`; provider-specific launch options remain under `provider_options`. The selected runtime adapter remains host-native and separate from the selector's `execution_route`. A large route with no usable agent capability uses `sequential_parent`: the PLAN mission stays `executor: runtime_worker`, while RUN records a parent-owned binding with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation.
+For each `runtime_worker` node, record the actually allowed host identities in `allowed_providers`, with `preferred_provider` null unless explicitly chosen. The `generic` example is a placeholder for an unknown host, not a wildcard. Leave model and effort null to preserve installed defaults. Set explicit supported options only when selected; the agent observes native capability rather than applying provider-specific rules.
 
 Harness 0.38 always freezes the three exact rows shown above with current `content_sha256`; if `source_revision` is present, that full-SHA Git blob and current bytes must both match. Contract joins consume those immutable bytes. UI work adds exact `ui design`, `wireframe`, and `approved ui target` rows at their canonical `docs/design/` paths. A `required` Design System Need gate adds exact `design system` and `design system json` rows; `not_required` adds neither and permits no `DS-*` trace. Every UI surface records `capture_mode: hosted-browser | browser-extension | native | desktop`. URLs are never fetched or joined as authority. A `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, clear staging, and increment PLAN revision/digest.
 
@@ -324,7 +315,7 @@ Before implementation, every touched security boundary has a control, denial/no-
 
 For each required security TEST, its acceptance `criterion` uses `denial: rejected (<observable rejection signal>); no unauthorized side effects: unchanged (<observable state evidence>)`. Each observation needs at least 12 characters and no placeholders. The canonical Product checker validates this same format in the TEST Expected signal; matching IDs or a generic scan result alone cannot satisfy the join.
 
-Plan one runtime reviewer per applicable surface, set `max_attempts` to at most 2, and add same-surface fan-out only for an explicit user request or a recorded high-impact risk. Every new code-delivery plan includes one integration-stage `security` review covering all missions and loads the skill bound to `code_security_verification`; it always runs fresh on the unified candidate and cannot use the byte-identical-tree skip. Group repair findings by root-cause failure family, freeze the family's acceptance matrix before another write, and carry consumed review attempts across PLAN revisions in the owner-decision source, mission stop conditions, and reviewer packet. A replan does not grant a fresh review budget. After exhaustion, only an explicit owner decision naming the structural strategy, failure-family matrix, and exact additional allowance may create one successor review node; set its `max_attempts` to that allowance, never the default two. For broad implementation plans, prefer Codex `gpt-5.6-terra` with `high` reasoning, while routine deterministic `backend_code` and `security` review uses `gpt-5.6-terra` with `medium`; provider-specific options remain per-node and the selected runtime adapter remains authoritative. A plan may set a non-null `preferred_provider` only when an explicit host preference is part of the plan; otherwise keep it null so the same canonical graph routes on every supported host. Provider examples may repeat delegated `"model": "sonnet"` and `"model": "gpt-5.6-sol"` for each matching node. Pi keeps model null but may bind per-node effort; generic keeps both values null. Stronger models remain reserved for the parent's own coordination and planning. Raise the unified-head review to `xhigh` only when its gate warrants it; it is the final synthesis, so do not add another same-scope review on an unchanged SHA.
+Plan one runtime reviewer per applicable surface, set `max_attempts` to at most 2, and add same-surface fan-out only for an explicit user request or a recorded high-impact risk. Every new code-delivery plan includes one integration-stage `security` review covering all missions and loads the skill bound to `code_security_verification`; it always runs fresh on the unified candidate and cannot use the byte-identical-tree skip. Group repair findings by root-cause failure family, freeze the family's acceptance matrix before another write, and carry consumed review attempts across PLAN revisions in the owner-decision source, mission stop conditions, and reviewer packet. A replan does not grant a fresh review budget. After exhaustion, only an explicit owner decision naming the structural strategy, failure-family matrix, and exact additional allowance may create one successor review node; set its `max_attempts` to that allowance, never the default two. Model and effort choices remain per-node and explicit. Null preserves the host defaults. The agent checks current support and preserves installed role/fallback policy; no provider-specific catalog or default applies. A non-null preferred provider records an explicit host preference and never authorizes a bridge. Keep final review tied to the unified SHA and do not add another same-scope review on an unchanged head.
 
 For UI work, load `references/ui-implementation-contract.md`. Freeze the approved UI contract, wireframes/4, HiFi target, capture mode, and exactly one visual route. `design-system-compiler` owns a required schema-2 pair; otherwise use the exact `not_required` replacement. UI implementation uses the owner-bound frontend-authoring skill under Harness conformance. A missing source is a design-input delta. Run platform-correct evidence after exact-SHA review and repair converge.
 

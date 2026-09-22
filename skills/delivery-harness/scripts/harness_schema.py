@@ -183,10 +183,7 @@ UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # `push` is the only action bound to an exact head SHA: it publishes one verified
 # commit. Every other action either mutates local state or cleans it up.
 HEAD_BOUND_AUTHORIZATION_ACTIONS = {"push"}
-# Only the ids with their own RUNTIME_DRIVER_PRIORITY entry ship a dedicated
-# adapter section. Any other lowercase id is still a schema-valid provider --
-# a market runtime such as gemini_cli or cursor -- and runs the generic route
-# and driver ladder until a dedicated section exists.
+# Provider IDs record the current host identity, never a capability or model catalog.
 PROVIDER_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
@@ -205,7 +202,6 @@ RUNTIME_REASONING_EFFORTS = {
 MODEL_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 RUNTIME_DRIVERS = {
     "app_threads",
-    "dynamic_workflow",
     "subagents",
     "sequential_parent",
 }
@@ -218,7 +214,7 @@ RUNTIME_VERSION_STATUSES = {
     "restart_required",
 }
 CAPABILITY_PROBE_STATUSES = {"available", "unavailable", "unobserved"}
-CODEX_CAPABILITY_PROBE_KEYS = (
+CAPABILITY_PROBE_KEYS = (
     "app_project_list",
     "app_thread_create",
     "app_thread_read",
@@ -228,7 +224,7 @@ CODEX_CAPABILITY_PROBE_KEYS = (
     "direct_subagent_spawn",
     "direct_agent_result",
 )
-CODEX_DRIVER_CAPABILITY_REQUIREMENTS = {
+DRIVER_CAPABILITY_REQUIREMENTS = {
     "app_threads": (
         "app_project_list",
         "app_thread_create",
@@ -242,30 +238,6 @@ CODEX_DRIVER_CAPABILITY_REQUIREMENTS = {
         "direct_agent_result",
     ),
 }
-WORKFLOW_TOOL_PROFILES = {
-    "mission_write",
-    "code_review_readonly",
-    "visual_review_readonly",
-}
-WORKFLOW_RUN_STATUSES = {"running", "completed", "failed", "stopped"}
-WORKFLOW_RUN_DRIVERS_BY_PROVIDER = {
-    "claude_code": {"dynamic_workflow"},
-}
-RUNTIME_DRIVER_PRIORITY = {
-    "codex": ("app_threads", "subagents", "sequential_parent"),
-    "claude_code": ("dynamic_workflow", "subagents", "sequential_parent"),
-    "pi": ("subagents", "sequential_parent"),
-    "generic": ("subagents", "sequential_parent"),
-}
-
-
-def runtime_driver_priority(provider: object) -> tuple[str, ...]:
-    """Dedicated providers have their own ladder; any other valid id runs the
-    generic one, so an unlisted host is never structurally unrunnable."""
-
-    if not isinstance(provider, str):
-        return ()
-    return RUNTIME_DRIVER_PRIORITY.get(provider, RUNTIME_DRIVER_PRIORITY["generic"])
 GRAPH_NODE_KINDS = {"mission", "verifier", "approval", "external_wait", "lifecycle"}
 GRAPH_EXECUTORS = {
     "runtime_worker",
@@ -296,12 +268,6 @@ RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual", "security"}
 REVIEWER_TOOL_KEYS = {"chrome_devtools"}
 REVIEWER_TOOL_STATUSES = {"available", "unavailable", "unobserved"}
 REVIEWER_TOOL_PROBE_SCOPES = {"reviewer_session", "parent_session", "unobserved"}
-REVIEWER_TOOL_SURFACES = {
-    "codex": "raw_cdp",
-    "claude_code": "claude_in_chrome",
-    "pi": "pi_chrome_devtools",
-    "generic": "none",
-}
 
 
 def run_required_harness_version(run: object) -> str | None:

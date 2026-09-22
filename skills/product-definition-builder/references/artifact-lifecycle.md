@@ -2,6 +2,8 @@
 
 Use this procedure to keep the current PRD package in `docs/product/` and retain superseded product documents safely in `docs/product/archived/`.
 
+Apply `bilingual-review.md`: the English PRD/architecture and their Chinese review copies form paired artifacts throughout staging, review, publication and archive. Include all four exact paths in the mutation list; preserve prior pairs together. The copies are not a second PRD or separate approval record. For unchanged legacy live sources missing Chinese copies, apply the create-only, same-directory backfill in `bilingual-review.md` without starting a new product draft. For an actual enhancement, produce the revised pairs in staging before review; leave archived history untouched. A translated copy alone is never the baseline for implementation.
+
 ## Detect Enhancement Mode
 
 Before doing anything else, check both places a package for this product can be sitting:
@@ -39,6 +41,7 @@ In the Publication Authorization Gate, label this path explicitly as "existing u
 - Publish the current package to these final paths unless the user explicitly requests different filenames:
   - `docs/product/PRD.md`
   - `docs/product/architecture.md`
+  - `docs/product/PRD.zh-TW.md` and `docs/product/architecture.zh-TW.md` (non-canonical owner review copies)
   - `docs/product/stack-decisions.md`
   - `docs/product/market-research.md` when the market-research gap pass produced it
   - `docs/product/research-assessment.md` when the research-first assessment produced it
@@ -83,6 +86,7 @@ Record the candidate paths before creating staged artifacts. Do not archive or o
    A rendered stack option map is a candidate for that owner review. It never approves a row, rewrites the staged package, or substitutes for the canonical checkpoint digest.
 4. Run `python <product-definition-builder-root>/scripts/check_product_package.py --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`, then run the canonical seed check `python skills/product-activation/scripts/check_activation.py --activation <staged ACTIVATION.md> --prd <staged PRD.md> --architecture <staged architecture.md> --deployment <staged DEPLOYMENT.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root>` when the seed applies. Do not add `--require-filled` to a create-once seed: pending action/evidence fields are intentional. A seed with an invented, omitted, or profile-incomplete target fails before publication.
 5. Run the output-contract quality checklist against the complete staged files.
+   Before owner review and immediately before publication, run `check_review_translations.py` with the exact staged English PRD and architecture. Inspect translation completeness and meaning separately. After recording approval metadata, refresh the paired copies and their hashes. Missing, stale or materially inconsistent copies block review/publication without changing the English files' canonical role.
 6. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
 
 ## Publication Authorization Gate
@@ -96,6 +100,7 @@ After the entire staged package has an approved Product Definition decision, pas
 1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>/`.
 2. Move only the previously inventoried superseded documents into that directory. Preserve recognizable filenames; when basenames collide, include the original parent directory or a numeric suffix.
 3. Move the validated staged artifacts into their final paths under `docs/product/`, publish the seeded `DEPLOYMENT.md`/`DOCUMENTS.md` to `docs/`, and create `docs/ACTIVATION.md` only when the approved move lists a new seed and the path is still absent. If that path appeared after staging, stop instead of overwriting it.
+   Recheck the English/review pairs at their final paths. Report partial publication and preserve recoverable copies if either pair fails; do not claim successful publication.
 4. Remove the now-empty run-specific staging directory. Remove `docs/product/.prd-staging/` only when it is empty.
 5. If an archive or publish move fails, restore moved files when safe, keep every recoverable copy, stop, and report the exact state.
 

@@ -21,6 +21,8 @@ When the host cannot observe the loaded digest, omit `--loaded-digest`; the repo
 
 Use `bounded-enhancement.md`. For authorized same-scope pointer, command or factual document corrections, patch only the affected live text and preserve local rules, owner decisions and unrelated changes. Bootstrap templates create missing files only. A changed external skill pin needs inspection of the new skill tree and side effects before adopting it; never simply replace the hash to silence drift.
 
+When current English PRD/architecture sources lack Chinese review copies, apply `../../product-definition-builder/references/bilingual-review.md` under existing document-write authority. Backfill complete same-directory copies without changing English bytes or approvals; a read-only invocation reports missing copies without writing. This does not require a full Harness run.
+
 Route actual product/UI/stack decision changes to their owner as next-round gaps instead of repeatedly asking mid-delivery or rewriting approved history. Finish independent work. Never silently migrate an active RUN, rewrite a closed RUN, modify an archived PRD/approval, erase old failures or present historical evidence as current.
 
 After the semantic review and any authorized correction, the parent may retain only the emitted `snapshot` object at the project-declared path (default `docs/document-sync.json`) under the existing document-write authority. Keep review findings and dispositions in the existing task report/RUN evidence, not a new approval database. Saving a snapshot is not a decision grant. If saving is not authorized, keep the inline report; the next invocation repeats the review rather than pretending it was persisted.
@@ -32,6 +34,8 @@ The snapshot is a tracked non-secret inventory, not a cache to hide in .gitignor
 For design consumers, continue with `../../ui-design-builder/references/design-freshness.md` after the Markdown check. Wireframe/HiFi bytes, upstream identity and applicable skill-rule changes need separate inspection even when Markdown is unchanged. No snapshot update proves freshness or grants a redesign. Record the short affected/retained/recheck list in existing task evidence.
 
 ## Impact Review
+
+Markdown byte inventory does not replace the project's **Repository Change Checkpoints**. At task start, significant changes and completion/handoff, also inspect local Git history and working-tree changes, including changes made without Harness. Record relevant code/configuration/product changes in the matching Epic and update `docs/DOCUMENTS.md` under existing write authority. No installed skill or sync snapshot is required for that standalone AGENTS rule. Preserve unverified external changes, missing baselines and read-only restrictions explicitly; never convert an observation into approval or test evidence.
 
 The read-only report includes `impacts`: source path, observation reason, affected artifacts/stages, required checks and `semantic_review_required`. Present first-observation sources and changed or required/missing sources need review; unchanged bytes have no source impact rows. Unknown source types route to parent semantic review. These are conservative routing hints: inspect actual requirement references and the diff before selecting checks. Skill identity changes still require the separate restart/contract findings even when all document bytes match.
 

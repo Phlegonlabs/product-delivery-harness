@@ -22,9 +22,9 @@ The temporary work graph is one bounded host-native agent run. It may fan out an
 
 ## Preconditions
 
-A package is "non-trivial" when more than one role in the Graph Model above would produce substantive, non-boilerplate content for it — for example a UI-bearing product spanning more than one screen or archetype, not a single-page trivial stub. "Multi-agent analysis is authorized" means the parent has an explicit authorization for this agent run and the current session is not restricted to single-agent or sequential-only execution by explicit user instruction, host policy, or permission mode. Capability or tool availability is evidence only; it never grants authorization. Both conditions must hold before launch. The Claude Code adapter passes `args.multi_agent_authorized: true`; another host must record the equivalent launch authorization. When either condition is false, perform the roles sequentially instead.
+A package is "non-trivial" when more than one role in the Graph Model above would produce substantive, non-boilerplate content for it — for example a UI-bearing product spanning more than one screen or archetype, not a single-page trivial stub. "Multi-agent analysis is authorized" means the parent has an explicit authorization for this agent run and the current session is not restricted to single-agent or sequential-only execution by explicit user instruction, host policy, or permission mode. Capability or tool availability is evidence only; it never grants authorization. Both conditions must hold before launch. Every host records that authorization through `args.multi_agent_authorized: true`. When either condition is false, perform the roles sequentially instead.
 
-Before launch, the parent must have the following frozen inputs. The field names shown as `args.*` are the Claude Code adapter's structured representation; other hosts pass the same facts through their native sibling-agent contract.
+Before launch, freeze the following inputs. `args.*` names the host-neutral input contract in `scripts/product_agent_graph.cjs`. The module validates inputs and builds packets; it launches no agents and grants no authorization.
 
 - a stable run ID;
 - the product name and archetype;
@@ -41,8 +41,8 @@ Before launch, the parent must have the following frozen inputs. The field names
 - a decision on whether the product has any public-facing marketing, landing, or SEO-relevant page, which gates whether `seo-copy-verifier` runs;
 - explicit `args.monetization_model` and `args.partner_channel_model` values from the closed decisions. The workflow requires both even when they are `none`; either non-`none` value enables the separate monetization-channel lane, which applies `monetization-and-partner-channel-guide.md` without defaulting to RevenueCat or conflating affiliate, referral, and reseller;
 - an explicit `args.market_research` boolean gating the `market-research` role. Default it to true for a non-trivial package; set it false only when the user declined the pass or the launch profile exposes no web search or fetch tool. The role runs after synthesis, reads the drafted package, and returns findings — it never edits a file, and like every other lane it cannot ask the user anything. Read `market-research-guide.md` before launching it;
-- a `builder_readonly` launch profile, asserted via `args.tool_profile` and honored by the launch configuration, that exposes only Workflow and the required read/search/web tools, with no `Edit`, `Write`, `NotebookEdit`, `Bash`, or other mutating MCP tools.
-- an explicit multi-agent authorization for this agent run, passed as `args.multi_agent_authorized: true` by the Claude Code adapter or recorded equivalently by another host; reject or do not launch when `args.single_agent_only` or `args.sequential_only` is true. This is a launch gate, not a capability probe.
+- a `builder_readonly` launch profile, asserted via `args.tool_profile` and honored by the launch configuration, that exposes only the required read/search/web tools, with no file mutation, shell execution, or other mutating tools. Map these restrictions to the current host's actual permission controls.
+- an explicit multi-agent authorization for this agent run, recorded as `args.multi_agent_authorized: true`; reject or do not launch when `args.single_agent_only` or `args.sequential_only` is true. This is a launch gate, not a capability probe.
 
 If the host cannot enforce that read-only tool boundary, use the sequential parent fallback. If a human decision, missing secret, publish approval, destructive action, or scope change is needed, do not launch or continue the workflow. Resolve it in the parent session first.
 
@@ -52,7 +52,9 @@ Only when platform choice is genuinely ambiguous, the parent may run one or two 
 
 ## Host Routing And Execution
 
-Use the current session's native host adapter. Codex and generic hosts dispatch read-only sibling agents from the parent; Pi uses its installed read-only roles without replacing their model or fallback policy; Claude Code invokes `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` with structured arguments. If the selected host cannot enforce the same read-only boundary and result contract, use the sequential parent fallback. The agent graph is read-only:
+Analysis and synthesis produce canonical English content. The parent creates complete Chinese PRD/architecture review copies alongside the reconciled candidate under `bilingual-review.md`, before presenting it to the owner. Reviewer findings and accepted owner changes update the English sources and their copies together. Translation does not grant approval or change implementation references.
+
+Use the current session's observed native tools under the general runtime contract. Preserve installed roles, models and fallback policy. Do not use a bundled launch script or guess native API names. The parent maps the packets from `scripts/product_agent_graph.cjs` to native calls and validates returned schemas. Its `createProductAgentGraph(args)` exposes `analyze()`, `synthesize(laneResults)`, `review(draft)` and `finish(laneResults, draft, reviewResults)`; these only construct data or reconcile supplied results. If the host cannot enforce the read-only boundary and result contract, use the sequential parent fallback. The agent graph is read-only:
 
 1. Requirements, architecture, and conditional frontend/platform roles run independently.
 2. All successful and failed lane results are retained explicitly.

@@ -20,7 +20,7 @@ It specifies what each UI surface must show and do. It does not decide how the s
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
-Default all artifact content to English unless the user explicitly asks for another language.
+Keep canonical artifact prose in English. Produce complete Traditional Chinese owner review copies of PRD and architecture during drafting as `PRD.zh-TW.md` and `architecture.zh-TW.md`; they never become implementation authority. Follow `bilingual-review.md` for source hashes, matching trace IDs, semantic review, approval and paired publication. Preserve literal product copy and identifiers in their required language. Other artifacts remain English unless the owner requests translations.
 
 ## Device And Reading Scope
 
@@ -34,6 +34,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | --- | --- | --- |
 | `PRD.md` | The owner and anyone deciding whether to build this | What it is, for whom, what counts as done, and whether the product definition is approved |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
+| `PRD.zh-TW.md`, `architecture.zh-TW.md` | The owner reviewing in Chinese | The complete meaning of the matching English sources; non-canonical review only |
 | `stack-decisions.md` | The owner and engineer choosing or reviewing technology | Which coherent options were considered, what the owner approved, and why |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
 | `research-assessment.md` | Anyone deciding whether this product should have been drafted | What the pre-draft evidence supported, and what the gate decided |

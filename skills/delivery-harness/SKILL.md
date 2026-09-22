@@ -1,6 +1,6 @@
 ---
 name: delivery-harness
-description: "Route engineering work to the lightest safe delivery path, then plan, authorize, execute, verify, and integrate it. Use direct parent-owned delivery when one writer and one coherent verification pass are enough. Use PLAN-v6/RUN-v11 only for work that needs durable coordination, isolated mission integration, or a bounded correction graph. Apply the runtime adapter reference for the detected host only when that managed route needs host-specific orchestration."
+description: "Route engineering work to the lightest safe delivery path, then plan, authorize, execute, verify, and integrate it. Use direct parent-owned delivery when one writer and one coherent verification pass are enough. Use PLAN-v6/RUN-v11 only for work that needs durable coordination, isolated mission integration, or a bounded correction graph. Apply the general runtime adapter contract only when that managed route needs native orchestration."
 ---
 
 # Delivery Harness
@@ -8,6 +8,8 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 For scripts and bindings, read `references/installed-commands.md`.
 
 Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
+
+Project `AGENTS.md` also requires Repository Change Checkpoints at task start, significant change boundaries and completion/handoff, even outside Harness. Record meaningful local Git and working-tree changes in the relevant Epic without creating PLAN/RUN or a background watcher. Read-only tasks report proposed records without writing. Implement from canonical English PRD/architecture; Chinese review copies are not implementation sources.
 
 ## Purpose
 
@@ -42,7 +44,7 @@ System Review And Route (parent-only, read-only)
   large -> planner -> PLAN v6 + RUN v11 -> readiness -> managed execution
 ```
 
-Small work creates no PLAN/RUN files, scheduler state, worker-capability inventory, or delegated worker by default. Load no runtime adapter unless the direct task actually needs a host-specific action. If small work grows large, preserve the current diff and evidence, then plan only the remainder.
+Small work creates no PLAN/RUN files, scheduler state, worker-capability inventory, or delegated worker by default. Load no runtime adapter unless the direct task actually needs native delegation. If small work grows large, preserve the current diff and evidence, then plan only the remainder.
 
 ### System Review And Route
 
@@ -54,7 +56,7 @@ Record:
 Project size: small | large
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
-Host adapter: none | codex | claude_code | pi | generic
+Host adapter: none | general (observed host identity or generic)
 RUN landing: local_only
 Post-archive publication: none | exact candidate branch
 Upstream inputs: present | missing | needs owner decision
@@ -115,7 +117,7 @@ Read only what the current decision needs:
 - `references/graph-orchestration.md`: typed graph, provider policy, retries, and correction loops.
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
-- `references/runtime-adapters.md`: the shared adapter contract and per-provider launch mechanics, applied only for a large managed run after host detection.
+- `references/runtime-adapters.md`: the general capability and dispatch contract, applied only when managed execution needs it.
 - `references/deployment-contract.md` and `references/branch-promotion-contract.md`: candidate-environment verification and post-RUN exact-SHA promotion to `main`.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
@@ -131,9 +133,9 @@ Read only what the current decision needs:
 
 ## Adapter Routing
 
-Load no adapter for direct work. For a large managed run, apply `references/runtime-adapters.md` after System Review And Route: its shared adapter contract plus the one provider section for the detected host. A session not evidently Codex, Claude Code, or Pi is `generic` outright — no detection pass, no probing another runtime's CLI.
+Load no adapter for direct work. For managed execution, apply `references/runtime-adapters.md`: one capability contract for every host. The agent maps current native tools to that contract automatically, records observed capabilities and the actual host identity (or `generic` when unknown), and never probes another runtime as a substitute.
 
-The adapter layer selects launch mechanics and provider-specific model options. It grants no authorization and does not redefine shared state, review, integration, handoff, or cleanup rules. Adding a host adds one provider section to that reference, not a new skill.
+The adapter layer owns no shared state, authorization, review, integration, handoff or cleanup. Adding a host needs no provider section, fixed model defaults, launch script or schema change.
 
 ## Repository Context Contract
 
@@ -141,9 +143,7 @@ Discover the effective instruction chain from repository root to the selected ch
 
 - Existing `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md` files are user-owned authority. Never overwrite, merge, normalize, or silently copy them.
 - On an authorized first bootstrap, run `scripts/configure_project_context.py --root <target-root>`. It creates only missing root files from `PROJECT_AGENTS.template.md` and `PROJECT_CLAUDE.template.md`; the generated files are intentionally different. Resolve new Skill Bindings from observed skills with owner confirmation; preserve established context files.
-- Codex receives the effective `AGENTS.override.md` / `AGENTS.md` chain and never receives `CLAUDE.md` as Codex instructions.
-- Claude Code receives its effective `CLAUDE.md` chain plus shared `AGENTS.md` governance.
-- Pi uses Pi's native per-directory priority: `AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`.
+- Follow the current host's effective instruction precedence; do not guess it from a provider name or inject another host's instructions.
 - Keep automatic context discovery enabled. A nested instruction may narrow a mission but never widen write scope or authorization.
 
 ## Default Runtime And Wave Policy
@@ -151,7 +151,7 @@ Discover the effective instruction chain from repository root to the selected ch
 Apply this only to large plan-backed work:
 
 1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch.
-2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. A Codex route that may select two writers needs the complete per-surface `capability_probe`; a provably sequential route records only the selected driver facts. For a web review that must inspect the live page, add `review.required_tools: ["chrome_devtools"]` in PLAN and record the exact selected driver's fresh reviewer-session probe under `runtime_capabilities.reviewer_tools.chrome_devtools`. Parent-session access, an installed package, or a CLI flag alone is not enough. A capability-probe child is read-only discovery, never review evidence, and still needs the matching launch authorization; its result cannot update review state.
+2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. Every advertised delegated driver needs observed `capability_probe` facts; unrelated surfaces need no inventory. For a web review that must inspect the live page, add `review.required_tools: ["chrome_devtools"]` in PLAN and record the exact selected driver's fresh reviewer-session probe under `runtime_capabilities.reviewer_tools.chrome_devtools`. Parent-session access, an installed package, or a CLI flag alone is not enough. A capability-probe child is read-only discovery, never review evidence, and still needs the matching launch authorization; its result cannot update review state.
 3. Do not cap `max_parallel_workers` at a small fixed number. The effective budget is the minimum of configured maximum, observed slots, isolation capacity, and the dependency-ready conflict-free frontier.
 4. Before selection, record `observed.captured_at`, live Git facts, and `integration.batch_base_sha`. A green validator with empty `dispatchable_nodes` and `deferred_nodes` reasons `parent_state_unreconciled` or `batch_base_missing` means the live snapshot is incomplete; these are dispatch-time reasons, not an empty graph.
 5. Enable scheduler fan-out only when at least two dependency-ready, nonconflicting write missions have isolated workspaces and exact authorization. Never run parallel writers in `shared_checkout`.

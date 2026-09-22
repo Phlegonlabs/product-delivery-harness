@@ -43,7 +43,7 @@ from test_graph_orchestration import (  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
-    codex_capability_probe,
+    native_capability_probe,
     container_execution,
     sandbox_observation,
     current_version_gate,
@@ -315,7 +315,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
                 "provider": "codex",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
-                "capability_probe": codex_capability_probe(subagents=True),
+                "capability_probe": native_capability_probe(subagents=True),
                 "version_gate": current_version_gate(),
             },
             "permission_boundary": {
@@ -561,7 +561,7 @@ def configure_flat_app_task(
                     "sequential_parent",
                 ],
                 "detection_source": "observed",
-                "capability_probe": codex_capability_probe(
+                "capability_probe": native_capability_probe(
                     app_threads=True,
                     subagents=True,
                 ),
@@ -1119,7 +1119,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                         "sequential_parent",
                     ],
                     "detection_source": "observed",
-                    "capability_probe": codex_capability_probe(
+                    "capability_probe": native_capability_probe(
                         app_threads=True,
                         subagents=True,
                     ),
@@ -2214,7 +2214,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["subagents", "sequential_parent"],
                     "detection_source": "observed",
-                    "capability_probe": codex_capability_probe(subagents=True),
+                    "capability_probe": native_capability_probe(subagents=True),
                     "version_gate": current_version_gate(),
                 },
             }
@@ -2287,28 +2287,15 @@ class SelectReadyNodesTests(unittest.TestCase):
         return plan, run
 
     def test_unprobed_capability_withholds_a_silently_sequential_wave(self) -> None:
-        # Independent, conflict-free, authorized missions held back only by a
-        # budget nobody measured. Running one of them anyway would present a
-        # guess as a decision, and it is indistinguishable from a deliberate cap.
         plan, run = self._unprobed_pair()
+        with self.assertRaisesRegex(ValueError, "capability_snapshot_incomplete"):
+            select_ready_nodes(plan, run)
 
-        result = select_ready_nodes(plan, run)
-
-        self.assertEqual([], result["dispatchable_nodes"])
-        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
-        self.assertIn("capability_unprobed", deferred["N-M1"])
-        self.assertIn("capability_unprobed", deferred["N-M2"])
-
-    def test_declaring_the_route_explicitly_is_allowed_to_proceed(self) -> None:
-        # `explicit` is the escape hatch: sequential on purpose, not by accident.
+    def test_declaring_the_route_explicitly_does_not_bypass_observation(self) -> None:
         plan, run = self._unprobed_pair()
         run["runtime_capabilities"]["runtime_adapter"]["detection_source"] = "explicit"
-
-        result = select_ready_nodes(plan, run)
-
-        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
-        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
-        self.assertNotIn("capability_unprobed", deferred["N-M2"])
+        with self.assertRaisesRegex(ValueError, "capability_snapshot_incomplete"):
+            select_ready_nodes(plan, run)
 
     def test_observed_capacity_of_one_is_a_real_answer_and_proceeds(self) -> None:
         # A host that genuinely has one slot is not the same as an unmeasured
@@ -2351,7 +2338,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
-                    "capability_probe": codex_capability_probe(),
+                    "capability_probe": native_capability_probe(),
                     "version_gate": current_version_gate(),
                 },
             }
@@ -2405,7 +2392,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
-                    "capability_probe": codex_capability_probe(),
+                    "capability_probe": native_capability_probe(),
                     "version_gate": current_version_gate(),
                 },
             }
@@ -2521,7 +2508,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
-                    "capability_probe": codex_capability_probe(),
+                    "capability_probe": native_capability_probe(),
                     "version_gate": current_version_gate(),
                 },
             }

@@ -32,7 +32,7 @@ PLAN graph definition
 -> parent graph scheduler
 -> runtime-neutral launch directive
 -> reserved node attempt (RUN lock)
--> Codex, Claude, command, external wait, or human executor outside the lock
+-> native agent, command, external wait, or human executor outside the lock
 -> validated node result and evidence
 -> record-node-result (RUN lock)
 -> RUN graph state
@@ -64,7 +64,7 @@ lifecycle     -> one authorization-ledger action owned by the parent
 Use these executors:
 
 ```text
-runtime_worker  -> parent, Codex, Claude, or another observed worker provider
+runtime_worker  -> parent or an observed native worker
 harness_parent  -> serialized parent lifecycle/gate action (not a mission)
 local_command   -> deterministic verifier command
 external_system -> polling or event observation
@@ -73,7 +73,7 @@ human           -> explicit approval or contract decision
 
 PLAN v6 requires each `local_command` or `harness_parent` verifier node to reference a `batch_verifiers` or `final_gates` entry. Every declared batch/final gate needs at least one such node; multiple nodes may share a gate. Task, worker, and mission-integration verifiers use their existing execution paths, not deterministic graph nodes. A `runtime_worker` review may reference any declared verifier, but does not execute its command or fill `batch_gate_results` / `final_gate_results`. These checks do not change validation of older schemas used for recovery.
 
-The node is the workflow identity. A thread, Claude session, process, worktree, or worker ID is an attempt binding recorded in RUN, never the node ID.
+The node is the workflow identity. A task, host session, process, worktree, or worker ID is an attempt binding recorded in RUN, never the node ID.
 
 Non-mission nodes follow a durable reserve/execute/record protocol. The parent reserves an `approval`, `external_wait`, `lifecycle`, or deterministic batch/final verifier attempt with `reserve-node-attempt` under the RUN lock, performs the check, wait, or lifecycle side effect outside that lock, and records the matching outcome and evidence with `record-node-result` under a new short lock. A local verifier reservation persists its exact request and attempt nonce in RUN before `--request-out` is published. `verifier_runtime.py` guards the Git checkout before and after execution and echoes that nonce. The tracked RUN dirty exception remains content-protected across the subprocess and is rehashed before result recording, so candidate code cannot alter coordination state while returning PASS. An interrupted verifier closes as `blocked` with a blocker and no fabricated result. A lifecycle transition is an evidence receipt only; it never invokes Git, a process, or a remote service, and lifecycle work retries only through an explicit bounded route.
 
@@ -126,7 +126,7 @@ Express it with the existing typed graph mechanism; no new PLAN or RUN schema fi
 - the same incoming `dependency` edges, so every reviewer binds to the SAME exact covered-mission worktree or integrated SHA;
 - each its own node ID, its own attempt, and no shared state with the others — an independent read-only review, never a mission, and never granted write scope, a lease, or commit authority.
 
-These still count as normal `runtime_worker` review nodes for `required_reviews` validation (each is a matching verifier for its type) and for the shared runtime budget. Every reviewer is dispatched by the parent and none may delegate. Give the reviewers different `reasoning_effort` or providers if you want diversity of judgment; keep any delegated Claude Code model at `sonnet` per the Runtime Binding rules.
+These still count as normal `runtime_worker` review nodes for `required_reviews` validation (each is a matching verifier for its type) and for the shared runtime budget. Every reviewer is dispatched by the parent and none may delegate. Use distinct review lenses and explicitly supported per-node options when needed; preserve the current-host boundary and installed model defaults.
 
 Reconciliation is a PARENT-SIDE convention, not a graph feature. The N reviewer results are independent node outcomes; the parent combines them into ONE proceed/block decision. For a single-mission pre-integration review, a `fix_required` decision goes back to the original mission task/worktree. After the mission produces a changed head, re-arm every planned sibling review node for that surface, including siblings that passed the stale head. Before integration, every planned single-mission review node directly reached from that mission and every active current-head `review_workers[]` attempt must retain an exact-head PASS. One active current-head `fix_required`, dormant review, stale SHA, or missing worker blocks integration. Historical or superseded attempts remain preserved for audit and do not satisfy or bypass the current set. A review that covers multiple missions is a post-integration batch review and cannot replace the required single-mission worktree review. A PLAN without that eligible review remains blocked from integrating the mission. For post-integration review, the decision may drive the surface's bounded repair route. Name the any-blocks rule in the human plan view so reconciliation is auditable. Each reviewer's own `outcome` and `findings` are recorded on its `run.review_workers` entry, separate from `node_states[node_id].last_outcome` (the parent's routing verdict), so historical findings remain on the record.
 
@@ -177,35 +177,13 @@ The parent must reserve a selected non-runtime directive before executing it. `r
 
 ## Runtime Binding
 
-PLAN runtime policy declares `allowed_providers`, an optional `preferred_provider`, and optional `provider_options` keyed by an allowed provider. Plan Mode chooses these values from mission complexity, latency/cost needs, and the user's explicit model preference. Codex and Claude Code options contain `model` plus a nullable `reasoning_effort`; keep effort null when the provider default is intentional. Pi keeps `model` null so its installed role, primary model, and fallback order remain authoritative, but may carry a non-null per-node `reasoning_effort`. Generic providers keep both values null. Model names are portable strings because the destination host remains authoritative for its current catalog. RUN records the actual host and its observed capabilities. A provider, model, or effort preference is not proof that the destination supports it.
+PLAN declares `allowed_providers`, optional `preferred_provider`, and optional `provider_options` keyed by an allowed host. Every provider follows the same rules. A model or effort preference is not proof of support. Null `model` and `reasoning_effort` preserve the current host's installed defaults and role/fallback configuration; no catalog or provider-specific default is bundled.
 
-Use this Plan Mode order only while authoring options for the provider that will execute the node. These Codex and Claude Code defaults are not cross-provider fallback hints. After the current host resolves a node to Pi, skip the Codex/Claude model choices below, keep `provider_options.pi.model` null, and use the installed Pi role and its declared fallbacks. A delegated Claude Code node never defaults above `sonnet`: reserve any stronger pinned Claude model — whichever premium model opened this session, such as `claude-fable-5` — for the parent's own coordination and planning, not for a node the parent hands off. For a node whose work is bounded, mechanical, or purely read-only (see point 6 below), default its Claude Code model to `haiku` instead of `sonnet` — reserve `sonnet` as the default for every node whose work involves real implementation judgment or review, and reserve anything above `sonnet` for the parent's own coordination and planning as already stated.
+Select the current host only when it is allowed; otherwise defer with `runtime_unavailable`. `preferred_provider` never excludes an allowed current host and never permits a provider bridge. Copy explicit PLAN options into each worker's `runtime_binding`; the parent checks support against the actual native interface before launch. Unsupported explicit options block that node, without substitution.
 
-1. Preserve an explicit user-selected provider, model, or reasoning effort.
-2. For high-risk architecture, security, migration, difficult debugging, or difficult correctness, raise reasoning effort to `xhigh` for the chosen Codex or Claude Code option while keeping a delegated Claude Code node's model at `sonnet`. The run's final review — the final synthesis pass over the integration head — needs no trigger: it runs at `xhigh` by default (Codex `gpt-5.6-sol`, Claude Code `sonnet`).
-3. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning; keep Claude Code `sonnet` with `high` reasoning as the availability fallback.
-4. Frontend/UI implementation prefers Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet` with `high` reasoning rather than a stronger pinned model.
-5. Choose review effort from risk without switching the selected provider. On a Codex host, routine deterministic `backend_code` or `security` review uses `gpt-5.6-terra` with `medium`; on a Claude Code host, routine `frontend_code`, visual, and security review uses `sonnet` with `medium`. On a Pi host, every review uses the installed `reviewer` role with a null PLAN model. Raise review effort to `high` or `xhigh` only for high-impact security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment — a Claude Code model itself stays `sonnet`. The run's final review is not routine: it uses Codex `gpt-5.6-sol` with `xhigh` on a Codex host, Claude Code `sonnet` with `xhigh` on a Claude Code host, or the installed Pi `reviewer` with `xhigh` on a Pi host.
-6. For bounded mechanical edits, discovery, or inexpensive preflight work, prefer a fast model with low or medium reasoning: Codex's fastest/cheapest available model for that lane, or a delegated Claude Code node's model set to `haiku` (not `sonnet`) with `low` or `medium` reasoning effort. This covers read-only exploration, documentation/API research, test/log analysis, and other bounded discovery work — not implementation or review nodes, which stay at the tiers already set in points 2 through 5.
-7. When the current catalog or destination support is not observed, leave Codex values null for the host default or use Claude's portable `sonnet` default. Do not invent a model identifier.
+The parent uses `runtime-adapters.md` to map observed native tools to the selected generic driver. Read-only and write scopes remain separate. A tool-profile label or prompt is not permission-level tool removal; enforce the required boundary and validate actual scope and Git results. Native launch, result, retry and resume APIs belong to the host, not a bundled script. They never change graph readiness, authorization, result validation or integration rules.
 
-These are planning decisions, not execution authorization. Keep different reasoning-effort choices on different nodes when their work differs; do not raise every worker to the parent task's reasoning level by default.
-
-For a runtime worker, select deterministically:
-
-1. preferred allowed provider when it matches the current host provider;
-2. current host provider when allowed;
-3. otherwise defer with `runtime_unavailable`: a node whose allowed/preferred providers do not include the current host is not executable on this host, with no cross-host fallback.
-
-After choosing a provider, the selector binds that provider's PLAN options. If none were declared, Codex keeps null model/effort values for the host default, Claude production waves use `sonnet`, and Pi keeps both values null so the selected Pi role resolves its configured model and fallback. Every launch directive includes the complete binding (`runtime_binding.model`, `.reasoning_effort`) and the parent copies it to the allocated RUN mission or review worker. Codex task creation maps non-null `model` and `reasoning_effort` to `model` and `thinking`. A Claude Code host passes each node's own `model` (and non-null `reasoning_effort` as `effort`) directly into that node's own `agent()` call inside the Workflow script — one Workflow call may freely mix models and reasoning efforts across its nodes, since selection happens per spawned agent, not per wave. A Pi host passes the mission surface to its installed role (`frontend_designer`, `worker`, or `reviewer`), keeps the resolved base model and fallback order, applies any non-null PLAN effort through Pi's per-run thinking suffix, and records what Pi actually reports.
-
-Codex app threads, the Claude workflow driver, and Pi subagents remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another Harness model. Pi may use only its already-declared role fallback policy.
-
-Derive a Claude tool profile from existing node semantics instead of using it as a permission claim: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group Claude waves by tool profile only; model and reasoning effort do not require separate waves since each node's `agent()` call already carries its own. A profile is a label carried on the node, not a tool allowlist: the workflow script validates that the wave's node kinds match the profile and writes the corresponding instructions into each agent's prompt, and the child inherits the parent's tools. Mission prompts instruct the agent to enter its worktree before any repository action; review prompts instruct it to read only and not to edit, commit, or run mutating tools. Read-only-ness here is enforced by the mission contract, the structured result, and scope/Git validation on the way back — not by removing tools from the child. Do not claim permission-level delegation prevention. A PLAN review that requires `chrome_devtools` carries that explicit requirement beside the profile and dispatches only after the exact Claude reviewer surface has a fresh `claude_in_chrome` child-session probe.
-
-Launch a graph wave that includes any review node, or that must enforce these tool profiles and per-node `EnterWorktree` at the runtime layer, with `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (`scriptPath`, `tool_profile`, and typed `nodes[]` as structured `args`) — see `assets/templates/MISSION_RUNBOOK.template.md`. The flat `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` has no `node_kind`, `tool_profile`, or `EnterWorktree` handling and covers only single-role, all-mission waves.
-
-Current Claude Code workflow agents inherit the outer allowlist, so the outer process's required `Workflow` permission is also visible to mission agents. The flat no-delegation rule is therefore enforced by the mission contract, structured result, scope/Git validation, and rejection of unplanned child work rather than by removing the `Workflow` tool from the child. Record this runtime limitation; do not claim permission-level delegation prevention.
+Models and roles configured by the user remain authoritative. Preserve their declared fallback policy and record the actual resolved role, model and effort; never change installed definitions or manually redispatch to another provider.
 
 ## Retry And Replay
 
@@ -245,4 +223,4 @@ validate PLAN/RUN
 -> recompute frontier
 ```
 
-A node result is a candidate. Only a mission node with an integrated mission PASS may become `succeeded` with outcome `pass`. A completed thread, Claude workflow, process exit, worker commit, or structured JSON response alone does not satisfy downstream dependencies.
+A node result is a candidate. Only a mission node with an integrated mission PASS may become `succeeded` with outcome `pass`. A completed task, native run, process exit, worker commit, or structured JSON response alone does not satisfy downstream dependencies.
