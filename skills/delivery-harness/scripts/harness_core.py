@@ -15,7 +15,7 @@ from harness_schema import (
     MODEL_TOKEN_RE,
     PLAN_HEADING,
     RUN_HEADING,
-    runtime_driver_priority,
+    RUNTIME_DRIVERS,
     SHA_RE,
     WORKER_HEADING,
 )
@@ -60,29 +60,27 @@ def route_runtime_driver(runtime: dict[str, Any]) -> str:
     available = adapter.get("available_drivers")
     if not isinstance(available, list):
         return "sequential_parent"
-    provider = adapter.get("provider")
-    priority = runtime_driver_priority(provider)
-    for driver in priority:
-        if driver in available:
+    # The parent orders observed, suitable native capabilities; host names do not route.
+    for driver in available:
+        if isinstance(driver, str) and driver in RUNTIME_DRIVERS:
             return driver
     return "sequential_parent"
 
 
 def resolve_runtime_options(policy: dict[str, Any], provider: str) -> dict[str, Any]:
-    """Resolve one provider's PLAN options without inventing external Codex overrides."""
+    """Resolve one provider's PLAN options without inventing host model defaults."""
 
     raw_options = policy.get("provider_options")
     provider_options = raw_options if isinstance(raw_options, dict) else {}
     configured = provider_options.get(provider)
-    default_model = "sonnet" if provider == "claude_code" else None
     if isinstance(configured, dict):
         return {
-            "model": configured.get("model") or default_model,
+            "model": configured.get("model"),
             "reasoning_effort": configured.get("reasoning_effort"),
             "option_source": "plan_provider_options",
         }
     return {
-        "model": default_model,
+        "model": None,
         "reasoning_effort": None,
         "option_source": "provider_default",
     }

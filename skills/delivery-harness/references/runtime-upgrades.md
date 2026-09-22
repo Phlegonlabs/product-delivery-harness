@@ -27,8 +27,8 @@ Never hot-upgrade a live worker or transfer its lease to a replacement process.
 1. Stop new runtime dispatch. If the old version is `compatible_old`, allow only the current active wave and its dependency-ready streaming reviews to finish.
 2. Preserve PLAN/RUN, terminal results, leases, worktrees, dirty files, commits, exact heads, and session evidence. If an incompatible worker is still active, request a checkpoint after its current tool call and quiesce it at that boundary.
 3. Close or supersede the active wave before replacing the host runtime or the installed Harness skills. Updating installed software is a separate machine mutation and requires an explicit user instruction; the 12 RUN ledger actions do not silently authorize it.
-4. Update the host through the installer that owns that binary. Updating installed Harness skills needs a separate explicit instruction. Quiesce active skill-using sessions, then run `install.sh` or `install.ps1` against `~/.agents/skills/`. It installs `delivery-harness`, `product-definition-builder`, `ui-design-builder`, `design-system-compiler`, `code-security-review`, `product-activation`, and `seo-growth-review`; retires `full-harness`, `prd-builder`, and `product-design-builder`; and writes the prior copies under `~/.agents/skill-backups/product-delivery-harness/`. Never overwrite or delete prior copies, and never replace the installer with manual move/copy commands. Do not alter Pi roles, model selection, fallback order, provider credentials, or unrelated packages.
-5. Require installer success and verify the current IDs load and legacy IDs are absent. Restore the backup if verification fails. Then recompute the installed contract digest, mark `restart_required` when it differs from the loaded digest, and start a fresh host session. Installed files changing on disk does not update an existing Codex task, Claude Code Workflow/session, or Pi session.
+4. Update the host through the installer that owns that binary. Updating installed Harness skills needs a separate explicit instruction. Quiesce active skill-using sessions, then run `install.sh` or `install.ps1` against `~/.agents/skills/`. It installs `delivery-harness`, `product-definition-builder`, `ui-design-builder`, `design-system-compiler`, `code-security-review`, `product-activation`, and `seo-growth-review`; retires `full-harness`, `prd-builder`, and `product-design-builder`; and writes the prior copies under `~/.agents/skill-backups/product-delivery-harness/`. Never overwrite or delete prior copies, and never replace the installer with manual move/copy commands. Do not alter installed roles, model selection, fallback order, provider credentials, or unrelated packages.
+5. Require installer success and verify the current IDs load and legacy IDs are absent. Restore the backup if verification fails. Then recompute the installed contract digest, mark `restart_required` when it differs from the loaded digest, and start a fresh host session. Installed files changing on disk does not update an existing host task or session.
 6. Re-run capability and version probes. Replace the old capability snapshot; do not merge it into the new one. Set `current` only when the new session exposes every selected-driver capability.
 7. Validate preserved heads and evidence. Accept already-terminal exact-bound results normally. Create a new graph attempt and lease for unfinished work; never revive the old lease.
 
@@ -45,7 +45,7 @@ An upgrade does not resume the old orchestration. Once the fresh session records
 ## Version Decisions
 
 - Do not compare against an assumed latest public version during every run. Use the installed package metadata, the selected driver's documented minimum when one exists, and fresh capability probes.
-- A generic host with no observable own-version is not `unobserved` for that reason: checking the loaded Harness release and the selected driver's live capability probe completes the observation, and the host-version field stays null with its evidence. A missing host-version string alone never defers a node.
+- A host with no observable own-version is not `unobserved` for that reason: checking the loaded Harness release and the selected driver's live capability probe completes the observation, and the host-version field stays null with its evidence. A missing host-version string alone never defers a node.
 - A missing optional feature does not force an upgrade when the selected route does not use it.
 - A version at or above a documented minimum can still be `upgrade_required` when its observable capability or completion behavior is broken.
 - A lower version can be `compatible_old` only when every capability needed by the active wave is observed and the active result channel remains usable.
@@ -53,9 +53,7 @@ An upgrade does not resume the old orchestration. Once the fresh session records
 
 ## Host Update Boundaries
 
-- Codex: update the Codex host only through the installation method that owns that binary, then open a new top-level task.
-- Claude Code: update Claude Code with its own installer, then restart. Its workflow driver also requires the currently documented minimum Claude Code version.
-- Pi: update Pi with its native updater and start a fresh Pi session afterward. Standalone skill copies are separate user data and must not be overwritten or removed silently.
+- Update the current host only through its owning installer, then start a fresh session. Preserve standalone skills, installed roles, model choices and fallback order.
 - Every host loads the Harness skills from the user skills directory, so the shared copy there is the only Harness update surface. Use the repository installer transaction above, verify that only the seven current IDs remain discoverable, then start a fresh session.
 
 ## Design Before Implementation

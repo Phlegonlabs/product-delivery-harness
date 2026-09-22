@@ -352,16 +352,7 @@ def _validate_graph(
                     {"preferred_provider", "allowed_providers"},
                     {"provider_options"},
                 ):
-                    # allowed_providers is intentionally schema-valid even when it excludes
-                    # whatever provider happens to host the current RUN: a PLAN may target a
-                    # host chosen later. Membership is also not restricted to the four
-                    # providers with a dedicated adapter section: any lowercase id -- for
-                    # example a market runtime like gemini_cli or cursor -- is valid, and
-                    # every id without its own ladder runs the generic driver priority, so
-                    # there is no provider combination that is structurally unrunnable on
-                    # its host. A host/provider mismatch is a RUN-time
-                    # "runtime_unavailable" outcome (see select_ready_nodes.py), not a
-                    # PLAN authoring error.
+                    # Host eligibility is explicit; capability and option support are observed at launch.
                     providers = _strings(
                         errors,
                         f"{runtime_path}.allowed_providers",
@@ -409,24 +400,12 @@ def _validate_graph(
                             model = options["model"]
                             if model is not None and not is_safe_model_token(model):
                                 _add(errors, f"{option_path}.model", "must be null or a safe model token")
-                            if provider == "pi" and model is not None:
-                                _add(
-                                    errors,
-                                    f"{option_path}.model",
-                                    "must be null because Pi role configuration owns model selection",
-                                )
                             effort = options["reasoning_effort"]
                             if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
                                 _add(
                                     errors,
                                     f"{option_path}.reasoning_effort",
                                     "must be null or a supported reasoning effort",
-                                )
-                            if provider not in {"codex", "claude_code", "pi"} and effort is not None:
-                                _add(
-                                    errors,
-                                    f"{option_path}.reasoning_effort",
-                                    "must be null unless the provider supports selectable effort",
                                 )
             elif runtime is not None:
                 _add(errors, f"{node_path}.runtime", "must be null unless executor is runtime_worker")

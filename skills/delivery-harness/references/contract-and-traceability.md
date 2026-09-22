@@ -60,7 +60,7 @@ Record every canonical input and its status:
 | Approved UI target | <path or immutable version> | <SHA-256 or revision> | human decision owner | approved / provisional / n/a | <routes, states, exact responsive scope, passing browser matrix, tolerance, allowed deviations> |
 | Design system | <design-system.md path or n/a> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged / n/a | <required only when the Design System Need Gate is required> |
 | Design system (machine) | <design-system.json path or n/a> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged / n/a | <the allowlist check_ui_contract.py reads when a pair exists> |
-| Architecture | <path> | <hash or revision> | Codex / team | draft / frozen / delta_accepted / revision staged | <contract surfaces> |
+| Architecture | <path> | <hash or revision> | Agent / team | draft / frozen / delta_accepted / revision staged | <contract surfaces> |
 | Stack decisions | <path> | <hash or revision> | human / team | approved / revision_requested / blocked | <Required/Selected/Approved frontend, backend/data, mobile/desktop, AI, and commercial layers> |
 ```
 

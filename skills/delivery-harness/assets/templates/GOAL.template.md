@@ -8,24 +8,24 @@ Before using any task-specific skill or managed workflow, the parent must comple
 /goal Prepare the complete delivery path for <measurable outcome> using <canonical source paths> as the source of truth.
 
 Expected coordination:
-- runtime provider: codex | claude_code | pi | generic
+- runtime provider: observed lowercase host identity | generic
 - available drivers: <observed list including sequential_parent>
-- selected driver: app_threads | dynamic_workflow | subagents | sequential_parent
+- selected driver: app_threads | subagents | sequential_parent
 - worker_runtime: parent | subagent | app_task
 - workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 - completion_channel: agent_result | thread_poll | report_file | user_relay
 - planning depth: direct | PLAN + RUN
 - execution route (derived after selection): direct | managed_sequential | parallel_graph
 - maximum parallel workers: <observed runtime cap and configured PLAN cap; effective cap is the lower value>
-- automatic mission fan-out: Codex app threads | Claude workflow driver | direct subagents | disabled
+- automatic mission fan-out: user-owned app tasks | native sibling agents | disabled
 - nested mission helpers: disabled; parent dispatches any explorer or reviewer as a sibling
 
 Requested actions, pending explicit user authorization:
 - <one or more exact ledger keys, or none>
 
-For automatic Codex app-task fan-out, request the local execution bundle `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally` with exact scope. Workers never delegate. Harness 0.38 RUN push stays false; any later archive-candidate publication needs a new action-time request after A exists.
+For automatic app-task fan-out, request the local execution bundle `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally` with exact scope. Workers never delegate. Harness 0.38 RUN push stays false; any later archive-candidate publication needs a new action-time request after A exists.
 
-For Claude workflow-driver fan-out with isolated mission writes, request the local bundle `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally` with exact scope. The parent allocates one worktree per mission and runs one flat workflow. This requests local approval only; it grants no post-archive publication.
+For native sibling-agent fan-out with isolated mission writes, request the local bundle `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally` with exact scope. The parent allocates one worktree per mission and runs one flat workflow. This requests local approval only; it grants no post-archive publication.
 
 For a large route with no usable agent capability, select `sequential_parent` and follow the Sequential Parent Route in `skills/delivery-harness/references/execution-state-model.md`: the PLAN mission keeps `executor: runtime_worker`, RUN records the parent-owned binding solely for lease/state validation, and the parent executes one mission at a time under the same PLAN/RUN graph and exact-head review gates.
 
@@ -37,7 +37,7 @@ In the target repository, start every mission worktree from the current resolved
 
 Do not treat this Goal text, plan readiness, expected mode, or requested action list as authorization. Keep all 12 schema-v11 RUN authorization entries false unless the user explicitly approves the exact action and its source, run/mission/target scope, plan revision, plan digest, and expiry boundary are recorded; older RUN schemas retain their original ledger. `invoke_external_runtime` is separate from worker creation and requires `runtime:<provider>`. Overall execution authorization also records its explicit source. The parent may perform read-only validation and static graph/conflict analysis without implementation authorization, but a launch-bound selected wave requires execution and launch-action authorization; delegating even the analysis still requires the matching worker-creation authorization. If implementation and its required actions are authorized, select only ready non-conflicting nodes against a fixed base SHA; otherwise stop at ready and report what authorization is missing. New managed work always uses the PLAN-v6/RUN-v11 pair. Existing legacy compact RUN-only artifacts may be read and validated for compatibility, but they are not authored or extended by this prompt; migrate to a fresh pair before managed execution.
 
-When an authorized selector result contains launch directives, do not finish by describing the wave. Follow its derived `execution_route` and separately recorded runtime driver. A `managed_sequential` route avoids fan-out-only ceremony while preserving isolated writer, authorization, scope/head, and review gates. For Codex app threads, discover lazy-loaded project/thread tools before declaring them unavailable, resolve the project, and create one top-level left-sidebar task with its own clean exact-base app-managed worktree per selected mission. Record real identities and poll results. Every explorer, writer, and reviewer is a parent-dispatched sibling; no worker or reviewer delegates. Never replace explicitly requested top-level app tasks with coordinator-owned subagents or sequential parent execution; unavailable app-thread capability is a blocker for that requested topology. For the Claude workflow driver, allocate the parent-managed branches/worktrees and invoke the `Workflow` tool once with the template asset as `scriptPath` and the wave as structured `args`; mission agents are flat siblings and are forbidden by this adapter from further delegation. The Claude workflow driver never waits for mid-run user input: return refinement/blocker state to the parent and start a later workflow after canonical state changes. Only when the user did not require independent top-level app tasks, record an unavailable preferred driver and use the deterministic fallback route.
+When an authorized selector result contains launch directives, consume it under the general runtime adapter contract. Map observed native tools to the selected driver, preserve explicit topology, resolve deferred tools before declaring them unavailable, and record real identities. Launch all selected fresh siblings before waiting for terminal results. Every explorer, writer and reviewer remains parent-dispatched; workers do not delegate. Do not replace explicitly requested user-owned tasks with direct agents or parent execution. Missing required capability blocks the affected work; native completion never bypasses result validation.
 
 Workers never edit PLAN.md or RUN.md. A worker that needs task decomposition returns REFINEMENT_REQUEST and stops. A worker pass is only an integration candidate; the parent must validate its actual changes, integrate it, run integration gates, and verify ancestry before downstream work becomes ready. Recompute the next wave after each integration batch.
 

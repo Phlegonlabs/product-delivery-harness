@@ -554,7 +554,7 @@ class NodeTransitionTests(unittest.TestCase):
                 "provider": "codex",
                 "available_drivers": ["app_threads"],
                 "detection_source": "observed",
-                "capability_probe": mf.codex_capability_probe(app_threads=True),
+                "capability_probe": mf.native_capability_probe(app_threads=True),
             }
         )
         digest = plan_digest(plan)

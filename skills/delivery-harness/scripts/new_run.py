@@ -346,7 +346,6 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
             and isinstance(node.get("review"), dict)
             and isinstance(node["review"].get("lineage_id"), str)
         },
-        "workflow_runs": [],
         "verifier_executions": [],
         "runtime_metrics": None,
         "attempt_log": [],

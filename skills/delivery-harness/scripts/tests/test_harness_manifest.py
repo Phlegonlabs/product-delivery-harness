@@ -49,7 +49,7 @@ from manifest_fixtures import (  # noqa: E402
     SHA_D,
     authorize_action,
     authorize_execution,
-    codex_capability_probe,
+    native_capability_probe,
     container_execution,
     sandbox_observation,
     current_version_gate,
@@ -75,7 +75,7 @@ __all__ = [
     "SHA_D",
     "authorize_action",
     "authorize_execution",
-    "codex_capability_probe",
+    "native_capability_probe",
     "container_execution",
     "sandbox_observation",
     "current_version_gate",
@@ -1927,67 +1927,12 @@ class RunValidationTests(unittest.TestCase):
         run = legacy_run(plan, 5)
         self.assertEqual(validate_run(plan, run), [])
 
-    def test_schema_v6_routes_claude_workflow_driver(self) -> None:
+    def test_removed_workflow_driver_is_rejected_even_in_legacy_runs(self) -> None:
         plan = legacy_plan()
         run = legacy_run(plan, 6)
-        run["runtime_capabilities"] = {
-            "worker_runtime": "subagent",
-            "workspace_mode": "parent_managed_worktree",
-            "completion_channel": "agent_result",
-            "max_parallel_workers": 3,
-            "runtime_adapter": {
-                "provider": "claude_code",
-                "available_drivers": [
-                    "dynamic_workflow",
-                    "subagents",
-                    "sequential_parent",
-                ],
-                "detection_source": "observed",
-            },
-            "platform_lifecycle": {
-                "owner": "parent",
-                "automatic_retention_cleanup_possible": False,
-                "durable_branch_required_before_unique_work": True,
-            },
-        }
-
-        self.assertEqual(validate_run(plan, run), [])
-        self.assertEqual(
-            route_runtime_driver(run["runtime_capabilities"]),
-            "dynamic_workflow",
-        )
-
-        run["workers"].append(
-            {
-                "worker_id": "W1",
-                "mission_id": "M1",
-                "lease_id": "LEASE-1",
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": plan_digest(plan),
-                "batch_base_sha": SHA_A,
-                "worker_runtime": "subagent",
-                "workspace_mode": "parent_managed_worktree",
-                "completion_channel": "agent_result",
-                "task_thread_id": None,
-                "worktree_path": "C:/repo/worktrees/M1",
-                "branch_ref": "refs/heads/codex/test-m1",
-                "report_path": None,
-                "phase": "leased",
-                "worker_head_sha": None,
-                "nested_subagent_policy": {
-                    "enabled": False,
-                    "max_children": 0,
-                    "allowed_roles": [],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-            }
-        )
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "must be omitted for flat Claude workflow-driver orchestration",
-        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            provider="claude_code", available_drivers=["dynamic_workflow", "sequential_parent"])
+        self.assert_run_error_contains(plan, run, "unsupported drivers: dynamic_workflow")
 
     def test_schema_v10_routes_pi_subagents(self) -> None:
         plan = valid_plan()
@@ -1998,6 +1943,7 @@ class RunValidationTests(unittest.TestCase):
             "completion_channel": "agent_result",
             "max_parallel_workers": 2,
             "runtime_adapter": {
+                "capability_probe": native_capability_probe(subagents=True),
                 "provider": "pi",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
@@ -2017,23 +1963,15 @@ class RunValidationTests(unittest.TestCase):
 
 
 
-    def test_schema_v6_rejects_provider_driver_and_axis_mismatches(self) -> None:
+    def test_all_hosts_reject_incompatible_driver_axes(self) -> None:
         plan = legacy_plan()
         run = legacy_run(plan, 6)
         adapter = run["runtime_capabilities"]["runtime_adapter"]
-        adapter.update(
-            provider="claude_code",
-            available_drivers=["app_threads", "sequential_parent"],
-            detection_source="observed",
-        )
-        self.assert_run_error_contains(plan, run, "drivers do not match provider: app_threads")
-
-        adapter["available_drivers"] = ["dynamic_workflow", "sequential_parent"]
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "dynamic_workflow requires claude_code subagent/parent_managed_worktree/agent_result",
-        )
+        for host in ("claude_code", "pi", "generic", "new_host"):
+            adapter.update(provider=host, available_drivers=["app_threads", "sequential_parent"])
+            self.assert_run_error_contains(plan, run, "app_threads requires app_task/app_managed_worktree/thread_poll")
+            adapter["available_drivers"] = ["subagents", "sequential_parent"]
+            self.assert_run_error_contains(plan, run, "subagents requires a supported subagent workspace and result channel")
 
     def test_sequential_parent_accepts_parent_managed_worktree(self) -> None:
         plan = valid_plan()
@@ -2104,7 +2042,7 @@ class RunValidationTests(unittest.TestCase):
 
         run["plan_readiness"] = "ready"
         run["runtime_capabilities"]["runtime_adapter"]["capability_probe"] = (
-            codex_capability_probe(unobserved={"app_thread_create"})
+            native_capability_probe(unobserved={"app_thread_create"})
         )
         self.assert_run_error_contains(
             plan,
@@ -2135,28 +2073,20 @@ class RunValidationTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-    def test_codex_probe_prevents_omitting_available_app_threads(self) -> None:
+    def test_observed_app_capability_does_not_force_app_task_topology(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
         authorize_execution(run, ["M1", "M2"], status="ready")
-        adapter = run["runtime_capabilities"]["runtime_adapter"]
-        adapter.update(
-            available_drivers=["sequential_parent"],
-            detection_source="observed",
-            capability_probe=codex_capability_probe(app_threads=True),
-        )
-
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "must exactly match capability_probe in provider priority order: app_threads, sequential_parent",
-        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            available_drivers=["sequential_parent"], detection_source="observed",
+            capability_probe=native_capability_probe(app_threads=True))
+        self.assertEqual([], validate_run(plan, run))
 
     def test_codex_probe_rejects_malformed_status_without_crashing(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
         authorize_execution(run, ["M1", "M2"], status="ready")
-        probe = codex_capability_probe()
+        probe = native_capability_probe()
         probe["app_thread_create"]["status"] = []
         run["runtime_capabilities"]["runtime_adapter"].update(
             detection_source="observed",
@@ -2183,13 +2113,13 @@ class RunValidationTests(unittest.TestCase):
         run["runtime_capabilities"]["runtime_adapter"].update(
             available_drivers=["app_threads", "sequential_parent"],
             detection_source="observed",
-            capability_probe=codex_capability_probe(),
+            capability_probe=native_capability_probe(),
         )
 
         self.assert_run_error_contains(
             plan,
             run,
-            "must exactly match capability_probe in provider priority order: sequential_parent",
+            "capability_snapshot_incomplete",
         )
 
     def test_complete_codex_probe_routes_app_threads_before_subagents(self) -> None:
@@ -2206,7 +2136,7 @@ class RunValidationTests(unittest.TestCase):
         run["runtime_capabilities"]["runtime_adapter"].update(
             available_drivers=["app_threads", "subagents", "sequential_parent"],
             detection_source="observed",
-            capability_probe=codex_capability_probe(
+            capability_probe=native_capability_probe(
                 app_threads=True,
                 subagents=True,
             ),
@@ -2260,7 +2190,7 @@ class RunValidationTests(unittest.TestCase):
         adapter["available_drivers"] = ["app_threads"]
         errors = validate_run(plan, run)
         self.assertTrue(
-            any("drivers do not match provider" in error for error in errors)
+            any("must include sequential_parent" in error for error in errors)
         )
 
         adapter["provider"] = "Gemini CLI"
@@ -2325,9 +2255,10 @@ class RunValidationTests(unittest.TestCase):
                 "worker_runtime": "subagent",
                 "workspace_mode": "parent_managed_worktree",
                 "runtime_adapter": {
+                    "capability_probe": native_capability_probe(subagents=True),
                     "provider": "codex",
                     "available_drivers": ["subagents", "sequential_parent"],
-                    "detection_source": "fallback",
+                    "detection_source": "observed",
                 },
             }
         )
@@ -2849,7 +2780,7 @@ class RunValidationTests(unittest.TestCase):
                     "sequential_parent",
                 ],
                 "detection_source": "observed",
-                "capability_probe": codex_capability_probe(
+                "capability_probe": native_capability_probe(
                     app_threads=True,
                     subagents=True,
                 ),

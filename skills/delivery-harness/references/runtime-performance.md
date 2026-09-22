@@ -1,6 +1,6 @@
 # Runtime Performance Contract
 
-Use this contract for every PLAN-v6/RUN-v11 execution on Codex, Claude Code, or Pi.
+Use this contract for every PLAN-v6/RUN-v11 execution on any host.
 
 The goal is to stop paying for the same work twice, not to hit a number. This file carries no percentage target, and one must not be added back without a measurement behind it. An earlier revision carried invented reduction figures that had never been measured against anything, and chasing a made-up number is how a run ends up slicing missions too small or skipping a gate to make the arithmetic work. Remove repeated work, then measure what that bought.
 
@@ -101,8 +101,6 @@ At closeout record `run_wall_time_ms` and `critical_path_ms`. Record `baseline_w
 
 ## Host Mapping
 
-- Codex: create a fresh top-level app task or fresh direct sibling, then use cursor-based `wait_threads` / App Server status events.
-- Claude Code: each Workflow or direct Agent is a fresh sibling; consume `pipeline()` / `agent_result` terminal results.
-- Pi: keep explicit `context: "fresh"`; subscribe or block on terminal child events.
+- Use a fresh bounded native task or child, then subscribe to terminal events or cursor waits when observed. Use bounded polling only when events are unavailable and record that fallback. Preserve installed role and model settings.
 
 Process each terminal result immediately. Streaming review and streaming serial integration may overlap remaining workers; RUN remains parent-owned and integration remains serial throughout. A mission integrated early that later fails its integration verifier is reverted or superseded like any other integration failure — that rare rollback is the cost of not making every finished mission wait for the slowest one.

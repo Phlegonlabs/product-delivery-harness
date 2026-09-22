@@ -73,6 +73,9 @@ def running_result(plan: dict[str, object], run: dict[str, object]) -> dict[str,
     }
 
 
+from manifest_fixtures import native_capability_probe
+
+
 class ValidateNodeResultTests(unittest.TestCase):
     def test_cli_accepts_repo_root_for_current_harness_038_pair(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -193,9 +196,10 @@ class ValidateNodeResultTests(unittest.TestCase):
         )
         run["runtime_capabilities"]["runtime_adapter"].update(
             {
+                "capability_probe": native_capability_probe(subagents=True),
                 "provider": "codex",
                 "available_drivers": ["subagents", "sequential_parent"],
-                "detection_source": "explicit",
+                "detection_source": "observed",
             }
         )
         review_node = next(

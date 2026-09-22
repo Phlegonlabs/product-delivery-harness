@@ -909,7 +909,7 @@ def _required_actions(
     read_only_review = node["kind"] == "verifier"
     driver = binding["driver"]
     actions: list[str] = []
-    if driver in {"subagents", "dynamic_workflow"}:
+    if driver == "subagents":
         actions.append("spawn_subagents")
     elif driver == "app_threads":
         actions.append("create_user_owned_tasks")
@@ -1106,7 +1106,6 @@ def _directive(
         "app_threads": "create_thread",
         "subagents": "spawn_subagent",
         "sequential_parent": "run_parent",
-        "dynamic_workflow": "run_dynamic_workflow",
     }[driver]
     directive = {
         **base,

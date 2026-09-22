@@ -92,7 +92,6 @@ class ReadmeStructureTests(unittest.TestCase):
                     "Host B",
                     "exact SHA",
                     "`runtime_unavailable`",
-                    "homogeneous `tool_profile`",
                     "permission-level tool removal",
                 ):
                     self.assertIn(required, content)

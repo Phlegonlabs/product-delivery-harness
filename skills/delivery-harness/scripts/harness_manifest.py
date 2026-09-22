@@ -14,8 +14,8 @@ from typing import Any
 from harness_schema import (
     AUTHORIZATION_KEYS,
     CAPABILITY_PROBE_STATUSES,
-    CODEX_CAPABILITY_PROBE_KEYS,
-    CODEX_DRIVER_CAPABILITY_REQUIREMENTS,
+    CAPABILITY_PROBE_KEYS,
+    DRIVER_CAPABILITY_REQUIREMENTS,
     CURRENT_SCHEMA_PAIR,
     EXPIRY_BOUNDARIES,
     GATE_VALUES,
@@ -34,33 +34,26 @@ from harness_schema import (
     REVIEWER_TOOL_KEYS,
     REVIEWER_TOOL_PROBE_SCOPES,
     REVIEWER_TOOL_STATUSES,
-    REVIEWER_TOOL_SURFACES,
     RUN_DISPATCH_STATUSES,
     RUN_CONTROL_STATES,
     RUN_HEADING,
     RUNTIME_DETECTION_SOURCES,
-    RUNTIME_DRIVER_PRIORITY,
     RUNTIME_DRIVERS,
     is_current_pair,
     is_valid_provider_id,
     run_required_harness_version,
     archive_first_required,
     required_harness_version,
-    runtime_driver_priority,
     RUNTIME_REVIEW_TYPES,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_VERSION_STATUSES,
     SHA256_RE,
-    SHA_RE,
     SUPPORTED_RUN_SCHEMA_VERSIONS,
     TASK_ID_RE,
     TASK_PHASES,
     TARGET_RE,
     version_at_least,
     WORKER_PHASES,
-    WORKFLOW_RUN_DRIVERS_BY_PROVIDER,
-    WORKFLOW_RUN_STATUSES,
-    WORKFLOW_TOOL_PROFILES,
 )
 from security_review_result import validate_security_review_result
 
@@ -2127,167 +2120,6 @@ def _validate_gate_results(
         )
 
 
-def _validate_workflow_runs(
-    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
-) -> None:
-    value = run.get("workflow_runs")
-    if value is None:
-        return
-    if not isinstance(value, list):
-        _add(errors, "run.workflow_runs", "must be a list")
-        return
-    graph_nodes = {
-        node["id"]: node
-        for node in plan.get("graph", {}).get("nodes", [])
-        if isinstance(node, dict) and _nonempty_string(node.get("id"))
-    }
-    seen_ids: set[str] = set()
-    active_attempts: set[tuple[str, str]] = set()
-    entry_keys = {
-        "workflow_run_id",
-        "workflow_task_id",
-        "resume_from_run_id",
-        "script_path",
-        "script_sha256",
-        "run_id",
-        "plan_revision",
-        "plan_digest_sha256",
-        "graph_revision",
-        "batch_base_sha",
-        "node_ids",
-        "attempt_ids",
-        "provider",
-        "driver",
-        "tool_profile",
-        "status",
-        "result_evidence",
-        "metrics",
-    }
-    workflow_plan_digest = plan_digest(plan)
-    for index, item in enumerate(value):
-        path = f"run.workflow_runs[{index}]"
-        if not _keys(errors, path, item, entry_keys):
-            continue
-        workflow_run_id = item["workflow_run_id"]
-        if not _nonempty_string(workflow_run_id):
-            _add(errors, f"{path}.workflow_run_id", "must be a non-empty string")
-        elif workflow_run_id in seen_ids:
-            _add(errors, f"{path}.workflow_run_id", "must be unique")
-        else:
-            seen_ids.add(workflow_run_id)
-        _optional_string(errors, f"{path}.workflow_task_id", item["workflow_task_id"])
-        _optional_string(errors, f"{path}.resume_from_run_id", item["resume_from_run_id"])
-        if not _nonempty_string(item["script_path"]):
-            _add(errors, f"{path}.script_path", "must be a non-empty string")
-        if not _nonempty_string(item["script_sha256"]) or not SHA256_RE.fullmatch(
-            item["script_sha256"]
-        ):
-            _add(errors, f"{path}.script_sha256", "must be a lowercase SHA-256")
-        if item["run_id"] != run.get("run_id"):
-            _add(errors, f"{path}.run_id", "must match run.run_id")
-        if not _is_int(item["plan_revision"]) or item["plan_revision"] < 1:
-            _add(errors, f"{path}.plan_revision", "must be a positive integer")
-        if not _nonempty_string(item["plan_digest_sha256"]) or not SHA256_RE.fullmatch(
-            item["plan_digest_sha256"]
-        ):
-            _add(errors, f"{path}.plan_digest_sha256", "must be a lowercase SHA-256")
-        if not _is_int(item["graph_revision"]) or item["graph_revision"] < 1:
-            _add(errors, f"{path}.graph_revision", "must be a positive integer")
-        if not isinstance(item["batch_base_sha"], str) or not SHA_RE.fullmatch(
-            item["batch_base_sha"]
-        ):
-            _add(errors, f"{path}.batch_base_sha", "must be a full Git SHA")
-        node_ids = _strings(errors, f"{path}.node_ids", item["node_ids"], nonempty=True)
-        if len(node_ids) != len(set(node_ids)):
-            _add(errors, f"{path}.node_ids", "must not contain duplicates")
-        raw_attempt_ids = item["attempt_ids"]
-        attempt_ids: dict[str, str] = {}
-        if not isinstance(raw_attempt_ids, dict):
-            _add(errors, f"{path}.attempt_ids", "must be an object keyed by node ID")
-        else:
-            for node_id, attempt_id in raw_attempt_ids.items():
-                if not _nonempty_string(node_id) or not _nonempty_string(attempt_id):
-                    _add(errors, f"{path}.attempt_ids", "keys and values must be non-empty strings")
-                    continue
-                attempt_ids[node_id] = attempt_id
-            if set(attempt_ids) != set(node_ids):
-                _add(errors, f"{path}.attempt_ids", "keys must exactly match node_ids")
-        provider = item["provider"]
-        allowed_drivers = WORKFLOW_RUN_DRIVERS_BY_PROVIDER.get(provider)
-        if allowed_drivers is None:
-            _add(errors, f"{path}.provider", "has an unsupported workflow provider")
-        driver = item["driver"]
-        if not isinstance(driver, str) or (
-            allowed_drivers is not None and driver not in allowed_drivers
-        ):
-            _add(errors, f"{path}.driver", "does not match the workflow provider")
-        profile = item["tool_profile"]
-        if not isinstance(profile, str) or profile not in WORKFLOW_TOOL_PROFILES:
-            _add(errors, f"{path}.tool_profile", "has an unsupported value")
-        status = item["status"]
-        if not isinstance(status, str) or status not in WORKFLOW_RUN_STATUSES:
-            _add(errors, f"{path}.status", "has an unsupported value")
-        _strings(errors, f"{path}.result_evidence", item["result_evidence"])
-        metrics = item["metrics"]
-        if _keys(errors, f"{path}.metrics", metrics, {"duration_ms", "token_count"}):
-            for metric in ("duration_ms", "token_count"):
-                current = metrics[metric]
-                if current is not None and (not _is_int(current) or current < 0):
-                    _add(errors, f"{path}.metrics.{metric}", "must be null or a non-negative integer")
-        if status == "running":
-            unknown_nodes = sorted(set(node_ids) - set(graph_nodes))
-            if unknown_nodes:
-                _add(
-                    errors,
-                    f"{path}.node_ids",
-                    f"running workflow contains unknown graph nodes: {', '.join(unknown_nodes)}",
-                )
-            if profile == "mission_write" and any(
-                graph_nodes.get(node_id, {}).get("kind") != "mission" for node_id in node_ids
-            ):
-                _add(errors, f"{path}.tool_profile", "mission_write requires only mission nodes")
-            if profile in {"code_review_readonly", "visual_review_readonly"}:
-                review_types: set[Any] = set()
-                for node_id in node_ids:
-                    review = graph_nodes.get(node_id, {}).get("review")
-                    review_types.add(review.get("type") if isinstance(review, dict) else None)
-                allowed_reviews = (
-                    {"visual"}
-                    if profile == "visual_review_readonly"
-                    else {"frontend_code", "backend_code", "security"}
-                )
-                if not review_types or not review_types.issubset(allowed_reviews):
-                    _add(errors, f"{path}.tool_profile", "does not match its review node types")
-            if item["plan_revision"] != plan.get("revision"):
-                _add(errors, f"{path}.plan_revision", "running workflow must match PLAN")
-            if item["plan_digest_sha256"] != workflow_plan_digest:
-                _add(errors, f"{path}.plan_digest_sha256", "running workflow must match PLAN")
-            raw_graph_state = run.get("graph_state")
-            graph_state = raw_graph_state if isinstance(raw_graph_state, dict) else {}
-            if item["graph_revision"] != graph_state.get("graph_revision"):
-                _add(errors, f"{path}.graph_revision", "running workflow is stale")
-            raw_integration = run.get("integration")
-            integration = raw_integration if isinstance(raw_integration, dict) else {}
-            if item["batch_base_sha"] != integration.get("batch_base_sha"):
-                _add(errors, f"{path}.batch_base_sha", "running workflow must match RUN")
-            for node_id in node_ids:
-                attempt_id = attempt_ids.get(node_id)
-                state = graph_state.get("node_states", {}).get(node_id, {})
-                if state.get("phase") != "running" or state.get("last_attempt_id") != attempt_id:
-                    _add(errors, f"{path}.attempt_ids.{node_id}", "must match the active running node attempt")
-                elif (node_id, attempt_id) in active_attempts:
-                    _add(errors, f"{path}.attempt_ids.{node_id}", "is already bound to another running workflow")
-                else:
-                    active_attempts.add((node_id, attempt_id))
-                node = graph_nodes.get(node_id, {})
-                raw_policy = node.get("runtime")
-                policy = raw_policy if isinstance(raw_policy, dict) else {}
-                raw_allowed = policy.get("allowed_providers")
-                allowed_providers = raw_allowed if isinstance(raw_allowed, list) else []
-                if provider not in allowed_providers:
-                    _add(errors, f"{path}.provider", f"node {node_id} does not allow {provider}")
-            if run.get("status") == "complete":
-                _add(errors, path, "complete RUN cannot retain a running workflow")
 
 
 def _validate_runtime_metrics(errors: list[str], run: dict[str, Any]) -> None:
@@ -3925,53 +3757,6 @@ def _validate_v10_execution_records(
                 )
 
 
-def _codex_probe_requires_parallel_inventory(
-    plan: dict[str, Any], run: dict[str, Any], runtime: dict[str, Any]
-) -> bool:
-    """Return whether Codex may select two writers in this RUN.
-
-    A single mission, a configured budget of one, observed capacity of one, or
-    the sequential-parent driver is provably sequential and does not need the
-    unrelated six app-thread plus two direct-subagent surface inventory.  A
-    ready run that can select two writers still needs the complete probe.
-    """
-
-    missions = plan.get("missions")
-    writer_count = sum(
-        1
-        for mission in (missions if isinstance(missions, list) else [])
-        if isinstance(mission, dict)
-        and isinstance(mission.get("write_scope"), list)
-        and mission.get("write_scope")
-    )
-    if writer_count < 2:
-        return False
-    configured_plan_budget = plan.get("max_parallel_workers")
-    configured_runtime_budget = runtime.get("max_parallel_workers")
-    if (
-        not isinstance(configured_plan_budget, int)
-        or isinstance(configured_plan_budget, bool)
-        or not isinstance(configured_runtime_budget, int)
-        or isinstance(configured_runtime_budget, bool)
-    ):
-        return True
-    configured_budget = min(configured_plan_budget, configured_runtime_budget)
-    if configured_budget <= 1 or route_runtime_driver(runtime) == "sequential_parent":
-        return False
-    observed = run.get("observed")
-    observed_runtime = observed.get("runtime") if isinstance(observed, dict) else None
-    if not isinstance(observed_runtime, dict):
-        return True
-    slots = observed_runtime.get("available_worker_slots")
-    isolation = observed_runtime.get("isolation_capacity")
-    if (
-        not isinstance(slots, int)
-        or isinstance(slots, bool)
-        or not isinstance(isolation, int)
-        or isinstance(isolation, bool)
-    ):
-        return True
-    return min(configured_budget, slots, isolation) >= 2
 
 
 def _validate_current_runtime_binding(
@@ -5134,12 +4919,6 @@ def _validate_run_workers(
                         f"{path}.runtime_binding.reasoning_effort",
                         "must be null or a supported reasoning effort",
                     )
-                if runtime_binding["provider"] not in {"codex", "claude_code", "pi"} and effort is not None:
-                    _add(
-                        errors,
-                        f"{path}.runtime_binding.reasoning_effort",
-                        "must be null unless the provider supports selectable effort",
-                    )
                 graph_node = graph_nodes_by_mission.get(worker["mission_id"])
                 policy = graph_node.get("runtime") if isinstance(graph_node, dict) else None
                 if isinstance(policy, dict):
@@ -5183,17 +4962,6 @@ def _validate_run_workers(
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
             nested_review_evidence = worker.get("nested_review_evidence")
-            if (
-                schema_version in {6, 7, 8, 9, 10, 11}
-                and isinstance(runtime, dict)
-                and route_runtime_driver(runtime) == "dynamic_workflow"
-                and nested_policy is not None
-            ):
-                _add(
-                    errors,
-                    f"{path}.nested_subagent_policy",
-                    "must be omitted for flat Claude workflow-driver orchestration",
-                )
             if (
                 schema_version in {6, 7, 8, 9}
                 and worker["worker_runtime"] == "app_task"
@@ -5466,8 +5234,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     elif schema_version == 11 and plan.get("schema_version") != 6:
         _add(errors, "run.schema_version", "schema v11 requires a schema v6 graph PLAN")
     optional_run_keys: set[str] = set()
-    if graph_run:
-        optional_run_keys.add("workflow_runs")
     if schema_version in {10, 11}:
         optional_run_keys.add("runtime_metrics")
     if schema_version == 11:
@@ -6020,14 +5786,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     f"{adapter_path}.available_drivers",
                     f"unsupported drivers: {', '.join(unknown_drivers)}",
                 )
-            allowed_drivers = set(runtime_driver_priority(provider)) if provider_valid else set()
-            incompatible_drivers = sorted(set(drivers) - allowed_drivers)
-            if provider_valid and incompatible_drivers:
-                _add(
-                    errors,
-                    f"{adapter_path}.available_drivers",
-                    f"drivers do not match provider: {', '.join(incompatible_drivers)}",
-                )
+            if len(drivers) != len(set(drivers)):
+                _add(errors, f"{adapter_path}.available_drivers", "must not contain duplicates")
+            if drivers and "sequential_parent" in drivers and drivers[-1] != "sequential_parent":
+                _add(errors, f"{adapter_path}.available_drivers", "sequential_parent must be the last fallback")
             if "sequential_parent" not in drivers:
                 _add(
                     errors,
@@ -6080,7 +5842,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             _add(errors, f"{capability_path}.provider", "has an unsupported value")
                         if capability_driver not in RUNTIME_DRIVERS:
                             _add(errors, f"{capability_path}.driver", "has an unsupported value")
-                        if surface not in set(REVIEWER_TOOL_SURFACES.values()):
+                        if not is_valid_provider_id(surface):
                             _add(errors, f"{capability_path}.surface", "has an unsupported value")
                         if probe_scope not in REVIEWER_TOOL_PROBE_SCOPES:
                             _add(errors, f"{capability_path}.probe_scope", "has an unsupported value")
@@ -6100,13 +5862,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                                     f"{capability_path}.driver",
                                     "available capability must match the selected runtime driver",
                                 )
-                            expected_surface = REVIEWER_TOOL_SURFACES.get(capability_provider)
-                            if surface != expected_surface:
-                                _add(
-                                    errors,
-                                    f"{capability_path}.surface",
-                                    f"available capability for {capability_provider} requires {expected_surface}",
-                                )
+                            if surface in {"none", "unknown", "unobserved"}:
+                                _add(errors, f"{capability_path}.surface", "available capability requires an observed browser surface")
                             if probe_scope != "reviewer_session":
                                 _add(
                                     errors,
@@ -6194,124 +5951,46 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             selected_driver = route_runtime_driver(runtime)
             probe_required = (
                 schema_version in {10, 11}
-                and provider == "codex"
-                and detection_source == "observed"
                 and run.get("status") in RUN_DISPATCH_STATUSES
-            )
-            parallel_probe_required = probe_required and _codex_probe_requires_parallel_inventory(
-                plan, run, runtime
+                and selected_driver != "sequential_parent"
             )
             capability_probe = adapter.get("capability_probe")
             probe_path = f"{adapter_path}.capability_probe"
-            probe_statuses: dict[str, str] = {}
-            probe_complete = selected_driver == "sequential_parent" and not parallel_probe_required
-            selected_capabilities = set(
-                CODEX_DRIVER_CAPABILITY_REQUIREMENTS.get(selected_driver, ())
-            )
+            required_capabilities = {
+                capability
+                for driver in drivers
+                for capability in DRIVER_CAPABILITY_REQUIREMENTS.get(driver, ())
+            }
+            probe_complete = not required_capabilities
             if capability_probe is not None:
-                if provider != "codex":
-                    _add(errors, probe_path, "is supported only for the codex provider")
                 if detection_source != "observed":
                     _add(errors, probe_path, "requires detection_source observed")
-                probe_keys = set(CODEX_CAPABILITY_PROBE_KEYS)
-                if parallel_probe_required:
-                    probe_shape_valid = _keys(
-                        errors,
-                        probe_path,
-                        capability_probe,
-                        CODEX_CAPABILITY_PROBE_KEYS,
-                    )
-                else:
-                    # A sequential route may record only the facts needed to
-                    # prove a non-parent selected driver.  Extra surfaces are
-                    # still checked when supplied, but they are not required.
-                    probe_shape_valid = _keys(
-                        errors,
-                        probe_path,
-                        capability_probe,
-                        selected_capabilities,
-                        probe_keys - selected_capabilities,
-                    )
-                if probe_shape_valid:
+                if _keys(errors, probe_path, capability_probe, required_capabilities,
+                         set(CAPABILITY_PROBE_KEYS) - required_capabilities):
                     probe_complete = True
-                    for capability in capability_probe:
-                        observation = capability_probe[capability]
+                    for capability, observation in capability_probe.items():
                         observation_path = f"{probe_path}.{capability}"
-                        if not _keys(
-                            errors,
-                            observation_path,
-                            observation,
-                            {"status", "evidence"},
-                        ):
+                        if not _keys(errors, observation_path, observation, {"status", "evidence"}):
                             probe_complete = False
                             continue
                         status = observation["status"]
-                        evidence = observation["evidence"]
                         if not isinstance(status, str) or status not in CAPABILITY_PROBE_STATUSES:
                             _add(errors, f"{observation_path}.status", "has an unsupported value")
                             probe_complete = False
-                        else:
-                            probe_statuses[capability] = status
-                            if (
-                                (parallel_probe_required and status == "unobserved")
-                                or (
-                                    capability in selected_capabilities
-                                    and status != "available"
-                                )
-                            ):
-                                probe_complete = False
-                        if not _nonempty_string(evidence):
+                        if capability in required_capabilities and status != "available":
+                            probe_complete = False
+                        if not _nonempty_string(observation["evidence"]):
                             _add(errors, f"{observation_path}.evidence", "must be a non-empty string")
                             probe_complete = False
-
-                    if len(probe_statuses) == len(CODEX_CAPABILITY_PROBE_KEYS):
-                        derived_drivers = [
-                            driver
-                            for driver in RUNTIME_DRIVER_PRIORITY["codex"]
-                            if driver == "sequential_parent"
-                            or all(
-                                probe_statuses.get(capability) == "available"
-                                for capability in CODEX_DRIVER_CAPABILITY_REQUIREMENTS[driver]
-                            )
-                        ]
-                        if drivers != derived_drivers:
-                            _add(
-                                errors,
-                                f"{adapter_path}.available_drivers",
-                                "capability_snapshot_mismatch: must exactly match capability_probe in provider priority order: "
-                                + ", ".join(derived_drivers),
-                            )
-
-            if probe_required and not probe_complete:
-                detail = (
-                    "every probe status to be available or unavailable with evidence"
-                    if parallel_probe_required
-                    else "the selected Codex driver through capability facts"
-                )
-                _add(
-                    errors,
-                    probe_path,
-                    "capability_snapshot_incomplete: ready/running observed Codex execution requires "
-                    + detail,
-                )
+            if probe_required and (not probe_complete or detection_source != "observed"):
+                _add(errors, probe_path,
+                     "capability_snapshot_incomplete: ready/running delegation requires observed available capability facts with evidence")
             if selected_driver == "app_threads" and (
-                provider != "codex"
-                or runtime["worker_runtime"] != "app_task"
+                runtime["worker_runtime"] != "app_task"
                 or runtime["workspace_mode"] != "app_managed_worktree"
                 or runtime["completion_channel"] != "thread_poll"
             ):
-                _add(errors, adapter_path, "app_threads requires codex app_task/app_managed_worktree/thread_poll")
-            elif selected_driver == "dynamic_workflow" and (
-                provider != "claude_code"
-                or runtime["worker_runtime"] != "subagent"
-                or runtime["workspace_mode"] != "parent_managed_worktree"
-                or runtime["completion_channel"] != "agent_result"
-            ):
-                _add(
-                    errors,
-                    adapter_path,
-                    "dynamic_workflow requires claude_code subagent/parent_managed_worktree/agent_result",
-                )
+                _add(errors, adapter_path, "app_threads requires app_task/app_managed_worktree/thread_poll")
             elif selected_driver == "subagents" and (
                 runtime["worker_runtime"] != "subagent"
                 or runtime["workspace_mode"] not in {"shared_checkout", "parent_managed_worktree"}
@@ -6323,17 +6002,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 or runtime["workspace_mode"] != "parent_managed_worktree"
                 or runtime["completion_channel"] != "agent_result"
             ):
-                _add(
-                    errors,
-                    adapter_path,
-                    "sequential_parent requires parent/parent_managed_worktree/agent_result",
-                )
-            if selected_driver == "dynamic_workflow" and runtime.get("nested_subagents") is not None:
-                _add(
-                    errors,
-                    "run.runtime_capabilities.nested_subagents",
-                    "must be omitted for flat Claude workflow-driver orchestration",
-                )
+                _add(errors, adapter_path, "sequential_parent requires parent/parent_managed_worktree/agent_result")
         permission = runtime.get("permission_boundary")
         if permission is not None and _keys(
             errors,
@@ -6631,7 +6300,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
     if graph_run:
         _validate_graph_state(errors, plan, run)
-        _validate_workflow_runs(errors, plan, run)
 
     task_states = run["task_states"]
     task_state_keys = {
