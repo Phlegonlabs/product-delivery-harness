@@ -374,6 +374,18 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       runtime.selectState(control.dataset.hifiStateControl);
     });
     for (const link of pageLinks) link.addEventListener("click", () => runtime.setPage(link.getAttribute("href")));
+    function restoreRequestedState() {
+      const hash = typeof window === "object" && window.location ? window.location.hash || "" : "";
+      if (!hash.startsWith("#hifi-state=")) return;
+      const requestedState = hash.slice(12).split("/");
+      if (requestedState.length !== 2) return;
+      try {
+        const surface = decodeURIComponent(requestedState[0]);
+        const productState = decodeURIComponent(requestedState[1]);
+        if (runtime.snapshot().surface !== surface) runtime.selectSurface(surface);
+        if (runtime.snapshot().productState !== productState) runtime.selectState(productState);
+      } catch (_) {}
+    }
     for (const link of stateCoverageLinks) link.addEventListener("click", event => {
       const [surface, ...stateParts] = (link.getAttribute("data-hifi-state-coverage") || "").trim().split(/\s+/);
       const destination = link.getAttribute("href");
@@ -384,16 +396,22 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
           window.location.href = `${destination}#hifi-state=${encodeURIComponent(surface)}/${encodeURIComponent(state)}`;
         } else {
           event.preventDefault();
-          try { runtime.selectSurface(surface); runtime.selectState(state); runtime.showProduct(); } catch (_) {}
+          if (!(statesBySurface[surface] || []).includes(state)) return;
+          if (typeof window === "object" && window.location) {
+            window.location.hash = `#hifi-state=${encodeURIComponent(surface)}/${encodeURIComponent(state)}`;
+            restoreRequestedState();
+            apply({focus: true});
+          } else {
+            try { runtime.selectSurface(surface); runtime.selectState(state); runtime.showProduct(); } catch (_) {}
+          }
         }
       }
     });
-    const requestedState = typeof window === "object" && window.location && /^#hifi-state=/.test(window.location.hash || "")
-      ? window.location.hash.slice(12).split("/") : null;
-    if (requestedState && requestedState.length === 2) {
-      try { runtime.selectSurface(decodeURIComponent(requestedState[0])); runtime.selectState(decodeURIComponent(requestedState[1])); } catch (_) {}
-    }
-    if (typeof window === "object" && window.addEventListener) window.addEventListener("hashchange", () => apply({focus: true}));
+    restoreRequestedState();
+    if (typeof window === "object" && window.addEventListener) window.addEventListener("hashchange", () => {
+      restoreRequestedState();
+      apply({focus: true});
+    });
     if (typeof document === "object" && document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => apply({focus: true}), {once: true});
     else apply({focus: true});
     connectProductControls(root);

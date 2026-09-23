@@ -72,6 +72,8 @@ class ReviewerBrowserTests(unittest.TestCase):
             entry = ('<html><head>' + css + '</head><body data-hifi-default-surface="UI-001">'
                      '<div data-hifi-canvas data-hifi-targets="compact regular" data-hifi-target="compact">' + product + '</div>'
                      '<section data-hifi-panel="overview" hidden><h1>Overview</h1>'
+                     '<a data-hifi-state-coverage="UI-001 loading" data-state-destination="loading" href="index.html">Open loading</a>'
+                     '<a data-hifi-state-coverage="UI-001 ready" data-state-destination="ready" href="index.html">Open ready</a>'
                      '<a data-hifi-state-coverage="UI-002 empty" data-state-destination="empty" href="details.html">Open empty</a></section>'
                      '<section data-hifi-panel="design-tokens" hidden><h1>Tokens</h1>'
                      '<article data-hifi-spec="token" data-source=":root" data-token-preview="color" data-property="--ink" '
@@ -119,6 +121,35 @@ const {pathToFileURL}=require('url');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="overview"]').click();
   const panelStyle=await page.locator('[data-hifi-panel="overview"]').evaluate(node=>({background:getComputedStyle(node).backgroundColor,font:getComputedStyle(node).fontSize}));
   if(panelStyle.background!=='rgb(255, 255, 255)'||panelStyle.font!=='14px')throw Error('product CSS crossed review panel: '+JSON.stringify(panelStyle));
+  await page.locator('[data-hifi-state-coverage="UI-001 loading"]').click();
+  if(!page.url().endsWith('#hifi-state=UI-001/loading'))throw Error('same-page state link did not create a route');
+  if(await page.locator('[data-hifi-state-view="loading"]').isHidden()||!await page.locator('[data-hifi-panel="overview"]').isHidden())
+    throw Error('same-page state link did not show the product state');
+  if(!await page.locator('[data-ui-surface="UI-001"] h1').evaluate(node=>node===document.activeElement))
+    throw Error('same-page state link did not focus the product heading');
+  await page.goBack();
+  await page.locator('[data-hifi-panel="overview"]').waitFor({state:'visible'});
+  if(!page.url().endsWith('#overview'))throw Error('Back did not restore Overview route');
+  if(!await page.locator('[data-hifi-panel="overview"] h1').evaluate(node=>node===node.getRootNode().activeElement))
+    throw Error('Back did not focus Overview heading');
+  await page.goForward();
+  await page.locator('[data-hifi-state-view="loading"]').waitFor({state:'visible'});
+  if(!page.url().endsWith('#hifi-state=UI-001/loading'))throw Error('Forward did not restore the state route');
+  if(!await page.locator('[data-ui-surface="UI-001"] h1').evaluate(node=>node===document.activeElement))
+    throw Error('Forward did not focus the product heading');
+  await page.reload();
+  if(!page.url().endsWith('#hifi-state=UI-001/loading')||await page.locator('[data-hifi-state-view="loading"]').isHidden())
+    throw Error('reload did not restore the routed state');
+  await page.locator('reviewer-shell').locator('[data-hifi-review-view="overview"]').click();
+  await page.locator('[data-hifi-state-coverage="UI-001 ready"]').click();
+  if(!page.url().endsWith('#hifi-state=UI-001/ready')||await page.locator('[data-hifi-state-view="ready"]').isHidden())
+    throw Error('second same-page state route did not show Ready');
+  await page.goBack();
+  await page.locator('[data-hifi-panel="overview"]').waitFor({state:'visible'});
+  await page.goBack();
+  await page.locator('[data-hifi-state-view="loading"]').waitFor({state:'visible'});
+  if(!page.url().endsWith('#hifi-state=UI-001/loading')||await page.locator('[data-ui-surface="UI-001"]').getAttribute('data-hifi-state')!=='loading')
+    throw Error('Back did not restore the earlier encoded state');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="design-tokens"]').click();
   await page.waitForFunction(()=>Boolean(document.querySelector('reviewer-panels')?.shadowRoot.querySelector('[data-hifi-spec="token"] output')?.textContent),null,{timeout:3000});
   const tokenText=await page.locator('[data-hifi-spec="token"] output').textContent();
@@ -147,6 +178,7 @@ const {pathToFileURL}=require('url');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="overview"]').click();
   await page.locator('[data-hifi-state-coverage="UI-002 empty"]').click();
   await page.locator('[data-ui-surface="UI-002"]').waitFor();
+  if(!page.url().endsWith('details.html#hifi-state=UI-002/empty'))throw Error('cross-page state route changed');
   if(await page.locator('[data-ui-surface="UI-002"]').getAttribute('data-hifi-state')!=='empty')throw Error('state coverage did not open requested child state');
   await page.goto(pathToFileURL(process.argv[2]).href);
   const target=page.locator('reviewer-shell').locator('[data-hifi-target-control="regular"]');

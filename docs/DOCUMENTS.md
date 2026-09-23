@@ -5,7 +5,7 @@ The four READMEs remain the documentation of record for the skill bundle.
 | Document | Purpose | Status |
 | --- | --- | --- |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Published skill behavior and release instructions | Current |
-| `docs/epics/EPIC-ui-reviewer-integration.md` | Unified Wireframe/HiFi review, evidence, and lifecycle integration | Implemented and verified locally; 0.52.0 release preparation in progress |
+| `docs/epics/EPIC-ui-reviewer-integration.md` | Unified Wireframe/HiFi review, evidence, and lifecycle integration | 0.52.0 release preparation; PR review repair verified locally, full exact-candidate checks pending |
 | `docs/epics/EPIC-001-incremental-design-review.md` | Incremental UI authoring and interactive review repair | In progress |
 | `docs/epics/EPIC-wireframe-handoff-refinement.md` | Design translation, reading, recipes and freshness verification | Release preparation; verification pending |
 | `docs/epics/EPIC-general-runtime-adapter.md` | General capability adapter and removal of native runtime paths | Implemented and verified locally |
