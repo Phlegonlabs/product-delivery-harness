@@ -297,14 +297,17 @@ async function agent(_prompt, options) {
         self.assertIn("## HTML Requirements", guide)
         self.assertIn("Generate one self-contained file", guide)
         self.assertIn("an all-pages overview plus a page switcher", guide)
-        self.assertIn("## Wireframe Approval Gate", guide)
+        self.assertIn("## Wireframe Validation Gate (wireframes/5)", guide)
+        self.assertIn("## Historical Wireframe Approval", guide)
         self.assertIn("Later UI artifacts never override", contract)
 
         payload = html_template.split(
             '<script id="wireframe-data" type="application/json">', 1
         )[1].split("</script>", 1)[0]
         data = json.loads(payload)
-        self.assertEqual(data["schema"], "wireframes/4")
+        self.assertEqual(data["schema"], "wireframes/5")
+        self.assertEqual(data["structureStatus"], "draft")
+        self.assertIn("locale", data["copyInventory"])
         self.assertGreaterEqual(len(data["viewports"]), 3)
         self.assertEqual(
             set(data["canvasWidths"]), {str(value) for value in data["viewports"]}
@@ -650,7 +653,8 @@ async function agent(_prompt, options) {
         )[1].split("</script>", 1)[0]
         data = json.loads(payload)
 
-        self.assertIn("`flows` lists each flow", guide)
+        self.assertIn("each flow keeps `{from, trigger, to, presentation}`", guide)
+        self.assertIn("`sourceState`, `control`, and `destination:{surface,state}`", guide)
         self.assertIsInstance(data["flows"], list)
         self.assertTrue(data["flows"])
         screen_ids = {screen["id"] for screen in data["screens"]}
@@ -791,7 +795,7 @@ async function agent(_prompt, options) {
         approval = skill.index("15. Run Product Definition Approval")
         self.assertLess(research, approval)
         self.assertIn("after `product-definition-builder`", ui_skill)
-        self.assertIn("End the turn and wait for the answer", intake)
+        self.assertIn("Wait only when an unanswered preference blocks authoring", intake)
         self.assertIn("one recommended direction or three comparable directions", intake)
 
     def test_product_approval_presents_and_waits_on_the_complete_candidate(self) -> None:
@@ -2170,7 +2174,7 @@ async function agent(_prompt, options) {
         skill = self.read_ui("SKILL.md")
         contract = self.read_ui("references/output-contract.md")
 
-        self.assertIn("If `not_required`", skill)
+        self.assertIn("`not_required` uses the approved HiFi/UI/PRD contract", skill)
         self.assertIn("Decision: [required / not_required / blocked]", contract)
         self.assertIn(
             "publish no placeholder pair",
@@ -2434,7 +2438,7 @@ async function agent(_prompt, options) {
         )
         self.assertIn("## Enhancement Revisions", guide)
         for marker in (
-            "re-run the Wireframe Approval Gate on the changed scope",
+            "re-run Wireframe Validation on the changed scope",
             "re-run `references/ui-design-pass.md` for the affected scope",
             "A stale visual contract never publishes silently",
         ):
@@ -2580,9 +2584,9 @@ async function agent(_prompt, options) {
             self.assertIn(marker, rubric)
         self.assertNotIn("graders: parent-only", rubric)
         self.assertIn("Impeccable critique:", contract)
-        self.assertIn("one repair batch", skill)
+        self.assertIn("one consolidated repair batch", skill)
         self.assertIn("one re-review", skill)
-        self.assertIn("one repair batch", wireframe)
+        self.assertIn("one consolidated repair batch", wireframe)
         self.assertIn("complete rubric once", guide)
 
     def test_motion_and_media_gate_separates_ui_motion_from_generated_assets(self) -> None:
@@ -2630,7 +2634,9 @@ async function agent(_prompt, options) {
             "VALID_FLOW_PRESENTATIONS",
             "VALID_MEDIA_TREATMENTS",
             "_validate_media_intent",
-            "must match exactly one outgoing flow",
+            "must bind the visible product action ID and trigger",
+            "must name a declared source screen state",
+            "must name a declared destination screen state",
             "must match exactly one visible region action",
         ):
             self.assertIn(marker, checker)
@@ -2698,20 +2704,20 @@ new Function(scripts.at(-1)[1]);
         self.assertIn("only after the core Product Definition package passes", wireframe)
         self.assertIn("only after `product-definition-builder`", ui_skill)
 
-    def test_copy_freeze_ownership_does_not_require_a_circular_prd_rewrite(self) -> None:
+    def test_full_hifi_copy_review_does_not_require_a_circular_prd_rewrite(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
 
         for content in (skill, contract, lifecycle):
-            self.assertIn("Copy Freeze", content)
+            self.assertIn("full HiFi approval", content)
         self.assertIn(
-            "schema-4 wireframe approval may advance a PRD `draft` responsibility "
-            "to approved exact wireframe copy",
+            "A full HiFi approval may advance a PRD `draft` responsibility "
+            "to approved exact copy without rewriting the PRD status",
             contract,
         )
         self.assertIn(
-            "schema-4 wireframe approval may advance a PRD draft responsibility",
+            "full HiFi approval may confirm validated schema-5 wireframe copy without a circular PRD rewrite",
             lifecycle,
         )
         self.assertIn(

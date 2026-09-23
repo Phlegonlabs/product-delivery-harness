@@ -19,7 +19,8 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
             "Product Definition Approval",
             "Stack Decision Checkpoint",
             "docs/design/ui-design.md",
-            "approved Wireframe and Visual decisions",
+            "Wireframe Validation",
+            "Visual Approval",
             "Design System Need Gate: required",
             "check_product_package.py",
         ):
@@ -112,7 +113,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
 
         for content in (skill, guide, contract, template_md, template_json):
             self.assertIn("at least two", content)
-        self.assertIn("all sets match the PRD, approved wireframe, and stack", skill)
+        self.assertIn("all sets match the PRD, validated schema-5 wireframe (or approved legacy wireframe), and stack", skill)
         self.assertIn("Copy the exact approved PRD and wireframe set", guide)
         self.assertIn("Unintended overlap, clipping, occlusion", guide)
         self.assertIn("passing browser-matrix evidence", contract)

@@ -199,6 +199,72 @@ def _strict_source_inventory(plan: dict[str, Any]) -> tuple[dict[str, list[dict[
     return inventory, sorted(set(errors))
 
 
+def _frozen_maintenance_record(plan: dict[str, Any], root: Path) -> tuple[bool, list[str]]:
+    """A frozen task record can retain historical design for a small UI repair."""
+
+    rows = [row for row in plan.get("sources", []) if isinstance(row, dict)
+            and normalized_kind(row.get("kind")) == "task record"]
+    if not rows:
+        return False, []
+    if len(rows) != 1:
+        return False, ["plan.sources: maintenance needs exactly one frozen task record"]
+    row = rows[0]
+    location = row.get("location")
+    if not isinstance(location, str) or re.fullmatch(r"docs/epics/EPIC-[A-Za-z0-9._-]+\.md", location) is None:
+        return False, ["plan.sources: maintenance task record must be an Epic under docs/epics/"]
+    if row.get("status") != "frozen" or not isinstance(row.get("source_revision"), str) or FULL_SHA_RE.fullmatch(row["source_revision"]) is None:
+        return False, ["plan.sources: maintenance task record needs frozen status and a full Git source_revision"]
+    payload, errors = _resolve_source_bytes(row, root, label="maintenance task record", strict=True)
+    if errors or payload is None:
+        return False, errors
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return False, ["plan.sources: maintenance task record must be UTF-8"]
+    # Classification must be a live top-level line, not a sample in a code block.
+    active = []
+    fenced = False
+    for line in text.splitlines():
+        if re.match(r"^\s*(?:```|~~~)", line):
+            fenced = not fenced
+        elif not fenced:
+            active.append(line)
+    body = "\n".join(active)
+    workflows = re.findall(r"^Design workflow:\s*(\S+)\s*$", body, re.M)
+    impacts = re.findall(r"^UI impact:\s*(\S+)\s*$", body, re.M)
+    if len(workflows) == 1 and workflows[0] in {"initial_design", "enhancement", "full_redesign"}:
+        return False, []
+    if workflows != ["maintenance"] or len(impacts) != 1 or impacts[0] not in {"none", "style"}:
+        return False, ["plan.sources: maintenance task record needs Design workflow: maintenance and UI impact: none|style"]
+    plan_ids = re.findall(r"^Plan ID:\s*(\S+)\s*$", body, re.M)
+    objectives = re.findall(r"^Plan objective:\s*(.+?)\s*$", body, re.M)
+    if plan_ids != [plan.get("plan_id")] or objectives != [plan.get("objective")]:
+        return False, ["plan.sources: maintenance task record must bind the current PLAN ID and objective"]
+
+    def references(field):
+        values = re.findall(r"^" + re.escape(field) + r":\s*(.+?)\s*$", body, re.M)
+        if len(values) != 1:
+            return []
+        return [item.strip().strip("`") for item in values[0].split(",") if item.strip()]
+
+    record_refs = references("Requirement refs")
+    record_surfaces = references("UI scope")
+    if not record_refs or len(record_refs) != len(set(record_refs)) or not record_surfaces or len(record_surfaces) != len(set(record_surfaces)):
+        return False, ["plan.sources: maintenance task record needs unique Requirement refs and UI scope"]
+    ui_surfaces = [surface for surface in plan.get("ui_surfaces", []) if isinstance(surface, dict)]
+    ui_refs = {ref for surface in ui_surfaces for ref in surface.get("trace_ids", []) if isinstance(ref, str)}
+    active_refs = {ref for mission in plan.get("missions", []) if isinstance(mission, dict)
+                   for ref in mission.get("trace_ids", []) if ref in ui_refs}
+    active_surfaces = {surface.get("id") for surface in ui_surfaces
+                       if any(ref in active_refs for ref in surface.get("trace_ids", []))}
+    if set(record_refs) != active_refs or set(record_surfaces) != active_surfaces:
+        return False, ["plan.sources: maintenance task record requirement refs and UI scope differ from current PLAN missions"]
+    traces = {trace.get("id"): trace for trace in plan.get("traces", []) if isinstance(trace, dict)}
+    if any(row.get("id") not in (traces.get(ref, {}).get("source_ids") or []) for ref in record_refs):
+        return False, ["plan.sources: each maintenance requirement trace must reference the frozen task record source"]
+    return True, []
+
+
 def contract_values(value: str) -> list[str]:
     stripped = value.strip()
     try:
@@ -1535,7 +1601,7 @@ def full_wireframe_checker_errors(
             problems = validate_wireframes(
                 html_path,
                 require_filled=True,
-                require_approved=True,
+                **({"require_structure_validated": True} if (parse_wireframe_data(wireframe_bytes.decode("utf-8"))[0] or {}).get("schema") == "wireframes/5" else {"require_approved": True}),
                 prd_path=prd_path,
             )
         except Exception as exc:
@@ -1658,7 +1724,7 @@ def full_ui_design_checker_errors(
                 wireframes_path=wireframes_path,
                 hifi_path=hifi_path,
                 require_filled=True,
-                require_wireframe_approved=True,
+                **({"require_structure_validated": True} if view.get("structure_review") else {"require_wireframe_approved": True}),
                 require_visual_approved=True,
             )
         except Exception as exc:
@@ -1755,7 +1821,7 @@ def full_ui_design_checker_errors_at_paths(
             design_system_markdown_path=design_system_markdown_path,
             design_system_registry_path=design_system_registry_path,
             require_filled=True,
-            require_wireframe_approved=True,
+            **({"require_structure_validated": True} if _load_ui_contract_view(scripts)(ui_design_path.read_text(encoding="utf-8"))[0].get("structure_review") else {"require_wireframe_approved": True}),
             require_visual_approved=True,
         )
     except Exception as exc:
@@ -2003,6 +2069,25 @@ def _validate_strict_frozen_contract_joins(
         return sorted(set(errors))
     errors.extend(parser_errors)
     errors.extend(_strict_ui_surface_errors(plan, view))
+
+    maintenance, maintenance_errors = _frozen_maintenance_record(plan, root)
+    errors.extend(maintenance_errors)
+    if maintenance:
+        # The current approved Product Definition and PLAN still own routes,
+        # states and targets. Historical design bytes stay frozen, but their
+        # older PRD binding does not turn a same-surface repair into redesign.
+        target = view.get("approved_target") if isinstance(view, dict) else None
+        target_row = inventory["approved-target"][0]
+        if not isinstance(target, dict) or target.get("path") != target_row.get("location") or target.get("sha256") != target_row.get("content_sha256"):
+            errors.append("plan.sources: retained approved UI target differs from ui-design Approved target")
+        gate = view.get("gate") if isinstance(view, dict) else None
+        if isinstance(gate, dict) and gate.get("decision") == "required" and (
+            len(inventory["design-system.md"]) != 1 or len(inventory["design-system.json"]) != 1
+        ):
+            errors.append("plan.sources: retained required design-system pair must include both frozen files")
+        if bool(inventory["design-system.md"]) != bool(inventory["design-system.json"]):
+            errors.append("plan.sources: retained design-system pair must include both frozen files")
+        return sorted(set(errors))
 
     source_identity_map = view.get("source_identities") if isinstance(view, dict) else None
     for view_key, source_key in (

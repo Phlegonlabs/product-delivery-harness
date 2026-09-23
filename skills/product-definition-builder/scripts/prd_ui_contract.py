@@ -448,7 +448,7 @@ def _screen_states(screen: dict[str, Any]) -> set[str]:
 def validate_prd_wireframe_data(
     text: str, data: dict[str, Any], *, web_floor: int = 2
 ) -> list[str]:
-    copy_contract = data.get("schema") == "wireframes/4"
+    copy_contract = data.get("schema") in {"wireframes/4", "wireframes/5"}
     prd_surfaces, errors = parse_prd_ui_contract(
         text,
         require_responsive=True,

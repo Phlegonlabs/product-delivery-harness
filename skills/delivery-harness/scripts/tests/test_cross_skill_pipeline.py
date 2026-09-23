@@ -74,6 +74,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
         self.assertIn("docs/design/ui-design.md", ui)
         self.assertIn("docs/design/wireframes.html", ui)
+        self.assertIn("wireframes/5", wireframe)
         self.assertIn("wireframes/4", wireframe)
         self.assertIn("frontend-design", hifi)
         self.assertIn("impeccable critique", hifi)
@@ -81,7 +82,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("wireframe overall score", rubric)
         self.assertIn("design-reference overall score", rubric)
         self.assertIn("`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`", rubric)
-        self.assertIn("## Copy Freeze Gate", wireframe)
+        self.assertIn("## Wireframe Validation Gate (wireframes/5)", wireframe)
+        self.assertIn("Schema 5 has no human Copy Freeze or Wireframe Approval", wireframe)
+        self.assertIn("--require-structure-validated", wireframe)
         self.assertIn("--require-copy-approved", wireframe)
 
     def test_motion_and_media_routes_are_typed_and_authorized(self) -> None:
@@ -123,15 +126,16 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
         self.assertIn("sibling_ui_design_scripts_dir", join)
         self.assertIn("ui-design-builder next to delivery-harness", join)
-        self.assertIn("ui-design-builder` owns `docs/design/ui-design.md`", harness)
-        self.assertIn("Read `PRD.md`, `architecture.md`, `stack-decisions.md`, approved `ui-design.md`", implementation)
+        self.assertIn("`ui-design-builder` owns UI Design Intake", harness)
+        self.assertIn("validated schema-5 wireframes or approved legacy wireframes", harness)
+        self.assertIn("Read `PRD.md`, `architecture.md` and `stack-decisions.md`", implementation)
         self.assertIn("## System-Conformance Mode", implementation)
         self.assertIn("## Target-Conformance Mode", implementation)
         self.assertIn("load the owner-bound frontend-authoring skill", implementation)
         self.assertIn("apply this document's conformance rules", implementation)
         self.assertNotIn("load `frontend-design` in conformance mode", implementation)
-        self.assertIn("approved and copy-frozen page", implementation)
-        self.assertIn("never frozen copy", self.read("delivery-harness/references/verification-gates.md"))
+        self.assertIn("matching validated and copy-complete schema-5 page", implementation)
+        self.assertIn("routine maintenance checks the current accepted product", self.read("delivery-harness/references/verification-gates.md"))
 
     def test_responsive_set_stays_equal_across_product_design_and_harness(self) -> None:
         prd = self.read("product-definition-builder/references/output-contract.md")

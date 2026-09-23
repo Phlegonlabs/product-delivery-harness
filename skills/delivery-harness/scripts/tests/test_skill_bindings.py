@@ -28,7 +28,7 @@ Words here.
 | Slot | Stage | Bound skill | Pinned SHA-256 |
 | --- | --- | --- | --- |
 | ui_design | UI pass | {direction} | {direction_pin} |
-| style_integration | style pass | {direction} | {direction_pin} |
+| style_integration | style pass | `frontend-design` | {style_pin} |
 | design_compilation | pair | `compiler-skill` | {compiler_pin} |
 | frontend_implementation | missions | {frontend} | {frontend_pin} |
 | ui_quality_verification | quality | {direction} | {direction_pin} |
@@ -69,6 +69,7 @@ class SkillBindingTests(unittest.TestCase):
         self.skills = self.root / "skills"
         for name, body in (
             ("taste-skill", "# Taste one\n"),
+            ("frontend-design", "# Required author\n"),
             ("compiler-skill", "# Compiler one\n"),
             ("front-skill", "# Front one\n"),
         ):
@@ -92,6 +93,7 @@ class SkillBindingTests(unittest.TestCase):
             AGENTS_TEMPLATE.format(
                 direction=direction,
                 direction_pin=direction_pin,
+                style_pin=check_skill_bindings.hash_skill(self.skills / "frontend-design" / "SKILL.md"),
                 compiler_pin=compiler_pin
                 or check_skill_bindings.hash_skill(
                     self.skills / "compiler-skill" / "SKILL.md"
@@ -101,6 +103,15 @@ class SkillBindingTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+
+    def test_taste_cannot_replace_frontend_design_in_ui_stage(self) -> None:
+        self.write_agents("taste-skill", check_skill_bindings.hash_skill(self.skills / "taste-skill" / "SKILL.md"),
+                          "front-skill", check_skill_bindings.hash_skill(self.skills / "front-skill" / "SKILL.md"))
+        self.agents.write_text(self.agents.read_text(encoding="utf-8").replace(
+            "| style_integration | style pass | `frontend-design`", "| style_integration | style pass | taste-skill"),
+            encoding="utf-8")
+        findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills], stage="ui-design")
+        self.assertIn("style_integration requires frontend-design", "\n".join(findings))
 
     def test_pinned_unchanged_skills_pass(self) -> None:
         self.write_agents(
@@ -142,7 +153,7 @@ class SkillBindingTests(unittest.TestCase):
         )
         findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills])
         joined = "\n".join(findings)
-        self.assertEqual(4, joined.count("must bind exactly one skill name"))
+        self.assertEqual(3, joined.count("must bind exactly one skill name"))
 
     def test_project_template_keeps_slots_unresolved_until_owner_confirmation(self) -> None:
         template_path = (
@@ -165,6 +176,7 @@ class SkillBindingTests(unittest.TestCase):
         valid = AGENTS_TEMPLATE.format(
             direction="`taste-skill`",
             direction_pin=check_skill_bindings.hash_skill(self.skills / "taste-skill"),
+            style_pin=check_skill_bindings.hash_skill(self.skills / "frontend-design"),
             compiler_pin=check_skill_bindings.hash_skill(self.skills / "compiler-skill"),
             frontend="`front-skill`",
             frontend_pin=check_skill_bindings.hash_skill(self.skills / "front-skill"),
