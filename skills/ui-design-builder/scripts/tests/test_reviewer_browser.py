@@ -47,6 +47,8 @@ class ReviewerBrowserTests(unittest.TestCase):
                  "platformGroup": "App", "responsive": {"targets": ["compact", "regular"]}},
                 {"id": "UI-002", "page": "details.html", "route": "/details", "states": ["ready", "empty"],
                  "platformGroup": "Web", "responsive": {"targets": ["390", "1200"]}},
+                {"id": "UI-003", "page": "settings.html", "route": "/settings", "states": ["ready", "error"],
+                 "platformGroup": "App", "responsive": {"targets": ["compact", "regular"]}},
             ]}
             css = ('<style>:root{--ink:rgb(12,34,56)}body{background:black!important}aside,section{background:rgb(255,0,0)!important}'
                    'button,section{font:32px serif!important}'
@@ -87,9 +89,15 @@ class ReviewerBrowserTests(unittest.TestCase):
                      '</main></div></body></html>')
             (source / "index.html").write_text(entry, encoding="utf-8")
             (source / "details.html").write_text(child, encoding="utf-8")
+            settings = ('<html><head>' + css + '</head><body><div data-hifi-canvas data-hifi-targets="compact regular" '
+                        'data-hifi-target="compact"><main data-ui-surface="UI-003"><h1>Settings</h1>'
+                        '<p data-hifi-state-view="ready">Ready</p><p data-hifi-state-view="error" hidden>Error</p>'
+                        '</main></div></body></html>')
+            (source / "settings.html").write_text(settings, encoding="utf-8")
             manifest_path = root / "manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-            assemble(manifest_path, [f"index.html={source / 'index.html'}", f"details.html={source / 'details.html'}"], bundle)
+            assemble(manifest_path, [f"index.html={source / 'index.html'}", f"details.html={source / 'details.html'}",
+                                     f"settings.html={source / 'settings.html'}"], bundle)
             script = r'''
 const {chromium}=require(process.argv[3]);
 const {pathToFileURL}=require('url');
@@ -175,6 +183,29 @@ const {pathToFileURL}=require('url');
   if(await page.locator('[data-hifi-spec="component"] [data-hifi-specimen-content]').evaluate(node=>getComputedStyle(node).fontWeight)!=='700')throw Error('state component specimen did not refresh');
   await page.locator('reviewer-shell').locator('[data-hifi-target-control="compact"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-state-control="ready"]').click();
+  await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="settings.html"]').click();
+  await page.locator('[data-ui-surface="UI-003"]').waitFor();
+  await page.locator('reviewer-shell').locator('[data-hifi-target-control="regular"]').click();
+  await page.locator('reviewer-shell').locator('[data-hifi-state-control="error"]').click();
+  await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="index.html"]').click();
+  await page.locator('[data-ui-surface="UI-001"]').waitFor();
+  await page.locator('reviewer-shell').locator('[data-hifi-target-control="compact"]').click();
+  await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="settings.html"]').click();
+  await page.locator('[data-ui-surface="UI-003"]').waitFor();
+  if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='regular'||
+     await page.locator('[data-ui-surface="UI-003"]').getAttribute('data-hifi-state')!=='error')
+    throw Error('same-platform child selection was overwritten before navigation');
+  if(await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="settings.html"]').getAttribute('aria-current')!=='page')
+    throw Error('child sidebar current page was lost');
+  if(!await page.locator('[data-ui-surface="UI-003"] h1').evaluate(node=>node===document.activeElement))
+    throw Error('child product heading did not receive focus');
+  await page.goBack();
+  await page.locator('[data-ui-surface="UI-001"]').waitFor();
+  if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='compact'||
+     await page.locator('[data-ui-surface="UI-001"]').getAttribute('data-hifi-state')!=='ready')
+    throw Error('Back did not restore source page selection');
+  if(!await page.locator('[data-ui-surface="UI-001"] h1').evaluate(node=>node===document.activeElement))
+    throw Error('Back did not focus the source heading');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="overview"]').click();
   await page.locator('[data-hifi-state-coverage="UI-002 empty"]').click();
   await page.locator('[data-ui-surface="UI-002"]').waitFor();

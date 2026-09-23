@@ -373,7 +373,6 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       if (control.dataset.hifiStateSurface !== runtime.snapshot().surface) runtime.selectSurface(control.dataset.hifiStateSurface);
       runtime.selectState(control.dataset.hifiStateControl);
     });
-    for (const link of pageLinks) link.addEventListener("click", () => runtime.setPage(link.getAttribute("href")));
     function restoreRequestedState() {
       const hash = typeof window === "object" && window.location ? window.location.hash || "" : "";
       if (!hash.startsWith("#hifi-state=")) return;

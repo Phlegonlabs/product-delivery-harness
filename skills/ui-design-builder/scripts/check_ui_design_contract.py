@@ -16,7 +16,7 @@ from typing import Any
 
 import check_wireframe_html
 from motion_evidence import motion_findings
-from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, reviewer_contract, reviewer_evidence_findings
+from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -1100,6 +1100,7 @@ def _validate_hifi_bundle(
     if require_reviewer or current_reviewer:
         reviewer_errors, _ = reviewer_contract(documents, manifest)
         problems.extend(reviewer_errors)
+    problems.extend(product_control_findings(documents))
     if require_reviewer_v3:
         for name, page_html in documents.items():
             parser = ReviewerParser()

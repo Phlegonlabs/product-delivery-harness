@@ -477,6 +477,26 @@ def bundle_output(manifest, component_types=("button", "input", "select", "a"), 
 
 
 class UiDesignContractTests(unittest.TestCase):
+    def test_public_hifi_checker_binds_product_menu_and_tab_panels(self):
+        for kind, state_attr, panel in (("menu", "aria-expanded", "menu-panel"),
+                                        ("tab", "aria-selected", "tab-panel")):
+            for target, state, expected in ((panel, "false", None),
+                                            ("missing-panel", "false", "bind an existing panel"),
+                                            (panel, "invalid", f"declare {'expanded' if kind == 'menu' else 'selected'} state")):
+                with self.subTest(kind=kind, target=target, state=state), tempfile.TemporaryDirectory() as temp:
+                    path, _, scope = materialize_hifi_bundle(Path(temp))
+                    html = path.read_text(encoding="utf-8")
+                    html = html.replace('data-control-id="refresh"',
+                                        f'data-control-id="refresh" data-product-{kind} aria-controls="{target}" {state_attr}="{state}"', 1)
+                    html = html.replace('</main>', f'<section id="{panel}">Product panel</section></main>', 1)
+                    path.write_text(html, encoding="utf-8")
+                    problems = []
+                    checker._validate_hifi_surface(path, problems, scope)
+                    if expected is None:
+                        self.assertEqual([], problems)
+                    else:
+                        self.assertTrue(any(expected in problem for problem in problems), problems)
+
     def test_bundle_rejects_surfaces_on_the_wrong_page(self):
         for surface in ("UI-001", "UI-999"):
             with self.subTest(surface=surface), tempfile.TemporaryDirectory() as temp:
