@@ -624,7 +624,7 @@ def _reviewer_contract(documents, manifest):
 
 
 def product_control_findings(documents):
-    """Validate declared product menu/tab bindings without accepting shell links."""
+    """Validate native product controls and their same-surface panels."""
 
     errors = []
     for page, html in documents.items():
@@ -633,20 +633,33 @@ def product_control_findings(documents):
         parser.close()
         errors.extend(parser.errors)
         nodes = parser.nodes
-        node_ids = {
-            attrs.get("id")
-            for _, attrs, _ in nodes
-            if attrs.get("id")
-        }
+        node_ids = {}
+        for _, attrs, parents in nodes:
+            if attrs.get("id"):
+                node_ids.setdefault(attrs["id"], []).append((attrs, parents))
+
+        def product_surface(parents):
+            return next((parent for parent in reversed(parents) if "data-ui-surface" in parent), None)
+
         for tag, attrs, parents in nodes:
             if "data-product-menu" not in attrs and "data-product-tab" not in attrs:
                 continue
-            if not any("data-ui-surface" in parent for parent in parents):
+            surface = product_surface(parents)
+            if surface is None:
                 errors.append(f"HiFi {page} product menu/tab controls must stay inside a product surface")
             kind = "menu" if "data-product-menu" in attrs else "tab"
+            if tag != "button":
+                errors.append(f"HiFi {page} product {kind} control must be a native button")
             target_id = attrs.get("aria-controls")
-            if not target_id or target_id not in node_ids:
+            matches = node_ids.get(target_id, [])
+            if not matches:
                 errors.append(f"HiFi {page} product {kind} control must bind an existing panel")
+            elif (len(matches) != 1 or matches[0][0] is attrs or surface is None
+                  or product_surface(matches[0][1]) is not surface
+                  or "data-ui-surface" in matches[0][0]
+                  or any("data-hifi-panel" in item or "data-hifi-reviewer-shell" in item
+                         or "data-reviewer-shell" in item for item in [matches[0][0], *matches[0][1]])):
+                errors.append(f"HiFi {page} product {kind} control must bind one distinct panel inside the same product surface")
             if kind == "menu":
                 expanded = attrs.get("aria-expanded")
                 if expanded not in {"true", "false"}:

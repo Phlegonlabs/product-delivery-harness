@@ -29,7 +29,7 @@ Wireframe 与 HiFi 共用中性查看器：相同侧栏、字体、间距及控�
 
 审阅控件与面板使用 Shadow DOM，产品画布留在普通 DOM。实际状态控件会切换状态和尺寸内容；审阅选择按包件与平台保存，不跨包件混用。
 
-Wireframe、方向探索、HiFi 和修正强制使用 `frontend-design`。合并未答偏好，内部完成结构验证与 W1–W5，选定方向，再完成 Impeccable、H1–H9 与技术检查，最后一次人工审核完整 HiFi 的文案、结构、菜单、Tab、交互、视觉和 tokens。产品菜单必须前往实际目的地，Tab 必须切换内容；按 PRD operations 检查 Home、返回、取消、手机菜单、键盘、Escape 与焦点返回。
+Wireframe、方向探索、HiFi 和修正强制使用 `frontend-design`。合并未答偏好，内部完成结构验证与 W1–W5，选定方向，再完成 Impeccable、H1–H9 与技术检查，最后一次人工审核完整 HiFi 的文案、结构、菜单、Tab、交互、视觉和 tokens。产品菜单必须前往实际目的地，Tab 必须切换内容；按 PRD operations 检查 Home、返回、取消、手机菜单、键盘、Escape 与焦点返回。菜单和 Tab 控件使用原生按钮，且各自连接到同一产品界面内唯一、独立的面板。
 
 首次设计走完整流程；enhancement 只制作受影响页面及连接流程，并比较保留页面。日常修改直接验证当前产品及有效需求，不强制重建历史 Wireframe／HiFi。区分 source、已安装和 session 实际加载版本。新 `ui-output/3`／`ui-evidence/3` 保留真实观察、时间、工具、环境与候选哈希；机器结果不能伪造人工批准。旧格式保留历史语义。详见[审阅流程](skills/ui-design-builder/references/review-workflow.md)及[证据契约](skills/ui-design-builder/references/review-evidence.md)。
 

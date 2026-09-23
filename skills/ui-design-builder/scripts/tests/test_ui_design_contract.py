@@ -497,6 +497,37 @@ class UiDesignContractTests(unittest.TestCase):
                     else:
                         self.assertTrue(any(expected in problem for problem in problems), problems)
 
+    def test_public_hifi_checker_rejects_misdirected_product_controls(self):
+        for kind, state_attr in (("menu", "aria-expanded"), ("tab", "aria-selected")):
+            for case in ("overview", "design-tokens", "other-surface", "self-target", "duplicate-id", "role-button"):
+                with self.subTest(kind=kind, case=case), tempfile.TemporaryDirectory() as temp:
+                    path, _, scope = materialize_hifi_bundle(Path(temp))
+                    html = path.read_text(encoding="utf-8")
+                    control = (f'data-control-id="refresh" data-product-{kind} '
+                               f'aria-controls="target-panel" {state_attr}="false"')
+                    if case == "self-target":
+                        control += ' id="target-panel"'
+                    html = html.replace('data-control-id="refresh"', control, 1)
+                    if case in {"overview", "design-tokens"}:
+                        html = html.replace(f'data-hifi-panel="{case}"',
+                                            f'data-hifi-panel="{case}" id="target-panel"', 1)
+                    elif case == "other-surface":
+                        html = html.replace('</main>', '</main><main data-ui-surface="UI-999">'
+                                            '<section id="target-panel">Other surface</section></main>', 1)
+                    elif case in {"duplicate-id", "role-button"}:
+                        html = html.replace('</main>', '<section id="target-panel">Product panel</section></main>', 1)
+                    if case == "duplicate-id":
+                        html = html.replace('</main>', '<section id="target-panel">Duplicate</section></main>', 1)
+                    if case == "role-button":
+                        html = html.replace('<button class="product-button"',
+                                            '<div role="button" class="product-button"', 1)
+                        html = html.replace('>Refresh</button>', '>Refresh</div>', 1)
+                    path.write_text(html, encoding="utf-8")
+                    problems = []
+                    checker._validate_hifi_surface(path, problems, scope)
+                    expected = "native button" if case == "role-button" else "one distinct panel inside the same product surface"
+                    self.assertTrue(any(expected in problem for problem in problems), problems)
+
     def test_bundle_rejects_surfaces_on_the_wrong_page(self):
         for surface in ("UI-001", "UI-999"):
             with self.subTest(surface=surface), tempfile.TemporaryDirectory() as temp:
