@@ -104,21 +104,21 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_skill_owns_ui_after_product_approval(self):
         skill = self.read("SKILL.md")
         self.assertIn("name: ui-design-builder", skill)
-        self.assertIn("Product Definition Approval", skill)
+        self.assertIn("approved Product Definition", skill)
         self.assertIn("docs/design/ui-design.md", skill)
         self.assertIn("docs/design/wireframes.html", skill)
         self.assertIn("Do not use for product scope, backend architecture", skill)
 
     def test_human_intake_precedes_wireframe_and_style(self):
         skill = self.read("SKILL.md")
-        intake = skill.index("Run the **UI Design Intake Gate**")
-        wireframe = skill.index("Use `frontend-design` as the frontend-authoring resource")
-        style = skill.index("Run **Style Integration** with `frontend-design`")
-        review = skill.index("Run the **Impeccable Quality Review")
+        intake = skill.index("Combine unanswered design, imagery and motion questions into one intake")
+        wireframe = skill.index("author the affected structure using `references/wireframe-guide.md`")
+        style = skill.index("author the complete connected `ui-hifi/2` package")
+        review = skill.index("Run Impeccable critique/audit under the existing authorization")
         self.assertLess(intake, wireframe)
         self.assertLess(wireframe, style)
         self.assertLess(style, review)
-        self.assertIn("End the turn and wait", skill)
+        self.assertIn("Wait for the explicit human decision", skill)
 
     def test_frontend_design_authors_and_impeccable_reviews(self):
         skill = self.read("SKILL.md")
@@ -126,8 +126,8 @@ console.log("hybrid fallback and stale QA assertions completed");
         rubric = self.read("references/ui-grading-rubric.md")
         for content in (skill, pass_guide):
             self.assertIn("`frontend-design`", content)
-            self.assertIn("`impeccable critique`", content)
-            self.assertIn("`impeccable audit`", content)
+            self.assertIn("Impeccable", content)
+        self.assertIn("one `critique` and one `audit`", skill)
         self.assertIn("single design author", skill)
         self.assertIn("Impeccable", rubric)
         self.assertIn("`H1`–`H9`", pass_guide)
@@ -148,67 +148,60 @@ console.log("hybrid fallback and stale QA assertions completed");
             self.assertIn(marker, router)
         self.assertIn("Do not add GSAP merely because motion exists", router)
 
-    def test_new_wireframes_use_schema_four(self):
+    def test_new_wireframes_use_schema_five_and_keep_legacy_readability(self):
         checker = self.read("scripts/check_wireframe_html.py")
         template = self.read("assets/templates/WIREFRAMES.template.html")
         guide = self.read("references/wireframe-guide.md")
         for content in (checker, template, guide):
-            self.assertIn("wireframes/4", content)
+            self.assertIn("wireframes/5", content)
+        self.assertIn("wireframes/4", checker)
+        self.assertIn("wireframes/4", guide)
         self.assertIn("wireframes/3", checker)
         self.assertIn("Higgsfield MCP", template)
 
-    def test_copy_freeze_precedes_structural_approval(self):
+    def test_new_wireframe_validation_has_no_human_copy_or_structure_gate(self):
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         guide = self.read("references/wireframe-guide.md")
         self.assertLess(
-            skill.index("Run the **Copy Freeze Gate**"),
-            skill.index("Obtain explicit human Wireframe Approval"),
+            skill.index("Record `## Wireframe Validation`"),
+            skill.index("Present the complete current HiFi entry"),
         )
-        for marker in ("Copy Freeze:", "Copy owner:", "Copy locale:", "Copy approved on:"):
+        for marker in ("## Wireframe Validation", "Copy locale:", "Structure validation:", "### Frontend Design Usage"):
             self.assertIn(marker, contract)
+        self.assertNotIn("Copy Freeze:", contract)
+        self.assertNotIn("## Wireframe Approval", contract)
+        self.assertIn("Schema 5 has no human Copy Freeze or Wireframe Approval", guide)
         self.assertIn("--require-copy-approved", guide)
 
     def test_ui_gate_presentations_are_visible_complete_and_blocking(self):
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
-        guide = self.read("references/wireframe-guide.md")
         visual_pass = self.read("references/ui-design-pass.md")
 
-        self.assertLess(
-            skill.index("verified absolute Markdown links to the complete interactive"),
-            skill.index("Obtain explicit human Wireframe Approval"),
-        )
-        self.assertIn(
-            "verified absolute Markdown links to the complete current HiFi entrypoint",
-            skill,
-        )
+        self.assertLess(skill.index("Record `## Wireframe Validation`"), skill.index("Present the complete current HiFi entry"))
+        self.assertIn("verified absolute Markdown links", skill)
         self.assertIn("every manifest-listed sibling page", skill)
-        self.assertIn("affected `ui-design.md` design handoff", skill)
-        self.assertIn("complete actual candidate", contract)
-        for document in (skill, contract, guide, visual_pass):
+        self.assertIn("affected `ui-design.md` handoff", skill)
+        self.assertIn("complete actual HiFi candidate", contract)
+        for document in (skill, contract, visual_pass):
             with self.subTest(document=document[:50]):
                 self.assertIn("final logical paths in the authorized publication checkout", document)
-                self.assertIn("canonical files in the source checkout", document)
+                self.assertTrue("source checkout" in document or "canonical source paths" in document)
                 self.assertIn("Do not collect approval on `.ui-staging` paths", document)
                 self.assertNotIn("Use staging paths for an unapproved staged draft", document)
-        self.assertIn("Wait for the owner's explicit decision before continuing", contract)
-        self.assertIn("A changed candidate reopens the affected approval", contract)
+        self.assertIn("Wait for the owner's explicit decision", contract)
+        self.assertIn("a changed candidate reopens the affected decision", contract)
         self.assertIn("plain path cannot replace the links", contract)
-        self.assertIn("blocks approval readiness", contract)
-        self.assertIn("complete interactive current `wireframes.html`", guide)
-        self.assertIn("affected `ui-design.md` scope", guide)
-        self.assertIn("ask explicitly for Wireframe Approval", guide)
+        self.assertIn("block readiness", contract)
+        self.assertIn("validated `wireframes.html`", contract)
         self.assertIn("every manifest-listed sibling page", visual_pass)
         self.assertIn("ask explicitly for Visual Approval", visual_pass)
 
     def test_output_contract_keeps_tokens_after_visual_approval(self):
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
-        self.assertLess(
-            skill.index("Human Visual Approval"),
-            skill.index("Run the **Design System Need Gate** only after"),
-        )
+        self.assertLess(skill.index("Request one **Visual Approval**"), skill.index("Apply the **Design System Need Gate** after Visual Approval"))
         self.assertIn("Design author: frontend-design", contract)
         self.assertIn("Direction decision owner:", contract)
         self.assertIn("Impeccable critique:", contract)

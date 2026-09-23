@@ -8,17 +8,21 @@ import re
 TEMPLATE = Path(__file__).resolve().parents[2] / "assets/templates/HIFI_REVIEWER.template.html"
 _TEMPLATE = TEMPLATE.read_text(encoding="utf-8")
 REVIEWER_CSS = _TEMPLATE.split("<!-- hifi-reviewer:css:start -->", 1)[1].split("<!-- hifi-reviewer:css:end -->", 1)[0]
+REVIEWER_SEGMENT = '<!-- hifi-reviewer:css:start -->' + REVIEWER_CSS + '<!-- hifi-reviewer:css:end -->'
 REVIEWER_RUNTIME = _TEMPLATE.split("<!-- hifi-reviewer:runtime:start -->", 1)[1].split("<!-- hifi-reviewer:runtime:end -->", 1)[0]
-STYLE = '<style>:root{--ink:#243447}.product-button,.product-input,.product-select,.product-link,.product-feedback{color:var(--ink)}@container (max-width:779px){.product-feedback{padding:14px}}</style>' + REVIEWER_CSS
+STYLE = ('<style>:root{--ink:#243447}.product-button,.product-input,.product-select,.product-link,.product-feedback{color:var(--ink)}'
+         '[data-hifi-canvas][data-hifi-target="390"]{width:390px}[data-hifi-canvas][data-hifi-target="768"]{width:768px}'
+         '[data-hifi-canvas][data-hifi-target="1200"]{width:1200px}@container (max-width:779px){.product-feedback{padding:14px}}</style>'
+         + REVIEWER_SEGMENT)
 
 
-def shell(manifest, page="index.html", component_types=("button", "input", "select", "a")):
+def shell(manifest, page="index.html", component_types=("button", "input", "select", "a"), version=2):
     pages = list(dict.fromkeys(row["page"] for row in manifest["surfaces"]))
     targets = list(dict.fromkeys(
         str(target) for row in manifest["surfaces"] if row["page"] == page
         for target in row["responsive"]["targets"]
     ))
-    sidebar = ('<aside data-hifi-reviewer-shell data-hifi-reviewer-version="2" aria-label="HiFi review controls">'
+    sidebar = (f'<aside data-hifi-reviewer-shell data-hifi-reviewer-version="{version}" aria-label="HiFi review controls">'
                '<a data-hifi-review-view="overview" href="index.html#overview">Overview</a>'
                '<nav data-hifi-page-nav aria-label="Product screens">')
     sidebar += ''.join(
@@ -30,7 +34,19 @@ def shell(manifest, page="index.html", component_types=("button", "input", "sele
     for index, target in enumerate(targets):
         sidebar += (f'<button type="button" data-hifi-target-control="{target}" aria-pressed="{str(index == 0).lower()}">'
                     f'{target}px</button>')
-    sidebar += '</fieldset></aside>'
+    sidebar += '</fieldset>'
+    if version == 3:
+        sidebar += '<fieldset data-hifi-state-controls><legend>Product state</legend>'
+        for row in manifest["surfaces"]:
+            if row["page"] != page:
+                continue
+            for index, state in enumerate(row["states"]):
+                if str(state).casefold() in {"n/a", "na"}:
+                    continue
+                sidebar += (f'<button type="button" data-hifi-state-control="{escape(state)}" '
+                            f'data-hifi-state-surface="{escape(row["id"])}" aria-pressed="{str(index == 0).lower()}">{escape(state)}</button>')
+        sidebar += '</fieldset>'
+    sidebar += '</aside>'
     if page != "index.html":
         return sidebar
     overview = '<section data-hifi-panel="overview" hidden><h1 tabindex="-1">Overview</h1>'
@@ -76,11 +92,13 @@ def shell(manifest, page="index.html", component_types=("button", "input", "sele
             }[element]
             if kind == "token":
                 attrs += ' data-token-preview="color"'
+                if version == 3:
+                    attrs += ' data-token-purpose="Readable product text"'
             specs += f'<article {attrs}><h3>{escape(source_page)} — {escape(name)}</h3>{sample}<output></output><p>Source {source_page} {source} {prop}</p></article>'
     return sidebar + overview + specs + '</section>'
 
 
-def add_shell(html, manifest, page="index.html", component_types=("button", "input", "select", "a")):
+def add_shell(html, manifest, page="index.html", component_types=("button", "input", "select", "a"), version=2):
     """Install the same reusable reviewer fragment a site generator would inline."""
     html = re.sub(r'<!-- reviewer:start -->[\s\S]*?<!-- reviewer:end -->', '', html)
     html = html.replace(STYLE, '')
@@ -93,13 +111,14 @@ def add_shell(html, manifest, page="index.html", component_types=("button", "inp
     targets = ' '.join(str(target) for target in page_row["responsive"]["targets"])
     html = re.sub(r'<main data-ui-surface="([\w-]+)"', rf'<main data-hifi-reviewer-main><div data-hifi-canvas data-hifi-targets="{targets}" data-hifi-target="{page_row["responsive"]["targets"][0]}"><main data-ui-surface="\1"', html, count=1)
     html = html.replace('</main>', '</main></div></main>', 1)
-    fragment = ('<!-- reviewer:start -->' + shell(manifest, page, component_types)
+    fragment = ('<!-- reviewer:start -->' + shell(manifest, page, component_types, version)
                 + '<!-- reviewer:end -->' + REVIEWER_RUNTIME + '<script>connectHifiReviewer()</script>')
     return html.replace('</body>', fragment + '</body>')
 
 
-def _source_html(row, component_types=("button", "input", "select", "a")):
-    states = ''.join(f'<span hidden data-state="{escape(state)}" data-responsive-target="{escape(str(target))}"></span>'
+def _source_html(row, component_types=("button", "input", "select", "a"), version=2):
+    marker = 'data-hifi-state-view' if version == 3 else 'data-state'
+    states = ''.join(f'<span hidden {marker}="{escape(state)}" data-responsive-target="{escape(str(target))}">{escape(state)} view</span>'
                      for state in row["states"] for target in row["responsive"]["targets"])
     selection = (
         '<select class="product-select" data-retention-selected data-specimen-variant="default" data-specimen-state="default" aria-label="Retention choice"><option value="ready" selected>Ready</option></select>'
@@ -125,11 +144,11 @@ def _source_html(row, component_types=("button", "input", "select", "a")):
             + states + '</main></body></html>')
 
 
-def observations(manifest, component_types=("button", "input", "select", "a")):
+def observations(manifest, component_types=("button", "input", "select", "a"), version=2):
     """Synthesize receipts for validator tests only."""
     from hifi_reviewer import reviewer_contract
     source_rows = {row["page"]: row for row in manifest["surfaces"]}
-    documents = {page: add_shell(_source_html(source_rows[page], component_types), manifest, page, component_types) for page in source_rows}
+    documents = {page: add_shell(_source_html(source_rows[page], component_types, version), manifest, page, component_types, version) for page in source_rows}
     _, expected = reviewer_contract(documents, manifest)
     observed = dict(expected)
     observed["specimens"] = [dict(row, sourceValue="#243447", specimenValue="#243447", displayValue="#243447")

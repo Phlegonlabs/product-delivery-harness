@@ -21,10 +21,10 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 PDB_TESTS = Path(__file__).resolve().parents[3] / "product-definition-builder" / "scripts" / "tests"
 if str(PDB_TESTS) not in sys.path:
-    sys.path.insert(0, str(PDB_TESTS))
+    sys.path.append(str(PDB_TESTS))
 DS_TESTS = Path(__file__).resolve().parents[3] / "design-system-compiler" / "scripts" / "tests"
 if str(DS_TESTS) not in sys.path:
-    sys.path.insert(0, str(DS_TESTS))
+    sys.path.append(str(DS_TESTS))
 
 checker = importlib.import_module("check_ui_design_contract")
 
@@ -163,7 +163,7 @@ def wireframe_html(data: object) -> str:
     )
 
 
-def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False, motion_route: str = "CSS-WAAPI") -> tuple[Path, Path, Path, Path, Path, Path | None]:
+def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False, motion_route: str = "CSS-WAAPI", reviewer_version: int = 2) -> tuple[Path, Path, Path, Path, Path, Path | None]:
     from test_product_package_checker import valid_prd, valid_stack, ui_contract
     from test_wireframe_contract import render_html, wireframe_data
 
@@ -234,7 +234,11 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         encoding="utf-8",
     )
     if not legacy_hifi:
-        hifi.write_text(add_shell(hifi.read_text(encoding="utf-8"), json.loads(manifest), component_types=("a", "input")), encoding="utf-8")
+        product_html = hifi.read_text(encoding="utf-8")
+        if reviewer_version == 3:
+            product_html = re.sub(r' data-state="([^"]+)"',
+                                  r' data-state="\1" data-hifi-state-view="\1"', product_html)
+        hifi.write_text(add_shell(product_html, json.loads(manifest), component_types=("a", "input"), version=reviewer_version), encoding="utf-8")
     if legacy_hifi:
         legacy = json.loads(manifest)
         legacy = {"schema": "ui-hifi/1", "surfaces": [
@@ -287,7 +291,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
             "results": [dict(case, result="PASS") for case in evidence_cases],
         }
         if check_name == "hifi-browser":
-            output.update(bundle_output(json.loads(manifest), component_types=("a", "input")))
+            output.update(bundle_output(json.loads(manifest), component_types=("a", "input"), version=reviewer_version))
             output["schema"] = "ui-output/2"
             if legacy_hifi:
                 output["schema"] = "ui-output/1"
@@ -322,7 +326,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
     for name, state in (("motion-normal.json", "normal"), ("motion-reduced.json", "reduced-motion")):
         motion_cases = [{"surface": "UI-001", "state": state, "target": str(target)} for target in (390, 768, 1200)]
         output_path = evidence_dir / name.replace(".json", "-output.json")
-        output = bundle_output(json.loads(manifest), component_types=("a", "input"))
+        output = bundle_output(json.loads(manifest), component_types=("a", "input"), version=reviewer_version)
         output.update({
             "schema": "ui-output/1" if legacy_hifi else "ui-output/2",
             "check": "motion-preview",
@@ -455,7 +459,7 @@ def materialize_hifi_bundle(root):
     return path, manifest, {"surfaces": [{key: value for key, value in row.items() if key != "page"} for row in surfaces]}
 
 
-def bundle_output(manifest, component_types=("button", "input", "select", "a")):
+def bundle_output(manifest, component_types=("button", "input", "select", "a"), version=2):
     output = {"sandbox": {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"},
               "console": [], "network": [], "navigation": [], "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0, "interactions": []}
     surfaces = {row["id"]: row for row in manifest["surfaces"]}
@@ -468,7 +472,7 @@ def bundle_output(manifest, component_types=("button", "input", "select", "a")):
                                                "destination": action["destination"], "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS"})
                 if action["kind"] == "navigate":
                     output["navigation"].append({"id": action["id"], "target": str(target), "trigger": trigger, "from": source["page"], "to": destination["page"]})
-    output["reviewer"] = observations(manifest, component_types)
+    output["reviewer"] = observations(manifest, component_types, version=version)
     return output
 
 

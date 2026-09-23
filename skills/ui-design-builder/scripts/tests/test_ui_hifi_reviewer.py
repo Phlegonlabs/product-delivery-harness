@@ -20,7 +20,7 @@ class HiFiReviewerTests(unittest.TestCase):
         checker._validate_hifi_surface(path, problems)
         self.assertEqual([], problems)
         checker._validate_hifi_surface(path, problems, require_connected=True)
-        self.assertTrue(any("current version-2 reviewer shell" in item for item in problems), problems)
+        self.assertTrue(any("current version-2 or version-3 reviewer shell" in item for item in problems), problems)
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

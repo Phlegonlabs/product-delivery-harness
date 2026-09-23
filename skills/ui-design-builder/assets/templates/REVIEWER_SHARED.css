@@ -1,0 +1,39 @@
+:root,:host{--review-shell:#e9eef6;--review-line:#c9d2df;--review-ink:#243447;--review-accent:#234f8a;--review-focus:#547cbe;--review-sidebar-width:236px;--review-font:"Inter",ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","Noto Sans CJK SC","Noto Sans CJK TC","Microsoft YaHei","PingFang TC","Hiragino Sans",Arial,sans-serif}
+[data-hifi-reviewer-shell],[data-hifi-reviewer-shell] *,[data-reviewer-shell],[data-reviewer-shell] *,[data-hifi-canvas],[data-hifi-panel]{box-sizing:border-box}
+[data-hifi-reviewer-shell],[data-reviewer-shell]{position:fixed;inset-block:0;left:0;z-index:20;inline-size:var(--review-sidebar-width);overflow:auto;padding:20px;background:var(--review-shell);color:var(--review-ink);border-right:1px solid var(--review-line);font-family:var(--review-font);font-size:14px;line-height:1.45}
+[data-hifi-reviewer-shell] a,[data-hifi-reviewer-shell] button,[data-reviewer-shell] a,[data-reviewer-shell] button{color:inherit;font:inherit}
+[data-hifi-reviewer-shell] a,[data-reviewer-shell] a{display:block;min-height:40px;margin:2px 0;padding:8px 10px;border:1px solid var(--review-line);border-radius:5px;background:#fff;text-decoration-thickness:2px}
+[data-hifi-reviewer-shell] a[aria-current="page"],[data-reviewer-shell] [aria-current="page"]{color:var(--review-accent);font-weight:700}
+[data-hifi-page-nav],fieldset[data-hifi-responsive-controls],fieldset[data-hifi-state-controls]{border:0;padding:0;margin:0 0 18px}
+fieldset[data-hifi-responsive-controls],fieldset[data-hifi-state-controls]{display:flex;flex-wrap:wrap;gap:4px}
+[data-hifi-reviewer-shell] legend,[data-reviewer-shell] .toolbar-label,[data-hifi-platform-group]{font-size:12px;font-weight:700;letter-spacing:.08em}
+[data-hifi-platform-group]{display:block;margin:14px 0 4px;color:var(--review-ink)}
+[data-hifi-target-control],[data-hifi-state-control]{display:inline-block;width:auto;min-height:40px;margin:0;padding:8px 10px;border:1px solid var(--review-line);border-radius:5px;background:white;cursor:pointer}
+[data-hifi-target-control][aria-pressed="true"]{border-color:var(--review-accent);color:var(--review-accent);font-weight:700}
+[data-hifi-reviewer-main],[data-reviewer-main]{margin-left:var(--review-sidebar-width);min-width:0;min-height:100vh;padding:24px;overflow:auto}
+[data-hifi-canvas]{container-type:inline-size;width:390px;max-width:none;overflow:auto}
+[data-hifi-panel]{max-width:960px;margin:0;padding:24px;background:#fff;color:var(--review-ink);font-family:var(--review-font);font-size:14px;line-height:1.45}
+[data-hifi-canvas][hidden],[data-hifi-panel][hidden]{display:none!important}
+[data-hifi-reviewer-shell] :focus-visible,[data-reviewer-shell] :focus-visible{outline:3px solid var(--review-focus);outline-offset:3px}
+[data-hifi-spec]{border-bottom:1px solid var(--review-line);padding:14px 0}
+[data-hifi-spec] output{display:block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+[data-hifi-spec="token"] [data-hifi-specimen-content]{display:block;max-width:100%;min-height:48px;overflow-wrap:anywhere}
+[data-token-preview="width"] [data-hifi-specimen-content],[data-token-preview="height"] [data-hifi-specimen-content]{background:#ddd;min-height:8px}
+[data-token-preview="gap"] [data-hifi-specimen-content]{display:flex;align-items:center}
+[data-token-preview="gap"] [data-hifi-specimen-content]::before,[data-token-preview="gap"] [data-hifi-specimen-content]::after{content:"";display:block;flex:0 0 24px;height:24px;background:currentColor}
+[data-token-preview="line-height"] [data-hifi-specimen-content]::after{content:"Second line";display:block}
+[data-token-preview="border-radius"] [data-hifi-specimen-content],[data-token-preview="border-width"] [data-hifi-specimen-content],[data-token-preview="box-shadow"] [data-hifi-specimen-content]{border:1px solid #888;padding:16px;width:160px}
+[data-token-preview="transition-duration"] [data-hifi-specimen-content],[data-token-preview="transition-timing-function"] [data-hifi-specimen-content]{transition-property:transform;transition-duration:600ms}
+[data-token-preview="transition-duration"] [data-hifi-specimen-content]:is(:hover,:focus-visible),[data-token-preview="transition-timing-function"] [data-hifi-specimen-content]:is(:hover,:focus-visible){transform:translateX(8px)}
+@media(prefers-reduced-motion:reduce){[data-hifi-spec="token"] [data-hifi-specimen-content]{transition:none!important;transform:none!important}}
+
+reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index:20}
+[data-reviewer-shell] .page-list{display:grid;gap:4px}
+[data-reviewer-shell] .page-button,[data-reviewer-shell] .control{display:block;width:100%;min-height:40px;margin:2px 0;padding:8px 10px;border:1px solid var(--review-line);border-radius:5px;background:white;color:var(--review-ink);text-align:left;cursor:pointer}
+[data-reviewer-shell] .page-button strong,[data-reviewer-shell] .page-button span{display:block}
+[data-reviewer-shell] .page-button span,[data-reviewer-shell] .sidebar-meta{font-size:12px}
+[data-reviewer-shell] .control-group{display:flex;flex-wrap:wrap;gap:4px}
+[data-reviewer-shell] .control-group .control{width:auto;margin:0}
+[data-reviewer-shell] .sidebar-controls{display:grid;gap:14px;margin-top:18px}
+[data-reviewer-shell] [aria-pressed="true"],[data-reviewer-shell] [aria-current="page"]{border-color:var(--review-accent);color:var(--review-accent);font-weight:700}
+[data-reviewer-shell] .platform-group{margin:14px 0 4px;font-size:12px;font-weight:700}
