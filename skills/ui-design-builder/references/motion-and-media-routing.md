@@ -32,7 +32,7 @@ After direction selection, a deterministic `motion` or `image + motion` row must
 
 For newly authored motion regions, attach `motionSpec` to the existing `mediaIntent`: non-empty `scope`, `behavior`, `space`, `compact`, `playback` and `cost` descriptions. Scope names the whole region or exact element; behavior includes the end state; space includes reserved height/pinning/scroll need; compact describes phone behavior; playback includes loop, interruption and replay; cost names loading/performance and dependency limits. Existing trigger and reducedMotionFallback remain authoritative. The canonical wireframe shows these as switchable reviewer annotations over the affected region and retains a visibly deferred placeholder. Never imply that annotated motion is implemented. New providers or dependencies keep their existing authorization/stack gates.
 
-## Implementation Routing After Wireframe Approval
+## Implementation Routing After Wireframe Validation
 
 - Use CSS transitions or the Web Animations API for small, deterministic state feedback. Do not add GSAP merely because motion exists.
 - Load `gsap-core` when the approved effect needs a scripted tween, responsive matchMedia behavior, or precise reusable easing.

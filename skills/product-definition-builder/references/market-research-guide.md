@@ -1,6 +1,6 @@
 # Market Research Guide
 
-Use this reference for the `market-research` role: a bounded, read-only research pass that runs after the core Markdown candidate is drafted but before the Stack Decision Checkpoint, Product Definition Approval, and Wireframe Approval. It reconciles the pre-draft evidence, reports what the package is missing, and returns evidence-based Platform Optimization Recommendations while every owner gate is still open.
+Use this reference for the `market-research` role: a bounded, read-only research pass that runs after the core Markdown candidate is drafted but before the Stack Decision Checkpoint, Product Definition Approval, and Wireframe Validation. It reconciles the pre-draft evidence, reports what the package is missing, and returns evidence-based Platform Optimization Recommendations while every owner gate is still open.
 
 This role does not draft the product. Requirements, architecture, UX, and stack decisions are already written when it starts. Its job is to check those drafts against what actually exists in the market and hand back two things: the `market-research.md` artifact and gap findings and optimization proposals for the parent to present before applying accepted changes.
 

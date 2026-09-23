@@ -8,7 +8,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `CLAUDE.md` | root | bootstrap | human + harness | imports `AGENTS.md` | |
 | `PRD.md` | `docs/product/` | PRD | product-definition-builder + owner approval | product definition | |
 | `ui-design.md` | `docs/design/` | Approved Product Definition (UI-bearing) | ui-design-builder + UI Design Intake / Visual Approval | UI decisions and evidence | |
-| `wireframes.html` | `docs/design/` | Approved PRD UI Surface Contract | ui-design-builder + Wireframe Approval | structural projection | |
+| `wireframes.html` | `docs/design/` | Approved PRD UI Surface Contract | ui-design-builder + Wireframe Validation | structural projection | |
 | `design-system.md` + `design-system.json` | `docs/design/` | Approved UI design when required | design-system-compiler | frozen visual contract | |
 | `architecture.md` | `docs/product/` | PRD | product-definition-builder | technical definition | |
 | `PRD.zh-TW.md`, `architecture.zh-TW.md` | `docs/product/` | PRD drafting and owner review | product-definition-builder | no; Chinese review copies of English sources | |

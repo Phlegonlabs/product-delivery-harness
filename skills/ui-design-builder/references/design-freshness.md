@@ -28,3 +28,7 @@ python "<ui-design-builder-skill-root>/scripts/check_design_freshness.py" --repo
 ```
 
 Input shape: `{ "schema": "design-observation/1", "skillDigest": "<sha256 or null>", "implementation": "not_started|started|unknown", "implementationEvidence": "<observed evidence>", "artifacts": [{ "path": "docs/design/wireframes.html", "sha256": "<sha256 or null>", "inputs": [{"path": "docs/product/PRD.md", "sha256": "<sha256 or null>"}] }] }`. Use one artifact entry per current design file, including HiFi siblings and compiled outputs. Inputs can name other design files. Null means unknown, never current. Store only non-secret product/design paths. Exit 0 means inventoried bytes and observed skill identities match, not design approval; 1 means review required; 2 means invalid input. The helper propagates stale upstream inputs to dependent artifacts even when their own bytes match.
+
+## After Delivery
+
+Routine maintenance is not a fresh design round. Pass `--task-record docs/epics/<current-epic>.md` when its existing record declares `Design workflow: maintenance`. The report labels old design drift `historical`; it does not claim those bytes are current, reuse browser proof or approve the product. Verify current requirements and accepted changes separately. Skill changes are classified as shell, format, rule or product-design changes before applying them; none automatically revokes all prior design decisions.

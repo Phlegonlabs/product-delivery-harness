@@ -20,6 +20,6 @@ Ask one product-specific set covering:
 
 Do not reuse a fixed aesthetic catalog. Derive the language and any choices from the product, audience, platform, tasks, content, market evidence, and existing brand. If the owner is unsure, offer two or three product-specific interpretations with a recommendation instead of generic labels such as `modern`, `clean`, or `premium`.
 
-The answer becomes the Visual Preference Brief in `ui-design.md`. End the turn and wait for the answer. Do not create a wireframe, Design Read, theme, token set, or HiFi candidate in this turn.
+Combine these with unresolved image and motion questions in one intake. Record existing answers in the Visual Preference Brief and continue. Wait only when an unanswered preference blocks authoring; do not ask again for decisions already supplied.
 
 Product-level accessibility, responsive destinations, exact routes, required actions, states, and copy responsibilities are frozen inputs, not preference questions. If an intake answer conflicts with them or the approved stack, record the conflict and return it to `product-definition-builder` rather than resolving it inside UI design.

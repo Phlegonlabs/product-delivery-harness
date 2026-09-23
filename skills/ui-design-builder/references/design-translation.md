@@ -6,7 +6,7 @@ Apply after the existing UI and motion intake, before full wireframe authoring. 
 
 - **Incremental** is the default: follow `enhancement-recommendations.md` and preserve unnamed scope.
 - **Full design rebuild with retained PRD** requires the owner's explicit instruction. It overrides incremental design preservation for the named full scope. Keep the approved PRD, architecture, stack, product copy, trace IDs and known usability failures as acceptance inputs. Do not reuse the old composition, component appearance, direction or design tokens as a starting point. Retain only brand assets or design constraints explicitly carried forward by the owner. Inspect old artifacts for inventory and recovery, not creative authority.
-- Start the rebuild from translation under the actually loaded skill contract. A current disk version does not prove a live session loaded it. Preserve old files and receipts until separately authorized replacement/archive. Create fresh wireframe and visual decisions; never relabel old approvals. Unchanged approved product wording can be reused, but confirm the new complete Copy Freeze inventory through its existing gate.
+- Start the rebuild from translation under the actually loaded skill contract. A current disk version does not prove a live session loaded it. Preserve old files and receipts until separately authorized replacement/archive. Create fresh wireframe and visual decisions; never relabel old approvals. Unchanged approved product wording can be reused, but validate the complete copy inventory and include it in the full HiFi review.
 - A retained PRD is not editable by implication. If a new rule conflicts with its behavior, languages, devices or stack, report the exact conflict to Product Definition. Continue independent work; never remove a requirement to fit a template.
 
 ## Translation Record
@@ -40,6 +40,6 @@ HTML is a review projection only. Native font metrics, keyboard, gestures, Voice
 
 ## Handoff To HiFi
 
-Fixed: product behavior/copy, information priority, region relationships, navigation destinations and responsive obligations. Provisional: prototype font choice, optical spacing, fine proportions, palette, radius, material and animation timing. HiFi can refine provisional values while preserving the fixed contract; behavior or structural changes return to their owner. Preserve the approved wireframe bytes.
+Fixed: product behavior/copy, information priority, region relationships, navigation destinations and responsive obligations. Provisional: prototype font choice, optical spacing, fine proportions, palette, radius, material and animation timing. HiFi can refine provisional values while preserving the fixed contract; behavior or structural changes return to their owner. Preserve validated schema-5 wireframe or approved legacy wireframe bytes.
 
 Use the existing direction studies to compare actual typography, composition, imagery and control treatment over identical content. Explain one product-specific visual thesis and focal point. Compare repeated components across pages and states, including bilingual and compact examples. Record source-bound screenshots and concrete before/after findings, not score-only claims. Do not add another direction approval gate.

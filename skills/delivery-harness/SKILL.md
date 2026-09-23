@@ -11,6 +11,10 @@ Every invocation uses `references/document-sync-contract.md`. Accepted enhanceme
 
 Project `AGENTS.md` also requires Repository Change Checkpoints at task start, significant change boundaries and completion/handoff, even outside Harness. Record meaningful local Git and working-tree changes in the relevant Epic without creating PLAN/RUN or a background watcher. Read-only tasks report proposed records without writing. Implement from canonical English PRD/architecture; Chinese review copies are not implementation sources.
 
+## Design And Maintenance Routing
+
+Classify UI work with `ui-design-builder/references/review-workflow.md`. Initial design and enhancements use the applicable design gates. Routine maintenance updates current product and effective requirements, verifies the change, and preserves historical design artifacts. A new product or stack decision returns upstream. Frozen RUNs keep their pinned contracts until a task boundary.
+
 ## Purpose
 
 Keep direct work simple; add PLAN/RUN orchestration only when coordination requires it.
@@ -18,8 +22,8 @@ Keep direct work simple; add PLAN/RUN orchestration only when coordination requi
 Keep upstream ownership separate:
 
 - `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, including complete frontend and backend architecture and technology decisions.
-- `ui-design-builder` owns `docs/design/ui-design.md`, UI Design Intake, approved `wireframes.html`, Style Integration, Impeccable review, PRD-bound scores, Visual Approval, and the HiFi target. `design-system-compiler`, with `frontend-design`, owns the design-system pair only when the Design System Need Gate is `required`.
-- This skill implements approved product/stack sources, `ui-design.md`, copy-frozen `wireframes.html`, and the active visual source. It preserves approved copy and dynamic display contracts. UI approval proves direction conformance, not representative-user usability; every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` technology rows are proposals, not scaffold authority. This skill invents no product, copy, stack, or design decisions.
+- `ui-design-builder` owns UI Design Intake, validated schema-5 wireframes or approved legacy wireframes, HiFi review, Visual Approval and the HiFi target. `design-system-compiler` owns a required design-system pair.
+- This skill implements current approved product/stack and applicable UI sources. Every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` stack rows are proposals. Do not invent product, copy, stack or design decisions.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
@@ -179,9 +183,9 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 Read `references/ui-implementation-contract.md` before UI implementation or review.
 
-- `design-system-compiler` owns compilation after approved Product Definition, UI design, Copy Freeze, wireframes, HiFi, and a `required` Design System Need Gate. Do not claim another skill exposes compilation mode.
+- `design-system-compiler` alone owns compilation when the Design System Need Gate is `required`.
 - UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
-- System-conformance mode obeys the frozen PRD UI Surface Contract, approved `ui-design.md`, `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the UI design gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser evidence, and tolerance in `ui-design.md`. A missing required input is a design-input delta, not local invention.
+- Initial/enhancement system-conformance uses current approved PRD, UI design, wireframe and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. Routine maintenance follows `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 - After the Final Visual Parity Loop, one read-only page-quality pass (`references/verification-gates.md`) runs on the exact head. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
 - Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
