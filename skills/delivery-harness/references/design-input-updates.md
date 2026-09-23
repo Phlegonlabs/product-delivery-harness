@@ -2,6 +2,10 @@
 
 Use this reference when the user provides a new or updated PRD, approved HTML wireframe, design system, design inspiration, or explicit page-faithful target for either a new build or an existing app refinement.
 
+## Design And Maintenance Routing
+
+First classify this round using `ui-design-builder/references/review-workflow.md`. Initial design, enhancements and an explicit full redesign use the applicable design gates below. Routine maintenance uses the current product, effective PRD and accepted changes: update affected requirements and the existing change record, modify and verify the product, and retain historical Wireframe/HiFi/tokens without mandatory regeneration. Historical visual differences alone are not a delivery block. A new product or stack decision still returns to its owning flow. An already frozen managed RUN keeps its pinned contract; reconcile at a task boundary rather than weakening its gates.
+
 ## Core Rule
 
 Classify every visual source before planning or implementation:
@@ -9,7 +13,7 @@ Classify every visual source before planning or implementation:
 - **Design inspiration** is non-canonical evidence. It can influence implementation only after `ui-design-builder` inspects it and the human owner approves the resulting scoped target or principles. When the Design System Need Gate is `required`, `design-system-compiler` compiles those approved consequences into the pair. A URL, screenshot, Figma frame, or market-research source is not implementation authority merely because it exists.
 - **Page-faithful target** is an explicit user requirement for visual conformance. Treat it as binding only after the user requests faithful matching and the readable source version, routes, states, responsive scope, and tolerance are frozen. Preserve it as version-bound evidence; do not broaden it beyond `ui-design.md`. UI Design Builder retains one connected all-screens HTML reference under `docs/design/ui-references/<run-id>/`; superseded versions archive under `docs/design/archived/`. Harness reads it only through the approved UI design contract, never by folder discovery.
 
-Implementation always works from the route's `UI-*` entry in `PRD.md`, approved `ui-design.md`, its copy-frozen interactive page in `wireframes.html`, and the active visual route. Static strings, action labels, feedback, and alternate-state messages are implementation-bound; dynamic examples are illustrative while their approved source/order/format/count/length/fallback contracts bind implementation. A `required` gate binds `design-system.md` and `design-system.json` together. A `not_required` gate binds the approved immutable page-faithful target instead. See `ui-implementation-contract.md`.
+For an initial delivery or design enhancement, implementation uses the route's `UI-*` entry in `PRD.md`, current approved `ui-design.md`, its copy-complete validated schema-5 `wireframes.html` (or the approved legacy wireframe), and the active visual route. Static strings, action labels, feedback, and alternate-state messages are implementation-bound; dynamic examples are illustrative while their approved source/order/format/count/length/fallback contracts bind implementation. A `required` gate binds `design-system.md` and `design-system.json` together. A `not_required` gate binds the approved immutable page-faithful target instead. Routine maintenance uses the current product and effective requirements as stated above. See `ui-implementation-contract.md`.
 
 A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply a new visual direction, token, variant, component, motion pattern, or structure directly. Return target or direction changes to `product-definition-builder`; return formal pair changes to `design-system-compiler`. Resume only against the revised active source.
 
@@ -31,7 +35,7 @@ A `frontend-design` result produced or requested during implementation is a prop
 Updated PRD: changed workflows, scope, roles, data, success criteria, non-goals
 Updated UI Design Intake: changed experience priority, guidance/control, density, interaction/layout, style, motion/media, references, validation depth, decision owner, or decision status
 Updated PRD UI surface contract: screen structure, navigation, page regions, content responsibilities, actions, state coverage, and per-screen copy status
-Updated approved wireframe: `wireframes.html` covering region order, grouping, element inventory, state placement, section labels, page switching, responsive rearrangement, exact static/action/feedback/alternate-state copy, dynamic display contracts, and Copy Freeze tied to `UI-*`, with approval recorded in `ui-design.md`
+Updated validated wireframe: `wireframes.html` covering region order, grouping, element inventory, state placement, section labels, page switching, responsive rearrangement, exact static/action/feedback/alternate-state copy, dynamic display contracts, and copy completeness tied to `UI-*`, with internal Wireframe Validation recorded in `ui-design.md` for schema 5 (legacy approvals retain their meaning)
 Updated design system: tokens, typography, spacing, radius, color, added/removed primitives, changed closed variant sets, interaction states, motion variants, product components, content contracts, state matrix, responsive set
 Design inspiration: screenshot, image, Figma frame, website, named product, or visual reference used only for confirmed design principles
 Page-faithful target: version-bound screenshot, Figma frame, mockup, handoff spec, or page target the user explicitly requires the implementation to match
@@ -68,7 +72,7 @@ Rules:
 - A delta can add, modify, or explicitly remove behavior.
 - Superseded requirements must be recorded; do not silently drop existing behavior.
 - A UI delta that changes visual values must record the styles, classes, and values it supersedes and name every call site where the implementation removes them. Carrying a superseded style into the accepted delta's implementation is a contract violation, not a compatibility nicety.
-- A user-visible wording or dynamic display-contract change is a `structure` copy delta. Return the affected PRD `` `copy` `` anchors plus schema-4 copy items and screen `copyStatus` to draft, re-check text reflow across every affected responsive target and state, and renew Product Definition Approval, Copy Freeze, and Wireframe Approval before implementation.
+- A user-visible wording or dynamic display-contract change is a `structure` copy delta. Update the affected PRD `` `copy` `` anchors. In an active initial design or enhancement, return affected schema-5 copy items and screen `copyStatus` to draft, re-check text reflow across every affected responsive target and state, and renew Product Definition Approval, copy completeness, Wireframe Validation and affected Visual Approval before implementation. In routine maintenance, update effective requirements and the product with focused verification; do not regenerate historical design artifacts solely to match an accepted change.
 - A backend or app delta must record the endpoints, business rules, queries, migrations, flags, jobs, and configuration it supersedes and name every call site where the implementation removes them — or record an explicit owner-accepted reason when a superseded surface is retained for compatibility. Silently carrying a superseded endpoint, rule, or flag forward alongside its replacement is a contract violation.
 - Design inspiration must return to `ui-design-builder`; only accepted, frozen consequences in `ui-design.md` may enter implementation.
 - Page-faithful targets must map to routes/screens, states, responsive breakpoints, source version, and acceptance tolerance.
@@ -76,8 +80,8 @@ Rules:
 - A design-system delta must name every route that uses the changed entry. A delta that removes an entry must state what replaces it at each call site; an entry that disappears from `design-system.json` while a route still uses it is a break, not a cleanup.
 - When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. When it is `not_required`, a target change returns to `ui-design-builder` and Human Visual Approval. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
-- Product behavior, wording, and dynamic display-contract deltas return to `product-definition-builder`. Copy Freeze, wireframe, style, motion/media, and HiFi-target deltas return to `ui-design-builder`, require renewed applicable human approval, and invalidate downstream visual sources until reconciled.
-- A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated: raise the set to at least three ascending viewports and carry the new target through `PRD.md`, `wireframes.html`, the design-system pair when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` stays readable at two targets and `wireframes/3` remains readable with its earlier media-intent shape; new work uses `wireframes/4`.
+- In active initial design or enhancement, new product behavior, wording, and dynamic display-contract decisions return to `product-definition-builder`; copy completeness, wireframe, style, motion/media, and HiFi-target deltas return to `ui-design-builder`. Renew the applicable decisions and checks on the affected scope. Routine maintenance follows the accepted current product and effective requirements without rewriting historical visual approvals.
+- A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated: raise the set to at least three ascending viewports and carry the new target through `PRD.md`, `wireframes.html`, the design-system pair when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` stays readable at two targets and `wireframes/3` remains readable with its earlier media-intent shape; new design work uses `wireframes/5`.
 - UI Design Intake deltas preserve their human owner, map to affected `UX-*`, `UI-*`, `MM-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
 ## Page-Faithful Target Matrix
@@ -117,7 +121,7 @@ M2 contract freeze and traceability
 M3 foundation/data/API if needed
 M4 required pair: tokens, primitives, and the UI contract check; not_required: target-conformance foundation
 M5 required pair: product components; not_required: shared style source only when the scoped UI needs it
-M6 route implementation from the active visual source + each route's PRD UI surface entry + approved wireframe
+M6 route implementation from the active visual source + each route's PRD UI surface entry + validated schema-5 or approved legacy wireframe
 M7 E2E and visual evidence
 ```
 
@@ -159,7 +163,7 @@ Stop and ask when:
 - An updated required design system conflicts with the approved page-faithful target.
 - A page-faithful target omits required states, breakpoints, source version, or tolerance.
 - A design inspiration source is being treated as code-side authority without an accepted, frozen `ui-design.md` update.
-- An in-scope route has no PRD UI surface entry, approved wireframe, or active visual source. In system-conformance mode, ask for an absent registry entry. In target-conformance mode, ask for missing target scope, state, responsive coverage, or tolerance. Do not improvise.
+- In initial design or enhancement, an in-scope route has no PRD UI surface entry, validated schema-5 or approved legacy wireframe, or active visual source. In system-conformance mode, ask for an absent registry entry. In target-conformance mode, ask for missing target scope, state, responsive coverage, or tolerance. Routine maintenance still requires current PRD/PLAN route, state and target coverage. Do not improvise.
 - A required design-system route can only be implemented by leaving the pair. The fix is a formal delta, not a page-local exception. A target-conformance route that needs a broader system returns to the Design System Need Gate instead of growing one silently.
 - A conformance-mode `frontend-design` pass proposes a value, variant, component, motion pattern, or page structure the frozen active source does not contain. Record it as a delta and stop; do not treat skill output as implicit approval.
 - Updated input would remove existing app behavior without explicit acceptance.
@@ -176,7 +180,7 @@ Design-input verification should include:
 - State coverage: required states and breakpoints are checked.
 - Behavior conformance: PRD workflow and data/API behavior still pass.
 - Design-system conformance: in system-conformance mode, tokens/components/variants follow the updated pair. In target-conformance mode, do not claim this gate.
-- Contract conformance: system-conformance implementation uses only entries `design-system.json` lists and runs the UI contract check; target-conformance implementation uses the smallest shared style source needed and runs page-to-target comparison at the recorded tolerance. Both follow the PRD and approved wireframe across the active responsive set in normal and reduced motion. Drift from the active source is a contract violation, not a stylistic difference.
+- Contract conformance: an active system-conformance design uses only entries `design-system.json` lists and runs the UI contract check; active target-conformance uses the smallest shared style source needed and runs page-to-target comparison at the recorded tolerance. Both follow the PRD and validated schema-5 or approved legacy wireframe across the active responsive set in normal and reduced motion. Routine maintenance checks current product behavior and affected regression consumers, preserving historical design bytes. Drift from an active source is a contract violation, not a stylistic difference.
 - Builder direction conformance: selected choices are reflected and provisional/assumed choices remain explicit; this proves direction conformance, not usability.
 - Usability evidence: when required, representative users or an approved equivalent complete the named task against the specified prototype or implementation; agent preference, screenshots, and automated E2E do not substitute for that evidence.
 - Regression: preserved routes, permissions, data behavior, content, analytics, and E2E journeys still pass.

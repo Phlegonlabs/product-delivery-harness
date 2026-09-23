@@ -7,7 +7,7 @@ import subprocess
 import unittest
 
 
-TEMPLATE = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+TEMPLATE = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
 
 
 class WireframeDesignSystemTests(unittest.TestCase):

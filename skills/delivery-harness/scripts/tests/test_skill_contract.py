@@ -75,9 +75,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.51.0"', package)
+        self.assertIn('"version": "0.52.0"', package)
         self.assertEqual(
-            "0.51.0",
+            "0.52.0",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -674,7 +674,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "`none`, `style`, `structure`, or `both`", contract
         )
-        self.assertIn("approved UI-design sources already reflect the change", contract)
+        self.assertIn("current UI-design sources reflect the change", contract)
+        self.assertIn("Routine maintenance", contract)
         self.assertIn("RUN `deviation_ledger`", gates)
         self.assertIn(
             "accumulated in-tolerance drift never substitutes for a doc update", gates
@@ -715,7 +716,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("responsive sets must agree", skill)
         self.assertIn("invariant `` `responsive` `` anchor", trace)
         self.assertIn("PRD's `UI-*` surface contract agree exactly", trace)
-        self.assertIn("missing or mismatched route, state, responsive set", ui_contract)
+        self.assertIn("Missing or mismatched route, state, responsive set", ui_contract)
+        self.assertIn("Routine maintenance checks the current accepted product", ui_contract)
         self.assertIn("unintended element overlap, clipping, occlusion", gates)
         self.assertIn("browser geometry/reviewer evidence", gates)
         self.assertIn("PRD_RESPONSIVE_RE", join)
@@ -1010,7 +1012,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.51.0"', runbook)
+        self.assertIn('"required_harness_version": "0.52.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1265,7 +1267,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("human-owned `ui-design.md`", goal)
         self.assertIn("ui-design.md", contract)
         self.assertIn("ui-design-builder", updates)
-        self.assertIn("every must-have `UX-*` trace", skill)
+        self.assertIn("Every must-have `UX-*` trace", skill)
         self.assertIn("## UX Direction And Usability Evidence", verification)
         self.assertIn("owner approval proves only direction conformance", verification)
         self.assertIn("## UX Evidence", runbook)

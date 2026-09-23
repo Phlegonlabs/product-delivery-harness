@@ -130,6 +130,10 @@ COMPOSITION_REGION_KEYS = {
     "mediaAspectRatio",
 }
 VALID_ACTION_PLACEMENTS = {"before", "after", "inline"}
+VALID_PLATFORM_GROUPS = {"App", "Web", "Admin"}
+NAVIGATION_CONTROL_KEYS = {"menus", "tabs"}
+MENU_CONTROL_KEYS = {"id", "label", "items", "targets", "defaultOpen"}
+TAB_CONTROL_KEYS = {"id", "label", "state"}
 LOCAL_SEARCH_KEYS = {
     "formRegion",
     "resultsRegion",
@@ -157,9 +161,18 @@ NON_HUMAN_OWNERS = {
     "model",
     "system",
 }
-WIREFRAME_SCHEMA = "wireframes/4"
-INTERACTIVE_WIREFRAME_SCHEMAS = {"wireframes/3", WIREFRAME_SCHEMA}
+WIREFRAME_V4_SCHEMA = "wireframes/4"
+WIREFRAME_V5_SCHEMA = "wireframes/5"
+WIREFRAME_SCHEMA = WIREFRAME_V4_SCHEMA
+CURRENT_WIREFRAME_SCHEMA = WIREFRAME_V5_SCHEMA
+COPY_WIREFRAME_SCHEMAS = {WIREFRAME_V4_SCHEMA, WIREFRAME_V5_SCHEMA}
+INTERACTIVE_WIREFRAME_SCHEMAS = {
+    "wireframes/3",
+    WIREFRAME_V4_SCHEMA,
+    WIREFRAME_V5_SCHEMA,
+}
 LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2", "wireframes/3"}
+VALID_STRUCTURE_STATUSES = {"draft", "validated", "blocked"}
 
 # Connected HiFi references are rendered as a local, offline review target.
 # Keep this policy closed and deterministic: a publication either carries this
@@ -1025,6 +1038,35 @@ def _validate_copy_freeze(data: dict[str, Any], problems: list[str]) -> bool:
     return status == "approved"
 
 
+def _validate_copy_inventory(data: dict[str, Any], problems: list[str]) -> bool:
+    """Validate the wireframes/5 locale inventory (not a human approval)."""
+
+    value = data.get("copyInventory")
+    path = "wireframe-data.copyInventory"
+    if not isinstance(value, dict) or set(value) != {"locale"}:
+        _add(problems, path, "must be an object with exactly locale")
+        return False
+    locale = value.get("locale")
+    if (
+        not _nonempty(locale)
+        or PLACEHOLDER_RE.search(locale) is not None
+        or LOCALE_RE.fullmatch(locale.strip()) is None
+    ):
+        _add(problems, f"{path}.locale", "must be a BCP 47-style language tag")
+        return False
+    return True
+
+
+def _validate_structure_status(data: dict[str, Any], problems: list[str]) -> None:
+    value = data.get("structureStatus")
+    if not isinstance(value, str) or value not in VALID_STRUCTURE_STATUSES:
+        _add(
+            problems,
+            "wireframe-data.structureStatus",
+            f"must be one of {sorted(VALID_STRUCTURE_STATUSES)}",
+        )
+
+
 def _add(problems: list[str], path: str, message: str) -> None:
     problems.append(f"{path}: {message}")
 
@@ -1043,7 +1085,7 @@ def _validate_media_intent(
     treatment = value.get("treatment")
     valid_treatments = (
         VALID_MEDIA_TREATMENTS
-        if schema == WIREFRAME_SCHEMA
+        if schema in COPY_WIREFRAME_SCHEMAS
         else LEGACY_MEDIA_TREATMENTS
     )
     if not isinstance(treatment, str) or treatment not in valid_treatments:
@@ -1053,7 +1095,7 @@ def _validate_media_intent(
             f"must be one of {sorted(valid_treatments)}",
         )
     required = ["draftPrompt", "source"]
-    if schema == WIREFRAME_SCHEMA:
+    if schema in COPY_WIREFRAME_SCHEMAS:
         required.extend(
             (
                 "purpose",
@@ -1065,7 +1107,7 @@ def _validate_media_intent(
     for key in required:
         if not _nonempty(value.get(key)):
             _add(problems, f"{path}.{key}", "must be a non-empty string")
-    if require_motion_spec and schema == WIREFRAME_SCHEMA and treatment in ("motion", "image + motion") and "motionSpec" not in value:
+    if require_motion_spec and schema in COPY_WIREFRAME_SCHEMAS and treatment in ("motion", "image + motion") and "motionSpec" not in value:
         _add(problems, f"{path}.motionSpec", "is required for strict schema-4 motion-region validation")
     if "motionSpec" in value:
         motion = value["motionSpec"]
@@ -1572,13 +1614,94 @@ def _validate_responsive_data(
     return target_keys
 
 
+def _declared_responsive_targets(data: dict[str, Any]) -> set[str]:
+    by_surface = data.get("responsiveBySurface")
+    if isinstance(by_surface, dict) and by_surface:
+        return {
+            _responsive_key(target)
+            for entry in by_surface.values()
+            if isinstance(entry, dict) and isinstance(entry.get("targets"), list)
+            for target in entry["targets"]
+        }
+    for key in ("viewports", "sizeClasses"):
+        if isinstance(data.get(key), list):
+            return {_responsive_key(target) for target in data[key]}
+    return set()
+
+
+def _validate_navigation_controls(
+    value: Any,
+    path: str,
+    *,
+    action_labels: set[str],
+    state_ids: set[str],
+    target_keys: set[str],
+    require_copy_approved: bool,
+    problems: list[str],
+) -> None:
+    if not isinstance(value, dict) or not set(value).issubset(NAVIGATION_CONTROL_KEYS) or not value:
+        _add(problems, path, "must contain menus, tabs, or both")
+        return
+    control_ids: set[str] = set()
+    for menu_index, menu in enumerate(value.get("menus", [])):
+        menu_path = f"{path}.menus[{menu_index}]"
+        if not isinstance(menu, dict) or set(menu) != MENU_CONTROL_KEYS:
+            _add(problems, menu_path, f"must contain exactly {sorted(MENU_CONTROL_KEYS)}")
+            continue
+        menu_id = menu.get("id")
+        if not _nonempty(menu_id):
+            _add(problems, f"{menu_path}.id", "must be a non-empty string")
+        elif menu_id in control_ids:
+            _add(problems, f"{menu_path}.id", f"duplicates {menu_id}")
+        else:
+            control_ids.add(menu_id)
+        _validate_copy_item(
+            menu.get("label"),
+            f"{menu_path}.label",
+            problems,
+            require_approved=require_copy_approved,
+        )
+        items = menu.get("items")
+        if not isinstance(items, list) or not items or not all(_nonempty(item) for item in items):
+            _add(problems, f"{menu_path}.items", "must be a non-empty action-label list")
+        elif len(items) != len(set(items)) or not set(items).issubset(action_labels):
+            _add(problems, f"{menu_path}.items", "must reference distinct actions declared in this region")
+        targets = menu.get("targets")
+        if not isinstance(targets, list) or not targets or not all(_nonempty(item) for item in targets):
+            _add(problems, f"{menu_path}.targets", "must be a non-empty responsive-target list")
+        elif len(targets) != len(set(targets)) or not set(targets).issubset(target_keys):
+            _add(problems, f"{menu_path}.targets", "must reference distinct declared responsive targets")
+        if not isinstance(menu.get("defaultOpen"), bool):
+            _add(problems, f"{menu_path}.defaultOpen", "must be boolean")
+    for tab_index, tab in enumerate(value.get("tabs", [])):
+        tab_path = f"{path}.tabs[{tab_index}]"
+        if not isinstance(tab, dict) or set(tab) != TAB_CONTROL_KEYS:
+            _add(problems, tab_path, f"must contain exactly {sorted(TAB_CONTROL_KEYS)}")
+            continue
+        tab_id = tab.get("id")
+        if not _nonempty(tab_id):
+            _add(problems, f"{tab_path}.id", "must be a non-empty string")
+        elif tab_id in control_ids:
+            _add(problems, f"{tab_path}.id", f"duplicates {tab_id}")
+        else:
+            control_ids.add(tab_id)
+        _validate_copy_item(
+            tab.get("label"),
+            f"{tab_path}.label",
+            problems,
+            require_approved=require_copy_approved,
+        )
+        if not _nonempty(tab.get("state")) or tab.get("state") not in state_ids:
+            _add(problems, f"{tab_path}.state", "must reference a state declared on this screen")
+
+
 def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool = False) -> list[str]:
     problems: list[str] = []
     if not isinstance(data, dict):
         return ["wireframe-data: must be a JSON object"]
 
     schema = data.get("schema")
-    supported_schemas = LEGACY_WIREFRAME_SCHEMAS | {WIREFRAME_SCHEMA}
+    supported_schemas = LEGACY_WIREFRAME_SCHEMAS | COPY_WIREFRAME_SCHEMAS
     if schema not in supported_schemas:
         _add(
             problems,
@@ -1586,19 +1709,33 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
             f"must be one of {sorted(supported_schemas)}",
         )
     interactive_contract = schema in INTERACTIVE_WIREFRAME_SCHEMAS
-    copy_contract = schema == WIREFRAME_SCHEMA
+    copy_contract = schema in COPY_WIREFRAME_SCHEMAS
+    schema_v5 = schema == WIREFRAME_V5_SCHEMA
 
-    for key in ("product", "approvalStatus", "source"):
+    for key in ("product", "source"):
         if not _nonempty(data.get(key)):
             _add(problems, f"wireframe-data.{key}", "must be a non-empty string")
 
-    status = data.get("approvalStatus")
-    if _nonempty(status) and status not in VALID_APPROVAL_STATUSES:
-        _add(
-            problems,
-            "wireframe-data.approvalStatus",
-            f"must be one of {sorted(VALID_APPROVAL_STATUSES)}",
-        )
+    if schema_v5:
+        _validate_structure_status(data, problems)
+        _validate_copy_inventory(data, problems)
+        for forbidden in ("approvalStatus", "copyFreeze"):
+            if forbidden in data:
+                _add(
+                    problems,
+                    f"wireframe-data.{forbidden}",
+                    f"is v4-only and must be absent from {WIREFRAME_V5_SCHEMA}",
+                )
+    else:
+        status = data.get("approvalStatus")
+        if not _nonempty(status):
+            _add(problems, "wireframe-data.approvalStatus", "must be a non-empty string")
+        elif status not in VALID_APPROVAL_STATUSES:
+            _add(
+                problems,
+                "wireframe-data.approvalStatus",
+                f"must be one of {sorted(VALID_APPROVAL_STATUSES)}",
+            )
     if data.get("source") != "PRD.md#UI-Surface-Contract":
         _add(
             problems,
@@ -1606,7 +1743,11 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
             "must be 'PRD.md#UI-Surface-Contract'",
         )
 
-    copy_is_frozen = _validate_copy_freeze(data, problems) if copy_contract else False
+    copy_is_frozen = (
+        _validate_copy_freeze(data, problems)
+        if schema == WIREFRAME_V4_SCHEMA
+        else False
+    )
 
     responsive_targets = _validate_responsive_data(data, problems)
     responsive_by_surface = data.get("_validatedResponsiveBySurface", {})
@@ -1619,6 +1760,7 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
     seen_screens: set[str] = set()
     seen_routes: dict[str, str] = {}
     actions_by_screen: dict[str, list[str]] = {}
+    action_controls_by_screen: dict[str, set[tuple[str, str]]] = {}
     action_regions_by_screen: dict[str, dict[str, set[str]]] = {}
     for screen_index, screen in enumerate(screens):
         path = f"wireframe-data.screens[{screen_index}]"
@@ -1662,6 +1804,12 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
                 )
         if "traces" in screen and not _string_list(screen["traces"]):
             _add(problems, f"{path}.traces", "must be a string list when present")
+        if "platformGroup" in screen and screen["platformGroup"] not in VALID_PLATFORM_GROUPS:
+            _add(
+                problems,
+                f"{path}.platformGroup",
+                f"must be one of {sorted(VALID_PLATFORM_GROUPS)} when supplied",
+            )
         if interactive_contract and "mediaIntent" in screen:
             if isinstance(screen["mediaIntent"], dict) and "motionSpec" in screen["mediaIntent"]:
                 _add(problems, f"{path}.mediaIntent.motionSpec", "place motionSpec on each affected region for visible boundaries")
@@ -1773,6 +1921,15 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
                 action_labels = actions
             if _nonempty(screen_id):
                 actions_by_screen.setdefault(screen_id, []).extend(action_labels)
+                if schema_v5 and isinstance(actions, list):
+                    for action_index, action in enumerate(actions):
+                        if not isinstance(action, dict):
+                            continue
+                        control_id = action.get("id")
+                        if not _nonempty(control_id):
+                            _add(problems, f"{region_path}.actions[{action_index}].id", "must name the product control in wireframes/5")
+                        elif _nonempty(action.get("label")):
+                            action_controls_by_screen.setdefault(screen_id, set()).add((control_id, action["label"]))
                 by_label = action_regions_by_screen.setdefault(screen_id, {})
                 for label in action_labels:
                     regions_for_label = by_label.setdefault(label, set())
@@ -1801,6 +1958,30 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
                                         require_approved=copy_is_frozen)
                     if isinstance(disclosure["label"], dict) and disclosure["label"].get("kind") != "static":
                         _add(problems, f"{region_path}.disclosure.label", "must be static navigation copy")
+            if schema == WIREFRAME_V5_SCHEMA and "controls" in region:
+                states = screen.get("states")
+                state_ids = {
+                    item.get("id")
+                    for item in (states if isinstance(states, list) else [])
+                    if isinstance(item, dict) and _nonempty(item.get("id"))
+                }
+                _validate_navigation_controls(
+                    region["controls"],
+                    f"{region_path}.controls",
+                    action_labels=set(action_labels),
+                    state_ids=state_ids,
+                    target_keys=_declared_responsive_targets(data),
+                    require_copy_approved=copy_is_frozen,
+                    problems=problems,
+                )
+                if _nonempty(screen_id) and isinstance(region["controls"], dict):
+                    tab_controls = region["controls"].get("tabs", [])
+                    for tab in (tab_controls if isinstance(tab_controls, list) else []):
+                        if isinstance(tab, dict) and _nonempty(tab.get("id")):
+                            label = tab.get("label")
+                            text = label.get("text") if isinstance(label, dict) else label
+                            if _nonempty(text):
+                                action_controls_by_screen.setdefault(screen_id, set()).add((tab["id"], text))
             if interactive_contract and "mediaIntent" in region:
                 _validate_media_intent(
                     region["mediaIntent"],
@@ -1862,7 +2043,7 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
             if not isinstance(layout, dict):
                 _add(problems, layout_path, "must be an object")
                 continue
-            if schema == WIREFRAME_SCHEMA and "composition" in layout:
+            if schema in COPY_WIREFRAME_SCHEMAS and "composition" in layout:
                 _validate_composition(
                     layout["composition"],
                     f"{layout_path}.composition",
@@ -2029,7 +2210,9 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
             )
 
     flows = data.get("flows")
-    flow_keys: list[tuple[str, str]] = []
+    flow_keys: list[tuple[str, ...]] = []
+    screens_by_id = {screen.get("id"): screen for screen in screens
+                     if isinstance(screen, dict) and _nonempty(screen.get("id"))}
     if flows is not None:
         if not isinstance(flows, list):
             _add(problems, "wireframe-data.flows", "must be a list when present")
@@ -2052,11 +2235,12 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
                         f"references unknown screen ID {origin}",
                     )
                 presentation = flow.get("presentation")
-                if interactive_contract and presentation not in VALID_FLOW_PRESENTATIONS:
+                allowed_presentations = VALID_FLOW_PRESENTATIONS | ({"state", "tab"} if schema_v5 else set())
+                if interactive_contract and presentation not in allowed_presentations:
                     _add(
                         problems,
                         f"{flow_path}.presentation",
-                        f"must be one of {sorted(VALID_FLOW_PRESENTATIONS)}",
+                        f"must be one of {sorted(allowed_presentations)}",
                     )
                 if (
                     interactive_contract
@@ -2076,26 +2260,48 @@ def _validate_data(data: Any, *, require_filled: bool, require_motion_spec: bool
                         problems,
                         require_approved=copy_is_frozen,
                     )
+                if schema_v5:
+                    source_state = flow.get("sourceState")
+                    control_id = flow.get("control")
+                    destination = flow.get("destination")
+                    origin_screen = screens_by_id.get(origin, {}) if isinstance(origin, str) else {}
+                    origin_states = {item.get("id") for item in origin_screen.get("states", []) if isinstance(item, dict)}
+                    if not _nonempty(source_state) or source_state not in origin_states:
+                        _add(problems, f"{flow_path}.sourceState", "must name a declared source screen state")
+                    if not _nonempty(control_id) or not isinstance(trigger, str) or (control_id, trigger) not in action_controls_by_screen.get(origin if isinstance(origin, str) else None, set()):
+                        _add(problems, f"{flow_path}.control", "must bind the visible product action ID and trigger")
+                    if not isinstance(destination, dict) or set(destination) != {"surface", "state"}:
+                        _add(problems, f"{flow_path}.destination", "must contain surface and state")
+                    else:
+                        destination_surface = destination.get("surface")
+                        destination_screen = screens_by_id.get(destination_surface, {}) if isinstance(destination_surface, str) else {}
+                        destination_states = {item.get("id") for item in destination_screen.get("states", []) if isinstance(item, dict)}
+                        if destination.get("state") not in destination_states:
+                            _add(problems, f"{flow_path}.destination.state", "must name a declared destination screen state")
+                        if presentation != "feedback" and target != destination.get("surface"):
+                            _add(problems, f"{flow_path}.to", "must equal destination.surface")
+                    if presentation == "feedback" and isinstance(flow.get("feedback"), dict) and target != flow["feedback"].get("text"):
+                        _add(problems, f"{flow_path}.to", "must equal the exact feedback copy")
                 if interactive_contract and _nonempty(origin) and _nonempty(trigger):
-                    flow_keys.append((origin, trigger))
+                    flow_keys.append((origin, trigger, flow.get("sourceState") if isinstance(flow.get("sourceState"), str) else "") if schema_v5 else (origin, trigger))
 
     if interactive_contract:
-        screens_by_id = {
-            screen.get("id"): screen
-            for screen in screens
-            if isinstance(screen, dict) and _nonempty(screen.get("id"))
-        }
         for origin, actions in actions_by_screen.items():
             for trigger in actions:
-                count = flow_keys.count((origin, trigger))
-                if count != 1:
+                count = sum(key[0] == origin and key[1] == trigger for key in flow_keys) if schema_v5 else flow_keys.count((origin, trigger))
+                if (count < 1 if schema_v5 else count != 1):
                     _add(
                         problems,
                         f"wireframe-data.actions.{origin}.{trigger}",
-                        f"must match exactly one outgoing flow (found {count})",
+                    f"must match {'at least one state-bound' if schema_v5 else 'exactly one'} outgoing flow (found {count})",
                     )
-        for origin, trigger in set(flow_keys):
+        for key in set(flow_keys):
+            origin, trigger = key[:2]
+            if schema_v5 and flow_keys.count(key) != 1:
+                _add(problems, f"wireframe-data.flows.{origin}.{trigger}", "must have one flow per source state and trigger")
             count = actions_by_screen.get(origin, []).count(trigger)
+            if schema_v5 and count < 1 and any(label == trigger for _, label in action_controls_by_screen.get(origin, set())):
+                continue
             if count < 1:
                 _add(
                     problems,
@@ -2165,6 +2371,7 @@ def validate(
     require_filled: bool = False,
     require_copy_approved: bool = False,
     require_approved: bool = False,
+    require_structure_validated: bool = False,
     prd_path: Path | None = None,
 ) -> list[str]:
     problems: list[str] = []
@@ -2207,8 +2414,14 @@ def validate(
         web_floor = (
             3 if data.get("schema") in INTERACTIVE_WIREFRAME_SCHEMAS else 2
         )
+        prd_data = dict(data)
+        if data.get("schema") == WIREFRAME_V5_SCHEMA:
+            # The current PRD contract still identifies typed copy joins by
+            # wireframes/4.  This is a local compatibility bridge for those
+            # checks only; it does not normalize the artifact or any approval.
+            prd_data["schema"] = WIREFRAME_V4_SCHEMA
         problems.extend(
-            validate_prd_wireframe_data(prd_text, data, web_floor=web_floor)
+            validate_prd_wireframe_data(prd_text, prd_data, web_floor=web_floor)
         )
 
     executable_code = _strip_javascript_comments(
@@ -2237,25 +2450,46 @@ def validate(
         if required not in active_text_or_code:
             _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
 
-    if data.get("schema") == WIREFRAME_SCHEMA:
+    if data.get("schema") in COPY_WIREFRAME_SCHEMAS:
         for required in ("copy-inventory", "inspector"):
             if required not in parser.active_ids:
                 _add(
                     problems,
                     str(html_path),
-                    f"missing wireframes/4 reviewer marker {required!r}",
+                    f"missing wireframes/4+ reviewer marker {required!r}",
                 )
         if "product-copy" not in parser.active_classes and "product-copy" not in executable_code:
             _add(
                 problems,
                 str(html_path),
-                "missing wireframes/4 reviewer marker 'product-copy'",
+                "missing wireframes/4+ reviewer marker 'product-copy'",
             )
-        if "copyFreeze" not in active_text_or_code:
+        if (
+            data.get("schema") == WIREFRAME_V4_SCHEMA
+            and "copyFreeze" not in active_text_or_code
+        ):
             _add(
                 problems,
                 str(html_path),
                 "missing wireframes/4 reviewer marker 'copyFreeze'",
+            )
+        if (
+            data.get("schema") == WIREFRAME_V5_SCHEMA
+            and "structureStatus" not in active_text_or_code
+        ):
+            _add(
+                problems,
+                str(html_path),
+                f"missing {WIREFRAME_V5_SCHEMA} reviewer marker 'structureStatus'",
+            )
+        if (
+            data.get("schema") == WIREFRAME_V5_SCHEMA
+            and "copyInventory" not in active_text_or_code
+        ):
+            _add(
+                problems,
+                str(html_path),
+                f"missing {WIREFRAME_V5_SCHEMA} reviewer marker 'copyInventory'",
             )
 
     if parser.link_tags:
@@ -2283,19 +2517,31 @@ def validate(
         if isinstance(claimed_copy_status, dict)
         else None
     )
-    if schema == WIREFRAME_SCHEMA and (
-        require_approved
-        or require_copy_approved
-        or data.get("approvalStatus") == "approved"
-        or claimed_copy_status == "approved"
-    ):
+    require_canonical_shell = (
+        schema == WIREFRAME_V4_SCHEMA
+        and (
+            require_approved
+            or require_copy_approved
+            or data.get("approvalStatus") == "approved"
+            or claimed_copy_status == "approved"
+        )
+    ) or (
+        schema == WIREFRAME_V5_SCHEMA
+        and data.get("structureStatus") == "validated"
+    )
+    if require_canonical_shell:
         actual_shell_sha = canonical_shell_sha256(html)
         try:
+            template_name = (
+                "WIREFRAMES.template.html"
+                if schema == WIREFRAME_V5_SCHEMA
+                else "WIREFRAMES_V4.template.html"
+            )
             template_path = (
                 Path(__file__).resolve().parents[1]
                 / "assets"
                 / "templates"
-                / "WIREFRAMES.template.html"
+                / template_name
             )
             canonical_shell_sha = canonical_shell_sha256(
                 template_path.read_text(encoding="utf-8")
@@ -2315,13 +2561,20 @@ def validate(
                 _add(
                     problems,
                     str(html_path),
-                    "approved wireframes/4 must use the exact canonical shell outside "
+                    f"validated/approved {schema} must use the exact canonical shell outside "
                     "the product JSON block (expected sha256 "
                     f"{canonical_shell_sha}, found {actual_shell_sha})",
                 )
 
     if require_approved and data.get("approvalStatus") != "approved":
-        _add(problems, "wireframe-data.approvalStatus", "must be 'approved'")
+        if schema == WIREFRAME_V5_SCHEMA:
+            _add(
+                problems,
+                "wireframe-data.schema",
+                "must be 'wireframes/4' for the human approval contract",
+            )
+        else:
+            _add(problems, "wireframe-data.approvalStatus", "must be 'approved'")
     copy_freeze = data.get("copyFreeze")
     copy_status = copy_freeze.get("status") if isinstance(copy_freeze, dict) else None
     if require_copy_approved and schema != WIREFRAME_SCHEMA:
@@ -2345,6 +2598,14 @@ def validate(
             )
         elif require_copy_approved or require_approved:
             _add(problems, "wireframe-data.copyFreeze.status", "must be 'approved'")
+    if require_structure_validated and schema != WIREFRAME_V5_SCHEMA:
+        _add(
+            problems,
+            "wireframe-data.schema",
+            f"must be '{WIREFRAME_V5_SCHEMA}' for structure validation",
+        )
+    elif require_structure_validated and data.get("structureStatus") != "validated":
+        _add(problems, "wireframe-data.structureStatus", "must be 'validated'")
 
     return problems
 
@@ -2360,6 +2621,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="require a schema-4 Copy Freeze before structural approval",
     )
     parser.add_argument("--require-approved", action="store_true")
+    parser.add_argument(
+        "--require-structure-validated",
+        action="store_true",
+        help=f"require a validated {WIREFRAME_V5_SCHEMA} structure",
+    )
     return parser.parse_args(argv)
 
 
@@ -2370,6 +2636,7 @@ def main(argv: list[str] | None = None) -> int:
         require_filled=args.require_filled,
         require_copy_approved=args.require_copy_approved,
         require_approved=args.require_approved,
+        require_structure_validated=args.require_structure_validated,
         prd_path=args.prd,
     )
     if problems:

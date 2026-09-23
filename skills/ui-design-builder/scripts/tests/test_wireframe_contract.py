@@ -339,11 +339,17 @@ def local_search_data():
 
 def render_html(data):
     payload = json.dumps(data, ensure_ascii=False)
+    schema = data.get("schema") if isinstance(data, dict) else None
+    template_name = (
+        "WIREFRAMES.template.html"
+        if schema == "wireframes/5"
+        else "WIREFRAMES_V4.template.html"
+    )
     template = (
         Path(__file__).resolve().parents[2]
         / "assets"
         / "templates"
-        / "WIREFRAMES.template.html"
+        / template_name
     ).read_text(encoding="utf-8")
     match = check_wireframe_html.DATA_BLOCK_RE.search(template)
     assert match is not None

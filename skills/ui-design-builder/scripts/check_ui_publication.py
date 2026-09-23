@@ -70,13 +70,15 @@ def validate(source: Path, root: Path, *, hifi: Path, required: bool = False,
                                     root / "docs/product/architecture.md",
                                     root / "docs/product/stack-decisions.md",
                                     repo_root=root, require_filled=True, require_approved=True)
+        modern = ui.is_structure_review((root / "docs/design/ui-design.md").read_text(encoding="utf-8"))
         problems += ui.validate(root / "docs/design/ui-design.md", repo_root=root,
                                 prd_path=root / "docs/product/PRD.md",
                                 wireframes_path=root / "docs/design/wireframes.html",
                                 hifi_path=root / hifi,
                                 design_system_markdown_path=root / "docs/design/design-system.md" if required else None,
                                 design_system_registry_path=root / "docs/design/design-system.json" if required else None,
-                                require_filled=True, require_wireframe_approved=True,
+                                require_filled=True, require_wireframe_approved=not modern,
+                                require_structure_validated=modern,
                                 require_visual_approved=True)
         if required:
             # ui.validate above verifies the formal pair and its source bindings.

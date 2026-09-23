@@ -276,6 +276,8 @@ def check_bindings(
         if slot not in STAGE_SLOTS[stage] and cell.strip("`") == pin == "pending":
             continue
         name = bound_skill_name(cell)
+        if slot == "style_integration" and slot in STAGE_SLOTS[stage] and name != "frontend-design":
+            findings.append("style_integration requires frontend-design; supplemental Taste skills cannot replace it")
         if name is None:
             findings.append(
                 f"line {number}: slot {slot!r} must bind exactly one skill name, "

@@ -7,7 +7,7 @@ Publish these files only when `docs/design/ui-design.md` records `Design System 
 - `docs/design/design-system.md`
 - `docs/design/design-system.json`
 
-The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved HiFi target; approved `wireframes/4` provides the structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. New approval authority belongs to `design-system/2`; `design-system/1` remains inspection-only and is rejected by the publication checker.
+The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved HiFi target; validated `wireframes/5` provides the structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. New approval authority belongs to `design-system/2`; `design-system/1` remains inspection-only and is rejected by the publication checker.
 
 ## `design-system.md`
 
@@ -25,7 +25,7 @@ Include only:
 Keep it the sole structured authority for:
 
 - platform, stack-bound rendering model/component foundation/styling semantics, styling mechanism, enforcement mode, token sources, and primitive sources;
-- `sourceBindings` for current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target bytes;
+- `sourceBindings` for current PRD, architecture, stack, `ui-design.md`, validated wireframes/5, and approved HiFi target bytes;
 - one global responsive verification set for homogeneous products, or one set per `surfaceContracts` entry for hybrids; copy the exact approved PRD/wireframe set, with at least three ascending web `viewports` or two native/desktop `sizeClasses`, plus each surface’s release/capture identity and approved stack semantics; hybrids omit global platform, styling mechanism, viewports, and size classes;
 - only the tokens the product uses;
 - four primitive layers with closed variant sets;
@@ -41,11 +41,11 @@ Keep it the sole structured authority for:
 - `ui-design.md` records an approved immutable target, source hash, routes and states, the exact PRD/wireframe responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
 - `wireframes.html` has human approval recorded in `ui-design.md`, and each `UI-*` page matches the PRD.
 - Each UI surface has one main purpose, one task-fit layout pattern, a real route or explicit `n/a`, and a density reason.
-- Every visible region carries the approved Copy Freeze: exact static strings and action labels, complete dynamic source/order/format/count/length/fallback contracts with representative examples, alternate-state copy, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
+- Every visible region carries the complete sourced copy: exact static strings and action labels, complete dynamic source/order/format/count/length/fallback contracts with representative examples, alternate-state copy, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
 - Public surfaces have bounded SEO fields, correct heading order, and image alt-text contracts.
 - Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a` at every responsive target.
 - Scope, routes, actions, content responsibilities, wireframe structure, responsive rearrangement, and trace IDs stay fixed across visual directions.
-- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and wireframe copy delta and requires renewed Copy Freeze approval.
+- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and wireframe copy delta and requires the full HiFi copy review.
 
 If product behavior or stack is missing, return a bounded Product Definition update. If UI direction or evidence is missing, return to `ui-design-builder`. Do not invent either in the design system.
 
@@ -66,7 +66,7 @@ python "<design-system-compiler-skill-root>/scripts/render_design_system_preview
 
 The first command emits UTF-8 HTML on stdout only after filled-pair and current-source validation. Capture those exact bytes at an authorized new destination; do not redirect over an existing artifact before validation succeeds. The second command is read-only and rejects changed pair bytes, stale sources, hand-edited or missing previews. It grants no approval and does not validate visual quality. Inspect the generated view in a browser and link it with the pair in the handoff.
 
-The Markdown/JSON pair remains the authority. The HTML is reproducible, contains no scripts, remote resources or imported product CSS, and is not a product route, a HiFi manifest page or a third hand-maintained contract. It is retained as a review artifact, so do not hide it with a broad generated-HTML ignore rule. Existing pairs are not rewritten merely to add a preview. Never replace or mutate the approved wireframe Draft view with formal values.
+The Markdown/JSON pair remains the authority. The HTML is reproducible, contains no scripts, remote resources or imported product CSS, and is not a product route, a HiFi manifest page or a third hand-maintained contract. It is retained as a review artifact, so do not hide it with a broad generated-HTML ignore rule. Existing pairs are not rewritten merely to add a preview. Wireframe has no Tokens view. Do not mutate historical artifacts when adding the separate formal preview.
 
 ### Pair Checks
 

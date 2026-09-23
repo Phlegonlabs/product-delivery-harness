@@ -16,7 +16,7 @@ from typing import Any
 
 import check_wireframe_html
 from motion_evidence import motion_findings
-from hifi_reviewer import has_current_reviewer_shell, reviewer_contract, reviewer_evidence_findings
+from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -33,6 +33,15 @@ from markdown_contract import active_text  # noqa: E402
 from release_targets import parse_release_targets  # noqa: E402
 from prd_ui_contract import parse_prd_ui_contract  # noqa: E402
 from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
+
+
+def is_structure_review(text: str) -> bool:
+    """New design rounds validate structure; they do not mint wireframe approval."""
+    return bool(re.search(r"^## Wireframe Validation\s*$", active_text(text), re.MULTILINE))
+
+
+def wireframe_heading(text: str) -> str:
+    return "## Wireframe Validation" if is_structure_review(text) else "## Wireframe Approval"
 
 
 REQUIRED_HEADINGS = (
@@ -344,7 +353,7 @@ def parse_ui_contract_view(text: str) -> tuple[dict[str, Any], list[str]]:
 
     active = active_text(text)
     source_section = _section(active, "## Source Product Definition") or ""
-    wireframe_section = _section(active, "## Wireframe Approval") or ""
+    wireframe_section = _section(active, wireframe_heading(active)) or ""
     style_section = _section(active, "## Style Integration") or ""
     visual_section = _section(active, "## Visual Approval") or ""
     gate_section = _section(active, "## Design System Need Gate") or ""
@@ -419,6 +428,7 @@ def parse_ui_contract_view(text: str) -> tuple[dict[str, Any], list[str]]:
     ) if replacement_values else {}
 
     view: dict[str, Any] = {
+        "structure_review": is_structure_review(active),
         "source_identities": sources,
         # Short aliases keep the exported view ergonomic while the longer
         # names remain the canonical serialized shape.
@@ -1041,7 +1051,7 @@ def _hifi_bundle_documents(path: Path, html: str, manifest: dict[str, Any]) -> d
 
 def _validate_hifi_bundle(
     path: Path, html: str, manifest: dict[str, Any], problems: list[str], scope: dict[str, Any] | None,
-    *, require_reviewer: bool = False,
+    *, require_reviewer: bool = False, require_reviewer_v3: bool = False,
 ) -> None:
     try:
         documents = _hifi_bundle_documents(path, html, manifest)
@@ -1056,7 +1066,7 @@ def _validate_hifi_bundle(
     for surface in surfaces:
         if (
             not isinstance(surface, dict)
-            or set(surface) != {"id", "page", "route", "states", "responsive", "navigation", "controls"}
+            or set(surface) - {"platformGroup"} != {"id", "page", "route", "states", "responsive", "navigation", "controls"}
             or not isinstance(surface.get("id"), str)
             or surface["id"] in by_id
             or not isinstance(surface.get("page"), str)
@@ -1064,6 +1074,8 @@ def _validate_hifi_bundle(
         ):
             _add(problems, "HiFi bundle has an invalid, duplicate, or unmapped surface")
             return
+        if "platformGroup" in surface and surface["platformGroup"] not in {"App", "Web", "Admin"}:
+            _add(problems, "HiFi platformGroup must be App, Web or Admin")
         responsive = surface.get("responsive")
         if (
             not surface["id"].strip()
@@ -1088,9 +1100,19 @@ def _validate_hifi_bundle(
     if require_reviewer or current_reviewer:
         reviewer_errors, _ = reviewer_contract(documents, manifest)
         problems.extend(reviewer_errors)
+    problems.extend(product_control_findings(documents))
+    if require_reviewer_v3:
+        for name, page_html in documents.items():
+            parser = ReviewerParser()
+            parser.feed(page_html)
+            parser.close()
+            shells = [attrs for tag, attrs, _ in parser.nodes
+                      if tag == "aside" and "data-hifi-reviewer-shell" in attrs]
+            if len(shells) != 1 or shells[0].get("data-hifi-reviewer-version") != "3":
+                _add(problems, f"HiFi {name} requires reviewer shell version 3 for new Visual Approval")
     product_controls: dict[tuple[str, str], list[dict[str, str | None]]] = {}
     for name, page_html in documents.items():
-        page_surfaces = [{key: value for key, value in row.items() if key != "page"} for row in surfaces if row["page"] == name]
+        page_surfaces = [{key: value for key, value in row.items() if key not in {"page", "platformGroup"}} for row in surfaces if row["page"] == name]
         if not page_surfaces:
             _add(problems, f"HiFi bundle page has no product surface: {name}")
             continue
@@ -1168,7 +1190,7 @@ def _validate_hifi_bundle(
 
 def _validate_hifi_surface(
     path: Path, problems: list[str], scope: dict[str, Any] | None = None,
-    *, require_connected: bool = False,
+    *, require_connected: bool = False, require_reviewer_v3: bool = False,
 ) -> None:
     try:
         html = path.read_text(encoding="utf-8")
@@ -1178,7 +1200,8 @@ def _validate_hifi_surface(
         _add(problems, f"Connected HiFi reference cannot be read: {exc}")
         return
     if isinstance(manifest, dict) and manifest.get("schema") == "ui-hifi/2":
-        _validate_hifi_bundle(path, html, manifest, problems, scope, require_reviewer=require_connected)
+        _validate_hifi_bundle(path, html, manifest, problems, scope,
+                              require_reviewer=require_connected, require_reviewer_v3=require_reviewer_v3)
     else:
         if require_connected:
             _add(problems, "Visual approval requires ui-hifi/2; schema-1 HiFi is inspection-only")
@@ -1460,7 +1483,7 @@ def _validate_target_scope_join(
     prd_surfaces, prd_findings = parse_prd_ui_contract(
         prd_text,
         require_responsive=True,
-        require_copy=wireframe_data.get("schema") == check_wireframe_html.WIREFRAME_SCHEMA,
+        require_copy=wireframe_data.get("schema") in {"wireframes/4", "wireframes/5"},
         web_floor=3 if wireframe_data.get("schema") in check_wireframe_html.INTERACTIVE_WIREFRAME_SCHEMAS else 2,
     )
     problems.extend(f"target scope PRD: {finding}" for finding in prd_findings)
@@ -1655,6 +1678,9 @@ def _resolve_evidence(
     expected_check: str | None = None,
     expected_matrix: dict[str, list[str]] | None = None,
     expected_motion: dict[str, Any] | None = None,
+    require_machine: bool = False,
+    recorded_scores: dict[str, int | None] | None = None,
+    required_inputs: list[dict[str, str]] | None = None,
 ) -> None:
     parsed = _pass_evidence(value, label, problems)
     if parsed is None:
@@ -1679,11 +1705,17 @@ def _resolve_evidence(
     if not isinstance(evidence, dict):
         _add(problems, f"{label} evidence must be a JSON object")
         return
-    if set(evidence) != {"schema", "check", "result", "reviewedArtifact", "receipt", "attestation", "owner"}:
+    machine = evidence.get("schema") == "ui-evidence/3"
+    if require_machine and not machine:
+        _add(problems, f"{label} requires ui-evidence/3 machine observation, separate from human approval")
+    evidence_keys = {"schema", "check", "result", "reviewedArtifact", "receipt"}
+    if not machine:
+        evidence_keys.update({"attestation", "owner"})
+    if set(evidence) != evidence_keys:
         _add(problems, f"{label} evidence has an invalid ui-evidence/2 key set")
         return
     expected_check = expected_check or EVIDENCE_CHECKS.get(label)
-    if evidence.get("schema") != EVIDENCE_SCHEMA or evidence.get("result") != "PASS":
+    if evidence.get("schema") != ("ui-evidence/3" if machine else EVIDENCE_SCHEMA) or evidence.get("result") != "PASS":
         _add(problems, f"{label} evidence must record schema ui-evidence/2 and result PASS")
     if expected_check is None or evidence.get("check") != expected_check:
         _add(problems, f"{label} evidence check must be {expected_check}")
@@ -1712,7 +1744,7 @@ def _resolve_evidence(
                     _add(problems, f"{label} evidence reviewedArtifact sha256 does not match current bytes")
                 if expected_artifact is not None and artifact_path.casefold() != expected_artifact.casefold():
                     _add(problems, f"{label} evidence reviewedArtifact must be {expected_artifact}")
-    if evidence.get("attestation") != "human-attested":
+    if not machine and evidence.get("attestation") != "human-attested":
         _add(problems, f"{label} evidence must be explicitly human-attested")
     if not isinstance(receipt, dict) or set(receipt) != {"tool", "method", "matrix", "results", "outputArtifact", "executedAt"}:
         _add(problems, f"{label} evidence receipt must contain tool, method, matrix, results, outputArtifact, and executedAt")
@@ -1829,6 +1861,10 @@ def _resolve_evidence(
                                 expected_output_keys.add("reviewer")
                             if expected_motion is not None:
                                 expected_output_keys.add("motion")
+                            if machine:
+                                expected_output_keys.add("execution")
+                                if any(term in str(expected_check) for term in ("grading", "critique", "audit")):
+                                    expected_output_keys.add("assessment")
                             if not isinstance(output_json, dict) or set(output_json) != expected_output_keys:
                                 _add(
                                     problems,
@@ -1836,7 +1872,7 @@ def _resolve_evidence(
                                     + ("sandboxed offline ui-output/1 transcript schema" if offline else "ui-output/1 schema"),
                                 )
                             elif (
-                                output_json.get("schema") != ("ui-output/2" if bundle is not None else "ui-output/1")
+                                output_json.get("schema") != ("ui-output/3" if machine else ("ui-output/2" if bundle is not None else "ui-output/1"))
                                 or output_json.get("check") != evidence.get("check")
                                 or output_json.get("subject") != evidence.get("reviewedArtifact")
                                 or output_json.get("matrix") != receipt.get("matrix")
@@ -1850,6 +1886,15 @@ def _resolve_evidence(
                                 if review_contract is not None:
                                     for finding in reviewer_evidence_findings(output_json.get("reviewer"), review_contract):
                                         _add(problems, finding)
+                            if machine and isinstance(output_json, dict):
+                                from review_evidence import execution_findings, assessment_findings, score_findings
+                                problems.extend(f"{label}: {item}" for item in execution_findings(repo_root, output_json, receipt, artifact))
+                                problems.extend(f"{label}: {item}" for item in assessment_findings(repo_root, output_json))
+                                captured = output_json.get("execution", {}).get("artifacts", []) if isinstance(output_json.get("execution"), dict) else []
+                                if any(binding not in captured for binding in (required_inputs or [])):
+                                    _add(problems, f"{label} execution must bind the current product and structural inputs")
+                                if recorded_scores is not None:
+                                    problems.extend(f"{label}: {item}" for item in score_findings(output_json, recorded_scores))
                             if expected_motion is not None and isinstance(output_json, dict):
                                 motion = output_json.get("motion")
                                 for finding in motion_findings(motion, expected_motion):
@@ -1872,7 +1917,7 @@ def _resolve_evidence(
         except (TypeError, ValueError):
             _add(problems, f"{label} evidence executedAt must be a past ISO-8601 timestamp")
     owner = evidence.get("owner")
-    if not isinstance(owner, str) or not _human_owner(owner):
+    if not machine and (not isinstance(owner, str) or not _human_owner(owner)):
         _add(problems, f"{label} evidence owner must be human")
 
 
@@ -2046,7 +2091,7 @@ def _wireframe_media_intents(
     except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         _add(problems, f"cannot read wireframe media intents: {exc}")
         return []
-    if not isinstance(value, dict) or value.get("schema") != check_wireframe_html.WIREFRAME_SCHEMA:
+    if not isinstance(value, dict) or value.get("schema") not in {"wireframes/4", "wireframes/5"}:
         return []
     found: list[dict[str, Any]] = []
 
@@ -2224,6 +2269,8 @@ def _resolve_motion_effect_evidence(
     *,
     repo_root: Path,
     problems: list[str],
+    require_machine: bool = False,
+    required_inputs: list[dict[str, str]] | None = None,
 ) -> None:
     for evidence_key, evidence in recorded.items():
         intent_id, motion_case = evidence_key.rsplit(":", 1)
@@ -2267,6 +2314,8 @@ def _resolve_motion_effect_evidence(
             ),
             expected_check=_evidence_check("motion", capture_mode),
             expected_matrix={"cases": cases},
+            require_machine=require_machine,
+            required_inputs=required_inputs,
             expected_motion={
                 "intent": intent_id, "scope": intent.get("scope"), "mode": motion_case,
                 "trigger": intent.get("trigger"), "endState": evidence.get("endState"),
@@ -2287,6 +2336,7 @@ def validate_text(
     *,
     require_filled: bool = False,
     require_wireframe_approved: bool = False,
+    require_structure_validated: bool = False,
     require_visual_approved: bool = False,
     allow_pending_design_system_pair: bool = False,
 ) -> list[str]:
@@ -2294,7 +2344,14 @@ def validate_text(
     problems: list[str] = []
     positions: list[int] = []
     sections: dict[str, str] = {}
-    for heading in REQUIRED_HEADINGS:
+    modern = is_structure_review(text)
+    structural_gate = require_structure_validated or require_wireframe_approved or require_visual_approved
+    if modern and require_wireframe_approved:
+        _add(problems, "--require-wireframe-approved is a legacy gate; use --require-structure-validated")
+    if require_structure_validated and not modern:
+        _add(problems, "--require-structure-validated requires Wireframe Validation")
+    headings = tuple(wireframe_heading(text) if item == "## Wireframe Approval" else item for item in REQUIRED_HEADINGS)
+    for heading in headings:
         matches = list(re.finditer(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE))
         if len(matches) != 1:
             _add(problems, f"requires exactly one {heading!r} heading")
@@ -2318,14 +2375,14 @@ def validate_text(
                 "Stack Decision Checkpoint",
             ),
             label="Source Product Definition",
-            require_filled=require_filled or require_wireframe_approved or require_visual_approved,
+            require_filled=require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved,
             problems=problems,
         )
-        if require_filled or require_wireframe_approved or require_visual_approved:
+        if require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved:
             for name in ("PRD source", "Architecture source", "Stack source"):
                 _source_syntax(values.get(name), name, problems)
         for name in ("Product Definition Approval", "Stack Decision Checkpoint"):
-            if (require_filled or require_wireframe_approved or require_visual_approved) and values.get(name, "").casefold() != "approved":
+            if (require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved) and values.get(name, "").casefold() != "approved":
                 _add(problems, f"{name} must be exactly approved")
 
     intake = sections.get("## UI Design Intake")
@@ -2342,7 +2399,7 @@ def validate_text(
         if require_filled and not _date(values.get("Decided on")):
             _add(problems, "UI Design Intake Decided on must be a real YYYY-MM-DD date")
         direction_mode = (values.get("Direction mode") or "").strip().casefold()
-        if (require_filled or require_wireframe_approved or require_visual_approved) and direction_mode not in VALID_DIRECTION_MODES:
+        if (require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved) and direction_mode not in VALID_DIRECTION_MODES:
             _add(
                 problems,
                 "UI Design Intake Direction mode must be one of "
@@ -2362,51 +2419,46 @@ def validate_text(
         raw_direction = motion_values.get("Motion direction", "")
         direction_parts = [part.strip() for part in raw_direction.split("—", 1)]
         direction = direction_parts[0].casefold()
-        if (require_filled or require_wireframe_approved or require_visual_approved) and direction not in VALID_MOTION_DIRECTIONS:
+        if (require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved) and direction not in VALID_MOTION_DIRECTIONS:
             _add(
                 problems,
                 "Motion And Media Intent Motion direction must be one of "
                 + ", ".join(sorted(VALID_MOTION_DIRECTIONS)),
             )
-        if require_filled or require_wireframe_approved or require_visual_approved:
+        if require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved:
             if len(direction_parts) != 2 or not _human_owner(direction_parts[1]):
                 _add(problems, "Motion And Media Intent Motion direction must include a human owner")
         motion_intents = _validate_motion_table(
             motion, require_filled=require_filled, problems=problems
         )
 
-    wireframe = sections.get("## Wireframe Approval")
+    wireframe = sections.get(wireframe_heading(text))
     wireframe_source_ok = False
     wireframe_path: Path | None = None
     if wireframe is not None:
         values = _require_fields(
             wireframe,
             (
-                "Wireframe",
-                "Frozen PRD basis",
-                "Copy Freeze",
-                "Copy owner",
-                "Copy locale",
-                "Copy approved on",
-                "Responsive surface check",
-                "UI grading",
-                "Wireframe score",
-                "W5 score",
-                "Wireframe lowest dimension",
-                "Wireframe blocks",
-                "Decision",
-                "Decision owner",
-                "Decided on",
+                "Wireframe", "Frozen PRD basis", "Copy locale",
+                "Responsive surface check", "UI grading", "Wireframe score",
+                "W5 score", "Wireframe lowest dimension", "Wireframe blocks",
+                "Structure validation",
+            ) if modern else (
+                "Wireframe", "Frozen PRD basis", "Copy Freeze", "Copy owner",
+                "Copy locale", "Copy approved on", "Responsive surface check",
+                "UI grading", "Wireframe score", "W5 score",
+                "Wireframe lowest dimension", "Wireframe blocks",
+                "Decision", "Decision owner", "Decided on",
             ),
             label="Wireframe Approval",
-            require_filled=require_filled or require_wireframe_approved or require_visual_approved,
+            require_filled=require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved,
             problems=problems,
         )
         wireframe_value = values.get("Wireframe")
-        wireframe_source_ok = _source_syntax(wireframe_value, "Wireframe", problems) if (require_filled or require_wireframe_approved or require_visual_approved) else False
+        wireframe_source_ok = _source_syntax(wireframe_value, "Wireframe", problems) if (require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved) else False
         if wireframe_source_ok and wireframe_value:
             wireframe_path = Path(wireframe_value.split(" @ ", 1)[0])
-        if require_filled or require_wireframe_approved or require_visual_approved:
+        if require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved:
             _source_syntax(values.get("Frozen PRD basis"), "Frozen PRD basis", problems)
             prd_identity = SOURCE_RE.fullmatch(
                 (_field(source, "PRD source") or "").strip()
@@ -2419,35 +2471,44 @@ def validate_text(
                 or prd_identity.group("sha256") != frozen_identity.group("sha256")
             ):
                 _add(problems, "Frozen PRD basis must exactly match Source Product Definition PRD source")
-        if require_wireframe_approved or require_visual_approved:
-            if values.get("Decision", "").casefold() not in VALID_WIREFRAME_DECISIONS:
-                _add(
-                    problems,
-                    "Wireframe Approval Decision must be one of "
-                    + ", ".join(sorted(VALID_WIREFRAME_DECISIONS)),
-                )
-            if values.get("Decision", "").casefold() != "approved":
-                _add(problems, "Wireframe Approval Decision must be approved")
-            if values.get("Copy Freeze", "").casefold() != "approved":
-                _add(problems, "Wireframe Approval Copy Freeze must be approved")
-            if not _human_owner(values.get("Copy owner")):
-                _add(problems, "Wireframe Approval Copy owner must be human")
-            if not check_wireframe_html.LOCALE_RE.fullmatch(
-                values.get("Copy locale", "").strip()
-            ):
-                _add(problems, "Wireframe Approval Copy locale must be a BCP 47 locale")
-            if not _date(values.get("Copy approved on")):
-                _add(
-                    problems,
-                    "Wireframe Approval Copy approved on must be a real YYYY-MM-DD date",
-                )
-            if not _human_owner(values.get("Decision owner")):
-                _add(problems, "Wireframe Approval Decision owner must be human")
-            if not _date(values.get("Decided on")):
-                _add(
-                    problems,
-                    "Wireframe Approval Decided on must be a real YYYY-MM-DD date",
-                )
+        if structural_gate:
+            if modern:
+                if values.get("Structure validation", "").casefold() != "validated":
+                    _add(problems, "Wireframe Validation Structure validation must be validated")
+                if not check_wireframe_html.LOCALE_RE.fullmatch(values.get("Copy locale", "").strip()):
+                    _add(problems, "Wireframe Validation Copy locale must be a BCP 47 locale")
+                for name in ("Copy Freeze", "Copy owner", "Copy approved on", "Decision owner", "Decided on"):
+                    if _field(wireframe, name) is not None:
+                        _add(problems, f"Wireframe Validation must not contain legacy approval field {name}")
+            else:
+                if values.get("Decision", "").casefold() not in VALID_WIREFRAME_DECISIONS:
+                    _add(
+                        problems,
+                        "Wireframe Approval Decision must be one of "
+                        + ", ".join(sorted(VALID_WIREFRAME_DECISIONS)),
+                    )
+                if values.get("Decision", "").casefold() != "approved":
+                    _add(problems, "Wireframe Approval Decision must be approved")
+                if values.get("Copy Freeze", "").casefold() != "approved":
+                    _add(problems, "Wireframe Approval Copy Freeze must be approved")
+                if not _human_owner(values.get("Copy owner")):
+                    _add(problems, "Wireframe Approval Copy owner must be human")
+                if not check_wireframe_html.LOCALE_RE.fullmatch(
+                    values.get("Copy locale", "").strip()
+                ):
+                    _add(problems, "Wireframe Approval Copy locale must be a BCP 47 locale")
+                if not _date(values.get("Copy approved on")):
+                    _add(
+                        problems,
+                        "Wireframe Approval Copy approved on must be a real YYYY-MM-DD date",
+                    )
+                if not _human_owner(values.get("Decision owner")):
+                    _add(problems, "Wireframe Approval Decision owner must be human")
+                if not _date(values.get("Decided on")):
+                    _add(
+                        problems,
+                        "Wireframe Approval Decided on must be a real YYYY-MM-DD date",
+                    )
             _pass_evidence(
                 values.get("Responsive surface check"),
                 "Responsive surface check",
@@ -2467,6 +2528,10 @@ def validate_text(
                 )
             if values.get("Wireframe blocks", "").casefold().strip() != "none":
                 _add(problems, "Wireframe blocks must be none")
+
+    if modern and (require_filled or structural_gate):
+        from review_evidence import author_usage_findings
+        problems.extend(author_usage_findings(text, require_hifi=require_visual_approved))
 
     if require_visual_approved:
         style = sections.get("## Style Integration", "")
@@ -2680,7 +2745,7 @@ def validate_text(
                 _add(problems, "Design System Need Gate existing pair disposition reason must be filled")
 
     if (
-        (require_wireframe_approved or require_visual_approved)
+        (require_structure_validated or require_wireframe_approved or require_visual_approved)
         and wireframe_path is not None
         and wireframe_source_ok
         and wireframe_path.exists()
@@ -2701,6 +2766,7 @@ def _validate_impl(
     _allow_pending_design_system_pair: bool = False,
     require_filled: bool = False,
     require_wireframe_approved: bool = False,
+    require_structure_validated: bool = False,
     require_visual_approved: bool = False,
 ) -> list[str]:
     try:
@@ -2711,13 +2777,15 @@ def _validate_impl(
         text,
         require_filled=require_filled,
         require_wireframe_approved=require_wireframe_approved,
+        require_structure_validated=require_structure_validated,
         require_visual_approved=require_visual_approved,
         allow_pending_design_system_pair=_allow_pending_design_system_pair,
     )
 
     active = active_text(text)
-    needs_repo_root = require_filled or require_wireframe_approved or require_visual_approved
-    approved_gate = require_wireframe_approved or require_visual_approved
+    modern = is_structure_review(active)
+    needs_repo_root = require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved
+    approved_gate = require_structure_validated or require_wireframe_approved or require_visual_approved
     if needs_repo_root and repo_root is None:
         _add(problems, "source verification requires --repo-root")
         return problems
@@ -2727,7 +2795,7 @@ def _validate_impl(
 
     root = repo_root.resolve()
     source = _section(active, "## Source Product Definition") or ""
-    wireframe = _section(active, "## Wireframe Approval") or ""
+    wireframe = _section(active, wireframe_heading(active)) or ""
     style = _section(active, "## Style Integration") or ""
     visual = _section(active, "## Visual Approval") or ""
     gate = _section(active, "## Design System Need Gate") or ""
@@ -2748,8 +2816,9 @@ def _validate_impl(
         label="Frozen PRD basis",
         problems=problems,
     )
-    _resolve_source(recorded_hifi, repo_root=root, label="Connected HiFi reference", problems=problems)
-    _resolve_target_source(recorded_target, repo_root=root, label="Approved target", problems=problems)
+    if not modern or require_visual_approved:
+        _resolve_source(recorded_hifi, repo_root=root, label="Connected HiFi reference", problems=problems)
+        _resolve_target_source(recorded_target, repo_root=root, label="Approved target", problems=problems)
 
     if require_visual_approved:
         _direction_comparison(style, _section(active, "## UI Design Intake") or "", None, problems, repo_root=root)
@@ -2790,7 +2859,7 @@ def _validate_impl(
         problems=problems,
     ) if approved_gate else wireframes_path
 
-    target_scope_for_evidence = _target_scope(recorded_target, "Approved target", problems) if approved_gate else None
+    target_scope_for_evidence = _target_scope(recorded_target, "Approved target", problems) if approved_gate and (not modern or require_visual_approved) else None
     capture_mode = (
         target_scope_for_evidence.get("captureMode")
         if isinstance(target_scope_for_evidence, dict)
@@ -2813,6 +2882,21 @@ def _validate_impl(
                 )
             ]
         }
+    if modern and checked_wireframe is not None and evidence_matrix is None:
+        data_for_matrix = _read_wireframe_data(checked_wireframe, problems)
+        if isinstance(data_for_matrix, dict):
+            evidence_matrix = {"cases": [
+                {"surface": screen["id"], "state": state["id"], "target": str(target)}
+                for screen in data_for_matrix.get("screens", [])
+                for state in screen.get("states", [])
+                for target in (data_for_matrix.get("responsiveBySurface", {}).get(screen["id"], {}).get("targets")
+                               or data_for_matrix.get("viewports") or data_for_matrix.get("sizeClasses") or [])
+            ]}
+            capture_mode = "mixed" if data_for_matrix.get("responsiveBySurface") else (
+                "hosted-browser" if data_for_matrix.get("viewports") else "native")
+    if modern and approved_gate:
+        from review_evidence import author_artifact_findings
+        problems.extend(author_artifact_findings(root, active, require_hifi=require_visual_approved))
     if require_visual_approved:
         checked_hifi = _require_exact_cli_path(
             hifi_path,
@@ -2822,7 +2906,8 @@ def _validate_impl(
             problems=problems,
         )
         if checked_hifi is not None:
-            _validate_hifi_surface(checked_hifi, problems, target_scope_for_evidence, require_connected=True)
+            _validate_hifi_surface(checked_hifi, problems, target_scope_for_evidence,
+                                   require_connected=True, require_reviewer_v3=modern)
             _resolve_source(
                 recorded_hifi,
                 repo_root=root,
@@ -2857,6 +2942,9 @@ def _validate_impl(
                 ),
                 expected_check=_evidence_check("HiFi UI grading" if field_name == "UI grading" else field_name, capture_mode),
                 expected_matrix=evidence_matrix,
+                require_machine=modern,
+                required_inputs=[identity for value in [*source_values.values(), recorded_wireframe] if (identity := _source_identity(value)) is not None],
+                recorded_scores={name: _score(_field(_section(active, "## HiFi Review") or "", name)) for name in ("HiFi score", "HiFi lowest dimension", "H2 score", "H4 score", "H5 score", "H7 score", "H8 score", "H9 score")} if field_name == "UI grading" else None,
             )
         _resolve_motion_effect_evidence(
             motion_effect_evidence,
@@ -2865,6 +2953,9 @@ def _validate_impl(
             recorded_hifi,
             repo_root=root,
             problems=problems,
+            require_machine=modern,
+            required_inputs=[identity for value in [*source_values.values(), recorded_wireframe]
+                             if (identity := _source_identity(value)) is not None],
         )
         if checked_hifi is not None:
             target_match = TARGET_SOURCE_RE.fullmatch((recorded_target or "").strip())
@@ -2889,6 +2980,10 @@ def _validate_impl(
                 ),
                 expected_check=_evidence_check("Wireframe UI grading" if field_name == "UI grading" else field_name, capture_mode),
                 expected_matrix=evidence_matrix,
+                require_machine=modern,
+                required_inputs=[identity for value in source_values.values()
+                                 if (identity := _source_identity(value)) is not None],
+                recorded_scores={name: _score(_field(wireframe, name)) for name in ("Wireframe score", "Wireframe lowest dimension", "W5 score")} if field_name == "UI grading" else None,
             )
 
     architecture_value = source_values.get("Architecture source")
@@ -2910,10 +3005,24 @@ def _validate_impl(
             check_wireframe_html.validate(
                 checked_wireframe,
                 require_filled=require_filled,
-                require_approved=approved_gate,
+                require_approved=approved_gate and not modern,
+                require_structure_validated=approved_gate and modern,
                 prd_path=checked_prd,
             )
         )
+
+    if modern and approved_gate and checked_prd is not None and checked_wireframe is not None:
+        from operation_coverage import coverage_findings
+        try:
+            wf_data = _read_wireframe_data(checked_wireframe, problems)
+            manifest = None
+            if require_visual_approved and checked_hifi is not None:
+                matches = list(HIFI_MANIFEST_RE.finditer(checked_hifi.read_text(encoding="utf-8")))
+                manifest = json.loads(matches[0].group("data")) if len(matches) == 1 else {}
+            if isinstance(wf_data, dict):
+                problems.extend(coverage_findings(checked_prd.read_text(encoding="utf-8"), wf_data, manifest))
+        except (OSError, UnicodeError, ValueError, TypeError) as exc:
+            _add(problems, f"operation coverage cannot be established: {exc}")
 
     if require_visual_approved and checked_prd is not None and checked_wireframe is not None:
         scope = _target_scope(recorded_target, "Approved target", problems)
@@ -3073,6 +3182,7 @@ def validate(
     design_system_registry_path: Path | None = None,
     require_filled: bool = False,
     require_wireframe_approved: bool = False,
+    require_structure_validated: bool = False,
     require_visual_approved: bool = False,
 ) -> list[str]:
     """Validate a UI contract for normal publication.
@@ -3092,6 +3202,7 @@ def validate(
         design_system_registry_path=design_system_registry_path,
         require_filled=require_filled,
         require_wireframe_approved=require_wireframe_approved,
+        require_structure_validated=require_structure_validated,
         require_visual_approved=require_visual_approved,
     )
 
@@ -3118,7 +3229,8 @@ def _validate_for_design_system_preflight(
         wireframes_path=wireframes_path,
         hifi_path=hifi_path,
         require_filled=True,
-        require_wireframe_approved=True,
+        require_wireframe_approved=not is_structure_review(ui_design_path.read_text(encoding="utf-8")),
+        require_structure_validated=is_structure_review(ui_design_path.read_text(encoding="utf-8")),
         require_visual_approved=True,
         _allow_pending_design_system_pair=True,
     )
@@ -3135,6 +3247,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--design-system-registry", type=Path)
     parser.add_argument("--require-filled", action="store_true")
     parser.add_argument("--require-wireframe-approved", action="store_true")
+    parser.add_argument("--require-structure-validated", action="store_true")
     parser.add_argument("--require-visual-approved", action="store_true")
     return parser.parse_args(argv)
 
@@ -3151,6 +3264,7 @@ def main(argv: list[str] | None = None) -> int:
         design_system_registry_path=args.design_system_registry,
         require_filled=args.require_filled,
         require_wireframe_approved=args.require_wireframe_approved,
+        require_structure_validated=args.require_structure_validated,
         require_visual_approved=args.require_visual_approved,
     )
     if problems:

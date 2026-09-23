@@ -39,19 +39,22 @@ if(rows[5].o.textContent!=='No valid CSS specimen for this value')throw Error('i
         result = subprocess.run([node, "-", str(TEMPLATE)], input=script, capture_output=True, encoding="utf-8", timeout=15)
         self.assertEqual(0, result.returncode, result.stderr)
 
-    def test_template_uses_exact_width_container_queries_without_scaling(self) -> None:
+    def test_template_uses_shared_shell_container_queries_without_scaling(self) -> None:
         self.assertTrue(TEMPLATE.is_file(), "reusable HiFi reviewer template is missing")
         html = TEMPLATE.read_text(encoding="utf-8")
         self.assertIn('data-hifi-canvas', html)
         self.assertIn("container-type:inline-size", html)
+        self.assertIn('data-hifi-reviewer-version="3"', html)
+        self.assertIn('data-hifi-platform-group', html)
+        self.assertIn('"Noto Sans CJK SC"', html)
         css = html.split("<!-- hifi-reviewer:css:start -->", 1)[1].split("<!-- hifi-reviewer:css:end -->", 1)[0]
         self.assertNotIn("@container", css, "product reflow belongs to the approved page")
         self.assertNotIn(".product-", css)
         self.assertNotIn("[data-ui-surface]", css)
         self.assertNotRegex(css, r"(?m)^\s*(?:body|\*)\s*\{")
-        self.assertIn('width:390px', html)
-        self.assertIn('width:768px', html)
-        self.assertIn('width:1200px', html)
+        shared = TEMPLATE.with_name("REVIEWER_SHARED.css").read_text(encoding="utf-8")
+        self.assertIn(shared.rstrip(), css)
+        self.assertNotIn('data-hifi-canvas][data-hifi-target="768"]', css)
         self.assertNotIn("@media", html.replace("@media(prefers-reduced-motion:reduce)", ""))
         self.assertIn("transition:none!important;transform:none!important", css)
         self.assertNotIn("transform:scale", html.replace(" ", "").lower())

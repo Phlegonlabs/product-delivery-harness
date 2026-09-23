@@ -4,49 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wireframes — &lt;Product Name&gt;</title>
-<!-- hifi-reviewer:css:start -->
-<style data-hifi-reviewer-css>
-:root,:host{--review-shell:#e9eef6;--review-line:#c9d2df;--review-ink:#243447;--review-accent:#234f8a;--review-focus:#547cbe;--review-sidebar-width:236px;--review-font:"Inter",ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","Noto Sans CJK SC","Noto Sans CJK TC","Microsoft YaHei","PingFang TC","Hiragino Sans",Arial,sans-serif}
-[data-hifi-reviewer-shell],[data-hifi-reviewer-shell] *,[data-reviewer-shell],[data-reviewer-shell] *,[data-hifi-canvas],[data-hifi-panel]{box-sizing:border-box}
-[data-hifi-reviewer-shell],[data-reviewer-shell]{position:fixed;inset-block:0;left:0;z-index:20;inline-size:var(--review-sidebar-width);overflow:auto;padding:20px;background:var(--review-shell);color:var(--review-ink);border-right:1px solid var(--review-line);font-family:var(--review-font);font-size:14px;line-height:1.45}
-[data-hifi-reviewer-shell] a,[data-hifi-reviewer-shell] button,[data-reviewer-shell] a,[data-reviewer-shell] button{color:inherit;font:inherit}
-[data-hifi-reviewer-shell] a,[data-reviewer-shell] a{display:block;min-height:40px;margin:2px 0;padding:8px 10px;border:1px solid var(--review-line);border-radius:5px;background:#fff;text-decoration-thickness:2px}
-[data-hifi-reviewer-shell] a[aria-current="page"],[data-reviewer-shell] [aria-current="page"]{color:var(--review-accent);font-weight:700}
-[data-hifi-page-nav],fieldset[data-hifi-responsive-controls],fieldset[data-hifi-state-controls]{border:0;padding:0;margin:0 0 18px}
-fieldset[data-hifi-responsive-controls],fieldset[data-hifi-state-controls]{display:flex;flex-wrap:wrap;gap:4px}
-[data-hifi-reviewer-shell] legend,[data-reviewer-shell] .toolbar-label,[data-hifi-platform-group]{font-size:12px;font-weight:700;letter-spacing:.08em}
-[data-hifi-platform-group]{display:block;margin:14px 0 4px;color:var(--review-ink)}
-[data-hifi-target-control],[data-hifi-state-control]{display:inline-block;width:auto;min-height:40px;margin:0;padding:8px 10px;border:1px solid var(--review-line);border-radius:5px;background:white;cursor:pointer}
-[data-hifi-target-control][aria-pressed="true"]{border-color:var(--review-accent);color:var(--review-accent);font-weight:700}
-[data-hifi-reviewer-main],[data-reviewer-main]{margin-left:var(--review-sidebar-width);min-width:0;min-height:100vh;padding:24px;overflow:auto}
-[data-hifi-canvas]{container-type:inline-size;width:390px;max-width:none;overflow:auto}
-[data-hifi-panel]{max-width:960px;margin:0;padding:24px;background:#fff;color:var(--review-ink);font-family:var(--review-font);font-size:14px;line-height:1.45}
-[data-hifi-canvas][hidden],[data-hifi-panel][hidden]{display:none!important}
-[data-hifi-reviewer-shell] :focus-visible,[data-reviewer-shell] :focus-visible{outline:3px solid var(--review-focus);outline-offset:3px}
-[data-hifi-spec]{border-bottom:1px solid var(--review-line);padding:14px 0}
-[data-hifi-spec] output{display:block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-[data-hifi-spec="token"] [data-hifi-specimen-content]{display:block;max-width:100%;min-height:48px;overflow-wrap:anywhere}
-[data-token-preview="width"] [data-hifi-specimen-content],[data-token-preview="height"] [data-hifi-specimen-content]{background:#ddd;min-height:8px}
-[data-token-preview="gap"] [data-hifi-specimen-content]{display:flex;align-items:center}
-[data-token-preview="gap"] [data-hifi-specimen-content]::before,[data-token-preview="gap"] [data-hifi-specimen-content]::after{content:"";display:block;flex:0 0 24px;height:24px;background:currentColor}
-[data-token-preview="line-height"] [data-hifi-specimen-content]::after{content:"Second line";display:block}
-[data-token-preview="border-radius"] [data-hifi-specimen-content],[data-token-preview="border-width"] [data-hifi-specimen-content],[data-token-preview="box-shadow"] [data-hifi-specimen-content]{border:1px solid #888;padding:16px;width:160px}
-[data-token-preview="transition-duration"] [data-hifi-specimen-content],[data-token-preview="transition-timing-function"] [data-hifi-specimen-content]{transition-property:transform;transition-duration:600ms}
-[data-token-preview="transition-duration"] [data-hifi-specimen-content]:is(:hover,:focus-visible),[data-token-preview="transition-timing-function"] [data-hifi-specimen-content]:is(:hover,:focus-visible){transform:translateX(8px)}
-@media(prefers-reduced-motion:reduce){[data-hifi-spec="token"] [data-hifi-specimen-content]{transition:none!important;transform:none!important}}
-
-reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index:20}
-[data-reviewer-shell] .page-list{display:grid;gap:4px}
-[data-reviewer-shell] .page-button,[data-reviewer-shell] .control{display:block;width:100%;min-height:40px;margin:2px 0;padding:8px 10px;border:1px solid var(--review-line);border-radius:5px;background:white;color:var(--review-ink);text-align:left;cursor:pointer}
-[data-reviewer-shell] .page-button strong,[data-reviewer-shell] .page-button span{display:block}
-[data-reviewer-shell] .page-button span,[data-reviewer-shell] .sidebar-meta{font-size:12px}
-[data-reviewer-shell] .control-group{display:flex;flex-wrap:wrap;gap:4px}
-[data-reviewer-shell] .control-group .control{width:auto;margin:0}
-[data-reviewer-shell] .sidebar-controls{display:grid;gap:14px;margin-top:18px}
-[data-reviewer-shell] [aria-pressed="true"],[data-reviewer-shell] [aria-current="page"]{border-color:var(--review-accent);color:var(--review-accent);font-weight:700}
-[data-reviewer-shell] .platform-group{margin:14px 0 4px;font-size:12px;font-weight:700}
-</style>
-<!-- hifi-reviewer:css:end -->
   <style>
     :root {
       color-scheme: light;
@@ -203,9 +160,6 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       font-size: 12px;
     }
 
-    .platform-group { margin-top: 14px; color: var(--muted); font-size: 11px; font-weight: 700; }
-    .platform-group:first-child { margin-top: 0; }
-
     .sidebar-controls {
       display: grid;
       gap: 16px;
@@ -233,7 +187,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
 
     .main {
       min-width: 0;
-      margin-left: var(--review-sidebar-width);
+      margin-left: var(--sidebar);
     }
 
     .toolbar {
@@ -594,15 +548,6 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
     .action-button[data-emphasis="primary"] { background: var(--wf-ink); color: var(--wf-surface); }
     .action-button[data-emphasis="primary"]:hover { background: var(--wf-primary-hover); }
 
-    .product-tablist { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--wf-small-gap); }
-    .product-tab { min-height: var(--wf-control-height); padding: var(--wf-button-padding); border: 1px solid var(--wf-line); background: transparent; color: var(--wf-ink); border-radius: var(--wf-button-radius); cursor: pointer; }
-    .product-tab[aria-selected="true"] { border-color: var(--wf-ink); background: var(--wf-hover); font-weight: 700; }
-    .product-tab:focus-visible { outline: 2px solid var(--wf-ink); outline-offset: 3px; }
-    .nav-toggle { display: flex; align-items: center; gap: 8px; min-height: var(--wf-control-height); padding: var(--wf-button-padding); border: 1px solid var(--wf-line); background: transparent; color: var(--wf-ink); border-radius: var(--wf-button-radius); cursor: pointer; }
-    .nav-toggle[aria-expanded="true"] { border-color: var(--wf-ink); background: var(--wf-hover); }
-    .nav-toggle:focus-visible { outline: 2px solid var(--wf-ink); outline-offset: 3px; }
-    .nav-toggle .menu-icon { font-weight: 700; }
-
     .action-feedback {
       min-height: 1.5em;
       margin: 4px 0 10px;
@@ -849,11 +794,25 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
     .region-note dl { display: grid; grid-template-columns: minmax(100px, 180px) minmax(0, 1fr); gap: 8px 16px; }
     .region-note dt { font-weight: 650; }
     .region-note dd { margin: 0; overflow-wrap: anywhere; }
+    .token-sample { display: block; max-width: 100%; min-height: 32px; margin-top: 12px; overflow-wrap: anywhere; font-family: var(--wf-font-family); }
+    .token-measure { background: var(--wf-line); min-height: 12px; }
+    .token-control { border: 1px solid var(--wf-control-line); width: fit-content; }
     body[data-annotations="true"] .region { outline: 1px dashed var(--line-strong); outline-offset: 5px; }
     body[data-annotations="true"] .region:focus { outline: 2px solid var(--wf-ink); }
     body[data-annotations="true"] .metadata { display: grid; }
     body[data-annotations="true"] .flow-panel { display: block; }
+    .system-page { max-width: 960px; margin: auto; overflow-wrap: anywhere; }
     .toolbar-cluster[hidden] { display: none; }
+    .system-page section { padding-block: 24px; border-top: 1px solid var(--line); }
+    .system-page h1 { font-size: 32px; margin: 0 0 12px; }
+    .system-page h2 { font-size: 22px; margin: 0 0 16px; }
+    .system-page p { max-width: 68ch; }
+    .token-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .token-row code { display: block; overflow-wrap: anywhere; }
+    .token-swatch { display: inline-block; width: 32px; height: 20px; margin-right: 8px; border: 1px solid var(--line-strong); vertical-align: middle; }
+    .system-specimen { padding: 20px 0; container-type: inline-size; font-family: var(--wf-font-family); }
+    .system-specimen pre { white-space: pre-wrap; font-size: 12px; }
+    @media (max-width: 600px) { .token-row { grid-template-columns: 1fr; } }
     @container (max-width: 480px) {
       .region[data-presentation="navigation"] .product-copy { gap: 12px; }
       .region[data-presentation="navigation"] .action-list { margin-left: 0; flex-basis: 100%; }
@@ -873,7 +832,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
 <body data-annotations="true">
   <noscript><p class="noscript">Enable JavaScript to use the page, viewport, and state controls in this local wireframe file.</p></noscript>
   <div class="app">
-    <aside class="sidebar" data-reviewer-shell aria-label="Wireframe pages">
+    <aside class="sidebar" aria-label="Wireframe pages">
       <h1 id="product-name">Wireframes</h1>
       <p class="sidebar-meta" id="contract-meta"></p>
       <p class="sidebar-meta" id="copy-meta"></p>
@@ -890,7 +849,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       </div>
     </aside>
 
-    <main class="main" data-reviewer-main>
+    <main class="main">
       <div class="toolbar" role="toolbar" aria-label="Wireframe controls">
         <div class="toolbar-cluster">
           <button class="control" id="copy-inventory-button" type="button">Copy inventory</button>
@@ -928,11 +887,14 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
 
   <script id="wireframe-data" type="application/json">
   {
-    "schema": "wireframes/5",
+    "schema": "wireframes/4",
     "product": "<Product Name>",
-    "structureStatus": "draft",
-    "copyInventory": {
-      "locale": "und"
+    "approvalStatus": "draft",
+    "copyFreeze": {
+      "status": "draft",
+      "owner": "<Human copy owner>",
+      "locale": "<Primary BCP 47 locale>",
+      "approvedOn": "<YYYY-MM-DD or pending>"
     },
     "source": "PRD.md#UI-Surface-Contract",
     "viewports": [390, 768, 1200],
@@ -960,7 +922,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
               {"kind": "static", "role": "navigation label", "text": "<Exact navigation label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ],
             "actions": [
-              {"id": "nav", "label": "<Exact navigation action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+              {"label": "<Exact navigation action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ]
           },
           {
@@ -978,7 +940,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
               {"kind": "static", "role": "supporting body", "text": "<Exact supporting copy>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ],
             "actions": [
-              {"id": "primary-cta", "label": "<Exact primary CTA label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+              {"label": "<Exact primary CTA label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ],
             "traces": ["UX-002"]
           },
@@ -1024,7 +986,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
               {"kind": "static", "role": "feature body", "text": "<Exact feature 2 explanation>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ],
             "actions": [
-              {"id": "feature-detail", "label": "<Exact feature-detail action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+              {"label": "<Exact feature-detail action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ]
           },
           {
@@ -1038,7 +1000,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
               {"kind": "static", "role": "heading", "text": "<Exact closing message>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ],
             "actions": [
-              {"id": "closing-cta", "label": "<Exact closing action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+              {"label": "<Exact closing action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ]
           }
         ],
@@ -1128,7 +1090,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
               {"kind": "static", "role": "account label", "text": "<Exact account-control label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ],
             "actions": [
-              {"id": "global-action", "label": "<Exact global action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+              {"label": "<Exact global action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ]
           },
           {
@@ -1144,7 +1106,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
               {"kind": "static", "role": "field guidance", "text": "<Exact field guidance>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ],
             "actions": [
-              {"id": "submit", "label": "<Exact submit label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+              {"label": "<Exact submit label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ]
           },
           {
@@ -1173,7 +1135,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
               }
             ],
             "actions": [
-              {"id": "contextual-action", "label": "<Exact contextual action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
+              {"label": "<Exact contextual action label>", "status": "draft", "source": "<Owner or PRD copy decision>"}
             ]
           }
         ],
@@ -1236,13 +1198,13 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       }
     ],
     "flows": [
-      {"from": "UI-001", "sourceState": "ready", "control": "nav", "trigger": "<Exact navigation action label>", "to": "UI-002", "destination": {"surface": "UI-002", "state": "ready"}, "presentation": "page"},
-      {"from": "UI-001", "sourceState": "ready", "control": "primary-cta", "trigger": "<Exact primary CTA label>", "to": "UI-002", "destination": {"surface": "UI-002", "state": "ready"}, "presentation": "page"},
-      {"from": "UI-001", "sourceState": "ready", "control": "feature-detail", "trigger": "<Exact feature-detail action label>", "to": "UI-002", "destination": {"surface": "UI-002", "state": "ready"}, "presentation": "overlay"},
-      {"from": "UI-001", "sourceState": "ready", "control": "closing-cta", "trigger": "<Exact closing action label>", "to": "UI-002", "destination": {"surface": "UI-002", "state": "ready"}, "presentation": "page"},
-      {"from": "UI-002", "sourceState": "ready", "control": "global-action", "trigger": "<Exact global action label>", "to": "<Exact global-action feedback>", "destination": {"surface": "UI-002", "state": "ready"}, "presentation": "feedback", "feedback": {"kind": "static", "role": "status message", "text": "<Exact global-action feedback>", "status": "draft", "source": "<Owner or PRD copy decision>"}},
-      {"from": "UI-002", "sourceState": "ready", "control": "submit", "trigger": "<Exact submit label>", "to": "<Exact submission feedback>", "destination": {"surface": "UI-002", "state": "ready"}, "presentation": "feedback", "feedback": {"kind": "static", "role": "success message", "text": "<Exact submission feedback>", "status": "draft", "source": "<Owner or PRD copy decision>"}},
-      {"from": "UI-002", "sourceState": "ready", "control": "contextual-action", "trigger": "<Exact contextual action label>", "to": "UI-001", "destination": {"surface": "UI-001", "state": "ready"}, "presentation": "overlay"}
+      {"from": "UI-001", "trigger": "<Exact navigation action label>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-001", "trigger": "<Exact primary CTA label>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-001", "trigger": "<Exact feature-detail action label>", "to": "UI-002", "presentation": "overlay"},
+      {"from": "UI-001", "trigger": "<Exact closing action label>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-002", "trigger": "<Exact global action label>", "to": "<External destination>", "presentation": "feedback", "feedback": {"kind": "static", "role": "status message", "text": "<Exact global-action feedback>", "status": "draft", "source": "<Owner or PRD copy decision>"}},
+      {"from": "UI-002", "trigger": "<Exact submit label>", "to": "<Submission result>", "presentation": "feedback", "feedback": {"kind": "static", "role": "success message", "text": "<Exact submission feedback>", "status": "draft", "source": "<Owner or PRD copy decision>"}},
+      {"from": "UI-002", "trigger": "<Exact contextual action label>", "to": "UI-001", "presentation": "overlay"}
     ]
   }
   </script>
@@ -1250,19 +1212,6 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
   <script>
     (() => {
       "use strict";
-
-      // Put reviewer controls behind a style boundary before wiring their events.
-      const reviewerAside = document.querySelector('[data-reviewer-shell]');
-      let reviewerShadow = null;
-      if (reviewerAside && reviewerAside.parentNode && reviewerAside.parentNode.attachShadow) {
-        const host = document.createElement('reviewer-shell');
-        reviewerAside.parentNode.insertBefore(host, reviewerAside);
-        reviewerShadow = host.attachShadow({mode: 'open'});
-        const style = document.createElement('style');
-        style.textContent = document.querySelector('style[data-hifi-reviewer-css]').textContent;
-        reviewerShadow.append(style, reviewerAside);
-      }
-      const reviewerById = (id) => reviewerShadow?.getElementById(id) || document.getElementById(id);
 
       const data = JSON.parse(document.getElementById("wireframe-data").textContent);
       const responsiveSpecFor = (screen) => {
@@ -1284,63 +1233,45 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       };
       const resolvePage = (hash) => {
         const requested = hash.slice(1);
-        return data.screens.some((screen) => screen.id === requested)
+        return ["overview", "design-system"].includes(requested) || data.screens.some((screen) => screen.id === requested)
           ? requested : data.screens[0].id;
       };
       const initialPage = resolvePage(location.hash);
       const initialScreen = data.screens.find((screen) => screen.id === initialPage) || data.screens[0];
       const initialResponsive = responsiveSpecFor(initialScreen);
-      const packageIdentity = (() => {
-        let hash = 2166136261;
-        for (const char of document.getElementById("wireframe-data").textContent) {
-          hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-        }
-        return (hash >>> 0).toString(16);
-      })();
-      const reviewKey = (screen) => `wireframe-review:${packageIdentity}:${screen.platformGroup || "shared"}:${screen.id}`;
-      const readSelection = (screen) => {
-        try { return JSON.parse(sessionStorage.getItem(reviewKey(screen)) || "null") || {}; }
-        catch (_) { return {}; }
-      };
-      const saveSelection = (screen, target, screenState) => {
-        try { sessionStorage.setItem(reviewKey(screen), JSON.stringify({target, screenState})); }
-        catch (_) {}
-      };
-      const initialSelection = readSelection(initialScreen);
       const state = {
         page: initialPage,
-        responsiveTarget: initialResponsive.targets.includes(String(initialSelection.target))
-          ? String(initialSelection.target) : initialResponsive.targets[initialResponsive.targets.length - 1],
-        screenState: initialScreen.states?.some((item) => item.id === initialSelection.screenState)
-          ? initialSelection.screenState : (initialScreen.states?.[0]?.id || "ready"),
+        responsiveTarget: initialResponsive.targets[initialResponsive.targets.length - 1],
+        screenState: initialScreen.states?.[0]?.id || "ready",
         screenStates: Object.create(null),
         fieldValues: Object.create(null),
         localSearch: Object.create(null),
         inspectorOpen: false,
-        selectedRegion: null,
-        feedback: null
+        selectedRegion: null
       };
 
-      const pageList = reviewerById("page-list");
+      const pageList = document.getElementById("page-list");
       const content = document.getElementById("content");
-      const responsiveControls = reviewerById("responsive-controls");
-      const stateControls = reviewerById("state-controls");
-      const annotationToggle = reviewerById("annotation-toggle");
+      const responsiveControls = document.getElementById("responsive-controls");
+      const stateControls = document.getElementById("state-controls");
+      const annotationToggle = document.getElementById("annotation-toggle");
       const inspector = document.getElementById("inspector");
       const inspectorBackdrop = document.getElementById("inspector-backdrop");
       const inspectorClose = document.getElementById("inspector-close");
       const inspectorTitle = document.getElementById("inspector-title");
       const inspectorContent = document.getElementById("inspector-content");
-      const copyInventoryButton = reviewerById("copy-inventory-button");
+      const copyInventoryButton = document.getElementById("copy-inventory-button");
       const copyInventory = document.getElementById("copy-inventory");
       const copyInventoryClose = document.getElementById("copy-inventory-close");
       const copyInventoryList = document.getElementById("copy-inventory-list");
       let inspectorReturnFocus = annotationToggle;
 
-      reviewerById("product-name").textContent = data.product;
-      reviewerById("contract-meta").textContent =
-        `${data.structureStatus} · ${data.source}`;
-      reviewerById("copy-meta").textContent = `Copy inventory · ${data.copyInventory.locale}`;
+      document.getElementById("product-name").textContent = data.product;
+      document.getElementById("contract-meta").textContent =
+        `${data.approvalStatus} · ${data.source}`;
+      document.getElementById("copy-meta").textContent = data.copyFreeze
+        ? `Copy ${data.copyFreeze.status} · ${data.copyFreeze.locale} · ${data.copyFreeze.owner}`
+        : "Legacy copy contract";
 
       const element = (tag, className, text) => {
         const node = document.createElement(tag);
@@ -1351,25 +1282,19 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
 
       const currentScreen = () => data.screens.find((screen) => screen.id === state.page);
 
-      const selectPage = (page, destinationState = null) => {
+      const selectPage = (page) => {
         state.page = page;
         const screen = currentScreen();
         if (screen) {
           const responsive = responsiveSpecFor(screen);
-          const saved = readSelection(screen);
-          state.responsiveTarget = responsive.targets.includes(String(saved.target)) ? String(saved.target)
-            : responsive.targets.includes(String(state.responsiveTarget)) ? String(state.responsiveTarget)
-            : responsive.targets[responsive.targets.length - 1];
-          const rememberedState = state.screenStates[screen.id] || saved.screenState;
+          if (!responsive.targets.includes(String(state.responsiveTarget))) {
+            state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
+          }
+          const rememberedState = state.screenStates[screen.id];
           state.screenState = screen.states?.some((item) => item.id === rememberedState)
             ? rememberedState
             : screen.states?.[0]?.id || "ready";
-          if (destinationState && screen.states?.some((item) => item.id === destinationState)) {
-            state.screenState = destinationState;
-            state.screenStates[screen.id] = destinationState;
-          }
         }
-        state.feedback = null;
         state.selectedRegion = null;
         state.inspectorOpen = false;
         location.hash = page;
@@ -1390,13 +1315,8 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       const renderNavigation = () => {
         pageList.replaceChildren();
         pageList.append(makePageButton("overview", "Overview", `${data.screens.length} surfaces`));
-        let currentPlatformGroup = null;
+        pageList.append(makePageButton("design-system", "Design System", "Wireframe draft"));
         data.screens.forEach((screen) => {
-          const platformGroup = screen.platformGroup || null;
-          if (platformGroup && platformGroup !== currentPlatformGroup) {
-            pageList.append(element("div", "platform-group", platformGroup));
-            currentPlatformGroup = platformGroup;
-          }
           pageList.append(makePageButton(screen.id, `${screen.id} · ${screen.name}`, screen.route));
         });
       };
@@ -1746,43 +1666,38 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         parent.append(list);
       };
 
-      const flowTarget = (target, destinationState = null) => {
+      const flowTarget = (target) => {
         const screen = data.screens.find((screen) => screen.id === target);
         if (screen) {
           const button = element("button", "flow-target", `${screen.name} (${screen.id})`);
           button.type = "button";
-          button.addEventListener("click", () => selectPage(target, destinationState));
+          button.addEventListener("click", () => selectPage(target));
           return button;
         }
         return element("span", "flow-target", target);
       };
 
-      const destinationSurface = (flow) => flow.destination?.surface || flow.to;
-
       const screenFlows = (screenId) =>
-        (data.flows || []).filter((flow) => flow.from === screenId || destinationSurface(flow) === screenId);
+        (data.flows || []).filter((flow) => flow.from === screenId || flow.to === screenId);
 
       const flowDescription = (flow) => {
         if (!flow) return "Destination not recorded. Resolve this before approval.";
-        const targetId = destinationSurface(flow);
-        const target = data.screens.find((screen) => screen.id === targetId);
-        const name = target ? `${target.name} (${target.id})` : targetId;
+        const target = data.screens.find((screen) => screen.id === flow.to);
+        const name = target ? `${target.name} (${target.id})` : flow.to;
         const source = data.screens.find((screen) => screen.id === flow.from);
         const search = source?.localSearch;
         if (search && flow.trigger === search.submitAction) return "Stay on this page and update the search results using the current query and language.";
         if (search && flow.trigger === search.clearAction) return "Stay on this page, clear the query and restore the initial results and language.";
         if (flow.presentation === "overlay") return `Open the ${name} dialog over this page. Closing it returns to this page.`;
-        if (flow.presentation === "page") return `Go to ${name}${target?.route ? ` — ${target.route}` : ""}${flow.destination?.state ? ` in ${flow.destination.state} state` : ""}.`;
-        if (flow.presentation === "state" || flow.presentation === "tab") return `Show ${name} in ${flow.destination.state} state.`;
+        if (flow.presentation === "page") return `Go to ${name}${target?.route ? ` — ${target.route}` : ""}.`;
         return `Stay on this page and show: ${copyText(flow.feedback) || "Feedback not recorded"}. Recorded result: ${name}. No external request is made in this prototype.`;
       };
 
-      const outgoingFlow = (screenId, trigger, controlId = null) =>
-        (data.flows || []).find((flow) => flow.from === screenId && flow.trigger === trigger &&
-          (data.schema !== "wireframes/5" || (flow.sourceState === state.screenState && flow.control === controlId)));
+      const outgoingFlow = (screenId, trigger) =>
+        (data.flows || []).find((flow) => flow.from === screenId && flow.trigger === trigger);
 
       const openFlowDialog = (flow) => {
-        const target = data.screens.find((screen) => screen.id === (flow.destination?.surface || flow.to));
+        const target = data.screens.find((screen) => screen.id === flow.to);
         if (!target) return;
         const dialog = element("dialog", "flow-dialog");
         const body = element("div", "flow-dialog-body");
@@ -1794,7 +1709,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         const targetResponsive = responsiveSpecFor(target);
         const targetResponsiveTarget = targetFor(target, state.responsiveTarget);
         const targetLayout = target.responsiveLayouts[targetResponsiveTarget];
-        const targetState = target.states.find((item) => item.id === flow.destination?.state) || target.states[0];
+        const targetState = target.states[0];
         const hidden = new Set(targetLayout.hidden);
         const overlayCanvas = element("div", "wireframe");
         overlayCanvas.setAttribute("role", "group");
@@ -1825,7 +1740,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         openPage.type = "button";
         openPage.addEventListener("click", () => {
           dialog.close();
-          selectPage(target.id, targetState.id);
+          selectPage(target.id);
         });
         const close = element("button", "action-button", "Close");
         close.type = "button";
@@ -1845,86 +1760,24 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         if (!flow) return;
         if (flow.presentation === "page") {
           document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
-          selectPage(flow.destination?.surface || flow.to, flow.destination?.state);
+          selectPage(flow.to);
         } else if (flow.presentation === "overlay") {
           openFlowDialog(flow);
         } else if (flow.presentation === "feedback" && flow.feedback) {
-          if (data.schema === "wireframes/5" && flow.destination?.surface) {
-            selectPage(flow.destination.surface, flow.destination.state);
-            state.feedback = flow.feedback;
-            const next = currentScreen();
-            if (next) renderScreen(next);
-          } else feedback.replaceChildren(renderCopyItem(flow.feedback));
-        } else if (data.schema === "wireframes/5" && ["state", "tab"].includes(flow.presentation)) {
-          selectPage(flow.destination?.surface || flow.to, flow.destination?.state);
+          feedback.replaceChildren(renderCopyItem(flow.feedback));
         }
       };
 
-      const appendActions = (parent, screenId, actions, primaryAction, localSearch = null, menu = null) => {
+      const appendActions = (parent, screenId, actions, primaryAction, localSearch = null) => {
         if (!actions?.length) return;
-        const availableActions = data.schema === "wireframes/5"
-          ? actions.filter((action) => outgoingFlow(screenId, actionLabel(action), action.id)) : actions;
-        if (!availableActions.length) return;
         const actionList = element("div", "action-list");
         const feedback = element("div", "action-feedback");
         feedback.setAttribute("role", "status");
-        let toggle = null;
-        let menuKey = null;
-        if (menu) {
-          menuKey = `${screenId}|${menu.id}`;
-          state.navigationMenus ||= Object.create(null);
-          const open = state.navigationMenus[menuKey] ?? menu.defaultOpen === true;
-          state.navigationMenus[menuKey] = open;
-          toggle = element("button", "nav-toggle");
-          toggle.type = "button";
-          const menuId = `product-menu-${menuKey.replace(/[^a-z0-9_-]+/gi, "-")}`;
-          actionList.id = menuId;
-          toggle.setAttribute("aria-expanded", String(open));
-          toggle.setAttribute("aria-controls", menuId);
-          const icon = element("span", "menu-icon", "☰");
-          icon.setAttribute("aria-hidden", "true");
-          toggle.append(icon, renderCopyItem(menu.label));
-          const closeMenu = () => {
-            state.navigationMenus[menuKey] = false;
-            toggle.setAttribute("aria-expanded", "false");
-            actionList.hidden = true;
-            toggle.focus({preventScroll: true});
-          };
-          toggle.addEventListener("click", () => {
-            const next = toggle.getAttribute("aria-expanded") !== "true";
-            state.navigationMenus[menuKey] = next;
-            toggle.setAttribute("aria-expanded", String(next));
-            actionList.hidden = !next;
-          });
-          toggle.addEventListener("keydown", (event) => {
-            if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
-              event.preventDefault();
-              closeMenu();
-            }
-            const menuButtons = Array.from(actionList.querySelectorAll("button"));
-            const itemIndex = menuButtons.findIndex((item) => item === document.activeElement);
-            if (["ArrowDown", "ArrowUp"].includes(event.key) && toggle.getAttribute("aria-expanded") === "true") {
-              event.preventDefault();
-              const next = event.key === "ArrowDown"
-                ? (itemIndex + 1) % menuButtons.length
-                : (itemIndex - 1 + menuButtons.length) % menuButtons.length;
-              menuButtons[next]?.focus({preventScroll: true});
-            }
-          });
-          actionList.addEventListener("keydown", (event) => {
-            if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
-              event.preventDefault();
-              closeMenu();
-            }
-          });
-          actionList.hidden = !open;
-        }
-        availableActions.forEach((action) => {
+        actions.forEach((action) => {
           const label = actionLabel(action);
-          const flow = outgoingFlow(screenId, label, action.id);
+          const flow = outgoingFlow(screenId, label);
           const button = element("button", "action-button", label);
           button.type = "button";
-          if (action.id) button.dataset.controlId = action.id;
           button.dataset.flowTrigger = label;
           button.dataset.emphasis = label === primaryAction ? "primary" : (action.variant || "secondary");
           button.dataset.size = action.size || "regular";
@@ -1943,58 +1796,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
           });
           actionList.append(button);
         });
-        if (menu) {
-          parent.append(toggle, actionList, feedback);
-        } else {
-          parent.append(actionList, feedback);
-        }
-      };
-
-      const appendTabControls = (parent, screen, region) => {
-        const tabs = region.controls?.tabs || null;
-        if (!Array.isArray(tabs) || !tabs.length) return;
-        const tablist = element("div", "product-tablist");
-        tablist.setAttribute("role", "tablist");
-        tablist.setAttribute("aria-label", `${region.section} views`);
-        tabs.forEach((tabConfig) => {
-          const stateId = tabConfig.state;
-          const selected = state.screenState === stateId;
-          const tab = element("button", "product-tab", copyText(tabConfig.label));
-          tab.type = "button";
-          tab.setAttribute("role", "tab");
-          tab.setAttribute("aria-selected", String(selected));
-          tab.setAttribute("aria-controls", `${screen.id}-${region.id}-panel`);
-          tab.dataset.productTab = stateId;
-          tab.dataset.controlId = tabConfig.id;
-          if (selected) tab.tabIndex = 0; else tab.tabIndex = -1;
-          tab.addEventListener("click", () => {
-            const flow = data.schema === "wireframes/5"
-              ? outgoingFlow(screen.id, copyText(tabConfig.label), tabConfig.id) : null;
-            if (flow) {
-              runFlow(flow, null);
-              const active = content.querySelector(`[data-product-tab="${CSS.escape(flow.destination?.state || stateId)}"]`);
-              active?.focus({preventScroll: true});
-              return;
-            }
-            state.screenState = stateId;
-            state.screenStates[screen.id] = stateId;
-            renderScreen(screen);
-            renderStateControls(screen);
-            const active = content.querySelector(`[data-product-tab="${CSS.escape(stateId)}"]`);
-            active?.focus({preventScroll: true});
-          });
-          tab.addEventListener("keydown", (event) => {
-            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-            event.preventDefault();
-            const members = Array.from(tablist.querySelectorAll('[role="tab"]'));
-            const index = members.indexOf(tab);
-            const next = event.key === "Home" ? 0 : event.key === "End" ? members.length - 1
-              : (index + (event.key === "ArrowRight" ? 1 : -1) + members.length) % members.length;
-            members[next]?.click();
-          });
-          tablist.append(tab);
-        });
-        parent.append(tablist);
+        parent.append(actionList, feedback);
       };
 
       const renderRegion = (screenId, region, activeState, layout, allowReview = true) => {
@@ -2052,18 +1854,8 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
           region.id === localSearch.resultsRegion &&
           (searchMode === "results" || searchMode === "empty");
         const treatment = activeState?.treatments?.[region.id];
-        if (region.controls?.tabs?.length) {
-          productCopy.id = `${screen.id}-${region.id}-panel`;
-          productCopy.setAttribute("role", "tabpanel");
-          appendTabControls(productCopy, screen, region);
-        }
-        const selectedTarget = Object.entries(screen?.responsiveLayouts || {}).find(([, candidate]) => candidate === layout)?.[0];
-        const navigationControls = data.schema === "wireframes/5" ? region.controls?.menus : null;
-        const declaredMenu = Array.isArray(navigationControls)
-          ? navigationControls.find((item) => item.targets?.includes(selectedTarget))
-          : null;
         if (actionsPlacement === "before") {
-          appendActions(productCopy, screenId, region.actions, region.primaryAction, localActionConfig, declaredMenu);
+          appendActions(productCopy, screenId, region.actions, region.primaryAction, localActionConfig);
         }
         if (handlesSearchResults) {
           renderLocalSearchResults(productCopy, region, screenId, localSearch, activeState, searchMode);
@@ -2072,7 +1864,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         }
         if (localActionConfig) renderLocalSearchControls(productCopy, screenId, localActionConfig);
         if (actionsPlacement !== "before") {
-          appendActions(productCopy, screenId, region.actions, region.primaryAction, localActionConfig, declaredMenu);
+          appendActions(productCopy, screenId, region.actions, region.primaryAction, localActionConfig);
         }
         if (region.mediaIntent && !treatment?.copy?.length) {
           productCopy.append(
@@ -2089,6 +1881,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
           }
           productCopy.append(stateNote);
         }
+        const selectedTarget = Object.entries(screen?.responsiveLayouts || {}).find(([, candidate]) => candidate === layout)?.[0];
         if (region.disclosure?.targets?.includes(selectedTarget)) {
           const details = element("details", "navigation-disclosure");
           state.navigationOpen ||= Object.create(null);
@@ -2196,7 +1989,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
             const card = element("div", "inspector-card");
             card.append(
               element("p", "", actionLabel(action)),
-              element("p", "", flowDescription(outgoingFlow(screen.id, actionLabel(action), action.id))),
+              element("p", "", flowDescription(outgoingFlow(screen.id, actionLabel(action)))),
               element("span", "copy-status", action.status || "legacy"),
               element("p", "", `Source: ${action.source || "legacy contract"}`)
             );
@@ -2472,7 +2265,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
             item.append(
               element("strong", "", `Select “${flow.trigger}”: `),
               element("span", "", flowDescription(flow)),
-              flowTarget(destinationSurface(flow), flow.destination?.state)
+              flowTarget(flow.to)
             );
           } else {
             item.append(
@@ -2519,7 +2312,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
             const actions = element("dl");
             region.actions.forEach((action) => {
               const label = actionLabel(action);
-              actions.append(element("dt", "", label), element("dd", "", flowDescription(outgoingFlow(screen.id, label, action.id))));
+              actions.append(element("dt", "", label), element("dd", "", flowDescription(outgoingFlow(screen.id, label))));
             });
             card.append(actions);
           }
@@ -2529,7 +2322,6 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       };
 
       const renderScreen = (screen) => {
-        saveSelection(screen, state.responsiveTarget, state.screenState);
         content.replaceChildren();
         const header = element("header", "screen-header");
         const summary = element("div");
@@ -2576,12 +2368,6 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
           .forEach((region) => canvas.append(renderRegion(screen.id, region, activeState, layout)));
         shell.append(canvas);
         content.append(header, shell);
-        if (state.feedback) {
-          const status = element("div", "action-feedback");
-          status.setAttribute("role", "status");
-          status.append(renderCopyItem(state.feedback));
-          content.append(status);
-        }
         const responsiveNotes = element("div", "layout-qa");
         responsiveNotes.setAttribute("data-layout-qa", "pending");
         responsiveNotes.textContent = `Checking layout · ${layout.reflow} · ${layout.interaction}`;
@@ -2604,7 +2390,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
           item.append(
             flowTarget(flow.from),
             element("span", "", ` — select “${flow.trigger}”: ${flowDescription(flow)} `),
-            flowTarget(destinationSurface(flow), flow.destination?.state)
+            flowTarget(flow.to)
           );
           list.append(item);
         });
@@ -2648,19 +2434,143 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         if (flows) content.append(flows);
       };
 
+      const renderDesignSystem = () => {
+        content.replaceChildren();
+        const page = element("article", "system-page");
+        page.id = "draft-design-system";
+        page.append(element("h1", "", "Design System · Wireframe Draft"),
+          element("p", "", "Prototype values and specimens. These are not approved brand tokens or native rendering evidence. Product copy and approvals remain on the product pages."));
+        const tokens = [
+          ["ink", "Primary text and action"], ["support", "Supporting text"],
+          ["muted", "Labels"], ["surface", "Control surface"], ["line", "Content dividers"],
+          ["control-line", "Control boundary"], ["hover", "Secondary hover"],
+          ["primary-hover", "Primary hover"], ["table-head", "Table header"],
+          ["body", "Body and table text"], ["section", "Section heading"],
+          ["item", "Item heading"], ["label", "Label text"],
+          ["display", "Page heading"], ["editorial", "Editorial heading"],
+          ["content-title", "Content heading"], ["body-leading", "Body line height"],
+          ["heading-leading", "Section line height"], ["heading-weight", "Heading weight"],
+          ["small-gap", "Field label gap"], ["content-gap", "Content spacing"],
+          ["column-gap", "Canvas inset and column gap"], ["row-gap", "Canvas row gap"],
+          ["control-height", "Minimum control height"], ["button-padding", "Button inset"],
+          ["field-padding", "Field inset"], ["button-radius", "Button corners"],
+          ["field-radius", "Field corners"], ["font-family", "Product font family"],
+          ["control-border", "Control border width"], ["control-height-large", "Large control height"],
+          ["button-large-padding", "Large button inset"], ["table-padding", "Table cell inset"],
+          ["table-compact-padding", "Compact table cell inset"]
+        ];
+        const values = element("section");
+        values.append(element("h2", "", "Current prototype values"));
+        const styles = getComputedStyle(document.documentElement);
+        tokens.forEach(([name, usage]) => {
+          const row = element("div", "token-row");
+          const value = styles.getPropertyValue(`--wf-${name}`).trim();
+          const label = element("div", "", usage);
+          if (/^#[0-9a-f]{6}$/i.test(value)) {
+            const swatch = element("span", "token-swatch");
+            swatch.style.backgroundColor = value;
+            swatch.setAttribute("aria-hidden", "true");
+            label.append(swatch);
+          }
+          row.append(label, element("code", "", `--wf-${name}: ${value}`));
+          const sample = element("div", "token-sample", "");
+          sample.dataset.token = `--wf-${name}`;
+          if (/^#[0-9a-f]{6}$/i.test(value)) {
+            sample.style.backgroundColor = value;
+            sample.style.border = "1px solid #999";
+          } else if (["body", "section", "item", "label", "display", "editorial", "content-title"].includes(name)) {
+            sample.textContent = "The next step · 下一步";
+            sample.style.fontSize = value;
+          } else if (name.endsWith("leading")) {
+            sample.textContent = "First line\nSecond line\n第三行";
+            sample.style.whiteSpace = "pre-line";
+            sample.style.lineHeight = value;
+          } else if (name === "font-family") {
+            sample.textContent = "The next step · 下一步";
+            sample.style.fontFamily = value;
+          } else if (name.endsWith("weight")) {
+            sample.textContent = "Heading weight · 標題字重";
+            sample.style.fontWeight = value;
+          } else if (name.endsWith("gap")) {
+            sample.className += " token-measure";
+            sample.style.width = value;
+            sample.setAttribute("aria-label", `${usage}: ${value}`);
+          } else {
+            sample.className += " token-control";
+            sample.textContent = "Control";
+            if (name.endsWith("padding")) sample.style.padding = value;
+            else if (name.endsWith("radius")) sample.style.borderRadius = value;
+            else if (name.endsWith("border")) sample.style.borderWidth = value;
+            else sample.style.minHeight = value;
+          }
+          row.append(sample);
+          values.append(row);
+        });
+        page.append(values);
+        const specimens = element("section");
+        specimens.append(element("h2", "", "Type and content specimens"),
+          element("p", "", "These reviewer examples use the same renderers and classes as the canvas. The measurement section reads rendered values, including inherited font and responsive sizes."));
+        const item = (role, text) => ({kind: "static", role, text});
+        [
+          ["content", [item("heading", "A clear page title"), item("section heading", "Section heading"), item("item heading", "Item heading"), item("body", "Body text explains the next step."), item("support label", "Supporting label")]],
+          ["editorial", [item("heading", "Space for the main idea")]],
+          ["form", [item("field label", "Example field"), item("field value", "Read-only structural sample")]],
+          ["list", [item("list item", "First item"), item("list item", "Second item")]],
+          ["table", [item("table header", "Item"), item("table header", "Status"), item("table cell", "Example"), item("table cell", "Ready")]]
+        ].forEach(([presentation, elements]) => {
+          const sample = element("div", "system-specimen product-copy");
+          sample.dataset.presentation = presentation;
+          // Region class shares product selectors without adding a product surface.
+          sample.className += " region";
+          renderRegionContent(sample, {presentation, elements});
+          specimens.append(sample);
+        });
+        page.append(specimens);
+        const controls = element("section");
+        controls.append(element("h2", "", "Buttons"), element("p", "", "Primary emphasizes the main task; secondary supports it. Focus and hover can be inspected here. These specimen buttons only report their own selection."));
+        const feedback = element("p", "", "Select a specimen to inspect feedback.");
+        feedback.setAttribute("role", "status");
+        const buttons = element("div", "action-list");
+        const actions = (data.screens || []).flatMap((screen) => (screen.regions || []).flatMap((region) => region.actions || []));
+        const variants = new Set(["primary", "secondary", ...actions.map((action) => action.variant || "secondary")]);
+        variants.forEach((emphasis) => {
+          const button = element("button", "action-button", `${emphasis} example`);
+          button.type = "button";
+          button.dataset.emphasis = emphasis;
+          button.addEventListener("click", () => { feedback.textContent = `${emphasis} specimen selected.`; });
+          buttons.append(button);
+        });
+        controls.append(buttons, feedback);
+        if (actions.some((action) => action.size === "large")) {
+          const large = element("button", "action-button", "Large control example");
+          large.type = "button";
+          large.dataset.size = "large";
+          large.addEventListener("click", () => { feedback.textContent = "Large control selected."; });
+          controls.append(large);
+        }
+        page.append(controls);
+        content.append(page);
+        const measurements = element("section");
+        measurements.append(element("h2", "", "Rendered specimen measurements"));
+        page.querySelectorAll(".copy-item, .field-input, .action-button").forEach((node) => {
+          const actual = getComputedStyle(node);
+          const record = element("pre", "", `${node.textContent || node.value}\nfont: ${actual.fontFamily}; size: ${actual.fontSize}; weight: ${actual.fontWeight}; line-height: ${actual.lineHeight}; padding: ${actual.padding}; min-height: ${actual.minHeight}; radius: ${actual.borderRadius}`);
+          measurements.append(record);
+        });
+        page.append(measurements);
+      };
+
       const render = () => {
-        if (!["overview"].includes(state.page) && !currentScreen()) state.page = data.screens[0].id;
+        if (!["overview", "design-system"].includes(state.page) && !currentScreen()) state.page = data.screens[0].id;
         renderNavigation();
         renderResponsiveControls();
         const screen = currentScreen();
         renderStateControls(screen);
-        responsiveControls.parentElement.hidden = false;
-        stateControls.parentElement.hidden = false;
-        annotationToggle.disabled = false;
-        if (screen) {
-          saveSelection(screen, state.responsiveTarget, state.screenState);
-          renderScreen(screen);
-        } else renderOverview();
+        responsiveControls.parentElement.hidden = state.page === "design-system";
+        stateControls.parentElement.hidden = state.page === "design-system";
+        annotationToggle.disabled = state.page === "design-system";
+        if (state.page === "design-system") renderDesignSystem();
+        else if (screen) renderScreen(screen); else renderOverview();
       };
 
       annotationToggle.addEventListener("click", () => {
@@ -2693,13 +2603,12 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         const screen = currentScreen();
         if (screen) {
           const responsive = responsiveSpecFor(screen);
-          const saved = readSelection(screen);
-          state.responsiveTarget = responsive.targets.includes(String(saved.target)) ? String(saved.target)
-            : responsive.targets.includes(String(state.responsiveTarget)) ? String(state.responsiveTarget)
-            : responsive.targets[responsive.targets.length - 1];
+          if (!responsive.targets.includes(String(state.responsiveTarget))) {
+            state.responsiveTarget = responsive.targets[responsive.targets.length - 1];
+          }
         }
         if (screen) {
-          const rememberedState = state.screenStates[screen.id] || readSelection(screen).screenState;
+          const rememberedState = state.screenStates[screen.id];
           state.screenState = screen.states?.some((item) => item.id === rememberedState)
             ? rememberedState
             : screen.states?.[0]?.id || "ready";
@@ -2714,6 +2623,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       window.addEventListener("resize", () => {
         const screen = currentScreen();
         if (screen) renderScreen(screen);
+        else if (state.page === "design-system") renderDesignSystem();
       });
 
       render();

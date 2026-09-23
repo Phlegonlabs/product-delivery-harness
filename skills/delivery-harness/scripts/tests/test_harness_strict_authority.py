@@ -45,6 +45,7 @@ from test_product_package_checker import (  # noqa: E402
     valid_stack,
 )
 from test_ui_design_contract import materialize_publication  # noqa: E402
+from test_structure_publication import modern_publication  # noqa: E402
 
 # Cross-skill fixture modules add their own test directories to ``sys.path``.
 # Remove those paths after importing the named helpers so unittest discovery
@@ -395,6 +396,95 @@ class StrictAuthorityJoinTests(unittest.TestCase):
             target = next(source for source in plan["sources"] if source["kind"] == "approved ui target")
             target["location"] = "docs/design/ui-references/missing/index.html"
             self.assertTrue(any("approved UI target" in error for error in validate_frozen_contract_joins(plan, root, run=run)))
+
+    def test_schema_five_structure_validation_joins_strict_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, run, paths = self._ui_fixture(root, required=False)
+            modern_publication(root)
+            for row in plan["sources"]:
+                path = root / row["location"]
+                row["content_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=run))
+
+    def test_frozen_maintenance_retains_historical_design_with_current_product(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, run, paths = self._ui_fixture(root, required=False)
+            changed_prd = paths["prd"].read_text(encoding="utf-8") + "\n<!-- Accepted maintenance wording. -->\n"
+            product, architecture, stack = strictize_approved_package(
+                changed_prd,
+                paths["architecture"].read_text(encoding="utf-8"),
+                paths["stack"].read_text(encoding="utf-8"),
+            )
+            for key, value in (("prd", product), ("architecture", architecture), ("stack", stack)):
+                paths[key].write_text(value, encoding="utf-8")
+                next(row for row in plan["sources"] if row["location"] == paths[key].relative_to(root).as_posix())[
+                    "content_sha256"] = hashlib.sha256(paths[key].read_bytes()).hexdigest()
+            self.assertTrue(any("source identity" in item for item in validate_frozen_contract_joins(plan, root, run=run)))
+
+            record = root / "docs/epics/EPIC-maintenance.md"
+            record.parent.mkdir(parents=True, exist_ok=True)
+            record.write_text("Design workflow: maintenance\nUI impact: style\n"
+                              f"Plan ID: {plan['plan_id']}\nPlan objective: {plan['objective']}\n"
+                              "Requirement refs: REQ-001\nUI scope: UI-001\n", encoding="utf-8")
+            for arguments in (("init", "-q"), ("config", "core.autocrlf", "false"),
+                              ("add", "docs/epics/EPIC-maintenance.md"),
+                              ("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
+                               "commit", "-qm", "Freeze maintenance task")):
+                subprocess.run(["git", *arguments], cwd=root, check=True, capture_output=True, timeout=15)
+            revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                                      capture_output=True, text=True, timeout=15).stdout.strip()
+            record_row = self._row("SRC-TASK", "task record", record, root)
+            record_row["source_revision"] = revision
+            plan["sources"].append(record_row)
+            next(trace for trace in plan["traces"] if trace["id"] == "REQ-001")["source_ids"].append("SRC-TASK")
+            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=run))
+
+            plan["plan_id"] = "PLAN-UNRELATED"
+            self.assertIn("current PLAN ID", "\n".join(validate_frozen_contract_joins(plan, root, run=run)))
+            plan["plan_id"] = "PLAN-TEST"
+            next(trace for trace in plan["traces"] if trace["id"] == "REQ-001")["source_ids"].remove("SRC-TASK")
+            self.assertIn("must reference the frozen task record", "\n".join(
+                validate_frozen_contract_joins(plan, root, run=run)))
+            next(trace for trace in plan["traces"] if trace["id"] == "REQ-001")["source_ids"].append("SRC-TASK")
+
+            plan["ui_surfaces"][0]["route"] = "/new-page"
+            self.assertTrue(any("route" in item for item in validate_frozen_contract_joins(plan, root, run=run)))
+            plan["ui_surfaces"][0]["route"] = "/home"
+            record.write_text("Design workflow: maintenance\nUI impact: structure\n", encoding="utf-8")
+            self.assertTrue(validate_frozen_contract_joins(plan, root, run=run))
+
+    def test_frozen_maintenance_keeps_required_historical_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, run, paths = self._ui_fixture(root, required=True)
+            product, architecture, stack = strictize_approved_package(
+                paths["prd"].read_text(encoding="utf-8") + "\n<!-- Accepted copy repair. -->\n",
+                paths["architecture"].read_text(encoding="utf-8"),
+                paths["stack"].read_text(encoding="utf-8"),
+            )
+            for key, value in (("prd", product), ("architecture", architecture), ("stack", stack)):
+                paths[key].write_text(value, encoding="utf-8")
+                next(row for row in plan["sources"] if row["location"] == paths[key].relative_to(root).as_posix())[
+                    "content_sha256"] = hashlib.sha256(paths[key].read_bytes()).hexdigest()
+            record = root / "docs/epics/EPIC-maintenance.md"
+            record.parent.mkdir(parents=True, exist_ok=True)
+            record.write_text("Design workflow: maintenance\nUI impact: none\n"
+                              f"Plan ID: {plan['plan_id']}\nPlan objective: {plan['objective']}\n"
+                              "Requirement refs: REQ-001\nUI scope: UI-001\n", encoding="utf-8")
+            for arguments in (("init", "-q"), ("config", "core.autocrlf", "false"),
+                              ("add", "docs/epics/EPIC-maintenance.md"),
+                              ("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
+                               "commit", "-qm", "Freeze maintenance task")):
+                subprocess.run(["git", *arguments], cwd=root, check=True, capture_output=True, timeout=15)
+            revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                                      capture_output=True, text=True, timeout=15).stdout.strip()
+            row = self._row("SRC-TASK", "task record", record, root)
+            row["source_revision"] = revision
+            plan["sources"].append(row)
+            next(trace for trace in plan["traces"] if trace["id"] == "REQ-001")["source_ids"].append("SRC-TASK")
+            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=run))
 
     def test_legacy_ui_join_uses_repository_shaped_adapter_context(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

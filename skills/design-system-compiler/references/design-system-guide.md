@@ -9,7 +9,7 @@ The design system exists so frontend implementation can follow one set of tokens
 ## Drafting Order
 
 1. Confirm that `docs/design/ui-design.md` records `Design System Need Gate: required`, then run the exact pair-less preflight when its compiled-pair field is `pending — design-system-compiler`. Load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
-2. Confirm that the PRD UI Surface Contract is complete and frozen and that `docs/design/ui-design.md` records approved Wireframe and Visual decisions for the complete responsive browser matrix and immutable target.
+2. Confirm that the PRD UI Surface Contract is complete and frozen and that `docs/design/ui-design.md` records validated structure and approved Visual decision for the complete responsive browser matrix and immutable target.
 3. Consume the selected direction, Style Integration rules, Impeccable review evidence, H1-H9 result, and human approval from `ui-design.md`. Do not rerun `frontend-design`, Impeccable, direction generation, or the HiFi review during normal compilation.
 4. Translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target. `frontend-design` supplies the approved direction; it is not a compiler mode.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
@@ -17,11 +17,11 @@ The design system exists so frontend implementation can follow one set of tokens
 
 Publish the Markdown and JSON together.
 
-Generate the separate derived HTML view through `render_design_system_preview.py` after pair validation; follow `references/output-contract.md`. It shows registry values and declared contracts without becoming another source. Keep the approved wireframe and its prototype-only Design System Draft view unchanged. Recheck the preview against current pair/source bytes before handoff.
+Generate the separate derived HTML view through `render_design_system_preview.py` after pair validation; follow `references/output-contract.md`. It shows registry values and declared contracts without becoming another source. Keep validated wireframe and historical approval bytes unchanged; new wireframes have no Tokens or Design System Draft view. Recheck the preview against current pair/source bytes before handoff.
 
 ## Contract Boundary
 
-`design-system.json` is the sole structured authority. New approval pairs use `design-system/2`; its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, approved wireframes/4, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
+`design-system.json` is the sole structured authority. New approval pairs use `design-system/2`; its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, validated wireframes/5, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
 
 Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | Tailwind CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`. `stackSemantics` binds the exact approved rendering model (or client strategy), component foundation (or framework), styling approach, and platform. A hybrid pair uses `surfaceContracts` instead of global `platform`, `stylingMechanism`, `viewports`, and `sizeClasses`, plus a `stackSemantics` map keyed by every UI-* surface. Platform and styling choices remain grounded in the approved `stack-decisions.md` source binding rather than being invented by the compiler. Shared tokens, primitives, product components, motion variants, and state matrix remain global.
 

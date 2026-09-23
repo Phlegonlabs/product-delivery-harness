@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.51.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.52.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -23,12 +23,22 @@ It is not a prompt collection. The skill suite separates product definition, vis
 
 > Define the product. Compile the design. Deliver verified software.
 
+## Unified design review
+
+Wireframe and HiFi use one neutral reviewer shell: the same sidebar, font, spacing and controls, isolated from product CSS. App, Web front and administration are grouped under one entry, with one product canvas and platform-specific sizes/states. New `wireframes/5` has no Tokens or Design System Draft view; HiFi has a separate page of all actual product tokens, with names, purposes, source values and visual specimens.
+
+Reviewer controls and panels use Shadow DOM while the product canvas stays in normal DOM. Real state controls switch state/target content; reviewer selections persist by package and platform without crossing packages.
+
+`frontend-design` is mandatory for wireframes, directions, HiFi and repairs. Combine unanswered preferences, validate structure and W1–W5 internally, select a direction, then complete Impeccable, H1–H9 and technical checks before one human HiFi approval covering copy, structure, menus, tabs, interactions, visuals and tokens. Product menus must navigate and tabs must change content; verify required Home/back/cancel, compact menus, keyboard, Escape and focus return against PRD operations. Menu and tab controls use native buttons and each binds one distinct panel inside its own product surface. Controls and panels must be live nodes outside `<template>` and `<noscript>`; hidden product state panels remain valid.
+
+Initial design uses the full flow. Enhancements author only affected pages and connecting flows, with preserved-page comparisons. Routine maintenance edits and verifies the current product and effective requirements without rebuilding historical Wireframe/HiFi. Source, installed and actually loaded skill identities stay separate. New `ui-output/3` / `ui-evidence/3` preserve real observations, time, tool, environment and candidate hashes; machine results never invent human approval. Legacy formats retain their historical meaning. See [review workflow](skills/ui-design-builder/references/review-workflow.md) and [evidence](skills/ui-design-builder/references/review-evidence.md).
+
 ## Start here
 
 | If you have... | Start with | What you get |
 | --- | --- | --- |
 | A product idea | `product-definition-builder` | An owner-approved Product Definition with complete frontend/backend architecture, stack choices, UI behavior, release targets, and tests |
-| An approved Product Definition that needs UI design | `ui-design-builder` | Human UI/style/motion/media intake, responsive `wireframes/4`, `frontend-design` Style Integration, Impeccable HiFi review, W/H scoring, Visual Approval, and a design-system decision |
+| An approved Product Definition that needs UI design | `ui-design-builder` | Human UI/style/motion/media intake, responsive `wireframes/5`, `frontend-design` Style Integration, Impeccable HiFi review, W/H scoring, Visual Approval, and a design-system decision |
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A fixed integrated code candidate | `code-security-review` | A read-only, exact-SHA security review with validated source-to-sink findings and explicit coverage gaps |
 | A delivered release that needs external setup | `product-activation` | Exact authorized console actions, verified measurement sources, and target-by-target activation readiness |
@@ -38,7 +48,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 
 ### Design translation and reusable patterns
 
-Before full wireframe authoring, translate the approved PRD into task hierarchy, region proportions, responsive behavior, reading order and annotated motion in the existing UI handoff. This adds no approval gate. Use the primary/stress composition checkpoint, then the existing Wireframe and Visual Approval gates. HiFi retains product behavior and hierarchy while refining provisional typography, optical spacing and fine geometry. Compare repeated controls across pages and use actual long/CJK copy rather than score-only visual claims.
+Before full wireframe authoring, translate the approved PRD into task hierarchy, region proportions, responsive behavior, reading order and annotated motion in the existing UI handoff. This adds no approval gate. Use the primary/stress composition checkpoint and internal Wireframe Validation, then review the complete HiFi once for Visual Approval. HiFi retains product behavior and hierarchy while refining provisional typography, optical spacing and fine geometry. Compare repeated controls across pages and use actual long/CJK copy rather than score-only visual claims.
 
 Incremental changes preserve unnamed scope. An explicit **full design rebuild with retained PRD** instead starts fresh composition and direction under the observed skill contract, preserving product/stack/copy constraints and known usability failures. Old design files and approvals remain history; replacement, archival and installation keep their own authorization. New iOS scope defaults to iPhone with smaller/larger phone review targets and Dynamic Type checks; iPad remains opt-in and existing PRD requirements stay binding. Native HTML never proves native behavior.
 
@@ -57,8 +67,8 @@ After applicable skill updates and before implementation, [design freshness](ski
 
 Security exemptions also require a documentation-only product description and Product Archetype, plus explicitly absent executable architecture surfaces. Required security TEST signals and Harness criteria use `denial: rejected (<signal>); no unauthorized side effects: unchanged (<state evidence>)`, with concrete observations for both assertions.
 - **Recommendations are not implementation authority.** Product Definition presents two or three coherent technology bundles per applicable area. New accepted choices are `Approved`, existing choices remain `Selected`, and hard constraints are `Required`; `Recommended` and `Provisional` block delivery. The checkpoint's closed area set must equal the applicable resolved areas, and the approved option's layer map must equal the executable stack rows. `render_stack_option_map.py` prints a candidate map from existing rows for owner review; it cannot approve or rewrite the package. Explicit option maps are wrapped as `||...||`; legacy comma-only maps remain readable, and commas in layer names or selections require the explicit form.
-- **UI design has its own approval spine.** `ui-design-builder` asks the human owner for UI, style, motion, and media choices before drawing. Schema-4 wireframes freeze copy and display contracts. Wireframe and Visual Approval responses link the complete current HTML page/state set and affected design handoff; approval links point to final logical paths in the authorized publication checkout, then to the source checkout after publication. Hybrid products bind every `UI-*` surface to its exact architecture `releaseSurface`, `surfaceClass`, `captureMode`, and per-surface responsive set; hosted, extension, native, and desktop evidence remain separate. The HiFi target carries that exact scope, one restrictive CSP, and a human-attested sandboxed-offline receipt with retained console, network, navigation, form, and popup attempts. A required design system uses one narrow handshake: Visual Approval records `required/pending`, the compiler validates that exact approved input and creates the pair, then the owner links both hashes and final validation rejects the pending state. An agent cannot mint either approval. Docker/Podman is not required for UI review; the offline receipt describes enforced browser restrictions.
-- **HiFi pages must connect through product controls.** New or revised `ui-hifi/2` references use an `index.html` manifest with hash-bound sibling HTML pages and explicit control destinations. Offline `ui-output/2` evidence checks click and keyboard outcomes at every responsive target; missing pages, stale hashes, dead controls, wrong destinations, and undeclared navigation block approval. Each page renders exactly its assigned surfaces. Publish and retain the complete package. Schema-1 references remain inspection-only; every current Visual Approval requires schema 2. A frozen Git revision must contain every listed child page with the same bytes.
+- **UI design has one final human review.** `ui-design-builder` asks the owner for unresolved UI, style, motion, and media choices. New `wireframes/5` validates complete sourced copy and structure internally; historical schema-4 Copy Freeze and Wireframe Approval remain readable. Present the full HiFi, validated wireframe, and affected handoff with links to final logical paths in the authorized publication checkout. Hybrid products bind every `UI-*` surface to its exact architecture `releaseSurface`, `surfaceClass`, `captureMode`, and per-surface responsive set. New `ui-output/3` and `ui-evidence/3` record actual machine observations with input hashes and execution details; qualitative assessments and human Visual Approval stay separate. A required design system uses one narrow handshake: Visual Approval records `required/pending`, the compiler validates that exact approved input and creates the pair, then the owner links both hashes and final validation rejects pending. An agent cannot mint the owner's decision. UI review does not require Docker/Podman.
+- **HiFi pages must connect through product controls.** New or revised `ui-hifi/2` references use an `index.html` manifest with hash-bound sibling HTML pages and explicit control destinations. Current `ui-output/3` observations check click and keyboard outcomes at every responsive target; missing pages, stale hashes, dead controls, wrong destinations, and undeclared navigation block approval. Each page renders exactly its assigned surfaces. Publish and retain the complete package. Schema-1 references remain inspection-only; every current Visual Approval requires HiFi schema 2. Historical output/2 and evidence/2 retain their original meaning. A frozen Git revision must contain every listed child page with the same bytes.
 - **Visual quality has its own floor.** HiFi H5 (visual slop), H7 (creative distinction), and H9 (design consistency) each require 80; an overall 90 cannot average away a weak visual dimension. Reviews cite inspected screenshots and confirmed direction principles. Numeric validation does not prove beauty or human inspection.
 - **Choose directions from representative screens.** Before selection, each direction shows the same primary task and stress case with frozen content. The Direction comparison table binds screenshots by path/hash and requires matching cases for one or three directions. Full connected HiFi follows human selection; studies never authorize production UI.
 - **Platforms share a brand, not control defaults.** Platform rules cover each approved platform separately. iOS addresses system text styles, Dynamic Type, SF Symbols and native input/layout; Web libraries are not forced onto it. HTML remains a review projection. Native implementation proves the representative cases with platform tooling before expanding, then completes the final full matrix.
@@ -104,9 +114,9 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 Wireframes use a composed neutral grayscale canvas with readable annotations on by default and an optional clean view. Authors compose a frequent task and a dense or alternate state before expanding the full matrix. W5 checks task/type hierarchy, spacing, content form, density, platform reflow, and review separation against inspected screenshots; its independent minimum is 80. Optional region presentations cover navigation, editorial content, lists, forms, and tables without changing product copy or selecting a production stack.
 
-The wireframe target is mid-fidelity: exact copy, readable composition, realistic data and declared primary journeys tested through product controls. Read-only fields do not prove input or recovery flows. A reviewer-only Design System Draft page shows shared prototype values and actual renderer specimens; it adds no product route or approval gate. After Visual Approval, the compiler emits `design-system-preview.html` from the validated Markdown/JSON pair. Its checker rejects stale or edited views and stale sources; the pair remains authoritative and the approved wireframe stays unchanged. Component appearance remains grounded in the approved HiFi, not inferred from registry names.
+Wireframe keeps grayscale structure and complete sourced copy, with internal validation. HiFi supplies the complete source-derived product Design Tokens view. A formal `design-system-preview.html` is generated separately only when the Need Gate requires a compiled pair.
 
-Formal wireframes now open with readable annotations, named page/dialog/result destinations and measured layout spacing. The clean view remains optional. Wireframe Draft and HiFi Design Tokens show a visual sample for every used token and the actual control variants. HiFi samples bind the CSS property consuming each token, preserve page-specific values and respect reduced motion. Inventory shared raw values too: listing every existing variable does not prove complete design coverage.
+Formal wireframes now open with readable annotations, named page/dialog/result destinations and measured layout spacing. The clean view remains optional. New wireframes have no Draft or Tokens view. HiFi Design Tokens show a visual sample for every used token and actual control variant, with source CSS, named purpose, page-specific values and reduced-motion behavior. Inventory shared raw values too: listing every existing variable does not prove complete design coverage.
 
 Token observations retain raw source/display values separately from browser-normalized source/applied values, so hex colors, rem dimensions and keyword weights compare correctly.
 
@@ -114,7 +124,7 @@ Token observations retain raw source/display values separately from browser-norm
 flowchart LR
   Idea["Product idea or change request"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]
   PRD --> ProductGate{"Stack Decision +\nProduct Definition Approval"}
-  ProductGate -->|"approved UI product, explicit request"| UIDesign["ui-design-builder\nintake + wireframes/4 + Style Integration"]
+  ProductGate -->|"approved UI product, explicit request"| UIDesign["ui-design-builder\nintake + wireframes/5 + Style Integration"]
   UIDesign --> UIReview["frontend-design author\nImpeccable review + W/H scoring"]
   UIReview --> Design["approved HiFi target\ndesign-system-compiler when required"]
   ProductGate -->|"approved, UI phase deferred"| Harness["delivery-harness\nShared delivery core"]
@@ -164,9 +174,8 @@ flowchart TB
     subgraph DESIGN["ui-design-builder — UI design (explicit owner request)"]
         direction TB
         intake{{"UI Design Intake<br/>style + motion + media; wait for owner"}}
-        wf["frontend-design structural mode<br/>wireframes/4"]
-        cgate{{"Copy Freeze<br/>copy owner before structure"}}
-        wgate{{"Wireframe Approval<br/>W1–W5 + human owner"}}
+        wf["frontend-design structural mode<br/>wireframes/5"]
+        wgate["Wireframe Validation<br/>W1–W5 — internal"]
         style["frontend-design<br/>Style Integration + HiFi target"]
         review["Impeccable critique + audit<br/>H1–H9 grading"]
         vgate{{"Human Visual Approval"}}
@@ -174,7 +183,7 @@ flowchart TB
         pending["Approved required/pending marker<br/>bound to Visual Approval digest"]
         pair["design-system-compiler preflight + compile<br/>design-system.md + design-system.json"]
         linked["Owner links pair hashes<br/>final UI validation"]
-        intake --> wf --> cgate --> wgate --> style --> review --> vgate --> dgate
+        intake --> wf --> wgate --> directionChoice{{"Direction selection"}} --> style --> review --> vgate --> dgate
         dgate -->|required| pending --> pair --> linked
         dgate -->|not_required| target[Approved page-faithful target]
     end
@@ -279,7 +288,7 @@ flowchart TB
     verdict -.->|next enhancement request| interview
 ```
 
-Product Definition Approval, UI Wireframe Approval, and the merge to `main` are separate human gates. Publication authorization is also separate: accepting product content never authorizes overwriting or moving files.
+Product Definition Approval, UI Visual Approval, and the merge to `main` are separate human gates. Publication authorization is also separate: accepting product content never authorizes overwriting or moving files.
 
 For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds typed `Surface class` and `Public discoverability` fields; Delivery Harness joins every development/production target to those fields, its exact provider/channel, endpoint or typed native disposition, expected/deployed SHA, artifact identity, availability evidence, and checked time. Production uses canonical `<product-slug>-<surface-suffix>` with no `-prod`; development adds `-dev`. The record lists secret and variable names plus external-console tasks, never secret values.
 
@@ -317,7 +326,7 @@ Reviewer evidence also covers unknown links, browser Back from each review view,
 
 Full-stack delivery follows complete user flows through UI, API, permissions, persistence and feedback. Use agent-browser for Web exploration and retain important journeys as local/CI tests. Actual login, denied access, retry and side effects need evidence. Deployment checks include migrations, health, monitoring, cost alerts and recovery; delivery, release, activation and product results are reported separately. SEO applies only to relevant public surfaces.
 
-Upgrade to 0.50.0 with the canonical installer after active skill-using sessions reach a safe boundary. Keep its backup and start a fresh session; installed bytes do not update a loaded worker. Review the document-sync impact report, preserve local AGENTS rules and historical evidence, and patch only affected live sources. Existing document-sync/1 and ui-hifi/2 files remain inspectable. A fresh HiFi approval adds the reviewer shell and page-bound ui-output/2 reviewer observations; regenerate only affected evidence, not old approvals. Small fixes reuse a matching Epic without PLAN/RUN; create a bounded Epic only when none fits. Re-run the affected owner gates plus mandatory final verification. For 0.49.0, inspect design freshness before implementation and supply region-bound motionSpec in strict schema-4 authoring checks; preserve historical approvals. For 0.50.0, retain existing product layouts and approved artifacts. New wireframes open with annotations. Add a supported data-token-preview property and a matching source consumer for each HiFi token, then regenerate affected reviewer observations; preserve historical approvals.
+Upgrade to 0.50.0 with the canonical installer after active skill-using sessions reach a safe boundary. Keep its backup and start a fresh session; installed bytes do not update a loaded worker. Review the document-sync impact report, preserve local AGENTS rules and historical evidence, and patch only affected live sources. Existing document-sync/1 and ui-hifi/2 files remain inspectable. A fresh HiFi approval adds the reviewer shell and page-bound ui-output/2 reviewer observations; regenerate only affected evidence, not old approvals. Small fixes reuse a matching Epic without PLAN/RUN; create a bounded Epic only when none fits. Re-run the affected owner gates plus mandatory final verification. For 0.49.0, inspect design freshness before implementation and supply region-bound motionSpec in strict schema-5 authoring checks; preserve historical approvals. For 0.50.0, retain existing product layouts and approved artifacts. New wireframes open with annotations. Add a supported data-token-preview property and a matching source consumer for each HiFi token, then regenerate affected reviewer observations; preserve historical approvals.
 
 Every skill invocation starts with the shared [document-sync contract](skills/delivery-harness/references/document-sync-contract.md): review changed live instructions, skill/runtime identity and product documents, without rewriting historical approvals or runs. The current PRD stays the next enhancement's baseline; superseded PRDs remain linked references. [Bounded enhancement](skills/delivery-harness/references/bounded-enhancement.md) reuses one accepted scope for repairs, same-scope module replacement and retesting instead of repeated approval prompts. Stop at the repair budget and hand unresolved requirements to the next round; ending a round is not a delivery PASS or permission to publish.
 
@@ -413,7 +422,7 @@ The installer ignores reproducible Python caches and refuses every other untrack
 
 When upgrading from 0.23 or earlier, let the installer archive the legacy directories under their original IDs in the same backup and install all seven current skills: `delivery-harness`, `product-definition-builder`, `ui-design-builder`, `design-system-compiler`, `code-security-review`, `product-activation`, and `seo-growth-review`. The migration is `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler`; the installer verifies that every legacy ID is no longer discoverable.
 
-The seven bundled skills are independently invocable, but cross-skill modes enforce dependencies. UI Design, Design System, Activation, and Harness each run the same full Product checker unconditionally with exact PRD, architecture, stack, and repository root. UI Design also joins Copy Freeze, schema-4 wireframes, structured HiFi/CSP/offline evidence, and the optional schema-2 pair; hybrid products require schema-2 `surfaceContracts` to match every approved `UI-*` release surface, capture mode, and responsive set, while platform and styling choices remain in the approved stack source. Deployment, Activation, Outcome Review, and saved SEO lifecycle reports reuse the same production identity.
+The seven bundled skills are independently invocable, but cross-skill modes enforce dependencies. UI Design, Design System, Activation, and Harness each run the same full Product checker unconditionally with exact PRD, architecture, stack, and repository root. UI Design also joins internal structure validation, schema-5 wireframes, structured HiFi/CSP/offline evidence, and the optional schema-2 pair; hybrid products require schema-2 `surfaceContracts` to match every approved `UI-*` release surface, capture mode, and responsive set, while platform and styling choices remain in the approved stack source. Deployment, Activation, Outcome Review, and saved SEO lifecycle reports reuse the same production identity.
 
 New project Skill Bindings are deliberately unresolved until the session observes installed candidates and the owner confirms one skill per slot. Pins cover each complete skill tree, not only `SKILL.md`. The public dependency manifest pins the source locator and install route for both required UI dependencies: ask Codex's `$skill-installer` to install `frontend-design` from the recorded Anthropic path, and install Impeccable with `npx impeccable install` (its current npx route requires Node.js 22.18+). Then run `check_external_skill_dependencies.py`; a changed upstream tree must not silently replace the pinned bytes. The Harness owns conformance and compilation contracts. Impeccable is never a default read-only Harness reviewer: using its pinned workflow needs separate authorization for subagents, browser/server work, snapshot writes, and any optional binary download.
 
@@ -423,7 +432,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 1. Install one supported host and all seven skills. The installer locks the destination, backs up managed IDs, copies only Git-tracked files, and verifies every byte. Restart the host.
 2. Start with `product-definition-builder`: research-first evidence, candidate drafting and reconciliation, explicit recommendation choices, accepted changes, coherent stack choices, typed release targets, tests, Stack Decision Checkpoint, and human Product Definition Approval.
-3. For a UI product, run `ui-design-builder`: human intake, Copy Freeze, schema-4 wireframe checks and approval, Style Integration, structured HiFi, human-attested evidence receipts, H1–H9 review, and Visual Approval.
+3. For UI, use mandatory `frontend-design`, internal Wireframe Validation, direction selection, connected HiFi, actual machine evidence, independent Impeccable/H1–H9 review and consolidated human Visual Approval.
 4. If the Design System Need Gate is `required`, record the exact approved `required/pending` marker, run the compiler's narrow preflight, compile the schema-2 Markdown/JSON pair, link both hashes through an owner record, and pass normal final UI validation. If it is `not_required`, record the disposition of any existing pair and keep the approved target replacement.
 5. Invoke `delivery-harness`. Its size gate keeps one bounded writer direct or creates PLAN-v6/RUN-v11 for managed work. Obtain exact authorization before every state-changing action.
 6. Before a managed launch, pass exact source joins and run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`; `--probe-sandboxes` is diagnostic only. Execute missions in isolated worktrees and candidate commands on the host by default; explicitly selected containers retain pinned sandbox execution.
@@ -454,11 +463,11 @@ Use $product-definition-builder to define this product, including complete front
 ```
 
 ```text
-The Product Definition is approved. Use $ui-design-builder to ask me for UI, style, motion, and per-region image/motion preferences, then use $frontend-design to create and score responsive wireframes/4. Stop for my Wireframe Approval.
+The Product Definition is approved. Use $ui-design-builder and mandatory $frontend-design for wireframes/5, direction selection and full HiFi. Validate the wireframe internally. Ask for one full HiFi review covering copy, structure, product menus, tabs, visuals and tokens.
 ```
 
 ```text
-The wireframes are approved. Continue $ui-design-builder with $frontend-design Style Integration, create one connected HiFi reference, run $impeccable critique and audit plus H1-H9 grading, obtain Visual Approval, and invoke $design-system-compiler only when required.
+The wireframes/5 structure and sourced copy passed internal validation. Continue $ui-design-builder with $frontend-design Style Integration, create one connected HiFi reference, run separately authorized $impeccable critique and audit plus H1-H9 grading, obtain one full Visual Approval, and invoke $design-system-compiler only when required.
 ```
 
 ```text
@@ -571,6 +580,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.52.0** — Wireframe and HiFi review share a shell with platform-specific canvases and working product controls. Schema-5 wireframes require sourced copy and operation coverage; HiFi review requires source-bound tokens, independent evidence and one consolidated owner approval. Design routing distinguishes initial work, enhancements and routine maintenance without rewriting historical artifacts. The changed review and approval contract is a breaking skill-bundle change.
 
 - **0.51.0** — General capability-based runtime adaptation replaces provider-specific drivers and legacy workflow templates. English PRD and architecture sources gain synchronized Chinese review copies, including same-directory backfill for existing English-only documents. AGENTS records repository changes in Epics at task checkpoints, even without a Harness run. This is a breaking skill-bundle change.
 

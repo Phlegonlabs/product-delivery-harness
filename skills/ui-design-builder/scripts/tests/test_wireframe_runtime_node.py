@@ -14,7 +14,7 @@ class WireframeRuntimeNodeTests(unittest.TestCase):
         node = shutil.which("node")
         if not node:
             self.skipTest("node unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         script = r'''
 const fs=require('fs'),vm=require('vm');
 const html=fs.readFileSync(process.argv[2],'utf8').replace(/\r\n/g,'\n');
@@ -40,7 +40,7 @@ if(JSON.stringify(screen)!==before)throw Error('notes mutated product data');
         node = shutil.which("node")
         if not node:
             self.skipTest("node unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         html = template.read_text(encoding="utf-8")
         self.assertIn('<body data-annotations="true">', html)
         self.assertIn('aria-pressed="true">Hide annotations', html)
@@ -66,7 +66,7 @@ if(link.text!=='Article details (UI-002)'||selected!=='UI-002')throw Error('read
         self.assertEqual(0, result.returncode, result.stderr)
 
     def test_product_width_is_not_reduced_by_reviewer_frame(self) -> None:
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         html = template.read_text(encoding="utf-8")
         frame = re.search(r"\.canvas-shell\s*\{([^}]+)\}", html).group(1)
         self.assertRegex(frame, r"padding:\s*0;")
@@ -88,7 +88,7 @@ if(link.text!=='Article details (UI-002)'||selected!=='UI-002')throw Error('read
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         script = r'''
 const fs = require("fs"), vm = require("vm");
 const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
@@ -107,7 +107,7 @@ if (!html.includes("state.page = resolvePage(location.hash)")) throw Error("hash
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         script = r'''
 const fs = require("fs");
 const vm = require("vm");
@@ -233,7 +233,7 @@ if (!String(canvas.attributes["aria-label"]).includes("compact") || !String(canv
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         script = r'''
 const fs = require("fs"), vm = require("vm");
 const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
@@ -328,7 +328,7 @@ if (context.state.screenState !== "ready" || context.state.localSearch["UI-001"]
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         script = r'''
 const fs = require("fs"), vm = require("vm");
 const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");
@@ -365,7 +365,7 @@ if (second.children[0].children[1].value !== "Edited locally") throw Error("form
         node = shutil.which("node")
         if node is None:
             self.skipTest("node is unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES_V4.template.html"
         script = r'''
 const fs = require("fs"), vm = require("vm");
 const html = fs.readFileSync(process.argv[2], "utf8").replace(/\r\n/g, "\n");

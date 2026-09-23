@@ -6,8 +6,10 @@ import re
 from html.parser import HTMLParser
 
 from check_wireframe_html import _decode_css_escapes, _strip_css_comments
+from reviewer_shell import shared_css_drift
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+INERT_CONTAINERS = {"template", "noscript"}
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
@@ -22,11 +24,14 @@ class ReviewerParser(HTMLParser):
         self.stack = []
         self.nodes = []
         self.errors = []
+        self.inert_nodes = set()
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
         parents = [attrs for _, attrs in self.stack]
-        marked = any(key.startswith("data-hifi-") for key in values)
+        if tag in INERT_CONTAINERS or any(parent_tag in INERT_CONTAINERS for parent_tag, _ in self.stack):
+            self.inert_nodes.add(id(values))
+        marked = any(key.startswith("data-hifi-") and key not in {"data-hifi-state-view"} for key in values)
         if marked and any("data-ui-surface" in item for item in parents + [values]):
             self.errors.append("HiFi reviewer markers must stay outside product surfaces")
         if any("data-hifi-reviewer-shell" in item or "data-hifi-panel" in item for item in parents + [values]):
@@ -233,12 +238,12 @@ def _retention_probe(nodes):
 
 
 def has_current_reviewer_shell(documents):
-    """Detect version-2 reviewer markup through parsed HTML, not string quotes."""
+    """Detect current v2 or v3 reviewer markup through parsed HTML."""
     for html in documents.values():
         parser = ReviewerParser()
         parser.feed(html)
         parser.close()
-        if any("data-hifi-reviewer-shell" in attrs and attrs.get("data-hifi-reviewer-version") == "2" for _, attrs, _ in parser.nodes):
+        if any("data-hifi-reviewer-shell" in attrs and attrs.get("data-hifi-reviewer-version") in {"2", "3"} for _, attrs, _ in parser.nodes):
             return True
     return False
 
@@ -332,6 +337,7 @@ def _reviewer_contract(documents, manifest):
     page_targets = {page: _page_targets(surfaces, page, target_values) for page in pages}
     page_widths = {}
     page_retention = {}
+    page_shell_versions = {}
     for name, html in documents.items():
         parser = ReviewerParser()
         parser.feed(html)
@@ -344,8 +350,10 @@ def _reviewer_contract(documents, manifest):
         navs = [(tag, parents) for tag, attrs, parents in nodes if "data-hifi-page-nav" in attrs]
         if len(shells) != 1 or shells[0][0] != "aside":
             errors.append(f"HiFi {name} requires one reviewer aside")
-        elif shells[0][1].get("data-hifi-reviewer-version") != "2":
-            errors.append(f"HiFi {name} requires the current version-2 reviewer shell")
+        elif shells[0][1].get("data-hifi-reviewer-version") not in {"2", "3"}:
+            errors.append(f"HiFi {name} requires the current version-2 or version-3 reviewer shell")
+        shell_version = shells[0][1].get("data-hifi-reviewer-version") if len(shells) == 1 and shells[0][0] == "aside" else None
+        page_shell_versions[name] = shell_version
         if len(navs) != 1 or navs[0][0] != "nav" or not any("data-hifi-reviewer-shell" in p for p in navs[0][1]):
             errors.append(f"HiFi {name} requires one sidebar page navigation")
         page_links = [attrs for tag, attrs, parents in nodes if tag == "a" and any("data-hifi-page-nav" in p for p in parents)]
@@ -373,6 +381,21 @@ def _reviewer_contract(documents, manifest):
             errors.append(f"HiFi {name} responsive target controls must exactly match manifest targets as real buttons")
         if target_buttons and sum(attrs.get("aria-pressed") == "true" for _, attrs in target_buttons) != 1:
             errors.append(f"HiFi {name} must show one selected responsive target control")
+        if shell_version == "3":
+            expected_controls = [(row["id"], str(state)) for row in surfaces if row["page"] == name
+                                 for state in row["states"] if not _is_na_state(state)]
+            state_controls = [(attrs.get("data-hifi-state-surface"), attrs.get("data-hifi-state-control"))
+                              for tag, attrs, parents in nodes if tag == "button" and "data-hifi-state-control" in attrs
+                              and any("data-hifi-state-controls" in parent for parent in parents)]
+            if state_controls != expected_controls:
+                errors.append(f"HiFi {name} state controls must match manifest surface states in order")
+            for surface, state in expected_controls:
+                expected_pairs = {(state, target) for target in applicable_targets}
+                actual_pairs = {(attrs.get("data-hifi-state-view"), attrs.get("data-responsive-target"))
+                                for _, attrs, parents in nodes if "data-hifi-state-view" in attrs
+                                and any(parent.get("data-ui-surface") == surface for parent in parents)}
+                if not expected_pairs <= actual_pairs:
+                    errors.append(f"HiFi {name} product state {surface} {state} requires a visible-state source for every target")
         canvases = [(tag, attrs) for tag, attrs, _ in nodes if "data-hifi-canvas" in attrs]
         if len(canvases) != 1 or canvases[0][0] not in {"div", "main", "section"}:
             errors.append(f"HiFi {name} requires one exact-width product container")
@@ -394,6 +417,8 @@ def _reviewer_contract(documents, manifest):
         page_retention[name] = retention
         errors.extend(retention_errors)
         css = _page_css(html)
+        if shell_version == "3":
+            errors.extend(f"HiFi {name}: {finding}" for finding in shared_css_drift(html))
         errors.extend(f"HiFi {name}: {finding}" for finding in _host_media_reflow(css))
         if re.search(r"transform\s*:\s*scale\s*\(", css, re.I):
             errors.append(f"HiFi {name} exact-width product container cannot use visual scaling")
@@ -436,6 +461,8 @@ def _reviewer_contract(documents, manifest):
                 spec["marker"] = ""
                 if spec["kind"] == "token":
                     spec["previewProperty"] = attrs.get("data-token-preview", "")
+                    if shell_version == "3" and not attrs.get("data-token-purpose", "").strip():
+                        errors.append("HiFi v3 token specimens require a named purpose")
                 spec["_wrapper"] = id(attrs)
                 if spec["sourcePage"] not in pages:
                     errors.append("HiFi specimen source page must belong to the bundle")
@@ -539,11 +566,27 @@ def _reviewer_contract(documents, manifest):
               "visible": True, "productVisible": False, "visibleSurfaces": [], "focusCorrect": True, "result": "PASS"}
              for origin in pages for view in ("overview", "design-tokens")
              for target in page_targets.get(origin, targets) for trigger in ("click", "keyboard")]
+    navigation_edges = {
+        (origin, dest)
+        for origin in pages
+        for dest in pages
+    }
+    if set(page_shell_versions.values()) == {"3"} and pages:
+        first = pages[0]
+        navigation_edges = {
+            (origin, first)
+            for origin in pages
+        }
+        navigation_edges.update((first, dest) for dest in pages)
+        navigation_edges.update(
+            (pages[index], pages[index + 1])
+            for index in range(len(pages) - 1)
+        )
     navigation = [{"from": origin, "to": dest, "target": target, "trigger": trigger,
                    "destinationTarget": target if target in page_targets.get(dest, targets) else (page_targets.get(dest, targets) or [None])[0],
                    "visible": True, "productVisible": True, "visibleSurfaces": surfaces_by_page[dest],
                    "focusCorrect": True, "result": "PASS"}
-                  for origin in pages for dest in pages
+                  for origin, dest in navigation_edges
                   for target in page_targets.get(origin, targets) for trigger in ("click", "keyboard")]
     recovery = [{"from": origin, "case": case, "target": target,
                  "surfaces": surfaces_by_page[origin], "selectedTarget": target,
@@ -582,6 +625,58 @@ def _reviewer_contract(documents, manifest):
                     "overviewInitiallyHidden": True, "overview": overview,
                     "views": views, "navigation": navigation, "recovery": recovery,
                     "viewport": viewport, "retention": retention, "specimens": specimens}
+
+
+def product_control_findings(documents):
+    """Validate native product controls and their same-surface panels."""
+
+    errors = []
+    for page, html in documents.items():
+        parser = ReviewerParser()
+        parser.feed(html)
+        parser.close()
+        errors.extend(parser.errors)
+        nodes = parser.nodes
+        node_ids = {}
+        for _, attrs, parents in nodes:
+            if attrs.get("id"):
+                node_ids.setdefault(attrs["id"], []).append((attrs, parents))
+
+        def product_surface(parents):
+            return next((parent for parent in reversed(parents) if "data-ui-surface" in parent), None)
+
+        for tag, attrs, parents in nodes:
+            if "data-product-menu" not in attrs and "data-product-tab" not in attrs:
+                continue
+            surface = product_surface(parents)
+            if surface is None:
+                errors.append(f"HiFi {page} product menu/tab controls must stay inside a product surface")
+            kind = "menu" if "data-product-menu" in attrs else "tab"
+            if tag != "button":
+                errors.append(f"HiFi {page} product {kind} control must be a native button")
+            if id(attrs) in parser.inert_nodes:
+                errors.append(f"HiFi {page} product {kind} control must be a live product button outside template/noscript")
+            target_id = attrs.get("aria-controls")
+            matches = node_ids.get(target_id, [])
+            if not matches:
+                errors.append(f"HiFi {page} product {kind} control must bind an existing panel")
+            elif (len(matches) != 1 or matches[0][0] is attrs or surface is None
+                  or product_surface(matches[0][1]) is not surface
+                  or "data-ui-surface" in matches[0][0]
+                  or any("data-hifi-panel" in item or "data-hifi-reviewer-shell" in item
+                         or "data-reviewer-shell" in item for item in [matches[0][0], *matches[0][1]])):
+                errors.append(f"HiFi {page} product {kind} control must bind one distinct panel inside the same product surface")
+            elif id(matches[0][0]) in parser.inert_nodes:
+                errors.append(f"HiFi {page} product {kind} panel must be a live product panel outside template/noscript")
+            if kind == "menu":
+                expanded = attrs.get("aria-expanded")
+                if expanded not in {"true", "false"}:
+                    errors.append(f"HiFi {page} product menu control must declare expanded state")
+            else:
+                selected = attrs.get("aria-selected")
+                if selected not in {"true", "false"}:
+                    errors.append(f"HiFi {page} product tab control must declare selected state")
+    return errors
 
 
 def reviewer_evidence_findings(actual, expected):

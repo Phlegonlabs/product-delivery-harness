@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.51.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.52.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -23,12 +23,22 @@ Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，�
 
 > 定義產品。編譯設計。交付已驗證的軟體。
 
+## 統一設計審閱
+
+Wireframe 與 HiFi 共用中性檢視器：相同側欄、字體、間距及控制，並與產品 CSS 隔離。同一入口按 App、Web 前台、管理後台分組，一次顯示一個產品畫布，各自保留尺寸與狀態。新 `wireframes/5` 不提供 Tokens／Design System Draft 頁；HiFi 另設完整產品 Tokens 專頁，顯示名稱、用途、實際來源數值和視覺範例。
+
+審閱控制與面板使用 Shadow DOM，產品畫布留在一般 DOM。實際狀態控制會切換狀態及尺寸內容；審閱選擇依套件與平台保存，不跨套件混用。
+
+Wireframe、方向探索、HiFi 和修正強制使用 `frontend-design`。合併未答偏好，內部完成結構驗證與 W1–W5，選定方向，再完成 Impeccable、H1–H9 與技術檢查，最後一次人工審核完整 HiFi 的文案、結構、選單、Tab、互動、視覺和 tokens。產品選單必須前往實際目的地，Tab 必須切換內容；按 PRD operations 檢查 Home、返回、取消、手機選單、鍵盤、Escape 與焦點返回。選單與 Tab 控制使用原生按鈕，且各自連到同一產品畫面內唯一、獨立的面板。控制與面板須位於 `<template>` 和 `<noscript>` 之外的即時 DOM；一般隱藏的產品狀態面板仍有效。
+
+初次設計走完整流程；enhancement 只製作受影響頁面及連接流程，並比較保留頁面。日常修改直接驗證目前產品及有效需求，不強制重建歷史 Wireframe／HiFi。區分 source、已安裝和 session 實際載入版本。新 `ui-output/3`／`ui-evidence/3` 保留真實觀測、時間、工具、環境與候選雜湊；機器結果不能偽造人工批准。舊格式保留歷史語義。詳見[審閱流程](skills/ui-design-builder/references/review-workflow.md)及[證據契約](skills/ui-design-builder/references/review-evidence.md)。
+
 ## 從這裡開始
 
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
 | --- | --- | --- |
 | 一個產品構想 | `product-definition-builder` | 經 owner 核准的 Product Definition，包含完整 frontend/backend 架構、stack、UI 行為、release targets 與 tests |
-| 已核准 Product Definition、需要 UI 設計 | `ui-design-builder` | 人工 UI/style/motion/media intake、responsive `wireframes/4`、`frontend-design` Style Integration、Impeccable HiFi review、W/H 評分、Visual Approval 與 design-system 決策 |
+| 已核准 Product Definition、需要 UI 設計 | `ui-design-builder` | 人工 UI/style/motion/media intake、responsive `wireframes/5`、`frontend-design` Style Integration、Impeccable HiFi review、W/H 評分、Visual Approval 與 design-system 決策 |
 | 既有儲存庫中的明確變更 | `delivery-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 | 已固定並完成整合的程式候選 | `code-security-review` | 唯讀、綁定精確 SHA 的安全審查，包含經驗證的 source-to-sink 發現與明確的覆蓋缺口 |
 | 已交付、需要外部設定的 release | `product-activation` | 精確授權的 console 動作、已驗證的量測來源，以及逐 target 的 activation readiness |
@@ -38,7 +48,7 @@ Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，�
 
 ### 設計轉譯與可重用範本
 
-完整 wireframe 前，先把已批准 PRD 轉譯為任務層級、區塊比例、responsive、閱讀順序與動畫範圍，記錄在既有 UI handoff，不新增批准關卡。先檢查主要任務與密集／異常情境，再沿用 Wireframe／Visual Approval。HiFi 保留產品行為和資訊層級，細化暫定字體、光學間距與比例；跨頁比較元件，使用真實長文案與中英文檢查，不只給分數。
+完整 wireframe 前，先把已批准 PRD 轉譯為任務層級、區塊比例、responsive、閱讀順序與動畫範圍，記錄在既有 UI handoff，不新增批准關卡。先檢查主要任務與密集／異常情境，完成內部 Wireframe Validation，再以完整 HiFi 取得一次 Visual Approval。HiFi 保留產品行為和資訊層級，細化暫定字體、光學間距與比例；跨頁比較元件，使用真實長文案與中英文檢查，不只給分數。
 
 局部更新保留未指定範圍。明確要求「保留 PRD、整套重做」時，依實際載入規格重新構圖與選擇方向，保留產品、技術、文案約束及已知使用問題；舊設計與批准僅作歷史，替換、歸檔、安裝仍依各自授權。新 iOS 範圍預設 iPhone，以較小／較大手機和 Dynamic Type 檢查；iPad 按需加入，既有 PRD 要求不能直接刪除。HTML 不證明原生行為。
 
@@ -57,8 +67,8 @@ Skills 更新後及實作前，執行[設計有效性檢查](skills/ui-design-bu
 
 安全豁免還須有 documentation-only 產品描述與 Product Archetype，並明確記錄不存在的可執行架構介面。Required security TEST 訊號與 Harness criterion 使用 `denial: rejected (<signal>); no unauthorized side effects: unchanged (<state evidence>)`，兩項斷言皆須有具體觀測。
 - **建議不等於實作權威。** 每個適用領域先提供兩到三組 coherent stack。新選擇經核准後標記 `Approved`，既有選擇是 `Selected`，硬限制是 `Required`；`Recommended` 與 `Provisional` 會阻擋 delivery。Checkpoint 的封閉 area set 必須等於適用且已解決的 areas，核准 option 的 layer map 必須等於可執行 stack rows。`render_stack_option_map.py` 會從既有 rows 產生供 owner review 的候選 map；它不能核准或改寫套件。明確 option map 以 `||...||` 包裹；僅用逗號的 legacy map 仍可讀取，但 layer 名稱或 selection 含逗號時必須使用明確形式。
-- **UI 設計有獨立核准主線。** `ui-design-builder` 先完成 UI/style/motion/media intake。Schema 4 wireframe 會凍結文案與顯示契約；Wireframe 與 Visual Approval 回應會連結完整現行 HTML page/state set 與相關 design handoff，審核連結指向已授權 publication checkout 內的最終邏輯路徑，發布後再連到來源 checkout。hybrid 產品逐 `UI-*` surface 綁定 `releaseSurface`、`surfaceClass`、`captureMode` 與 responsive set。HiFi target 必須帶精確 scope、restrictive CSP，以及保留 console、network、navigation、form、popup 嘗試的人工 sandboxed-offline receipt。需要正式 design system 時走唯一窄路徑：Visual Approval 記錄 `required/pending`，compiler 驗證該核准 digest 並產生 pair，owner 再連結兩份 hash；一般 final validation 會拒絕 pending。Agent 不能代替 owner 核准。 UI 審核不要求 Docker／Podman；offline receipt 記錄的是實際執行的瀏覽器限制。
-- **HiFi 頁面必須由產品控制項連通。** 新增或修訂的 `ui-hifi/2` 以 `index.html` 清單綁定同目錄 HTML 頁面的雜湊與控制項目的地。離線 `ui-output/2` 證據逐 responsive target 驗證點擊及鍵盤操作；缺頁、過期雜湊、無效控制項、錯誤目的地或未宣告跳轉均阻擋核准。每頁只能呈現分配給該頁的 surface。發布與保留須包含完整套件；schema-1 僅供讀取檢查，正式 Visual Approval 一律要求 schema 2。 指定 Git revision 凍結時，該 revision 必須包含所有子頁面且內容一致。
+- **UI 設計以一次完整人工審閱收尾。** `ui-design-builder` 先確認未解決的 UI/style/motion/media 選擇。新 `wireframes/5` 內部驗證完整有來源的文案與結構；歷史 schema-4 的 Copy Freeze 與 Wireframe Approval 保留原意。審閱時連結完整 HiFi、已驗證 wireframe 與相關 handoff 的最終邏輯路徑。hybrid 產品逐 `UI-*` surface 綁定 `releaseSurface`、`surfaceClass`、`captureMode` 與 responsive set。新 `ui-output/3`、`ui-evidence/3` 分別記錄實際機器觀察、輸入雜湊與執行資訊；質性評估和人工 Visual Approval 分開。需要正式 design system 時，Visual Approval 記錄 `required/pending`，compiler 驗證該核准 digest 並產生 pair，owner 再連結兩份 hash；一般 final validation 拒絕 pending。Agent 不能代替 owner 核准；UI 審核不要求 Docker／Podman。
+- **HiFi 頁面必須由產品控制項連通。** 新增或修訂的 `ui-hifi/2` 以 `index.html` 清單綁定同目錄 HTML 頁面的雜湊與控制項目的地。現行 `ui-output/3` 觀察逐 responsive target 驗證點擊及鍵盤操作；缺頁、過期雜湊、無效控制項、錯誤目的地或未宣告跳轉均阻擋核准。每頁只能呈現分配給該頁的 surface。發布與保留須包含完整套件；schema-1 僅供讀取檢查，正式 Visual Approval 一律要求 HiFi schema 2。歷史 output/2 與 evidence/2 保留原意。指定 Git revision 凍結時，該 revision 必須包含所有子頁面且內容一致。
 - **視覺品質有獨立門檻。** HiFi 的 H5（避免模板感）、H7（創意辨識度）與 H9（設計一致性）各須達到 80；總分 90 不能抵銷視覺分項不足。審查須引用已檢視的截圖與已確認的方向原則；數字驗證不代表美感或人工檢視已獲證明。
 - **用代表畫面選擇方向。** 選定前，每個方向呈現相同的主要操作與壓力情境，保留已凍結內容。Direction comparison 表以路徑與雜湊綁定截圖，並驗證一個或三個方向的案例一致。人工選定後才製作完整連通 HiFi；局部研究不授權正式 UI 實作。
 - **平台共享品牌，分別定義控制項。** Platform rules 逐核准平台記錄規則。iOS 明確評估 system text styles、Dynamic Type、SF Symbols 與原生操作／版面，不強制套用 Web 元件庫。HTML 僅供審稿；原生實作先以平台工具驗證代表案例，再擴展其他畫面，最後仍須完成全矩陣驗證。
@@ -104,9 +114,9 @@ Skills 更新後及實作前，執行[設計有效性檢查](skills/ui-design-bu
 
 Wireframe 預設呈現有排版的中性灰階畫面與可讀註解，也可切換純畫面。先做好常用任務與高密度或替代狀態，再展開全套頁面。W5 依實際截圖檢查任務與文字層次、留白、內容形態、密度、平台重排及審核資訊分離，獨立最低分為 80。區域可選導航、編輯式內容、列表、表單或表格呈現，不改產品文案，也不代選正式技術棧。
 
-Wireframe 以中保真為目標：實際文案、清楚排版、合理範例資料，並透過產品控制項驗證已定義的主要流程。唯讀欄位不能證明輸入或恢復流程。審閱用 Design System Draft 頁展示共用原型數值及實際 renderer 元件，不新增產品路由或批准關卡。Visual Approval 後，compiler 從通過驗證的 Markdown／JSON pair 產生 `design-system-preview.html`；檢查器拒絕過期或被手改的展示頁及過期來源。Pair 保持權威，已批准 wireframe 維持原樣。元件外觀以批准的 HiFi 為準，不從 registry 名稱猜測。
+Wireframe 維持灰階結構及完整來源文案，通過內部驗證。HiFi 提供由實際樣式產生的完整產品 Design Tokens 專頁。只有 Need Gate 要求正式 pair 時，才另外產生 `design-system-preview.html`。
 
-正式 wireframe 預設顯示可讀註解、具名的頁面／彈窗／原頁結果，以及實測版面間距；純畫面是選用視圖。Wireframe Draft 與 HiFi Design Tokens 為每個使用中的 token 提供視覺示例，並展示實際控制項變體。HiFi 示例綁定使用該 token 的 CSS 屬性，保留各頁差異並遵守減少動態效果設定。也要盤點共用的原始樣式值：列齊現有變數不代表設計覆蓋完整。
+正式 wireframe 預設顯示可讀註解、具名的頁面／彈窗／原頁結果，以及實測版面間距；純畫面是選用視圖。新 wireframe 沒有 Draft 或 Tokens 視圖。HiFi Design Tokens 為每個使用中的 token 與實際控制項變體提供視覺示例，標出名稱、用途與來源 CSS。示例保留各頁差異並遵守減少動態效果設定。也要盤點共用的原始樣式值：列齊現有變數不代表設計覆蓋完整。
 
 Token 觀察分別保留來源／顯示原值及瀏覽器正規化後的來源／套用值，讓十六進位色碼、rem 尺寸及關鍵字字重能正確比較。
 
@@ -114,7 +124,7 @@ Token 觀察分別保留來源／顯示原值及瀏覽器正規化後的來源�
 flowchart LR
   Idea["產品構想或變更需求"] --> PRD["Product Definition candidate\nPRD + architecture + stack"]
   PRD --> ProductGate{"Stack Decision +\nProduct Definition Approval"}
-  ProductGate -->|"UI 產品核准且明確要求"| UIDesign["ui-design-builder\nintake + wireframes/4 + Style Integration"]
+  ProductGate -->|"UI 產品核准且明確要求"| UIDesign["ui-design-builder\nintake + wireframes/5 + Style Integration"]
   UIDesign --> UIReview["frontend-design 作者\nImpeccable review + W/H 評分"]
   UIReview --> Design["已核准 HiFi target\n需要時進 design-system-compiler"]
   ProductGate -->|"核准、延後 UI 階段"| Harness["delivery-harness\n共用交付核心"]
@@ -164,9 +174,8 @@ flowchart TB
     subgraph DESIGN["ui-design-builder — UI 設計（owner 明確要求）"]
         direction TB
         intake{{"UI Design Intake<br/>style + motion + media；等待 owner"}}
-        wf["frontend-design 結構模式<br/>wireframes/4"]
-        cgate{{"Copy Freeze<br/>先由文案 owner 核准"}}
-        wgate{{"Wireframe Approval<br/>W1–W5 + 人類 owner"}}
+        wf["frontend-design 結構模式<br/>wireframes/5"]
+        wgate["Wireframe Validation<br/>W1–W5 — internal"]
         style["frontend-design<br/>Style Integration + HiFi target"]
         review["Impeccable critique + audit<br/>H1–H9 評分"]
         vgate{{"Human Visual Approval"}}
@@ -174,7 +183,7 @@ flowchart TB
         pending["已核准 required/pending marker<br/>綁 Visual Approval digest"]
         pair["design-system-compiler preflight + compile<br/>design-system.md + design-system.json"]
         linked["Owner 連結 pair hashes<br/>final UI validation"]
-        intake --> wf --> cgate --> wgate --> style --> review --> vgate --> dgate
+        intake --> wf --> wgate --> directionChoice{{"Direction selection"}} --> style --> review --> vgate --> dgate
         dgate -->|required| pending --> pair --> linked
         dgate -->|not_required| target[核可的 page-faithful target]
     end
@@ -279,7 +288,7 @@ flowchart TB
     verdict -.->|下一次 enhancement 請求| interview
 ```
 
-Product Definition Approval、UI Wireframe Approval 與合併到 `main` 是分開的人工閘門。Publication authorization 也獨立存在；接受產品內容不代表授權覆寫或移動檔案。
+Product Definition Approval、UI Visual Approval 與合併到 `main` 是分開的人工閘門。Publication authorization 也獨立存在；接受產品內容不代表授權覆寫或移動檔案。
 
 每個可部署版本都以 `docs/DEPLOYMENT.md` 作為操作交接文件。Product Definition 先定義 typed `Surface class` 與 `Public discoverability`；Delivery Harness 再把每個 development/production target 精確 join 到 provider/channel、endpoint 或 typed native disposition、Expected/Deployed SHA、artifact identity、availability evidence 與 checked time。Production 使用不帶 `-prod` 的 `<product-slug>-<surface-suffix>`，development 加 `-dev`。文件只記 secret/variable 名稱與外部 console 任務，永遠不保存 secret 值。
 
@@ -317,7 +326,7 @@ HiFi validator 會檢查側欄中指向目前頁面的連結是否帶有 `aria-c
 
 Full-stack 依完整流程實作畫面、API、權限、資料保存與回饋。agent-browser 用於 Web 探索，重要流程另保留本機／CI 可重跑測試；登入、拒絕存取、重試與副作用都要有實際證據。發布涵蓋 migration、健康檢查、監控、成本告警與恢復，交付、發布、啟用及產品效果分開報告。SEO 只套用適用的公開頁面。
 
-升級至 0.50.0 時，先讓使用 skills 的工作到達安全停止點，再執行 canonical installer，保留備份並開新 session；不可熱更新已載入的 worker。依文件同步影響清單局部更新現行文件，保留自訂 AGENTS 規則與歷史證據。既有 document-sync/1 與 ui-hifi/2 仍可檢查；新的 HiFi 批准須補左側審閱介面及綁定各頁的 ui-output/2 reviewer 觀察，只重做受影響證據，不改寫舊批准。小修正沿用對應 Epic，不建立 PLAN／RUN；沒有適合的 Epic 才建立精簡紀錄。重跑受影響的 owner gates 與必需最終驗證。 0.49.0 在實作前檢查設計有效性，嚴格 schema-4 編製檢查須提供綁定區域的 motionSpec；保留歷史批准。 0.50.0 保留既有產品排版與已批准產物；新 Wireframe 預設顯示註解。每個 HiFi token 須加上支援的 data-token-preview 屬性及對應來源用法，再重建受影響的 reviewer 觀察；保留歷史批准。
+升級至 0.50.0 時，先讓使用 skills 的工作到達安全停止點，再執行 canonical installer，保留備份並開新 session；不可熱更新已載入的 worker。依文件同步影響清單局部更新現行文件，保留自訂 AGENTS 規則與歷史證據。既有 document-sync/1 與 ui-hifi/2 仍可檢查；新的 HiFi 批准須補左側審閱介面及綁定各頁的 ui-output/2 reviewer 觀察，只重做受影響證據，不改寫舊批准。小修正沿用對應 Epic，不建立 PLAN／RUN；沒有適合的 Epic 才建立精簡紀錄。重跑受影響的 owner gates 與必需最終驗證。 0.49.0 在實作前檢查設計有效性，嚴格 schema-5 編製檢查須提供綁定區域的 motionSpec；保留歷史批准。 0.50.0 保留既有產品排版與已批准產物；新 Wireframe 預設顯示註解。每個 HiFi token 須加上支援的 data-token-preview 屬性及對應來源用法，再重建受影響的 reviewer 觀察；保留歷史批准。
 
 每次調用 skill 都先套用共用的[文件同步契約](skills/delivery-harness/references/document-sync-contract.md)，檢查現行指引、skill/runtime 身分與產品文件的變動，不改寫歷史批准或 RUN。現行 PRD 持續作為下一輪 enhancement 的基準，被取代的 PRD 保留連結供參考。[有界 enhancement](skills/delivery-harness/references/bounded-enhancement.md) 沿用一次確認的範圍，執行修復、範圍內 module 重寫與重測，不反覆要求批准。達修復上限就把未解決需求移交下一輪；本輪結束不等於交付 PASS，也不授權發布。
 
@@ -413,7 +422,7 @@ cd product-delivery-harness
 
 從 0.23 或更早版本升級時，讓 installer 在同一份備份中用原 ID 保存各舊目錄，並安裝目前七個 skills：`delivery-harness`、`product-definition-builder`、`ui-design-builder`、`design-system-compiler`、`code-security-review`、`product-activation`、`seo-growth-review`。遷移對應為 `full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`；installer 會驗證舊 ID 已不再可被探索。
 
-七個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition、UI Design、Design System、Activation 與 Harness 都會在 delivery 前，以 exact PRD、architecture、stack 與 repository root 無條件執行同一套 full Product checker；UI Design 另外 join Copy Freeze、schema-4 wireframe、structured HiFi/CSP/offline evidence 與選用的 schema-2 pair；hybrid 產品必須讓 schema-2 `surfaceContracts` 精確對應每個已核准的 `UI-*` release surface、capture mode 與 responsive set，平台和 styling 選擇則留在已核准的 stack source。Deployment、Activation、Outcome 與保存的 SEO lifecycle report 共用同一 production identity。
+七個內建技能可獨立呼叫，但跨技能模式會驗證依賴。Product Definition、UI Design、Design System、Activation 與 Harness 都會在 delivery 前，以 exact PRD、architecture、stack 與 repository root 無條件執行同一套 full Product checker；UI Design 另外 join internal structure validation、schema-5 wireframe、structured HiFi/CSP/offline evidence 與選用的 schema-2 pair；hybrid 產品必須讓 schema-2 `surfaceContracts` 精確對應每個已核准的 `UI-*` release surface、capture mode 與 responsive set，平台和 styling 選擇則留在已核准的 stack source。Deployment、Activation、Outcome 與保存的 SEO lifecycle report 共用同一 production identity。
 
 新專案的 Skill Bindings 會刻意保持 unresolved，直到 session 觀察本機候選且 owner 確認每個 slot 的唯一 skill。Pin 涵蓋完整 skill tree，不只 `SKILL.md`。公開 dependency manifest 會固定兩個必要 UI dependency 的 source locator 與 install route：請 Codex `$skill-installer` 從紀錄的 Anthropic path 安裝 `frontend-design`；Impeccable 使用 `npx impeccable install`（目前 npx 路徑需要 Node.js 22.18+）。接著執行 `check_external_skill_dependencies.py`；upstream tree 改變時不得悄悄取代 pinned bytes。Harness 負責 conformance 與 compilation contract，Impeccable workflow 仍需額外授權。
 
@@ -423,7 +432,7 @@ Managed 本機 build／test 預設使用專案工具鏈，不需要 Docker 或 P
 
 1. 安裝一個受支援的 host 與七個 skills。Installer 會鎖住目的地、備份 managed IDs、只複製 Git-tracked files，並逐 byte 驗證；完成後重啟 host。
 2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明確 recommendation choices、accepted 變更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 與人工 Product Definition Approval。
-3. UI 產品進 `ui-design-builder`：human intake、Copy Freeze、schema-4 wireframe 驗證與核准、Style Integration、structured HiFi、human-attested receipts、H1–H9 review 與 Visual Approval。
+3. UI 使用必要的 `frontend-design`、內部 Wireframe Validation、方向選擇、完整 HiFi、真實機器證據、独立 Impeccable／H1–H9 評審，再統一人工 Visual Approval。
 4. Design System Need Gate 為 `required` 時，先記錄精確 `required/pending` marker，通過 compiler 的窄 preflight，產生 schema-2 pair，由 owner 連結兩份 hash，再通過一般 final UI validation。`not_required` 時要記錄既有 pair 的 retain/retire disposition。
 5. 再呼叫 `delivery-harness`。Size gate 讓單一小改動維持 direct；大型工作才建立 PLAN-v6/RUN-v11。每個會改狀態的動作都要精確授權。
 6. Managed launch 前先通過 frozen source joins，並執行 `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`；`--probe-sandboxes` 只作診斷。Mission 使用隔離 worktree；candidate commands 預設在本機執行，明確選用容器時保留固定映像與隔離檢查。
@@ -454,11 +463,11 @@ Use $product-definition-builder to define this product, including complete front
 ```
 
 ```text
-The Product Definition is approved. Use $ui-design-builder to ask me for UI, style, motion, and per-region image/motion preferences, then use $frontend-design to create and score responsive wireframes/4. Stop for my Wireframe Approval.
+The Product Definition is approved. Use $ui-design-builder and mandatory $frontend-design for wireframes/5, direction selection and full HiFi. Validate wireframes internally; ask for one full HiFi review of copy, structure, product menus, tabs, visuals and tokens.
 ```
 
 ```text
-The wireframes are approved. Continue $ui-design-builder with $frontend-design Style Integration, create one connected HiFi reference, run $impeccable critique and audit plus H1-H9 grading, obtain Visual Approval, and invoke $design-system-compiler only when required.
+The wireframes/5 structure and sourced copy passed internal validation. Continue $ui-design-builder with $frontend-design Style Integration, create one connected HiFi reference, run separately authorized $impeccable critique and audit plus H1-H9 grading, obtain one full Visual Approval, and invoke $design-system-compiler only when required.
 ```
 
 ```text
@@ -571,6 +580,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.52.0** — Wireframe 與 HiFi 審閱共用介面，保留各平台畫布及可操作的產品控制項。Schema-5 Wireframe 須有來源明確的文案及必要操作覆蓋；HiFi 審閱須有綁定來源的 token、獨立證據及一次整合的業主批准。設計流程區分初次製作、增強與例行維護，且不改寫歷史產物。審閱與批准契約變更屬破壞性 skill bundle 變更。
 
 - **0.51.0** — 改用依能力自動適配的通用 runtime，移除平台專屬 driver 與舊 workflow 模板。英文 PRD 與 architecture 同步提供中文審閱版，既有英文文件會在原目錄補上翻譯。AGENTS 在任務節點將 repository 變更記錄到 Epic，即使未執行 Harness。此為不相容的 skill bundle 變更。
 

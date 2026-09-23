@@ -149,6 +149,7 @@ def main():
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--skills-root", required=True)
     parser.add_argument("--loaded-digest")
+    parser.add_argument("--task-record", help="existing task/Epic with Design workflow; never an approval override")
     args = parser.parse_args()
     try:
         baseline_path = Path(args.baseline)
@@ -156,11 +157,57 @@ def main():
             raise ValueError("baseline must be bounded and not a symlink")
         baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
         report = inspect(args.repo_root, baseline, contract_digest(args.skills_root), args.loaded_digest)
+        if args.task_record:
+            from design_workflow import report as workflow_report
+            workflow = workflow_report(args.repo_root, args.task_record)
+            report["workflow"] = workflow["workflow"]
+            report["taskRecord"] = workflow["taskRecord"]
+            if workflow["workflow"] == "maintenance":
+                report["findings"].extend("workflow: " + finding for finding in workflow["findings"])
+                rows = {row["path"]: row for row in report["artifacts"]}
+
+                def historical_drift(row, visiting=None):
+                    visiting = set() if visiting is None else visiting
+                    if row["path"] in visiting:
+                        return False
+                    visiting.add(row["path"])
+                    for reason in row["reasons"]:
+                        if reason.startswith("input_changed: docs/product/"):
+                            continue
+                        if reason.startswith("upstream_review_required: "):
+                            dependency = rows.get(reason.split(": ", 1)[1])
+                            if dependency is not None and historical_drift(dependency, visiting):
+                                continue
+                        return False
+                    visiting.remove(row["path"])
+                    return True
+
+                historical = False
+                for row in report["artifacts"]:
+                    if row["reasons"] and historical_drift(row):
+                        row["status"] = "historical"
+                        historical = True
+                if "skill_changed_semantic_review_required" in report["findings"]:
+                    historical = True
+                blocking = [finding for finding in report["findings"]
+                            if finding != "skill_changed_semantic_review_required"]
+                blocking.extend(row["path"] for row in report["artifacts"]
+                                if row["reasons"] and row["status"] != "historical")
+                if blocking:
+                    report["status"] = "review_required"
+                elif historical:
+                    report["status"] = "historical_design_observed"
+                    report["meaning"] = ("Historical design source or version drift does not gate routine maintenance. "
+                                         "Verify the current product, effective PRD and accepted task scope. "
+                                         "This report does not establish product or design approval.")
+                else:
+                    report["status"] = "bytes_unchanged"
+
     except (OSError, ValueError, RecursionError) as exc:
         print(json.dumps({"status": "invalid", "error": str(exc)}))
         return 2
     print(json.dumps(report, indent=2))
-    return 0 if report["status"] == "bytes_unchanged" else 1
+    return 0 if report["status"] in {"bytes_unchanged", "historical_design_observed"} else 1
 
 
 if __name__ == "__main__":
