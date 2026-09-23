@@ -528,6 +528,42 @@ class UiDesignContractTests(unittest.TestCase):
                     expected = "native button" if case == "role-button" else "one distinct panel inside the same product surface"
                     self.assertTrue(any(expected in problem for problem in problems), problems)
 
+    def test_public_hifi_checker_rejects_inert_product_controls_and_panels(self):
+        for kind, state_attr in (("menu", "aria-expanded"), ("tab", "aria-selected")):
+            for container in ("template", "noscript"):
+                for placement in ("target", "both"):
+                    with self.subTest(kind=kind, container=container, placement=placement), tempfile.TemporaryDirectory() as temp:
+                        path, _, scope = materialize_hifi_bundle(Path(temp))
+                        html = path.read_text(encoding="utf-8")
+                        html = html.replace('data-control-id="refresh"',
+                                            f'data-control-id="refresh" data-product-{kind} '
+                                            f'aria-controls="inert-panel" {state_attr}="false"', 1)
+                        panel = '<section id="inert-panel">Product panel</section>'
+                        if placement == "both":
+                            html = html.replace('<button class="product-button"',
+                                                f'<{container}><button class="product-button"', 1)
+                            html = html.replace('>Refresh</button>',
+                                                f'>Refresh</button>{panel}</{container}>', 1)
+                        else:
+                            html = html.replace('</main>', f'<{container}>{panel}</{container}></main>', 1)
+                        path.write_text(html, encoding="utf-8")
+                        problems = []
+                        checker._validate_hifi_surface(path, problems, scope)
+                        self.assertTrue(any("live product" in problem for problem in problems), problems)
+
+            with self.subTest(kind=kind, container="ordinary-hidden-state"), tempfile.TemporaryDirectory() as temp:
+                path, _, scope = materialize_hifi_bundle(Path(temp))
+                html = path.read_text(encoding="utf-8")
+                html = html.replace('data-control-id="refresh"',
+                                    f'data-control-id="refresh" data-product-{kind} '
+                                    f'aria-controls="state-panel" {state_attr}="false"', 1)
+                html = html.replace('</main>', '<section data-hifi-state-view="ready" hidden>'
+                                    '<section id="state-panel">Product panel</section></section></main>', 1)
+                path.write_text(html, encoding="utf-8")
+                problems = []
+                checker._validate_hifi_surface(path, problems, scope)
+                self.assertEqual([], problems)
+
     def test_bundle_rejects_surfaces_on_the_wrong_page(self):
         for surface in ("UI-001", "UI-999"):
             with self.subTest(surface=surface), tempfile.TemporaryDirectory() as temp:

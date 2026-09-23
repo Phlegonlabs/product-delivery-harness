@@ -9,6 +9,7 @@ from check_wireframe_html import _decode_css_escapes, _strip_css_comments
 from reviewer_shell import shared_css_drift
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+INERT_CONTAINERS = {"template", "noscript"}
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
@@ -23,10 +24,13 @@ class ReviewerParser(HTMLParser):
         self.stack = []
         self.nodes = []
         self.errors = []
+        self.inert_nodes = set()
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
         parents = [attrs for _, attrs in self.stack]
+        if tag in INERT_CONTAINERS or any(parent_tag in INERT_CONTAINERS for parent_tag, _ in self.stack):
+            self.inert_nodes.add(id(values))
         marked = any(key.startswith("data-hifi-") and key not in {"data-hifi-state-view"} for key in values)
         if marked and any("data-ui-surface" in item for item in parents + [values]):
             self.errors.append("HiFi reviewer markers must stay outside product surfaces")
@@ -650,6 +654,8 @@ def product_control_findings(documents):
             kind = "menu" if "data-product-menu" in attrs else "tab"
             if tag != "button":
                 errors.append(f"HiFi {page} product {kind} control must be a native button")
+            if id(attrs) in parser.inert_nodes:
+                errors.append(f"HiFi {page} product {kind} control must be a live product button outside template/noscript")
             target_id = attrs.get("aria-controls")
             matches = node_ids.get(target_id, [])
             if not matches:
@@ -660,6 +666,8 @@ def product_control_findings(documents):
                   or any("data-hifi-panel" in item or "data-hifi-reviewer-shell" in item
                          or "data-reviewer-shell" in item for item in [matches[0][0], *matches[0][1]])):
                 errors.append(f"HiFi {page} product {kind} control must bind one distinct panel inside the same product surface")
+            elif id(matches[0][0]) in parser.inert_nodes:
+                errors.append(f"HiFi {page} product {kind} panel must be a live product panel outside template/noscript")
             if kind == "menu":
                 expanded = attrs.get("aria-expanded")
                 if expanded not in {"true", "false"}:
