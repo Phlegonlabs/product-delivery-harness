@@ -27,7 +27,7 @@ if str(UI_TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(UI_TESTS_DIR))
 
 import harness_transition  # noqa: E402
-from harness_core import load_run, plan_digest  # noqa: E402
+from harness_core import load_plan, load_run, plan_digest  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
 from harness_ui_evidence import validate_integration_head_against_git  # noqa: E402
 from manifest_fixtures import manifest_markdown  # noqa: E402
@@ -866,12 +866,34 @@ class HarnessV11Tests(unittest.TestCase):
                 "parent_dirty": False,
             }
         )
+        mission_state = run["mission_states"]["M1"]
+        worker = next(
+            item
+            for item in run["workers"]
+            if item["worker_id"] == mission_state["worker_id"]
+        )
+        worker_observation = next(
+            item
+            for item in run["observed"]["git"]["worktrees"]
+            if item["path"] == worker["worktree_path"]
+        )
+        run["observed"]["git"]["worktrees"] = [
+            {
+                "path": str(root),
+                "branch_ref": f"refs/heads/{branch}",
+                "head_sha": head,
+                "managed_by": "parent",
+                "dirty": False,
+            },
+            worker_observation,
+        ]
         run["landing"]["continuity"] = {
             "status": "planned",
             "branch_ref": f"refs/heads/{branch}",
             "head_sha": None,
             "reason": "review fixture",
         }
+        self.assertEqual([], validate_run(load_plan(root / "PLAN.md"), run))
         run_path.write_text(
             manifest_markdown("## Harness Run State", "harness_run", run),
             encoding="utf-8",

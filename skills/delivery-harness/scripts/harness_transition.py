@@ -25,6 +25,7 @@ from typing import Any, Iterator
 
 from harness_core import (
     _normalized_branch,
+    _nonempty_string,
     extract_json_manifest_text,
     is_full_sha,
     mission_conflicts,
@@ -38,6 +39,7 @@ from harness_manifest import (
     INTERRUPTED_REVIEW_RECEIPT,
     ManifestError,
     authorization_covers,
+    execution_covers,
     load_plan,
     load_run,
     validate_current_plan_run,
@@ -162,6 +164,7 @@ DISPATCH_COMMANDS = {
     "reserve-review-dispatch",
     "bind-review-task-thread",
     "record-integration",
+    "reconcile-candidate-head",
     "close-wave",
     "reserve-node-attempt",
     "record-node-result",
@@ -171,6 +174,7 @@ TASK_VIEW_CHECKPOINTS = {
     "record-worker-result",
     "reject-worker-result",
     "record-integration",
+    "reconcile-candidate-head",
     "reconcile-interrupted",
     "reconcile-interrupted-reviews",
     "close-wave",
@@ -2372,6 +2376,19 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
             f"integration branch HEAD is {live_head}, not {args.integrated_sha}; "
             "integrate first, then record"
         )
+    previous_head = run.get("integration", {}).get("integration_head_sha")
+    if is_full_sha(previous_head) and previous_head != args.integrated_sha:
+        inactive_skips = _inactive_skipped_integration_reviews(plan, run)
+        if inactive_skips:
+            raise ManifestError(
+                "record-integration cannot preserve inactive skipped integration "
+                "reviews across a new candidate tree; refine the recovery graph first: "
+                + ", ".join(inactive_skips)
+            )
+        prior_heads = run["integration"].setdefault("prior_head_shas", [])
+        if previous_head not in prior_heads:
+            prior_heads.append(previous_head)
+        _invalidate_stale_current_projections(plan, run, previous_head, args.integrated_sha)
     mission_state.update(
         {
             "phase": "integrated",
@@ -2399,6 +2416,590 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
     if isinstance(node_state, dict):
         node_state.update({"phase": "succeeded", "last_outcome": "pass"})
     run["integration"]["integration_head_sha"] = args.integrated_sha
+
+
+def _invalidate_stale_current_projections(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    previous_head: str,
+    new_head: str,
+) -> None:
+    """Reset current PASS projections invalidated by a forward candidate move.
+
+    Retained executions, failed attempts, review records, grants, and head
+    history are immutable. Only the current result projection and the current
+    graph binding become stale; later gates must run fresh against the new
+    exact candidate.
+    """
+
+    del previous_head
+    for result in [
+        *run.get("batch_gate_results", []),
+        *run.get("final_gate_results", []),
+    ]:
+        if isinstance(result, dict):
+            result["status"] = "planned"
+            result["head_sha"] = None
+            result["evidence"] = []
+
+    for evidence in run.get("ui_evidence", []):
+        if isinstance(evidence, dict) and evidence.get("status") == "PASS":
+            # Keep the accepted artifact and its old exact head for audit.  The
+            # row is the current matrix projection, so only its PASS status is
+            # re-armed for recapture on the new candidate.
+            evidence["status"] = "planned"
+
+    gate_ids = {
+        verifier.get("id")
+        for group in ("batch_verifiers", "final_gates")
+        for verifier in plan.get(group, [])
+        if isinstance(verifier, dict) and _nonempty_string(verifier.get("id"))
+    }
+    for node in plan.get("graph", {}).get("nodes", []):
+        if not isinstance(node, dict) or node.get("kind") != "verifier":
+            continue
+        state = run.get("graph_state", {}).get("node_states", {}).get(node.get("id"))
+        if not isinstance(state, dict):
+            continue
+        if (
+            node.get("executor") in {"local_command", "harness_parent"}
+            and node.get("ref") in gate_ids
+            and state.get("phase") in {"succeeded", "failed", "blocked"}
+        ):
+            state.update(
+                {
+                    "phase": "ready",
+                    "last_attempt_id": None,
+                    "last_outcome": None,
+                    "bound_worker_id": None,
+                }
+            )
+            continue
+        review = node.get("review")
+        if (
+            isinstance(review, dict)
+            and review.get("stage", "preintegration") == "integration"
+            and state.get("phase") in {"succeeded", "failed", "blocked", "skipped"}
+        ):
+            current_worker = next(
+                (
+                    worker
+                    for worker in run.get("review_workers", [])
+                    if isinstance(worker, dict)
+                    and worker.get("node_id") == node.get("id")
+                    and worker.get("worker_id") == state.get("bound_worker_id")
+                    and worker.get("attempt_id") == state.get("last_attempt_id")
+                ),
+                None,
+            )
+            if (
+                not isinstance(current_worker, dict)
+                or current_worker.get("reviewed_sha") != new_head
+            ):
+                state.update(
+                    {
+                        "phase": "ready",
+                        "last_attempt_id": None,
+                        "last_outcome": None,
+                        "bound_worker_id": None,
+                    }
+                )
+
+    integration = run.get("integration")
+    if isinstance(integration, dict):
+        integration.pop("integration_tree_sha", None)
+
+
+def _integration_review_route_active(
+    plan: dict[str, Any], run: dict[str, Any], node_id: Any
+) -> bool:
+    incoming_routes = [
+        edge
+        for edge in plan.get("graph", {}).get("edges", [])
+        if isinstance(edge, dict)
+        and edge.get("kind") == "route"
+        and edge.get("to") == node_id
+    ]
+    if not incoming_routes:
+        return True
+    node_states = run.get("graph_state", {}).get("node_states", {})
+    edge_states = run.get("graph_state", {}).get("edge_states", {})
+    for edge in incoming_routes:
+        source = node_states.get(edge.get("from")) if isinstance(node_states, dict) else None
+        edge_state = edge_states.get(edge.get("id")) if isinstance(edge_states, dict) else None
+        if (
+            isinstance(source, dict)
+            and source.get("phase") in {"succeeded", "failed", "blocked"}
+            and source.get("last_outcome") in edge.get("on_outcomes", [])
+            and (not isinstance(edge_state, dict) or edge_state.get("status") != "exhausted")
+        ):
+            return True
+    return False
+
+
+def _candidate_revalidation_nodes(
+    plan: dict[str, Any],
+) -> list[dict[str, Any]]:
+    gate_ids = {
+        verifier.get("id")
+        for group in ("batch_verifiers", "final_gates")
+        for verifier in plan.get(group, [])
+        if isinstance(verifier, dict) and _nonempty_string(verifier.get("id"))
+    }
+    nodes: list[dict[str, Any]] = []
+    for node in plan.get("graph", {}).get("nodes", []):
+        if not (
+            isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and (
+                (
+                    node.get("executor") in {"local_command", "harness_parent"}
+                    and node.get("ref") in gate_ids
+                )
+                or (
+                    node.get("executor") == "runtime_worker"
+                    and isinstance(node.get("review"), dict)
+                    and node["review"].get("stage", "preintegration")
+                    == "integration"
+                )
+            )
+        ):
+            continue
+        nodes.append(node)
+    return nodes
+
+
+def _inactive_skipped_integration_reviews(
+    plan: dict[str, Any], run: dict[str, Any]
+) -> list[str]:
+    node_states = run.get("graph_state", {}).get("node_states", {})
+    return sorted(
+        str(node.get("id"))
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict)
+        and node.get("kind") == "verifier"
+        and node.get("executor") == "runtime_worker"
+        and isinstance(node.get("review"), dict)
+        and node["review"].get("stage", "preintegration") == "integration"
+        and isinstance(node_states, dict)
+        and isinstance(node_states.get(node.get("id")), dict)
+        and node_states[node.get("id")].get("phase") == "skipped"
+        and not _integration_review_route_active(plan, run, node.get("id"))
+    )
+
+
+def _require_candidate_revalidation_budget(
+    plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    edge_states = run.get("graph_state", {}).get("edge_states", {})
+    node_states = run.get("graph_state", {}).get("node_states", {})
+    for node in _candidate_revalidation_nodes(plan):
+        node_id = node.get("id")
+        state = node_states.get(node_id) if isinstance(node_states, dict) else None
+        if not isinstance(state, dict):
+            raise ManifestError(f"candidate reconciliation has no graph state for {node_id!r}")
+        review = node.get("review")
+        if isinstance(review, dict):
+            lineage_id = review.get("lineage_id")
+            lineage = run.get("review_lineages", {}).get(lineage_id)
+            if not isinstance(lineage, dict):
+                raise ManifestError(
+                    f"candidate reconciliation has no review lineage for {node_id!r}"
+                )
+            allowance = int(lineage.get("base_allowance") or 0) + int(
+                lineage.get("additional_allowance") or 0
+            )
+            if int(lineage.get("consumed_attempts") or 0) >= allowance:
+                raise ManifestError(
+                    f"candidate reconciliation cannot re-arm {node_id!r}; "
+                    "its review lineage attempt budget is exhausted"
+                )
+        elif int(state.get("attempts") or 0) >= int(node.get("max_attempts") or 0):
+            raise ManifestError(
+                f"candidate reconciliation cannot re-arm {node_id!r}; "
+                "its node attempt budget is exhausted"
+            )
+
+        for edge in plan.get("graph", {}).get("edges", []):
+            if (
+                not isinstance(edge, dict)
+                or edge.get("kind") != "route"
+                or edge.get("from") != node_id
+                or "pass" not in edge.get("on_outcomes", [])
+            ):
+                continue
+            edge_state = edge_states.get(edge.get("id")) if isinstance(edge_states, dict) else None
+            bound = edge.get("max_traversals")
+            traversals = (
+                int(edge_state.get("traversals") or 0)
+                if isinstance(edge_state, dict)
+                else 0
+            )
+            if isinstance(bound, int) and traversals >= bound:
+                raise ManifestError(
+                    f"candidate reconciliation cannot re-arm {node_id!r}; "
+                    f"pass route {edge.get('id')!r} exhausted its traversal budget"
+                )
+
+
+def _reconcile_candidate_head(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> dict[str, Any]:
+    """Bind one already-committed, in-scope repair to the current RUN.
+
+    This transition changes no Git state and grants no action.  It advances the
+    candidate only after every mission is integrated, then re-arms exact-head
+    integration reviews and deterministic gates without changing their history
+    or attempt budgets.
+    """
+
+    if run.get("schema_version") != 11 or plan.get("schema_version") != 6:
+        raise ManifestError("reconcile-candidate-head requires PLAN v6 and RUN v11")
+    if args.repo_root is None:
+        raise ManifestError("reconcile-candidate-head requires --repo-root")
+    if not _nonempty_string(getattr(args, "source", None)):
+        raise ManifestError("reconcile-candidate-head requires a non-empty --source")
+    candidate_sha = getattr(args, "candidate_sha", None)
+    if not is_full_sha(candidate_sha):
+        raise ManifestError("reconcile-candidate-head requires a full --candidate-sha")
+    if run.get("status") not in RUN_DISPATCH_STATUSES:
+        raise ManifestError("reconcile-candidate-head requires a ready or running RUN")
+    if run.get("control", {}).get("desired_state") != "running":
+        raise ManifestError("reconcile-candidate-head requires desired_state running")
+
+    integration = run.get("integration")
+    current_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    if not is_full_sha(current_head):
+        raise ManifestError("reconcile-candidate-head requires a current integration head")
+    if candidate_sha == current_head:
+        raise ManifestError(
+            "candidate SHA already equals integration_head_sha; no reconciliation is needed"
+        )
+    inactive_skips = _inactive_skipped_integration_reviews(plan, run)
+    if inactive_skips:
+        raise ManifestError(
+            "candidate reconciliation cannot preserve inactive skipped integration "
+            "reviews across a new candidate tree; refine the recovery graph first: "
+            + ", ".join(inactive_skips)
+        )
+
+    repair_node_id = getattr(args, "repair_node_id", None)
+    repair_attempt_id = getattr(args, "repair_attempt_id", None)
+    repair_task_id = getattr(args, "repair_task_id", None)
+    repair_node = _graph_node(plan, repair_node_id)
+    repair_state = run.get("graph_state", {}).get("node_states", {}).get(
+        repair_node_id
+    )
+    if not isinstance(repair_state, dict) or repair_state.get("phase") not in {
+        "failed",
+        "blocked",
+    }:
+        raise ManifestError(
+            "candidate reconciliation requires a current failed or blocked repair node"
+        )
+    if repair_state.get("last_attempt_id") != repair_attempt_id:
+        raise ManifestError(
+            "--repair-attempt-id must equal the repair node's current terminal attempt"
+        )
+    repair_outcome = repair_state.get("last_outcome")
+    review = repair_node.get("review")
+    deterministic_repair = (
+        repair_node.get("kind") == "verifier"
+        and repair_node.get("executor") in {"local_command", "harness_parent"}
+        and any(
+            isinstance(item, dict) and item.get("id") == repair_node.get("ref")
+            for group in ("batch_verifiers", "final_gates")
+            for item in plan.get(group, [])
+        )
+    )
+    integration_review_repair = (
+        repair_node.get("kind") == "verifier"
+        and repair_node.get("executor") == "runtime_worker"
+        and isinstance(review, dict)
+        and review.get("stage", "preintegration") == "integration"
+    )
+    if not deterministic_repair and not integration_review_repair:
+        raise ManifestError(
+            "repair node must be an integration-stage review or batch/final verifier"
+        )
+    retained_attempt = next(
+        (
+            item
+            for item in run.get("attempt_log", [])
+            if isinstance(item, dict)
+            and item.get("attempt_id") == repair_attempt_id
+        ),
+        None,
+    )
+    if not isinstance(retained_attempt, dict):
+        raise ManifestError("repair attempt is not retained in attempt_log")
+    if integration_review_repair:
+        if repair_outcome != "fix_required":
+            raise ManifestError(
+                "integration review repair requires a retained fix_required outcome"
+            )
+        lineage_id = review.get("lineage_id")
+        if (
+            retained_attempt.get("kind") != "review"
+            or retained_attempt.get("result") != "fix_required"
+            or retained_attempt.get("review_lineage_id") != lineage_id
+        ):
+            raise ManifestError(
+                "repair attempt does not match the integration review failure receipt"
+            )
+        retained_worker = next(
+            (
+                worker
+                for worker in run.get("review_workers", [])
+                if isinstance(worker, dict)
+                and worker.get("node_id") == repair_node_id
+                and worker.get("attempt_id") == repair_attempt_id
+                and worker.get("outcome") == "fix_required"
+            ),
+            None,
+        )
+        if not isinstance(retained_worker, dict):
+            raise ManifestError(
+                "repair attempt has no matching fix_required review worker"
+            )
+    elif (
+        repair_outcome not in {"fix_required", "retryable_failure"}
+        or retained_attempt.get("kind") != "node_attempt"
+        or retained_attempt.get("node_id") != repair_node_id
+        or retained_attempt.get("result") != repair_outcome
+    ):
+        raise ManifestError(
+            "repair attempt does not match the batch/final verifier failure receipt"
+        )
+
+    task_matches = [
+        (mission, task)
+        for mission in plan.get("missions", [])
+        if isinstance(mission, dict)
+        for task in mission.get("tasks", [])
+        if isinstance(task, dict) and task.get("id") == repair_task_id
+    ]
+    if len(task_matches) != 1:
+        raise ManifestError(
+            "--repair-task-id must identify exactly one existing PLAN task"
+        )
+    repair_mission, repair_task = task_matches[0]
+    repair_mission_id = repair_mission.get("id")
+    if integration_review_repair and repair_mission_id not in review.get(
+        "mission_ids", []
+    ):
+        raise ManifestError(
+            "repair task mission is not covered by the failed integration review"
+        )
+    branch_target = f"branch:{integration.get('branch')}"
+    if not execution_covers(run, repair_mission_id):
+        raise ManifestError(
+            "repair task mission is not covered by current execution authorization"
+        )
+    for action in ("create_local_commits", "integrate_locally"):
+        if not authorization_covers(
+            run,
+            action,
+            repair_mission_id,
+            branch_target,
+            require_exact_target=True,
+        ):
+            raise ManifestError(
+                f"candidate reconciliation requires pre-existing exact {action} "
+                f"authorization for {repair_mission_id!r} and {branch_target!r}"
+            )
+
+    root = Path(args.repo_root).resolve()
+    repo_top_level = Path(_git_out(root, "rev-parse", "--show-toplevel").strip()).resolve()
+    if not _same_path(root, repo_top_level):
+        raise ManifestError("--repo-root must be the exact repository top-level checkout")
+    observed = run.get("observed")
+    observed_git = observed.get("git") if isinstance(observed, dict) else None
+    if not isinstance(observed, dict) or not observed.get("captured_at"):
+        raise ManifestError("reconcile-candidate-head requires a fresh parent observation")
+    observed_path = (
+        observed_git.get("parent_worktree_path")
+        if isinstance(observed_git, dict)
+        else None
+    )
+    if not isinstance(observed_path, str) or not _same_path(root, observed_path):
+        raise ManifestError(
+            f"--repo-root {root} is not the observed parent worktree {observed_path!r}"
+        )
+    expected_branch = _require_non_default_integration_branch(run)
+    live_branch = _git_branch_name(root)
+    observed_branch = (
+        _normalized_branch(observed_git.get("parent_branch"))
+        if isinstance(observed_git, dict)
+        else None
+    )
+    if _normalized_branch(live_branch) != expected_branch or observed_branch != expected_branch:
+        raise ManifestError(
+            "reconcile-candidate-head requires the live and observed parent branch "
+            "to equal the non-default integration branch"
+        )
+    live_head = _git_out(root, "rev-parse", "HEAD").strip()
+    observed_head = (
+        observed_git.get("parent_head_sha")
+        if isinstance(observed_git, dict)
+        else None
+    )
+    if live_head != candidate_sha or observed_head != candidate_sha:
+        raise ManifestError(
+            "reconcile-candidate-head requires --candidate-sha to equal both the "
+            "live and freshly observed parent HEAD"
+        )
+    if (
+        not isinstance(observed_git, dict)
+        or observed_git.get("parent_dirty") is not False
+        or _git_status_excluding_run(root, getattr(args, "run", None), run).strip()
+    ):
+        raise ManifestError(
+            "reconcile-candidate-head requires a clean product tree apart from RUN "
+            "and its declared generated tasks view"
+        )
+    if not _git_is_ancestor(root, current_head, candidate_sha):
+        raise ManifestError(
+            f"current candidate {current_head} is not an ancestor of {candidate_sha}"
+        )
+    batch_base = integration.get("batch_base_sha")
+    if not is_full_sha(batch_base) or not _git_is_ancestor(root, batch_base, candidate_sha):
+        raise ManifestError("candidate repair must retain the run batch base as an ancestor")
+
+    incomplete_missions: list[str] = []
+    for mission_id, state in run.get("mission_states", {}).items():
+        integrated_sha = state.get("integrated_sha") if isinstance(state, dict) else None
+        if (
+            not isinstance(state, dict)
+            or state.get("phase") != "integrated"
+            or state.get("integration_gate") != "PASS"
+            or not is_full_sha(integrated_sha)
+            or not _git_is_ancestor(root, integrated_sha, candidate_sha)
+        ):
+            incomplete_missions.append(str(mission_id))
+    if incomplete_missions:
+        raise ManifestError(
+            "reconcile-candidate-head requires every mission's integrated PASS to be "
+            "reachable from the repair candidate: " + ", ".join(sorted(incomplete_missions))
+        )
+
+    wave = run.get("active_wave")
+    if isinstance(wave, dict) and wave.get("status") in {"proposed", "active"}:
+        raise ManifestError("reconcile-candidate-head refuses an active or proposed wave")
+    live_workers = sorted(
+        str(worker.get("worker_id"))
+        for worker in [*run.get("workers", []), *run.get("review_workers", [])]
+        if isinstance(worker, dict) and worker.get("phase") in {"leased", "worker_running"}
+    )
+    running_nodes = sorted(
+        str(node_id)
+        for node_id, state in run.get("graph_state", {}).get("node_states", {}).items()
+        if isinstance(state, dict) and state.get("phase") == "running"
+    )
+    if live_workers or running_nodes:
+        details = ", ".join([*live_workers, *running_nodes])
+        raise ManifestError(
+            "reconcile-candidate-head refuses active work; reconcile first: " + details
+        )
+
+    repair_scopes = [
+        scope for scope in repair_task.get("write_scope", []) if isinstance(scope, str)
+    ]
+    if not repair_scopes:
+        raise ManifestError("repair task has no declared write scope")
+    _reject_unplanned_candidate_paths(
+        plan,
+        run,
+        root,
+        current_head,
+        candidate_sha,
+        allowed_scopes=repair_scopes,
+    )
+    if integration_review_repair:
+        review_scopes = [
+            scope for scope in review.get("scope", []) if isinstance(scope, str)
+        ]
+        if not review_scopes:
+            raise ManifestError("failed integration review has no declared scope")
+        _reject_unplanned_candidate_paths(
+            plan,
+            run,
+            root,
+            current_head,
+            candidate_sha,
+            allowed_scopes=review_scopes,
+        )
+    _require_candidate_revalidation_budget(plan, run)
+
+    # The scope and budget checks above may take time.  Bind the mutation to a
+    # second live Git observation so a concurrent commit, checkout, or product
+    # edit cannot be adopted under the first observation.
+    final_branch = _git_branch_name(root)
+    final_head = _git_out(root, "rev-parse", "HEAD").strip()
+    final_dirty = _git_status_excluding_run(
+        root, getattr(args, "run", None), run
+    ).strip()
+    if (
+        _normalized_branch(final_branch) != expected_branch
+        or final_head != candidate_sha
+        or final_dirty
+    ):
+        raise ManifestError(
+            "repository branch, HEAD, or product tree changed during candidate "
+            "reconciliation; refresh observation and retry"
+        )
+    authorizations_before = copy.deepcopy(run.get("authorizations"))
+    execution_authorization_before = (
+        run.get("execution_authorized"),
+        copy.deepcopy(run.get("execution_authorization_scope")),
+        run.get("execution_authorization_source"),
+    )
+    prior_heads = integration.setdefault("prior_head_shas", [])
+    if current_head not in prior_heads:
+        prior_heads.append(current_head)
+    _invalidate_stale_current_projections(plan, run, current_head, candidate_sha)
+    integration["integration_head_sha"] = candidate_sha
+    continuity = run.get("landing", {}).get("continuity")
+    if isinstance(continuity, dict) and continuity.get("status") == "preserved":
+        continuity["head_sha"] = candidate_sha
+    if run.get("authorizations") != authorizations_before or (
+        run.get("execution_authorized"),
+        run.get("execution_authorization_scope"),
+        run.get("execution_authorization_source"),
+    ) != execution_authorization_before:
+        raise ManifestError("candidate reconciliation must not change authorization")
+    event_id = f"CANDIDATE-HEAD-{candidate_sha[:12]}-{len(run.get('attempt_log', [])) + 1}"
+    run.setdefault("attempt_log", []).append(
+        {
+            "attempt_id": event_id,
+            "mission_id": None,
+            "task_id": None,
+            "lease_id": None,
+            "kind": "candidate_head_reconciliation",
+            "result": "recorded",
+            "evidence": [
+                args.source,
+                f"advanced integration head from {current_head} to {candidate_sha}",
+                f"repair receipt {repair_node_id}/{repair_attempt_id}",
+                f"repair task {repair_task_id}",
+            ],
+        }
+    )
+    return {
+        "command": "reconcile-candidate-head",
+        "previous_head_sha": current_head,
+        "candidate_sha": candidate_sha,
+        "repair_node_id": repair_node_id,
+        "repair_attempt_id": repair_attempt_id,
+        "repair_task_id": repair_task_id,
+        "revalidation_nodes": [
+            node.get("id") for node in _candidate_revalidation_nodes(plan)
+        ],
+    }
 
 
 def _git_tree(repo_root: Path, sha: str) -> str:
@@ -3734,6 +4335,12 @@ def build_parser() -> argparse.ArgumentParser:
     integration = subparsers.add_parser("record-integration")
     integration.add_argument("--mission-id", required=True)
     integration.add_argument("--integrated-sha", required=True)
+    candidate = subparsers.add_parser("reconcile-candidate-head")
+    candidate.add_argument("--candidate-sha", required=True)
+    candidate.add_argument("--source", required=True)
+    candidate.add_argument("--repair-node-id", required=True)
+    candidate.add_argument("--repair-attempt-id", required=True)
+    candidate.add_argument("--repair-task-id", required=True)
     watchdog = subparsers.add_parser("watchdog")
     watchdog.add_argument("--stale-after-minutes", type=float, default=DEFAULT_LOCK_STALE_MINUTES)
     watchdog.add_argument("--reclaim", action="store_true")
@@ -3872,6 +4479,8 @@ def _transition_under_lock(
         receipt = reject_worker_result(plan, run, args)
     elif args.command == "record-integration":
         _record_integration(plan, run, args)
+    elif args.command == "reconcile-candidate-head":
+        receipt = _reconcile_candidate_head(plan, run, args)
     elif args.command == "acquire-run-lock":
         _acquire_run_lock(run, args)
     elif args.command == "release-run-lock":
