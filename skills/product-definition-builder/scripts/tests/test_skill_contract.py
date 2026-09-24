@@ -202,7 +202,11 @@ async function agent(_prompt, options) {
         self.assertIn("cross-screen handoffs", prompts["requirements"])
         self.assertIn("Do not create wireframes", prompts["requirements"])
         self.assertIn("technical completeness lens", prompts["architecture"])
+        self.assertIn("technical completeness lens", prompts["backend"])
+        self.assertIn("technical completeness lens", prompts["frontend-platform"])
         self.assertIn("duplicate effects", prompts["architecture"])
+        self.assertIn("same journeys", prompts["backend"])
+        self.assertIn("same journeys", prompts["frontend-platform"])
         self.assertNotIn("ui-designer", prompts)
         self.assertNotIn("ui-design-builder", {call["role"] for call in result["calls"]})
 
@@ -224,6 +228,7 @@ async function agent(_prompt, options) {
         self.assertNotIn("product-level UI completeness lens", prompts["requirements"])
         self.assertNotIn("frontend-platform", prompts)
         self.assertIn("technical completeness lens", prompts["architecture"])
+        self.assertIn("technical completeness lens", prompts["backend"])
 
     def test_completeness_findings_reach_candidate_review_without_approval(self) -> None:
         result = self.run_workflow(self.base_workflow_args())

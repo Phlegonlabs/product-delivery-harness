@@ -414,7 +414,7 @@ function createProductAgentGraph(args) {
             ? "Apply the product-level UI completeness lens: trace each intended role from entry and first use to observable value, including cross-screen handoffs, empty/error/permission states, cancellation and recovery, content, accessibility and each supported responsive target. Report missing product obligations with evidence and affected PRD/UI/TEST IDs. Do not create wireframes, choose visual design or invoke ui-design-builder.\n"
             : "This product has no shipped UI. Trace caller or operator journeys to observable value; do not invent screens, login or visual-design work.\n")
           : "") +
-        (role.key === "architecture"
+        (["architecture", "backend", "frontend-platform"].includes(role.key)
           ? "Apply the technical completeness lens: follow the same journeys through data ownership and lifecycle, permissions, integration contracts, retries and duplicate effects, migrations, release availability, monitoring and recovery ownership, and testability. Flag gaps at component boundaries; do not invent scope or select an unapproved stack.\n"
           : "") +
         `Frozen task context: ${sourceContext}\n\n` +
