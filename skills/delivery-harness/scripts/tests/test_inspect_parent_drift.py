@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -64,6 +65,37 @@ class InspectParentDriftTests(unittest.TestCase):
             "mission_states": {},
             "workers": [],
         }
+
+    def generated_view(self, run_id: str) -> str:
+        return (
+            "# Tasks\n\n"
+            f"{inspect_harness_run.GENERATED_MARKER}\n\n"
+            f"Human view of run `{run_id}` (running) against PLAN `PLAN-1`.\n"
+        )
+
+    def test_only_ordinary_tracked_modifications_can_be_exempted(self) -> None:
+        cases = {
+            " M docs/tasks.md\0": True,
+            "M  docs/tasks.md\0": True,
+            "MM docs/tasks.md\0": True,
+            "?? docs/tasks.md\0": False,
+            "A  docs/tasks.md\0": False,
+            " D docs/tasks.md\0": False,
+            " T docs/tasks.md\0": False,
+            "R  docs/tasks.md\0docs/old-tasks.md\0": False,
+            "UU docs/tasks.md\0": False,
+            " M docs/other.md\0": False,
+        }
+        for status, expected in cases.items():
+            with self.subTest(status=status), patch.object(
+                inspect_harness_run, "_git", return_value=status
+            ):
+                self.assertIs(
+                    inspect_harness_run._is_tracked_modification(
+                        Path("repo"), "docs/tasks.md", []
+                    ),
+                    expected,
+                )
 
     def test_aligned_parent_reports_exact_identity_without_mutating_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -199,6 +231,153 @@ class InspectParentDriftTests(unittest.TestCase):
             dirty_summary["warnings"],
         )
         self.assertEqual(1, dirty_exit_code)
+
+    def test_modified_run_and_declared_current_generated_view_are_not_product_dirt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.init_repo(root)
+            run_path = root / "RUN.md"
+            view_path = root / "docs" / "tasks.md"
+            view_path.parent.mkdir()
+            run_path.write_text("baseline run\n", encoding="utf-8")
+            view_path.write_text("baseline view\n", encoding="utf-8")
+            self.git(root, "add", "RUN.md", "docs/tasks.md")
+            self.git(root, "commit", "-q", "-m", "track coordination")
+            head = self.git(root, "rev-parse", "HEAD")
+            run = self.run_state(head)
+            run["integration"]["coordination_paths"] = ["RUN.md", "docs/tasks.md"]
+            run_path.write_text("current canonical state\n", encoding="utf-8")
+            view_path.write_text(
+                self.generated_view(run["run_id"]), encoding="utf-8"
+            )
+
+            summary = inspect_harness_run.summarize_run(root, run, run_path)
+            with patch.object(inspect_harness_run, "load_run", return_value=run):
+                with redirect_stdout(io.StringIO()):
+                    exit_code = inspect_harness_run.main(
+                        ["--repo-root", str(root), "--run", str(run_path)]
+                    )
+
+        self.assertFalse(summary["parent_git"]["live_dirty"])
+        self.assertEqual("aligned", summary["parent_git"]["comparison_state"])
+        self.assertEqual([], summary["warnings"])
+        self.assertEqual(0, exit_code)
+
+    def test_invalid_foreign_undeclared_or_extra_dirt_is_not_exempt(self) -> None:
+        cases = (
+            "invalid",
+            "malformed",
+            "foreign",
+            "undeclared",
+            "untracked_product",
+        )
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.init_repo(root)
+                run_path = root / "RUN.md"
+                view_path = root / "docs" / "tasks.md"
+                view_path.parent.mkdir()
+                run_path.write_text("baseline run\n", encoding="utf-8")
+                view_path.write_text("baseline view\n", encoding="utf-8")
+                self.git(root, "add", "RUN.md", "docs/tasks.md")
+                self.git(root, "commit", "-q", "-m", "track coordination")
+                head = self.git(root, "rev-parse", "HEAD")
+                run = self.run_state(head)
+                run["integration"]["coordination_paths"] = [
+                    "RUN.md",
+                    "docs/tasks.md",
+                ]
+                run_path.write_text("current canonical state\n", encoding="utf-8")
+                view_path.write_text(
+                    self.generated_view(run["run_id"]), encoding="utf-8"
+                )
+                if case == "invalid":
+                    view_path.write_text("hand-authored tasks\n", encoding="utf-8")
+                elif case == "malformed":
+                    view_path.write_bytes(b"\xff\xfe")
+                elif case == "foreign":
+                    view_path.write_text(
+                        self.generated_view("RUN-FOREIGN"), encoding="utf-8"
+                    )
+                elif case == "undeclared":
+                    run["integration"]["coordination_paths"] = ["RUN.md"]
+                else:
+                    (root / "private-untracked.txt").write_text(
+                        "ordinary dirt\n", encoding="utf-8"
+                    )
+
+                summary = inspect_harness_run.summarize_run(root, run, run_path)
+                with patch.object(inspect_harness_run, "load_run", return_value=run):
+                    with redirect_stdout(io.StringIO()):
+                        exit_code = inspect_harness_run.main(
+                            ["--repo-root", str(root), "--run", str(run_path)]
+                        )
+
+                self.assertTrue(summary["parent_git"]["live_dirty"])
+                self.assertEqual("mismatch", summary["parent_git"]["comparison_state"])
+                self.assertEqual(
+                    ["parent: live integration checkout is dirty"],
+                    summary["warnings"],
+                )
+                self.assertEqual(1, exit_code)
+
+    def test_untracked_current_generated_view_is_still_parent_dirt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.init_repo(root)
+            run_path = root / "RUN.md"
+            run_path.write_text("baseline run\n", encoding="utf-8")
+            self.git(root, "add", "RUN.md")
+            self.git(root, "commit", "-q", "-m", "track run")
+            head = self.git(root, "rev-parse", "HEAD")
+            run = self.run_state(head)
+            run["integration"]["coordination_paths"] = ["RUN.md", "docs/tasks.md"]
+            run_path.write_text("current canonical state\n", encoding="utf-8")
+            view_path = root / "docs" / "tasks.md"
+            view_path.parent.mkdir()
+            view_path.write_text(
+                self.generated_view(run["run_id"]), encoding="utf-8"
+            )
+
+            summary = inspect_harness_run.summarize_run(root, run, run_path)
+
+        self.assertTrue(summary["parent_git"]["live_dirty"])
+        self.assertEqual(
+            ["parent: live integration checkout is dirty"], summary["warnings"]
+        )
+
+    def test_reparse_ancestor_prevents_generated_view_exemption(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            view = root / "docs" / "tasks.md"
+            with patch.object(
+                Path,
+                "is_symlink",
+                autospec=True,
+                side_effect=lambda candidate: candidate.name == "docs",
+            ):
+                self.assertTrue(
+                    inspect_harness_run._path_has_reparse_component(
+                        root, view
+                    )
+                )
+
+            def path_attributes(candidate: Path) -> SimpleNamespace:
+                return SimpleNamespace(
+                    st_file_attributes=0x0400 if candidate.name == "docs" else 0
+                )
+
+            with patch.object(Path, "is_symlink", return_value=False), patch.object(
+                Path, "exists", return_value=True
+            ), patch.object(
+                Path, "stat", autospec=True, side_effect=path_attributes
+            ):
+                self.assertTrue(
+                    inspect_harness_run._path_has_reparse_component(
+                        root, view
+                    )
+                )
 
     def test_untracked_run_path_is_still_parent_dirt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

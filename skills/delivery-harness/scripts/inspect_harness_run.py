@@ -13,6 +13,7 @@ from typing import Any
 from harness_core import ManifestError, _nonempty_string, is_full_sha, load_run
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_ui_evidence import _layout_check_required
+from render_tasks_view import GENERATED_MARKER
 
 
 FAILED_ATTEMPT_RESULTS = {"fix_required", "retryable_failure", "blocked", "contract_gap"}
@@ -22,6 +23,7 @@ def _git(
     worktree: Path,
     *args: str,
     guard_failures: list[str] | None = None,
+    strip: bool = True,
 ) -> str | None:
     try:
         reject_object_substitution(worktree)
@@ -36,13 +38,120 @@ def _git(
         return None
     if result.returncode != 0:
         return None
-    return result.stdout.strip()
+    return result.stdout.strip() if strip else result.stdout
 
 
 def _normalized_branch(value: Any) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
     return value.strip().removeprefix("refs/heads/")
+
+
+def _path_has_reparse_component(repo_root: Path, path: Path) -> bool:
+    """Reject links and Windows reparse points from the path through the root."""
+
+    root = repo_root.absolute()
+    current = path.absolute()
+    try:
+        current.relative_to(root)
+    except ValueError:
+        return True
+    while True:
+        try:
+            if current.is_symlink():
+                return True
+            if current.exists() and bool(
+                getattr(current.stat(), "st_file_attributes", 0) & 0x0400
+            ):
+                return True
+        except OSError:
+            return True
+        if current == root:
+            return False
+        current = current.parent
+
+
+def _is_tracked_modification(
+    repo_root: Path, path: str, guard_failures: list[str]
+) -> bool:
+    """Accept only an ordinary tracked modification of one exact path."""
+
+    status = _git(
+        repo_root,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        "--",
+        f":(top,literal){path}",
+        guard_failures=guard_failures,
+        strip=False,
+    )
+    if status is None:
+        return False
+    records = status.split("\0")
+    if records[-1:] == [""]:
+        records.pop()
+    return bool(
+        len(records) == 1
+        and len(records[0]) >= 4
+        and records[0][:2] in {" M", "M ", "MM"}
+        and records[0][2] == " "
+        and records[0][3:] == path
+    )
+
+
+def _coordination_ignored_paths(
+    repo_root: Path,
+    run: dict[str, Any],
+    run_path: Path | None,
+    guard_failures: list[str],
+) -> list[str]:
+    """Return the exact RUN and its declared current generated view."""
+
+    paths: list[str] = []
+    if run_path is not None:
+        candidate_run = run_path if run_path.is_absolute() else repo_root / run_path
+        try:
+            relative_run = candidate_run.absolute().relative_to(
+                repo_root.absolute()
+            ).as_posix()
+        except ValueError:
+            pass
+        else:
+            if (
+                candidate_run.is_file()
+                and not _path_has_reparse_component(repo_root, candidate_run)
+                and _is_tracked_modification(
+                    repo_root, relative_run, guard_failures
+                )
+            ):
+                paths.append(relative_run)
+
+    integration = run.get("integration")
+    integration = integration if isinstance(integration, dict) else {}
+    coordination_paths = integration.get("coordination_paths")
+    if not isinstance(coordination_paths, list) or "docs/tasks.md" not in coordination_paths:
+        return paths
+    run_id = run.get("run_id")
+    if not _nonempty_string(run_id):
+        return paths
+    view = repo_root / "docs" / "tasks.md"
+    try:
+        if _path_has_reparse_component(repo_root, view):
+            return paths
+        content = view.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return paths
+    if (
+        GENERATED_MARKER in content
+        and f"Human view of run `{run_id}` " in content
+        and _is_tracked_modification(
+            repo_root, "docs/tasks.md", guard_failures
+        )
+    ):
+        paths.append("docs/tasks.md")
+    return paths
 
 
 def _parent_git_summary(
@@ -94,37 +203,21 @@ def _parent_git_summary(
         if repository_available
         else None
     )
-    porcelain = (
-        _git(
+    if repository_available:
+        status_arguments = ["status", "--porcelain", "--untracked-files=all", "--", "."]
+        status_arguments.extend(
+            f":(exclude,top,literal){path}"
+            for path in _coordination_ignored_paths(
+                repo_root, run, run_path, guard_failures
+            )
+        )
+        porcelain = _git(
             repo_root,
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
+            *status_arguments,
             guard_failures=guard_failures,
         )
-        if repository_available
-        else None
-    )
-    if porcelain and run_path is not None:
-        try:
-            relative_run_path = run_path.resolve().relative_to(repo_root.resolve())
-        except (OSError, ValueError):
-            pass
-        else:
-            run_status = _git(
-                repo_root,
-                "status",
-                "--porcelain",
-                "--untracked-files=all",
-                "--",
-                f":(top,literal){relative_run_path.as_posix()}",
-                guard_failures=guard_failures,
-            )
-            if (
-                run_status == porcelain
-                and run_status[:2] in {" M", "M ", "MM"}
-            ):
-                porcelain = ""
+    else:
+        porcelain = None
     live_dirty = bool(porcelain) if porcelain is not None else None
     required_observation_incomplete = bool(
         repository_available
