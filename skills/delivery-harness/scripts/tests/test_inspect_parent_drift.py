@@ -116,6 +116,108 @@ class InspectParentDriftTests(unittest.TestCase):
         )
         self.assertEqual(1, exit_code)
 
+    def test_dirty_parent_is_a_generic_warning_and_keeps_exit_one(self) -> None:
+        for dirty_kind in ("tracked", "untracked"):
+            with self.subTest(dirty_kind=dirty_kind):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    head = self.init_repo(root)
+                    if dirty_kind == "tracked":
+                        (root / "tracked.txt").write_text(
+                            "private tracked change\n", encoding="utf-8"
+                        )
+                    else:
+                        (root / "private-untracked.txt").write_text(
+                            "private untracked change\n", encoding="utf-8"
+                        )
+                    run = self.run_state(head)
+
+                    summary = inspect_harness_run.summarize_run(root, run)
+                    with patch.object(
+                        inspect_harness_run, "load_run", return_value=run
+                    ):
+                        with redirect_stdout(io.StringIO()):
+                            exit_code = inspect_harness_run.main(
+                                [
+                                    "--repo-root",
+                                    str(root),
+                                    "--run",
+                                    str(root / "RUN.md"),
+                                ]
+                            )
+
+                parent = summary["parent_git"]
+                self.assertTrue(parent["live_dirty"])
+                self.assertEqual("mismatch", parent["comparison_state"])
+                self.assertTrue(parent["needs_reconciliation"])
+                self.assertEqual(
+                    ["parent: live integration checkout is dirty"],
+                    summary["warnings"],
+                )
+                self.assertNotIn("tracked.txt", " ".join(summary["warnings"]))
+                self.assertNotIn("private", " ".join(summary["warnings"]))
+                self.assertEqual(1, exit_code)
+
+    def test_modified_canonical_run_is_not_product_dirt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.init_repo(root)
+            run_path = root / "RUN.md"
+            run_path.write_text("baseline\n", encoding="utf-8")
+            self.git(root, "add", "RUN.md")
+            self.git(root, "commit", "-q", "-m", "track run")
+            head = self.git(root, "rev-parse", "HEAD")
+            run = self.run_state(head)
+            run_path.write_text("current canonical state\n", encoding="utf-8")
+
+            summary = inspect_harness_run.summarize_run(root, run, run_path)
+            with patch.object(inspect_harness_run, "load_run", return_value=run):
+                with redirect_stdout(io.StringIO()):
+                    exit_code = inspect_harness_run.main(
+                        ["--repo-root", str(root), "--run", str(run_path)]
+                    )
+
+            (root / "tracked.txt").write_text(
+                "product change beside RUN\n", encoding="utf-8"
+            )
+            dirty_summary = inspect_harness_run.summarize_run(root, run, run_path)
+            with patch.object(inspect_harness_run, "load_run", return_value=run):
+                with redirect_stdout(io.StringIO()):
+                    dirty_exit_code = inspect_harness_run.main(
+                        ["--repo-root", str(root), "--run", str(run_path)]
+                    )
+
+        parent = summary["parent_git"]
+        self.assertFalse(parent["live_dirty"])
+        self.assertEqual("aligned", parent["comparison_state"])
+        self.assertFalse(parent["needs_reconciliation"])
+        self.assertEqual([], summary["warnings"])
+        self.assertEqual(0, exit_code)
+        self.assertTrue(dirty_summary["parent_git"]["live_dirty"])
+        self.assertEqual(
+            ["parent: live integration checkout is dirty"],
+            dirty_summary["warnings"],
+        )
+        self.assertEqual(1, dirty_exit_code)
+
+    def test_untracked_run_path_is_still_parent_dirt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            head = self.init_repo(root)
+            run_path = root / "RUN.md"
+            run_path.write_text("untracked canonical candidate\n", encoding="utf-8")
+            run = self.run_state(head)
+
+            summary = inspect_harness_run.summarize_run(root, run, run_path)
+
+        parent = summary["parent_git"]
+        self.assertTrue(parent["live_dirty"])
+        self.assertEqual("mismatch", parent["comparison_state"])
+        self.assertTrue(parent["needs_reconciliation"])
+        self.assertEqual(
+            ["parent: live integration checkout is dirty"], summary["warnings"]
+        )
+
     def test_missing_canonical_integration_object_is_explicit(self) -> None:
         missing = "f" * 40
         with tempfile.TemporaryDirectory() as tmp:

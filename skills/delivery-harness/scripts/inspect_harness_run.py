@@ -46,7 +46,7 @@ def _normalized_branch(value: Any) -> str | None:
 
 
 def _parent_git_summary(
-    repo_root: Path, run: dict[str, Any]
+    repo_root: Path, run: dict[str, Any], run_path: Path | None = None
 ) -> tuple[dict[str, Any], list[str]]:
     """Compare live parent Git facts with the canonical integration identity."""
     integration = run.get("integration")
@@ -95,10 +95,36 @@ def _parent_git_summary(
         else None
     )
     porcelain = (
-        _git(repo_root, "status", "--porcelain", guard_failures=guard_failures)
+        _git(
+            repo_root,
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            guard_failures=guard_failures,
+        )
         if repository_available
         else None
     )
+    if porcelain and run_path is not None:
+        try:
+            relative_run_path = run_path.resolve().relative_to(repo_root.resolve())
+        except (OSError, ValueError):
+            pass
+        else:
+            run_status = _git(
+                repo_root,
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                f":(top,literal){relative_run_path.as_posix()}",
+                guard_failures=guard_failures,
+            )
+            if (
+                run_status == porcelain
+                and run_status[:2] in {" M", "M ", "MM"}
+            ):
+                porcelain = ""
     live_dirty = bool(porcelain) if porcelain is not None else None
 
     integration_branch = _normalized_branch(integration.get("branch"))
@@ -167,6 +193,8 @@ def _parent_git_summary(
         warnings.append(
             f"parent: canonical integration object {integration_head} is missing locally"
         )
+    if live_dirty is True:
+        warnings.append("parent: live integration checkout is dirty")
 
     if guard_failures:
         comparison_state = "blocked"
@@ -374,7 +402,9 @@ def _verifier_timings_summary(run: dict[str, Any]) -> list[dict[str, Any]]:
     ] if isinstance(executions, list) else []
 
 
-def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
+def summarize_run(
+    repo_root: Path, run: dict[str, Any], run_path: Path | None = None
+) -> dict[str, Any]:
     runtime_capabilities = run.get("runtime_capabilities")
     runtime_adapter = (
         runtime_capabilities.get("runtime_adapter")
@@ -399,7 +429,7 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
     recovery = _attempt_recovery_summary(run, mission_ids)
     missions: list[dict[str, Any]] = []
     warnings: list[str] = []
-    parent_git, parent_warnings = _parent_git_summary(repo_root, run)
+    parent_git, parent_warnings = _parent_git_summary(repo_root, run, run_path)
 
     for mission_id, state in sorted(run.get("mission_states", {}).items()):
         if not isinstance(state, dict):
@@ -657,7 +687,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     run_path = (args.run or repo_root / "docs" / "goal" / "RUN.md").resolve()
     try:
-        summary = summarize_run(repo_root, load_run(run_path))
+        summary = summarize_run(repo_root, load_run(run_path), run_path)
     except (GitMetadataError, OSError, ManifestError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
