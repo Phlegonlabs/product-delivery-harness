@@ -9,6 +9,8 @@ For scripts and bindings, read `references/installed-commands.md`.
 
 Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
 
+At implementation, integration and acceptance checkpoints, apply `../product-definition-builder/references/prd-refinement.md`. Route evidenced PRD gaps through existing records; repair code that violates approved requirements. Preserve frozen inputs.
+
 Project `AGENTS.md` also requires Repository Change Checkpoints at task start, significant change boundaries and completion/handoff, even outside Harness. Record meaningful local Git and working-tree changes in the relevant Epic without creating PLAN/RUN or a background watcher. Read-only tasks report proposed records without writing. Implement from canonical English PRD/architecture; Chinese review copies are not implementation sources.
 
 ## Design And Maintenance Routing

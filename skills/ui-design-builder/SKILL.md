@@ -24,6 +24,8 @@ For every UI-bearing product, this skill owns:
 
 It does not change product scope, routes, actions, states, responsive targets, copy responsibilities, architecture, or stack by implication. Return those changes to `product-definition-builder` and resume only from a newly approved Product Definition revision.
 
+At wireframe validation and HiFi review, apply `../product-definition-builder/references/prd-refinement.md` to newly discovered journey, state, content and recovery gaps. Link evidence and affected PRD/UI/TEST IDs in the existing change record; distinguish a design defect from a missing product decision. Keep frozen product inputs intact until their owning flow resolves a contract gap. Continue unaffected design work.
+
 ## Required Skills And Inputs
 
 1. **Load and use `frontend-design` for wireframes, direction studies, HiFi and every design repair.** Record its observed source digest, a retained repository `SKILL.md` snapshot path/hash, candidate path/hash and concrete design choices in `### Frontend Design Usage`. Every stage digest matches the snapshot. Naming the skill alone is insufficient. Wireframes use hierarchy, layout and interaction methods in grayscale; they have no Tokens or Design System Draft view. HiFi uses its full visual, typography, color and self-review methods. Taste skills may supplement an owner-selected direction; they never replace this skill.

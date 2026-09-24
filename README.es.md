@@ -35,6 +35,8 @@ El diseño inicial usa el flujo completo. Las mejoras cambian las páginas afect
 
 El intake de diseño pregunta expresamente si el propietario tiene imágenes, capturas, sitios web, vistas de Figma o productos de referencia, qué aprender y qué evitar. Las preguntas de texto recogen enlaces y preferencias; las imágenes se adjuntan en la conversación. Se reutilizan las respuestas previas; no tener referencias es válido y permite investigar y proponer direcciones pertinentes. Un Design Brief breve dentro de `ui-design.md` enlaza el propósito aprobado de la página, referencias inspeccionadas, restricciones visuales concretas y patrones que evitar con los registros REF/RP, Style Integration y movimiento existentes. No añade archivos ni aprobaciones, ni exige completar briefs históricos. Véase [intake](skills/ui-design-builder/references/ui-design-intake.md).
 
+El PRD se completa durante toda la entrega. Antes de aprobar la primera entrega, las perspectivas de UI y técnica revisan el mismo borrador: recorridos completos, dependencias entre funciones, datos, permisos, recuperación y preparación operativa. Los hallazgos separan lo necesario, lo aplazado explícitamente y las decisiones del responsable. Después, diseño, implementación, pruebas y observaciones del lanzamiento aportan evidencia e IDs estables mediante el flujo de producto existente. Se mantiene un PRD vigente y su copia de revisión en chino, sin ampliar el alcance, reducir los criterios ni reescribir aprobaciones congeladas. Se usan los roles y controles existentes, sin otra fase de diseño ni una nueva aprobación. Véase [refinamiento del PRD](skills/product-definition-builder/references/prd-refinement.md).
+
 ## Empieza aquí
 
 | Si tienes... | Empieza con | Lo que obtienes |

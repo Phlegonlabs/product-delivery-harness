@@ -4,6 +4,7 @@ The four READMEs remain the documentation of record for the skill bundle.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
+| `docs/epics/EPIC-prd-continuous-completeness.md` | First-delivery UI/technical completeness and ongoing evidence-based PRD refinement | Implemented and verified locally; uncommitted and not installed by this task |
 | `docs/epics/EPIC-design-brief-reference-intake.md` | Explicit reference questions and a concise Design Brief in existing UI intake | Implemented and verified locally; uncommitted and not installed |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Published skill behavior and release instructions | Current |
 | `docs/epics/EPIC-runtime-and-verification-reliability.md` | Browser CI, cross-skill lifecycle, runtime metrics and document review reliability | 0.53.1 repair locally verified; commit, push and PR review/merge authorized; exact-SHA CI pending |
