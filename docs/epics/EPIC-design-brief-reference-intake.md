@@ -43,6 +43,8 @@ Write scope: `skills/ui-design-builder/SKILL.md`, its `ui-design-intake.md`, `de
 
 ## Final Local Result — 2026-09-24 UTC
 
+Release continuation: the Design Brief change was committed on `codex/design-brief-references` as `b257304` (`feat(ui): add design brief reference intake`). The PRD continuation is `dee2d77`. Version 0.54.0 preparation is in progress; the original local verification below remains historical evidence for its tested source, and release-candidate verification, push, installation and promotion are tracked separately.
+
 DB-1 through DB-4 are implemented in the scoped guidance and four README descriptions. The parent reviewed the complete diff. All 11 required verification jobs exited 0 from the repository root:
 
 | Check | Result |

@@ -51,6 +51,8 @@ Canonical skill sources and Product Definition graph packets/tests change. READM
 
 ## Results And Remaining Work
 
+Release continuation: this PRD change was committed on `codex/design-brief-references` as `dee2d77` (`feat(prd): refine first delivery requirements across stages`), after Design Brief commit `b257304`. Version 0.54.0 preparation is in progress. The repaired-source verification below remains historical evidence; final candidate verification and release actions are tracked separately.
+
 The continuous PRD refinement rule, first-delivery UI/technical review lenses, graph packets, cross-stage routing, four README descriptions, Epic and index are implemented in the local working tree. Three focused graph tests passed; all 11 required jobs passed on the repaired source. The final source fingerprint is `8e92787cf69f1da0042ca2cb13b9d7afa6a74322cd6847805c59a81a782bde55` and matches `source-after.json`. HEAD remains `b4ffe691b97265d5a76817c2e0ccf457e084fa54` on `codex/design-brief-references`; no commit, push, promotion or official skills installation was done. The unrelated untracked file's hash remains `66b61a803153d4da49e10ce3e25b72a51229728a84bc48371620012e21e38b9c`. The loaded skill identity is unknown. The separately installed bundle changed externally during testing; its cause and applicability were not verified. No product release or production UI quality is claimed.
 
 ## Scenario Review

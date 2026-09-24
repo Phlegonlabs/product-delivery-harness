@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.53.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -598,6 +598,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.54.0** — Ask for product and visual references in design intake and record a concise Design Brief. Review first-delivery UI and technical completeness before product approval, then refine the same PRD from evidence through delivery without changing frozen approvals.
 
 - **0.53.1** — Use bundled Chromium for required browser verification. Keep the long HiFi scenario bounded, preserve all assertions and report completed phases on timeout. This repairs repeated post-merge browser deadline failures in 0.53.0.
 

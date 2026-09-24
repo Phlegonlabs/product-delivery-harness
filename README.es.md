@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.53.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -597,6 +597,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.54.0** — El intake de diseño pregunta por referencias visuales y de producto y registra un Design Brief breve. Antes de aprobar la primera entrega se revisa la cobertura de UI y técnica; luego se completa el mismo PRD con evidencia sin cambiar aprobaciones cerradas.
 
 - **0.53.1** — Usa Chromium incluido con Playwright en la verificación obligatoria. Mantiene un plazo total para el escenario HiFi largo, conserva todas las comprobaciones e informa de las fases completadas al agotarse el tiempo. Corrige los fallos repetidos de plazo tras integrar 0.53.0.
 
