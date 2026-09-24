@@ -7,7 +7,7 @@ The four READMEs remain the documentation of record for the skill bundle.
 | `docs/epics/EPIC-prd-continuous-completeness.md` | First-delivery UI/technical completeness and ongoing evidence-based PRD refinement | Committed on candidate branch; release verification and installation pending |
 | `docs/epics/EPIC-design-brief-reference-intake.md` | Explicit reference questions and a concise Design Brief in existing UI intake | Committed on candidate branch; release verification and installation pending |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Published skill behavior and release instructions | Current |
-| `docs/epics/EPIC-runtime-and-verification-reliability.md` | Browser CI, cross-skill lifecycle, runtime metrics and document review reliability | 0.53.1 repair locally verified; commit, push and PR review/merge authorized; exact-SHA CI pending |
+| `docs/epics/EPIC-runtime-and-verification-reliability.md` | Browser CI, lifecycle, runtime metrics, document review and same-RUN recovery | Runtime fixes committed on `codex/runtime-resume-repair`; exact-candidate verification and release-scope confirmation pending |
 | `docs/epics/EPIC-ui-reviewer-integration.md` | Unified Wireframe/HiFi review, evidence, and lifecycle integration | Included in observed local main/tag 0.52.0; 0.53.0 CI and lifecycle follow-up is recorded separately |
 | `docs/epics/EPIC-001-incremental-design-review.md` | Incremental UI authoring and interactive review repair | In progress |
 | `docs/epics/EPIC-wireframe-handoff-refinement.md` | Design translation, reading, recipes and freshness verification | Release preparation; verification pending |
