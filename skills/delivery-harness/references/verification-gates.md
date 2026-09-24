@@ -79,7 +79,7 @@ Fresh integration review gate:
 - Any other integration head has a tree no earlier PASS covers. The "did the combination break" question is real there, and no earlier PASS answers it.
 - Scope the reading to the seams. Each covered mission's content already passed its own exact-head review, so the packet lists the already-reviewed mission heads and this pass focuses on what combination changed — merge seams, conflict resolutions, cross-mission interaction, and shared-contract boundaries — instead of re-litigating mission internals.
 - Uses one reviewer per applicable surface by default. Same-surface fan-out requires an explicit user request or a recorded high-impact risk. None may delegate.
-- Returns all blocking findings in one bounded pass and routes one deduplicated finding set to a bounded repair mission. Runtime review permits only the initial review and one repair re-review. A repair changes the candidate SHA and invalidates every integration-stage PASS whose declared review scope intersects the repair diff. A review whose scope the repair did not touch keeps its PASS and records the new candidate SHA; the SHA string changing is not by itself a reason to re-review a surface the repair never reached.
+- Returns all blocking findings in one bounded pass and routes one deduplicated finding set to a bounded repair mission. Runtime review permits only the initial review and one repair re-review. A repair changes the candidate SHA and invalidates current integration-stage PASS coverage. Historical reviews keep their original SHA; never relabel an old PASS as new evidence. Only the non-security byte-identical-tree skip above can reuse a qualifying review. Security always requires a fresh exact-candidate review.
 
 Final/current-head gate:
 
@@ -136,6 +136,8 @@ Use or adapt this matrix:
 ## Changed-File Selection And Exact Execution Reuse
 
 Task and worker verifiers select against their own task or mission write scope. Batch and final gates may also select, but against the union of every mission write scope in the PLAN, never one mission's slice — the question they answer is whether the whole candidate regressed. Each of `batch_verifiers` and `final_gates` must keep at least one always-run verifier, so cross-mission interaction is proved rather than selected away; put build, browser E2E, migration, and UI checks there. Integration, migration, and smoke gates always run when their stage applies.
+
+Parent-observed changed paths are literal repository-relative filenames, including dynamic routes such as `[slug]`, `[...slug]` and `[[...slug]]`. They are not scope patterns. Absolute paths, traversal and non-canonical separators remain invalid; write-scope declarations retain their separate restricted grammar.
 
 The parent supplies normalized, repository-relative observed paths to `select_verifiers.py`. A targeted verifier is `not_applicable` only when no observed path matches its exact path or `/**` subtree. Invalid or incomplete parent observations fail safe by requiring every declared verifier.
 

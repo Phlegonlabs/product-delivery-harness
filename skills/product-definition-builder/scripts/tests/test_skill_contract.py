@@ -194,6 +194,54 @@ async function agent(_prompt, options) {
             "mobile_desktop_platform": "native iOS",
         }
 
+    def test_completeness_lenses_cover_native_ui_without_browser_lane(self) -> None:
+        result = self.run_workflow(self.base_workflow_args())
+        self.assertTrue(result["ok"], result)
+        prompts = {call["role"]: call["prompt"] for call in result["calls"]}
+        self.assertIn("product-level UI completeness lens", prompts["requirements"])
+        self.assertIn("cross-screen handoffs", prompts["requirements"])
+        self.assertIn("Do not create wireframes", prompts["requirements"])
+        self.assertIn("technical completeness lens", prompts["architecture"])
+        self.assertIn("technical completeness lens", prompts["backend"])
+        self.assertIn("technical completeness lens", prompts["frontend-platform"])
+        self.assertIn("duplicate effects", prompts["architecture"])
+        self.assertIn("same journeys", prompts["backend"])
+        self.assertIn("same journeys", prompts["frontend-platform"])
+        self.assertNotIn("ui-designer", prompts)
+        self.assertNotIn("ui-design-builder", {call["role"] for call in result["calls"]})
+
+    def test_completeness_lens_does_not_add_ui_to_headless_product(self) -> None:
+        workflow_args = self.base_workflow_args()
+        workflow_args.update({
+            "ui_bearing": False,
+            "ui_design_owner": None,
+            "mobile_desktop_platform": None,
+            "deployable": False,
+            "deployable_surfaces": [],
+            "release_targets": [],
+            "product_archetypes": ["automation"],
+        })
+        result = self.run_workflow(workflow_args)
+        self.assertTrue(result["ok"], result)
+        prompts = {call["role"]: call["prompt"] for call in result["calls"]}
+        self.assertIn("caller or operator journeys", prompts["requirements"])
+        self.assertNotIn("product-level UI completeness lens", prompts["requirements"])
+        self.assertNotIn("frontend-platform", prompts)
+        self.assertIn("technical completeness lens", prompts["architecture"])
+        self.assertIn("technical completeness lens", prompts["backend"])
+
+    def test_completeness_findings_reach_candidate_review_without_approval(self) -> None:
+        result = self.run_workflow(self.base_workflow_args())
+        self.assertTrue(result["ok"], result)
+        prompts = {call["role"]: call["prompt"] for call in result["calls"]}
+        self.assertIn("same candidate", prompts["synthesis"])
+        self.assertIn("essential unresolved gap blocks approval", prompts["synthesis"])
+        self.assertIn("remain blocked in this candidate", prompts["synthesis"])
+        self.assertIn("Draft package:", prompts["consistency-verifier"])
+        self.assertIn("cross-feature dependencies", prompts["consistency-verifier"])
+        self.assertIn("without silently approving deferral", prompts["consistency-verifier"])
+        self.assertIn("blocked when a human decision", prompts["consistency-verifier"])
+
     def test_skill_routes_browser_products_to_frontend_selection(self) -> None:
         skill = self.read("SKILL.md")
         agent = self.read_agent_prompt()

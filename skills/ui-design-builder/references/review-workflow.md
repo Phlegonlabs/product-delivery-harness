@@ -15,7 +15,7 @@ For a managed Harness maintenance route, freeze the matching `docs/epics/EPIC-*.
 
 ## One Author And Consolidated Approval
 
-Load frontend-design before wireframe, direction, HiFi and repair work. Preserve one principal design author; Taste supplements an explicit direction and Impeccable reviews independently. Record source digest, output identity and specific applied hierarchy/layout/interaction or visual choices in Frontend Design Usage. This record establishes traceability, not proof of aesthetic quality.
+Before Wireframe authoring or repair, and again before direction/HiFi authoring or repair, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` with installed-command resolution. The actual writer loads the full owner-pinned `frontend-design` skill in its own context. Parent reading, a snapshot, a role name or prior-stage invocation is no substitute; do not backfill evidence or replace the binding. Missing or conflicting dependencies block only that authoring stage and preserve earlier approvals and closed history. This requirement grants no spawn action; a direct parent may author. Preserve one design author. Assemblers build the shell, Impeccable and graders validate, and neither makes product-design decisions. Record source digest, output identity and applied choices in Frontend Design Usage; the record proves traceability, not quality.
 
 Combine missing design, image and motion preferences. Reuse supplied answers. Run:
 

@@ -222,6 +222,29 @@ def validate_scope_claim(claim: Any) -> str | None:
     return None
 
 
+def validate_changed_path(path: Any) -> str | None:
+    """Validate one literal Git path without interpreting scope globs."""
+
+    if not isinstance(path, str) or not path:
+        return "must be a non-empty string"
+    if path.startswith("/") or "\\" in path:
+        return "must be a repository-relative POSIX path"
+    if path != path.strip() or "//" in path:
+        return "must use canonical path spelling"
+    if path.endswith("/"):
+        return "must name a file, not a directory"
+    if len(path) >= 2 and path[1] == ":":
+        return "must not contain a Windows drive"
+    if path.startswith("!") or any(character in path for character in "*?{}"):
+        return "contains unsupported glob syntax"
+    if any(ord(character) < 32 for character in path):
+        return "must not contain control characters"
+    segments = path.split("/")
+    if any(segment in {"", ".", ".."} for segment in segments):
+        return "contains an empty, . or .. path segment"
+    return None
+
+
 def _claim_parts(claim: str, *, casefold: bool = False) -> tuple[tuple[str, ...], bool]:
     subtree = claim.endswith("/**")
     base = claim[:-3] if subtree else claim

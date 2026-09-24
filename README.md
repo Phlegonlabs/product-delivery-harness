@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.53.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -16,6 +16,8 @@
 Product Definition drafts canonical English `PRD.md` and `architecture.md` together with complete Traditional Chinese `PRD.zh-TW.md` and `architecture.zh-TW.md` review copies. The owner reviews Chinese; implementation and approval digests use English. Accepted feedback updates both views. The [bilingual review contract](skills/product-definition-builder/references/bilingual-review.md) requires source hashes, matching IDs and semantic comparison before review and paired publication. When an existing English-only PRD or architecture is found at a task checkpoint, the agent adds a complete Chinese review copy in the same directory, preserving the English source and approvals. A PRD-only project can validate its pair without creating an architecture. Read-only tasks report the missing copy; archives are not translated automatically.
 
 `AGENTS.md` requires local repository checks at task start, significant changes and completion, even without Harness or PLAN/RUN. Record meaningful committed and uncommitted changes in the matching Epic, including external changes labeled observed/unverified, and update `docs/DOCUMENTS.md`. Missing baselines stay explicit; unchanged checks create no duplicate entry. Read-only tasks report proposed records. No background watcher or new action authority is implied.
+
+Before every handoff, repeat the repository checkpoint and reconcile affected live documents, the matching Epic and index, and the task record. For managed runs, compare PLAN/RUN with the generated `docs/tasks.md` view using the renderer's `--check`; RUN remains authoritative, and generated content is not hand-edited. Compare shared `AGENTS.md` rules by meaning with the observed installed project template and version, then update only stale shared instructions within existing document-write authority while preserving local rules. If the template or a safe merge is unknown, report the gap. This is a handoff checkpoint, not a timed scan or new action grant.
 
 Skills repository for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, Pi, or any host that discovers a user skills directory.
 
@@ -31,7 +33,13 @@ Reviewer controls and panels use Shadow DOM while the product canvas stays in no
 
 `frontend-design` is mandatory for wireframes, directions, HiFi and repairs. Combine unanswered preferences, validate structure and W1–W5 internally, select a direction, then complete Impeccable, H1–H9 and technical checks before one human HiFi approval covering copy, structure, menus, tabs, interactions, visuals and tokens. Product menus must navigate and tabs must change content; verify required Home/back/cancel, compact menus, keyboard, Escape and focus return against PRD operations. Menu and tab controls use native buttons and each binds one distinct panel inside its own product surface. Controls and panels must be live nodes outside `<template>` and `<noscript>`; hidden product state panels remain valid.
 
+Before Wireframe or HiFi HTML authoring, check the UI-stage skill bindings and load the complete pinned `frontend-design` skill in the actual writer context. Parent reads, role names, snapshots and shell assembly are not design authorship. New managed authoring dispatches require both `ui-design-builder` and `frontend-design`; historical PLAN/RUN records remain readable.
+
 Initial design uses the full flow. Enhancements author only affected pages and connecting flows, with preserved-page comparisons. Routine maintenance edits and verifies the current product and effective requirements without rebuilding historical Wireframe/HiFi. Source, installed and actually loaded skill identities stay separate. New `ui-output/3` / `ui-evidence/3` preserve real observations, time, tool, environment and candidate hashes; machine results never invent human approval. Legacy formats retain their historical meaning. See [review workflow](skills/ui-design-builder/references/review-workflow.md) and [evidence](skills/ui-design-builder/references/review-evidence.md).
+
+The existing design intake explicitly asks whether the owner has reference images, screenshots, websites, Figma views or products, what to learn from them and what to avoid. Text questions collect links and preferences; image attachments use the conversation's attachment support. Supplied answers are reused, and no references is a valid answer that leads to relevant research and proposals. A concise Design Brief inside `ui-design.md` links the approved page purpose, inspected references, concrete visual constraints and avoid rules to existing REF/RP, Style Integration and motion records. It adds no separate file or approval gate and does not require historical briefs to be backfilled. See [intake](skills/ui-design-builder/references/ui-design-intake.md).
+
+The PRD is refined throughout delivery. Before first-delivery approval, UI and technical perspectives review the same candidate for complete user journeys, cross-feature dependencies, data, permissions, failure recovery and operational readiness. Findings identify required coverage, explicitly deferred scope and owner decisions. Later design, implementation, tests and release observations feed evidence and stable IDs back through the existing product flow. Keep one current PRD and its Chinese review copy; do not silently expand scope, weaken acceptance or rewrite frozen approvals. These checks use existing roles and checkpoints, not an extra design phase or approval gate. See [PRD refinement](skills/product-definition-builder/references/prd-refinement.md).
 
 ## Start here
 
@@ -101,7 +109,7 @@ Security exemptions also require a documentation-only product description and Pr
 The delivery core makes one size decision before it invokes managed orchestration:
 
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
-- Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; `new_run.py` writes the initial `docs/tasks.md` with `--out` and `--repo-root`, and guarded `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, and `close-wave` transitions with `--repo-root` refresh it while preserving the Update Log. Projection failure never rolls back RUN; the standalone `render_tasks_view.py` repairs or checks that non-canonical view. This source repository does not keep a separate root `Tasks.md` flow log.
+- Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; `new_run.py` writes the initial `docs/tasks.md` with `--out` and `--repo-root`, and guarded `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-candidate-head`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, and `close-wave` transitions with `--repo-root` refresh it while preserving the Update Log. Projection failure never rolls back RUN; the standalone `render_tasks_view.py` repairs or checks that non-canonical view. This source repository does not keep a separate root `Tasks.md` flow log.
 
 - The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core applies one general capability contract; the agent maps current native tools without a provider-specific section.
 - RUN execution never waits for remote CI. Branch promotion is a separate closeout stage: exact candidate and applicable isolated preview-environment verification must finish before `main` can move.
@@ -377,6 +385,8 @@ flowchart TB
 
 ## General runtime adapter
 
+Resume keeps the same RUN and completed missions when an authorized repair advances the candidate. Historical verifier receipts retain their original SHA and attempt; current PASS results still require the current exact SHA. Candidate reconciliation re-arms stale gates within their remaining attempt budgets and requires fresh integration and security reviews. It does not authorize repairs, reset budgets or reopen a completed RUN. Resume checks the parent and currently bound workspaces; unrelated linked worktrees do not block it. Changed-file paths such as `[slug]` are literal paths, separate from write-scope patterns.
+
 One capability contract in `delivery-harness/references/runtime-adapters.md` serves every host. The agent reads the current native tool descriptions, observes capabilities and maps actual calls to `app_threads`, `subagents` or `sequential_parent`. There are no provider-specific adapter sections, fixed model defaults or bundled native workflow scripts.
 
 Provider identity controls only explicit PLAN eligibility. Available drivers are ordered from observed suitability; a host name proves no capability. Delegated drivers require evidence for task creation/result delivery and any managed workspace. Unknown capability cannot dispatch. Null model and effort preserve installed defaults and role/fallback routing; unsupported explicit choices block without substitution.
@@ -594,6 +604,10 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.54.1** — Preserve the same RUN after authorized candidate repairs, retain historical verifier identities, revalidate exact current heads, accept literal dynamic-route filenames and report parent/worktree drift. Require the actual Wireframe and HiFi writer to load frontend-design, with action-time skill checks and explicit handoffs. Includes the previously unpublished 0.54.0 design-intake, PRD refinement and handoff-audit work.
+
+- **0.54.0 (unreleased preparation; included in 0.54.1)** — Ask for product and visual references in design intake and record a concise Design Brief. Review first-delivery UI and technical completeness before product approval, then refine the same PRD from evidence through delivery without changing frozen approvals. Every task handoff also audits affected live documents, Epic/index and task state, checks `docs/tasks.md` against PLAN/RUN when applicable, and compares shared `AGENTS.md` rules with the observed installed template before refreshing stale shared instructions in place.
 
 - **0.53.1** — Use bundled Chromium for required browser verification. Keep the long HiFi scenario bounded, preserve all assertions and report completed phases on timeout. This repairs repeated post-merge browser deadline failures in 0.53.0.
 

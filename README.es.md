@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.53.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -16,6 +16,8 @@
 Product Definition redacta las fuentes canónicas en inglés `PRD.md` y `architecture.md` junto con copias completas en chino tradicional `PRD.zh-TW.md` y `architecture.zh-TW.md`. El propietario revisa en chino; la implementación y los digests de aprobación usan inglés. Los cambios aceptados se reflejan en ambas versiones. El [contrato de revisión bilingüe](skills/product-definition-builder/references/bilingual-review.md) exige hashes de origen, IDs coincidentes y revisión semántica antes de revisar y publicar cada par. Al detectar un PRD o una arquitectura existente solo en inglés, el agente crea la traducción completa al chino en el mismo directorio y conserva el original y sus aprobaciones. Un proyecto con solo PRD puede validar ese par sin crear una arquitectura. Las tareas de solo lectura informan de la copia ausente; los archivos históricos no se traducen automáticamente.
 
 `AGENTS.md` exige revisar el repositorio local al iniciar la tarea, tras cambios importantes y al terminar, incluso sin Harness ni PLAN/RUN. Los cambios relevantes, confirmados o sin commit, se registran en el Epic correspondiente y en `docs/DOCUMENTS.md`; los externos quedan observados y sin verificar. Una base desconocida se declara; una revisión sin cambios no duplica entradas. Las tareas de solo lectura proponen el registro sin escribir. Esto no crea un monitor ni concede nuevas autorizaciones.
+
+Antes de cada handoff, repite el checkpoint del repositorio y reconcilia los documentos vivos afectados, el Epic y el índice, y el registro de la tarea. En runs gestionados, compara PLAN/RUN con la vista generada `docs/tasks.md` usando `--check` del renderer; RUN sigue siendo la autoridad y no se edita a mano el contenido generado. Compara por significado las reglas compartidas de `AGENTS.md` con la plantilla del proyecto y versión instaladas y observadas; con la autoridad de escritura documental existente, actualiza en el sitio solo las reglas compartidas obsoletas y conserva las reglas locales. Si la plantilla no se observó o la combinación segura es incierta, informa la brecha. Es un checkpoint de handoff, no un escaneo programado ni una autorización nueva.
 
 Repositorio de skills para convertir una idea de producto o una solicitud de cambio en un flujo de entrega verificado con Codex, Claude Code, Pi o cualquier host que descubra un directorio de skills de usuario.
 
@@ -31,7 +33,13 @@ Los controles y paneles del revisor usan Shadow DOM; el lienzo del producto perm
 
 `frontend-design` es obligatorio en wireframes, direcciones, HiFi y correcciones. Se agrupan las preferencias pendientes, se valida estructura y W1–W5 internamente, se elige dirección y se completan Impeccable, H1–H9 y controles técnicos antes de una aprobación humana del HiFi completo: texto, estructura, menús, pestañas, interacción, visuales y tokens. Los menús deben llegar a su destino y las pestañas cambiar contenido; se contrastan Home, volver, cancelar, menú móvil, teclado, Escape y foco con las operaciones del PRD. Los controles de menú y pestaña usan botones nativos y cada uno enlaza un panel único y distinto dentro de su propia superficie de producto. Controles y paneles deben ser nodos activos fuera de `<template>` y `<noscript>`; los paneles de estado ocultos normales siguen siendo válidos.
 
+Antes de crear HTML Wireframe o HiFi, compruebe los enlaces de skills de la etapa UI y cargue el skill completo y fijado `frontend-design` en el contexto del autor real. La lectura del padre, el nombre del rol, una copia o el ensamblado del visor no prueban autoría. Los nuevos trabajos de diseño gestionados requieren `ui-design-builder` y `frontend-design`; los PLAN/RUN históricos siguen siendo legibles.
+
 El diseño inicial usa el flujo completo. Las mejoras cambian las páginas afectadas y conexiones necesarias, comparando las conservadas. El mantenimiento cotidiano modifica y verifica el producto actual sin regenerar Wireframe/HiFi históricos. Se distinguen versiones fuente, instalada y realmente cargada. `ui-output/3` y `ui-evidence/3` conservan observaciones, tiempo, herramienta, entorno y hashes reales; no crean aprobaciones humanas. Los formatos antiguos conservan su significado. Véanse [flujo](skills/ui-design-builder/references/review-workflow.md) y [evidencia](skills/ui-design-builder/references/review-evidence.md).
+
+El intake de diseño pregunta expresamente si el propietario tiene imágenes, capturas, sitios web, vistas de Figma o productos de referencia, qué aprender y qué evitar. Las preguntas de texto recogen enlaces y preferencias; las imágenes se adjuntan en la conversación. Se reutilizan las respuestas previas; no tener referencias es válido y permite investigar y proponer direcciones pertinentes. Un Design Brief breve dentro de `ui-design.md` enlaza el propósito aprobado de la página, referencias inspeccionadas, restricciones visuales concretas y patrones que evitar con los registros REF/RP, Style Integration y movimiento existentes. No añade archivos ni aprobaciones, ni exige completar briefs históricos. Véase [intake](skills/ui-design-builder/references/ui-design-intake.md).
+
+El PRD se completa durante toda la entrega. Antes de aprobar la primera entrega, las perspectivas de UI y técnica revisan el mismo borrador: recorridos completos, dependencias entre funciones, datos, permisos, recuperación y preparación operativa. Los hallazgos separan lo necesario, lo aplazado explícitamente y las decisiones del responsable. Después, diseño, implementación, pruebas y observaciones del lanzamiento aportan evidencia e IDs estables mediante el flujo de producto existente. Se mantiene un PRD vigente y su copia de revisión en chino, sin ampliar el alcance, reducir los criterios ni reescribir aprobaciones congeladas. Se usan los roles y controles existentes, sin otra fase de diseño ni una nueva aprobación. Véase [refinamiento del PRD](skills/product-definition-builder/references/prd-refinement.md).
 
 ## Empieza aquí
 
@@ -101,7 +109,7 @@ La exención de seguridad requiere una descripción y un Product Archetype de do
 El núcleo de entrega toma una decisión de tamaño antes de invocar la orquestación gestionada:
 
 - El trabajo pequeño sigue siendo directo, sin planner, scheduler, PLAN/RUN, subagent ni preflight de runtime externo por defecto.
-- El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; `new_run.py` escribe el `docs/tasks.md` inicial con `--out` y `--repo-root`, y las transiciones gestionadas `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews` y `close-wave` con `--repo-root` lo refrescan conservando el Update Log. Un fallo de proyección nunca revierte el RUN; el `render_tasks_view.py` independiente repara o verifica esa vista no canónica. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
+- El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; `new_run.py` escribe el `docs/tasks.md` inicial con `--out` y `--repo-root`, y las transiciones gestionadas `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-candidate-head`, `reconcile-interrupted`, `reconcile-interrupted-reviews` y `close-wave` con `--repo-root` lo refrescan conservando el Update Log. Un fallo de proyección nunca revierte el RUN; el `render_tasks_view.py` independiente repara o verifica esa vista no canónica. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
 
 - El selector deriva `managed_sequential` para menos de dos missions de escritura segura realmente seleccionadas y `parallel_graph` para dos o más. El fan-out del scheduler arranca solo para el segundo; el runtime driver sigue siendo un hecho de transporte separado. El núcleo usa un contrato general de capacidades; el agente asigna las herramientas actuales sin secciones por proveedor.
 - La ejecución del RUN nunca espera al CI remoto. La promoción de branches es una etapa de closeout separada: la verificación del candidato exacto y del preview environment aislado aplicable debe terminar antes de que `main` pueda moverse.
@@ -376,6 +384,8 @@ flowchart TB
 
 ## Adaptador general de runtime
 
+Al avanzar el candidato por una reparación autorizada, la recuperación conserva el mismo RUN y las missions completadas. Los recibos históricos mantienen su SHA e intento; los PASS actuales siguen exigiendo el SHA exacto actual. La reconciliación del candidato reactiva los gates obsoletos dentro del presupuesto restante y exige nuevas revisiones de integración y seguridad. No autoriza reparaciones, reinicia presupuestos ni reabre un RUN completado. Se comprueban el padre y los espacios actualmente vinculados; otros worktrees no bloquean la recuperación. Las rutas modificadas como `[slug]` se tratan como nombres literales, separados de los patrones de alcance de escritura.
+
 Todos los hosts usan el contrato de capacidades de `delivery-harness/references/runtime-adapters.md`. El agente inspecciona las herramientas nativas actuales y asigna sus llamadas a `app_threads`, `subagents` o `sequential_parent`. No hay secciones por proveedor, modelos predeterminados fijos ni scripts de ejecución nativos incluidos.
 
 El proveedor solo determina la elegibilidad explícita del PLAN. El orden de drivers depende de capacidades observadas; el nombre del host no demuestra ninguna. La delegación exige evidencia de creación, resultados y espacio de trabajo. Una capacidad desconocida bloquea el lanzamiento. Modelo y esfuerzo nulos preservan los roles y valores instalados; una opción explícita no soportada bloquea el nodo sin sustitución.
@@ -593,6 +603,10 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.54.1** — Conserva el mismo RUN tras reparaciones autorizadas del candidato y las identidades históricas de verificadores; vuelve a verificar el SHA actual, admite nombres literales de rutas dinámicas e informa de divergencias del padre y los worktrees. Exige frontend-design al autor de Wireframe y HiFi mediante controles al despachar y entregas explícitas. Incluye el trabajo 0.54.0 aún no publicado sobre intake, PRD y auditoría de handoff.
+
+- **0.54.0 (preparación no publicada; incluida en 0.54.1)** — El intake de diseño pregunta por referencias visuales y de producto y registra un Design Brief breve. Antes de aprobar la primera entrega se revisa la cobertura de UI y técnica; luego se completa el mismo PRD con evidencia sin cambiar aprobaciones cerradas. Cada handoff también audita documentos vivos afectados, Epic/índice y estado de la tarea; cuando aplica, compara PLAN/RUN con `docs/tasks.md` y revisa las reglas compartidas de `AGENTS.md` frente a la plantilla instalada observada antes de actualizar en el sitio las reglas obsoletas.
 
 - **0.53.1** — Usa Chromium incluido con Playwright en la verificación obligatoria. Mantiene un plazo total para el escenario HiFi largo, conserva todas las comprobaciones e informa de las fases completadas al agotarse el tiempo. Corrige los fallos repetidos de plazo tras integrar 0.53.0.
 

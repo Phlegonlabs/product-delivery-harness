@@ -132,6 +132,38 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("Impeccable", rubric)
         self.assertIn("`H1`–`H9`", pass_guide)
 
+    def test_frontend_design_is_admitted_before_both_authoring_stages(self):
+        prompt = self.read("agents/openai.yaml")
+        skill = self.read("SKILL.md")
+        wireframe = self.read("references/wireframe-guide.md")
+        hifi = self.read("references/ui-design-pass.md")
+        workflow = self.read("references/review-workflow.md")
+        binding = (
+            'python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" '
+            "--agents-md <target-AGENTS.md> --stage ui-design"
+        )
+
+        self.assertLess(prompt.index("$frontend-design"), prompt.index("Wireframes"))
+        self.assertIn("actual design author for both Wireframes and directions", prompt)
+        self.assertIn("Before each authoring stage", prompt)
+        for document, authoring_marker in (
+            (skill, "author the affected structure using `references/wireframe-guide.md`"),
+            (wireframe, "## Wireframe Validation Gate (wireframes/5)"),
+            (hifi, "## Frontend Design Style Integration"),
+            (workflow, "Product/stack confirmation →"),
+        ):
+            with self.subTest(authoring_marker=authoring_marker):
+                self.assertIn(binding, document)
+                self.assertLess(document.index(binding), document.index(authoring_marker))
+
+        authoring_contract = "\n".join((skill, wireframe, hifi, workflow))
+        self.assertIn("actual writer", authoring_contract)
+        self.assertIn("parent read", authoring_contract.lower())
+        self.assertIn("silently replace the binding", authoring_contract)
+        self.assertIn("grants no spawn action", authoring_contract)
+        self.assertIn("direct parent may", authoring_contract)
+        self.assertIn("shell construction and validation", authoring_contract)
+
     def test_motion_and_media_router_is_conditional(self):
         router = self.read("references/motion-and-media-routing.md")
         for marker in (

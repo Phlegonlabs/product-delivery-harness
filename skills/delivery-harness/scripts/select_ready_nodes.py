@@ -11,9 +11,10 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
-from harness_core import _normalized_branch, classify_execution_route
+from harness_core import _nonempty_string, _normalized_branch, classify_execution_route
 from harness_manifest import (
     ManifestError,
+    UI_AUTHORING_REQUIRED_SKILLS,
     authorization_covers,
     execution_covers,
     load_plan,
@@ -24,6 +25,7 @@ from harness_manifest import (
     route_runtime_driver,
     validate_current_plan_run,
     is_current_pair,
+    mission_has_ui_authoring_action,
 )
 
 from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS, RUN_DISPATCH_STATUSES
@@ -832,7 +834,33 @@ def _sandbox_observation_reasons(
 
 
 def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
-    if run.get("status") != "running":
+    mission_states = run.get("mission_states")
+    graph_state = run.get("graph_state")
+    node_states = graph_state.get("node_states") if isinstance(graph_state, dict) else None
+    workers = run.get("workers")
+    review_workers = run.get("review_workers")
+
+    current_mission_worker_ids = {
+        state.get("worker_id")
+        for state in mission_states.values()
+        if isinstance(state, dict)
+        and state.get("phase") in {"leased", "worker_running", "worker_passed", "integrating"}
+        and _nonempty_string(state.get("worker_id"))
+    } if isinstance(mission_states, dict) else set()
+    current_review_bindings = {
+        (state.get("bound_worker_id"), state.get("last_attempt_id"))
+        for state in node_states.values()
+        if isinstance(state, dict)
+        and state.get("phase") == "running"
+        and _nonempty_string(state.get("bound_worker_id"))
+        and state.get("bound_worker_id") not in current_mission_worker_ids
+        and _nonempty_string(state.get("last_attempt_id"))
+    } if isinstance(node_states, dict) else set()
+
+    has_current_work = bool(current_mission_worker_ids or current_review_bindings)
+    if run.get("status") != "running" and not (
+        run.get("status") == "ready" and has_current_work
+    ):
         return []
     reasons: set[str] = set()
     observed = run.get("observed")
@@ -848,39 +876,45 @@ def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
     worktrees = observed_git.get("worktrees")
     if not isinstance(worktrees, list):
         return sorted(reasons | {"worktree_state_unreconciled"})
-    observed_by_path: dict[str, dict[str, Any]] = {}
+    observed_by_path: dict[str, list[dict[str, Any]]] = {}
     for worktree in worktrees:
         if not isinstance(worktree, dict) or not worktree.get("path"):
-            reasons.add("worktree_state_unreconciled")
             continue
         path = worktree["path"]
-        if path in observed_by_path:
-            reasons.add("worktree_state_unreconciled")
-        observed_by_path[path] = worktree
-        if worktree.get("dirty") is not False or not worktree.get("branch_ref") or not worktree.get("head_sha"):
-            reasons.add("worktree_state_unreconciled")
+        observed_by_path.setdefault(path, []).append(worktree)
 
-    workers = run.get("workers")
     if not isinstance(workers, list):
         return sorted(reasons | {"worker_state_unreconciled"})
-    worker_paths = {
-        worker.get("worktree_path")
-        for worker in workers
-        if isinstance(worker, dict) and worker.get("worktree_path")
-    }
     parent_path = observed_git.get("parent_worktree_path")
-    primary_checkout_path = (
-        worktrees[0].get("path") if worktrees and isinstance(worktrees[0], dict) else None
-    )
-    if (observed_by_path and parent_path not in observed_by_path) or any(
-        path not in {parent_path, primary_checkout_path} and path not in worker_paths
-        for path in observed_by_path
-    ):
+    parent_matches = observed_by_path.get(parent_path, [])
+    if len(parent_matches) > 1 or (observed_by_path and not parent_matches):
         reasons.add("worktree_state_unreconciled")
+    elif parent_matches:
+        parent_worktree = parent_matches[0]
+        if (
+            parent_worktree.get("dirty") is not False
+            or not _nonempty_string(parent_worktree.get("branch_ref"))
+            or not _nonempty_string(parent_worktree.get("head_sha"))
+        ):
+            reasons.add("parent_state_unreconciled")
+        if _normalized_branch(parent_worktree.get("branch_ref")) != _normalized_branch(
+            observed_git.get("parent_branch")
+        ) or parent_worktree.get("head_sha") != observed_git.get("parent_head_sha"):
+            reasons.add("parent_state_unreconciled")
 
+    workers_by_id: dict[str, list[dict[str, Any]]] = {}
     for worker in workers:
-        if not isinstance(worker, dict) or worker.get("phase") in {"worker_failed", "superseded"}:
+        if isinstance(worker, dict) and _nonempty_string(worker.get("worker_id")):
+            workers_by_id.setdefault(worker["worker_id"], []).append(worker)
+    current_mission_workers: list[dict[str, Any]] = []
+    for worker_id in current_mission_worker_ids:
+        matches = workers_by_id.get(worker_id, [])
+        if len(matches) != 1:
+            reasons.add("worker_state_unreconciled")
             continue
+        current_mission_workers.append(matches[0])
+
+    for worker in current_mission_workers:
         if worker.get("workspace_mode") not in {
             "parent_managed_worktree",
             "app_managed_worktree",
@@ -888,14 +922,47 @@ def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
             reasons.add("worker_state_unreconciled")
             continue
         path = worker.get("worktree_path")
-        worktree = observed_by_path.get(path)
-        if worktree is None:
+        matches = observed_by_path.get(path, [])
+        if len(matches) != 1:
             reasons.add("worker_state_unreconciled")
             continue
+        worktree = matches[0]
+        if (
+            worktree.get("dirty") is not False
+            or not _nonempty_string(worktree.get("branch_ref"))
+            or not _nonempty_string(worktree.get("head_sha"))
+        ):
+            reasons.add("worktree_state_unreconciled")
         if worktree.get("branch_ref") != worker.get("branch_ref"):
             reasons.add("worker_state_unreconciled")
         recorded_head = worker.get("worker_head_sha")
         if recorded_head is not None and worktree.get("head_sha") != recorded_head:
+            reasons.add("worker_state_unreconciled")
+
+    if not isinstance(review_workers, list):
+        return sorted(reasons | {"worker_state_unreconciled"})
+    review_workers_by_binding: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
+    for worker in review_workers:
+        if isinstance(worker, dict):
+            key = (worker.get("worker_id"), worker.get("attempt_id"))
+            review_workers_by_binding.setdefault(key, []).append(worker)
+    for binding in current_review_bindings:
+        matches = review_workers_by_binding.get(binding, [])
+        if len(matches) != 1:
+            reasons.add("worker_state_unreconciled")
+            continue
+        worker = matches[0]
+        review_path = worker.get("review_path")
+        review_matches = observed_by_path.get(review_path, [])
+        if len(review_matches) != 1:
+            reasons.add("worker_state_unreconciled")
+            continue
+        review_worktree = review_matches[0]
+        if (
+            review_worktree.get("dirty") is not False
+            or not _nonempty_string(review_worktree.get("branch_ref"))
+            or review_worktree.get("head_sha") != worker.get("reviewed_sha")
+        ):
             reasons.add("worker_state_unreconciled")
     return sorted(reasons)
 
@@ -1018,6 +1085,12 @@ def _dispatch_reasons(
             reasons.add("workspace_not_isolated")
         plan_mission = missions.get(node["ref"], {})
         if plan_mission:
+            required_skills = plan_mission.get("required_skills", [])
+            if mission_has_ui_authoring_action(plan, plan_mission) and any(
+                skill not in required_skills
+                for skill in UI_AUTHORING_REQUIRED_SKILLS
+            ):
+                reasons.add("ui_authoring_skills_missing")
             if plan_mission.get("resource_inventory_complete") is not True:
                 reasons.add("incomplete_resource_inventory")
             if plan_mission.get("worktree_eligible") is not True:
@@ -1083,7 +1156,10 @@ def _dispatch_reasons(
 
 
 def _directive(
-    node: dict[str, Any], binding: dict[str, Any] | None, run: dict[str, Any]
+    node: dict[str, Any],
+    binding: dict[str, Any] | None,
+    run: dict[str, Any],
+    mission: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     base = {"node_id": node["id"], "kind": node["kind"], "ref": node["ref"]}
     if node["kind"] == "approval":
@@ -1138,6 +1214,8 @@ def _directive(
             "completion_channel": runtime["completion_channel"],
         }
     )
+    if node["kind"] == "mission" and isinstance(mission, dict):
+        directive["required_skills"] = list(mission.get("required_skills", []))
     return directive
 
 
@@ -1327,7 +1405,9 @@ def select_ready_nodes(
                 )
                 continue
             runtime_count += 1
-        dispatchable.append(_directive(node, item["binding"], run))
+        dispatchable.append(
+            _directive(node, item["binding"], run, missions.get(node["ref"]))
+        )
 
     # A wave that runs one mission at a time is often correct: a dependency
     # chain, overlapping write scopes, no isolation, or a host with no way to

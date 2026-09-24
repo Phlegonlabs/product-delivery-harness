@@ -147,6 +147,8 @@ workspace_not_isolated
 
 Unary ineligibility or deferral belongs on the node entry, not on a graph edge. The selector emits exactly these deferral codes:
 
+- `ui_authoring_skills_missing` — a current Wireframe or HiFi HTML authoring mission lacks `ui-design-builder` or `frontend-design` in `required_skills`; retain historical PLAN validity and repair the current dispatch contract before leasing.
+
 - `action_not_authorized` — a required launch-path action has no grant covering the mission and target.
 - `attempts_exhausted` — the node's attempts reached its `max_attempts`.
 - `authorization_head_stale` — a v10 head-bound lifecycle grant does not cover the current integration head.

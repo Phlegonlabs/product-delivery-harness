@@ -48,6 +48,8 @@ Give each reviewer one bounded packet: scoped diff, acceptance, evidence, tool c
 
 ## Version, Handoff And Failure
 
+Recover an unchanged PLAN in its existing RUN. Reconcile the current candidate and relevant workspaces before dispatch; do not replay integrated missions or create a new RUN merely because a repair invalidated a gate. Retain old attempts and verifier contexts at their original identities. Current PASS coverage must use the current exact SHA and applicable lease. Candidate reconciliation grants no Git action or extra attempt, and a provider change still follows the separate replanning boundary below.
+
 Record `runtime_adapter.version_gate` and follow `runtime-upgrades.md`. A host with no observable own-version is never deferred for that reason alone; the loaded Harness identity and selected capabilities still need evidence. A `compatible_old` session finishes only its active wave. After an update, mark `restart_required`, start a fresh session and re-probe; never hot-upgrade a worker.
 
 Use the Repository Context Contract, Serialized Same-Repository Host Handoff in `execution-state-model.md`, and `runtime-performance.md`. This adapter adds no alternate state or handoff rules and no alternate upgrade rules. Preserve failed, cancelled, stalled, dirty and partial evidence. One failed node does not cancel passing siblings. Reduce concurrency or use another observed native driver only within existing grants; never reset or remove evidence automatically.

@@ -5,9 +5,11 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 # Delivery Harness
 
-For scripts and bindings, read `references/installed-commands.md`.
+Commands: `references/installed-commands.md`.
 
 Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
+
+At implementation, integration and acceptance checkpoints, apply `../product-definition-builder/references/prd-refinement.md`. Route evidenced PRD gaps through existing records; repair code that violates approved requirements. Preserve frozen inputs.
 
 Project `AGENTS.md` also requires Repository Change Checkpoints at task start, significant change boundaries and completion/handoff, even outside Harness. Record meaningful local Git and working-tree changes in the relevant Epic without creating PLAN/RUN or a background watcher. Read-only tasks report proposed records without writing. Implement from canonical English PRD/architecture; Chinese review copies are not implementation sources.
 
@@ -107,6 +109,8 @@ For small UI work, add one critique-repair-recheck cycle before final review. Us
 Optional `/feature-dev` exploration does not change authorization, ownership or verification.
 
 ## Managed Route
+
+Recover existing RUNs before replacement; see `references/execution-state-model.md`.
 
 New managed work uses PLAN schema v6 and RUN schema v11. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
 

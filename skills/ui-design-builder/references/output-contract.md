@@ -91,6 +91,18 @@ Visual Preference Brief: [experience priority, guidance/control, density, layout
 
 Direction mode: [one recommended direction / three comparable directions]
 
+### Design Brief
+
+Extend the Visual Preference Brief here for new or changed design scope. Keep existing historical artifacts valid; do not require a backfill or a separate approval.
+
+- Purpose and scope: [link the approved PRD page, audience, primary job and non-goals; do not duplicate product requirements]
+- Reference response: [owner answer and source/date; supplied / explicitly none / not supplied; name any unavailable material separately]
+- Reference lessons: [source URL/file/product and relevant page/region; what to learn, what to avoid and affected UI IDs; link inspected REF-* and proposed/confirmed RP-* records]
+- Visual constraints and avoid rules: [concrete layout/spacing, typography/language, color/theme, imagery/icon and motion constraints; distinguish owner decisions, agent proposals and unresolved items]
+- Detailed decisions: [link Style Integration/selected VD-* and applicable MM-* records as they become available; do not create another token table or motion specification]
+
+Populate this brief as decisions mature. It does not require a final palette before wireframing, turn a proposal into approval, or make an unavailable source visual evidence. Existing reference-principle confirmation, direction selection and Visual Approval still govern the work.
+
 ## Motion And Media Intent
 
 Motion direction: [not_required / functional_only / expressive] — [owner or accepted recommendation]

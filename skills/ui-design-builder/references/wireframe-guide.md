@@ -2,6 +2,8 @@
 
 Use this guide only after the core Product Definition package passes `python skills/product-definition-builder/scripts/check_product_package.py --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` from the repository root and records `Product Definition Approval: approved`. `ui-design-builder` owns one wireframe deliverable for every UI-bearing product: `docs/design/wireframes.html`.
 
+Before new Wireframe authoring or repair, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` with installed-command resolution. The actual writer loads the complete owner-pinned `frontend-design` skill in that same context before touching the candidate. A parent read, snapshot, role label or prior check is not invocation proof; do not backfill evidence or replace the owner binding. A missing or conflicting dependency blocks this authoring stage only and leaves prior approvals and closed historical records unchanged. This same-context rule grants no delegation; the direct parent may author. Template assemblers and reviewers provide shell construction and validation, not structural product-design judgment.
+
 ## Ownership
 
 - `PRD.md` owns product scope, routes, screen purpose, required content and controls, actions, flows, states, implementation-bound copy and dynamic display contracts, the platform-appropriate responsive set and obligations, and `UI-*` / `UX-*` traces. UI Design Builder decides region grouping, order, layout, spans, reflow, density, and internal Wireframe Validation for schema 5.

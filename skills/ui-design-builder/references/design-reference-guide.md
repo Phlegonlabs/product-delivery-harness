@@ -8,6 +8,8 @@ References are evidence, not product authority. `PRD.md` owns product behavior, 
 
 Treat a supplied reference as `design inspiration` unless the owner explicitly requests page-faithful conformance and names the scope and tolerance.
 
+Link supplied or inspected sources to the existing Design Brief with what the owner wants to learn, avoid and apply to specific UI surfaces. Keep owner preferences distinct from the agent's observations and proposed principles. A missing or inaccessible image, website or Figma view remains uninspected; record that limitation instead of inventing `REF-*` observations. A supplied reference is not permission to clone a page or change product/stack decisions. An explicit `no references` answer uses the research route below; do not treat an unanswered question as that answer.
+
 ## Proactive Reference Research
 
 For a new visual scope, or a revised one without supplied references, inspect a few current public pages that match the product's task and platform—not a generic color collection. Curated candidate directories include [Astro themes](https://astro.build/themes/), [Tailwind Plus UI blocks](https://tailwindcss.com/plus/ui-blocks/marketing) (paid reuse—verify the license), [application UI blocks](https://tailwindcss.com/plus/ui-blocks/application-ui), [Codrops](https://tympanus.net/codrops/), [Uiverse](https://uiverse.io/), and [Open Props](https://open-props.style/). A directory entry is not evidence by itself: inspect the actual page and relevant desktop/mobile state before recording it. Record every inspected source as `REF-*` and its proposed `Adopt | Adapt | Avoid` rule as `RP-*`; never install a template or dependency without the approved stack's explicit component/source decision and license review.

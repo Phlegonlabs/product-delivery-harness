@@ -15,6 +15,7 @@ from harness_core import (
     _normalized_branch,
     changed_files_digest,
     sandbox_execution_binding_errors,
+    validate_changed_path,
 )
 from harness_schema import run_required_harness_version, version_at_least
 from harness_git import GitMetadataError, reject_object_substitution, run_git
@@ -33,7 +34,6 @@ from harness_manifest import (
     path_in_scopes,
     plan_digest,
     validate_current_plan_run,
-    validate_scope_claim,
     validate_plan,
     validate_run,
 )
@@ -518,7 +518,7 @@ def _report_exception(path: str, worker: dict[str, Any]) -> bool:
     report_path = worker.get("report_path")
     if worker.get("completion_channel") != "report_file" or not isinstance(report_path, str):
         return False
-    if validate_scope_claim(report_path) is not None or report_path.endswith("/**"):
+    if validate_changed_path(report_path) is not None:
         return False
     return report_path == path and report_path.rsplit("/", 1)[-1] == "REPORT.md"
 

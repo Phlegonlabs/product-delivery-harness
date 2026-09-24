@@ -126,11 +126,13 @@ __all__ = [
     "ManifestError",
     "PLAN_HEADING",
     "RUN_HEADING",
+    "UI_AUTHORING_REQUIRED_SKILLS",
     "canonical_json",
     "is_current_pair",
     "load_plan",
     "load_run",
     "load_worker_result",
+    "mission_has_ui_authoring_action",
     "mission_conflicts",
     "plan_digest",
     "topological_levels",
@@ -204,6 +206,10 @@ PRODUCT_WIREFRAME_SOURCE_KINDS = {
     "low fidelity wireframe",
     "structural wireframe",
 }
+UI_AUTHORING_REQUIRED_SKILLS = ("ui-design-builder", "frontend-design")
+UI_REFERENCE_SCOPE = "docs/design/ui-references/**"
+UI_STAGING_SCOPE = "docs/design/.ui-staging/**"
+APPROVED_UI_TARGET_SOURCE_KIND = "approved ui target"
 
 
 def _read_git_source_blob(
@@ -447,11 +453,7 @@ def _staged_product_source_paths(
         kind = source.get("kind")
         if not isinstance(location, str) or "://" in location:
             continue
-        normalized_kind = ""
-        if isinstance(kind, str):
-            normalized_kind = " ".join(
-                kind.replace("_", " ").replace("-", " ").casefold().split()
-            )
+        normalized_kind = _normalized_source_kind(kind)
         normalized_location = location.replace("\\", "/").removeprefix("./").strip("/")
         filename = normalized_location.rsplit("/", 1)[-1].lower()
         kind_matches = normalized_kind in kinds or (
@@ -518,6 +520,129 @@ def _scope_includes_product_wireframe_source(
     return _scope_includes_staged_product_source(
         scope, product_wireframe_source_paths, PRODUCT_WIREFRAME_SOURCE_FILENAMES
     )
+
+
+def _normalized_source_kind(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(
+        value.replace("_", " ").replace("-", " ").casefold().split()
+    )
+
+
+def _local_source_path(value: Any) -> str | None:
+    if not isinstance(value, str) or "://" in value:
+        return None
+    return value.replace("\\", "/").removeprefix("./").strip("/")
+
+
+def _plan_source_records(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    sources = plan.get("sources")
+    if isinstance(sources, list):
+        return {
+            str(index): source
+            for index, source in enumerate(sources)
+            if isinstance(source, dict)
+        }
+    return {}
+
+
+def _scope_tree_intersection(
+    scope: str, tree_scope: str, deny_scopes: list[str]
+) -> bool:
+    """Return whether a subtree intersection remains writable after denies."""
+
+    if not scope.endswith("/**") or not scope_overlap(
+        scope, tree_scope, casefold=True
+    ):
+        return False
+    scope_parts = scope[:-3].split("/")
+    tree_parts = tree_scope[:-3].split("/")
+    if (
+        len(scope_parts) <= len(tree_parts)
+        and [part.casefold() for part in tree_parts[: len(scope_parts)]]
+        == [part.casefold() for part in scope_parts]
+    ):
+        intersection = "/".join(
+            [*scope_parts, *tree_parts[len(scope_parts) :], "**"]
+        )
+    else:
+        intersection = scope
+    return not any(scope_contains(deny, intersection) for deny in deny_scopes)
+
+
+def mission_has_ui_authoring_action(
+    plan: dict[str, Any], mission: dict[str, Any]
+) -> bool:
+    """Identify a current mission that can author wireframe or HiFi source bytes.
+
+    This is an action-time admission check. Historical PLAN validation remains
+    unchanged so closed records stay readable.
+    """
+
+    write_scopes = [
+        scope
+        for scope in mission.get("write_scope", [])
+        if isinstance(scope, str)
+    ]
+    deny_scopes = [
+        scope
+        for scope in mission.get("deny_scope", [])
+        if isinstance(scope, str)
+    ]
+    if not write_scopes:
+        return False
+
+    sources = _plan_source_records(plan)
+    source_paths = _product_wireframe_source_paths(sources)
+    approved_target_paths = {
+        path
+        for source in sources.values()
+        if _normalized_source_kind(source.get("kind"))
+        == APPROVED_UI_TARGET_SOURCE_KIND
+        for path in [_local_source_path(source.get("location"))]
+        if path is not None
+    }
+    source_paths.update(approved_target_paths)
+    approved_target_package_scopes = {
+        f"{path.rsplit('/', 1)[0]}/**"
+        for path in approved_target_paths
+        if "/" in path and path.rsplit("/", 1)[-1].casefold() == "index.html"
+    }
+    for scope in write_scopes:
+        if any(scope_contains(deny, scope) for deny in deny_scopes):
+            continue
+        normalized = scope.replace("\\", "/").removeprefix("./").strip("/")
+        lowered = normalized.casefold()
+        if any(
+            path_in_scopes(path.casefold(), [lowered])
+            and not path_in_scopes(path, deny_scopes)
+            for path in source_paths
+        ):
+            return True
+        if not normalized.endswith("/**"):
+            if lowered.rsplit("/", 1)[-1] == "wireframes.html":
+                return True
+            if lowered.endswith(".html") and (
+                path_in_scopes(lowered, [UI_REFERENCE_SCOPE])
+                or path_in_scopes(lowered, [UI_STAGING_SCOPE])
+                or any(
+                    path_in_scopes(lowered, [package_scope.casefold()])
+                    for package_scope in approved_target_package_scopes
+                )
+            ):
+                return True
+            continue
+        if _scope_tree_intersection(normalized, UI_REFERENCE_SCOPE, deny_scopes):
+            return True
+        if _scope_tree_intersection(normalized, UI_STAGING_SCOPE, deny_scopes):
+            return True
+        if any(
+            _scope_tree_intersection(normalized, package_scope, deny_scopes)
+            for package_scope in approved_target_package_scopes
+        ):
+            return True
+    return False
 
 
 def _validate_verifier_group(
@@ -2307,7 +2432,6 @@ def _validate_verifier_executions(
     attempt_ids = set(attempts_by_id)
     mission_states = run.get("mission_states")
     mission_state_items = mission_states.values() if isinstance(mission_states, dict) else []
-    task_states = run.get("task_states") if isinstance(run.get("task_states"), dict) else {}
     lease_ids = {
         state.get("lease_id")
         for state in mission_state_items
@@ -3190,23 +3314,36 @@ def _validate_verifier_executions(
                         f"{path}.context.batch_base_sha",
                         "must match the retained worker batch base",
                     )
-                expected_worker_head = bound_worker.get("worker_head_sha")
-                if item.get("layer") == "task":
-                    task_state = task_states.get(item.get("task_id"))
-                    if isinstance(task_state, dict) and is_full_sha(
-                        task_state.get("commit_sha")
-                    ):
-                        expected_worker_head = task_state.get("commit_sha")
-                if context["head_sha"] != expected_worker_head:
+                if (
+                    item.get("layer") == "worker"
+                    and context["head_sha"] != bound_worker.get("worker_head_sha")
+                ):
                     _add(
                         errors,
                         f"{path}.context.head_sha",
-                        "must match the task checkpoint or retained worker head",
+                        "must match the retained worker head",
                     )
                 if context["checkout_role"] != "worker":
                     _add(errors, f"{path}.context.checkout_role", "must equal worker")
                 observed_git = run.get("observed", {}).get("git", {})
-                if bound_worker.get("workspace_mode") in {
+                current_mission_state = (
+                    mission_states.get(item.get("mission_id"))
+                    if isinstance(mission_states, dict)
+                    else None
+                )
+                is_current_worker = (
+                    isinstance(current_mission_state, dict)
+                    and current_mission_state.get("worker_id")
+                    == bound_worker.get("worker_id")
+                    and current_mission_state.get("lease_id")
+                    == bound_worker.get("lease_id")
+                )
+                requires_live_observation = (
+                    is_current_worker
+                    and current_mission_state.get("phase")
+                    in {"leased", "worker_running", "worker_passed", "integrating"}
+                )
+                if requires_live_observation and bound_worker.get("workspace_mode") in {
                     "parent_managed_worktree",
                     "app_managed_worktree",
                 }:
@@ -3241,7 +3378,7 @@ def _validate_verifier_executions(
                             f"{path}.context.checkout_dirty",
                             "dirty isolated worker worktrees cannot produce accepted verifier evidence",
                         )
-                elif isinstance(observed_git, dict) and (
+                elif requires_live_observation and isinstance(observed_git, dict) and (
                     context["checkout_dirty"] != observed_git.get("parent_dirty")
                 ):
                     _add(
@@ -3267,9 +3404,6 @@ def _validate_verifier_executions(
                         f"{path}.context.batch_base_sha",
                         "must match run.integration.batch_base_sha",
                     )
-                expected_head_sha = integration.get("integration_head_sha")
-                head_error = "must match run.integration.integration_head_sha"
-                enforce_head_sha = True
                 if item.get("layer") == "mission_integration":
                     mission_state = (
                         mission_states.get(item.get("mission_id"))
@@ -3281,9 +3415,85 @@ def _validate_verifier_executions(
                         if isinstance(mission_state, dict)
                         else None
                     )
+                    prior_mission_heads = (
+                        mission_state.get("prior_head_shas", [])
+                        if isinstance(mission_state, dict)
+                        and isinstance(mission_state.get("prior_head_shas", []), list)
+                        else []
+                    )
+                    allowed_heads = {
+                        sha
+                        for sha in [expected_head_sha, *prior_mission_heads]
+                        if is_full_sha(sha)
+                    }
+                    observed_git = run.get("observed", {}).get("git", {})
+                    pending_worker_head_sha = (
+                        mission_state.get("head_sha")
+                        if isinstance(mission_state, dict)
+                        and mission_state.get("phase")
+                        in {"worker_passed", "integrating"}
+                        and mission_state.get("integrated_sha") is None
+                        else None
+                    )
+                    pending_workers = [
+                        worker
+                        for worker in worker_items
+                        if isinstance(worker, dict)
+                        and isinstance(mission_state, dict)
+                        and worker.get("worker_id") == mission_state.get("worker_id")
+                        and worker.get("mission_id") == item.get("mission_id")
+                        and worker.get("lease_id") == mission_state.get("lease_id")
+                        and worker.get("phase") == "worker_passed"
+                        and worker.get("worker_head_sha")
+                        == pending_worker_head_sha
+                    ]
+                    pending_integration_head_sha = (
+                        observed_git.get("parent_head_sha")
+                        if isinstance(observed_git, dict)
+                        else None
+                    )
+                    if (
+                        is_full_sha(pending_worker_head_sha)
+                        and is_full_sha(pending_integration_head_sha)
+                        and len(pending_workers) == 1
+                    ):
+                        allowed_heads.add(pending_integration_head_sha)
+                    if (
+                        not allowed_heads
+                        and isinstance(mission_state, dict)
+                        and mission_state.get("phase") == "superseded"
+                    ):
+                        prior_integration_heads = integration.get(
+                            "prior_head_shas", []
+                        )
+                        if not isinstance(prior_integration_heads, list):
+                            prior_integration_heads = []
+                        allowed_heads = {
+                            sha
+                            for sha in [
+                                integration.get("integration_head_sha"),
+                                *prior_integration_heads,
+                            ]
+                            if is_full_sha(sha)
+                        }
                     head_error = "must match the mission integrated_sha"
-                    enforce_head_sha = is_full_sha(expected_head_sha)
-                if enforce_head_sha and context["head_sha"] != expected_head_sha:
+                else:
+                    prior_integration_heads = integration.get("prior_head_shas", [])
+                    if not isinstance(prior_integration_heads, list):
+                        prior_integration_heads = []
+                    allowed_heads = {
+                        sha
+                        for sha in [
+                            integration.get("integration_head_sha"),
+                            *prior_integration_heads,
+                        ]
+                        if is_full_sha(sha)
+                    }
+                    head_error = (
+                        "must match run.integration.integration_head_sha or a recorded "
+                        "prior integration head"
+                    )
+                if context["head_sha"] not in allowed_heads:
                     _add(
                         errors,
                         f"{path}.context.head_sha",
@@ -3585,6 +3795,19 @@ def _validate_v10_execution_records(
                 )
 
         if _nonempty_string(worktree_path) and _nonempty_string(branch_ref):
+            mission_state = mission_states.get(mission_id)
+            is_current_worker = (
+                isinstance(mission_state, dict)
+                and mission_state.get("worker_id") == worker.get("worker_id")
+                and mission_state.get("lease_id") == worker.get("lease_id")
+            )
+            requires_live_observation = worker.get("phase") in {
+                "leased",
+                "worker_running",
+            } or (
+                is_current_worker
+                and mission_state.get("phase") in {"worker_passed", "integrating"}
+            )
             expected_owner = (
                 "parent" if workspace_mode == "parent_managed_worktree" else "app"
             )
@@ -3600,14 +3823,15 @@ def _validate_v10_execution_records(
                     or observed.get("head_sha") == worker.get("worker_head_sha")
                 )
             ]
-            if len(matching_worktrees) != 1:
+            if requires_live_observation and len(matching_worktrees) != 1:
                 _add(
                     errors,
                     path,
                     "requires one matching parent-observed isolated worktree and branch",
                 )
             elif (
-                worker.get("phase") == "worker_passed"
+                requires_live_observation
+                and worker.get("phase") == "worker_passed"
                 and matching_worktrees[0].get("dirty") is not False
             ):
                 _add(errors, path, "passed worker requires a clean observed worktree")
@@ -3686,6 +3910,9 @@ def _validate_v10_execution_records(
                 isinstance(task_state, dict)
                 and task_state.get("phase") == "mission_recorded"
                 and task_state.get("verifier_status") == "PASS"
+                and isinstance(mission_state, dict)
+                and mission_state.get("phase")
+                in {"worker_passed", "integrating", "integrated"}
                 and isinstance(worker, dict)
                 and not _has_retained_pass_execution(
                     run,

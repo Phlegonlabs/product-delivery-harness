@@ -109,6 +109,37 @@ class SelectVerifiersTests(unittest.TestCase):
                 with self.assertRaises(VerifierSelectionError):
                     normalize_changed_files(changed_files)
 
+    def test_dynamic_route_segments_are_literal_changed_paths(self) -> None:
+        changed_files = [
+            "app/blog/[slug]/page.tsx",
+            "app/docs/[...slug]/page.tsx",
+            "app/help/[[...slug]]/page.tsx",
+        ]
+
+        self.assertEqual(sorted(changed_files), normalize_changed_files(changed_files))
+
+        plan = self.targeted_plan()
+        plan["missions"][0]["worker_verifiers"][0]["selection"]["scopes"] = [
+            "app/**"
+        ]
+        result = applicable_targeted_verifiers(plan["missions"][0], changed_files)
+        self.assertIn("worker-m1", result["worker_verifier_ids"])
+
+    def test_dynamic_route_support_does_not_accept_globs_or_traversal(self) -> None:
+        for changed_file in (
+            "app/*/page.tsx",
+            "app/?/page.tsx",
+            "app/{slug}/page.tsx",
+            "!app/page.tsx",
+            "app/../outside.ts",
+            "C:/outside.ts",
+            "/absolute.ts",
+            "app\\page.tsx",
+        ):
+            with self.subTest(changed_file=changed_file):
+                with self.assertRaises(VerifierSelectionError):
+                    normalize_changed_files([changed_file])
+
     def test_invalid_plan_and_head_are_rejected(self) -> None:
         plan = self.targeted_plan()
         escaped = copy.deepcopy(plan)

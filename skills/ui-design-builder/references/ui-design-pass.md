@@ -2,6 +2,8 @@
 
 Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval and internal Wireframe Validation. It turns the approved structural wireframe into a human-approved visual target. `frontend-design` is the single design author. `impeccable` and rubric graders provide review evidence; they do not publish or approve the target.
 
+Before direction studies, connected HiFi or any repair, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` with installed-command resolution. The actual writer loads the complete owner-pinned `frontend-design` skill in that same context before authoring. A parent read, snapshot, role label or earlier Wireframe invocation is not proof; never backfill evidence or silently replace the binding. Missing or conflicting dependencies block only the current authoring stage and preserve the validated Wireframe, earlier approvals and closed historical records. This does not authorize delegation, and the direct parent may author. Reviewer and assembler helpers construct the shell or validate; they do not choose or repair the product design.
+
 ## Rebuild And Reading Scope
 
 Apply `design-translation.md` and `design-freshness.md`. An explicit full rebuild retains product/stack constraints but uses the newly validated wireframe and fresh direction instead of prior design authority. Refine provisional type, optical spacing and fine proportions without changing fixed hierarchy or behavior. Inspect repeated controls across pages, real CJK/Latin copy, stacked bilingual reading where required, text enlargement and dense/alternate states. Use source-bound before/after findings; numerical grades alone prove no improvement. New iOS scope defaults to iPhone; iPad remains conditional on Product Definition, never silently dropped from an existing PRD.
@@ -15,7 +17,7 @@ Every direction and HiFi candidate uses the same:
 - approved `PRD.md`, `architecture.md`, and `stack-decisions.md` identities;
 - complete `UI-* × responsive target × non-n/a state` matrix;
 - approved `wireframes.html` region order, grouping, actions, flows, states, and media placeholders;
-- UI Design Intake and Visual Preference Brief;
+- UI Design Intake and Visual Preference Brief, including the Design Brief for new or changed design scope;
 - Motion and Media Intent rows;
 - exact copy or bounded display contracts;
 - brand, accessibility, platform, performance, component-foundation, and styling constraints; and
@@ -28,6 +30,8 @@ The pass cannot add, remove, reorder, or reinterpret product scope, content resp
 The intake must already be complete before `frontend-design` proposes a theme or Design Read. If it is missing, read `ui-design-intake.md`, ask the human owner the product-specific questions, end the turn, and wait. Reuse supplied answers; wait only on missing decisions.
 
 If the owner supplies a reference, read `design-reference-guide.md` and inspect it through the matching source route. Record `REF-*` sources and proposed `Adopt / Adapt / Avoid` `RP-*` principles, then end the turn for confirmation before creating a direction.
+
+Use the existing Design Brief to connect the owner answer, reference lessons and visual constraints to Style Integration and MM records as decisions mature. An explicit `no references` answer permits relevant research and recommendations under `design-reference-guide.md`; it is not direction approval. Unanswered optional references stay `not supplied`, and inaccessible material stays uninspected. Continue independent work and wait only for work that depends on the missing input. Preserve answered preferences and unchanged enhancement directions.
 
 When the owner has a clear direction, produce one product-specific direction. When the owner asks to compare or remains unsure after intake, produce exactly three materially different directions over the same frozen screens and states. Never substitute a fixed catalog of style names.
 

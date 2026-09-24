@@ -275,6 +275,8 @@ Use `monetization-and-partner-channel-guide.md` to select providers only after t
 
 Every open question names whether it blocks Product Definition Approval. An approved package has no unresolved `Yes` row. Non-blocking rows and open assumptions appear explicitly in the approval record; silence is not acceptance.
 
+During candidate refinement, use these existing fields for unresolved lifecycle findings: affected IDs, evidence and proposed acceptance wording can appear in the question/resolution. Follow `prd-refinement.md`; do not edit frozen inputs to insert new questions or create a separate refinement ledger.
+
 ## Test Obligations
 | TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
 | --- | --- | --- | --- | --- | --- |
@@ -942,6 +944,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 ### Completeness
 
+- Before first-delivery approval, apply `prd-refinement.md`: reconcile UI and technical perspectives on the same candidate's complete journeys and cross-feature dependencies. Findings retain evidence, stable IDs and dispositions; required gaps cannot be silently deferred. Later findings follow the same rule without rewriting frozen approvals.
 - `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory. Their Product Definition Approval and Stack Decision Checkpoint are both `approved`, and `check_product_package.py --repo-root <repository-root> --require-filled --require-approved` passes before publication. The staged operational documents follow their existing applicability rules. UI-bearing packages record a pending `ui-design-builder` handoff; headless packages record `not_required` without skipping Product Definition Approval.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing product decision records. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
