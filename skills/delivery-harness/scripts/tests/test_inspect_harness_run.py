@@ -43,7 +43,7 @@ class InspectHarnessRunTests(unittest.TestCase):
             (root / "m1").mkdir()
             (root / "m2").mkdir()
 
-            def fake_git(worktree: Path, *args: str) -> str:
+            def fake_git(worktree: Path, *args: str) -> str | None:
                 if args == ("rev-parse", "HEAD"):
                     return recorded_m1 if worktree.name == "m1" else live_m2
                 if args == ("status", "--porcelain"):

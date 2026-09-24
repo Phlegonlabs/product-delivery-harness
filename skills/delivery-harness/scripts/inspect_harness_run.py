@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from harness_core import ManifestError, _nonempty_string, load_run
+from harness_core import ManifestError, _nonempty_string, is_full_sha, load_run
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_ui_evidence import _layout_check_required
 
@@ -18,15 +18,198 @@ from harness_ui_evidence import _layout_check_required
 FAILED_ATTEMPT_RESULTS = {"fix_required", "retryable_failure", "blocked", "contract_gap"}
 
 
-def _git(worktree: Path, *args: str) -> str | None:
+def _git(
+    worktree: Path,
+    *args: str,
+    guard_failures: list[str] | None = None,
+) -> str | None:
     try:
         reject_object_substitution(worktree)
         result = run_git(worktree, *args, check=False, text=True)
-    except (GitMetadataError, OSError):
+    except GitMetadataError:
+        if guard_failures is not None:
+            guard_failures.append(
+                "parent: Git observation blocked by metadata/configuration guard"
+            )
+        return None
+    except OSError:
         return None
     if result.returncode != 0:
         return None
     return result.stdout.strip()
+
+
+def _normalized_branch(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().removeprefix("refs/heads/")
+
+
+def _parent_git_summary(
+    repo_root: Path, run: dict[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
+    """Compare live parent Git facts with the canonical integration identity."""
+    integration = run.get("integration")
+    integration = integration if isinstance(integration, dict) else {}
+    observed = run.get("observed")
+    observed = observed if isinstance(observed, dict) else {}
+    observed_git = observed.get("git")
+    observed_git = observed_git if isinstance(observed_git, dict) else {}
+
+    guard_failures: list[str] = []
+    try:
+        repository_probe = run_git(
+            repo_root,
+            "rev-parse",
+            "--is-inside-work-tree",
+            check=False,
+            text=True,
+        )
+    except GitMetadataError:
+        repository_available = False
+        guard_failures.append(
+            "parent: Git observation blocked by metadata/configuration guard"
+        )
+    except OSError:
+        repository_available = False
+    else:
+        repository_available = (
+            repository_probe.returncode == 0
+            and repository_probe.stdout.strip().casefold() == "true"
+        )
+
+    live_head = (
+        _git(repo_root, "rev-parse", "HEAD", guard_failures=guard_failures)
+        if repository_available
+        else None
+    )
+    live_branch = (
+        _git(
+            repo_root,
+            "rev-parse",
+            "--abbrev-ref",
+            "HEAD",
+            guard_failures=guard_failures,
+        )
+        if repository_available
+        else None
+    )
+    porcelain = (
+        _git(repo_root, "status", "--porcelain", guard_failures=guard_failures)
+        if repository_available
+        else None
+    )
+    live_dirty = bool(porcelain) if porcelain is not None else None
+
+    integration_branch = _normalized_branch(integration.get("branch"))
+    integration_head = integration.get("integration_head_sha")
+    integration_head = integration_head if is_full_sha(integration_head) else None
+    recorded_parent_branch = _normalized_branch(observed_git.get("parent_branch"))
+    recorded_parent_head = observed_git.get("parent_head_sha")
+    recorded_parent_head = (
+        recorded_parent_head if is_full_sha(recorded_parent_head) else None
+    )
+    branch_matches = (
+        live_branch == integration_branch
+        if live_branch is not None and integration_branch is not None
+        else None
+    )
+    head_matches = (
+        live_head == integration_head
+        if live_head is not None and integration_head is not None
+        else None
+    )
+    branch_matches_recorded_parent = (
+        live_branch == recorded_parent_branch
+        if live_branch is not None and recorded_parent_branch is not None
+        else None
+    )
+    head_matches_recorded_parent = (
+        live_head == recorded_parent_head
+        if live_head is not None and recorded_parent_head is not None
+        else None
+    )
+    integration_object_exists = (
+        _git(
+            repo_root,
+            "cat-file",
+            "-e",
+            f"{integration_head}^{{commit}}",
+            guard_failures=guard_failures,
+        )
+        is not None
+        if live_head is not None and integration_head is not None
+        else None
+    )
+
+    warnings: list[str] = list(dict.fromkeys(guard_failures))
+    if branch_matches is False:
+        warnings.append(
+            "parent: live branch "
+            f"{live_branch} differs from integration branch {integration_branch}"
+        )
+    elif integration_branch is None and branch_matches_recorded_parent is False:
+        warnings.append(
+            "parent: live branch "
+            f"{live_branch} differs from recorded parent branch {recorded_parent_branch}"
+        )
+    if head_matches is False:
+        warnings.append(
+            "parent: live HEAD "
+            f"{live_head} differs from integration head {integration_head}"
+        )
+    elif integration_head is None and head_matches_recorded_parent is False:
+        warnings.append(
+            "parent: live HEAD "
+            f"{live_head} differs from recorded parent head {recorded_parent_head}"
+        )
+    if integration_object_exists is False:
+        warnings.append(
+            f"parent: canonical integration object {integration_head} is missing locally"
+        )
+
+    if guard_failures:
+        comparison_state = "blocked"
+    elif live_head is None:
+        comparison_state = "unknown"
+    elif warnings:
+        comparison_state = "mismatch"
+    elif (
+        branch_matches is True
+        and head_matches is True
+        and integration_object_exists is True
+    ):
+        comparison_state = "aligned"
+    else:
+        comparison_state = "partial"
+
+    return {
+        "recorded_parent_worktree_path": observed_git.get("parent_worktree_path"),
+        "recorded_parent_branch": recorded_parent_branch,
+        "recorded_parent_head_sha": recorded_parent_head,
+        "recorded_parent_dirty": observed_git.get("parent_dirty"),
+        "live_worktree_path": str(repo_root) if repo_root.exists() else None,
+        "live_branch": live_branch,
+        "live_head_sha": live_head,
+        "live_dirty": live_dirty,
+        "git_observation_status": (
+            "blocked"
+            if guard_failures
+            else "available"
+            if repository_available
+            else "unavailable"
+        ),
+        "integration_branch": integration_branch,
+        "integration_head_sha": integration_head,
+        "integration_object_exists": integration_object_exists,
+        "branch_matches_integration": branch_matches,
+        "head_matches_integration": head_matches,
+        "branch_matches_recorded_parent": branch_matches_recorded_parent,
+        "head_matches_recorded_parent": head_matches_recorded_parent,
+        "comparison_state": comparison_state,
+        "needs_reconciliation": bool(warnings),
+        "runtime_process_liveness": "unknown",
+    }, warnings
 
 
 def _attestation_summary(run: dict[str, Any]) -> dict[str, Any]:
@@ -216,6 +399,7 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
     recovery = _attempt_recovery_summary(run, mission_ids)
     missions: list[dict[str, Any]] = []
     warnings: list[str] = []
+    parent_git, parent_warnings = _parent_git_summary(repo_root, run)
 
     for mission_id, state in sorted(run.get("mission_states", {}).items()):
         if not isinstance(state, dict):
@@ -293,6 +477,7 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    warnings.extend(parent_warnings)
     wave = run.get("active_wave")
     lock = run.get("run_lock")
     control = run.get("control")
@@ -312,6 +497,7 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         if isinstance(wave, dict)
         else None,
         "integration": run.get("integration"),
+        "parent_git": parent_git,
         "runtime_process_state": "not inspected",
         "runtime_process_liveness": "unknown",
         "runtime_version_gate": version_gate if isinstance(version_gate, dict) else None,
@@ -348,6 +534,31 @@ def render_text(summary: dict[str, Any]) -> str:
         f"harness={version_gate.get('harness_version') or '-'} | "
         f"required={version_gate.get('required_harness_version') or '-'}",
     ]
+    parent_git = summary.get("parent_git") or {}
+    parent_dirty = (
+        "dirty"
+        if parent_git.get("live_dirty") is True
+        else "clean"
+        if parent_git.get("live_dirty") is False
+        else "unknown"
+    )
+    integration_object = (
+        "present"
+        if parent_git.get("integration_object_exists") is True
+        else "missing"
+        if parent_git.get("integration_object_exists") is False
+        else "unknown"
+    )
+    lines.append(
+        "Parent Git: "
+        f"{parent_git.get('comparison_state') or 'unknown'} | "
+        f"branch={parent_git.get('live_branch') or '-'} | "
+        f"head={parent_git.get('live_head_sha') or '-'} | "
+        f"{parent_dirty} | "
+        f"integration_branch={parent_git.get('integration_branch') or '-'} | "
+        f"integration_head={parent_git.get('integration_head_sha') or '-'} | "
+        f"integration_object={integration_object}"
+    )
     metrics = summary.get("runtime_metrics") or {}
     def milliseconds(value: Any) -> str:
         return "unknown" if value is None else f"{value}ms"
@@ -446,7 +657,6 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     run_path = (args.run or repo_root / "docs" / "goal" / "RUN.md").resolve()
     try:
-        reject_object_substitution(repo_root)
         summary = summarize_run(repo_root, load_run(run_path))
     except (GitMetadataError, OSError, ManifestError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
