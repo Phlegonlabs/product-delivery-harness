@@ -14,3 +14,4 @@ The four READMEs remain the documentation of record for the skill bundle.
 | `docs/epics/EPIC-general-runtime-adapter.md` | General capability adapter and removal of native runtime paths | Implemented and verified locally |
 | `docs/epics/EPIC-bilingual-product-review.md` | Canonical English product sources and synchronized Chinese review copies | Implemented and verified locally |
 | `docs/epics/EPIC-repository-change-records.md` | Task-boundary repository checks and Epic records outside managed runs | Implemented and verified locally |
+| `docs/epics/EPIC-handoff-document-audit.md` | Handoff reconciliation of live documents, Epics, task/RUN views, and seeded `AGENTS.md` template drift | Documentation and focused tests verified; integrated change in progress |

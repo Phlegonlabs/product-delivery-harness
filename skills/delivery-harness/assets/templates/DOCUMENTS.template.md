@@ -35,6 +35,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 Notes:
 
 - Every skill invocation checks live document and skill drift through `delivery-harness/references/document-sync-contract.md`. Keep the current PRD as the baseline, retain links to historical revisions as references, and never rewrite archived approval or execution evidence. A sync snapshot records reviewed bytes, not approval or capability.
+- Before handoff, use `AGENTS.md`'s Handoff Documentation Audit to reconcile this index, affected live documents, Epic Change Logs and the task/RUN state. Check whether the shared `AGENTS.md` rules still match the observed installed project template in meaning; preserve local instructions when refreshing stale rules. Report read-only or unresolved gaps for the next owner.
 - Delivery acceptance uses the frozen requirement/scenario/platform matrix and evidence register from `delivery-harness/references/delivery-acceptance-contract.md`. Link its actual paths here when applicable; do not duplicate evidence rows. The direct route needs no PLAN/RUN.
 
 - The PRD family lives under `docs/product/` with its own artifact lifecycle (staging, publish, archive); run state and evidence live under `docs/goal/`; deployment, activation, this manifest, and the rendered `tasks.md` view live under `docs/`. The repository root carries only what runtimes auto-discover — `AGENTS.md` and `CLAUDE.md` — so every discoverable-by-convention file stays where tools look for it and everything else is a flow contract.

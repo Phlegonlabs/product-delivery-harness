@@ -17,6 +17,8 @@ Product Definition redacta las fuentes canónicas en inglés `PRD.md` y `archite
 
 `AGENTS.md` exige revisar el repositorio local al iniciar la tarea, tras cambios importantes y al terminar, incluso sin Harness ni PLAN/RUN. Los cambios relevantes, confirmados o sin commit, se registran en el Epic correspondiente y en `docs/DOCUMENTS.md`; los externos quedan observados y sin verificar. Una base desconocida se declara; una revisión sin cambios no duplica entradas. Las tareas de solo lectura proponen el registro sin escribir. Esto no crea un monitor ni concede nuevas autorizaciones.
 
+Antes de cada handoff, repite el checkpoint del repositorio y reconcilia los documentos vivos afectados, el Epic y el índice, y el registro de la tarea. En runs gestionados, compara PLAN/RUN con la vista generada `docs/tasks.md` usando `--check` del renderer; RUN sigue siendo la autoridad y no se edita a mano el contenido generado. Compara por significado las reglas compartidas de `AGENTS.md` con la plantilla del proyecto y versión instaladas y observadas; con la autoridad de escritura documental existente, actualiza en el sitio solo las reglas compartidas obsoletas y conserva las reglas locales. Si la plantilla no se observó o la combinación segura es incierta, informa la brecha. Es un checkpoint de handoff, no un escaneo programado ni una autorización nueva.
+
 Repositorio de skills para convertir una idea de producto o una solicitud de cambio en un flujo de entrega verificado con Codex, Claude Code, Pi o cualquier host que descubra un directorio de skills de usuario.
 
 No es una colección de prompts. La suite de skills separa la definición del producto, el diseño visual, la ejecución de ingeniería, la revisión de seguridad de código, la activación y la revisión post-release de crecimiento orgánico, para que cada etapa tenga una única fuente de verdad, una entrega con límites claros y su propia verificación.
@@ -598,7 +600,7 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
 
-- **0.54.0** — El intake de diseño pregunta por referencias visuales y de producto y registra un Design Brief breve. Antes de aprobar la primera entrega se revisa la cobertura de UI y técnica; luego se completa el mismo PRD con evidencia sin cambiar aprobaciones cerradas.
+- **0.54.0** — El intake de diseño pregunta por referencias visuales y de producto y registra un Design Brief breve. Antes de aprobar la primera entrega se revisa la cobertura de UI y técnica; luego se completa el mismo PRD con evidencia sin cambiar aprobaciones cerradas. Cada handoff también audita documentos vivos afectados, Epic/índice y estado de la tarea; cuando aplica, compara PLAN/RUN con `docs/tasks.md` y revisa las reglas compartidas de `AGENTS.md` frente a la plantilla instalada observada antes de actualizar en el sitio las reglas obsoletas.
 
 - **0.53.1** — Usa Chromium incluido con Playwright en la verificación obligatoria. Mantiene un plazo total para el escenario HiFi largo, conserva todas las comprobaciones e informa de las fases completadas al agotarse el tiempo. Corrige los fallos repetidos de plazo tras integrar 0.53.0.
 

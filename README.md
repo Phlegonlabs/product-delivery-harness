@@ -17,6 +17,8 @@ Product Definition drafts canonical English `PRD.md` and `architecture.md` toget
 
 `AGENTS.md` requires local repository checks at task start, significant changes and completion, even without Harness or PLAN/RUN. Record meaningful committed and uncommitted changes in the matching Epic, including external changes labeled observed/unverified, and update `docs/DOCUMENTS.md`. Missing baselines stay explicit; unchanged checks create no duplicate entry. Read-only tasks report proposed records. No background watcher or new action authority is implied.
 
+Before every handoff, repeat the repository checkpoint and reconcile affected live documents, the matching Epic and index, and the task record. For managed runs, compare PLAN/RUN with the generated `docs/tasks.md` view using the renderer's `--check`; RUN remains authoritative, and generated content is not hand-edited. Compare shared `AGENTS.md` rules by meaning with the observed installed project template and version, then update only stale shared instructions within existing document-write authority while preserving local rules. If the template or a safe merge is unknown, report the gap. This is a handoff checkpoint, not a timed scan or new action grant.
+
 Skills repository for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, Pi, or any host that discovers a user skills directory.
 
 It is not a prompt collection. The skill suite separates product definition, visual design, engineering execution, code-security review, activation, and post-release organic-growth review so each stage has one source of truth, a bounded handoff, and its own verification.
@@ -599,7 +601,7 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
-- **0.54.0** — Ask for product and visual references in design intake and record a concise Design Brief. Review first-delivery UI and technical completeness before product approval, then refine the same PRD from evidence through delivery without changing frozen approvals.
+- **0.54.0** — Ask for product and visual references in design intake and record a concise Design Brief. Review first-delivery UI and technical completeness before product approval, then refine the same PRD from evidence through delivery without changing frozen approvals. Every task handoff also audits affected live documents, Epic/index and task state, checks `docs/tasks.md` against PLAN/RUN when applicable, and compares shared `AGENTS.md` rules with the observed installed template before refreshing stale shared instructions in place.
 
 - **0.53.1** — Use bundled Chromium for required browser verification. Keep the long HiFi scenario bounded, preserve all assertions and report completed phases on timeout. This repairs repeated post-merge browser deadline failures in 0.53.0.
 

@@ -17,6 +17,8 @@ Product Definition 撰写英文正式来源 `PRD.md`、`architecture.md` 时，�
 
 `AGENTS.md` 要求在任务开始、重要变更后及结束时检查本地 repository，即使不使用 Harness 或 PLAN/RUN。将有意义的已提交与未提交变更记录到对应 Epic，外部修改标为已观察但未验证，并更新 `docs/DOCUMENTS.md`。缺少基线就明确记录；没有新变化不重复写入。只读任务只提出记录内容，不建立后台监控，也不增加动作授权。
 
+每次交接前都要重做 repository checkpoint，核对受影响的有效文档、对应 Epic 与索引，以及任务记录。Managed run 使用 renderer 的 `--check` 比对 PLAN/RUN 与生成的 `docs/tasks.md` 视图；RUN 才是权威来源，不能手动编辑生成区段。按语义将共用 `AGENTS.md` 规则与已观察到的安装版 project template 和版本比对；在现有文档写入授权内，只就地更新过期的共用规则并保留 repository 自定义规则。如果 template 未观察到或无法安全合并，在交接时说明缺口。这是交接检查点，不是定时扫描，也不增加动作授权。
+
 技能仓库，用于借助 Codex、Claude Code、Pi 或任何会发现用户 skills 目录的宿主，把产品想法或变更需求变成一条经过验证的交付流程。
 
 它不是提示词集合。这套技能把产品定义、视觉设计、工程执行、代码安全审查、启用和 release 后自然流量 review 拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
@@ -599,7 +601,7 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
-- **0.54.0** — 设计 intake 询问产品与视觉参考，并记录简短的 Design Brief。首次交付批准前检查 UI 与技术完整性；后续依据交付证据持续补全同一份 PRD，保留已冻结的批准。
+- **0.54.0** — 设计 intake 询问产品与视觉参考，并记录简短的 Design Brief。首次交付批准前检查 UI 与技术完整性；后续依据交付证据持续补全同一份 PRD，保留已冻结的批准。每次任务交接也会审计受影响的有效文档、Epic／索引与任务状态；适用时比对 PLAN/RUN 和 `docs/tasks.md`，并依据已观察到的安装版 template 检查共用 `AGENTS.md` 规则，再就地更新过期规则。
 
 - **0.53.1** — 必要浏览器验证改用 Playwright 随附的 Chromium。长篇 HiFi 用例保留总时限与所有断言，超时会报告已完成阶段。修复 0.53.0 合并后重复出现的浏览器时限失败。
 
