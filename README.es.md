@@ -550,6 +550,8 @@ El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 
 
 CI instala las versiones fijadas de Node/Playwright y Chromium antes de las pruebas obligatorias del navegador. La falta de dependencias hace fallar esa suite. Para la misma comprobación local, ejecuta `npm ci` y `npx playwright install chromium`, define `PDH_REQUIRE_BROWSER_TESTS=1` y `PLAYWRIGHT_MODULE` con la ruta `node_modules/playwright` de este checkout, y ejecuta la suite UI. Las comprobaciones locales ordinarias aún pueden omitir el navegador si no está disponible.
 
+`design_workflow.py` incluye las rutas canónicas de PLAN/RUN y distingue la presencia de archivos de una ejecución activa. Maintenance requiere UI impact `none` o `style`; los impactos estructurales o desconocidos necesitan las comprobaciones de diseño aplicables.
+
 ## Mantener los READMEs al día
 
 Los READMEs son la documentación de registro: cada cambio que agregue o altere un skill, regla, tabla, diagrama o flujo documentado actualiza las secciones descriptivas del README en el mismo cambio, en los cuatro idiomas. El badge de versión y las entradas del historial de versiones son la parte del release y siguen Releasing abajo.
