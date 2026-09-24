@@ -550,6 +550,8 @@ El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 
 
 CI instala las versiones fijadas de Node/Playwright y Chromium antes de las pruebas obligatorias del navegador. La falta de dependencias hace fallar esa suite. Para la misma comprobación local, ejecuta `npm ci` y `npx playwright install chromium`, define `PDH_REQUIRE_BROWSER_TESTS=1` y `PLAYWRIGHT_MODULE` con la ruta `node_modules/playwright` de este checkout, y ejecuta la suite UI. Las comprobaciones locales ordinarias aún pueden omitir el navegador si no está disponible.
 
+El modo obligatorio inicia directamente el Chromium incluido con Playwright. Si un escenario HiFi supera el plazo total, informa de su última fase completada. Cada operación conserva su límite de tiempo y todas las comprobaciones del producto siguen activas.
+
 `design_workflow.py` incluye las rutas canónicas de PLAN/RUN y distingue la presencia de archivos de una ejecución activa. Maintenance requiere UI impact `none` o `style`; los impactos estructurales o desconocidos necesitan las comprobaciones de diseño aplicables. La prueba común schema-5 usa los validadores reales de compiler, Harness, Activation y SEO. El checker UI carga sus dependencias antes de que Harness retire su ruta temporal; SEO transmite el stack y el contexto del repositorio a Activation.
 
 Las transiciones de escritura de Harness registran el tiempo medido de preparación. `inspect_harness_run.py` lo presenta separado de los tiempos de verificación. La validación final, la escritura y las salidas posteriores quedan fuera de ese intervalo. Los tiempos globales, ruta crítica, esperas y uso del modelo desconocidos siguen sin valor; un benchmark sintético del CLI no demuestra la velocidad del modelo ni de toda la entrega.

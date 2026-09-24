@@ -551,6 +551,8 @@ CI also runs the end-to-end spine check. In a POSIX shell use `HARNESS_GOLDEN_PA
 
 CI installs the pinned Node/Playwright packages and Chromium before the required reviewer browser suite. Missing browser prerequisites fail that suite. For the same local check, run `npm ci` and `npx playwright install chromium`, set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`, then run the UI suite. Ordinary local checks may still skip unavailable browsers.
 
+Required browser mode launches Playwright's bundled Chromium directly. A timed-out HiFi scenario reports its last completed phase. Browser operations keep their own time limits, and every product assertion remains active.
+
 `design_workflow.py` includes canonical goal PLAN/RUN paths and reports file presence separately from live execution. Maintenance needs UI impact `none` or `style`; structural or unknown impacts require the affected design checks. The shared schema-5 lifecycle test uses real compiler, Harness, Activation and SEO checks. The UI checker loads its own dependencies before Harness removes its temporary import path, and SEO forwards the stack and repository context to Activation.
 
 Successful mutating Harness transitions record their measured preparation phase. `inspect_harness_run.py` summarizes those observations separately from verifier timings. Final validation, persistence and later output work are outside the preparation interval. Unknown run time, critical path, waits and model usage remain unknown; a synthetic CLI benchmark is not a model or full-delivery speed claim.

@@ -551,6 +551,8 @@ CI 也會執行端到端主幹檢查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 
 CI 會先安裝釘選的 Node／Playwright 套件與 Chromium，再執行必要的 reviewer 瀏覽器測試；缺少相依套件會失敗。本機要執行同樣檢查，先跑 `npm ci` 與 `npx playwright install chromium`，設定 `PDH_REQUIRE_BROWSER_TESTS=1`，並讓 `PLAYWRIGHT_MODULE` 指向此 checkout 的 `node_modules/playwright`，再執行 UI suite。一般本機檢查仍可在瀏覽器不可用時跳過。
 
+必要瀏覽器模式會直接啟動 Playwright 隨附的 Chromium。HiFi 案例超過總時限時會回報最後完成的階段；每個瀏覽器操作仍有自己的時限，所有產品斷言都會執行。
+
 `design_workflow.py` 納入標準 goal PLAN／RUN 路徑，並區分檔案存在與執行存活。Maintenance 的 UI impact 必須是 `none` 或 `style`；結構或未知影響需要對應設計檢查。共同的 schema-5 lifecycle 測試使用真實 compiler、Harness、Activation 與 SEO 檢查器。UI checker 會在 Harness 移除暫時匯入路徑前載入自身相依模組；SEO 也會把 stack 與 repo context 傳給 Activation。
 
 成功的 Harness 寫入轉移會記錄實測準備階段耗時，`inspect_harness_run.py` 將它與 verifier timings 分開呈現。最終驗證、保存與後續輸出不包含在準備區間內。未知的整體時間、critical path、等待和模型用量仍保留未知；合成 CLI 基準不能代表模型或完整交付速度。

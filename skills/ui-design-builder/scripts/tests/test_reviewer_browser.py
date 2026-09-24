@@ -17,6 +17,21 @@ from assemble_ui_review import assemble
 
 
 TEMPLATE = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+HIFI_BROWSER_TIMEOUT_SECONDS = 90
+
+
+def run_browser_script(command: list[str], script: str, timeout: int) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(command, input=script, text=True, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        def captured(value):
+            return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value or ""
+
+        raise AssertionError(
+            f"Browser scenario exceeded {timeout}s. Captured progress:\n"
+            + captured(error.stdout) + captured(error.stderr)
+        ) from error
+
 
 def playwright_module(node: str) -> str | None:
     candidates = [
@@ -143,11 +158,19 @@ class ReviewerBrowserTests(unittest.TestCase):
             script = r'''
 const {chromium}=require(process.argv[3]);
 const {pathToFileURL}=require('url');
+const launchChromium=async()=>{
+ if(process.env.PDH_REQUIRE_BROWSER_TESTS==='1')return await chromium.launch({headless:true});
+ try {return await chromium.launch({channel:'msedge',headless:true});}
+ catch (_) {return await chromium.launch({headless:true});}
+};
+let phase='startup';
+const progress=name=>{phase=name;console.error('reviewer-browser: completed '+name);};
 (async()=>{
  let browser;
- try {browser=await chromium.launch({channel:'msedge',headless:true});}
- catch (_) {browser=await chromium.launch({headless:true});}
+ let testError;
  try {
+  browser=await launchChromium();
+  progress('browser-started');
   const page=await browser.newPage();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(pathToFileURL(process.argv[2]).href);
@@ -168,6 +191,7 @@ const {pathToFileURL}=require('url');
   const wfChrome=await chrome(wfPage,'aside','#responsive-controls button');
   if(JSON.stringify(hifiChrome)!==JSON.stringify(wfChrome))throw Error('WF5 and HiFi3 chrome differs: '+JSON.stringify({hifiChrome,wfChrome}));
   await wfPage.close();
+  progress('shell-and-chrome');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="overview"]').click();
   const panelStyle=await page.locator('[data-hifi-panel="overview"]').evaluate(node=>({background:getComputedStyle(node).backgroundColor,font:getComputedStyle(node).fontSize}));
   if(panelStyle.background!=='rgb(255, 255, 255)'||panelStyle.font!=='14px')throw Error('product CSS crossed review panel: '+JSON.stringify(panelStyle));
@@ -200,6 +224,7 @@ const {pathToFileURL}=require('url');
   await page.locator('[data-hifi-state-view="loading"]').waitFor({state:'visible'});
   if(!page.url().endsWith('#hifi-state=UI-001/loading')||await page.locator('[data-ui-surface="UI-001"]').getAttribute('data-hifi-state')!=='loading')
     throw Error('Back did not restore the earlier encoded state');
+  progress('state-routing');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="design-tokens"]').click();
   await page.waitForFunction(()=>Boolean(document.querySelector('reviewer-panels')?.shadowRoot.querySelector('[data-hifi-spec="token"] output')?.textContent),null,{timeout:3000});
   const tokenText=await page.locator('[data-hifi-spec="token"] output').textContent();
@@ -223,6 +248,7 @@ const {pathToFileURL}=require('url');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="design-tokens"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-state-control="loading"]').click();
   if(await page.locator('[data-hifi-spec="component"] [data-hifi-specimen-content]').evaluate(node=>getComputedStyle(node).fontWeight)!=='700')throw Error('state component specimen did not refresh');
+  progress('design-tokens');
   await page.locator('reviewer-shell').locator('[data-hifi-target-control="compact"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-state-control="ready"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="settings.html"]').click();
@@ -253,6 +279,7 @@ const {pathToFileURL}=require('url');
   await page.locator('[data-ui-surface="UI-002"]').waitFor();
   if(!page.url().endsWith('details.html#hifi-state=UI-002/empty'))throw Error('cross-page state route changed');
   if(await page.locator('[data-ui-surface="UI-002"]').getAttribute('data-hifi-state')!=='empty')throw Error('state coverage did not open requested child state');
+  progress('cross-page-navigation');
   await page.goto(pathToFileURL(process.argv[2]).href);
   const target=page.locator('reviewer-shell').locator('[data-hifi-target-control="regular"]');
   await target.click();
@@ -274,13 +301,31 @@ const {pathToFileURL}=require('url');
   await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="index.html"]').click();
   await page.locator('[data-ui-surface="UI-001"]').waitFor();
   if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='regular')throw Error('App target was lost after Web navigation');
+  progress('product-navigation');
   if(errors.length)throw Error(errors.join('\n'));
   console.log(JSON.stringify(style));
- } finally {await browser.close();}
-})().catch(error=>{console.error(error.stack);process.exitCode=1});
+ } catch(error) {
+  testError=error;
+  throw error;
+ } finally {
+  if(browser) {
+   try {await browser.close();}
+   catch(closeError) {
+    if(!testError)throw closeError;
+    console.error('reviewer-browser close failed after test error: '+(closeError instanceof Error?closeError.message:closeError));
+   }
+  }
+ }
+})().catch(error=>{
+ console.error('reviewer-browser failed after phase: '+phase);
+ console.error(error instanceof Error?error.stack:error);
+ process.exitCode=1;
+});
 '''
-            result = subprocess.run([node, "-", str(bundle / "index.html"), playwright, str(TEMPLATE)], input=script,
-                                    text=True, capture_output=True, timeout=45)
+            result = run_browser_script(
+                [node, "-", str(bundle / "index.html"), playwright, str(TEMPLATE)],
+                script, HIFI_BROWSER_TIMEOUT_SECONDS,
+            )
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
 
     def test_wireframe_shell_is_isolated_and_selection_survives_reload(self):
@@ -309,11 +354,16 @@ const {pathToFileURL}=require('url');
             script = r'''
 const {chromium}=require(process.argv[3]);
 const {pathToFileURL}=require('url');
+const launchChromium=async()=>{
+  if(process.env.PDH_REQUIRE_BROWSER_TESTS==='1')return await chromium.launch({headless:true});
+  try {return await chromium.launch({channel:'msedge',headless:true});}
+  catch (_) {return await chromium.launch({headless:true});}
+};
 (async()=>{
   let browser;
-  try {browser=await chromium.launch({channel:'msedge',headless:true});}
-  catch (_) {browser=await chromium.launch({headless:true});}
+  let testError;
   try {
+    browser=await launchChromium();
     const page=await browser.newPage();
     const errors=[]; page.on('pageerror',error=>errors.push(error.message));
     await page.goto(pathToFileURL(process.argv[2]).href);
@@ -358,17 +408,33 @@ const {pathToFileURL}=require('url');
       throw Error('product menu action did not land in its declared destination state');
     if(errors.length) throw Error(errors.join('\n'));
     console.log(JSON.stringify(before));
-  } finally {await browser.close();}
+  } catch(error) {
+    testError=error;
+    throw error;
+  } finally {
+    if(browser) {
+      try {await browser.close();}
+      catch(closeError) {
+        if(!testError)throw closeError;
+        console.error('reviewer-browser close failed after test error: '+(closeError instanceof Error?closeError.message:closeError));
+      }
+    }
+  }
 })().catch(error=>{console.error(error.stack);process.exitCode=1});
 '''
-            result = subprocess.run(
-                [node, "-", str(page_path), playwright],
-                input=script,
-                text=True,
-                capture_output=True,
-                timeout=35,
-            )
+            result = run_browser_script([node, "-", str(page_path), playwright], script, 35)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
+
+class BrowserExecutionTests(unittest.TestCase):
+    def test_outer_timeout_keeps_last_completed_phase(self):
+        script = (
+            "import sys, time\n"
+            "print('reviewer-browser: completed state-routing', file=sys.stderr, flush=True)\n"
+            "time.sleep(10)\n"
+        )
+        with self.assertRaisesRegex(AssertionError, "completed state-routing"):
+            run_browser_script([sys.executable, "-u", "-"], script, 2)
 
 
 if __name__ == "__main__":
