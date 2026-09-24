@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -32,6 +32,8 @@ Wireframe y HiFi comparten una carcasa neutral: barra lateral, tipografía, espa
 Los controles y paneles del revisor usan Shadow DOM; el lienzo del producto permanece en el DOM normal. Los controles de estado cambian el contenido por estado y tamaño, y las selecciones se guardan por paquete y plataforma.
 
 `frontend-design` es obligatorio en wireframes, direcciones, HiFi y correcciones. Se agrupan las preferencias pendientes, se valida estructura y W1–W5 internamente, se elige dirección y se completan Impeccable, H1–H9 y controles técnicos antes de una aprobación humana del HiFi completo: texto, estructura, menús, pestañas, interacción, visuales y tokens. Los menús deben llegar a su destino y las pestañas cambiar contenido; se contrastan Home, volver, cancelar, menú móvil, teclado, Escape y foco con las operaciones del PRD. Los controles de menú y pestaña usan botones nativos y cada uno enlaza un panel único y distinto dentro de su propia superficie de producto. Controles y paneles deben ser nodos activos fuera de `<template>` y `<noscript>`; los paneles de estado ocultos normales siguen siendo válidos.
+
+Antes de crear HTML Wireframe o HiFi, compruebe los enlaces de skills de la etapa UI y cargue el skill completo y fijado `frontend-design` en el contexto del autor real. La lectura del padre, el nombre del rol, una copia o el ensamblado del visor no prueban autoría. Los nuevos trabajos de diseño gestionados requieren `ui-design-builder` y `frontend-design`; los PLAN/RUN históricos siguen siendo legibles.
 
 El diseño inicial usa el flujo completo. Las mejoras cambian las páginas afectadas y conexiones necesarias, comparando las conservadas. El mantenimiento cotidiano modifica y verifica el producto actual sin regenerar Wireframe/HiFi históricos. Se distinguen versiones fuente, instalada y realmente cargada. `ui-output/3` y `ui-evidence/3` conservan observaciones, tiempo, herramienta, entorno y hashes reales; no crean aprobaciones humanas. Los formatos antiguos conservan su significado. Véanse [flujo](skills/ui-design-builder/references/review-workflow.md) y [evidencia](skills/ui-design-builder/references/review-evidence.md).
 
@@ -602,7 +604,9 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
 
-- **0.54.0** — El intake de diseño pregunta por referencias visuales y de producto y registra un Design Brief breve. Antes de aprobar la primera entrega se revisa la cobertura de UI y técnica; luego se completa el mismo PRD con evidencia sin cambiar aprobaciones cerradas. Cada handoff también audita documentos vivos afectados, Epic/índice y estado de la tarea; cuando aplica, compara PLAN/RUN con `docs/tasks.md` y revisa las reglas compartidas de `AGENTS.md` frente a la plantilla instalada observada antes de actualizar en el sitio las reglas obsoletas.
+- **0.54.1** — Conserva el mismo RUN tras reparaciones autorizadas del candidato y las identidades históricas de verificadores; vuelve a verificar el SHA actual, admite nombres literales de rutas dinámicas e informa de divergencias del padre y los worktrees. Exige frontend-design al autor de Wireframe y HiFi mediante controles al despachar y entregas explícitas. Incluye el trabajo 0.54.0 aún no publicado sobre intake, PRD y auditoría de handoff.
+
+- **0.54.0 (preparación no publicada; incluida en 0.54.1)** — El intake de diseño pregunta por referencias visuales y de producto y registra un Design Brief breve. Antes de aprobar la primera entrega se revisa la cobertura de UI y técnica; luego se completa el mismo PRD con evidencia sin cambiar aprobaciones cerradas. Cada handoff también audita documentos vivos afectados, Epic/índice y estado de la tarea; cuando aplica, compara PLAN/RUN con `docs/tasks.md` y revisa las reglas compartidas de `AGENTS.md` frente a la plantilla instalada observada antes de actualizar en el sitio las reglas obsoletas.
 
 - **0.53.1** — Usa Chromium incluido con Playwright en la verificación obligatoria. Mantiene un plazo total para el escenario HiFi largo, conserva todas las comprobaciones e informa de las fases completadas al agotarse el tiempo. Corrige los fallos repetidos de plazo tras integrar 0.53.0.
 

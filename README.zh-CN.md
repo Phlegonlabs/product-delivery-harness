@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -32,6 +32,8 @@ Wireframe 与 HiFi 共用中性查看器：相同侧栏、字体、间距及控�
 审阅控件与面板使用 Shadow DOM，产品画布留在普通 DOM。实际状态控件会切换状态和尺寸内容；审阅选择按包件与平台保存，不跨包件混用。
 
 Wireframe、方向探索、HiFi 和修正强制使用 `frontend-design`。合并未答偏好，内部完成结构验证与 W1–W5，选定方向，再完成 Impeccable、H1–H9 与技术检查，最后一次人工审核完整 HiFi 的文案、结构、菜单、Tab、交互、视觉和 tokens。产品菜单必须前往实际目的地，Tab 必须切换内容；按 PRD operations 检查 Home、返回、取消、手机菜单、键盘、Escape 与焦点返回。菜单和 Tab 控件使用原生按钮，且各自连接到同一产品界面内唯一、独立的面板。控件和面板须位于 `<template>` 和 `<noscript>` 之外的实时 DOM；普通隐藏的产品状态面板仍有效。
+
+编写 Wireframe 或 HiFi HTML 前，先检查 UI 阶段的 skill bindings，并由实际作者在自己的 context 加载完整、已固定版本的 `frontend-design`。父级读取、角色名称、snapshot 或组装 reviewer shell 都不代表已完成设计。新的受管设计派发必须同时具备 `ui-design-builder` 与 `frontend-design`；历史 PLAN/RUN 仍可读取。
 
 首次设计走完整流程；enhancement 只制作受影响页面及连接流程，并比较保留页面。日常修改直接验证当前产品及有效需求，不强制重建历史 Wireframe／HiFi。区分 source、已安装和 session 实际加载版本。新 `ui-output/3`／`ui-evidence/3` 保留真实观察、时间、工具、环境与候选哈希；机器结果不能伪造人工批准。旧格式保留历史语义。详见[审阅流程](skills/ui-design-builder/references/review-workflow.md)及[证据契约](skills/ui-design-builder/references/review-evidence.md)。
 
@@ -603,7 +605,9 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
-- **0.54.0** — 设计 intake 询问产品与视觉参考，并记录简短的 Design Brief。首次交付批准前检查 UI 与技术完整性；后续依据交付证据持续补全同一份 PRD，保留已冻结的批准。每次任务交接也会审计受影响的有效文档、Epic／索引与任务状态；适用时比对 PLAN/RUN 和 `docs/tasks.md`，并依据已观察到的安装版 template 检查共用 `AGENTS.md` 规则，再就地更新过期规则。
+- **0.54.1** — 已授权的 candidate 修复保留同一 RUN 与历史 verifier 身份，重新验证当前精确 SHA，支持动态路由的实际文件名，并报告 parent／worktree 漂移。Wireframe 与 HiFi 实际作者必须加载 frontend-design，派发入口检查技能并明确交接。包含此前尚未发布的 0.54.0 设计 intake、PRD 完善与 handoff 审计改动。
+
+- **0.54.0 (未发布准备版；并入 0.54.1)** — 设计 intake 询问产品与视觉参考，并记录简短的 Design Brief。首次交付批准前检查 UI 与技术完整性；后续依据交付证据持续补全同一份 PRD，保留已冻结的批准。每次任务交接也会审计受影响的有效文档、Epic／索引与任务状态；适用时比对 PLAN/RUN 和 `docs/tasks.md`，并依据已观察到的安装版 template 检查共用 `AGENTS.md` 规则，再就地更新过期规则。
 
 - **0.53.1** — 必要浏览器验证改用 Playwright 随附的 Chromium。长篇 HiFi 用例保留总时限与所有断言，超时会报告已完成阶段。修复 0.53.0 合并后重复出现的浏览器时限失败。
 

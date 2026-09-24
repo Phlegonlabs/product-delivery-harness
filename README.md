@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -32,6 +32,8 @@ Wireframe and HiFi use one neutral reviewer shell: the same sidebar, font, spaci
 Reviewer controls and panels use Shadow DOM while the product canvas stays in normal DOM. Real state controls switch state/target content; reviewer selections persist by package and platform without crossing packages.
 
 `frontend-design` is mandatory for wireframes, directions, HiFi and repairs. Combine unanswered preferences, validate structure and W1–W5 internally, select a direction, then complete Impeccable, H1–H9 and technical checks before one human HiFi approval covering copy, structure, menus, tabs, interactions, visuals and tokens. Product menus must navigate and tabs must change content; verify required Home/back/cancel, compact menus, keyboard, Escape and focus return against PRD operations. Menu and tab controls use native buttons and each binds one distinct panel inside its own product surface. Controls and panels must be live nodes outside `<template>` and `<noscript>`; hidden product state panels remain valid.
+
+Before Wireframe or HiFi HTML authoring, check the UI-stage skill bindings and load the complete pinned `frontend-design` skill in the actual writer context. Parent reads, role names, snapshots and shell assembly are not design authorship. New managed authoring dispatches require both `ui-design-builder` and `frontend-design`; historical PLAN/RUN records remain readable.
 
 Initial design uses the full flow. Enhancements author only affected pages and connecting flows, with preserved-page comparisons. Routine maintenance edits and verifies the current product and effective requirements without rebuilding historical Wireframe/HiFi. Source, installed and actually loaded skill identities stay separate. New `ui-output/3` / `ui-evidence/3` preserve real observations, time, tool, environment and candidate hashes; machine results never invent human approval. Legacy formats retain their historical meaning. See [review workflow](skills/ui-design-builder/references/review-workflow.md) and [evidence](skills/ui-design-builder/references/review-evidence.md).
 
@@ -603,7 +605,9 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
-- **0.54.0** — Ask for product and visual references in design intake and record a concise Design Brief. Review first-delivery UI and technical completeness before product approval, then refine the same PRD from evidence through delivery without changing frozen approvals. Every task handoff also audits affected live documents, Epic/index and task state, checks `docs/tasks.md` against PLAN/RUN when applicable, and compares shared `AGENTS.md` rules with the observed installed template before refreshing stale shared instructions in place.
+- **0.54.1** — Preserve the same RUN after authorized candidate repairs, retain historical verifier identities, revalidate exact current heads, accept literal dynamic-route filenames and report parent/worktree drift. Require the actual Wireframe and HiFi writer to load frontend-design, with action-time skill checks and explicit handoffs. Includes the previously unpublished 0.54.0 design-intake, PRD refinement and handoff-audit work.
+
+- **0.54.0 (unreleased preparation; included in 0.54.1)** — Ask for product and visual references in design intake and record a concise Design Brief. Review first-delivery UI and technical completeness before product approval, then refine the same PRD from evidence through delivery without changing frozen approvals. Every task handoff also audits affected live documents, Epic/index and task state, checks `docs/tasks.md` against PLAN/RUN when applicable, and compares shared `AGENTS.md` rules with the observed installed template before refreshing stale shared instructions in place.
 
 - **0.53.1** — Use bundled Chromium for required browser verification. Keep the long HiFi scenario bounded, preserve all assertions and report completed phases on timeout. This repairs repeated post-merge browser deadline failures in 0.53.0.
 

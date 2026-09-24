@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -32,6 +32,8 @@ Wireframe 與 HiFi 共用中性檢視器：相同側欄、字體、間距及控�
 審閱控制與面板使用 Shadow DOM，產品畫布留在一般 DOM。實際狀態控制會切換狀態及尺寸內容；審閱選擇依套件與平台保存，不跨套件混用。
 
 Wireframe、方向探索、HiFi 和修正強制使用 `frontend-design`。合併未答偏好，內部完成結構驗證與 W1–W5，選定方向，再完成 Impeccable、H1–H9 與技術檢查，最後一次人工審核完整 HiFi 的文案、結構、選單、Tab、互動、視覺和 tokens。產品選單必須前往實際目的地，Tab 必須切換內容；按 PRD operations 檢查 Home、返回、取消、手機選單、鍵盤、Escape 與焦點返回。選單與 Tab 控制使用原生按鈕，且各自連到同一產品畫面內唯一、獨立的面板。控制與面板須位於 `<template>` 和 `<noscript>` 之外的即時 DOM；一般隱藏的產品狀態面板仍有效。
+
+撰寫 Wireframe 或 HiFi HTML 前，先檢查 UI 階段的 skill bindings，並由實際作者在自己的 context 載入完整、已固定版本的 `frontend-design`。父級讀取、角色名稱、snapshot 或組裝 reviewer shell 都不代表已完成設計。新的受管設計派發必須同時具備 `ui-design-builder` 與 `frontend-design`；歷史 PLAN/RUN 仍可讀取。
 
 初次設計走完整流程；enhancement 只製作受影響頁面及連接流程，並比較保留頁面。日常修改直接驗證目前產品及有效需求，不強制重建歷史 Wireframe／HiFi。區分 source、已安裝和 session 實際載入版本。新 `ui-output/3`／`ui-evidence/3` 保留真實觀測、時間、工具、環境與候選雜湊；機器結果不能偽造人工批准。舊格式保留歷史語義。詳見[審閱流程](skills/ui-design-builder/references/review-workflow.md)及[證據契約](skills/ui-design-builder/references/review-evidence.md)。
 
@@ -603,7 +605,9 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
-- **0.54.0** — 設計 intake 詢問產品與視覺參考，並記錄精簡的 Design Brief。首次交付批准前檢查 UI 與技術周全性；後續依據交付證據持續補全同一份 PRD，保留已凍結的批准。每次任務交接也會稽核受影響的有效文件、Epic／索引與任務狀態；適用時比對 PLAN/RUN 和 `docs/tasks.md`，並依已觀察到的安裝版 template 檢查共用 `AGENTS.md` 規則，再就地更新過期規則。
+- **0.54.1** — 已授權的 candidate 修復保留同一 RUN 與歷史 verifier 身分，重新驗證目前精確 SHA，支援動態路由的實際檔名，並回報 parent／worktree 漂移。Wireframe 與 HiFi 實際作者必須載入 frontend-design，派發入口檢查技能並明確交接。包含先前尚未發布的 0.54.0 設計 intake、PRD 完善與 handoff 稽核改動。
+
+- **0.54.0 (未發布準備版；併入 0.54.1)** — 設計 intake 詢問產品與視覺參考，並記錄精簡的 Design Brief。首次交付批准前檢查 UI 與技術周全性；後續依據交付證據持續補全同一份 PRD，保留已凍結的批准。每次任務交接也會稽核受影響的有效文件、Epic／索引與任務狀態；適用時比對 PLAN/RUN 和 `docs/tasks.md`，並依已觀察到的安裝版 template 檢查共用 `AGENTS.md` 規則，再就地更新過期規則。
 
 - **0.53.1** — 必要瀏覽器驗證改用 Playwright 隨附的 Chromium。長篇 HiFi 案例保留總時限與所有斷言，逾時會回報已完成階段。修復 0.53.0 合併後重複出現的瀏覽器時限失敗。
 
