@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.52.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.53.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -547,6 +547,18 @@ git diff --check
 
 CI also runs the end-to-end spine check. In a POSIX shell use `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`. In PowerShell use `$env:HARNESS_GOLDEN_PATH='1'; python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v; Remove-Item Env:HARNESS_GOLDEN_PATH`. It walks the real CLI spine (`new_run.py` → frozen joins including the sibling skill's full wireframe checker → `validate_result.py --repo-root`) over one synthetic product package.
 
+## Verification and measured execution
+
+CI installs the pinned Node/Playwright packages and Chromium before the required reviewer browser suite. Missing browser prerequisites fail that suite. For the same local check, run `npm ci` and `npx playwright install chromium`, set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`, then run the UI suite. Ordinary local checks may still skip unavailable browsers.
+
+`design_workflow.py` includes canonical goal PLAN/RUN paths and reports file presence separately from live execution. Maintenance needs UI impact `none` or `style`; structural or unknown impacts require the affected design checks. The shared schema-5 lifecycle test uses real compiler, Harness, Activation and SEO checks. The UI checker loads its own dependencies before Harness removes its temporary import path, and SEO forwards the stack and repository context to Activation.
+
+Successful mutating Harness transitions record their measured preparation phase. `inspect_harness_run.py` summarizes those observations separately from verifier timings. Final validation, persistence and later output work are outside the preparation interval. Unknown run time, critical path, waits and model usage remain unknown; a synthetic CLI benchmark is not a model or full-delivery speed claim.
+
+Document sync ignores bare old names only in explicit retirement catalogs. Actionable references remain visible, as does an unknown loaded skill identity. Reuse a reading only in the same session, with matching current file bytes, the full prior content still available and the same applicable rule; rerun invocation checks. No persistent reading cache or approval database is introduced.
+
+Chinese review checks now detect missing heading-level counts, table shapes/rows and numeric literals as well as stale source hashes and trace IDs. Translated labels may differ. The checker does not prove meaning or section order; the required complete semantic comparison remains a human responsibility.
+
 ## Keeping the READMEs current
 
 The READMEs are documentation-of-record: every change that adds or alters a skill, rule, table, diagram, or documented flow updates the README's descriptive sections in the same change, in all four languages. The version badge and version-history entries are the release-time part and follow Releasing below.
@@ -580,6 +592,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.53.0** — Browser CI requires provisioned prerequisites. Shared schema-5 lifecycle checks cover the compiler/Harness/Activation/SEO joins and repair missing dependency/context handoffs. Maintenance summaries, runtime preparation metrics, document reading reuse and translation structure/literal checks make verification more reliable. Stronger required checks are a breaking skill-bundle change.
 
 - **0.52.0** — Wireframe and HiFi review share a shell with platform-specific canvases and working product controls. Schema-5 wireframes require sourced copy and operation coverage; HiFi review requires source-bound tokens, independent evidence and one consolidated owner approval. Design routing distinguishes initial work, enhancements and routine maintenance without rewriting historical artifacts. The changed review and approval contract is a breaking skill-bundle change.
 

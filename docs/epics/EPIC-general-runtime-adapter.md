@@ -36,3 +36,7 @@ Verification on 2026-09-21, from the repository root:
 The skipped tests follow their environment or opt-in conditions on this Windows host; the golden path was run separately with its required flag. Capability fixtures cover generic, Codex, Claude, Pi, ZCode and an unknown host identity. This is contract coverage, not a live test of each host.
 
 Final logs are outside the checkout under `%TEMP%/general-runtime-verified-vkaur62d/`, with the final Product Definition rerun under `%TEMP%/general-runtime-product-final-40xkiw8i/` and final static checks under `%TEMP%/general-runtime-final-static-p03z8se8/`. Earlier failures were corrected and the complete Harness suite was rerun successfully with stable source files. Document-sync loaded identity remains unobserved; no baseline or installed identity was fabricated. No commit, push, installation into the user's skills directory, or release was performed.
+
+## 2026-09-23 reliability follow-up
+
+Local main and local tag `v0.52.0` were observed at `baf7e22b05a7f2776ee8b205395204ff21cbdcb5`. This is a current local repository observation, not a rerun of the historical release checks above. The 0.53.0 browser, cross-skill, runtime and translation follow-up is tracked in [EPIC-runtime-and-verification-reliability.md](EPIC-runtime-and-verification-reliability.md); preserve the earlier results and remaining coverage distinctions.

@@ -138,6 +138,26 @@ class DocumentSyncTests(unittest.TestCase):
         self.assertEqual("legacy_pointer_review", result["findings"][0]["kind"])
         self.assertEqual("Use `full-harness`", self.doc.read_text(encoding="utf-8"))
 
+    def test_retirement_catalog_is_quiet_but_actionable_references_still_warn(self):
+        catalog = ("The installer retires `full-harness`, `prd-builder`, and "
+                   "`product-design-builder`.")
+        self.doc.write_text(catalog, encoding="utf-8")
+        result = self.observe(self.observe()["snapshot"])
+        self.assertFalse(any(row["kind"] == "legacy_pointer_review" for row in result["findings"]))
+
+        for content in (
+            catalog + "\nRun `full-harness` for the old stage.",
+            catalog + "\nRead `skills/prd-builder/SKILL.md` for the old workflow.",
+            "Installer retires [`full-harness`](skills/full-harness/SKILL.md).",
+            "```shell\nrun `full-harness`\n```",
+        ):
+            with self.subTest(content=content):
+                self.doc.write_text(content, encoding="utf-8")
+                snapshot = self.observe()["snapshot"]
+                result = self.observe(snapshot)
+                self.assertTrue(any(row["kind"] == "legacy_pointer_review"
+                                    for row in result["findings"]), result["findings"])
+
     def test_paths_never_read_secrets_or_history(self):
         for name in ("../AGENTS.md", "/AGENTS.md", "docs//x.md", ".env", "docs/secrets.md",
                      "docs/archived/PRD.md", "docs/product/outcomes/a.md", "C:/AGENTS.md", "a\\AGENTS.md"):

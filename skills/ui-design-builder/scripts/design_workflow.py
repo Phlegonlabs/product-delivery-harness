@@ -11,6 +11,7 @@ import subprocess
 from review_evidence import safe_path
 
 MODES = {"initial_design", "enhancement", "maintenance", "full_redesign"}
+UI_IMPACTS = {"none", "structure", "style", "both"}
 
 
 def git(root, *arguments):
@@ -22,20 +23,7 @@ def git(root, *arguments):
 
 
 def read_scope(text):
-    active = []
-    fence = None
-    for line in text.splitlines():
-        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
-        if marker:
-            token = marker.group(1)
-            if fence is None:
-                fence = token
-            elif token[0] == fence[0] and len(token) >= len(fence):
-                fence = None
-            continue
-        if fence is None:
-            active.append(line)
-    text = "\n".join(active)
+    text = active_text(text)
     matches = re.findall(r"^Design workflow:\s*(\S+)\s*$", text, re.M)
     if len(matches) != 1 or matches[0] not in MODES:
         raise ValueError("task record needs one Design workflow: initial_design|enhancement|maintenance|full_redesign")
@@ -58,6 +46,23 @@ def read_scope(text):
     return matches[0], rows
 
 
+def active_text(text):
+    active = []
+    fence = None
+    for line in text.splitlines():
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+            continue
+        if fence is None:
+            active.append(line)
+    return "\n".join(active)
+
+
 def report(root, task_record, baseline=None):
     root = Path(root).resolve()
     record = safe_path(root, task_record)
@@ -68,11 +73,18 @@ def report(root, task_record, baseline=None):
         raise ValueError("task record is too large")
     text = payload.decode("utf-8")
     mode, rows = read_scope(text)
+    impact_matches = re.findall(r"^UI impact:\s*(\S+)\s*$", active_text(text), re.M)
+    impact = impact_matches[0] if len(impact_matches) == 1 and impact_matches[0] in UI_IMPACTS else "unknown"
     head = git(root, "rev-parse", "HEAD")
     base = git(root, "rev-parse", "--verify", (baseline or head) + "^{commit}")
     if not re.fullmatch(r"[0-9a-f]{40,64}", base):
         raise ValueError("baseline must resolve to a commit")
     problems = []
+    if mode == "maintenance" and impact not in {"none", "style"}:
+        if impact == "unknown":
+            problems.append("maintenance requires exactly one UI impact: none|style")
+        else:
+            problems.append(f"maintenance with UI impact {impact} must use the affected design gates")
     observed = []
     for row in rows:
         path = safe_path(root, row["path"])
@@ -88,16 +100,20 @@ def report(root, task_record, baseline=None):
         observed.append(dict(row, changed=changed,
                              sha256=hashlib.sha256(current).hexdigest() if current is not None else None))
     dirty = git(root, "status", "--porcelain=v1", "--untracked-files=all").splitlines()
-    active_tasks = [name for name in ("docs/PLAN.md", "docs/RUN.json", "PLAN.md", "RUN.json")
+    task_files = [name for name in ("docs/goal/PLAN.md", "docs/goal/RUN.md",
+                                    "docs/PLAN.md", "docs/RUN.json", "PLAN.md", "RUN.json")
                     if (root / name).is_file()]
     pending = [item.strip() for item in re.findall(r"^- \[ \] (.+)$", text, re.M)]
     return {
         "schema": "design-work-summary/1", "head": head, "baseline": base,
         "taskRecord": {"path": task_record, "sha256": hashlib.sha256(payload).hexdigest()},
-        "workflow": mode, "designRequired": mode != "maintenance",
-        "scope": observed, "findings": problems, "dirty": dirty, "activeTaskFiles": active_tasks,
+        "workflow": mode, "uiImpact": impact,
+        "designRequired": mode != "maintenance" or impact not in {"none", "style"},
+        "scope": observed, "findings": problems, "dirty": dirty, "activeTaskFiles": task_files,
+        "taskFileObservation": "presence_only",
         "remaining": pending, "next": pending[0] if pending else "Reconcile recorded results with current verification.",
-        "meaning": "Derived scope only. No approval, evidence reuse, or permission is granted.",
+        "meaning": ("Derived scope only. activeTaskFiles lists paths present on disk; it does not establish an active RUN or live process. "
+                    "No approval, evidence reuse, or permission is granted."),
     }
 
 

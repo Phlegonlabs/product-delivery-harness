@@ -17,6 +17,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -391,6 +392,54 @@ def _watchdog_report(run: dict[str, Any], stale_after: float) -> list[str]:
     elif running:
         lines.append("running nodes (parent live): " + ", ".join(sorted(running)))
     return lines
+
+
+def _record_transition_prepare_metrics(
+    run: dict[str, Any],
+    args: argparse.Namespace,
+    *,
+    started_at: str,
+    started_counter_ns: int,
+) -> None:
+    """Append one measured preparation event to optional runtime metrics."""
+
+    if run.get("schema_version") not in {10, 11}:
+        return
+    metrics = run.get("runtime_metrics")
+    if metrics is None:
+        metrics = {
+            "baseline_wall_time_ms": None,
+            "run_wall_time_ms": None,
+            "critical_path_ms": None,
+            "events": [],
+        }
+        run["runtime_metrics"] = metrics
+    if not isinstance(metrics, dict) or not isinstance(metrics.get("events"), list):
+        raise ManifestError("run.runtime_metrics.events must be a list before transition recording")
+    events = metrics["events"]
+
+    elapsed_ns = time.perf_counter_ns() - started_counter_ns
+    events.append(
+        {
+            "event_id": (
+                f"transition-{args.command}-{started_at}-"
+                f"{secrets.token_hex(8)}"
+            ),
+            "provider": "generic",
+            "node_id": getattr(args, "node_id", None),
+            "attempt_id": getattr(args, "attempt_id", None),
+            "phase": f"transition_prepare:{args.command}",
+            "status": "complete",
+            "started_at": started_at,
+            "completed_at": _now(),
+            "duration_ms": max(0, elapsed_ns // 1_000_000),
+            "wait_ms": None,
+            "input_tokens": None,
+            "output_tokens": None,
+            "cached_input_tokens": None,
+            "context_bytes": None,
+        }
+    )
 
 
 def _git_out(repo_root: Path, *args: str) -> str:
@@ -3750,6 +3799,8 @@ def _transition_under_lock(
     *,
     expected_plan_text: str | None = None,
 ) -> tuple[dict[str, Any] | None, list[str] | None, bool]:
+    prepare_started_counter_ns = time.perf_counter_ns()
+    prepare_started_at = _now()
     original_text = args.run.read_text(encoding="utf-8")
     original = extract_json_manifest_text(
         original_text,
@@ -3838,6 +3889,12 @@ def _transition_under_lock(
         and lock.get("session_id") == args.session_id
     ):
         lock["heartbeat_at"] = _now()
+    _record_transition_prepare_metrics(
+        run,
+        args,
+        started_at=prepare_started_at,
+        started_counter_ns=prepare_started_counter_ns,
+    )
     errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
     if errors:
         raise ManifestError(

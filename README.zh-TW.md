@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.52.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.53.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -547,6 +547,18 @@ git diff --check
 
 CI 也會執行端到端主幹檢查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`；PowerShell 使用 `$env:HARNESS_GOLDEN_PATH='1'; python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v; Remove-Item Env:HARNESS_GOLDEN_PATH`。它會用合成產品套件走真實 CLI 主幹。
 
+## 驗證與執行量測
+
+CI 會先安裝釘選的 Node／Playwright 套件與 Chromium，再執行必要的 reviewer 瀏覽器測試；缺少相依套件會失敗。本機要執行同樣檢查，先跑 `npm ci` 與 `npx playwright install chromium`，設定 `PDH_REQUIRE_BROWSER_TESTS=1`，並讓 `PLAYWRIGHT_MODULE` 指向此 checkout 的 `node_modules/playwright`，再執行 UI suite。一般本機檢查仍可在瀏覽器不可用時跳過。
+
+`design_workflow.py` 納入標準 goal PLAN／RUN 路徑，並區分檔案存在與執行存活。Maintenance 的 UI impact 必須是 `none` 或 `style`；結構或未知影響需要對應設計檢查。共同的 schema-5 lifecycle 測試使用真實 compiler、Harness、Activation 與 SEO 檢查器。UI checker 會在 Harness 移除暫時匯入路徑前載入自身相依模組；SEO 也會把 stack 與 repo context 傳給 Activation。
+
+成功的 Harness 寫入轉移會記錄實測準備階段耗時，`inspect_harness_run.py` 將它與 verifier timings 分開呈現。最終驗證、保存與後續輸出不包含在準備區間內。未知的整體時間、critical path、等待和模型用量仍保留未知；合成 CLI 基準不能代表模型或完整交付速度。
+
+Document sync 只略過明確退役清單中的舊名稱；實際引用與未知的載入版本仍會提示。只有同一 session、當前檔案位元組相同、完整舊內容仍可讀且適用規則相同時，才可沿用先前閱讀；每次調用的檢查仍要執行。不新增持久閱讀快取或批准資料庫。
+
+中文 review 檢查除來源 hash 與 trace IDs 外，也會偵測缺少的標題層級數、表格形狀／資料列及數值字面值。翻譯標題可以不同；檢查器不能證明意思或章節順序一致，仍須完整人工語義比對。
+
 ## 維持 README 與時俱進
 
 README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或文件化流程的變更，都要在同一份變更裏更新 README 的對應描述段落，四種語言一起改。版本 badge 與版本紀錄條目屬於發佈時的工作，照下面《發佈》的規則走。
@@ -580,6 +592,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.53.0** — Browser CI 必須備妥相依套件。共同 schema-5 lifecycle 檢查涵蓋 compiler／Harness／Activation／SEO 串接，並修正遺漏的模組及 context 傳遞。改善 maintenance 摘要、runtime 準備耗時、文件閱讀重用及中文結構／數值檢查。必要驗證變嚴，屬破壞性 skill bundle 變更。
 
 - **0.52.0** — Wireframe 與 HiFi 審閱共用介面，保留各平台畫布及可操作的產品控制項。Schema-5 Wireframe 須有來源明確的文案及必要操作覆蓋；HiFi 審閱須有綁定來源的 token、獨立證據及一次整合的業主批准。設計流程區分初次製作、增強與例行維護，且不改寫歷史產物。審閱與批准契約變更屬破壞性 skill bundle 變更。
 

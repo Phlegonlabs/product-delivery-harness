@@ -9,6 +9,10 @@ At the first work in a new session and at every skill invocation, use this entry
 3. Run `check_document_sync.py` on the explicitly scoped Markdown paths. The defaults cover root instructions, common live flow documents and direct Markdown children of `docs/epics/` (no recursive history scan); removed inventoried Epics remain visible as missing. Inspect the relevant unfinished Epic and its referenced work. add applicable nested instructions and manifest-listed Markdown with repeated `--path`. Supplying paths replaces the defaults, so pass the whole applicable inventory. Add `--required-path` for every document required by the selected stage. Binary wireframes/compiled registries use their existing owners' validators and frozen hashes, not this Markdown inventory.
 4. Read unchanged required sources under their skill's normal reading rules. For changed documents, changed skill contracts, retired pointers, inventory changes or a first observation, review the semantic delta and affected stages. Prior task records and runtime observations are recovery context, never fresh approval or proof of process liveness. Historical snapshots remain readable reference outside the live inventory.
 
+### Same-session source reading reuse
+
+When another skill invocation needs a source already read in this session, reuse that reading only when the current file bytes still match the recorded SHA-256, the full prior content remains available in this session, and the prior read covered the same applicable rule and stage. Read changed, missing, newly referenced or newly applicable sources, and any sections not covered by the earlier read. Re-run this document inventory for each invocation; reusing unchanged source text does not reuse a drift result, complete semantic review, or grant approval. Do not persist a separate reading cache or approval record. If a session restart or compaction leaves only a summary instead of the source content, read the source again.
+
 ```text
 python "<delivery-harness-skill-root>/scripts/check_document_sync.py" --repo-root <project-root> --loaded-digest <observed-session-contract-sha256> --baseline docs/document-sync.json
 ```
@@ -18,6 +22,8 @@ Omit `--baseline` on first use. `--skills-root` names the observed installed sib
 ## Reconcile Under Existing Authority
 
 When the host cannot observe the loaded digest, omit `--loaded-digest`; the report remains `review_required` with `loaded_identity_unobserved`. Do not invent one from disk. Snapshot paths and hashes are checkout-relative, so the tracked snapshot works in another clone or worktree of the same project. The parent verifies that the baseline belongs to this project's history; a snapshot is not a repository identity credential. Explicitly scoped root or component Markdown, such as `SECURITY.md`, is allowed; credential and historical exclusions still apply.
+
+Retired-name findings have a narrow quiet exception. Bare names in an explicit retirement prose catalog are quiet, such as a note saying a release retires `full-harness`, `prd-builder`, and `product-design-builder`. Actual paths, commands, links, and uses inside fenced code still surface. Other standalone legacy names also surface. Unknown loaded identity is a separate finding and is never quieted by the catalog.
 
 Use `bounded-enhancement.md`. For authorized same-scope pointer, command or factual document corrections, patch only the affected live text and preserve local rules, owner decisions and unrelated changes. Bootstrap templates create missing files only. A changed external skill pin needs inspection of the new skill tree and side effects before adopting it; never simply replace the hash to silence drift.
 

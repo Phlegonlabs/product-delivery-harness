@@ -18,7 +18,7 @@ class ReviewTranslationTests(unittest.TestCase):
             self.assertIn("bilingual-review.md", (root / path).read_text(encoding="utf-8"))
         contract = (root / "references/bilingual-review.md").read_text(encoding="utf-8")
         for phrase in ("English files alone are canonical", "before every owner review",
-                       "does not prove translation quality", "English source first",
+                       "do not prove translation quality", "English source first",
                        "after writing approval metadata", "archive each English/review pair together",
                        "Existing English-only Documents", "same directory", "Create missing copies exclusively",
                        "Preserve the English bytes", "read-only task"):
@@ -37,6 +37,10 @@ class ReviewTranslationTests(unittest.TestCase):
         digest = hashlib.sha256(self.source.read_bytes()).hexdigest()
         self.review.write_text(f"<!-- review-source: {name} sha256:{digest} -->\n{body}", encoding="utf-8")
 
+    def write_pair(self, source, review):
+        self.source.write_text(source, encoding="utf-8")
+        self.write_review(review)
+
     def test_matching_pair_is_read_only(self):
         before = (self.source.read_bytes(), self.review.read_bytes())
         self.assertEqual([], validate_pair(self.source, self.review))
@@ -51,6 +55,73 @@ class ReviewTranslationTests(unittest.TestCase):
         errors = validate_pair(self.source, self.review)
         self.assertTrue(any("missing trace IDs: PRD-001" in error for error in errors))
         self.assertTrue(any("extra trace IDs: PRD-002" in error for error in errors))
+
+    def test_missing_heading_table_and_numeric_coverage_is_rejected(self):
+        self.write_pair(
+            "# Product\n## Service Level\nTarget: 95% within 2 days and 120 ms.\n"
+            "| Signal | Target |\n| --- | --- |\n| Latency | 120 ms |\n"
+            "## Recovery\nRestore within 4 hours.\n",
+            "# 產品\n## 服務水準\n目標：95% 於 2 days 內。\n",
+        )
+        errors = validate_pair(self.source, self.review)
+        joined = "\n".join(errors)
+        self.assertIn("missing heading-level coverage: H2: 1", joined)
+        self.assertIn("missing table-shape coverage: 1 table(s) with 2 columns and 1 data rows", joined)
+        self.assertIn("missing numeric-literal coverage", joined)
+        self.assertIn("'120 ms'", joined)
+        self.assertIn("'4 hours'", joined)
+
+    def test_translated_reordered_headings_and_tables_pass_structural_coverage(self):
+        self.write_pair(
+            "# Product\n## Service Level\nTarget: 95% within 2 days and 120 ms.\n"
+            "| Signal | Target |\n| --- | --- |\n| Latency | 120 ms |\n"
+            "## Recovery\nRestore within 4 hours.\n"
+            "| Mode | Result |\n| --- | --- |\n| Retry | 3 attempts |\n",
+            "# 產品\n## 復原\n4 hours 內還原。\n"
+            "| 模式 | 結果 |\n| --- | --- |\n| 重試 | 3 attempts |\n"
+            "## 服務水準\n目標：95% 於 2 days 內，120 ms。\n"
+            "| 指標 | 目標 |\n| --- | --- |\n| 延遲 | 120 ms |\n",
+        )
+        self.assertEqual([], validate_pair(self.source, self.review))
+
+    def test_fenced_headings_and_tables_do_not_add_coverage_requirements(self):
+        self.write_pair(
+            "# Product\n```markdown\n## Example\n| A | B |\n| --- | --- |\n| x | y |\n```\n",
+            "# 產品\n",
+        )
+        self.assertEqual([], validate_pair(self.source, self.review))
+
+    def test_numeric_coverage_ignores_trace_ids_urls_and_digests(self):
+        digest = "a" * 64
+        self.write_pair(
+            f"# Product\nPRD-001 target 95%. URL https://example.test/v3. Approval sha256:{digest}.\n",
+            "# 產品\nPRD-001 目標 95%。\n",
+        )
+        errors = validate_pair(self.source, self.review)
+        self.assertFalse(any("numeric-literal coverage" in error for error in errors), errors)
+
+    def test_numeric_counts_with_unit_names_pass_without_unit_obligation(self):
+        self.write_pair(
+            "# Product\nThe platform runs 3 services and sends 2 monthly reports.\n",
+            "# 產品\n平台運行 3 個服務，並寄送 2 份月報。\n",
+        )
+        self.assertEqual([], validate_pair(self.source, self.review))
+
+    def test_changed_ms_literal_is_rejected(self):
+        self.write_pair(
+            "# Product\nStartup takes 200 ms.\n",
+            "# 產品\n啟動需 250 ms。\n",
+        )
+        errors = validate_pair(self.source, self.review)
+        self.assertTrue(any("missing numeric-literal coverage: '200 ms' x1" in error for error in errors), errors)
+
+    def test_identifier_prefix_cannot_satisfy_a_shorter_numeric_target(self):
+        self.write_pair(
+            "# Product\nMaximum: 20 accounts.\n",
+            "# 產品\n上限：200msomething。\n",
+        )
+        errors = validate_pair(self.source, self.review)
+        self.assertTrue(any("missing numeric-literal coverage: '20' x1" in error for error in errors), errors)
 
     def test_wrong_source_and_duplicate_marker_are_rejected(self):
         self.write_review(name="architecture.md")

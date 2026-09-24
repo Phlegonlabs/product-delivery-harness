@@ -1,9 +1,12 @@
 {
   "name": "product-delivery-harness",
-  "version": "0.52.0",
+  "version": "0.53.0",
   "private": true,
   "license": "MIT",
   "type": "commonjs",
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
   "keywords": [
     "pi-package"
   ],

@@ -22,7 +22,18 @@ DEFAULT_PATHS = (
     "docs/goal/RUN.md",
 )
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+RETIRED_NAMES = ("full-harness", "prd-builder", "product-design-builder")
 RETIRED = re.compile(r"(?:skills[/\\]|`)(full-harness|prd-builder|product-design-builder)(?=[/\\`])")
+RETIREMENT_CATALOG = re.compile(
+    r"\b(?:retire|retires|retired|retiring)\s+(?P<items>"
+    r"`(?:full-harness|prd-builder|product-design-builder)`"
+    r"(?:\s*,\s*`(?:full-harness|prd-builder|product-design-builder)`)*"
+    r"(?:\s*,?\s+and\s+`(?:full-harness|prd-builder|product-design-builder)`)?"
+    r")",
+    re.IGNORECASE,
+)
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+MARKDOWN_LINK = re.compile(r"\[[^\]\r\n]*\](?:\([^\r\n)]*\)|\[[^\]\r\n]*\])")
 
 
 def unique_object(pairs):
@@ -92,6 +103,36 @@ def impact_for(name, reason):
     return {"source": name, "reason": reason, "affected_artifacts": artifacts,
             "affected_stages": stages, "required_checks": checks,
             "semantic_review_required": True}
+
+
+def _retired_pointers(text):
+    """Ignore only bare names in explicit retirement catalogs, not usable references."""
+    pointers = set()
+    fence = None
+    for line in text.splitlines():
+        marker = FENCE.match(line)
+        in_fence = fence is not None
+        if fence is None and marker:
+            fence = marker.group(1)
+            in_fence = True
+        elif fence is not None and marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= len(fence):
+            fence = None
+            in_fence = True
+
+        quiet_spans = set()
+        if not in_fence:
+            linked_spans = {match.span() for match in MARKDOWN_LINK.finditer(line)}
+            for catalog in RETIREMENT_CATALOG.finditer(line):
+                item_span = catalog.span("items")
+                if any(start <= item_span[0] and end >= item_span[1] for start, end in linked_spans):
+                    continue
+                for pointer in RETIRED.finditer(line):
+                    if item_span[0] <= pointer.start() and pointer.end() <= item_span[1]:
+                        quiet_spans.add(pointer.span())
+        for pointer in RETIRED.finditer(line):
+            if pointer.span() not in quiet_spans:
+                pointers.add(pointer.group(1))
+    return sorted(pointers)
 
 
 def default_inventory(root, baseline=None):
@@ -184,7 +225,7 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             impacts.append(impact_for(name, "document_changed"))
         elif baseline is None:
             impacts.append(impact_for(name, "first_observation"))
-        for skill in sorted(set(RETIRED.findall(text))):
+        for skill in _retired_pointers(text):
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
     snapshot = {"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}

@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.52.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.53.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -546,6 +546,18 @@ git diff --check
 
 El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`. En PowerShell usa `$env:HARNESS_GOLDEN_PATH='1'; python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v; Remove-Item Env:HARNESS_GOLDEN_PATH`. Recorre el CLI real sobre un paquete sintético.
 
+## Verificación y medición de ejecución
+
+CI instala las versiones fijadas de Node/Playwright y Chromium antes de las pruebas obligatorias del navegador. La falta de dependencias hace fallar esa suite. Para la misma comprobación local, ejecuta `npm ci` y `npx playwright install chromium`, define `PDH_REQUIRE_BROWSER_TESTS=1` y `PLAYWRIGHT_MODULE` con la ruta `node_modules/playwright` de este checkout, y ejecuta la suite UI. Las comprobaciones locales ordinarias aún pueden omitir el navegador si no está disponible.
+
+`design_workflow.py` incluye las rutas canónicas de PLAN/RUN y distingue la presencia de archivos de una ejecución activa. Maintenance requiere UI impact `none` o `style`; los impactos estructurales o desconocidos necesitan las comprobaciones de diseño aplicables. La prueba común schema-5 usa los validadores reales de compiler, Harness, Activation y SEO. El checker UI carga sus dependencias antes de que Harness retire su ruta temporal; SEO transmite el stack y el contexto del repositorio a Activation.
+
+Las transiciones de escritura de Harness registran el tiempo medido de preparación. `inspect_harness_run.py` lo presenta separado de los tiempos de verificación. La validación final, la escritura y las salidas posteriores quedan fuera de ese intervalo. Los tiempos globales, ruta crítica, esperas y uso del modelo desconocidos siguen sin valor; un benchmark sintético del CLI no demuestra la velocidad del modelo ni de toda la entrega.
+
+Document sync omite nombres antiguos solo dentro de catálogos explícitos de retiro. Las referencias operativas y la identidad cargada desconocida siguen visibles. Una lectura solo se reutiliza en la misma sesión, con bytes actuales iguales, el contenido anterior completo disponible y la misma regla aplicable; las comprobaciones de cada invocación siguen ejecutándose. No se añade una caché persistente ni una base de aprobaciones.
+
+Las copias chinas se comprueban también por cobertura de niveles de encabezados, formas/filas de tablas y literales numéricos, además del hash y los trace IDs. Los títulos traducidos pueden diferir. El checker no prueba el significado ni el orden de secciones: la comparación semántica completa sigue siendo necesaria.
+
 ## Mantener los READMEs al día
 
 Los READMEs son la documentación de registro: cada cambio que agregue o altere un skill, regla, tabla, diagrama o flujo documentado actualiza las secciones descriptivas del README en el mismo cambio, en los cuatro idiomas. El badge de versión y las entradas del historial de versiones son la parte del release y siguen Releasing abajo.
@@ -579,6 +591,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.53.0** — CI exige las dependencias del navegador. La prueba común schema-5 cubre compiler/Harness/Activation/SEO y corrige dependencias y contexto omitidos. Mejora los resúmenes de mantenimiento, las métricas de preparación, la reutilización de lecturas y la cobertura estructural/numérica de traducciones. Las comprobaciones obligatorias más estrictas son un cambio incompatible del paquete.
 
 - **0.52.0** — Wireframe y HiFi comparten una interfaz de revisión con lienzos por plataforma y controles de producto operativos. Los wireframes schema-5 exigen textos con fuente y cobertura de operaciones; HiFi exige tokens vinculados a sus fuentes, evidencia independiente y una aprobación final conjunta del propietario. El flujo distingue diseño inicial, mejoras y mantenimiento habitual sin reescribir artefactos históricos. El cambio del contrato de revisión y aprobación es incompatible con versiones anteriores del paquete de skills.
 
