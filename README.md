@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.52.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.53.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -592,6 +592,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.53.0** — Browser CI requires provisioned prerequisites. Shared schema-5 lifecycle checks cover the compiler/Harness/Activation/SEO joins and repair missing dependency/context handoffs. Maintenance summaries, runtime preparation metrics, document reading reuse and translation structure/literal checks make verification more reliable. Stronger required checks are a breaking skill-bundle change.
 
 - **0.52.0** — Wireframe and HiFi review share a shell with platform-specific canvases and working product controls. Schema-5 wireframes require sourced copy and operation coverage; HiFi review requires source-bound tokens, independent evidence and one consolidated owner approval. Design routing distinguishes initial work, enhancements and routine maintenance without rewriting historical artifacts. The changed review and approval contract is a breaking skill-bundle change.
 

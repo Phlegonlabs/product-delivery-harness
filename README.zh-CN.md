@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.52.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.53.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -592,6 +592,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.53.0** — Browser CI 必须备妥依赖。共同 schema-5 lifecycle 检查覆盖 compiler／Harness／Activation／SEO 衔接，并修复遗漏的模块及 context 传递。改善 maintenance 摘要、runtime 准备耗时、文件阅读复用及中文结构／数字检查。必要验证更严格，属于破坏性 skill bundle 变更。
 
 - **0.52.0** — Wireframe 与 HiFi 审阅共用界面，保留各平台画布和可操作的产品控件。Schema-5 Wireframe 须有来源明确的文案及必要操作覆盖；HiFi 审阅须有绑定来源的 token、独立证据及一次整合的业主批准。设计流程区分初次制作、增强与日常维护，且不改写历史产物。审阅与批准契约变更属破坏性 skill bundle 变更。
 
