@@ -16,6 +16,13 @@ from typing import Any
 
 import check_wireframe_html
 from motion_evidence import motion_findings
+from review_evidence import (
+    assessment_findings,
+    author_artifact_findings,
+    author_usage_findings,
+    execution_findings,
+    score_findings,
+)
 from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
@@ -33,6 +40,7 @@ from markdown_contract import active_text  # noqa: E402
 from release_targets import parse_release_targets  # noqa: E402
 from prd_ui_contract import parse_prd_ui_contract  # noqa: E402
 from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
+from operation_coverage import coverage_findings  # noqa: E402
 
 
 def is_structure_review(text: str) -> bool:
@@ -1887,7 +1895,6 @@ def _resolve_evidence(
                                     for finding in reviewer_evidence_findings(output_json.get("reviewer"), review_contract):
                                         _add(problems, finding)
                             if machine and isinstance(output_json, dict):
-                                from review_evidence import execution_findings, assessment_findings, score_findings
                                 problems.extend(f"{label}: {item}" for item in execution_findings(repo_root, output_json, receipt, artifact))
                                 problems.extend(f"{label}: {item}" for item in assessment_findings(repo_root, output_json))
                                 captured = output_json.get("execution", {}).get("artifacts", []) if isinstance(output_json.get("execution"), dict) else []
@@ -2530,7 +2537,6 @@ def validate_text(
                 _add(problems, "Wireframe blocks must be none")
 
     if modern and (require_filled or structural_gate):
-        from review_evidence import author_usage_findings
         problems.extend(author_usage_findings(text, require_hifi=require_visual_approved))
 
     if require_visual_approved:
@@ -2895,7 +2901,6 @@ def _validate_impl(
             capture_mode = "mixed" if data_for_matrix.get("responsiveBySurface") else (
                 "hosted-browser" if data_for_matrix.get("viewports") else "native")
     if modern and approved_gate:
-        from review_evidence import author_artifact_findings
         problems.extend(author_artifact_findings(root, active, require_hifi=require_visual_approved))
     if require_visual_approved:
         checked_hifi = _require_exact_cli_path(
@@ -3012,7 +3017,6 @@ def _validate_impl(
         )
 
     if modern and approved_gate and checked_prd is not None and checked_wireframe is not None:
-        from operation_coverage import coverage_findings
         try:
             wf_data = _read_wireframe_data(checked_wireframe, problems)
             manifest = None

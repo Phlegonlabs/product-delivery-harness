@@ -303,6 +303,7 @@ def check_seo_review_text(
     deployment_text: str,
     activation_text: str,
     stack_text: str | None = None,
+    repo_root: Path | None = None,
 ) -> list[str]:
     findings: list[str] = []
     if stack_text is not None:
@@ -315,6 +316,7 @@ def check_seo_review_text(
                 stack_text,
                 require_filled=True,
                 require_approved=True,
+                repo_root=repo_root,
             )
         )
         from check_deployment import check_deployment_text
@@ -448,6 +450,8 @@ def check_seo_review_text(
         prd_text=prd_text,
         architecture_text=architecture_text,
         deployment_text=deployment_text,
+        stack_text=stack_text,
+        repo_root=repo_root,
         require_verified_sources=True,
         require_ready=(target_id,),
     )
@@ -701,6 +705,8 @@ def main(argv: list[str] | None = None) -> int:
             architecture_text=loaded["architecture"],
             deployment_text=loaded["deployment"],
             activation_text=loaded["activation"],
+            stack_text=loaded.get("stack"),
+            repo_root=args.repo_root,
         )
     )
     if args.require_lifecycle:

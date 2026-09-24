@@ -121,7 +121,13 @@ def valid_review_v2(*, mode: str = "baseline") -> str:
 
 
 class SeoLifecycleReviewTests(unittest.TestCase):
-    def check(self, review: str) -> list[str]:
+    def check(
+        self,
+        review: str,
+        *,
+        stack_text: str | None = None,
+        repo_root: Path | None = None,
+    ) -> list[str]:
         with patch("check_seo_review.check_activation_text", return_value=[]):
             return check_seo_review.check_seo_review_text(
                 review,
@@ -129,7 +135,28 @@ class SeoLifecycleReviewTests(unittest.TestCase):
                 architecture_text=ARCHITECTURE,
                 deployment_text=DEPLOYMENT,
                 activation_text=ACTIVATION,
+                stack_text=stack_text,
+                repo_root=repo_root,
             )
+
+    def test_verified_source_context_is_forwarded_to_activation(self) -> None:
+        stack_text = "# Stack Decisions: Example\n"
+        repo_root = Path(__file__).resolve().parents[4]
+        with patch(
+            "check_seo_review.check_activation_text", return_value=[]
+        ) as activation_check:
+            check_seo_review.check_seo_review_text(
+                valid_review_v2(),
+                prd_text=PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                activation_text=ACTIVATION,
+                stack_text=stack_text,
+                repo_root=repo_root,
+            )
+
+        self.assertEqual(stack_text, activation_check.call_args.kwargs["stack_text"])
+        self.assertEqual(repo_root, activation_check.call_args.kwargs["repo_root"])
 
     def test_valid_lifecycle_review_passes_exact_bindings(self) -> None:
         self.assertEqual([], self.check(valid_review()))
