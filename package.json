@@ -4,6 +4,9 @@
   "private": true,
   "license": "MIT",
   "type": "commonjs",
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
   "keywords": [
     "pi-package"
   ],

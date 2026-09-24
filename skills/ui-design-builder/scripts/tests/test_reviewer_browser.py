@@ -32,11 +32,53 @@ def playwright_module(node: str) -> str | None:
 
 
 class ReviewerBrowserTests(unittest.TestCase):
-    def test_hifi_product_css_cannot_change_shell_and_state_controls_work(self):
+    def require_browser(self) -> tuple[str, str]:
         node = shutil.which("node")
-        playwright = playwright_module(node) if node else None
+        if not node:
+            self.browser_unavailable("Node.js is unavailable")
+        playwright = playwright_module(node)
         if not playwright:
-            self.skipTest("Node Playwright unavailable")
+            self.browser_unavailable("Node Playwright is unavailable")
+        return node, playwright
+
+    def browser_unavailable(self, reason: str) -> None:
+        message = f"Required browser test prerequisite missing: {reason}"
+        if os.environ.get("PDH_REQUIRE_BROWSER_TESTS") == "1":
+            self.fail(message)
+        self.skipTest(message)
+
+    def run_hifi_test_without_node(self, required: bool) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as temporary:
+            empty_path = Path(temporary) / "empty-path"
+            empty_path.mkdir()
+            env = os.environ.copy()
+            if required:
+                env["PDH_REQUIRE_BROWSER_TESTS"] = "1"
+            else:
+                env.pop("PDH_REQUIRE_BROWSER_TESTS", None)
+            env["PATH"] = str(empty_path)
+            env["PLAYWRIGHT_MODULE"] = str(Path(temporary) / "missing-playwright")
+            return subprocess.run(
+                [sys.executable, "-B", str(Path(__file__).resolve()),
+                 "ReviewerBrowserTests.test_hifi_product_css_cannot_change_shell_and_state_controls_work"],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=15,
+            )
+
+    def test_required_browser_mode_fails_when_node_is_missing(self):
+        result = self.run_hifi_test_without_node(required=True)
+        self.assertNotEqual(0, result.returncode, result.stdout)
+        self.assertIn("Required browser test prerequisite missing: Node.js is unavailable", result.stderr)
+
+    def test_optional_browser_mode_skips_when_node_is_missing(self):
+        result = self.run_hifi_test_without_node(required=False)
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+        self.assertIn("OK (skipped=1)", result.stderr)
+
+    def test_hifi_product_css_cannot_change_shell_and_state_controls_work(self):
+        node, playwright = self.require_browser()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = root / "source"
@@ -242,10 +284,7 @@ const {pathToFileURL}=require('url');
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
 
     def test_wireframe_shell_is_isolated_and_selection_survives_reload(self):
-        node = shutil.which("node")
-        playwright = playwright_module(node) if node else None
-        if not playwright:
-            self.skipTest("Node Playwright unavailable")
+        node, playwright = self.require_browser()
         with tempfile.TemporaryDirectory() as temporary:
             page_path = Path(temporary) / "wireframes.html"
             html = TEMPLATE.read_text(encoding="utf-8")

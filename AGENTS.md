@@ -84,6 +84,8 @@ When a product has pricing, paid access, purchase-gated features or outside sell
 
 Edit only the canonical sources in `skills/`, then run all of this from the repository root:
 
+For the required UI browser check, run `npm ci` and `npx playwright install chromium`, then set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`. Linux CI installs Chromium with `--with-deps`. Missing prerequisites must fail required browser verification.
+
 ```text
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
