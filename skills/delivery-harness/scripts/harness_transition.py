@@ -32,6 +32,7 @@ from harness_core import (
     parent_owned_path,
     plan_digest,
     path_in_scopes,
+    validate_changed_path,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
@@ -105,12 +106,31 @@ def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
 def _candidate_changed_paths(root: Path, base_sha: str, head_sha: str) -> list[str]:
     try:
         reject_object_substitution(root)
-        result = run_git(root, "diff", "--name-only", f"{base_sha}..{head_sha}")
+        result = run_git(
+            root,
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            f"{base_sha}..{head_sha}",
+            text=False,
+        )
     except GitMetadataError as exc:
         raise ManifestError(str(exc)) from exc
     if result.returncode != 0:
         raise ManifestError("cannot observe candidate changed paths from Git")
-    return sorted({line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()})
+    try:
+        output = result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ManifestError("candidate changed paths are not valid UTF-8") from exc
+    paths = output.split("\0")
+    if paths[-1:] == [""]:
+        paths.pop()
+    for path in paths:
+        reason = validate_changed_path(path)
+        if reason:
+            raise ManifestError(f"candidate changed path {path!r} {reason}")
+    return sorted(set(paths))
 
 
 def _candidate_allowed_scopes(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
