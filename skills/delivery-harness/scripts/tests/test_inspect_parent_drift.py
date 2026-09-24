@@ -271,12 +271,62 @@ class InspectParentDriftTests(unittest.TestCase):
 
         parent = summary["parent_git"]
         self.assertEqual("unknown", parent["comparison_state"])
+        self.assertEqual("unavailable", parent["git_observation_status"])
         self.assertIsNone(parent["live_branch"])
         self.assertIsNone(parent["live_head_sha"])
         self.assertIsNone(parent["live_dirty"])
         self.assertIsNone(parent["integration_object_exists"])
         self.assertFalse(parent["needs_reconciliation"])
         self.assertEqual([], summary["warnings"])
+
+    def test_incomplete_required_git_probe_requires_reconciliation(self) -> None:
+        probe_matches = {
+            "head": lambda arguments: arguments == ("rev-parse", "HEAD"),
+            "branch": lambda arguments: arguments
+            == ("rev-parse", "--abbrev-ref", "HEAD"),
+            "status": lambda arguments: arguments[:1] == ("status",),
+        }
+        for probe_name, matches in probe_matches.items():
+            with self.subTest(probe=probe_name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    head = self.init_repo(root)
+                    run = self.run_state(head)
+                    real_git = inspect_harness_run._git
+
+                    def fail_selected_probe(worktree, *arguments, **kwargs):
+                        if matches(arguments):
+                            return None
+                        return real_git(worktree, *arguments, **kwargs)
+
+                    with patch.object(
+                        inspect_harness_run,
+                        "_git",
+                        side_effect=fail_selected_probe,
+                    ):
+                        summary = inspect_harness_run.summarize_run(root, run)
+                        with patch.object(
+                            inspect_harness_run, "load_run", return_value=run
+                        ):
+                            with redirect_stdout(io.StringIO()):
+                                exit_code = inspect_harness_run.main(
+                                    [
+                                        "--repo-root",
+                                        str(root),
+                                        "--run",
+                                        str(root / "RUN.md"),
+                                    ]
+                                )
+
+                parent = summary["parent_git"]
+                self.assertEqual("partial", parent["comparison_state"])
+                self.assertEqual("unavailable", parent["git_observation_status"])
+                self.assertTrue(parent["needs_reconciliation"])
+                self.assertEqual(
+                    ["parent: live Git observation is incomplete"],
+                    summary["warnings"],
+                )
+                self.assertEqual(1, exit_code)
 
     def test_guarded_git_configuration_is_a_bounded_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

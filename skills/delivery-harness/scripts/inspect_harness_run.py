@@ -126,6 +126,10 @@ def _parent_git_summary(
             ):
                 porcelain = ""
     live_dirty = bool(porcelain) if porcelain is not None else None
+    required_observation_incomplete = bool(
+        repository_available
+        and (live_head is None or live_branch is None or porcelain is None)
+    )
 
     integration_branch = _normalized_branch(integration.get("branch"))
     integration_head = integration.get("integration_head_sha")
@@ -169,6 +173,8 @@ def _parent_git_summary(
     )
 
     warnings: list[str] = list(dict.fromkeys(guard_failures))
+    if required_observation_incomplete and not guard_failures:
+        warnings.append("parent: live Git observation is incomplete")
     if branch_matches is False:
         warnings.append(
             "parent: live branch "
@@ -198,6 +204,8 @@ def _parent_git_summary(
 
     if guard_failures:
         comparison_state = "blocked"
+    elif required_observation_incomplete:
+        comparison_state = "partial"
     elif live_head is None:
         comparison_state = "unknown"
     elif warnings:
@@ -224,7 +232,7 @@ def _parent_git_summary(
             "blocked"
             if guard_failures
             else "available"
-            if repository_available
+            if repository_available and not required_observation_incomplete
             else "unavailable"
         ),
         "integration_branch": integration_branch,
