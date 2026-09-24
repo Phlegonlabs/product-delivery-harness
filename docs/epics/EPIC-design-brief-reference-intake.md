@@ -1,6 +1,6 @@
 # Design Brief And Reference Intake
 
-Status: implemented and verified locally; uncommitted and not installed.
+Status: committed candidate included in the authorized 0.54.1 release; final verification, publication and installation pending.
 Design workflow: enhancement
 UI impact: none
 
@@ -65,3 +65,7 @@ Logs, the command manifest and result summaries are under `C:/Users/mps19/AppDat
 Final repository/branch/HEAD remain the named checkout, `codex/design-brief-references` and `b4ffe691b97265d5a76817c2e0ccf457e084fa54`. No staged changes or commits exist. The original untracked `scripts/design/hifi_model.py` is unchanged, SHA-256 `66b61a803153d4da49e10ce3e25b72a51229728a84bc48371620012e21e38b9c`. Ignore checks confirmed `.env`, dependency output and Python caches are covered; source/README/Epic paths remain visible. No new ignore rule or tracked-file removal was needed.
 
 The GLM worker and finite verification commands completed. No push, main promotion, version/tag change, personal-skill installation, branch/worktree removal or other cleanup occurred. This closes the authorized local change; the currently installed skill bundle is unchanged.
+
+## 2026-09-24 Release Continuation
+
+The earlier working-tree results above are historical observations, not current Git status. This change is committed as `b257304` and is included in `codex/runtime-resume-repair`, observed HEAD `6ae201453b518dd289cb0bde0dba7e2292f166aa`. The owner authorized reviewing and publishing the existing 0.54.0 preparation together with the runtime and frontend-authoring repairs as 0.54.1. Final exact-candidate evidence, promotion and installation are tracked in [the runtime reliability Epic](EPIC-runtime-and-verification-reliability.md). No release completion is claimed here.

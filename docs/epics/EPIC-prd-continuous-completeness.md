@@ -1,6 +1,6 @@
 # EPIC: PRD completeness through delivery
 
-Status: implemented and verified locally; uncommitted and not installed by this task
+Status: committed candidate included in the authorized 0.54.1 release; final verification, publication and installation pending.
 
 ## Problem And Baseline
 
@@ -69,3 +69,11 @@ These are parent semantic checks of the workflow, not executions of a real produ
 | Post-release measurements miss an approved target | Retain actual evidence and the target; route through the existing outcome verdict, never lower the target to claim success |
 
 Three focused graph packet tests passed: native UI applicability, headless exclusion, and synthesis/review routing that retains approval boundaries. They check emitted instructions and lane selection, not whether a model will discover every missing requirement. Required prerequisites also passed: pip requirements, npm ci and Chromium installation.
+
+## 2026-09-24 Release Continuation
+
+The earlier working-tree results above are historical observations, not current Git status. This change is committed as `dee2d77` and is included in `codex/runtime-resume-repair`, observed HEAD `6ae201453b518dd289cb0bde0dba7e2292f166aa`. The owner authorized reviewing and publishing the existing 0.54.0 preparation together with the runtime and frontend-authoring repairs as 0.54.1. Final exact-candidate evidence, promotion and installation are tracked in [the runtime reliability Epic](EPIC-runtime-and-verification-reliability.md). No release completion is claimed here.
+
+The combined-release review found that the documented technical completeness lens reached only architecture. The graph now sends it to applicable architecture, backend and frontend-platform roles. Two focused emitted-prompt tests passed for UI and headless products, along with JavaScript syntax, scoped Pyflakes and diff checks. This is a working-tree correction on the continuation baseline; final fixed-SHA validation remains pending.
+
+The technical-role correction was committed as `cb0e6515d151fd5eb3f0c32c6211332483c3c2de`. An independent reviewer passed all three focused completeness cases and found no blocker. Final release verification is still pending.

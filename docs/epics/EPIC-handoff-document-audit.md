@@ -1,6 +1,6 @@
 # Handoff Documentation Audit
 
-Status: focused documentation and contract-test work complete; integrated change still in progress. UI impact: none.
+Status: committed candidate included in the authorized 0.54.1 release; final verification, publication and installation pending.
 
 The owner requested a handoff check so repository documents, Epics, tasks and seeded `AGENTS.md` instructions stay current enough for a reliable next-owner handoff. The cadence is every task handoff, not a timer. The shared rule requires checking the observed installed project template and refreshing stale shared guidance in place while preserving repository-specific rules.
 
@@ -16,3 +16,7 @@ Acceptance: every handoff reconciles affected live documents, Epic/index and tas
 | --- | --- | --- |
 | 2026-09-24; owner chose every handoff; parent supplied matching root/template rule | Working-tree changes on baseline branch/HEAD above. This worker's scoped files: four README descriptions and 0.54.0 history entries, handoff contract assertions, Epic/index. | `python -m unittest skills.delivery-harness.scripts.tests.test_enhancement_entry_contract -v`: 7 tests passed. Parent's shared-rule edits and full candidate verification remain in progress. |
 | 2026-09-24; parent integration review | Nine changed source/README/test files have working-tree fingerprint `449b8d261df407919eed13ce0f99a028f706cd81feaebba0a5295a15431b6d4c`; Epic/index and unrelated untracked files are excluded. The root and seeded handoff sections match exactly. | Parent reran 14 focused enhancement/context tests, skill specification, pyflakes, docs-weight and diff checks; all passed. Full exact-candidate suite remains pending. |
+
+## 2026-09-24 Release Continuation
+
+The earlier working-tree results above are historical observations, not current Git status. This change is committed as `82911ea` and is included in `codex/runtime-resume-repair`, observed HEAD `6ae201453b518dd289cb0bde0dba7e2292f166aa`. The owner authorized reviewing and publishing the existing 0.54.0 preparation together with the runtime and frontend-authoring repairs as 0.54.1. Final exact-candidate evidence, promotion and installation are tracked in [the runtime reliability Epic](EPIC-runtime-and-verification-reliability.md). No release completion is claimed here.
