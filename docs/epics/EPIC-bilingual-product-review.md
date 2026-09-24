@@ -29,3 +29,7 @@ Final verification: Delivery Harness 1,150 tests (16 skipped), Product Definitio
 The owner also requested automatic same-directory Chinese translations for existing English-only PRDs and explicitly authorized commit, push and merge of this task. This supersedes the earlier local-only authorization above. The same backfill applies to existing architecture sources; English bytes and approvals remain unchanged. PRD-only validation is supported; existing translations and archives are preserved. No current product PRD exists in this source repository.
 
 Release target: 0.51.0. Observed remote main: `63d9f071001eef1375a9e7d80d21bf0ffd896929`. Its tree equals the current branch baseline; the earlier wireframe work is already released by PR #117. Preserve unrelated untracked `scripts/`. Final candidate and exact-main verification are pending and will be recorded in release evidence outside the candidate. No cleanup of branches or worktrees is authorized.
+
+## 2026-09-23 reliability follow-up
+
+Local main and local tag `v0.52.0` were observed at `baf7e22b05a7f2776ee8b205395204ff21cbdcb5`. This is a current local repository observation, not a rerun of the historical release checks above. The 0.53.0 browser, cross-skill, runtime and translation follow-up is tracked in [EPIC-runtime-and-verification-reliability.md](EPIC-runtime-and-verification-reliability.md); preserve the earlier results and remaining coverage distinctions.
