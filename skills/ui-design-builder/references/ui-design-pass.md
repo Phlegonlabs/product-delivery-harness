@@ -15,7 +15,7 @@ Every direction and HiFi candidate uses the same:
 - approved `PRD.md`, `architecture.md`, and `stack-decisions.md` identities;
 - complete `UI-* × responsive target × non-n/a state` matrix;
 - approved `wireframes.html` region order, grouping, actions, flows, states, and media placeholders;
-- UI Design Intake and Visual Preference Brief;
+- UI Design Intake and Visual Preference Brief, including the Design Brief for new or changed design scope;
 - Motion and Media Intent rows;
 - exact copy or bounded display contracts;
 - brand, accessibility, platform, performance, component-foundation, and styling constraints; and
@@ -28,6 +28,8 @@ The pass cannot add, remove, reorder, or reinterpret product scope, content resp
 The intake must already be complete before `frontend-design` proposes a theme or Design Read. If it is missing, read `ui-design-intake.md`, ask the human owner the product-specific questions, end the turn, and wait. Reuse supplied answers; wait only on missing decisions.
 
 If the owner supplies a reference, read `design-reference-guide.md` and inspect it through the matching source route. Record `REF-*` sources and proposed `Adopt / Adapt / Avoid` `RP-*` principles, then end the turn for confirmation before creating a direction.
+
+Use the existing Design Brief to connect the owner answer, reference lessons and visual constraints to Style Integration and MM records as decisions mature. An explicit `no references` answer permits relevant research and recommendations under `design-reference-guide.md`; it is not direction approval. Unanswered optional references stay `not supplied`, and inaccessible material stays uninspected. Continue independent work and wait only for work that depends on the missing input. Preserve answered preferences and unchanged enhancement directions.
 
 When the owner has a clear direction, produce one product-specific direction. When the owner asks to compare or remains unsure after intake, produce exactly three materially different directions over the same frozen screens and states. Never substitute a fixed catalog of style names.
 
