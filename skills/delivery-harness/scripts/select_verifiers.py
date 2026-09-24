@@ -8,13 +8,13 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from harness_core import validate_changed_path
 from harness_manifest import (
     ManifestError,
     is_full_sha,
     load_plan,
     path_in_scopes,
     validate_plan,
-    validate_scope_claim,
 )
 
 
@@ -25,13 +25,9 @@ class VerifierSelectionError(ValueError):
 def canonical_changed_path(value: Any) -> str:
     if not isinstance(value, str) or not value:
         raise VerifierSelectionError("changed files must be non-empty strings")
-    problem = validate_scope_claim(value)
+    problem = validate_changed_path(value)
     if problem is not None:
         raise VerifierSelectionError(f"invalid changed file {value!r}: {problem}")
-    if value.endswith("/**"):
-        raise VerifierSelectionError(
-            f"invalid changed file {value!r}: changed files must be exact paths"
-        )
     return value
 
 
