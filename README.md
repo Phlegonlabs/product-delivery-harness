@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.53.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.53.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -594,6 +594,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.53.1** — Use bundled Chromium for required browser verification. Keep the long HiFi scenario bounded, preserve all assertions and report completed phases on timeout. This repairs repeated post-merge browser deadline failures in 0.53.0.
 
 - **0.53.0** — Browser CI requires provisioned prerequisites. Shared schema-5 lifecycle checks cover the compiler/Harness/Activation/SEO joins and repair missing dependency/context handoffs. Maintenance summaries, runtime preparation metrics, document reading reuse and translation structure/literal checks make verification more reliable. Stronger required checks are a breaking skill-bundle change.
 

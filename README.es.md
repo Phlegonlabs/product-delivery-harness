@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.53.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.53.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -593,6 +593,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.53.1** — Usa Chromium incluido con Playwright en la verificación obligatoria. Mantiene un plazo total para el escenario HiFi largo, conserva todas las comprobaciones e informa de las fases completadas al agotarse el tiempo. Corrige los fallos repetidos de plazo tras integrar 0.53.0.
 
 - **0.53.0** — CI exige las dependencias del navegador. La prueba común schema-5 cubre compiler/Harness/Activation/SEO y corrige dependencias y contexto omitidos. Mejora los resúmenes de mantenimiento, las métricas de preparación, la reutilización de lecturas y la cobertura estructural/numérica de traducciones. Las comprobaciones obligatorias más estrictas son un cambio incompatible del paquete.
 
