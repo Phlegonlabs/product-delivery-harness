@@ -552,6 +552,8 @@ CI instala las versiones fijadas de Node/Playwright y Chromium antes de las prue
 
 `design_workflow.py` incluye las rutas canónicas de PLAN/RUN y distingue la presencia de archivos de una ejecución activa. Maintenance requiere UI impact `none` o `style`; los impactos estructurales o desconocidos necesitan las comprobaciones de diseño aplicables. La prueba común schema-5 usa los validadores reales de compiler, Harness, Activation y SEO. El checker UI carga sus dependencias antes de que Harness retire su ruta temporal; SEO transmite el stack y el contexto del repositorio a Activation.
 
+Document sync omite nombres antiguos solo dentro de catálogos explícitos de retiro. Las referencias operativas y la identidad cargada desconocida siguen visibles. Una lectura solo se reutiliza en la misma sesión, con bytes actuales iguales, el contenido anterior completo disponible y la misma regla aplicable; las comprobaciones de cada invocación siguen ejecutándose. No se añade una caché persistente ni una base de aprobaciones.
+
 Las copias chinas se comprueban también por cobertura de niveles de encabezados, formas/filas de tablas y literales numéricos, además del hash y los trace IDs. Los títulos traducidos pueden diferir. El checker no prueba el significado ni el orden de secciones: la comparación semántica completa sigue siendo necesaria.
 
 ## Mantener los READMEs al día
