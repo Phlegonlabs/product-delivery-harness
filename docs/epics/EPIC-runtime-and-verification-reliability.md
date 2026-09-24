@@ -1,6 +1,6 @@
 # EPIC-runtime-and-verification-reliability: Measured execution and dependable verification
 
-Status: release_authorized_candidate
+Status: locally_verified_release_repair
 
 ## Problem And Baseline
 
@@ -130,3 +130,21 @@ The source/configuration fingerprint remains `4ebf5da6e6772ec3c77906a71e16373b13
 - `5cd1f05` — version 0.53.0 pins and history.
 
 This final bookkeeping change records the checkpoint and prior Epic links. Current installed digest remains `1388c2a136bc47b7a732fb7ff67ee0ecbffe669f29393d01a2d910f438bd889e`; session-loaded identity is unobserved. Document sync reports that identity gap and first-baseline review only. Installation must retain the existing modified `select_verifiers.py` in an installer backup. No other active skill-using task was observed before release preparation. Exact candidate/main CI, structured security receipts, PR, installation backup and tag read-back are retained as external release evidence so this record need not self-reference its commit.
+
+## 0.53.1 Browser Verification Repair — 2026-09-24 UTC
+
+PR #120 merged candidate `8f466066548b717863c61be0965d826c7357d591` as main `3a0c37a292dbd8a2ff788d707a00680ff3c6d240`. Both trees are `cc21f3fa13a83d4747214a24a89682a9b878efaf`. Candidate PR CI passed Linux and Windows. The branch's first Linux attempt exceeded the HiFi browser scenario's 45-second outer deadline; its failed-job rerun passed without source changes. Fresh main CI `35958536799` then hit the same outer deadline. No product assertion was reported in either timeout, but the logs do not identify the stalled operation. This is a repeated test reliability failure, not a passing release gate. No `v0.53.0` tag was created.
+
+GLM Flash diagnostic run `20260923-215720-752b21e93ffc4f069dd04b305cb64ddd` inspected the failure read-only. The long scenario performs multiple page/history transitions and about 50 browser calls. The sibling Wireframe scenario took about 22 seconds on the first failing runner and 1.4 seconds on the successful PR runner. Both scripts prefer system Edge before bundled Chromium, despite CI provisioning Chromium. A second GLM Flash task prepares a bounded repair: select bundled Chromium in required mode, retain optional local Edge fallback and every product assertion, add phase diagnostics and a separate total deadline for the long scenario.
+
+The owner approved exact branch `codex/skills-browser-ci-0.53.1`, version 0.53.1 and reuse of the existing reliability worktree, then reiterated `remember to commit and push pr review`. Earlier commit, push, PR and merge authority continues for this repair. A fresh fetch observed main at `3a0c37a292dbd8a2ff788d707a00680ff3c6d240`; the new branch was cut from that exact SHA with a clean checkout. UI impact remains none. Scope is the browser test harness, matching four-language README guidance, required version pins and this release record. No new artifact class or ignore rule is needed.
+
+The prior installer successfully matched all 284 tracked skill files to 0.53.0 and preserved all 320 previous installed files under `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20260923-215041/`, including the modified `select_verifiers.py`. External release evidence is under `%TEMP%/pdh-release-053-8f46606/`. Loaded session identity remains unknown. The repair needs focused real-browser checks, the complete candidate suite, PR review, mandatory post-push installation and exact-main verification before the 0.53.1 tag.
+
+### Repair Verification Checkpoint
+
+GLM Flash run `20260923-221332-d9d26cdacd034076836c0f298390ec50` returned the test-file patch. The parent integrated it and corrected its assumption that Python's default timeout traceback displays captured child output: the small browser runner now raises a diagnostic failure containing that output. A real child-process regression prints a completed phase, reaches its two-second deadline and verifies that the failure retains the phase. Required mode directly launches bundled Chromium; optional local Edge fallback and every product assertion remain. The long HiFi total deadline is 90 seconds; Wireframe remains 35 seconds and Playwright operation limits are unchanged. Browser close errors cannot hide the original test error.
+
+All commands ran from the repository root. Focused browser tests passed 5/5, including both real Chromium scenarios and the diagnostic regression. The full required-browser UI suite passed 279/279 in 56.030 seconds. All 60 skill-contract tests passed after the 0.53.1 version pins changed. Specification checks, all six pyflakes directories, docs weight and diff checks passed. Evidence under `%TEMP%`: `pdh-reliability-browser-repair-focused-27eb010b6b1146e582b396ed96acff06.log`, `pdh-reliability-browser-repair-ui-full-b5d8c0c34ac347a6ba9ddd79689a93ab.log`, `pdh-reliability-browser-repair-version-966260384f2e4042ba8654941a63941b.log`, and the `pdh-reliability-repair-{spec,pyflakes,docs-weight}-*.log` files. The complete exact-candidate CI remains pending and is required before merge.
+
+Commit `fda2acb` records the independently verified browser repair and matching README descriptions. Version pins and release history use their own following commit; this documentation-only commit records the verification checkpoint. No production behavior changed, no worker remains active and no cleanup was performed. The final clean candidate SHA, complete-diff PR review, CI, installation backup and resulting main evidence will be bound externally under `%TEMP%/pdh-release-0531/` before the release tag.
