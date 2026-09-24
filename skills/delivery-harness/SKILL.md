@@ -5,7 +5,7 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 # Delivery Harness
 
-For scripts and bindings, read `references/installed-commands.md`.
+Commands: `references/installed-commands.md`.
 
 Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
 
@@ -109,6 +109,8 @@ For small UI work, add one critique-repair-recheck cycle before final review. Us
 Optional `/feature-dev` exploration does not change authorization, ownership or verification.
 
 ## Managed Route
+
+Recover existing RUNs before replacement; see `references/execution-state-model.md`.
 
 New managed work uses PLAN schema v6 and RUN schema v11. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
 

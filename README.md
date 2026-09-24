@@ -107,7 +107,7 @@ Security exemptions also require a documentation-only product description and Pr
 The delivery core makes one size decision before it invokes managed orchestration:
 
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
-- Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; `new_run.py` writes the initial `docs/tasks.md` with `--out` and `--repo-root`, and guarded `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, and `close-wave` transitions with `--repo-root` refresh it while preserving the Update Log. Projection failure never rolls back RUN; the standalone `render_tasks_view.py` repairs or checks that non-canonical view. This source repository does not keep a separate root `Tasks.md` flow log.
+- Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; `new_run.py` writes the initial `docs/tasks.md` with `--out` and `--repo-root`, and guarded `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-candidate-head`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, and `close-wave` transitions with `--repo-root` refresh it while preserving the Update Log. Projection failure never rolls back RUN; the standalone `render_tasks_view.py` repairs or checks that non-canonical view. This source repository does not keep a separate root `Tasks.md` flow log.
 
 - The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core applies one general capability contract; the agent maps current native tools without a provider-specific section.
 - RUN execution never waits for remote CI. Branch promotion is a separate closeout stage: exact candidate and applicable isolated preview-environment verification must finish before `main` can move.
@@ -382,6 +382,8 @@ flowchart TB
 
 
 ## General runtime adapter
+
+Resume keeps the same RUN and completed missions when an authorized repair advances the candidate. Historical verifier receipts retain their original SHA and attempt; current PASS results still require the current exact SHA. Candidate reconciliation re-arms stale gates within their remaining attempt budgets and requires fresh integration and security reviews. It does not authorize repairs, reset budgets or reopen a completed RUN. Resume checks the parent and currently bound workspaces; unrelated linked worktrees do not block it. Changed-file paths such as `[slug]` are literal paths, separate from write-scope patterns.
 
 One capability contract in `delivery-harness/references/runtime-adapters.md` serves every host. The agent reads the current native tool descriptions, observes capabilities and maps actual calls to `app_threads`, `subagents` or `sequential_parent`. There are no provider-specific adapter sections, fixed model defaults or bundled native workflow scripts.
 

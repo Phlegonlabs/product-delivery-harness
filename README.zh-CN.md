@@ -107,7 +107,7 @@ Skills 更新后及实现前，执行[设计有效性检查](skills/ui-design-bu
 交付核心在调用托管编排之前，会先做一个规模判定：
 
 - 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
-- 大型工作进入托管规划。它可以用 `PLAN.md` 和 `RUN.md` 完成一次受管顺序交付，或者处理多个任务并实现可持久的移交；`new_run.py` 在带 `--out` 和 `--repo-root` 时写出初始 `docs/tasks.md`，带 `--repo-root` 的受管 `accept-wave`、`record-worker-result`、`reject-worker-result`、`record-integration`、`reconcile-interrupted`、`reconcile-interrupted-reviews`、`close-wave` 转换会刷新它并保留 Update Log。Projection 失败不会回滚 RUN；独立的 `render_tasks_view.py` 负责修复或检查这份非权威视图。本源码仓库不再另外维护根目录 `Tasks.md` 流程记录。
+- 大型工作进入托管规划。它可以用 `PLAN.md` 和 `RUN.md` 完成一次受管顺序交付，或者处理多个任务并实现可持久的移交；`new_run.py` 在带 `--out` 和 `--repo-root` 时写出初始 `docs/tasks.md`，带 `--repo-root` 的受管 `accept-wave`、`record-worker-result`、`reject-worker-result`、`record-integration`、`reconcile-candidate-head`、`reconcile-interrupted`、`reconcile-interrupted-reviews`、`close-wave` 转换会刷新它并保留 Update Log。Projection 失败不会回滚 RUN；独立的 `render_tasks_view.py` 负责修复或检查这份非权威视图。本源码仓库不再另外维护根目录 `Tasks.md` 流程记录。
 
 - 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心共用一份能力契约，由 agent 对应当前原生工具，不按 provider 分流。
 - RUN 执行不等待远程 CI；branch promotion 是独立 closeout。精确 candidate 与适用的隔离 preview environment 验证完成前，`main` 不得移动。
@@ -382,6 +382,8 @@ flowchart TB
 
 
 ## 通用运行时适配
+
+已授权的修复让 candidate 前进时，续跑保留同一个 RUN 与已完成 mission。历史 verifier receipt 保留原 SHA 与 attempt；当前 PASS 仍须绑定当前精确 SHA。Candidate reconciliation 在剩余次数内重新开启失效 gate，并要求新的 integration 与 security review，不授权修复、不重置次数，也不重开已完成 RUN。续跑检查 parent 与当前绑定的工作目录，无关 linked worktree 不会阻挡。`[slug]` 等 changed-file 路径按实际文件名处理，与 write-scope pattern 分开。
 
 所有 host 共用 `delivery-harness/references/runtime-adapters.md` 的能力契约。Agent 读取当前原生工具说明、观察能力，再把实际调用对应到 `app_threads`、`subagents` 或 `sequential_parent`。不再提供平台专属 adapter、固定模型默认值或原生 workflow 脚本。
 

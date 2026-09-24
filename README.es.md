@@ -107,7 +107,7 @@ La exención de seguridad requiere una descripción y un Product Archetype de do
 El núcleo de entrega toma una decisión de tamaño antes de invocar la orquestación gestionada:
 
 - El trabajo pequeño sigue siendo directo, sin planner, scheduler, PLAN/RUN, subagent ni preflight de runtime externo por defecto.
-- El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; `new_run.py` escribe el `docs/tasks.md` inicial con `--out` y `--repo-root`, y las transiciones gestionadas `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews` y `close-wave` con `--repo-root` lo refrescan conservando el Update Log. Un fallo de proyección nunca revierte el RUN; el `render_tasks_view.py` independiente repara o verifica esa vista no canónica. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
+- El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; `new_run.py` escribe el `docs/tasks.md` inicial con `--out` y `--repo-root`, y las transiciones gestionadas `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-candidate-head`, `reconcile-interrupted`, `reconcile-interrupted-reviews` y `close-wave` con `--repo-root` lo refrescan conservando el Update Log. Un fallo de proyección nunca revierte el RUN; el `render_tasks_view.py` independiente repara o verifica esa vista no canónica. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
 
 - El selector deriva `managed_sequential` para menos de dos missions de escritura segura realmente seleccionadas y `parallel_graph` para dos o más. El fan-out del scheduler arranca solo para el segundo; el runtime driver sigue siendo un hecho de transporte separado. El núcleo usa un contrato general de capacidades; el agente asigna las herramientas actuales sin secciones por proveedor.
 - La ejecución del RUN nunca espera al CI remoto. La promoción de branches es una etapa de closeout separada: la verificación del candidato exacto y del preview environment aislado aplicable debe terminar antes de que `main` pueda moverse.
@@ -381,6 +381,8 @@ flowchart TB
 ```
 
 ## Adaptador general de runtime
+
+Al avanzar el candidato por una reparación autorizada, la recuperación conserva el mismo RUN y las missions completadas. Los recibos históricos mantienen su SHA e intento; los PASS actuales siguen exigiendo el SHA exacto actual. La reconciliación del candidato reactiva los gates obsoletos dentro del presupuesto restante y exige nuevas revisiones de integración y seguridad. No autoriza reparaciones, reinicia presupuestos ni reabre un RUN completado. Se comprueban el padre y los espacios actualmente vinculados; otros worktrees no bloquean la recuperación. Las rutas modificadas como `[slug]` se tratan como nombres literales, separados de los patrones de alcance de escritura.
 
 Todos los hosts usan el contrato de capacidades de `delivery-harness/references/runtime-adapters.md`. El agente inspecciona las herramientas nativas actuales y asigna sus llamadas a `app_threads`, `subagents` o `sequential_parent`. No hay secciones por proveedor, modelos predeterminados fijos ni scripts de ejecución nativos incluidos.
 
