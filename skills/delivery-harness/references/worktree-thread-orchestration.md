@@ -190,6 +190,8 @@ forbidden parent-owned artifacts
 result/refinement schema and stop conditions
 ```
 
+A mission that authors or repairs Wireframes, directions or connected HiFi carries both `ui-design-builder` and the exact owner-bound `frontend-design` in `required_skills`. Before launch, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` through installed-command resolution. The packet tells the actual writer to load the full pinned skills in its own context; a parent read, snapshot or design-role label is no substitute and cannot be backfilled as evidence. Never replace the owner binding silently. A missing or conflicting dependency defers only that authoring node and preserves prior approvals and closed records. Same-context loading grants no spawn action; `sequential_parent` may author directly. Assembler and reviewer helpers build the shell or validate; they do not make product-design decisions.
+
 Prefer structured result data returned directly to the parent. Use temporary `docs/goal/evidence/<mission>/REPORT.md` only when the completion channel or durable handoff requires it; the file contains the exact `## Worker Result Manifest` heading and fenced JSON from the worker template. Record that one path as worker-owned handoff scope; every other PLAN/RUN/evidence state path remains parent-owned. The parent validates claims against observed workspace and Git facts before integration.
 
 ## Batch Integration

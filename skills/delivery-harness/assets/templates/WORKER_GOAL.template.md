@@ -14,7 +14,7 @@ Identity:
 - Batch base: <full SHA>
 
 Runtime:
-- Skills to load: <exact list or none>
+- required_skills: <mission skill list verbatim or none>
 - Provider/driver: <provider> / <driver>
 - Worker/workspace/completion: <worker_runtime> / <workspace_mode> / <completion_channel>
 - Worktree and branch/ref: <exact values>
@@ -62,6 +62,8 @@ Repair context (omit for an initial implementation):
 - For a repair handoff, fix the named root-cause family rather than applying the findings as independent patches. If another adjacent variant shows that the proposed mechanism is not closed, stop before adding another special case and return `REFINEMENT_REQUEST` or `contract_gap` with the structural strategy and missing acceptance classes.
 - If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`; do not wait for a host timeout to create the checkpoint.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
+
+For Wireframe or direction/HiFi authoring or repair, `required_skills` must name both `ui-design-builder` and the exact owner-bound `frontend-design`. Before authoring, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` through installed-command resolution. The actual writer loads the full pinned skills in this context; a parent read, snapshot or role title is no substitute. Do not backfill evidence or replace a binding. Missing or conflicting dependencies block this authoring stage only and preserve prior approvals and closed history. This grants no delegation; a direct parent may author. Assemblers and reviewers provide shell construction and validation, not product-design decisions.
 
 For design-system compilation, load `design-system-compiler`. Read approved `PRD.md`, `ui-design.md`, `wireframes.html`, and the HiFi target; proceed only when the Design System Need Gate is `required`, and do not reopen direction or claim another skill defines a compilation mode.
 

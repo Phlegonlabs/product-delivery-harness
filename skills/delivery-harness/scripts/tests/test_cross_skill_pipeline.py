@@ -87,6 +87,33 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("--require-structure-validated", wireframe)
         self.assertIn("--require-copy-approved", wireframe)
 
+    def test_design_authoring_worker_packet_requires_both_pinned_skills(self) -> None:
+        worker = self.read("delivery-harness/assets/templates/WORKER_GOAL.template.md")
+        orchestration = self.read(
+            "delivery-harness/references/worktree-thread-orchestration.md"
+        )
+        binding = (
+            'python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" '
+            "--agents-md <target-AGENTS.md> --stage ui-design"
+        )
+
+        for document in (worker, orchestration):
+            with self.subTest(document=document[:20]):
+                self.assertIn(binding, document)
+                self.assertIn("`ui-design-builder`", document)
+                self.assertIn("owner-bound `frontend-design`", document)
+                self.assertIn("actual writer", document)
+                self.assertIn("grants no", document)
+        self.assertLess(
+            worker.index("For Wireframe or direction/HiFi authoring or repair"),
+            worker.index("For design-system compilation"),
+        )
+        self.assertIn(
+            "required_skills: <mission skill list verbatim or none>", worker
+        )
+        self.assertIn("both `ui-design-builder`", orchestration)
+        self.assertIn("defers only that authoring node", orchestration)
+
     def test_motion_and_media_routes_are_typed_and_authorized(self) -> None:
         route = self.read("ui-design-builder/references/motion-and-media-routing.md")
         checker = self.read("ui-design-builder/scripts/check_wireframe_html.py")

@@ -38,10 +38,12 @@ from harness_manifest import (
     _verifier_owners,
     INTERRUPTED_REVIEW_RECEIPT,
     ManifestError,
+    UI_AUTHORING_REQUIRED_SKILLS,
     authorization_covers,
     execution_covers,
     load_plan,
     load_run,
+    mission_has_ui_authoring_action,
     validate_current_plan_run,
 )
 from harness_schema import RUN_DISPATCH_STATUSES, RUN_HEADING
@@ -2136,6 +2138,21 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         ),
         None,
     )
+    if not isinstance(mission_record, dict):
+        raise ManifestError(f"no PLAN mission for {args.mission_id!r}")
+    if mission_has_ui_authoring_action(plan, mission_record):
+        declared_skills = mission_record.get("required_skills", [])
+        missing_skills = [
+            skill
+            for skill in UI_AUTHORING_REQUIRED_SKILLS
+            if skill not in declared_skills
+        ]
+        if missing_skills:
+            raise ManifestError(
+                f"lease-worker mission {args.mission_id!r} can author UI source "
+                "bytes and requires both 'ui-design-builder' and "
+                f"'frontend-design'; missing {', '.join(missing_skills)}"
+            )
     for dependency in (mission_record or {}).get("depends_on", []):
         dependency_state = run.get("mission_states", {}).get(dependency)
         if (

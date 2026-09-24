@@ -126,11 +126,13 @@ __all__ = [
     "ManifestError",
     "PLAN_HEADING",
     "RUN_HEADING",
+    "UI_AUTHORING_REQUIRED_SKILLS",
     "canonical_json",
     "is_current_pair",
     "load_plan",
     "load_run",
     "load_worker_result",
+    "mission_has_ui_authoring_action",
     "mission_conflicts",
     "plan_digest",
     "topological_levels",
@@ -204,6 +206,10 @@ PRODUCT_WIREFRAME_SOURCE_KINDS = {
     "low fidelity wireframe",
     "structural wireframe",
 }
+UI_AUTHORING_REQUIRED_SKILLS = ("ui-design-builder", "frontend-design")
+UI_REFERENCE_SCOPE = "docs/design/ui-references/**"
+UI_STAGING_SCOPE = "docs/design/.ui-staging/**"
+APPROVED_UI_TARGET_SOURCE_KIND = "approved ui target"
 
 
 def _read_git_source_blob(
@@ -447,11 +453,7 @@ def _staged_product_source_paths(
         kind = source.get("kind")
         if not isinstance(location, str) or "://" in location:
             continue
-        normalized_kind = ""
-        if isinstance(kind, str):
-            normalized_kind = " ".join(
-                kind.replace("_", " ").replace("-", " ").casefold().split()
-            )
+        normalized_kind = _normalized_source_kind(kind)
         normalized_location = location.replace("\\", "/").removeprefix("./").strip("/")
         filename = normalized_location.rsplit("/", 1)[-1].lower()
         kind_matches = normalized_kind in kinds or (
@@ -518,6 +520,117 @@ def _scope_includes_product_wireframe_source(
     return _scope_includes_staged_product_source(
         scope, product_wireframe_source_paths, PRODUCT_WIREFRAME_SOURCE_FILENAMES
     )
+
+
+def _normalized_source_kind(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(
+        value.replace("_", " ").replace("-", " ").casefold().split()
+    )
+
+
+def _local_source_path(value: Any) -> str | None:
+    if not isinstance(value, str) or "://" in value:
+        return None
+    return value.replace("\\", "/").removeprefix("./").strip("/")
+
+
+def _plan_source_records(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    sources = plan.get("sources")
+    if isinstance(sources, list):
+        return {
+            str(index): source
+            for index, source in enumerate(sources)
+            if isinstance(source, dict)
+        }
+    return {}
+
+
+def _scope_tree_intersection(
+    scope: str, tree_scope: str, deny_scopes: list[str]
+) -> bool:
+    """Return whether a subtree intersection remains writable after denies."""
+
+    if not scope.endswith("/**") or not scope_overlap(scope, tree_scope):
+        return False
+    intersection = tree_scope if scope_contains(scope, tree_scope) else scope
+    return not any(scope_contains(deny, intersection) for deny in deny_scopes)
+
+
+def mission_has_ui_authoring_action(
+    plan: dict[str, Any], mission: dict[str, Any]
+) -> bool:
+    """Identify a current mission that can author wireframe or HiFi source bytes.
+
+    This is an action-time admission check. Historical PLAN validation remains
+    unchanged so closed records stay readable.
+    """
+
+    write_scopes = [
+        scope
+        for scope in mission.get("write_scope", [])
+        if isinstance(scope, str)
+    ]
+    deny_scopes = [
+        scope
+        for scope in mission.get("deny_scope", [])
+        if isinstance(scope, str)
+    ]
+    if not write_scopes:
+        return False
+
+    sources = _plan_source_records(plan)
+    source_paths = _product_wireframe_source_paths(sources)
+    approved_target_paths = {
+        path
+        for source in sources.values()
+        if _normalized_source_kind(source.get("kind"))
+        == APPROVED_UI_TARGET_SOURCE_KIND
+        for path in [_local_source_path(source.get("location"))]
+        if path is not None
+    }
+    source_paths.update(approved_target_paths)
+    approved_target_package_scopes = {
+        f"{path.rsplit('/', 1)[0]}/**"
+        for path in approved_target_paths
+        if "/" in path and path.rsplit("/", 1)[-1].casefold() == "index.html"
+    }
+    if any(
+        path_in_scopes(path, write_scopes)
+        and not path_in_scopes(path, deny_scopes)
+        for path in source_paths
+    ):
+        return True
+
+    for scope in write_scopes:
+        if any(scope_contains(deny, scope) for deny in deny_scopes):
+            continue
+        normalized = scope.replace("\\", "/").removeprefix("./").strip("/")
+        lowered = normalized.casefold()
+        if not normalized.endswith("/**"):
+            if lowered.rsplit("/", 1)[-1] == "wireframes.html":
+                return True
+            if lowered.endswith(".html") and (
+                path_in_scopes(lowered, [UI_REFERENCE_SCOPE])
+                or path_in_scopes(lowered, [UI_STAGING_SCOPE])
+                or any(
+                    path_in_scopes(normalized, [package_scope])
+                    for package_scope in approved_target_package_scopes
+                )
+            ):
+                return True
+            continue
+        if _scope_tree_intersection(normalized, UI_REFERENCE_SCOPE, deny_scopes):
+            return True
+        if _scope_tree_intersection(normalized, UI_STAGING_SCOPE, deny_scopes):
+            return True
+        if any(
+            _scope_tree_intersection(normalized, package_scope, deny_scopes)
+            for package_scope in approved_target_package_scopes
+        ):
+            return True
+    return False
 
 
 def _validate_verifier_group(

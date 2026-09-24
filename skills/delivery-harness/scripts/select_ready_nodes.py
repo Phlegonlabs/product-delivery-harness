@@ -14,6 +14,7 @@ from typing import Any
 from harness_core import _nonempty_string, _normalized_branch, classify_execution_route
 from harness_manifest import (
     ManifestError,
+    UI_AUTHORING_REQUIRED_SKILLS,
     authorization_covers,
     execution_covers,
     load_plan,
@@ -24,6 +25,7 @@ from harness_manifest import (
     route_runtime_driver,
     validate_current_plan_run,
     is_current_pair,
+    mission_has_ui_authoring_action,
 )
 
 from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS, RUN_DISPATCH_STATUSES
@@ -1083,6 +1085,12 @@ def _dispatch_reasons(
             reasons.add("workspace_not_isolated")
         plan_mission = missions.get(node["ref"], {})
         if plan_mission:
+            required_skills = plan_mission.get("required_skills", [])
+            if mission_has_ui_authoring_action(plan, plan_mission) and any(
+                skill not in required_skills
+                for skill in UI_AUTHORING_REQUIRED_SKILLS
+            ):
+                reasons.add("ui_authoring_skills_missing")
             if plan_mission.get("resource_inventory_complete") is not True:
                 reasons.add("incomplete_resource_inventory")
             if plan_mission.get("worktree_eligible") is not True:
@@ -1148,7 +1156,10 @@ def _dispatch_reasons(
 
 
 def _directive(
-    node: dict[str, Any], binding: dict[str, Any] | None, run: dict[str, Any]
+    node: dict[str, Any],
+    binding: dict[str, Any] | None,
+    run: dict[str, Any],
+    mission: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     base = {"node_id": node["id"], "kind": node["kind"], "ref": node["ref"]}
     if node["kind"] == "approval":
@@ -1203,6 +1214,8 @@ def _directive(
             "completion_channel": runtime["completion_channel"],
         }
     )
+    if node["kind"] == "mission" and isinstance(mission, dict):
+        directive["required_skills"] = list(mission.get("required_skills", []))
     return directive
 
 
@@ -1392,7 +1405,9 @@ def select_ready_nodes(
                 )
                 continue
             runtime_count += 1
-        dispatchable.append(_directive(node, item["binding"], run))
+        dispatchable.append(
+            _directive(node, item["binding"], run, missions.get(node["ref"]))
+        )
 
     # A wave that runs one mission at a time is often correct: a dependency
     # chain, overlapping write scopes, no isolation, or a host with no way to
