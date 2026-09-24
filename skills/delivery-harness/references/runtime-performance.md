@@ -21,7 +21,7 @@ Performance work never weakens authorization, isolation, scope, exact-SHA review
 
 ## Shared Fast Path
 
-All three adapters use the same four invariants:
+The managed runtime uses the same four invariants:
 
 1. Launch each mission or review with a fresh bounded context capsule. Keep automatic repository instruction discovery enabled, but do not replay the parent transcript or copy full PLAN/RUN manifests.
 2. Consume host terminal events. Prefer a subscription, cursor wait, workflow result, or child completion event over repeated status reads. Poll only when the host has no wait/event surface, and record that fallback.
@@ -92,6 +92,10 @@ Declare resources for shared caches, generated clients, databases, ports, browse
 RUN-v11 may include `runtime_metrics`. It is observational and never grants authorization or satisfies a gate.
 
 Record one append-only event for queue, context render, dispatch, wait, execute, review, verify, and integrate transitions when applicable. Each event records provider, node/attempt identity, phase, terminal status, timestamps, duration, wait time, input/output/cached tokens, and context bytes. Unknown values remain `null`; do not estimate them.
+
+A `transition_prepare:<command>` event measures only local RUN transition preparation from entry to just before final PLAN/RUN validation. It excludes final validation, later request or packet rendering, persistence, and projection. Do not treat these event durations as `run_wall_time_ms`.
+
+The transition adds the event to the candidate before validation and saves it only with a successful guarded RUN replacement. `complete` describes preparation, not completion of later sidecar or projection work. Report-only watchdog calls do not add events. Existing events and optional targets are preserved; no event changes authorization. `inspect_harness_run.py` shows phase sums with unknown-duration counts and each verifier's timings separately. It never derives full-run or critical-path time by adding potentially overlapping intervals.
 
 Each verifier result may carry read-only `timings` for end-to-end, setup, Git guard, cache lookup, snapshot, command, and postcheck intervals. Existing `duration_ms` retains the execution interval including cleanup and postchecks; `command_ms` measures the command itself. A reused result keeps `duration_ms: 0`; its `end_to_end_ms` is observational only. Timings never grant authorization or satisfy a gate.
 

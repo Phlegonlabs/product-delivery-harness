@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
@@ -144,6 +145,52 @@ def _next_recovery_steps(summary: dict[str, Any]) -> list[str]:
     ]
 
 
+def _runtime_metrics_summary(run: dict[str, Any]) -> dict[str, Any]:
+    """Keep measured phase sums separate from unknown full-run intervals."""
+    raw = run.get("runtime_metrics")
+    metrics = raw if isinstance(raw, dict) else {}
+    raw_events = metrics.get("events")
+    events = raw_events if isinstance(raw_events, list) else []
+    phases: dict[str, dict[str, Any]] = {}
+    malformed = 0
+    for event in events:
+        phase = event.get("phase") if isinstance(event, dict) else None
+        if not isinstance(phase, str) or not phase:
+            malformed += 1
+            continue
+        row = phases.setdefault(phase, {
+            "phase": phase, "event_count": 0,
+            "measured_duration_ms": None, "unknown_duration_count": 0,
+        })
+        row["event_count"] += 1
+        duration = event.get("duration_ms")
+        if type(duration) is int and duration >= 0:
+            row["measured_duration_ms"] = (row["measured_duration_ms"] or 0) + duration
+        else:
+            row["unknown_duration_count"] += 1
+    return {
+        "present": raw is not None,
+        "event_count": len(events),
+        "malformed_events": malformed,
+        "phase_events": [phases[phase] for phase in sorted(phases)],
+        **{key: metrics.get(key) if type(metrics.get(key)) is int and metrics[key] >= 0 else None
+           for key in ("baseline_wall_time_ms", "run_wall_time_ms", "critical_path_ms")},
+        "meaning": "Phase duration sums are partial observations, not run wall time or critical path.",
+    }
+
+
+def _verifier_timings_summary(run: dict[str, Any]) -> list[dict[str, Any]]:
+    """Expose each execution's observations without adding overlapping intervals."""
+    executions = run.get("verifier_executions")
+    return [
+        {"verifier_id": execution.get("verifier_id"),
+         "execution_key": execution.get("execution_key"),
+         "timings": copy.deepcopy(execution["timings"])}
+        for execution in executions if isinstance(execution, dict)
+        and isinstance(execution.get("timings"), dict)
+    ] if isinstance(executions, list) else []
+
+
 def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
     runtime_capabilities = run.get("runtime_capabilities")
     runtime_adapter = (
@@ -268,6 +315,8 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         "runtime_process_state": "not inspected",
         "runtime_process_liveness": "unknown",
         "runtime_version_gate": version_gate if isinstance(version_gate, dict) else None,
+        "runtime_metrics": _runtime_metrics_summary(run),
+        "verifier_timings": _verifier_timings_summary(run),
         "missions": missions,
         "attempt_recovery": recovery,
         "attestations": _attestation_summary(run),
@@ -299,6 +348,27 @@ def render_text(summary: dict[str, Any]) -> str:
         f"harness={version_gate.get('harness_version') or '-'} | "
         f"required={version_gate.get('required_harness_version') or '-'}",
     ]
+    metrics = summary.get("runtime_metrics") or {}
+    def milliseconds(value: Any) -> str:
+        return "unknown" if value is None else f"{value}ms"
+
+    lines.append(
+        "Runtime metrics: "
+        f"run_wall={milliseconds(metrics.get('run_wall_time_ms'))} | "
+        f"critical_path={milliseconds(metrics.get('critical_path_ms'))} | "
+        f"baseline={milliseconds(metrics.get('baseline_wall_time_ms'))}"
+    )
+    for phase in metrics.get("phase_events", []):
+        lines.append(
+            f"Phase {phase['phase']}: events={phase['event_count']} | "
+            f"measured_sum={milliseconds(phase['measured_duration_ms'])} | "
+            f"unknown_durations={phase['unknown_duration_count']}"
+        )
+    for execution in summary.get("verifier_timings", []):
+        lines.append(
+            f"Verifier timings {execution['verifier_id']} ({execution['execution_key']}): "
+            + json.dumps(execution["timings"], sort_keys=True)
+        )
     for mission in summary["missions"]:
         marker = "RECONCILE" if mission["needs_reconciliation"] else "aligned"
         dirty = (
