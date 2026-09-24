@@ -552,9 +552,22 @@ def _scope_tree_intersection(
 ) -> bool:
     """Return whether a subtree intersection remains writable after denies."""
 
-    if not scope.endswith("/**") or not scope_overlap(scope, tree_scope):
+    if not scope.endswith("/**") or not scope_overlap(
+        scope, tree_scope, casefold=True
+    ):
         return False
-    intersection = tree_scope if scope_contains(scope, tree_scope) else scope
+    scope_parts = scope[:-3].split("/")
+    tree_parts = tree_scope[:-3].split("/")
+    if (
+        len(scope_parts) <= len(tree_parts)
+        and [part.casefold() for part in tree_parts[: len(scope_parts)]]
+        == [part.casefold() for part in scope_parts]
+    ):
+        intersection = "/".join(
+            [*scope_parts, *tree_parts[len(scope_parts) :], "**"]
+        )
+    else:
+        intersection = scope
     return not any(scope_contains(deny, intersection) for deny in deny_scopes)
 
 
@@ -596,18 +609,17 @@ def mission_has_ui_authoring_action(
         for path in approved_target_paths
         if "/" in path and path.rsplit("/", 1)[-1].casefold() == "index.html"
     }
-    if any(
-        path_in_scopes(path, write_scopes)
-        and not path_in_scopes(path, deny_scopes)
-        for path in source_paths
-    ):
-        return True
-
     for scope in write_scopes:
         if any(scope_contains(deny, scope) for deny in deny_scopes):
             continue
         normalized = scope.replace("\\", "/").removeprefix("./").strip("/")
         lowered = normalized.casefold()
+        if any(
+            path_in_scopes(path.casefold(), [lowered])
+            and not path_in_scopes(path, deny_scopes)
+            for path in source_paths
+        ):
+            return True
         if not normalized.endswith("/**"):
             if lowered.rsplit("/", 1)[-1] == "wireframes.html":
                 return True
@@ -615,7 +627,7 @@ def mission_has_ui_authoring_action(
                 path_in_scopes(lowered, [UI_REFERENCE_SCOPE])
                 or path_in_scopes(lowered, [UI_STAGING_SCOPE])
                 or any(
-                    path_in_scopes(normalized, [package_scope])
+                    path_in_scopes(lowered, [package_scope.casefold()])
                     for package_scope in approved_target_package_scopes
                 )
             ):

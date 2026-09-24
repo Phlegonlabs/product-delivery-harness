@@ -198,6 +198,41 @@ class UiAuthoringScopeTests(unittest.TestCase):
                 "custom/hifi/details.html",
                 _source("approved ui target", "custom/hifi/index.html"),
             ),
+            (
+                "mixed-case canonical HiFi subtree",
+                "Docs/Design/UI-References/New/**",
+                None,
+            ),
+            (
+                "mixed-case canonical HiFi page",
+                "Docs/Design/UI-References/New/Index.HTML",
+                None,
+            ),
+            (
+                "mixed-case staged subtree",
+                "DOCS/DESIGN/.UI-STAGING/New/HiFi/**",
+                None,
+            ),
+            (
+                "mixed-case staged page",
+                "DOCS/DESIGN/.UI-STAGING/New/Wireframes.HTML",
+                None,
+            ),
+            (
+                "mixed-case custom approved target exact",
+                "CUSTOM/HIFI/INDEX.HTML",
+                _source("approved ui target", "custom/hifi/index.html"),
+            ),
+            (
+                "mixed-case custom approved target subtree",
+                "CUSTOM/HIFI/**",
+                _source("approved ui target", "custom/hifi/index.html"),
+            ),
+            (
+                "mixed-case custom approved target sibling",
+                "CUSTOM/HIFI/Details.HTML",
+                _source("approved ui target", "custom/hifi/index.html"),
+            ),
         ]
         for label, scope, source in cases:
             with self.subTest(label=label):
@@ -243,6 +278,49 @@ class UiAuthoringScopeTests(unittest.TestCase):
         }
         self.assertFalse(mission_has_ui_authoring_action({"sources": []}, broad))
 
+        mixed_same_case_deny = {
+            "write_scope": ["Docs/Design/UI-References/New/**"],
+            "deny_scope": ["Docs/Design/UI-References/**"],
+            "required_skills": [],
+        }
+        self.assertFalse(
+            mission_has_ui_authoring_action(
+                {"sources": []}, mixed_same_case_deny
+            )
+        )
+
+        case_only_deny = {
+            "write_scope": ["Docs/Design/UI-References/New/**"],
+            "deny_scope": ["docs/design/ui-references/**"],
+            "required_skills": [],
+        }
+        self.assertTrue(
+            mission_has_ui_authoring_action({"sources": []}, case_only_deny)
+        )
+
+        custom_source = _source("approved ui target", "custom/hifi/index.html")
+        custom_same_case_deny = {
+            "write_scope": ["CUSTOM/HIFI/Details.HTML"],
+            "deny_scope": ["CUSTOM/HIFI/**"],
+            "required_skills": [],
+        }
+        self.assertFalse(
+            mission_has_ui_authoring_action(
+                {"sources": [custom_source]}, custom_same_case_deny
+            )
+        )
+
+        custom_case_only_deny = {
+            "write_scope": ["CUSTOM/HIFI/Details.HTML"],
+            "deny_scope": ["custom/hifi/**"],
+            "required_skills": [],
+        }
+        self.assertTrue(
+            mission_has_ui_authoring_action(
+                {"sources": [custom_source]}, custom_case_only_deny
+            )
+        )
+
 
 class UiAuthoringAdmissionTests(unittest.TestCase):
     def test_wireframe_with_only_builder_is_deferred(self) -> None:
@@ -274,31 +352,41 @@ class UiAuthoringAdmissionTests(unittest.TestCase):
         }
         self.assertIn("ui_authoring_skills_missing", deferred["N-M1"])
 
-    def test_selector_and_lease_reject_either_missing_skill_before_mutation(self) -> None:
-        for declared in (["ui-design-builder"], ["frontend-design"]):
-            with self.subTest(declared=declared):
-                plan, run = _authorized_pair(
-                    scope="docs/design/ui-references/round-2/index.html",
-                    required_skills=declared,
-                )
-                self.assertEqual([], validate_current_plan_run(plan, run))
+    def test_selector_and_lease_reject_mixed_case_scopes_before_mutation(self) -> None:
+        cases = [
+            ("Docs/Design/UI-References/Round-2/**", None),
+            ("DOCS/DESIGN/.UI-STAGING/ROUND-2/HIFI/**", None),
+            (
+                "CUSTOM/HIFI/Details.HTML",
+                _source("approved ui target", "custom/hifi/index.html"),
+            ),
+        ]
+        for scope, source in cases:
+            for declared in (["ui-design-builder"], ["frontend-design"]):
+                with self.subTest(scope=scope, declared=declared):
+                    plan, run = _authorized_pair(
+                        scope=scope,
+                        required_skills=declared,
+                        source=source,
+                    )
+                    self.assertEqual([], validate_current_plan_run(plan, run))
 
-                selection = select_ready_nodes(plan, run)
-                deferred = {
-                    item["node_id"]: item["reason_codes"]
-                    for item in selection["deferred_nodes"]
-                }
-                self.assertIn("ui_authoring_skills_missing", deferred["N-M1"])
-                self.assertNotIn(
-                    "N-M1",
-                    [item["node_id"] for item in selection["dispatchable_nodes"]],
-                )
+                    selection = select_ready_nodes(plan, run)
+                    deferred = {
+                        item["node_id"]: item["reason_codes"]
+                        for item in selection["deferred_nodes"]
+                    }
+                    self.assertIn("ui_authoring_skills_missing", deferred["N-M1"])
+                    self.assertNotIn(
+                        "N-M1",
+                        [item["node_id"] for item in selection["dispatchable_nodes"]],
+                    )
 
-                _activate_m1(run)
-                before = copy.deepcopy(run)
-                with self.assertRaisesRegex(ManifestError, "requires both"):
-                    harness_transition._lease_worker(plan, run, _lease_args())
-                self.assertEqual(before, run)
+                    _activate_m1(run)
+                    before = copy.deepcopy(run)
+                    with self.assertRaisesRegex(ManifestError, "requires both"):
+                        harness_transition._lease_worker(plan, run, _lease_args())
+                    self.assertEqual(before, run)
 
     def test_pair_is_admitted_and_directive_preserves_declared_skills(self) -> None:
         declared = ["frontend-design", "custom-skill", "ui-design-builder"]
