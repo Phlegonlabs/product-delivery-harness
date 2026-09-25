@@ -8,7 +8,7 @@ References are evidence, not product authority. `PRD.md` owns product behavior, 
 
 Treat a supplied reference as `design inspiration` unless the owner explicitly requests page-faithful conformance and names the scope and tolerance.
 
-Link supplied or inspected sources to the existing Design Brief with what the owner wants to learn, avoid and apply to specific UI surfaces. Keep owner preferences distinct from the agent's observations and proposed principles. A missing or inaccessible image, website or Figma view remains uninspected; record that limitation instead of inventing `REF-*` observations. A supplied reference is not permission to clone a page or change product/stack decisions. An explicit `no references` answer uses the research route below; do not treat an unanswered question as that answer.
+Link supplied or inspected sources to the existing Design Brief with what the owner wants to learn, avoid and apply to specific UI surfaces. A useful source may be labeled for composition, typography, motion, or another bounded role; an avoid example records its concrete product reason. Keep owner preferences distinct from the agent's observations and proposed principles. A missing or inaccessible image, website or Figma view remains uninspected; record that limitation instead of inventing `REF-*` observations. A supplied reference is not permission to clone a page or change product/stack decisions. An explicit `no references` answer uses the research route below; do not treat an unanswered question as that answer.
 
 ## Proactive Reference Research
 
@@ -54,7 +54,7 @@ Show the proposed Adopt / Adapt / Avoid set to the human owner and end the turn.
 - When the owner asks to compare or remains unsure, create exactly three materially different directions over the same frozen screens, states, and responsive set.
 - A rejected set produces a complete new round; do not append a fourth direction to the old round.
 
-Each direction records product fit, visual rules, confirmed `REF-*` and `RP-*` evidence, tradeoffs, avoid rules, and its relationship to the approved component foundation and styling approach. A current public reference may support a direction only after it has been inspected. Market evidence (`MR-*`) and visual evidence (`REF-*`) remain separate.
+Each direction records product fit, the accepted Design Brief page-purpose/profile and type/density/headline constraints, visual rules, confirmed `REF-*` and `RP-*` evidence with useful roles and avoid rationale, tradeoffs, avoid rules, and its relationship to the approved component foundation and styling approach. Carry selected direction decisions into connected HiFi and H1–H9 review; selected profile and motion decisions reach conditional compilation and implementation through their existing contracts. A current public reference may support a direction only after it has been inspected. Market evidence (`MR-*`) and visual evidence (`REF-*`) remain separate.
 
 Use the representative studies and `### Direction comparison` table in `ui-design-pass.md` before asking the owner to select. The same primary and stress cases appear in every direction with unchanged content. Reference moodboards and written style labels do not replace rendered product studies. Preserve prior rounds as non-canonical evidence; only the current complete round belongs in the active table.
 

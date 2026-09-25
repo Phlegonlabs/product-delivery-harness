@@ -22,6 +22,8 @@ A selected direction may explicitly avoid named font families or set a two-line 
 
 Measure the actual heading at each applicable desktop review target with loaded and fallback fonts. The default is one or two natural lines, not a forced line break or exactly two lines. First adjust container width and type scale within readable bounds. Mobile, localization and enlarged text may need more lines; record and inspect these exceptions. Never cut approved copy, clamp away text, shrink it below readable size or add nonbreaking spaces to pass. Copy changes return through their existing owner flow.
 
+Only an accepted page-purpose/profile and motion decision is production design authority. Carry that accepted decision into direction rationale, connected HiFi, H1–H9 review, and, when required, the design-system pair and Harness implementation. Unselected direction studies and unselected profile recommendations do not authorize either.
+
 ## Motion Commitment And Review
 
 The expressive defaults above are proposals, not automatic approval. Once selected in the existing motion intent, the named effect is required in HiFi: a static image or a promise to add it later cannot pass H6. Record its trigger, purpose, affected region, end state, compact behavior, performance constraints and equivalent reduced-motion path in the existing MM record. Respect an already accepted `not_required` or `functional_only` decision. Strong motion is appropriate only where it serves the selected page and direction; it never requires scroll hijacking, autoplay sound, a particular library or a generation provider.

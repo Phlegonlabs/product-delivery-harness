@@ -5,7 +5,7 @@ The four READMEs remain the documentation of record for the skill bundle.
 | Document | Purpose | Status |
 | --- | --- | --- |
 | `docs/epics/EPIC-app-companion-web.md` | Technology-neutral one-PRD App/showcase-Web specifications | Product/UI checks passed locally on `codex/wireframe-four-widths`; broader Harness failures retained |
-| `docs/epics/EPIC-design-authoring-flow.md` | PRD-bound style and playable-motion authoring across skills | Authorized GLM implementation pending |
+| `docs/epics/EPIC-design-authoring-flow.md` | PRD-bound style and playable-motion authoring across skills | FlashX implementation and audit complete locally; full Harness has 2 failures (one passes alone); publication paused |
 | `docs/epics/EPIC-prd-continuous-completeness.md` | First-delivery UI/technical completeness and ongoing evidence-based PRD refinement | Committed on candidate branch; release verification and installation pending |
 | `docs/epics/EPIC-design-brief-reference-intake.md` | Explicit reference questions and a concise Design Brief in existing UI intake | Committed on candidate branch; release verification and installation pending |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Published skill behavior and release instructions | Current |

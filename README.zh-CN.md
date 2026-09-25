@@ -37,7 +37,7 @@ Wireframe、方向探索、HiFi 和修正强制使用 `frontend-design`。合并
 
 首次设计走完整流程；enhancement 只制作受影响页面及连接流程，并比较保留页面。日常修改直接验证当前产品及有效需求，不强制重建历史 Wireframe／HiFi。区分 source、已安装和 session 实际加载版本。新 `ui-output/3`／`ui-evidence/3` 保留真实观察、时间、工具、环境与候选哈希；机器结果不能伪造人工批准。旧格式保留历史语义。详见[审阅流程](skills/ui-design-builder/references/review-workflow.md)及[证据契约](skills/ui-design-builder/references/review-evidence.md)。
 
-现有设计 intake 会明确询问 owner 是否有参考图片、截图、网站、Figma 画面或产品，以及想学习和避开的部分。文字问题收集链接与偏好，图片通过对话附件提供。沿用已回答的内容；没有参考也可以，由 agent 研究合适方向并提出建议。在 `ui-design.md` 内以简短 Design Brief 关联已批准的页面目的、已检查参考、具体视觉约束和避免规则，沿用 REF／RP、Style Integration 和动效记录。不另建文件或批准关卡，也不要求补填历史 brief。详见 [intake](skills/ui-design-builder/references/ui-design-intake.md)。
+现有设计 intake 会明确询问 owner 是否有参考图片、截图、网站、Figma 画面或产品，以及想学习和避开的部分。文字问题收集链接与偏好，图片通过对话附件提供。沿用已回答的内容；没有参考也可以，由 agent 研究合适方向并提出建议。在 `ui-design.md` 内以简短 Design Brief 将已批准 UI ID 对应到页面用途／profile，再关联字体／密度／标题约束、动效意图、已检查参考、具体视觉约束和避免规则，沿用 REF／RP、Style Integration 和动效记录。参考角色与避免例子是可选的；使用时必须有具体原因。已接受的 brief 决策会带入方向、HiFi、H1–H9，以及后续 compiler／实现权威。不另建文件或批准关卡，也不要求补填历史 brief。详见 [intake](skills/ui-design-builder/references/ui-design-intake.md)。
 
 PRD 会在整个交付流程中持续补全。首次交付批准前，UI 与技术视角共同检查同一版草稿的完整使用流程、跨功能依赖、数据、权限、失败恢复与运营准备，区分必须补齐、已明确延后及待负责人决定的事项。后续设计、实现、测试与上线观察，通过现有产品流程回填证据及稳定 ID。维持一份当前 PRD 与中文审阅副本，不默默扩大范围、降低验收标准或改写已冻结的批准。沿用现有角色与检查点，不新增设计阶段或批准关卡。见 [PRD 补全规则](skills/product-definition-builder/references/prd-refinement.md)。
 
@@ -86,7 +86,7 @@ Skills 更新后及实现前，执行[设计有效性检查](skills/ui-design-bu
 - **UI 设计以一次完整人工审阅收尾。** `ui-design-builder` 先确认未解决的 UI/style/motion/media 选择。新 `wireframes/5` 内部验证完整且有来源的文案与结构；历史 schema-4 的 Copy Freeze 与 Wireframe Approval 保留原意。审阅时链接完整 HiFi、已验证 wireframe 与相关 handoff 的最终逻辑路径。hybrid 产品逐 `UI-*` surface 绑定 `releaseSurface`、`surfaceClass`、`captureMode` 与 responsive set。新 `ui-output/3`、`ui-evidence/3` 分别记录实际机器观察、输入哈希与执行信息；定性评估和人工 Visual Approval 分开。需要正式 design system 时，Visual Approval 记录 `required/pending`，compiler 校验该批准 digest 并生成 pair，owner 再链接两份 hash；普通 final validation 拒绝 pending。Agent 不能代替 owner 批准；UI 审核不要求 Docker／Podman。
 - **HiFi 页面必须由产品控件连通。** 新增或修订的 `ui-hifi/2` 以 `index.html` 清单绑定同目录 HTML 页面的哈希与控件目的地。现行 `ui-output/3` 观察逐 responsive target 验证点击及键盘操作；缺页、过期哈希、无效控件、错误目的地或未声明跳转均阻止批准。每页只能呈现分配给该页的 surface。发布与保留须包含完整包；schema-1 仅供读取检查，正式 Visual Approval 一律要求 HiFi schema 2。历史 output/2 与 evidence/2 保留原意。指定 Git revision 冻结时，该 revision 必须包含所有子页面且内容一致。
 - **视觉质量有独立门槛。** HiFi 的 H5（避免模板感）、H7（创意辨识度）与 H9（设计一致性）各须达到 80；总分 90 不能抵消视觉分项不足。审查须引用已检查的截图与已确认的方向原则；数字验证不代表美感或人工检查已获证明。
-- **用代表画面选择方向。** 选定前，每个方向呈现相同的主要操作与压力情境，保留已冻结内容。Direction comparison 表以路径与哈希绑定截图，并验证一个或三个方向的案例一致。人工选定后才制作完整连通 HiFi；局部研究不授权正式 UI 实作。
+- **用代表画面选择方向。** 选定前，每个方向呈现相同的主要操作与压力情境，保留已冻结内容。Direction comparison 表以路径与哈希绑定截图，并验证一个或三个方向的案例一致。研究可本地播放小型、确定性、正常与 reduced-motion 的动效选项，但仅供选择判断；它不是最终动效证据，也不能调用 provider。人工选定后才制作完整连通 HiFi；局部研究不授权正式 UI 实作。
 - **平台共享品牌，分别定义控件。** Platform rules 逐批准平台记录规则。iOS 明确评估 system text styles、Dynamic Type、SF Symbols 与原生操作／版面，不强制套用 Web 组件库。HTML 仅供审稿；原生实作先以平台工具验证代表案例，再扩展其他画面，最后仍须完成全矩阵验证。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **每次执行都有记录，本地验证为默认。** 新 PLAN 明确使用 `execution.isolation: "host"`，以项目工具链执行 build、lint、test。结果保留 exact SHA、命令身份、工作目录、退出码、log 与源码／Git 检查。本地验证会在最终源码／Git 检查前结束其所属子进程，超时也会清理。本地命令顺序执行且每次重跑，具有当前用户的权限；worktree 不是操作系统沙箱。选用 `container` 时仍须通过 Docker/Podman 信任、固定镜像与隔离检查，失败不会自动改用本地。执行前仍须 reserve，inspector 不会从 phase 推断进程是否存活。 独立 worker 在各自 worktree 启动后才等待结果；本地验证不会限制 mission 并行数。容量必须按现场观察更新，不能沿用默认的单个 slot。
