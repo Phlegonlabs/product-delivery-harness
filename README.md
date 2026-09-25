@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -612,6 +612,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.54.3** — Polish the shared Wireframe and HiFi sidebar with quieter navigation, a clear active page, a two-column target picker, wrapping labels and reduced-motion-aware feedback. Preserve reviewer isolation, canvas sizes and runtime behavior.
 
 - **0.54.2** — Wireframes now default to four Web review widths: 390, 768, 1024 and 1440 px. App + companion Web products use one technology-neutral PRD across iOS, Android and public-showcase surfaces. The page-purpose Design Brief and playable motion studies carry into HiFi and implementation. HiFi review adds measured layout-integrity checks for compressed controls, alignment and clipped content. Tests isolate the missing-worktree fixture and explicitly synchronize a waiting retry before releasing its failed origin.
 
