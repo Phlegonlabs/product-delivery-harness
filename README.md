@@ -27,7 +27,7 @@ It is not a prompt collection. The skill suite separates product definition, vis
 
 ## Unified design review
 
-Wireframe and HiFi use one neutral reviewer shell: the same sidebar, font, spacing and controls, isolated from product CSS. App, Web front and administration are grouped under one entry, with one product canvas and platform-specific sizes/states. New `wireframes/5` has no Tokens or Design System Draft view; HiFi has a separate page of all actual product tokens, with names, purposes, source values and visual specimens.
+Wireframe and HiFi use one neutral reviewer shell: the same sidebar, font, spacing and controls, isolated from product CSS. App, Web front and administration are grouped under one entry, with one product canvas and platform-specific sizes/states. New `wireframes/5` has no Tokens or Design System Draft view; HiFi has a separate page of all actual product tokens, with names, purposes, source values and visual specimens. The sidebar uses quiet navigation rows, a distinct active page and a two-column target picker. Labels wrap, keyboard focus stays visible and interaction transitions respect reduced motion.
 
 Reviewer controls and panels use Shadow DOM while the product canvas stays in normal DOM. Real state controls switch state/target content; reviewer selections persist by package and platform without crossing packages.
 

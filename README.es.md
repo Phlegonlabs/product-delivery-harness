@@ -27,7 +27,7 @@ No es una colección de prompts. La suite de skills separa la definición del pr
 
 ## Revisión de diseño unificada
 
-Wireframe y HiFi comparten una carcasa neutral: barra lateral, tipografía, espaciado y controles iguales, aislados del CSS del producto. Una entrada agrupa App, Web y administración; muestra un lienzo con tamaños y estados propios de cada plataforma. El nuevo `wireframes/5` no incluye Tokens ni Design System Draft. HiFi tiene una página dedicada con todos los tokens reales del producto, su nombre, uso, valor de origen y ejemplo visual.
+Wireframe y HiFi comparten una carcasa neutral: barra lateral, tipografía, espaciado y controles iguales, aislados del CSS del producto. Una entrada agrupa App, Web y administración; muestra un lienzo con tamaños y estados propios de cada plataforma. El nuevo `wireframes/5` no incluye Tokens ni Design System Draft. HiFi tiene una página dedicada con todos los tokens reales del producto, su nombre, uso, valor de origen y ejemplo visual. La barra lateral usa filas de navegación discretas, una página activa clara y un selector de tamaños en dos columnas. Las etiquetas se ajustan, el foco del teclado permanece visible y las transiciones respetan la preferencia de movimiento reducido.
 
 Los controles y paneles del revisor usan Shadow DOM; el lienzo del producto permanece en el DOM normal. Los controles de estado cambian el contenido por estado y tamaño, y las selecciones se guardan por paquete y plataforma.
 

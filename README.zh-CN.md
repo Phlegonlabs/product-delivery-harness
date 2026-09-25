@@ -27,7 +27,7 @@ Product Definition 撰写英文正式来源 `PRD.md`、`architecture.md` 时，�
 
 ## 统一设计审阅
 
-Wireframe 与 HiFi 共用中性查看器：相同侧栏、字体、间距及控件，并与产品 CSS 隔离。同一入口按 App、Web 前台、管理后台分组，一次显示一个产品画布，各自保留尺寸与状态。新 `wireframes/5` 不提供 Tokens／Design System Draft 页；HiFi 另设完整产品 Tokens 专页，显示名称、用途、实际来源数值和视觉示例。
+Wireframe 与 HiFi 共用中性查看器：相同侧栏、字体、间距及控件，并与产品 CSS 隔离。同一入口按 App、Web 前台、管理后台分组，一次显示一个产品画布，各自保留尺寸与状态。新 `wireframes/5` 不提供 Tokens／Design System Draft 页；HiFi 另设完整产品 Tokens 专页，显示名称、用途、实际来源数值和视觉示例。 侧栏采用简洁导航行、清晰的当前页面标记及双列尺寸选择器。长标签可换行，键盘焦点保持可见，交互过渡遵循减少动态效果设置。
 
 审阅控件与面板使用 Shadow DOM，产品画布留在普通 DOM。实际状态控件会切换状态和尺寸内容；审阅选择按包件与平台保存，不跨包件混用。
 
