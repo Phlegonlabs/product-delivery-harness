@@ -8,6 +8,10 @@ Before direction studies, connected HiFi or any repair, run `python "<delivery-h
 
 Apply `design-translation.md` and `design-freshness.md`. An explicit full rebuild retains product/stack constraints but uses the newly validated wireframe and fresh direction instead of prior design authority. Refine provisional type, optical spacing and fine proportions without changing fixed hierarchy or behavior. Inspect repeated controls across pages, real CJK/Latin copy, stacked bilingual reading where required, text enlargement and dense/alternate states. Use source-bound before/after findings; numerical grades alone prove no improvement. New iOS scope defaults to iPhone; iPad remains conditional on Product Definition, never silently dropped from an existing PRD.
 
+Apply `ui-grading-rubric.md#layout-integrity-and-anti-slop-review` while authoring and before presenting HiFi. Inspect control compression, alignment, open layers, long content and intermediate Web widths; record measured failures and product-specific visual findings in the existing evidence and defect ledger. Fix shared causes rather than hiding overflow.
+
+Apply `page-design-profiles.md` to each affected surface. Inspect the selected font roles, desktop headline target and motion commitment with actual copy; page-specific exceptions remain visible in the existing brief and grading evidence.
+
 ## Frozen Inputs
 
 For enhancements, apply `enhancement-recommendations.md#incremental-ui-scope` first. Reuse the approved direction and intake unless the accepted delta changes them. The complete matrix remains covered, but only added or changed screens and necessary entry/return controls are authored again. Keep unaffected product DOM, copy, layout, style, IDs and behavior; reviewer-shell migration alone is not a product redesign. Direction studies below apply to a new or changed direction, not automatically to every added feature.
@@ -61,6 +65,8 @@ Choose iconography through current official-source lookup for the approved platf
 Choose typography with the same evidence discipline. Record display/body roles, required weights, Latin and CJK coverage, fallback order, loading strategy, source URLs, and retrieval dates. Record the palette derivation, contrast intent, and whether dark mode is in scope. These candidate theme values render the HiFi target but are not yet a frozen design-system contract.
 
 ## Platform Rules
+
+Use `modern-design-sources.md` to select current source-backed platform and accessibility checks. Record adopted rules in the existing handoff; preserve the approved stack and responsive targets.
 
 Record one row per approved `stackSemantics.platform` in `### Platform rules` under Style Integration. Shared brand color roles, content hierarchy, and voice may span platforms; navigation, control geometry, type metrics, density, and feedback must follow the platform and task. The table does not select a framework or reopen the approved stack.
 

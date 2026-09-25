@@ -95,6 +95,8 @@ Apply `references/bilingual-review.md` throughout drafting, owner review and pub
 
 ## Reference Routing
 
+- For a mobile app with a public showcase or browser product, apply `references/mobile-stack-selection.md#app-and-companion-web-contract`. Keep one PRD with separate iOS, Android and web surfaces. React Native + Expo is a reference option, not a required or default stack. Resolve suitable technology through the existing stack checkpoint and include or exclude companion web scope explicitly without assuming shared UI or release evidence.
+
 - Use `references/interview-guide.md` for required discovery questions and readiness criteria.
 - Use `references/monetization-and-partner-channel-guide.md` for commercial-model, pricing/offer, RevenueCat-or-alternative, merchant-of-record, affiliate, referral, and reseller decisions.
 - Use `references/output-contract.md` for the exact artifact names, headings, and final quality checklist.

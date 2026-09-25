@@ -145,6 +145,8 @@ Record every applicable quality category as a measurable `PRD-*` requirement, or
 
 Omit this section only when the product has no shipped UI surface. Define one entry per addressable screen or bounded UI surface. This is the canonical product source for what each surface must support; `ui-design-builder` later decides its layout and visual structure.
 
+For App + companion Web products, apply `mobile-stack-selection.md#app-and-companion-web-contract`: one PRD covers the included iOS app, Android app, public showcase and any separately scoped authenticated Web app. Bind every platform to its own release surface and `UI-*` entries; shared client source code does not merge platform requirements, native/browser evidence or release targets. Record included/deferred/excluded destinations in Product Archetype and scope, without adding a competing surface registry.
+
 The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, `` `releaseSurface` ``, `` `surfaceClass` ``, `` `captureMode` ``, `` `states` ``, `` `responsive` ``, and `` `copy` `` field names are invariant machine anchors for new or revised packages. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it. Keep the anchors unchanged when the surrounding PRD is written in another language. Each entry has exactly one literal route; use a separate `UI-*` entry when another addressable route needs the same presentation. Legacy single-platform packages without the three platform-binding anchors remain readable, but an approved new or revised package records them on every surface.
 
 ### UI-001 — [Surface name]
@@ -157,7 +159,7 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 - Content responsibilities: [Required information and controls; exact copy or bounded display contract for each, without choosing layout or region order]
 - Actions and transitions: [Primary, secondary, destructive, navigation, success, and failure paths]
 - `states`: [Comma-separated state IDs. Record an inapplicable state as `<state>:n/a — <reason>` so the PLAN join can preserve the decision]
-- `responsive`: [This surface's exact responsive set: at least three ascending `viewports: 390, 768, 1200` for hosted web/extensions, or at least two `sizeClasses: compact, regular` for native/desktop. Hybrid surfaces may use different sets]
+- `responsive`: [This surface's exact responsive set: at least three ascending numeric viewports for hosted web/extensions, default `viewports: 390, 768, 1024, 1440`; or at least two ordered named size classes for native/desktop, such as `sizeClasses: phone-small, phone-large` for phone-only apps. Hybrid surfaces keep separate sets; preserve existing approved targets]
 - `copy`: [draft / approved / revision_requested / blocked] — [Static strings are implementation-bound after copy completeness; dynamic values follow their approved source/order/format/count/length/fallback contracts]
 - Responsive obligations: [Content/actions that never drop, required interaction modes, long-content behavior, and overlay focus/dismissal requirements; layout order, grid, spans, and reflow remain UI-design decisions]
 - Accessibility: [Focus, labels, announcements, heading order, and alt text as applicable]

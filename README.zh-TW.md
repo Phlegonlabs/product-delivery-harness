@@ -56,6 +56,14 @@ PRD 會在整個交付流程中持續補全。首次交付批准前，UI 與技�
 
 ### 設計轉譯與可重用範本
 
+App＋展示 Web 使用同一份 PRD，分別定義 iOS、Android 與公開展示網站；需要登入操作的 Web App 僅在指定範圍內加入。React Native＋Expo 僅是參考方案，不是必選或預設技術；依產品需求選型並保留既有已批准決策。手機尺寸、Web 寬度、共用程式邊界，以及各平台設計、驗收與發布依[App 與展示 Web 規格](skills/product-definition-builder/references/mobile-stack-selection.md#app-and-companion-web-contract)。選用 Expo 不代表已決定網站技術或批准付費 EAS 服務。
+
+內部 HiFi 規則要求實測控制項擠壓、對齊、內容裁切與展開圖層，並依產品任務審查 AI slop。檢查長文案、文字放大及 Web 目標之間的寬度，保留元素層級證據並修正共用原因；隱藏溢出或提高分數不能清除版面缺陷。沿用既有審查關卡，不要求 Hallmark。
+
+[現代設計來源指南](skills/ui-design-builder/references/modern-design-sources.md)把 Web 無障礙、Apple／Android 平台規範及近期 Anthropic／Google Labs AI 設計方法對應到既有 handoff 與審查；區分標準與風格建議，保留平台選型、審閱寬度與修復次數限制。 [頁面設計設定](skills/ui-design-builder/references/page-design-profiles.md)依用途採納 Taste：landing／portfolio 可選有辨識度的字體、桌面一至兩行主標題與必須呈現的表現型動畫；後台總覽、資料頁與表單優先可讀密度及功能回饋。沿用既有 brief，記錄選擇與手機、翻譯、減少動態效果的例外，保留已批准決策。
+
+現行 wireframe 模板預設四個 Web 審閱寬度：**390、768、1024、1440 px**，每個範例畫面都包含四種版面。這些是審閱尺寸，不是 CSS 斷點。產品 wireframe 仍依已批准 PRD 的確切尺寸製作；原生 size classes 與歷史模板保持不變。
+
 完整 wireframe 前，先把已批准 PRD 轉譯為任務層級、區塊比例、responsive、閱讀順序與動畫範圍，記錄在既有 UI handoff，不新增批准關卡。先檢查主要任務與密集／異常情境，完成內部 Wireframe Validation，再以完整 HiFi 取得一次 Visual Approval。HiFi 保留產品行為和資訊層級，細化暫定字體、光學間距與比例；跨頁比較元件，使用真實長文案與中英文檢查，不只給分數。
 
 局部更新保留未指定範圍。明確要求「保留 PRD、整套重做」時，依實際載入規格重新構圖與選擇方向，保留產品、技術、文案約束及已知使用問題；舊設計與批准僅作歷史，替換、歸檔、安裝仍依各自授權。新 iOS 範圍預設 iPhone，以較小／較大手機和 Dynamic Type 檢查；iPad 按需加入，既有 PRD 要求不能直接刪除。HTML 不證明原生行為。

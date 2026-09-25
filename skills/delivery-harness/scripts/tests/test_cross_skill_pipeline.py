@@ -173,10 +173,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "`` `responsive` ``, and `` `copy` `` field names are invariant",
             prd,
         )
-        self.assertTrue(
-            "at least three ascending `viewports: 390, 768, 1200` for web" in prd
-            or "at least three ascending `viewports: 390, 768, 1200` for hosted web/extensions" in prd
-        )
+        self.assertIn("at least three ascending numeric viewports for hosted web/extensions", prd)
+        self.assertIn("default `viewports: 390, 768, 1024, 1440`", prd)
+        self.assertIn("Hybrid surfaces keep separate sets; preserve existing approved targets", prd)
         self.assertIn("one global responsive verification set for homogeneous products", design)
         self.assertIn("one set per `surfaceContracts` entry for hybrids", design)
         self.assertIn("copy the exact approved PRD/wireframe set", design)

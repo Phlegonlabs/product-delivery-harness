@@ -53,6 +53,10 @@ Check navigation, keyboard focus, specimen behavior, wrapping and value equality
 
 Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained file containing every `UI-*` surface. It must open directly from disk without a server, build step, package install, network request, external font, or external asset. The checker decodes CSS escapes before evaluating `url()`, `image-set()`, and `@import`, so escaped remote schemes are rejected like literal ones.
 
+The current template starts with four web review widths: **390, 768, 1024, and 1440 px**. Each example screen includes a layout for every width. These are review targets, not mandatory CSS breakpoints. Use the exact approved PRD targets when authoring a product; this default does not replace existing contracts or native size classes. Retain historical schema-4 templates and approvals.
+
+For App + companion Web packages, follow `../../product-definition-builder/references/mobile-stack-selection.md#app-and-companion-web-contract`. The single wireframe includes the approved iOS, Android and Web screens, labeled by platform and bound to distinct `UI-*` entries. Use `responsiveBySurface` for every screen and omit global responsive keys. Native phone targets have their own named size classes and explicit canvas widths; Web uses its approved numeric viewports. Preserve platform navigation, safe areas, keyboard/text-scaling obligations and cross-surface journeys. Sharing a framework does not make Android behavior identical to iOS, and the showcase is not an app screen. Carry these same platform bindings into HiFi; HTML projections never substitute for native implementation tests.
+
 New and structurally revised files use schema `wireframes/5`; the checker keeps `wireframes/2` through `wireframes/4` read compatibility for unchanged historical files. Schema 5 must provide:
 
 1. an all-pages overview plus a page switcher showing each `UI-*` ID, page name, route or surface, and primary goal;

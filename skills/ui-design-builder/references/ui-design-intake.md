@@ -26,4 +26,6 @@ Text-only questions collect URLs, product names and preferences; request image a
 
 Combine these with unresolved image and motion questions in one intake. Record existing answers in the Visual Preference Brief and its Design Brief subsection in `ui-design.md`; use `output-contract.md` for its contents. Wait only when an unanswered preference blocks authoring; do not ask again for decisions already supplied. This brief adds no separate file or approval gate, and unchanged enhancement scope does not restart intake.
 
+Apply `page-design-profiles.md` in this same Design Brief: map affected UI IDs by page purpose, record typography/headline/density/motion choices and exceptions, and retain prior accepted decisions. Profiles guide recommendations; they do not create a second intake or choose a stack.
+
 Product-level accessibility, responsive destinations, exact routes, required actions, states, and copy responsibilities are frozen inputs, not preference questions. If an intake answer conflicts with them or the approved stack, record the conflict and return it to `product-definition-builder` rather than resolving it inside UI design.

@@ -11,6 +11,8 @@ Ask the human owner whether shipped motion is:
 
 Generated motion, autoplay or sound, material performance budgets, accessibility exceptions, and new product scope always return to the owner. Every motion decision includes an equivalent reduced-motion path.
 
+For page-specific defaults, use `page-design-profiles.md`. Landing/portfolio expressive motion is proposed through this same intake and becomes required only when selected; accepted no-motion decisions stay valid. Once selected, demonstrate the actual effect and reduced-motion equivalent under the rules below.
+
 ## Typed Wireframe Placeholders
 
 For every marquee or media-bearing screen region, record one treatment:

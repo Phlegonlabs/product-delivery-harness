@@ -131,6 +131,8 @@ Use for a single cross-platform codebase targeting iOS and Android from one sour
 
 ## React Native / Expo Pattern
 
+For App + companion Web delivery, apply `mobile-stack-selection.md#app-and-companion-web-contract`. Record one product architecture with separate iOS, Android and showcase/browser release surfaces, explicit shared-code boundaries and per-platform acceptance. A mobile Expo choice does not decide the Web frontend stack or merge store releases with website deployment.
+
 Use for a single cross-platform codebase targeting iOS and Android from JavaScript/TypeScript, especially when sharing logic with an existing React web codebase. React Native's own documentation recommends building a new app with a Framework, and Expo is the recommended one — see `mobile-stack-selection.md` for choosing this over Flutter or native, and for the Expo-vs-bare workflow decision.
 
 - Toolchain: one JavaScript/TypeScript codebase, npm/yarn/pnpm dependencies, and React Native's native platform components. Expo (the managed workflow, scaffolded with `create-expo-app`) is the default toolchain: it provides file-based routing, a standard library of native modules, and the EAS cloud services below. Choose bare React Native (full native iOS/Android projects, reached via prebuild or ejection) only when a native module needs native-project access Expo's managed workflow and config plugins cannot provide, and record which module forced it.

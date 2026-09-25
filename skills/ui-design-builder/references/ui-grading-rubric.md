@@ -100,6 +100,30 @@ Visual items, design-reference scope:
 - A media or motion placeholder uses a generic prompt that does not name its page, position, purpose, and constraints.
 - Several reference aesthetics appear side by side with no single direction thesis or Adopt / Adapt / Avoid rationale.
 
+## Layout Integrity And Anti-Slop Review
+
+Apply these internal rules during authoring and the existing Technical Hard Gate and H2/H4/H5/H7/H9 review. They add no skill dependency, schema or approval gate. Hallmark is not required. Keep the selected direction and product scope; simplicity, cards, gradients or symmetry are not defects by themselves.
+
+### Controls, Containers And Layers
+
+- Use shared spacing, type, control-height and alignment rules from the selected direction. Compare repeated buttons, field labels, icons and card edges across screens; measure the intended baseline or edge, not only the outer box. Record optical exceptions by component and reason. Arbitrary one-off offsets do not establish consistency.
+- Keep content in normal flow unless its interaction requires positioning. Flex/grid children must wrap, stack or scroll in the intended container before required labels or actions collapse. Preserve usable control dimensions and label/icon gaps with long sourced labels, loading indicators and validation text. A wrapped label must not collide with another control or leave its button.
+- Test each declared menu, popover, sheet and modal open as well as closed. Check nested scroll containers, sticky headers/footers and stacking contexts: the panel and its controls must remain visible, reachable and dismissible, with correct focus and background interaction. A higher z-index alone does not repair clipping by an ancestor.
+- Do not conceal a failure with page-wide overflow hiding, arbitrary fixed heights, shrinking text or hit areas, negative margins, or removal of required content. Intentional truncation, scrolling and decorative overlap need the existing content/interaction contract and must preserve access to required information and actions. Keep approved exceptions narrow; never exempt an entire page from geometry review.
+
+### Browser Inspection Procedure
+
+1. Render every required page, target and state at its actual canvas width, with fonts settled and intended transitions complete. Exercise open layers, focus and validation states through real product controls. Sweep between Web review targets and record any intermediate failure with its actual width; this supplements rather than changes the approved responsive set. Native size classes retain their own platform evidence requirements.
+2. For visible controls, text and panels, inspect bounding rectangles, text line rectangles, scroll versus client dimensions, clipping ancestors and containing bounds. Compare peer pairs for unintended intersection; inspect child content for clipping even though parent-child containment is not a collision. Use hit testing at visible actionable points plus actual click/keyboard activation to detect occlusion. An icon inside its own button is not a competing target. Rectangles alone cannot prove that text is readable or a layer is usable.
+3. Inspect full-canvas screenshots and close views of dense controls and open layers. Stress the approved longest content, required languages, text scaling, narrow layouts and fallback fonts. Check consistent baselines, spacing and control dimensions across sibling screens. A clean default screenshot or a scan with zero findings is insufficient without these observations.
+4. Retain findings in the existing ui-output/3 assessment and consolidated defect ledger. Each names candidate identity, surface/state/actual target, exact element pair or clipping ancestor, expected rule, observed geometry or hit-test result, inspected capture path/hash, root cause, repair and acceptance cases. Keep extra measurements inside referenced captures rather than adding fields to the fixed receipt schema. Missing browser access or uninspected cases remain MISSING/BLOCKED, never PASS.
+
+Required content that overlaps, collapses, clips or becomes unreachable blocks readiness under H2/H4 regardless of the overall score. Repair the shared cause, inspect all consumers, and rerun the affected cases plus the required final matrix on the changed candidate within the existing repair budget. Do not reuse earlier screenshots to clear a repaired layout.
+
+### Product-Specific Visual Judgment
+
+For H5/H7/H9, compare the primary task and dense case against the selected direction. Flag interchangeable hero/card/CTA sequences on unrelated tasks, equal emphasis for unequal actions, decorative panels around every fragment, unsupported badges or metrics, competing accents, and inconsistent control/type/spacing roles. State how each example harms hierarchy, reading or the approved direction and cite its surface and capture. Reuse is appropriate for the same task/component; novelty, extra decoration and arbitrary asymmetry are not acceptance criteria. Separate a measured layout failure from a taste advisory. An unsupported generic aesthetic cannot be cleared solely by raising a score, while a justified restrained design must not be penalized for being simple.
+
 ## Reporting And Reconciliation
 
 - Each grader returns one row per dimension: integer score from 0 to 100, `pass` / `advisory` / `block`, page-target-state, element or region, PRD trace, and observed evidence. It also returns all blocking findings and advisories found within its assigned lens in the same report. For `H2` and `H4`, identify the exact element pair or boundary involved in every overlap, clipping, wrapping, spacing, or overflow finding.

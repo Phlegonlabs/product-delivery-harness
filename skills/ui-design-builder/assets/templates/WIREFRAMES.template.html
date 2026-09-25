@@ -935,8 +935,8 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       "locale": "und"
     },
     "source": "PRD.md#UI-Surface-Contract",
-    "viewports": [390, 768, 1200],
-    "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
+    "viewports": [390, 768, 1024, 1440],
+    "canvasWidths": {"390": 390, "768": 768, "1024": 1024, "1440": 1440},
     "screens": [
       {
         "id": "UI-001",
@@ -1067,13 +1067,21 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
             "reflow": "<Intermediate-width grouping and wrapping rule>",
             "interaction": "<Pointer, keyboard, navigation, and overlay behavior at 768px>"
           },
-          "1200": {
+          "1024": {
+            "order": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
+            "hidden": [],
+            "columns": 12,
+            "spans": {"global-header": 12, "hero-content": 7, "hero-support": 5, "feature-grid": 12, "closing-cta": 12},
+            "reflow": "<Small-desktop grouping, wrapping, and readable-line rule>",
+            "interaction": "<Pointer, keyboard, navigation, and overlay behavior at 1024px>"
+          },
+          "1440": {
             "order": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
             "hidden": [],
             "columns": 12,
             "spans": {"global-header": 12, "hero-content": 7, "hero-support": 5, "feature-grid": 12, "closing-cta": 12},
             "reflow": "<Expanded-width grouping and maximum readable-line rule>",
-            "interaction": "<Pointer, keyboard, navigation, and overlay behavior at 1200px>"
+            "interaction": "<Pointer, keyboard, navigation, and overlay behavior at 1440px>"
           }
         },
         "states": [
@@ -1195,13 +1203,21 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
             "reflow": "<Intermediate-width task-panel and workspace rule>",
             "interaction": "<Pointer, keyboard, form, and overlay behavior at 768px>"
           },
-          "1200": {
+          "1024": {
+            "order": ["app-header", "task-controls", "primary-workspace"],
+            "hidden": [],
+            "columns": 12,
+            "spans": {"app-header": 12, "task-controls": 4, "primary-workspace": 8},
+            "reflow": "<Small-desktop task-panel, workspace, and long-content rule>",
+            "interaction": "<Pointer, keyboard, form, and overlay behavior at 1024px>"
+          },
+          "1440": {
             "order": ["app-header", "task-controls", "primary-workspace"],
             "hidden": [],
             "columns": 12,
             "spans": {"app-header": 12, "task-controls": 4, "primary-workspace": 8},
             "reflow": "<Expanded task-panel and workspace rule>",
-            "interaction": "<Pointer, keyboard, form, and overlay behavior at 1200px>"
+            "interaction": "<Pointer, keyboard, form, and overlay behavior at 1440px>"
           }
         },
         "states": [
