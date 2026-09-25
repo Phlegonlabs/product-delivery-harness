@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -53,6 +53,8 @@ PRD 会在整个交付流程中持续补全。首次交付批准前，UI 与技�
 | 需要 SEO 或自然流量分析的 production 公开网站 | `seo-growth-review` | 只读技术与量测 review、按证据排序的关键词／页面机会，以及已路由的后续动作 |
 
 七个内置技能都可以单独调用；完整流程是可选的。但每种模式仍会校验明确声明的输入和依赖。
+
+共享的 optional reference library 提供 19 个技术与设计领域的对比资料，不预设任何技术栈。[selection rule](skills/delivery-harness/references/reference-selection.md) 先从需求出发，只加载 [option-library](skills/delivery-harness/references/option-library/README.md) 中相关领域。它保留健康的既有技术；CSS/Tailwind、icon、Cloudflare、Expo/React Native、GSAP 或任何供应商都不是必选项。采纳结论写入既有 product、architecture、stack、UI 或任务记录，不新增 gate、register、runtime 或审批权限。
 
 ### 设计转译与可复用模板
 
@@ -540,6 +542,7 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 
 ```text
 skills/                                      规范的技能源
+skills/delivery-harness/references/option-library/   可选跨领域参考目录
 assets/                                              README 封面
 .github/workflows/harness-ci.yml                     契约、单元和 E2E 检查
 install.sh / install.ps1                             一键安装进 ~/.agents/skills/
@@ -612,6 +615,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.54.4** — 加入涵盖 19 个领域的可选参考库，并在七个 skills 的适用阶段加入引用。从产品需求比较方案，保留已采纳决策，沿用现有的来源更新、设计、runtime 与授权边界。
 
 - **0.54.3** — 优化 Wireframe 与 HiFi 共用侧栏，采用简洁导航、清晰的当前页面标记、双列尺寸选择器、可换行标签及遵循减少动态效果设置的交互反馈。保留查看器隔离、画布尺寸及运行行为。
 

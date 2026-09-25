@@ -53,6 +53,8 @@ If an existing pair or staged revision describes the same product, enhance it. P
 
 Apply `../ui-design-builder/references/enhancement-recommendations.md`'s Incremental UI Scope. Reuse existing tokens and components for an added page. Change the pair only for approved additions or changed reusable contracts, preserving unrelated entries; refresh source bindings without treating a new hash as a new visual direction. A shared entry change names every affected consumer and its regression checks. Record the delta and small repairs in the existing Epic or direct task.
 
+The optional reference catalog is downstream consumption only. If relevant to an already adopted CSS, component, icon, or motion choice, use `../delivery-harness/references/reference-selection.md` and only the relevant material under `../delivery-harness/references/option-library/` to understand that decision; never reselect a stack or direction here. A candidate that needs a new choice is an upstream finding.
+
 Product scope, route, content, action, flow, state, responsive, architecture, or stack gaps return to `product-definition-builder`. Wireframe, style, motion/media, or approved-target gaps return to `ui-design-builder`. A treatment that needs one of those changes is a finding, not permission to edit the source.
 
 ## Workflow

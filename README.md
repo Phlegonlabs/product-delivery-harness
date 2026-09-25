@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -53,6 +53,8 @@ The PRD is refined throughout delivery. Before first-delivery approval, UI and t
 | A public production site that needs SEO or organic-growth analysis | `seo-growth-review` | A read-only technical and measurement review, evidence-ranked keyword/page opportunities, and routed follow-ups |
 
 Each bundled skill can be invoked on its own; the full pipeline is optional. Each mode still enforces its declared inputs and dependencies.
+
+A shared optional reference library compares 19 technology and design domains without choosing a default stack. The [selection rule](skills/delivery-harness/references/reference-selection.md) starts from the need and reads only the relevant domain under [option-library](skills/delivery-harness/references/option-library/README.md). It preserves an existing stack and never makes CSS/Tailwind, icons, Cloudflare, Expo/React Native, GSAP, or any provider mandatory. Adopted choices go into existing product, architecture, stack, UI, or task records; no new gate, registry, runtime, or approval authority is added.
 
 ### Design translation and reusable patterns
 
@@ -540,6 +542,7 @@ Preserve requested topology, installed roles, model choices and effective reposi
 
 ```text
 skills/                                              Canonical skill sources
+skills/delivery-harness/references/option-library/   Optional cross-domain reference catalog
 assets/                                              README covers
 .github/workflows/harness-ci.yml                     Contract, unit, and E2E checks
 install.sh / install.ps1                             One-command installers into ~/.agents/skills/
@@ -612,6 +615,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.54.4** — Add an optional 19-domain reference library and stage-specific pointers across all seven skills. Compare choices from product needs, retain adopted decisions, and keep source refresh, design, runtime and authorization boundaries in the existing workflow.
 
 - **0.54.3** — Polish the shared Wireframe and HiFi sidebar with quieter navigation, a clear active page, a two-column target picker, wrapping labels and reduced-motion-aware feedback. Preserve reviewer isolation, canvas sizes and runtime behavior.
 
