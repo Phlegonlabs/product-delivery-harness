@@ -43,3 +43,5 @@ Final assertion repair: all 15 cross-skill pipeline tests pass, including respon
 ## Branch publication authorization — 2026-09-25
 
 The owner now requests scoped commits, push of `codex/wireframe-four-widths`, and renewal of all seven Harness skills with the official installer. This supersedes the earlier local-only next action; it does not request main promotion or a release. Verified source hashes are unchanged. Preserve unrelated audit documentation and `scripts/design/hifi_model.py`. The two recorded broader Harness test failures remain open; branch publication is not a full-suite or release PASS. Exact commit, remote readback and installation/backup evidence will be reported after execution. The observed Codex task list has no other active skill-using task; finish skill consumption before installation and start a fresh session afterward.
+
+- 2026-09-25 release continuation: the owner-authorized 0.54.2 candidate on codex/design-flow-glm includes this App/companion-Web contract. EPIC-design-authoring-flow.md records verification and publication status; native implementation and platform approval are not implied by the source-skill update.
