@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -611,6 +611,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.54.2** — Los wireframes usan por defecto cuatro anchos de revisión Web: 390, 768, 1024 y 1440 px. App + Web complementaria comparte un PRD neutral a la tecnología con superficies separadas para iOS, Android y el sitio público. El Design Brief por propósito de página y los estudios de movimiento reproducibles pasan a HiFi e implementación. La revisión HiFi añade comprobaciones medidas de integridad del diseño para controles comprimidos, alineación y contenido recortado. Las pruebas aíslan el caso sin árbol de trabajo y sincronizan explícitamente el reintento en espera antes de liberar la ejecución original fallida.
 
 - **0.54.1** — Conserva el mismo RUN tras reparaciones autorizadas del candidato y las identidades históricas de verificadores; vuelve a verificar el SHA actual, admite nombres literales de rutas dinámicas e informa de divergencias del padre y los worktrees. Exige frontend-design al autor de Wireframe y HiFi mediante controles al despachar y entregas explícitas. Incluye el trabajo 0.54.0 aún no publicado sobre intake, PRD y auditoría de handoff.
 

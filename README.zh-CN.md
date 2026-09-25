@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -612,6 +612,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.54.2** — Wireframe 默认改用四个 Web 审阅宽度：390、768、1024 与 1440 px。App＋展示 Web 产品共用一份技术中立的 PRD，分别覆盖 iOS、Android 与公开展示网站。页面用途 Design Brief 与可播放的动效研究会带入 HiFi 与实现。HiFi 审阅加入压缩控件、对齐与裁切内容的实测版面完整性检查。测试隔离缺少工作树的场景，并在释放失败的原始执行前，明确确认重试已等待锁。
 
 - **0.54.1** — 已授权的 candidate 修复保留同一 RUN 与历史 verifier 身份，重新验证当前精确 SHA，支持动态路由的实际文件名，并报告 parent／worktree 漂移。Wireframe 与 HiFi 实际作者必须加载 frontend-design，派发入口检查技能并明确交接。包含此前尚未发布的 0.54.0 设计 intake、PRD 完善与 handoff 审计改动。
 
