@@ -1679,17 +1679,50 @@ class VerifierRuntimeTests(unittest.TestCase):
     def test_failed_container_origin_releases_waiter_for_fresh_execution(self) -> None:
         declaration = verifier(self.root / "failure-flight.txt")
         declaration["cache"] = {"mode": "session_exact", "environment_keys": [], "deterministic_local": True}
-        cache = _ContainerResultCache()
-        started = threading.Event()
+        origin_entered = threading.Event()
         release = threading.Event()
+        attempts_lock = threading.Lock()
+        flight_acquire_attempts: list[int] = []
+
+        def on_flight_acquire(lock: threading.Lock) -> None:
+            with attempts_lock:
+                attempt_number = len(flight_acquire_attempts) + 1
+                flight_acquire_attempts.append(attempt_number)
+            if attempt_number == 2:
+                retry_waiting.set()
+
+        class ObservedFlightLock:
+            def __init__(self, lock: threading.Lock) -> None:
+                self._lock = lock
+
+            def acquire(self, *args: object, **kwargs: object) -> object:
+                on_flight_acquire(self._lock)
+                return self._lock.acquire(*args, **kwargs)
+
+            def release(self) -> None:
+                self._lock.release()
+
+            def __enter__(self) -> "ObservedFlightLock":
+                self.acquire()
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                self.release()
+
+        class ObservedContainerCache(_ContainerResultCache):
+            def flight(self, identity: str) -> object:
+                return ObservedFlightLock(super().flight(identity))
+
+        cache = ObservedContainerCache()
+        retry_waiting = threading.Event()
         calls = []
         original_container = verifier_runtime._run_container_verifier
 
         def first_fails(*args, **kwargs):
             calls.append(1)
             if len(calls) == 1:
-                started.set()
-                self.assertTrue(release.wait(5))
+                origin_entered.set()
+                self.assertTrue(release.wait(10))
                 raise RuntimeError("origin failed")
             return original_container(*args, **kwargs)
 
@@ -1698,14 +1731,24 @@ class VerifierRuntimeTests(unittest.TestCase):
                                 environment=self.environment, git_guard=self.git_guard(),
                                 container_result_cache=cache)
 
-        with patch("verifier_runtime._run_container_verifier", side_effect=first_fails), ThreadPoolExecutor(max_workers=2) as pool:
-            first = pool.submit(execute)
-            self.assertTrue(started.wait(5))
-            second = pool.submit(execute)
-            release.set()
-            with self.assertRaisesRegex(RuntimeError, "origin failed"):
-                first.result(10)
-            result = second.result(10)
+        pool = ThreadPoolExecutor(max_workers=2)
+        with patch("verifier_runtime._run_container_verifier", side_effect=first_fails):
+            try:
+                first = pool.submit(execute)
+                self.assertTrue(origin_entered.wait(10))
+                second = pool.submit(execute)
+
+                # The second acquire attempt is observed while the failed
+                # origin still owns the flight lock, before release is set.
+                self.assertTrue(retry_waiting.wait(10))
+                release.set()
+
+                with self.assertRaisesRegex(RuntimeError, "origin failed"):
+                    first.result(10)
+                result = second.result(10)
+            finally:
+                release.set()
+                pool.shutdown(wait=True, cancel_futures=True)
         self.assertEqual("PASS", result["status"])
         self.assertEqual("bypassed", result["cache_status"])
         self.assertEqual(2, len(calls))
