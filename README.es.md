@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -27,7 +27,7 @@ No es una colección de prompts. La suite de skills separa la definición del pr
 
 ## Revisión de diseño unificada
 
-Wireframe y HiFi comparten una carcasa neutral: barra lateral, tipografía, espaciado y controles iguales, aislados del CSS del producto. Una entrada agrupa App, Web y administración; muestra un lienzo con tamaños y estados propios de cada plataforma. El nuevo `wireframes/5` no incluye Tokens ni Design System Draft. HiFi tiene una página dedicada con todos los tokens reales del producto, su nombre, uso, valor de origen y ejemplo visual.
+Wireframe y HiFi comparten una carcasa neutral: barra lateral, tipografía, espaciado y controles iguales, aislados del CSS del producto. Una entrada agrupa App, Web y administración; muestra un lienzo con tamaños y estados propios de cada plataforma. El nuevo `wireframes/5` no incluye Tokens ni Design System Draft. HiFi tiene una página dedicada con todos los tokens reales del producto, su nombre, uso, valor de origen y ejemplo visual. La barra lateral usa filas de navegación discretas, una página activa clara y un selector de tamaños en dos columnas. Las etiquetas se ajustan, el foco del teclado permanece visible y las transiciones respetan la preferencia de movimiento reducido.
 
 Los controles y paneles del revisor usan Shadow DOM; el lienzo del producto permanece en el DOM normal. Los controles de estado cambian el contenido por estado y tamaño, y las selecciones se guardan por paquete y plataforma.
 
@@ -611,6 +611,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.54.3** — Mejora la barra lateral compartida de Wireframe y HiFi con navegación discreta, una página activa clara, tamaños en dos columnas, etiquetas ajustables y transiciones que respetan el movimiento reducido. Conserva el aislamiento, los tamaños del lienzo y el comportamiento.
 
 - **0.54.2** — Los wireframes usan por defecto cuatro anchos de revisión Web: 390, 768, 1024 y 1440 px. App + Web complementaria comparte un PRD neutral a la tecnología con superficies separadas para iOS, Android y el sitio público. El Design Brief por propósito de página y los estudios de movimiento reproducibles pasan a HiFi e implementación. La revisión HiFi añade comprobaciones medidas de integridad del diseño para controles comprimidos, alineación y contenido recortado. Las pruebas aíslan el caso sin árbol de trabajo y sincronizan explícitamente el reintento en espera antes de liberar la ejecución original fallida.
 

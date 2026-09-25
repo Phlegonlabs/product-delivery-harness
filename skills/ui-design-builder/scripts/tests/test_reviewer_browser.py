@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from assemble_ui_review import assemble
 
 
@@ -22,7 +23,7 @@ HIFI_BROWSER_TIMEOUT_SECONDS = 90
 
 def run_browser_script(command: list[str], script: str, timeout: int) -> subprocess.CompletedProcess[str]:
     try:
-        return subprocess.run(command, input=script, text=True, capture_output=True, timeout=timeout)
+        return subprocess.run(command, input=script, text=True, encoding="utf-8", capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired as error:
         def captured(value):
             return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value or ""
@@ -440,7 +441,193 @@ const launchChromium=async()=>{
 })().catch(error=>{console.error(error.stack);process.exitCode=1});
 '''
             result = run_browser_script([node, "-", str(page_path), playwright], script, 35)
+            self.assertEqual(0, result.returncode, result.stderr + "\n" + result.stdout)
+
+    def test_reviewer_sidebar_survives_four_target_and_long_copy_stress(self):
+        node, playwright = self.require_browser()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            wireframe_path = root / "wireframes.html"
+            wireframe_path.write_text(TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+            targets = ["390", "768", "1024", "1440"]
+            manifest = {"schema": "ui-hifi/2", "surfaces": [
+                {"id": "UI-001", "page": "index.html", "route": "/", "states": ["ready"],
+                 "platformGroup": "Web", "responsive": {"targets": targets}},
+                {"id": "UI-002", "page": "settings.html", "route": "/settings", "states": ["ready"],
+                 "platformGroup": "Web", "responsive": {"targets": targets}},
+            ]}
+            sources = []
+            for row in manifest["surfaces"]:
+                source = root / row["page"]
+                source.write_text(
+                    '<html><head></head><body><div data-hifi-canvas data-hifi-target="390" '
+                    'data-hifi-targets="390 768 1024 1440"><main data-ui-surface="' + row["id"]
+                    + '"><h1>Test product</h1></main></div>'
+                    '<section data-hifi-panel="overview" hidden><h1>Overview</h1></section>'
+                    '<section data-hifi-panel="design-tokens" hidden><h1>Tokens</h1></section>'
+                    + ('<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest)
+                       + '</script>' if row['page'] == 'index.html' else '') + '</body></html>', encoding="utf-8",
+                )
+                sources.append(f"{row['page']}={source}")
+            manifest_path = root / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            assemble(manifest_path, sources, root / "bundle")
+            hifi_path = root / "bundle/index.html"
+
+            script = r'''
+const {chromium}=require(process.argv[4]);
+const {pathToFileURL}=require('url');
+const launchChromium=async()=>{
+  if(process.env.PDH_REQUIRE_BROWSER_TESTS==='1')return await chromium.launch({headless:true});
+  try {return await chromium.launch({channel:'msedge',headless:true});}
+  catch (_) {return await chromium.launch({headless:true});}
+};
+const readTargetState=node=>{
+  const style=getComputedStyle(node);
+  return {background:style.backgroundColor,color:style.color,weight:style.fontWeight};
+};
+const readFocusStyle=node=>{
+  const style=getComputedStyle(node);
+  return {outline:style.outlineStyle,width:parseFloat(style.outlineWidth)};
+};
+const readScroll=node=>({
+  fontSize:getComputedStyle(node).fontSize,
+  clippedX:node.scrollWidth>node.clientWidth+1,
+  clippedY:node.scrollHeight>node.clientHeight+1,
+  rect:node.getBoundingClientRect(),
+});
+const run=async(browser,path,kind)=>{
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  const errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(pathToFileURL(path).href);
+  const shell=page.locator('reviewer-shell').locator('aside');
+  await shell.waitFor();
+  const targetSelector=kind==='hifi'?'[data-hifi-target-control]':'#responsive-controls button';
+  const navSelector=kind==='hifi'?'[data-hifi-page-nav] a':'.page-list .page-button';
+  const targets=shell.locator(targetSelector);
+  await targets.first().waitFor();
+  const navCount=await shell.evaluate((node,selector)=>node.querySelectorAll(selector).length,navSelector);
+  if(navCount<2)throw Error(kind+' has '+navCount+' navigation rows, expected 2');
+  const grid=await targets.evaluateAll(nodes=>nodes.map(node=>{
+    const rect=node.getBoundingClientRect();
+    return {x:rect.x,y:rect.y,width:rect.width,height:rect.height};
+  }));
+  if(grid.length!==4)throw Error(kind+' has '+grid.length+' targets, expected 4: '+JSON.stringify(grid));
+  const widths=grid.map(row=>row.width);
+  if(Math.max(...widths)-Math.min(...widths)>1)throw Error(kind+' target columns differ: '+JSON.stringify(grid));
+  if(Math.abs(grid[0].y-grid[1].y)>1||Math.abs(grid[2].y-grid[3].y)>1||grid[2].y<=grid[0].y)
+    throw Error(kind+' targets are not a 2x2 grid: '+JSON.stringify(grid));
+  if(grid[1].x<grid[0].x+grid[0].width-1||grid[3].x<grid[2].x+grid[2].width-1||
+     grid[2].y<grid[0].y+grid[0].height-1||grid[3].y<grid[1].y+grid[1].height-1)
+    throw Error(kind+' target controls overlap: '+JSON.stringify(grid));
+  const currentState=await shell.evaluate((node,selector)=>{
+    const rows=Array.from(node.querySelectorAll(selector));
+    const current=rows.find(row=>row.getAttribute('aria-current')==='page');
+    const other=rows.find(row=>row!==current);
+    const state=row=>{
+      if(!row)return null;
+      const style=getComputedStyle(row);
+      return {background:style.backgroundColor,color:style.color,weight:style.fontWeight};
+    };
+    return {total:rows.length,currentCount:rows.filter(row=>row.getAttribute('aria-current')==='page').length,
+      currentState:state(current),otherState:state(other)};
+  },navSelector);
+  if(currentState.total<2||currentState.currentCount!==1)
+    throw Error(kind+' has invalid current-page state: '+JSON.stringify(currentState));
+  if(JSON.stringify(currentState.currentState)===JSON.stringify(currentState.otherState))
+    throw Error(kind+' current page has no visible state: '+JSON.stringify(currentState));
+  await targets.nth(1).click();
+  const inactive=await targets.first().evaluate(readTargetState);
+  const active=await targets.nth(1).evaluate(readTargetState);
+  if(await targets.nth(1).getAttribute('aria-pressed')!=='true'||await targets.first().getAttribute('aria-pressed')!=='false')
+    throw Error(kind+' target activation state is wrong');
+  if(JSON.stringify(active)===JSON.stringify(inactive))
+    throw Error(kind+' pressed target has no visible state: '+JSON.stringify({active,inactive}));
+  await targets.first().click();
+
+  await targets.nth(1).focus();
+  await page.keyboard.press('Shift+Tab');
+  const reached=await targets.first().evaluate(node=>node===node.getRootNode().activeElement);
+  if(!reached)throw Error(kind+' target control was not keyboard-reachable');
+  const focus=await targets.first().evaluate(readFocusStyle);
+  if(focus.outline==='none'||focus.width<2)throw Error(kind+' keyboard focus is not visible: '+JSON.stringify(focus));
+
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const durations=await targets.first().evaluate(node=>getComputedStyle(node).transitionDuration);
+  if(durations.split(',').some(value=>parseFloat(value)!==0))
+    throw Error(kind+' does not disable transitions for reduced motion: '+durations);
+  await page.emulateMedia({reducedMotion:'no-preference'});
+
+  await shell.evaluate((node,selector)=>{
+    const row=node.querySelector(selector+':last-of-type');
+    row.textContent='項目配置 團隊工作區與很長的設定頁面名稱 Project configuration and account preferences';
+    row.style.fontSize='28px';
+  },navSelector);
+  await targets.last().evaluate(node=>{node.textContent='Very long native target 常規裝置尺寸';node.style.fontSize='28px';});
+  await page.setViewportSize({width:390,height:420});
+  await shell.waitFor();
+
+  const navStress=await shell.evaluate((node,selector)=>{
+    const row=node.querySelector(selector+':last-of-type');
+    return {fontSize:getComputedStyle(row).fontSize,clippedX:row.scrollWidth>row.clientWidth+1,
+      clippedY:row.scrollHeight>row.clientHeight+1,rect:row.getBoundingClientRect()};
+  },navSelector);
+  if(navStress.fontSize!=='28px'||navStress.clippedX||navStress.clippedY)
+    throw Error(kind+' long navigation copy is clipped: '+JSON.stringify(navStress));
+  await shell.evaluate((node,selector)=>node.querySelector(selector+':last-of-type').scrollIntoView({block:'start'}),navSelector);
+  await page.waitForTimeout(20);
+  let rect=await shell.evaluate((node,selector)=>node.querySelector(selector+':last-of-type').getBoundingClientRect(),navSelector);
+  if(!rect||rect.y< -1||rect.y+rect.height>421)throw Error(kind+' navigation row is not scroll-reachable: '+JSON.stringify(rect));
+
+  const targetStress=await targets.last().evaluate(readScroll);
+  if(targetStress.fontSize!=='28px'||targetStress.clippedX||targetStress.clippedY)
+    throw Error(kind+' long target copy is clipped: '+JSON.stringify(targetStress));
+  await targets.last().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(20);
+  rect=await targets.last().boundingBox();
+  if(!rect||rect.y< -1||rect.y+rect.height>421)throw Error(kind+' target control is not scroll-reachable: '+JSON.stringify(rect));
+
+  const overflow=await shell.evaluate(node=>({
+    scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,
+    scrollHeight:node.scrollHeight,clientHeight:node.clientHeight,
+  }));
+  if(overflow.scrollWidth>overflow.clientWidth+1)
+    throw Error(kind+' sidebar has horizontal overflow: '+JSON.stringify(overflow));
+  if(errors.length)throw Error(errors.join('\n'));
+  await page.close();
+};
+(async()=>{
+  let browser;
+  let testError;
+  try {
+    browser=await launchChromium();
+    await run(browser,process.argv[2],'wireframe');
+    await run(browser,process.argv[3],'hifi');
+    console.log('reviewer-sidebar-stress: PASS');
+  } catch(error) {
+    testError=error;
+    throw error;
+  } finally {
+    if(browser) {
+      try {await browser.close();}
+      catch(closeError) {
+        if(!testError)throw closeError;
+        console.error('reviewer-sidebar close failed after test error: '+(closeError instanceof Error?closeError.message:closeError));
+      }
+    }
+  }
+})().catch(error=>{
+  console.error(error instanceof Error?error.stack:error);
+  process.exitCode=1;
+});
+'''
+            result = run_browser_script(
+                [node, "-", str(wireframe_path), str(hifi_path), playwright],
+                script, HIFI_BROWSER_TIMEOUT_SECONDS,
+            )
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+            self.assertIn("reviewer-sidebar-stress: PASS", result.stdout)
 
 
 class BrowserExecutionTests(unittest.TestCase):

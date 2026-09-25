@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -27,7 +27,7 @@ Product Definition 撰写英文正式来源 `PRD.md`、`architecture.md` 时，�
 
 ## 统一设计审阅
 
-Wireframe 与 HiFi 共用中性查看器：相同侧栏、字体、间距及控件，并与产品 CSS 隔离。同一入口按 App、Web 前台、管理后台分组，一次显示一个产品画布，各自保留尺寸与状态。新 `wireframes/5` 不提供 Tokens／Design System Draft 页；HiFi 另设完整产品 Tokens 专页，显示名称、用途、实际来源数值和视觉示例。
+Wireframe 与 HiFi 共用中性查看器：相同侧栏、字体、间距及控件，并与产品 CSS 隔离。同一入口按 App、Web 前台、管理后台分组，一次显示一个产品画布，各自保留尺寸与状态。新 `wireframes/5` 不提供 Tokens／Design System Draft 页；HiFi 另设完整产品 Tokens 专页，显示名称、用途、实际来源数值和视觉示例。 侧栏采用简洁导航行、清晰的当前页面标记及双列尺寸选择器。长标签可换行，键盘焦点保持可见，交互过渡遵循减少动态效果设置。
 
 审阅控件与面板使用 Shadow DOM，产品画布留在普通 DOM。实际状态控件会切换状态和尺寸内容；审阅选择按包件与平台保存，不跨包件混用。
 
@@ -612,6 +612,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.54.3** — 优化 Wireframe 与 HiFi 共用侧栏，采用简洁导航、清晰的当前页面标记、双列尺寸选择器、可换行标签及遵循减少动态效果设置的交互反馈。保留查看器隔离、画布尺寸及运行行为。
 
 - **0.54.2** — Wireframe 默认改用四个 Web 审阅宽度：390、768、1024 与 1440 px。App＋展示 Web 产品共用一份技术中立的 PRD，分别覆盖 iOS、Android 与公开展示网站。页面用途 Design Brief 与可播放的动效研究会带入 HiFi 与实现。HiFi 审阅加入压缩控件、对齐与裁切内容的实测版面完整性检查。测试隔离缺少工作树的场景，并在释放失败的原始执行前，明确确认重试已等待锁。
 
