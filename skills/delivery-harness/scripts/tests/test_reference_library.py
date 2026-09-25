@@ -139,6 +139,8 @@ class ReferenceLibraryTests(unittest.TestCase):
         ui = (ROOT / "skills/ui-design-builder/SKILL.md").read_text(encoding="utf-8")
         for phrase in (
             "before direction work",
+            "An unresolved CSS framework, component library, icon package/dependency, or stack selection returns to `product-definition-builder` before dependent direction work",
+            "Only visual and motion decisions within the approved stack belong here",
             "`frontend-design` remains mandatory",
             "Taste/GPT Taste stays optional",
             "CSS/WAAPI and GSAP routes",

@@ -56,6 +56,8 @@ Cada uno de los siete skills incluidos se puede invocar por separado; el pipelin
 
 Una biblioteca de referencias opcional compara 19 dominios de tecnología y diseño sin elegir un stack por defecto. La [regla de selección](skills/delivery-harness/references/reference-selection.md) parte de la necesidad y lee solo el dominio relevante bajo [option-library](skills/delivery-harness/references/option-library/README.md). Conserva un stack existente y saludable; CSS/Tailwind, icons, Cloudflare, Expo/React Native, GSAP o cualquier proveedor no son obligatorios. Las decisiones adoptadas se registran en los documentos existentes de product, architecture, stack, UI o tareas; no se añaden gates, registros, runtimes ni autoridad de aprobación.
 
+El informe de visibilidad de docs-weight incluye el Markdown opcional anidado de references y no añade una gate.
+
 ### Traducción de diseño y patrones reutilizables
 
 App + Web complementaria usa un PRD con superficies separadas para iOS, Android y el sitio público; una aplicación Web autenticada se incluye solo cuando está en alcance. React Native + Expo es una opción de referencia, no un stack obligatorio ni predeterminado; la elección depende del producto y respeta decisiones ya aprobadas. El [contrato de App y Web](skills/product-definition-builder/references/mobile-stack-selection.md#app-and-companion-web-contract) define tamaños móviles, anchos Web, código compartido y diseño, pruebas y releases por plataforma. Elegir Expo no selecciona el stack del sitio ni autoriza servicios EAS de pago.

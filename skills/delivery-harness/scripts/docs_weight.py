@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Report the normative word weight of each skill and its delta vs a baseline.
 
-Counts words in every skill's SKILL.md plus its references/*.md, compares
-the totals against the most recent reachable v* tag (or --baseline <ref>),
-and prints one line per changed file plus per-skill and grand totals. This
-is a read-only visibility tool for the documentation complexity ratchet:
-it makes growth visible at verification time and never gates a release.
+Counts words in every skill's SKILL.md and every Markdown file under its
+references/ tree, including nested optional references, while excluding
+scripts, assets, and other skill trees. It compares the totals against the
+most recent reachable v* tag (or --baseline <ref>) and prints one line per
+changed file plus per-skill and grand totals. This is a read-only visibility
+tool for the documentation complexity ratchet: it makes growth visible at
+verification time and never gates a release.
 """
 
 from __future__ import annotations
@@ -22,9 +24,6 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_core import ManifestError  # noqa: E402
 from harness_git import GitMetadataError, reject_object_substitution, run_git  # noqa: E402
-
-SKILLS_ROOT = Path("skills")
-
 
 def _git(repo_root: Path, *args: str) -> str:
     result = run_git(
@@ -63,8 +62,17 @@ def _word_count(text: str) -> int:
     return len(text.split())
 
 
+def _is_skill_document(path: Path) -> bool:
+    parts = path.parts
+    if parts[:1] != ("skills",):
+        return False
+    if len(parts) == 3 and parts[2] == "SKILL.md":
+        return True
+    return len(parts) >= 4 and parts[2] == "references" and path.suffix == ".md"
+
+
 def tracked_files(repo_root: Path, ref: str | None) -> list[Path]:
-    """SKILL.md plus references/*.md under skills/ at ref (None = worktree)."""
+    """SKILL.md plus nested references Markdown under skills/ at ref."""
 
     if ref is None:
         listing = _git(
@@ -89,19 +97,13 @@ def tracked_files(repo_root: Path, ref: str | None) -> list[Path]:
             # before the user authorizes a commit. Count the live worktree,
             # not a path whose bytes no longer exist.
             continue
-        if pure.parent.parent == SKILLS_ROOT and pure.name == "SKILL.md":
-            files.append(pure)
-        elif (
-            pure.parent.parent.parent == SKILLS_ROOT
-            and pure.parent.name == "references"
-            and pure.suffix == ".md"
-        ):
+        if _is_skill_document(pure):
             files.append(pure)
     return sorted(files)
 
 
 def _tree_blobs(repo_root: Path, ref: str) -> list[tuple[Path, str]]:
-    """Return tracked documentation paths and their immutable blob OIDs."""
+    """Return tracked skill-document paths and their immutable blob OIDs."""
 
     listing = _git(
         repo_root,
@@ -120,11 +122,7 @@ def _tree_blobs(repo_root: Path, ref: str) -> list[tuple[Path, str]]:
         if not separator:
             raise ManifestError(f"malformed git ls-tree entry for {ref}")
         pure = Path(path)
-        if not ((pure.parent.parent == SKILLS_ROOT and pure.name == "SKILL.md") or (
-            pure.parent.parent.parent == SKILLS_ROOT
-            and pure.parent.name == "references"
-            and pure.suffix == ".md"
-        )):
+        if not _is_skill_document(pure):
             continue
         parts = metadata.split()
         if len(parts) != 3:
