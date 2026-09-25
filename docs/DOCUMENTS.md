@@ -4,7 +4,7 @@ The four READMEs remain the documentation of record for the skill bundle.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-reviewer-sidebar-polish.md` | Shared Wireframe and HiFi reviewer sidebar styling | Sidebar styling and browser stress checks passed; 0.54.3 release preparation pending |
+| `docs/epics/EPIC-reviewer-sidebar-polish.md` | Shared Wireframe and HiFi reviewer sidebar styling | Sidebar styling and persistent browser checks; 0.54.3 publication evidence in PR125 |
 | `docs/epics/EPIC-app-companion-web.md` | Technology-neutral one-PRD App/showcase-Web specifications | Product/UI checks passed; included in the 0.54.2 release candidate |
 | `docs/epics/EPIC-design-authoring-flow.md` | PRD-bound style and playable-motion authoring across skills | Design flow committed; two regression fixtures repaired and focused suites passed; 0.54.2 release verification pending |
 | `docs/epics/EPIC-prd-continuous-completeness.md` | First-delivery UI/technical completeness and ongoing evidence-based PRD refinement | Committed on candidate branch; release verification and installation pending |
