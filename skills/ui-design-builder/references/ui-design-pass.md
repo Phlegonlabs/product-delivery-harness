@@ -8,6 +8,10 @@ Before direction studies, connected HiFi or any repair, run `python "<delivery-h
 
 Apply `design-translation.md` and `design-freshness.md`. An explicit full rebuild retains product/stack constraints but uses the newly validated wireframe and fresh direction instead of prior design authority. Refine provisional type, optical spacing and fine proportions without changing fixed hierarchy or behavior. Inspect repeated controls across pages, real CJK/Latin copy, stacked bilingual reading where required, text enlargement and dense/alternate states. Use source-bound before/after findings; numerical grades alone prove no improvement. New iOS scope defaults to iPhone; iPad remains conditional on Product Definition, never silently dropped from an existing PRD.
 
+Apply `ui-grading-rubric.md#layout-integrity-and-anti-slop-review` while authoring and before presenting HiFi. Inspect control compression, alignment, open layers, long content and intermediate Web widths; record measured failures and product-specific visual findings in the existing evidence and defect ledger. Fix shared causes rather than hiding overflow.
+
+Apply `page-design-profiles.md` to each affected surface. Inspect the selected font roles, desktop headline target and motion commitment with actual copy; page-specific exceptions remain visible in the existing brief and grading evidence.
+
 ## Frozen Inputs
 
 For enhancements, apply `enhancement-recommendations.md#incremental-ui-scope` first. Reuse the approved direction and intake unless the accepted delta changes them. The complete matrix remains covered, but only added or changed screens and necessary entry/return controls are authored again. Keep unaffected product DOM, copy, layout, style, IDs and behavior; reviewer-shell migration alone is not a product redesign. Direction studies below apply to a new or changed direction, not automatically to every added feature.
@@ -31,7 +35,7 @@ The intake must already be complete before `frontend-design` proposes a theme or
 
 If the owner supplies a reference, read `design-reference-guide.md` and inspect it through the matching source route. Record `REF-*` sources and proposed `Adopt / Adapt / Avoid` `RP-*` principles, then end the turn for confirmation before creating a direction.
 
-Use the existing Design Brief to connect the owner answer, reference lessons and visual constraints to Style Integration and MM records as decisions mature. An explicit `no references` answer permits relevant research and recommendations under `design-reference-guide.md`; it is not direction approval. Unanswered optional references stay `not supplied`, and inaccessible material stays uninspected. Continue independent work and wait only for work that depends on the missing input. Preserve answered preferences and unchanged enhancement directions.
+Use the existing Design Brief to connect the page-purpose/profile mapping, typography/density/headline constraints, motion intent, owner answer, reference lessons and visual constraints to Style Integration and MM records as decisions mature. An explicit `no references` answer permits relevant research and recommendations under `design-reference-guide.md`; it is not direction approval. Unanswered optional references stay `not supplied`, and inaccessible material stays uninspected. Continue independent work and wait only for work that depends on the missing input. Preserve answered preferences and unchanged enhancement directions.
 
 When the owner has a clear direction, produce one product-specific direction. When the owner asks to compare or remains unsure after intake, produce exactly three materially different directions over the same frozen screens and states. Never substitute a fixed catalog of style names.
 
@@ -39,9 +43,11 @@ Present the complete direction set to the human owner. End the turn and wait for
 
 Before this selection, render bounded representative studies for every direction: a frequent primary task and a stress case using dense data, long content, or an approved alternate state. A one-screen product may show two content scenarios in the same approved state; do not invent a state or rewrite frozen copy. Use the same surface, state, target, scenario, and content basis across directions. Cover each in-scope platform. Compare composition, hierarchy, density, typography, and control treatment; changing only an accent color is not a distinct direction.
 
+Where useful, a study may play a bounded local deterministic motion option after Wireframe Validation, within the existing MM scope, and with its normal/reduced-motion behavior visible. This makes a design choice easier to judge; it is not Required motion evidence, native proof, or permission to call a generation provider. Full connected HiFi remains the source of final motion evidence on the selected route, and provider calls remain after direction selection with exact authorization.
+
 If proactive reference research introduced a structural option, route the structural scope back through the current wireframe review before HiFi cosmetic work. Do not use an unreviewed reference study to add a route, control, state, or responsive destination.
 
-Record the studies in `### Direction comparison` under Style Integration using the output contract's table, with inspected screenshot paths/hashes and a concrete rationale for each row. Keep their authorized files under `docs/design/directions/<round>/`. These studies are selection evidence, not the connected HiFi target or production UI. The owner selects from the recorded direction IDs; a mixed direction gets a new complete comparison round before selection. This uses the existing direction gate, not another approval step. Screenshot hashes prove identity, not aesthetic quality or honest inspection.
+Record the studies in `### Direction comparison` under Style Integration using the output contract's table, with inspected screenshot paths/hashes and a concrete rationale for each row. Tie each rationale to the Design Brief's page-purpose/profile, type/density/headline, motion and reference lessons; do not substitute generic style labels. Keep their authorized files under `docs/design/directions/<round>/`. These studies are selection evidence, not the connected HiFi target or production UI. The owner selects from the recorded direction IDs; a mixed direction gets a new complete comparison round before selection. This uses the existing direction gate, not another approval step. Screenshot hashes prove identity, not aesthetic quality or honest inspection.
 
 ## Frontend Design Style Integration
 
@@ -50,8 +56,8 @@ Load `frontend-design` and use its brief-first, subject-grounded design process.
 For each direction, record:
 
 - a versioned `VD-*` ID and concise design intent;
-- product and audience fit;
-- confirmed `REF-*` and `RP-*` evidence;
+- product and audience fit, including the accepted Design Brief page-purpose/profile and type/density/headline constraints;
+- confirmed `REF-*` and `RP-*` evidence, including useful composition/typography/motion roles and avoid rationale;
 - layout, composition, typography, color, surface, shape, icon, imagery, and motion rules;
 - tradeoffs and an avoid list; and
 - how it respects the approved component foundation and styling approach.
@@ -61,6 +67,8 @@ Choose iconography through current official-source lookup for the approved platf
 Choose typography with the same evidence discipline. Record display/body roles, required weights, Latin and CJK coverage, fallback order, loading strategy, source URLs, and retrieval dates. Record the palette derivation, contrast intent, and whether dark mode is in scope. These candidate theme values render the HiFi target but are not yet a frozen design-system contract.
 
 ## Platform Rules
+
+Use `modern-design-sources.md` to select current source-backed platform and accessibility checks. Record adopted rules in the existing handoff; preserve the approved stack and responsive targets.
 
 Record one row per approved `stackSemantics.platform` in `### Platform rules` under Style Integration. Shared brand color roles, content hierarchy, and voice may span platforms; navigation, control geometry, type metrics, density, and feedback must follow the platform and task. The table does not select a framework or reopen the approved stack.
 

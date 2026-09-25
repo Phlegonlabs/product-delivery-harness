@@ -44,7 +44,7 @@ Ask the unresolved parts of these short prompts:
 
 - What problem should this product solve, for whom, and what outcome would make it successful?
 - Which people or organizations use, buy, administer, approve, or observe it, and what access differences matter?
-- Where, when, and on which devices or channels will they use it? Mention accessibility, localization, or offline needs that matter.
+- Where, when and on which devices will people use it? Include companion websites, accessibility, language and offline needs.
 - How should it make money, who pays, and should affiliates, referral partners, or resellers help sell it?
 
 Capture internally: goal, buyer, users, roles, permissions, use context, channels, commercial intent, pricing direction, partner-sales intent, accessibility, localization, offline expectations, and known brand or policy constraints. Do not ask the closed product-archetype question here.
@@ -92,6 +92,7 @@ Ask only questions that are not already answered. Route unresolved details into 
 4. Product surface
    - [AQ-ARCHETYPE] Should this be web, mobile app, desktop app, browser extension, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)
    - [AQ-MOBILE-TARGETS] If the answer includes a mobile app, which operating systems ship in v1: iOS, Android, both, or another explicit set? (AskUserQuestion, final phase) This decides destinations, not framework. Skip it when the prompt, package, or repository already names the complete v1 target set.
+   - For a mobile product, carry its public showcase/authenticated Web scope from discovery into the existing archetype decision and release inventory. Resolve only missing scope; keep included surfaces in one PRD using `mobile-stack-selection.md#app-and-companion-web-contract`. Reuse settled client-strategy decisions, but never treat a framework reference as a selection; the Web stack remains a separate applicable decision.
    - [AQ-DESKTOP-TARGETS] If the answer includes a desktop app, which operating systems ship in v1: macOS, Windows, both, or another explicit set? (AskUserQuestion, final phase) This decides destinations, not toolkit. Skip it when the complete target set is already named.
    - [AQ-CLIENT-STRATEGY] For a mobile or desktop client, should v1 use platform-native implementations, one cross-platform codebase, or an evidence-backed recommendation? (AskUserQuestion, final phase) Ask only after the target operating systems are known. Framework and toolchain choices such as Flutter versus React Native, or Tauri versus Electron, are later coherent-stack options under the Stack Decision Checkpoint rather than peer platform choices in this question.
    - [AQ-BROWSER-TARGETS] If the answer is browser extension, which browsers ship in v1: Chrome/Chromium only, Chrome plus Firefox, or an evidence-backed recommendation? (AskUserQuestion, final phase; use Other for Safari or another explicit set) Skip it when the full target set is already named. A browser extension skips the hosted deployment-platform question.

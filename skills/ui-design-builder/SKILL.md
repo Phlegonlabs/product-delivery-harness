@@ -73,11 +73,15 @@ Enhancement mode takes precedence over the initial-design sequence below unless 
 
 - Read `references/enhancement-recommendations.md` for baseline review, scoped recommendations, hero/motion completeness and Web/native before/after studies.
 
+- Read `references/page-design-profiles.md` to map landing, portfolio, dashboard, data and form pages to scoped typography, motion, headline and density defaults in the existing Design Brief.
+
+- Read `references/modern-design-sources.md` for sourced Web/native baselines and AI-assisted design practices; apply relevant guidance without importing another stack, skill dependency or design authority.
+
 - Read `references/ui-design-intake.md` before asking UI direction questions.
 - Read `references/motion-and-media-routing.md` for placeholder type, CSS/WAAPI, GSAP, and Higgsfield routing.
 - Read `references/design-reference-guide.md` before inspecting or recording a visual reference or direction.
 - Read `references/wireframe-guide.md` for `wireframes.html` structure and internal browser validation.
 - Read `references/ui-design-pass.md` for Style Integration, the connected HiFi reference, Impeccable review, visual approval, and the Design System Need Gate.
-- Read `references/ui-grading-rubric.md` before scoring either wireframes or HiFi.
+- Read `references/ui-grading-rubric.md` before scoring either wireframes or HiFi. Apply its Layout Integrity And Anti-Slop Review during HiFi authoring and repair as well as review; scores cannot clear collapsed controls, clipped content or unreachable layers.
 - Read `references/output-contract.md` for `ui-design.md` and evidence fields.
 - Read `references/artifact-lifecycle.md` before staging, publishing, archiving, or replacing UI artifacts.

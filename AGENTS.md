@@ -73,6 +73,7 @@ When a product has pricing, paid access, purchase-gated features or outside sell
 
 ## Git Flow
 
+- Before every authorized commit, read `skills/delivery-harness/references/commit-convention.md`. Direct tasks use `<type>(<scope>): <imperative summary>`; managed task and mission trailers apply only inside managed runs.
 - This repository is permanently main-only. Do not edit or commit directly on the default branch (`main`); update it only by exact-SHA promotion under `skills/delivery-harness/references/branch-promotion-contract.md`. The retired branch name `development` is not a release source or integration target.
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
 - With matching `create_local_branches` authorization, create the exact non-default run branch named by repository governance or the user. Cut both `initial_delivery` and `enhancement` runs from the observed remote `main` head. If the delivery kind or branch name is unresolved, ask; never add a fixed prefix.

@@ -11,6 +11,10 @@ Ask the human owner whether shipped motion is:
 
 Generated motion, autoplay or sound, material performance budgets, accessibility exceptions, and new product scope always return to the owner. Every motion decision includes an equivalent reduced-motion path.
 
+For page-specific defaults, use `page-design-profiles.md`. Landing/portfolio expressive motion is proposed through this same intake and becomes required only when selected; accepted no-motion decisions stay valid. Once selected, demonstrate the actual effect and reduced-motion equivalent under the rules below.
+
+After Wireframe Validation, a representative direction study may play a small deterministic motion option locally with CSS/WAAPI or GSAP when that stays within the approved Motion and Media scope, with normal and reduced-motion behavior. It helps the owner judge selection only; it is not Required motion evidence, native proof, or permission to invoke a generation provider. A provider route stays deferred until after direction selection receives its exact provider/action authorization, and the selected effect still needs complete final HiFi motion evidence.
+
 ## Typed Wireframe Placeholders
 
 For every marquee or media-bearing screen region, record one treatment:

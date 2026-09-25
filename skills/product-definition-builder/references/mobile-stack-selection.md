@@ -12,6 +12,29 @@ Label the decision status accurately:
 
 Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
 
+## App And Companion Web Contract
+
+**React Native + Expo is a reference option, not a required or default stack for App + Web products.** Compare suitable native and cross-platform approaches from the product's needs using the selection procedure below. Mentioning a framework as an example does not make it `Required` or `Approved`. Preserve an existing `Selected` or `Approved` stack and reuse an explicit owner mandate only when one actually exists. Keep target platforms, framework, toolchain and Web implementation decisions separate.
+
+A product may ship its apps and public showcase website together. Keep one PRD, architecture and stack-decision package. During discovery, resolve whether the web scope is a public showcase, an authenticated web application, both, or neither. Do not add a website merely because an app exists. Record included, deferred and excluded surfaces in the existing Product Archetype/scope sections, and bind included surfaces to architecture Release Targets:
+
+| Surface | Role | Surface class / capture mode | Review obligations |
+| --- | --- | --- | --- |
+| iOS app | Native product journeys | `ios` / `native` | Named smaller/larger supported phone targets; iPad only when scoped |
+| Android app | Native product journeys | `android` / `native` | Named smaller/larger supported phone targets; tablets/foldables only when scoped |
+| Public showcase web | Explain the product and support discovery or acquisition | `hosted_web` / `hosted-browser` | 390, 768, 1024 and 1440 px by default |
+| Authenticated web app or admin | Browser product/operator journeys, only when required | `hosted_web` / `hosted-browser` | Its own approved routes, states and responsive contract |
+
+Each included platform gets distinct release-surface IDs and its own `UI-*` bindings, even when the apps share source code. Native entries use at least two ordered named `sizeClasses` with supported device/orientation obligations; UI authoring binds each name to an explicit review-canvas width. Web entries use numeric `viewports`. Existing approved responsive sets remain authoritative. Do not apply the four web widths to native screens or imply that a second phone size includes tablet support.
+
+The PRD records platform-specific requirements for safe areas, keyboard avoidance, system text scaling (including iOS Dynamic Type and Android font scaling), screen readers, back/navigation behavior, permissions, deep links and offline/recovery states. State non-applicability where appropriate. Showcase scope names the actual required pages, content sources, SEO/indexing, accessibility and acquisition destinations; store links must have defined pre-release and platform-unavailable behavior. A showcase does not acquire login, checkout or app feature parity by implication.
+
+In architecture and stack decisions, state what is shared: API contracts, validation, domain logic, data ownership and approved design principles. Also state what differs: native versus browser navigation/components, secure storage/session handling, permissions and platform integrations. Explicitly choose shared cross-platform Web code or a separate Web frontend from the Web requirements. Expo Web is one reference when Expo is selected for mobile; no mobile choice settles the website framework, hosting, rendering or SEO strategy. Record shared-backend compatibility, auth callback/deep-link boundaries and failure recovery when a journey crosses surfaces. Monetization and entitlement rules still follow the existing commercial gates when applicable.
+
+Define separate iOS, Android and web build/release targets, identifiers, environments, distribution, availability signals and rollback paths. Choose build/distribution tools for the selected stack. For the Expo reference option, EAS Build/Submit/Update and local/other CI remain explicit choices; Expo does not require a paid EAS service. Native-library/config changes require compatible native builds. OTA use records runtime compatibility and applicable store-policy constraints rather than promising every change can ship without review. Expo Go or an HTML preview is not production-native acceptance evidence: require platform builds and per-platform test obligations, plus browser checks for web. These fields belong in existing PRD `TEST-*` rows and architecture testing/release sections, not a second specification.
+
+Official references checked 2026-09-24: [Expo development workflow](https://docs.expo.dev/workflow/overview/), [Expo web](https://docs.expo.dev/workflow/web/), and [React Native setup](https://reactnative.dev/docs/environment-setup). Recheck current SDK support and service/store constraints when drafting a product.
+
 ## First Separate the Layers
 
 Never compare `native iOS vs Flutter vs React Native vs Expo` as though they sit at the same level. Target operating systems, code-sharing strategy, framework, and toolchain are nested decisions, not one flat menu.

@@ -76,6 +76,7 @@ The Markdown/JSON pair remains the authority. The HTML is reproducible, contains
 - The human owner approved one immutable UI target.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
 - The existing direction decision names a direction from the hash-bound Direction comparison table, with primary and stress cases for each platform before full HiFi or token compilation. Platform rules preserve platform-specific type, icons, controls, density, and feedback; compilation never replaces them with Web defaults.
+- Compilation carries only the selected/approved Design Brief profile, typography/density/headline, reference and motion decisions bound to that direction. Pre-selection studies, rejected alternatives, and generic defaults are not production authority and do not reopen taste during compilation.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.
 - Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set contains at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and wireframe exactly.
 - Every required PRD element maps to the final registry, and no unresolved page-local exception remains.

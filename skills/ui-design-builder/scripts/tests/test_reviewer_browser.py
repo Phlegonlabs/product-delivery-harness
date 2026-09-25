@@ -374,7 +374,23 @@ const launchChromium=async()=>{
     if(before.width!==236||before.background==='rgb(255, 0, 0)'||before.font==='32px')
       throw Error('product CSS crossed shell boundary: '+JSON.stringify(before));
     const controls=page.locator('reviewer-shell').locator('#responsive-controls button');
-    if(await controls.count()<2) throw Error('responsive controls missing');
+    const verifyWidths=async()=>{
+      const expected=['390','768','1024','1440'];
+      const actual=await controls.evaluateAll(nodes=>nodes.map(node=>node.dataset.responsiveTarget));
+      if(JSON.stringify(actual)!==JSON.stringify(expected))throw Error('wrong default responsive controls: '+JSON.stringify(actual));
+      for(const width of expected){
+        const control=page.locator('reviewer-shell').locator(`[data-responsive-target="${width}"]`);
+        await control.click();
+        if(await control.getAttribute('aria-pressed')!=='true')throw Error('target not selected: '+width);
+        const measured=await page.locator('.wireframe').evaluate(node=>node.getBoundingClientRect().width);
+        if(measured!==Number(width))throw Error(`canvas width ${measured} does not match ${width}`);
+        await page.reload();
+        if(await control.getAttribute('aria-pressed')!=='true')throw Error('target not restored: '+width);
+        if(await page.locator('.wireframe').evaluate(node=>node.getBoundingClientRect().width)!==Number(width))
+          throw Error('restored canvas has wrong width: '+width);
+      }
+    };
+    await verifyWidths();
     await controls.first().click();
     const target=await controls.first().getAttribute('aria-pressed');
     if(target!=='true') throw Error('responsive target did not select');
@@ -406,6 +422,7 @@ const launchChromium=async()=>{
     if(!page.url().endsWith('#UI-002'))throw Error('product menu action did not reach its declared screen');
     if(await page.locator('reviewer-shell').locator('[data-screen-state="empty"]').getAttribute('aria-pressed')!=='true')
       throw Error('product menu action did not land in its declared destination state');
+    await verifyWidths();
     if(errors.length) throw Error(errors.join('\n'));
     console.log(JSON.stringify(before));
   } catch(error) {

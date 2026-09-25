@@ -424,6 +424,22 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         self.assertIn(lookup, template)
         self.assertLess(template.index(binding), template.index(lookup))
 
+    def test_current_template_covers_four_review_widths_on_every_screen(self):
+        template = (Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html").read_text(encoding="utf-8")
+        data = json.loads(re.search(r'<script id="wireframe-data" type="application/json">(.*?)</script>', template, re.S).group(1))
+        targets = [390, 768, 1024, 1440]
+        self.assertEqual(targets, data["viewports"])
+        self.assertEqual({str(width): width for width in targets}, data["canvasWidths"])
+        for screen in data["screens"]:
+            with self.subTest(screen=screen["id"]):
+                self.assertEqual([str(width) for width in targets], list(screen["responsiveLayouts"]))
+                regions = {region["id"] for region in screen["regions"]}
+                for layout in screen["responsiveLayouts"].values():
+                    self.assertEqual(regions, set(layout["order"]))
+                    self.assertEqual(regions, set(layout["spans"]))
+                    self.assertFalse(set(screen["neverDrop"]) & set(layout["hidden"]))
+                    self.assertTrue(all(1 <= span <= layout["columns"] for span in layout["spans"].values()))
+
     def test_valid_projection_passes_strict_checks(self):
         self.assertEqual(
             validate_html(
