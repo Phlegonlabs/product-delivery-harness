@@ -4,6 +4,7 @@ The four READMEs remain the documentation of record for the skill bundle.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
+| `docs/epics/EPIC-reference-flow-integration.md` | Optional 19-domain reference catalog, selection rule, and stage-local skill pointers | Local implementation verified; 0.54.4 exact-candidate CI and release pending |
 | `docs/epics/EPIC-reviewer-sidebar-polish.md` | Shared Wireframe and HiFi reviewer sidebar styling | Sidebar styling and persistent browser checks; 0.54.3 publication evidence in PR125 |
 | `docs/epics/EPIC-app-companion-web.md` | Technology-neutral one-PRD App/showcase-Web specifications | Product/UI checks passed; included in the 0.54.2 release candidate |
 | `docs/epics/EPIC-design-authoring-flow.md` | PRD-bound style and playable-motion authoring across skills | Design flow committed; two regression fixtures repaired and focused suites passed; 0.54.2 release verification pending |

@@ -55,6 +55,8 @@ Choose one mode from the available evidence:
 
 1. Record the mode, production scope, target market and language, business outcome, comparison windows, data cutoff, and every source's freshness and access route.
 2. Read `references/source-catalog.md`. Fetch current official provider documentation before relying on a fast-moving API, report, field, quota, or console path.
+
+    Consult `../delivery-harness/references/reference-selection.md` only for a public, discoverable surface and only when its adopted stack, security, deployment, or operations context is material to an SEO finding. Relevant catalog domains stay subordinate to the existing public-surface scope; this pointer creates no SEO work, gate, or change authority.
 3. Read `references/review-method.md`. Inventory available evidence before calling a source unavailable. Never infer authenticated access from a tool name, installed package, or signed-in page without proving the exact property or account scope.
 4. Validate measurement integrity first. Confirm the production site, Search Console property, GA4 property and stream, canonical host, environment, and date coverage refer to the same scope. If `docs/ACTIVATION.md` exists, use its verified matching `MS-*` sources; a configured tag or dashboard alone is not verified data.
 5. Inspect the production site for technical discovery blockers: HTTP and redirect behavior, crawl and index directives, canonicals, sitemap reachability when applicable, rendered metadata, structured data eligibility, internal-link crawlability, mobile rendering, and material performance or page-experience failures. Distinguish a current observed failure from a recommendation.

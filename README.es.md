@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -53,6 +53,10 @@ El PRD se completa durante toda la entrega. Antes de aprobar la primera entrega,
 | Un sitio público en producción que necesita análisis SEO o de crecimiento orgánico | `seo-growth-review` | Una revisión técnica y de medición de solo lectura, oportunidades de keyword/página ordenadas por evidencia y follow-ups enrutados |
 
 Cada uno de los siete skills incluidos se puede invocar por separado; el pipeline completo es opcional. Cada modo igual valida sus inputs y dependencias declaradas.
+
+Una biblioteca de referencias opcional compara 19 dominios de tecnología y diseño sin elegir un stack por defecto. La [regla de selección](skills/delivery-harness/references/reference-selection.md) parte de la necesidad y lee solo el dominio relevante bajo [option-library](skills/delivery-harness/references/option-library/README.md). Conserva un stack existente y saludable; CSS/Tailwind, icons, Cloudflare, Expo/React Native, GSAP o cualquier proveedor no son obligatorios. Las decisiones adoptadas se registran en los documentos existentes de product, architecture, stack, UI o tareas; no se añaden gates, registros, runtimes ni autoridad de aprobación.
+
+El informe de visibilidad de docs-weight incluye el Markdown opcional anidado de references y no añade una gate.
 
 ### Traducción de diseño y patrones reutilizables
 
@@ -539,6 +543,7 @@ Preserva la topología solicitada, los roles instalados, los modelos y las instr
 
 ```text
 skills/                                      Fuentes canónicas de los skills
+skills/delivery-harness/references/option-library/   Catálogo de referencias opcional
 assets/                                              Portadas de los READMEs
 .github/workflows/harness-ci.yml                     Checks de contrato, unit y E2E
 install.sh / install.ps1                             Instaladores de un comando en ~/.agents/skills/
@@ -611,6 +616,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.54.4** — Añade una biblioteca opcional de 19 dominios y referencias por etapa en los siete skills. Compara opciones según las necesidades del producto, conserva decisiones adoptadas y mantiene los límites existentes de fuentes, diseño, runtime y autorización.
 
 - **0.54.3** — Mejora la barra lateral compartida de Wireframe y HiFi con navegación discreta, una página activa clara, tamaños en dos columnas, etiquetas ajustables y transiciones que respetan el movimiento reducido. Conserva el aislamiento, los tamaños del lienzo y el comportamiento.
 

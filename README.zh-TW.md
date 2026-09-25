@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -53,6 +53,10 @@ PRD 會在整個交付流程中持續補全。首次交付批准前，UI 與技�
 | 需要 SEO 或自然流量分析的 production 公開網站 | `seo-growth-review` | 唯讀技術與量測 review、按證據排序的關鍵詞／頁面機會，以及已路由的後續動作 |
 
 七個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
+
+共用的 optional reference library 提供 19 個技術與設計領域的比較資料，不預選任何技術棧。[selection rule](skills/delivery-harness/references/reference-selection.md) 先從需求出發，只載入 [option-library](skills/delivery-harness/references/option-library/README.md) 中相關領域。它保留健康的既有技術；CSS/Tailwind、icon、Cloudflare、Expo/React Native、GSAP 或任何供應商都不是必選項。採納結論寫入既有 product、architecture、stack、UI 或任務記錄，不新增 gate、register、runtime 或審批權限。
+
+docs-weight 可見度報告會納入巢狀的選用 reference Markdown，不新增 gate。
 
 ### 設計轉譯與可重用範本
 
@@ -540,6 +544,7 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 
 ```text
 skills/                                      標準技能來源
+skills/delivery-harness/references/option-library/   選用跨領域參考目錄
 assets/                                              README 封面
 .github/workflows/harness-ci.yml                     契約、單元與 E2E 檢查
 install.sh / install.ps1                             一鍵安裝進 ~/.agents/skills/
@@ -612,6 +617,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.54.4** — 加入涵蓋 19 個領域的選用參考庫，並在七個 skills 的適用階段加入引用。從產品需求比較方案，保留已採納決策，沿用現有的來源更新、設計、runtime 與授權邊界。
 
 - **0.54.3** — 優化 Wireframe 與 HiFi 共用側欄，採用簡潔導航、清楚的目前頁面標記、雙欄尺寸選擇器、可換行標籤及尊重減少動態效果設定的互動回饋。保留檢視器隔離、畫布尺寸及執行行為。
 

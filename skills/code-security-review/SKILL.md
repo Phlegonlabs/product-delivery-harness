@@ -42,6 +42,8 @@ Use a clean checkout at the candidate SHA. A dirty or uncommitted target may rec
 
 1. Verify the repository, candidate SHA, clean checkout, scope, and applicable instructions.
 2. Map entry points, trust boundaries, privileged operations, sensitive data, external calls, persistence, and deployment configuration.
+
+    When an exact-scope review can benefit from a security baseline, consult `../delivery-harness/references/reference-selection.md` and only the relevant material in `../delivery-harness/references/option-library/security.md`. Use it to frame the declared scope; it is not a second PASS standard, compliance claim, or replacement for source-to-sink review.
 3. Trace attacker-controlled input to sensitive sinks. Check authentication and authorization, tenant isolation, injection, XSS and CSRF, SSRF, path and command execution, secret exposure, cryptography, unsafe deserialization, dependency and supply-chain configuration, concurrency, replay, and fail-open behavior where applicable.
 4. Run only already-installed, explicitly read-only local security commands that apply to the declared scope. Record each command, result, and any omitted coverage. A PASS needs at least one review tool or manual source review recorded as `passed` or `findings`; an all-skipped or unavailable tool set cannot PASS.
 5. When the Harness parent selects Codex Security itself as the review executor, use its Standard repository scan by default. Use a diff scan only for an explicitly bounded change review, and use Deep Scan only when the user explicitly requests a deep or exhaustive review. A dispatched reviewer child does not start a nested scan coordinator; it performs the source review and allowed local checks itself.

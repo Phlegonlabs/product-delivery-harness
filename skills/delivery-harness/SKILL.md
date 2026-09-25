@@ -17,6 +17,8 @@ Project `AGENTS.md` also requires Repository Change Checkpoints at task start, s
 
 Classify UI work with `ui-design-builder/references/review-workflow.md`. Initial design and enhancements use the applicable design gates. Routine maintenance updates current product and effective requirements, verifies the change, and preserves historical design artifacts. A new product or stack decision returns upstream. Frozen RUNs keep their pinned contracts until a task boundary.
 
+Optional context: `references/reference-selection.md` (`references/option-library/`).
+
 ## Purpose
 
 Keep direct work simple; add PLAN/RUN orchestration only when coordination requires it.
@@ -25,7 +27,7 @@ Keep upstream ownership separate:
 
 - `product-definition-builder` owns the approved Product Definition revision across `PRD.md`, `architecture.md`, and `stack-decisions.md`, including complete frontend and backend architecture and technology decisions.
 - `ui-design-builder` owns UI Design Intake, validated schema-5 wireframes or approved legacy wireframes, HiFi review, Visual Approval and the HiFi target. `design-system-compiler` owns a required design-system pair.
-- This skill implements current approved product/stack and applicable UI sources. Every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` stack rows are proposals. Do not invent product, copy, stack or design decisions.
+- Implement current approved product/stack and applicable UI sources. Every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` stack rows are proposals. Do not invent product, copy, stack or design decisions.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate

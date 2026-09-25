@@ -59,13 +59,19 @@ class DocsWeightTests(unittest.TestCase):
     def test_delta_table_against_a_tag(self) -> None:
         self.write("skills/demo/SKILL.md", "one two three four five")
         self.write("skills/demo/references/a.md", "alpha beta")
+        self.write("skills/demo/references/nested/base.md", "base nested")
+        self.write("skills/demo/references/nested/changed.md", "before change")
         self.write("skills/demo/scripts/run.py", "not counted at all")
+        self.write("skills/demo/assets/notes.md", "not documentation weight")
         self.commit_all("base")
         self.git("tag", "v1.0.0")
 
         self.write("skills/demo/SKILL.md", "one two three four five six seven")
         self.write("skills/demo/references/b.md", "new file here")
         (self.root / "skills/demo/references/a.md").unlink()
+        self.write("skills/demo/references/nested/added.md", "brand new nested")
+        self.write("skills/demo/references/nested/changed.md", "after this change")
+        (self.root / "skills/demo/references/nested/base.md").unlink()
         self.commit_all("grow")
 
         code, out = self.run_report("--baseline", "v1.0.0")
@@ -73,9 +79,41 @@ class DocsWeightTests(unittest.TestCase):
         self.assertIn("changed skills/demo/SKILL.md: 5 -> 7 (+2)", out)
         self.assertIn("added skills/demo/references/b.md: 0 -> 3 (+3)", out)
         self.assertIn("removed skills/demo/references/a.md: 2 -> 0 (-2)", out)
-        self.assertIn("TOTAL demo: 7 -> 10 (+3)", out)
-        self.assertIn("GRAND TOTAL: 7 -> 10 (+3) baseline: v1.0.0", out)
+        self.assertIn("added skills/demo/references/nested/added.md: 0 -> 3 (+3)", out)
+        self.assertIn("changed skills/demo/references/nested/changed.md: 2 -> 3 (+1)", out)
+        self.assertIn("removed skills/demo/references/nested/base.md: 2 -> 0 (-2)", out)
+        self.assertIn("TOTAL demo: 11 -> 16 (+5)", out)
+        self.assertIn("GRAND TOTAL: 11 -> 16 (+5) baseline: v1.0.0", out)
         self.assertNotIn("run.py", out)
+        self.assertNotIn("assets/notes.md", out)
+
+    def test_live_and_immutable_selection_include_nested_references_only(self) -> None:
+        nested = "skills/demo/references/nested/deep.md"
+        self.write("skills/demo/SKILL.md", "root skill")
+        self.write(nested, "four nested words")
+        self.write("skills/demo/references/plain.md", "three words")
+        self.write("skills/demo/scripts/guide.md", "excluded script guide")
+        self.write("skills/demo/assets/guide.md", "excluded asset guide")
+        self.write("skills/demo/references/ignored.txt", "excluded extension")
+        self.commit_all("nested docs")
+
+        live_paths = {
+            path.as_posix() for path in docs_weight.tracked_files(self.root, None)
+        }
+        immutable_paths = {
+            path.as_posix()
+            for path, _oid in docs_weight._tree_blobs(self.root, "HEAD")
+        }
+        expected = {
+            "skills/demo/SKILL.md",
+            "skills/demo/references/plain.md",
+            nested,
+        }
+
+        self.assertEqual(expected, live_paths)
+        self.assertEqual(expected, immutable_paths)
+        self.assertEqual(3, docs_weight.weights(self.root, None)[nested])
+        self.assertEqual(3, docs_weight.weights(self.root, "HEAD")[nested])
 
     def test_defaults_to_the_latest_tag(self) -> None:
         self.write("skills/demo/SKILL.md", "one two")
