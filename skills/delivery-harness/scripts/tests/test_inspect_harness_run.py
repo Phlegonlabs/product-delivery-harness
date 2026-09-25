@@ -209,7 +209,8 @@ class InspectHarnessRunTests(unittest.TestCase):
             "workers": [],
         }
 
-        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = inspect_harness_run.summarize_run(Path(tmp), run)
 
         self.assertTrue(summary["missions"][0]["needs_reconciliation"])
         self.assertFalse(summary["missions"][1]["needs_reconciliation"])
