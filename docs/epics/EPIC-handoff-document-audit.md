@@ -20,3 +20,36 @@ Acceptance: every handoff reconciles affected live documents, Epic/index and tas
 ## 2026-09-24 Release Continuation
 
 The earlier working-tree results above are historical observations, not current Git status. This change is committed as `82911ea` and is included in `codex/runtime-resume-repair`, observed HEAD `6ae201453b518dd289cb0bde0dba7e2292f166aa`. The owner authorized reviewing and publishing the existing 0.54.0 preparation together with the runtime and frontend-authoring repairs as 0.54.1. Final exact-candidate evidence, promotion and installation are tracked in [the runtime reliability Epic](EPIC-runtime-and-verification-reliability.md). No release completion is claimed here.
+
+## Change Log — 2026-09-24 skills-flow document review
+
+- Observation: `product-delivery-harness` / `detached HEAD` @ `077cd3471d267d2c2f093c8d06f3f76a293ed1e1`. This is the first complete observation for this audit; older Epic entries retain their own baselines.
+- Authority: owner asked to inspect repository content using the current skills flow and update documents directly, then explicitly allowed this documentation-only pass in the existing checkout, including main. No new product/stack/design decision or release authority is inferred.
+- Installed contract: Harness `0.54.1`, bundle `004e646590c8542c5c1245fbb155ad83eb983ddeae4eb44312a26a333d49a80b`; loaded-at-session-start identity remains unobserved. Installed AGENTS template SHA-256: `86cc1595619c097f79ef8e4234367e9ba8b056a9635bc24d372bcf417b024aa6`.
+- Baseline document fingerprint: `7cc4954398172e3853e4fec2b5f397be04682464ec860c3767962abaee6718aa`. Full path/hash inventory and initial dirty/untracked names are in [audit-before.json](C:/Users/mps19/Documents/GitHub/reviews/docs-refresh-20260924-branch-backup/audit-before.json); pre-existing changes remain observed/unverified.
+- Changed scope: `docs/DOCUMENTS.md` and this Epic. Updates are working-tree documentation, not a commit or a gate approval. Gitignore impact: none; only canonical Markdown is added, and audit logs/backups remain checkout-external.
+
+Remote main and v0.54.1 resolve to 077cd3471d267d2c2f093c8d06f3f76a293ed1e1. GitHub run 36013347974 succeeded on that SHA; a separate later run 36013415752 was cancelled. Installed Harness VERSION is 0.54.1. Five local and six remote non-default branches were deleted after exact squash-tree/ancestry checks; all heads remain recoverable in the verified external bundle. The current checkout is detached at the released main SHA; the unrelated scripts/design/hifi_model.py remains untracked.
+
+| Check | Observed result | Evidence |
+| --- | --- | --- |
+| sync | exit 1 | [product-delivery-harness-sync.log](C:/Users/mps19/Documents/GitHub/reviews/docs-refresh-20260924-branch-backup/product-delivery-harness-sync.log) |
+
+Checks used the installed scripts from the target repository root. Product/UI checks used `--require-filled`; they do not replace browser/native evidence, semantic translation review, exact-SHA runtime verification or owner approval. A translation numeric-literal finding requires section-by-section review; a translated unit alone is not proof of changed meaning.
+
+### Handoff check
+
+- Shared AGENTS template review: Application/source-repository rules retained; not a seeded target template.
+- Final write scope: `docs/DOCUMENTS.md`, `docs/epics/EPIC-handoff-document-audit.md`.
+- Final checkout is `main` at `077cd3471d267d2c2f093c8d06f3f76a293ed1e1`; the local ref was fast-forwarded from `b4ffe691b97265d5a76817c2e0ccf457e084fa54` to already-released origin/main. Local and remote branch read-back lists only main. Backup: [verified Git bundle](C:/Users/mps19/Documents/GitHub/reviews/docs-refresh-20260924-branch-backup/product-delivery-harness.bundle); [original refs](C:/Users/mps19/Documents/GitHub/reviews/docs-refresh-20260924-branch-backup/refs-before.txt).
+- No commits or document pushes were made. Other product/design/RUN bytes in the initial inventory are checked separately for drift in the final report.
+- Source-repository shared-rule decision: current by meaning for Repository Change Checkpoints and Handoff Documentation Audit against installed 0.54.1; stricter source-release, authorization and verification rules remain intact.
+
+## Change Log — 2026-09-26 branch reconciliation
+
+- Observation: work started on `codex/wireframe-four-widths` at `077cd3471d267d2c2f093c8d06f3f76a293ed1e1` with uncommitted changes; local `main` was `ca3b5a4cad57cb2065a57ca46ff2014c279d1a32` and `origin/main` was `853c961a4d7343a095966350e7809f5c326e9686`.
+- Authority: owner asked to remove all branches after merging everything into main.
+- Content checks: `codex/reference-flow-integration` (`2eea0e2c`) matched the `853c961a` tree, `codex/reviewer-sidebar-polish` (`d5d508ec`) matched the `ca3b5a4c` tree, and `codex/design-flow-glm` (`2774d356`) matched the `e6bbfea7` tree; those remote and local refs were deleted after the empty-diff checks. Local `main` was fast-forwarded to `853c961a`.
+- Preservation: snapshot commit `fdedb2c` on `codex/wireframe-four-widths` preserves the full former working state, including the unrelated `scripts/design/hifi_model.py`, which imports `scripts.design.preview_content` and cannot run in this repository.
+- Ported scope: the 2026-09-24 audit sections above and the `docs/DOCUMENTS.md` status row. Stale v0.54.1-era working-tree copies of files already released under newer main content were not reapplied. Release bookkeeping bumps the bundle to 0.54.5.
+- Verification before the candidate commit: skill spec, pyflakes and docs-weight passed; the delivery-harness suite ran 1235 tests with 16 platform-condition skips; the golden-path E2E passed with `HARNESS_GOLDEN_PATH=1`; the product-definition, ui-design, design-system, product-activation and seo-growth suites passed; `git diff --check` passed.

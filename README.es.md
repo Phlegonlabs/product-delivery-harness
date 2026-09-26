@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.54.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.54.5-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -616,6 +616,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.54.5** — Publica el registro de auditoría de entrega del 2026-09-24 y la reconciliación de ramas del 2026-09-26. Las ramas locales y remotas se borraron solo tras comprobar que su contenido ya estaba publicado en main.
 
 - **0.54.4** — Añade una biblioteca opcional de 19 dominios y referencias por etapa en los siete skills. Compara opciones según las necesidades del producto, conserva decisiones adoptadas y mantiene los límites existentes de fuentes, diseño, runtime y autorización.
 
