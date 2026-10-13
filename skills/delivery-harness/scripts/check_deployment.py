@@ -128,6 +128,7 @@ PROVENANCE_RE = re.compile(
     r" observed=(?P<observed>\S+);"
     r" readback=(?P<readback>.+)$"
 )
+READBACK_ARTIFACT_RE = re.compile(r"artifact-sha256=([0-9a-f]{64})\b")
 DEPLOYMENT_SCHEMA_LINE_RE = re.compile(
     r"^-\s*Record schema:\s*(deployment/\d+)\s*$",
     re.MULTILINE,
@@ -443,18 +444,37 @@ def release_source_provenance_duplicates(text: str) -> set[str]:
     }
 
 
-def _actual_provenance(authority: dict[str, str] | None) -> bool:
+def _actual_provenance(
+    authority: dict[str, str] | None,
+    *,
+    expected_ref: str,
+    expected_artifact: str | None = None,
+) -> bool:
     if not authority:
         return False
     evidence = authority.get("authority evidence", "")
     match = PROVENANCE_RE.fullmatch(evidence)
+    readback = match.group("readback").strip() if match else ""
+    payload = ""
+    for prefix in ("command:", "provider:"):
+        if readback.startswith(prefix):
+            payload = readback[len(prefix) :].strip()
+            break
+    artifact_hash = READBACK_ARTIFACT_RE.search(payload)
     return (
         FULL_SHA_RE.fullmatch(authority.get("source sha", "")) is not None
         and match is not None
+        and authority.get("source ref") == expected_ref
+        and match.group("ref") == authority.get("source ref")
         and match.group("sha") == authority.get("source sha")
         and _timestamp(match.group("observed")) is not None
-        and len(match.group("readback").strip()) >= 8
-        and match.group("readback").strip().startswith(("command:", "provider:"))
+        and len(payload) >= 8
+        and bool(re.search(r"[A-Za-z0-9]", payload))
+        and (
+            artifact_hash is None
+            or expected_artifact is None
+            or artifact_hash.group(1) == expected_artifact
+        )
     )
 
 
@@ -718,7 +738,11 @@ def _validate_release_target_status(
                     expected_stage=target.stage,
                     source_policy_protocol=target.source_policy_protocol,
                 )
-            if require_source_provenance and not _actual_provenance(authority):
+            if require_source_provenance and not _actual_provenance(
+                authority,
+                expected_ref=expected_authority.ref if expected_authority else "",
+                expected_artifact=artifact,
+            ):
                 findings.append(
                     f"{label}: PASS target {target_id} needs actual source "
                     "provenance"
@@ -737,7 +761,11 @@ def _validate_release_target_status(
                         f"{label}: PASS target {target_id} Source SHA must "
                         "equal Expected SHA"
                     )
-                if not _actual_provenance(authority):
+                if not _actual_provenance(
+                    authority,
+                    expected_ref=expected_authority.ref if expected_authority else "",
+                    expected_artifact=artifact,
+                ):
                     findings.append(
                         f"{label}: PASS target {target_id} needs complete "
                         "actual authority evidence"
@@ -823,7 +851,11 @@ def _strict_provenance_findings(
             source_policy_protocol=target.source_policy_protocol,
         )
         findings.extend(f"{label}: {item}" for item in expected_findings)
-        if not _actual_provenance(authority):
+        if not _actual_provenance(
+            authority,
+            expected_ref=expected_authority.ref if expected_authority else "",
+            expected_artifact=deployment.get("artifact / build identity"),
+        ):
             findings.append(
                 f"{label}: target {target_id} cannot gain strict readiness "
                 "without complete actual source proof"
@@ -868,7 +900,13 @@ def check_deployment_text(
             )
     if architecture_text is not None:
         findings.extend(_validate_release_source_provenance(text, architecture_text))
-        findings.extend(_validate_release_target_status(text, architecture_text))
+        findings.extend(
+            _validate_release_target_status(
+                text,
+                architecture_text,
+                require_source_provenance=require_source_provenance,
+            )
+        )
     for number, line in enumerate(active_text(text).splitlines(), start=1):
         for marker in PLACEHOLDER_MARKERS:
             if marker in line:

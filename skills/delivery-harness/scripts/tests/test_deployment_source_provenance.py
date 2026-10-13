@@ -207,6 +207,83 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
             ),
         )
 
+    def test_strict_evidence_ref_and_readback_payload_must_match(self) -> None:
+        strict = deployment_record(
+            web_sha=SHA,
+            prod_sha=SHA,
+            web_evidence=actual_evidence(SHA, "run.integration.branch"),
+            prod_evidence=actual_evidence(SHA),
+        )
+        strict = re.sub(
+            r"\| web-dev .*?\n",
+            f"| web-dev | web-app | development | Cloudflare;development route | https://dev.example.com | {SHA} | {SHA} | deployment-dev | development route answered the smoke check | {OBSERVED} | PASS |\n",
+            strict,
+            count=1,
+        )
+        strict = re.sub(
+            r"\| web-prod .*?\n",
+            f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+            strict,
+            count=1,
+        )
+
+        evil_evidence_ref = strict.replace(
+            "ref=refs/heads/main; sha=",
+            "ref=refs/heads/evil; sha=",
+            1,
+        )
+        findings = check_deployment.check_deployment_text(
+            evil_evidence_ref,
+            architecture_text=ARCHITECTURE,
+            require_source_provenance=True,
+        )
+        self.assertTrue(
+            any("needs actual source provenance" in item for item in findings),
+            findings,
+        )
+
+        empty_payload = strict.replace(
+            "readback=command:git rev-parse refs/heads/main",
+            "readback=command:",
+            1,
+        )
+        findings = check_deployment.check_deployment_text(
+            empty_payload,
+            architecture_text=ARCHITECTURE,
+            require_source_provenance=True,
+        )
+        self.assertTrue(
+            any("needs actual source provenance" in item for item in findings),
+            findings,
+        )
+
+        artifact = "b" * 64
+        artifact_record = strict.replace(
+            "deployment-1", artifact, 1
+        ).replace(
+            "readback=command:git rev-parse refs/heads/main",
+            f"readback=command:git rev-parse refs/heads/main artifact-sha256={artifact}",
+            1,
+        )
+        self.assertEqual(
+            [],
+            check_deployment.check_deployment_text(
+                artifact_record,
+                architecture_text=ARCHITECTURE,
+                require_source_provenance=True,
+            ),
+        )
+        tampered_artifact = artifact_record.replace(artifact, "d" * 64, 1)
+        findings = check_deployment.check_deployment_text(
+            tampered_artifact,
+            architecture_text=ARCHITECTURE,
+            require_source_provenance=True,
+        )
+        self.assertTrue(
+            any("needs actual source provenance" in item for item in findings),
+            findings,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
