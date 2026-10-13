@@ -36,3 +36,5 @@ The 19 audit items map to these outcomes. Historical missing OwnerDirect files a
 | --- | --- | --- |
 | 2026-10-13 entry | `8a47dab3` | Created the authorized branch and five isolated source checkouts. Initialized one Dynamic Workflow ledger with twelve nodes. Source changes and host updates remain pending. |
 | 2026-10-13 WF-01 | `4bc12f7b` | Integrated worker `769bf0ba`. Native browser capability now uses host identity; bridge provider/driver/session checks remain. Fourteen focused role tests and Pyflakes passed. The working tree is clean. Independent review and full-candidate verification remain pending. |
+| 2026-10-13 WF-06 | host candidates | Eight hash-bound candidate files and eight focused host tests are complete. Live host bytes are unchanged. Application, dispatch smoke and independent review remain pending. |
+| 2026-10-13 WF-02 attempt 1 | `8a47dab3` | Opus/high stopped after scoped shell denials, without edits. The predecessor exited and the UI checkout stayed clean. Attempt 2 retains the same model and permissions, with explicit authorized command spellings. The failed receipt is preserved in the Dynamic ledger. |
