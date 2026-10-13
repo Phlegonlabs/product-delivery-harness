@@ -925,6 +925,8 @@ def check_deployment_text(
     strict_target_subset: tuple[str, ...] | None = None,
 ) -> list[str]:
     findings: list[str] = []
+    if require_source_provenance and architecture_text is None:
+        return ["architecture: strict source provenance requires architecture.md"]
     sections = _section_blocks(text)
     for heading in KNOWN_LEVEL_TWO_SECTIONS:
         count = len(sections.get(heading, []))
@@ -1217,6 +1219,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--architecture", type=Path)
     parser.add_argument("--require-source-provenance", action="store_true")
     args = parser.parse_args(argv)
+    if args.require_source_provenance and args.architecture is None:
+        print(
+            "--require-source-provenance requires --architecture",
+            file=sys.stderr,
+        )
+        return 2
     path: Path = args.deployment
     if not path.is_file():
         print(f"deployment record not found: {path}", file=sys.stderr)
