@@ -371,6 +371,10 @@ class ActivationCheckerTests(unittest.TestCase):
             )
         self.assertEqual([], findings)
         self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
 
     def test_explicit_noop_can_pass_verified_source_handoff(self) -> None:
         with patch("check_product_package.validate_texts", return_value=[]), patch(
@@ -439,6 +443,10 @@ class ActivationCheckerTests(unittest.TestCase):
             )
         self.assertIn("Deployment: Release Target Status is not a current PASS", "\n".join(findings))
         self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
 
     def test_schema2_source_method_owner_and_target_window_join(self) -> None:
         wrong_method = valid_record_v2().replace(

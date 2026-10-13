@@ -237,6 +237,10 @@ class MultiTargetOutcomeReviewTests(unittest.TestCase):
             )
         self.assertEqual([], findings)
         self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            tuple(seed.PRODUCTION),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
         self.assertGreaterEqual(activation_check.call_count, 2)
         for call in activation_check.call_args_list:
             self.assertEqual("# Stack Decisions: fixture", call.kwargs["stack_text"])

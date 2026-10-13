@@ -247,6 +247,10 @@ class OutcomeReviewTests(unittest.TestCase):
         self.assertTrue(
             deployment_check.call_args.kwargs["require_source_provenance"]
         )
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
         self.assertEqual("# Stack Decisions: Example", activation_check.call_args.kwargs["stack_text"])
         self.assertEqual(Path.cwd(), activation_check.call_args.kwargs["repo_root"])
         self.assertTrue(activation_check.call_args.kwargs["package_validated"])

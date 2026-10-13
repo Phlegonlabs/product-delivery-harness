@@ -1681,15 +1681,17 @@ def check_activation_text(
                 repo_root=repo_root,
             )
         )
-        from check_deployment import check_deployment_text
-        findings.extend(
-            f"Deployment: {item}"
-            for item in check_deployment_text(
-                deployment_text or "",
-                architecture_text=architecture_text,
-                require_source_provenance=authority_required,
+        if require_ready:
+            from check_deployment import check_deployment_text
+            findings.extend(
+                f"Deployment: {item}"
+                for item in check_deployment_text(
+                    deployment_text or "",
+                    architecture_text=architecture_text,
+                    require_source_provenance=True,
+                    strict_target_subset=tuple(require_ready),
+                )
             )
-        )
     if authority_required and prd_text is None:
         findings.append("PRD: verified-source handoff requires the current PRD")
     if authority_required and architecture_text is None:

@@ -284,6 +284,37 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
             findings,
         )
 
+    def test_strict_target_subset_does_not_require_unclaimed_dev_readiness(self) -> None:
+        record = deployment_record(
+            web_sha=SHA,
+            prod_sha=SHA,
+            web_evidence="pending",
+            prod_evidence=actual_evidence(SHA),
+        )
+        record = re.sub(
+            r"\| web-prod .*?\n",
+            f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+            record,
+            count=1,
+        )
+        self.assertEqual(
+            [],
+            check_deployment.check_deployment_text(
+                record,
+                architecture_text=ARCHITECTURE,
+                require_source_provenance=True,
+                strict_target_subset=("web-prod",),
+            ),
+        )
+
+        findings = check_deployment.check_deployment_text(
+            record,
+            architecture_text=ARCHITECTURE,
+            require_source_provenance=True,
+            strict_target_subset=("invented-prod",),
+        )
+        self.assertTrue(any("unknown strict target" in item for item in findings))
+
 
 if __name__ == "__main__":
     unittest.main()

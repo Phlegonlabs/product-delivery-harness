@@ -831,13 +831,30 @@ def _strict_provenance_findings(
     text: str,
     architecture_text: str,
     deployment_rows: dict[str, dict[str, str]],
+    strict_target_subset: tuple[str, ...] | None = None,
 ) -> list[str]:
     findings: list[str] = []
     label = "Release Source Provenance"
     provenance = parse_release_source_provenance(text)
     contract, parser_findings = parse_release_targets(architecture_text)
     findings.extend(f"{label}: {item}" for item in parser_findings)
-    for target_id, target in sorted(contract.by_id().items()):
+    architecture_targets = contract.by_id()
+    if strict_target_subset is None:
+        requested_targets = sorted(architecture_targets)
+    else:
+        if not strict_target_subset:
+            findings.append(f"{label}: strict target subset cannot be empty")
+        requested_targets = list(strict_target_subset)
+        unknown = sorted(set(requested_targets) - set(architecture_targets))
+        if unknown:
+            findings.append(
+                f"{label}: unknown strict target subset: {', '.join(unknown)}"
+            )
+        requested_targets = [
+            target_id for target_id in requested_targets if target_id in architecture_targets
+        ]
+    for target_id in requested_targets:
+        target = architecture_targets[target_id]
         authority = provenance.get(target_id)
         deployment = deployment_rows.get(target_id)
         if authority is None or deployment is None:
@@ -889,6 +906,7 @@ def check_deployment_text(
     *,
     architecture_text: str | None = None,
     require_source_provenance: bool = False,
+    strict_target_subset: tuple[str, ...] | None = None,
 ) -> list[str]:
     findings: list[str] = []
     sections = _section_blocks(text)
@@ -1171,6 +1189,7 @@ def check_deployment_text(
                 text,
                 architecture_text,
                 parse_release_target_status(text),
+                strict_target_subset=strict_target_subset,
             )
         )
     return findings
