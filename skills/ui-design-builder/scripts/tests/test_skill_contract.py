@@ -221,7 +221,9 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("parent read", authoring_contract.lower())
         self.assertIn("silently replace the binding", authoring_contract)
         self.assertIn("grants no spawn action", authoring_contract)
-        self.assertIn("direct parent may", authoring_contract)
+        self.assertNotIn("parent may author", authoring_contract)
+        for document in (stage, wireframe, hifi, workflow):
+            self.assertIn("the parent cannot author it directly", document)
         self.assertIn("shell construction and validation", authoring_contract)
 
     def test_motion_and_media_router_is_conditional(self):
