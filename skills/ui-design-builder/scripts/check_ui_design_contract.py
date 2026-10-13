@@ -714,7 +714,60 @@ def _direction_studies(style: str, problems: list[str]) -> None:
     _direction_study_identities(style, problems)
 
 
-def _resolve_direction_studies(style: str, repo_root: Path, problems: list[str]) -> None:
+def _direction_profile_scope_findings(
+    html: str, path: str, scope: dict[str, Any] | None,
+) -> list[str]:
+    """Join an assembled direction profile to the approved scope, not its own claims.
+
+    Direction review intentionally does not require complete state coverage. A
+    representative case may use any approved surface, but its platform and
+    target set must come from that surface's approved contract.
+    """
+
+    if scope is None:
+        return []
+    import direction_review
+    import json as json_module
+
+    match = direction_review.PROFILE_RE.search(html)
+    if match is None:
+        return []
+    try:
+        profile = json_module.loads(match.group(1))
+    except json.JSONDecodeError:
+        return []
+    raw_surfaces = scope.get("surfaces", [])
+    surfaces = {item["id"]: item for item in (raw_surfaces if isinstance(raw_surfaces, list) else [])
+                if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    seen_platforms: set[str] = set()
+    problems: list[str] = []
+    for case in profile.get("cases", []) if isinstance(profile, dict) else []:
+        if not isinstance(case, dict) or case.get("surface") not in surfaces:
+            problems.append(f"Direction study {path} names a case outside Approved target scope")
+            continue
+        surface = surfaces[case["surface"]]
+        platform = _surface_platform(surface)
+        seen_platforms.add(platform)
+        responsive = surface.get("responsive") or scope.get("responsive") or {}
+        mode = surface.get("captureMode", scope.get("captureMode"))
+        family = "viewports" if mode in {"hosted-browser", "browser-extension"} else "sizeClasses"
+        expected_targets = [str(value) for value in responsive.get("targets", [])] if isinstance(responsive, dict) else []
+        if case.get("platform") != platform:
+            problems.append(f"Direction study {path} case {case.get('id', '')} uses a platform outside Approved target scope")
+        if case.get("targetFamily") != family:
+            problems.append(f"Direction study {path} case {case.get('id', '')} uses the wrong target family")
+        if not isinstance(case.get("widths"), dict) or set(case["widths"]) != set(expected_targets):
+            problems.append(f"Direction study {path} case {case.get('id', '')} uses targets outside Approved target scope")
+    expected_platforms = {_surface_platform(surface) for surface in surfaces.values()}
+    if seen_platforms != expected_platforms:
+        problems.append(f"Direction study {path} must review every platform in Approved target scope")
+    return problems
+
+
+def _resolve_direction_studies(
+    style: str, repo_root: Path, problems: list[str],
+    scope: dict[str, Any] | None = None,
+) -> None:
     """Hash-check each rendered study and apply the self-contained HTML rules."""
     for study in _direction_study_identities(style, []):
         before = len(problems)
@@ -722,7 +775,14 @@ def _resolve_direction_studies(style: str, repo_root: Path, problems: list[str])
                         label="Direction study", problems=problems)
         if len(problems) == before:
             html = (repo_root / study["path"]).read_text(encoding="utf-8", errors="replace")
-            for finding in ui_design_v3.study_html_findings(html, study["path"]):
+            findings_for_study = (
+                ui_design_v3.direction_review_findings
+                if ui_design_v3.has_direction_review_profile(html)
+                else ui_design_v3.study_html_findings
+            )
+            for finding in findings_for_study(html, study["path"]):
+                _add(problems, finding)
+            for finding in _direction_profile_scope_findings(html, study["path"], scope):
                 _add(problems, finding)
 
 
@@ -3112,9 +3172,12 @@ def _validate_impl(
             _resolve_target_source(recorded_target, repo_root=root, label="Approved target", problems=problems)
 
     if require_visual_approved:
-        _direction_comparison(style, _section(active, "## UI Design Intake") or "", None, problems, repo_root=root)
+        scope_errors_before = len(problems)
+        resolved_scope = _target_scope(recorded_target, "Approved target", problems)
+        resolved_scope = resolved_scope if len(problems) == scope_errors_before else None
+        _direction_comparison(style, _section(active, "## UI Design Intake") or "", resolved_scope, problems, repo_root=root)
         if version == UI_CONTRACT_V3:
-            _resolve_direction_studies(style, root, problems)
+            _resolve_direction_studies(style, root, problems, scope=resolved_scope)
 
     if approved_gate:
         product_matches = [

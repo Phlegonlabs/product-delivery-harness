@@ -19,6 +19,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import assemble_ui_review
+import check_ui_design_contract as ui_contract_checker
 import check_wireframe_html
 import direction_review
 import reviewer_shell
@@ -54,7 +55,7 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.sources = self.root / "sources"
         self.sources.mkdir()
-        self.out = self.root / "round-1"
+        self.out = self.root / "docs/design/directions/round-1"
         self.pages = {file: source_html(file[:-5]) for file in FILES}
 
     def tearDown(self) -> None:
@@ -252,6 +253,79 @@ class DirectionAssemblyTests(unittest.TestCase):
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
             assemble_ui_review.main(arguments[2:])
         self.assertIn("the entry page index.html is required", stderr.getvalue())
+
+    def test_contract_routes_profiled_studies_and_keeps_legacy_checks(self) -> None:
+        self.run_assembly()
+        name = FILES[0]
+        path = f"docs/design/directions/round-1/{name}"
+        profiled = (self.out / name).read_text(encoding="utf-8")
+        self.assertTrue(ui_design_v3.has_direction_review_profile(profiled))
+        self.assertNotEqual([], ui_design_v3.study_html_findings(profiled, name))
+
+        def route(html: str, sha256: str, *, study_path: str = path) -> list[str]:
+            style = f"""### Direction comparison
+
+| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| VD-R1-01 | UI-001 | ready | 390 | primary | Approved copy | docs/design/directions/primary.png @ sha256:{'a' * 64} | Same case |
+
+### Direction studies
+
+| Direction | Study | Author | Self-check by | Self-check |
+| --- | --- | --- | --- | --- |
+| VD-R1-01 | {study_path} @ sha256:{sha256} | Author | Author | pass |
+"""
+            problems: list[str] = []
+            ui_contract_checker._resolve_direction_studies(style, self.root, problems)
+            return problems
+
+        self.assertEqual([], route(profiled, hashlib.sha256((self.out / name).read_bytes()).hexdigest()))
+        edited = profiled.replace('<a href="vd-02.html"', '<a href="index.html"', 1)
+        (self.out / name).write_text(edited, encoding="utf-8", newline="")
+        self.assertIn("reviewer shell must exactly match its profile", " ".join(
+            route(edited, hashlib.sha256((self.out / name).read_bytes()).hexdigest())))
+
+        legacy_dir = self.root / "docs/design/directions/round-0"
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        legacy_path = legacy_dir / "legacy.html"
+        linked = source_html("older", csp=check_wireframe_html.REQUIRED_HIFI_CSP).replace(
+            "<h1>", '<a href="https://example.invalid/">x</a><h1>', 1)
+        legacy_path.write_text(linked, encoding="utf-8", newline="")
+        self.assertFalse(ui_design_v3.has_direction_review_profile(linked))
+        self.assertIn("must not contain active external or executable surfaces", " ".join(route(
+            linked, hashlib.sha256(legacy_path.read_bytes()).hexdigest(),
+            study_path="docs/design/directions/round-0/legacy.html")))
+
+    def test_profile_cases_join_approved_scope_without_state_coverage(self) -> None:
+        scope = {
+            "captureMode": "mixed",
+            "surfaces": [
+                {"id": "UI-001", "captureMode": "hosted-browser", "stackSemantics": {"platform": "web"},
+                 "responsive": {"kind": "viewports", "targets": [390, 1200]}},
+                {"id": "UI-004", "captureMode": "native", "stackSemantics": {"platform": "ios"},
+                 "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]}},
+            ],
+        }
+        profile = self.profile()
+        self.assertEqual([], ui_contract_checker._direction_profile_scope_findings(
+            f'<script id="ui-direction-review" type="application/json">{json.dumps(profile)}</script>',
+            "study.html", scope))
+
+        mutations = (
+            (lambda case: case.update(surface="UI-999"), "names a case outside Approved target scope", True),
+            (lambda case: case.update(platform="android"), "uses a platform outside Approved target scope", False),
+            (lambda case: case.update(targetFamily="sizeClasses"), "uses the wrong target family", False),
+            (lambda case: case.update(widths={"390": 390}), "uses targets outside Approved target scope", False),
+        )
+        for mutate, expected, platform_gap in mutations:
+            changed = copy.deepcopy(profile)
+            mutate(changed["cases"][0])
+            findings = ui_contract_checker._direction_profile_scope_findings(
+                f'<script id="ui-direction-review" type="application/json">{json.dumps(changed)}</script>',
+                "study.html", scope)
+            self.assertIn(expected, " ".join(findings))
+            if platform_gap:
+                self.assertIn("every platform", " ".join(findings))
 
 
 class SharedReviewerBytesTests(unittest.TestCase):
