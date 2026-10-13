@@ -901,6 +901,22 @@ def _strict_provenance_findings(
     return findings
 
 
+def strict_provenance_findings(
+    text: str,
+    architecture_text: str,
+    deployment_rows: dict[str, dict[str, str]],
+    strict_target_subset: tuple[str, ...] | None = None,
+) -> list[str]:
+    """Public read-only strict-proof join for parsed readiness claims."""
+
+    return _strict_provenance_findings(
+        text,
+        architecture_text,
+        deployment_rows,
+        strict_target_subset=strict_target_subset,
+    )
+
+
 def check_deployment_text(
     text: str,
     *,
