@@ -4,6 +4,7 @@ The deployment record for this repository: the platform model, the exact configu
 
 ## Record
 
+- Record schema: deployment/2
 - Platform: <cloudflare | vercel | aws | any lowercase id>
 - Mode: git_connected (the platform builds on push) | ci_connected (a repository CI workflow deploys on push) | manual (a recorded deploy command the user runs)
 - Candidate source: <exact non-default run branch or immutable candidate ref>
@@ -21,6 +22,14 @@ Record one row per independently released artifact or hosted unit. Production us
 | Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
 | --- | --- | --- | --- | --- | --- |
 | <stable surface id> | <surface suffix> | <production release name> | <development release name> | <exact architecture Provider;Exact channel / track> | <exact architecture Provider;Exact channel / track> |
+
+## Release Source Provenance
+
+Copy the source ref from the architecture target. Leave Source SHA and authority evidence `pending` until a read-only command or provider readback observes the exact SHA. Keep the evidence in one cell and use this form: `repo=<owner/repository>; ref=<source ref>; sha=<full SHA>; observed=<RFC3339>; readback=command:<actual command>` or `... readback=provider:<actual provider readback>`. Never store a credential or run the recorded command from `check_deployment.py`.
+
+| Release target | Source ref | Source SHA | Authority evidence |
+| --- | --- | --- | --- |
+| <release-target-id> | <exact architecture source ref> | pending | pending |
 
 ## Resource Isolation
 
