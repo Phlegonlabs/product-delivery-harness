@@ -958,11 +958,12 @@ def check_outcome_review_text(
     activation_text: str,
     stack_text: str | None = None,
     repo_root: Path | None = None,
+    package_validated: bool = False,
 ) -> list[str]:
     findings: list[str] = []
     if stack_text is None:
         findings.append("Product package: verified outcome review requires stack-decisions.md")
-    if stack_text is not None:
+    if stack_text is not None and not package_validated:
         if repo_root is None:
             findings.append("Product package: stack validation requires repository root")
         from check_product_package import validate_texts
@@ -977,6 +978,7 @@ def check_outcome_review_text(
                 repo_root=repo_root,
             )
         )
+    if stack_text is not None:
         from check_deployment import check_deployment_text
         findings.extend(
             f"Deployment: {item}"
