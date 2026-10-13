@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Assemble caller-authored product pages into an offline HiFi review bundle."""
+"""Assemble caller-authored product pages into an offline HiFi review bundle.
+
+``--mode direction`` assembles ``ui-direction-review/1`` studies instead.
+"""
 
 from __future__ import annotations
 
@@ -35,7 +38,7 @@ def _linked_path(path: Path) -> bool:
                for part in (path, *path.parents))
 
 
-def _parse_sources(values: list[str]) -> dict[str, Path]:
+def _parse_sources(values: list[str], *, require_entry: bool = True) -> dict[str, Path]:
     sources: dict[str, Path] = {}
     lower_seen: dict[str, str] = {}
     for value in values:
@@ -59,7 +62,7 @@ def _parse_sources(values: list[str]) -> dict[str, Path]:
             _fail(f"linked source is not allowed: {path}")
         sources[page] = path
         lower_seen[lowered] = page
-    if "index.html" not in sources:
+    if require_entry and "index.html" not in sources:
         _fail("the entry page index.html is required")
     return sources
 
@@ -205,8 +208,75 @@ def assemble(
     return [str(path) for path in destinations]
 
 
+def assemble_direction(
+    manifest_path: Path,
+    source_values: list[str],
+    output_dir: Path,
+    *,
+    overwrite: bool = False,
+) -> list[str]:
+    """Assemble self-contained direction studies; nothing is written until every check passes."""
+
+    import direction_review
+
+    sources = _parse_sources(source_values, require_entry=False)
+    if _linked_path(manifest_path):
+        _fail("linked manifest is not allowed")
+    try:
+        profile = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        _fail(f"cannot read manifest {manifest_path}: {exc}")
+    problems = direction_review.profile_findings(profile)
+    if problems:
+        _fail("; ".join(problems))
+    declared = [row["file"] for row in profile["directions"]]
+    if sorted(declared, key=str.casefold) != sorted(sources, key=str.casefold):
+        _fail("declared sources must exactly match the profile's study filenames: " + ", ".join(declared))
+    manifest_resolved = manifest_path.resolve(strict=True)
+    source_paths = {path.resolve(strict=True) for path in sources.values()}
+    if len(source_paths) != len(sources):
+        _fail("declared sources must be distinct files")
+    if manifest_resolved in source_paths:
+        _fail("manifest cannot also be a source page")
+    if _linked_path(output_dir):
+        _fail("linked output directory is not allowed")
+    if output_dir.exists() and not output_dir.is_dir():
+        _fail(f"output path is not a directory: {output_dir}")
+    destinations = [output_dir / file for file in declared]
+    if any(_linked_path(path) or path.resolve() in source_paths | {manifest_resolved} for path in destinations):
+        _fail("output destination aliases an input or is a link")
+    if any(path.exists() for path in destinations) and not overwrite:
+        _fail("output files already exist; pass --overwrite to replace them")
+
+    rendered: dict[str, bytes] = {}
+    for row in profile["directions"]:
+        file = row["file"]
+        try:
+            content = sources[file].read_bytes()
+            html = content.decode("utf-8")
+        except (OSError, UnicodeError) as exc:
+            _fail(f"cannot read source {sources[file]}: {exc}")
+        if _sha256(content) != row["sourceSha256"]:
+            _fail(f"declared source is stale: {file}")
+        problems = direction_review.source_findings(html, file, profile)
+        if not problems:
+            study = direction_review.render_study(profile, html, file)
+            problems = direction_review.assembled_study_findings(study, file)
+        if problems:
+            _fail("; ".join(problems))
+        rendered[file] = study.encode("utf-8")
+    if len(set(rendered.values())) != len(rendered):
+        _fail("direction studies must be distinct rendered files")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for file, content in rendered.items():
+        (output_dir / file).write_bytes(content)
+    return [str(path) for path in destinations]
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--mode", choices=("hifi", "direction"), default="hifi")
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--source", action="append", required=True)
     parser.add_argument("--output-dir", required=True, type=Path)
@@ -216,7 +286,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    paths = assemble(
+    paths = (assemble_direction if args.mode == "direction" else assemble)(
         args.manifest,
         args.source,
         args.output_dir,

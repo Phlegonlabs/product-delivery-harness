@@ -70,15 +70,20 @@ def runtime_source() -> str:
     return html[start + len(prefix) : end]
 
 
+def runtime_block() -> str:
+    """The marked core runtime without a connect call; direction studies add their own."""
+
+    return (
+        "<!-- hifi-reviewer:runtime:start -->\n"
+        + runtime_source()
+        + "\n<!-- hifi-reviewer:runtime:end -->"
+    )
+
+
 def inject_runtime(html: str) -> str:
     if 'id="hifi-reviewer-runtime"' in html:
         return html
-    block = (
-        "<!-- hifi-reviewer:runtime:start -->\n"
-        + runtime_source()
-        + "\n<!-- hifi-reviewer:runtime:end -->\n"
-        + "<script>connectHifiReviewer()</script>"
-    )
+    block = runtime_block() + "\n<script>connectHifiReviewer()</script>"
     index = html.casefold().rfind("</body>")
     if index < 0:
         raise ValueError("HiFi product page has no </body> insertion point")
