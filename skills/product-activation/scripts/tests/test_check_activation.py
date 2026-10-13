@@ -163,6 +163,31 @@ def valid_noop_record() -> str:
 """
 
 
+def blocked_owner_deferral_record() -> str:
+    """Return a blocked closeout fixture with no readiness claim."""
+
+    fields = task_fields(status="blocked", evidence_ids="none")
+    fields["Authorization"] = "pending"
+    fields["Authorization source"] = "none"
+    fields["Blocker / N/A reason"] = (
+        "owner-deferred by product owner: connect the production measurement event next week"
+    )
+    record = valid_record_v2(task_blocks=[task_block("ACT-001", fields)])
+    record = "\n".join(
+        line
+        for line in record.splitlines()
+        if not line.startswith("| EVID-001 |")
+        and not line.startswith("| EVID-002 |")
+        and not line.startswith("| EVID-003 |")
+    )
+    record = record.replace("- Status: handoff_ready", "- Status: blocked", 1)
+    return record.replace(
+        f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed | ready |",
+        f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | pending | blocked |",
+        1,
+    )
+
+
 def task_fields(
     task_id: str = "ACT-001",
     *,
@@ -388,7 +413,6 @@ class ActivationCheckerTests(unittest.TestCase):
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_closeout=True,
-                require_verified_sources=True,
             )
         self.assertEqual([], findings)
 
@@ -1153,26 +1177,7 @@ class ActivationCheckerTests(unittest.TestCase):
         self.assertIn("Activation closeout: ACT-001 is unattempted", joined)
 
     def test_closeout_accepts_explicit_owner_deferral_only_as_blocked(self) -> None:
-        fields = task_fields(status="blocked", evidence_ids="none")
-        fields["Authorization"] = "pending"
-        fields["Authorization source"] = "none"
-        fields["Blocker / N/A reason"] = (
-            "owner-deferred by product owner: connect the production measurement event next week"
-        )
-        record = valid_record_v2(task_blocks=[task_block("ACT-001", fields)])
-        record = "\n".join(
-            line
-            for line in record.splitlines()
-            if not line.startswith("| EVID-001 |")
-            and not line.startswith("| EVID-002 |")
-            and not line.startswith("| EVID-003 |")
-        )
-        record = record.replace("- Status: handoff_ready", "- Status: blocked", 1)
-        record = record.replace(
-            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed | ready |",
-            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | pending | blocked |",
-            1,
-        )
+        record = blocked_owner_deferral_record()
         with patch("check_product_package.validate_texts", return_value=[]), patch(
             "check_deployment.check_deployment_text", return_value=[]
         ):
@@ -1186,6 +1191,43 @@ class ActivationCheckerTests(unittest.TestCase):
                 require_closeout=True,
             )
         self.assertEqual([], findings)
+
+    def test_closeout_context_passes_legacy_deployment_without_ready_claim(self) -> None:
+        with patch("check_product_package.validate_texts", return_value=[]):
+            blocked = check_activation.check_activation_text(
+                blocked_owner_deferral_record(),
+                prd_text=APPROVED_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_closeout=True,
+            )
+            noop = check_activation.check_activation_text(
+                valid_noop_record(),
+                prd_text=NOOP_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_closeout=True,
+            )
+        self.assertEqual([], blocked)
+        self.assertEqual([], noop)
+
+    def test_verified_ready_claim_rejects_legacy_deployment(self) -> None:
+        with patch("check_product_package.validate_texts", return_value=[]):
+            findings = check_activation.check_activation_text(
+                valid_record_v2(),
+                prd_text=APPROVED_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_verified_sources=True,
+            )
+        joined = "\n".join(findings)
+        self.assertIn("needs complete actual source proof", joined)
 
     def test_closeout_owner_deferral_requires_a_human_and_blocked_record(self) -> None:
         fields = task_fields(status="blocked", evidence_ids="none")

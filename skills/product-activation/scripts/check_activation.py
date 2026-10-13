@@ -2260,6 +2260,26 @@ def check_activation_text(
             continue
         findings.append(f"Target Readiness: {target} is not in the active activation scope")
 
+    if require_verified_sources and not require_ready:
+        strict_readiness_targets = tuple(
+            sorted(
+                target
+                for target, row in readiness.items()
+                if row["status"] == "ready"
+            )
+        )
+        if strict_readiness_targets:
+            from check_deployment import strict_provenance_findings
+            findings.extend(
+                f"Target Readiness: {item}"
+                for item in strict_provenance_findings(
+                    deployment_text or "",
+                    architecture_text or "",
+                    deployment_targets,
+                    strict_target_subset=strict_readiness_targets,
+                )
+            )
+
     if require_verified_sources:
         if record.get("Status") != "handoff_ready":
             findings.append("Record: verified-source handoff requires status handoff_ready")
