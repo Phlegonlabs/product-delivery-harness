@@ -361,6 +361,19 @@ class AssembleUiReviewTests(unittest.TestCase):
         child_hash = manifest["pages"][0]
         self.assertEqual({"path": "details.html", "sha256": hashlib.sha256((self.output / "details.html").read_bytes()).hexdigest()}, child_hash)
 
+    def test_not_applicable_states_with_a_state_prefix_get_no_sidebar_control(self):
+        cases = {
+            "n/a": True, "NA": True, " N/A ": True, ":n/a": True, "loading:n/a": True, "Loading:NA": True,
+            "empty : n/a": False, "ready": False, "banana": False, "n/a:ready": False, "": False,
+        }
+        for value, expected in cases.items():
+            self.assertEqual(expected, reviewer_shell.is_na_state(value), value)
+            self.assertEqual(hifi_reviewer._is_na_state(value), reviewer_shell.is_na_state(value), value)
+        self.manifest["surfaces"][0]["states"] = ["loading:n/a", ":na", "N/A", "ready", "updated"]
+        shell = reviewer_shell.build_shell(self.manifest, "index.html")
+        self.assertEqual(["ready", "updated"], re.findall(r'data-hifi-state-control="([^"]*)"', shell))
+        self.assertNotIn("n/a", shell.casefold())
+
     def test_rejects_case_collision_stale_sources_and_overwrite(self):
         self.write_sources()
         self.assemble()
