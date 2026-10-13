@@ -35,3 +35,4 @@ The 19 audit items map to these outcomes. Historical missing OwnerDirect files a
 | Observation | Candidate | Result and evidence |
 | --- | --- | --- |
 | 2026-10-13 entry | `8a47dab3` | Created the authorized branch and five isolated source checkouts. Initialized one Dynamic Workflow ledger with twelve nodes. Source changes and host updates remain pending. |
+| 2026-10-13 WF-01 | `4bc12f7b` | Integrated worker `769bf0ba`. Native browser capability now uses host identity; bridge provider/driver/session checks remain. Fourteen focused role tests and Pyflakes passed. The working tree is clean. Independent review and full-candidate verification remain pending. |
