@@ -36,6 +36,7 @@ from role_contract_fixtures import (
     refresh_plan_binding,
     configure_role_run,
     authorize_selection,
+    native_reviewer_binding,
 )
 
 
@@ -439,11 +440,103 @@ class AgentRoleContractTests(unittest.TestCase):
             }
         }
         binding = bridge_binding("reviewer")
+        binding["provider"] = "codex"
+        binding["driver"] = "external_bridge"
         binding["workspace_mode"] = "shared_checkout"
         self.assertEqual(
             {"reviewer_tool_unavailable:chrome_devtools"},
             _reviewer_tool_reasons(node, runtime, binding),
         )
+
+    def test_native_reviewer_browser_capability_binds_host(self) -> None:
+        node = {
+            "kind": "verifier",
+            "review": {"required_tools": ["chrome_devtools"]},
+        }
+        runtime = {
+            "reviewer_tools": {
+                "chrome_devtools": {
+                    "status": "available",
+                    "provider": "codex",
+                    "driver": "subagents",
+                    "surface": "chromium",
+                    "probe_scope": "reviewer_session",
+                    "session_id": "native-probe-1",
+                    "evidence": "native reviewer inspected DOM",
+                }
+            }
+        }
+        binding = native_reviewer_binding()
+        binding["model_provider"] = "openai"
+        binding["provider"] = "codex"
+        binding["driver"] = "subagents"
+        self.assertEqual(set(), _reviewer_tool_reasons(node, runtime, binding))
+
+    def test_native_reviewer_browser_capability_rejects_identity_mismatch(self) -> None:
+        node = {
+            "kind": "verifier",
+            "review": {"required_tools": ["chrome_devtools"]},
+        }
+        binding = native_reviewer_binding()
+        binding["model_provider"] = "openai"
+        binding["provider"] = "codex"
+        binding["driver"] = "subagents"
+        mismatches = (
+            ("provider", "claude_code", "subagents"),
+            ("driver", "codex", "external_bridge"),
+        )
+        for field, provider, driver in mismatches:
+            with self.subTest(field=field):
+                runtime = {
+                    "reviewer_tools": {
+                        "chrome_devtools": {
+                            "status": "available",
+                            "provider": provider,
+                            "driver": driver,
+                            "surface": "chromium",
+                            "probe_scope": "reviewer_session",
+                            "session_id": "native-probe-1",
+                            "evidence": "native reviewer inspected DOM",
+                        }
+                    }
+                }
+                self.assertEqual(
+                    {"reviewer_tool_unavailable:chrome_devtools"},
+                    _reviewer_tool_reasons(node, runtime, binding),
+                )
+
+    def test_bridge_reviewer_browser_capability_rejects_provider_and_driver(self) -> None:
+        node = {
+            "kind": "verifier",
+            "review": {"required_tools": ["chrome_devtools"]},
+        }
+        binding = bridge_binding("reviewer")
+        binding["provider"] = "codex"
+        binding["driver"] = "external_bridge"
+        binding["workspace_mode"] = "shared_checkout"
+        mismatches = (
+            ("provider", "codex", "external_bridge"),
+            ("driver", "claude_code", "subagents"),
+        )
+        for field, provider, driver in mismatches:
+            with self.subTest(field=field):
+                runtime = {
+                    "reviewer_tools": {
+                        "chrome_devtools": {
+                            "status": "available",
+                            "provider": provider,
+                            "driver": driver,
+                            "surface": "chromium",
+                            "probe_scope": "reviewer_session",
+                            "session_id": "bridge-probe-1",
+                            "evidence": "bridge reviewer inspected DOM",
+                        }
+                    }
+                }
+                self.assertEqual(
+                    {"reviewer_tool_unavailable:chrome_devtools"},
+                    _reviewer_tool_reasons(node, runtime, binding),
+                )
 
 if __name__ == "__main__":
     unittest.main()
