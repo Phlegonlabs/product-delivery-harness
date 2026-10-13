@@ -1685,7 +1685,9 @@ def check_activation_text(
         findings.extend(
             f"Deployment: {item}"
             for item in check_deployment_text(
-                deployment_text or "", architecture_text=architecture_text
+                deployment_text or "",
+                architecture_text=architecture_text,
+                require_source_provenance=authority_required,
             )
         )
     if authority_required and prd_text is None:

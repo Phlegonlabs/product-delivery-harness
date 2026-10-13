@@ -358,7 +358,7 @@ class ActivationCheckerTests(unittest.TestCase):
     def test_verified_record_passes_prd_source_and_target_checks(self) -> None:
         with patch("check_product_package.validate_texts", return_value=[]), patch(
             "check_deployment.check_deployment_text", return_value=[]
-        ):
+        ) as deployment_check:
             findings = check_activation.check_activation_text(
                 valid_record_v2(),
                 prd_text=APPROVED_PRD,
@@ -370,6 +370,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 require_ready=("web-prod",),
             )
         self.assertEqual([], findings)
+        self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
 
     def test_explicit_noop_can_pass_verified_source_handoff(self) -> None:
         with patch("check_product_package.validate_texts", return_value=[]), patch(
@@ -426,7 +427,7 @@ class ActivationCheckerTests(unittest.TestCase):
         with patch("check_product_package.validate_texts", return_value=[]), patch(
             "check_deployment.check_deployment_text",
             return_value=["Release Target Status is not a current PASS"],
-        ):
+        ) as deployment_check:
             findings = check_activation.check_activation_text(
                 valid_record_v2(),
                 prd_text=APPROVED_PRD,
@@ -437,6 +438,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 require_ready=("web-prod",),
             )
         self.assertIn("Deployment: Release Target Status is not a current PASS", "\n".join(findings))
+        self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
 
     def test_schema2_source_method_owner_and_target_window_join(self) -> None:
         wrong_method = valid_record_v2().replace(
