@@ -961,6 +961,17 @@ def check_outcome_review_text(
     package_validated: bool = False,
 ) -> list[str]:
     findings: list[str] = []
+    target_record = _fields(_section(text, "## Record") or [])
+    target_set_value = target_record.get("Production release targets", "")
+    if target_set_value:
+        target_set_value = target_set_value.removeprefix("target-set:").strip()
+        production_target_subset = tuple(
+            item.strip() for item in target_set_value.split(",") if item.strip()
+        )
+    else:
+        production_target_subset = (
+            target_record.get("Production release target", ""),
+        )
     if stack_text is None:
         findings.append("Product package: verified outcome review requires stack-decisions.md")
     if stack_text is not None and not package_validated:
@@ -986,6 +997,7 @@ def check_outcome_review_text(
                 deployment_text,
                 architecture_text=architecture_text,
                 require_source_provenance=True,
+                strict_target_subset=production_target_subset,
             )
         )
     active = active_text(text)
@@ -1509,6 +1521,17 @@ def main(argv: list[str] | None = None) -> int:
         if lifecycle_record.get("Schema") != "outcome-review/2":
             print("--require-lifecycle requires Schema: outcome-review/2", file=sys.stderr)
             return 1
+    target_record = _fields(_section(loaded["outcome"], "## Record") or [])
+    target_set_value = target_record.get("Production release targets", "")
+    if target_set_value:
+        target_set_value = target_set_value.removeprefix("target-set:").strip()
+        production_target_subset = tuple(
+            item.strip() for item in target_set_value.split(",") if item.strip()
+        )
+    else:
+        production_target_subset = (
+            target_record.get("Production release target", ""),
+        )
     from check_product_package import validate_texts
     package_findings = validate_texts(
         loaded["prd"], loaded["architecture"], loaded["stack"],
@@ -1524,6 +1547,7 @@ def main(argv: list[str] | None = None) -> int:
         loaded["deployment"],
         architecture_text=loaded["architecture"],
         require_source_provenance=True,
+        strict_target_subset=production_target_subset,
     )
     if deployment_findings:
         for item in deployment_findings:

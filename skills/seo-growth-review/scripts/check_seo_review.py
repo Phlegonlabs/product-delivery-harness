@@ -334,6 +334,7 @@ def check_seo_review_text(
                 deployment_text,
                 architecture_text=architecture_text,
                 require_source_provenance=True,
+                strict_target_subset=(record.get("Production release target", ""),),
             )
         )
     active = active_text(text)

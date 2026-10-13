@@ -231,6 +231,10 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         self.assertEqual(stack_text, activation_check.call_args.kwargs["stack_text"])
         self.assertEqual(repo_root, activation_check.call_args.kwargs["repo_root"])
         self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
 
     def test_package_and_deployment_are_validated_once(self) -> None:
         with patch(
