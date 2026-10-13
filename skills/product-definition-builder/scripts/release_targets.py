@@ -86,6 +86,7 @@ class ReleaseTarget:
     availability_signal: str
     rollout: str
     recovery: str
+    source_policy_protocol: str = "candidate/1"
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,13 @@ class ReleaseTargetContract:
 
     def by_id(self) -> dict[str, ReleaseTarget]:
         return {target.target_id: target for target in self.targets}
+
+
+@dataclass(frozen=True)
+class SourcePolicyAuthority:
+    stage: str
+    ref: str
+    sha: str
 
 
 def allows_no_independent_artifact(target: ReleaseTarget) -> bool:
@@ -159,6 +167,57 @@ def _release_marker_protocol(section: str) -> tuple[str, list[str]]:
         )
     protocol = markers[0] if len(markers) == 1 and markers[0] in supported else "candidate/1"
     return protocol, findings
+
+
+def parse_source_policy(
+    source_policy: str,
+    *,
+    expected_stage: str,
+    source_policy_protocol: str = "candidate/1",
+) -> tuple[SourcePolicyAuthority | None, list[str]]:
+    """Return the stage, ref, and SHA authorities selected by the protocol."""
+
+    if source_policy_protocol not in {"candidate/1", "dual-branch/1"}:
+        return None, [
+            "Source policy protocol must be candidate/1 or dual-branch/1"
+        ]
+    if expected_stage not in {"development", "production"}:
+        return None, ["Source policy expected stage must be development or production"]
+    match = SOURCE_POLICY_RE.fullmatch(source_policy.strip())
+    expected_authorities = {
+        "development": (
+            "run.integration.branch",
+            "run.integration.integration_head_sha",
+        ),
+        "production": ("refs/heads/main", "promotion.verified_main_sha"),
+    }
+    if source_policy_protocol == "dual-branch/1":
+        expected_authorities["development"] = (
+            "refs/heads/development",
+            "promotion.verified_development_sha",
+        )
+    expected_ref, expected_sha = expected_authorities[expected_stage]
+    if match is None:
+        return None, [
+            f"{expected_stage} Source policy must use the closed "
+            "stage=<stage>; ref=<authority>; sha=<authority> format"
+        ]
+    policy_stage, policy_ref, policy_sha = match.groups()
+    if (
+        policy_stage != expected_stage
+        or policy_ref != expected_ref
+        or policy_sha != expected_sha
+    ):
+        return None, [
+            f"{expected_stage} Source policy must be stage={expected_stage}; "
+            f"ref={expected_ref}; sha={expected_sha}"
+        ]
+    return (
+        SourcePolicyAuthority(
+            stage=expected_stage, ref=expected_ref, sha=expected_sha
+        ),
+        [],
+    )
 
 
 def parse_release_targets(
@@ -330,36 +389,15 @@ def parse_release_targets(
                 f"architecture: release target {target_id!r} has invalid stage "
                 f"{fields['stage']!r}"
             )
-        policy_match = SOURCE_POLICY_RE.fullmatch(source_policy.strip())
-        expected_policy = {
-            "development": (
-                "run.integration.branch",
-                "run.integration.integration_head_sha",
-            ),
-            "production": ("refs/heads/main", "promotion.verified_main_sha"),
-        }
-        if marker_protocol == "dual-branch/1":
-            expected_policy["development"] = (
-                "refs/heads/development",
-                "promotion.verified_development_sha",
-            )
-        if policy_match is None or stage not in expected_policy:
-            findings.append(
-                f"architecture: release target {target_id!r} Source policy must use "
-                "the closed stage=<stage>; ref=<authority>; sha=<authority> format"
-            )
-        else:
-            policy_stage, policy_ref, policy_sha = policy_match.groups()
-            expected_ref, expected_sha = expected_policy[stage]
-            if (
-                policy_stage != stage
-                or policy_ref != expected_ref
-                or policy_sha != expected_sha
-            ):
-                findings.append(
-                    f"architecture: {stage} target {target_id!r} Source policy must be "
-                    f"stage={stage}; ref={expected_ref}; sha={expected_sha}"
-                )
+        _source_authority, source_findings = parse_source_policy(
+            source_policy,
+            expected_stage=stage,
+            source_policy_protocol=marker_protocol,
+        )
+        findings.extend(
+            f"architecture: release target {target_id!r} {item}"
+            for item in source_findings
+        )
         availability = fields["availability signal"].casefold()
         if "smoke" not in availability and "acceptance" not in availability:
             findings.append(
@@ -387,6 +425,7 @@ def parse_release_targets(
                 availability_signal=fields["availability signal"],
                 rollout=fields["rollout"],
                 recovery=fields["rollback / forward-fix"],
+                source_policy_protocol=marker_protocol,
             )
         )
 
