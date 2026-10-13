@@ -135,13 +135,17 @@ class OutcomeReviewTests(unittest.TestCase):
     def check(self, outcome: str) -> list[str]:
         # Outcome tests isolate the Outcome contract; the activation gate is
         # covered by the dedicated Product Activation suite.
-        with patch("check_outcome_review.check_activation_text", return_value=[]):
+        with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch("check_deployment.check_deployment_text", return_value=[]):
             return check_outcome_review.check_outcome_review_text(
                 outcome,
                 prd_text=PRD,
                 architecture_text=ARCHITECTURE,
                 deployment_text=DEPLOYMENT,
                 activation_text=ACTIVATION,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
             )
 
     def test_valid_outcome_is_bound_to_verified_release(self) -> None:
@@ -151,9 +155,11 @@ class OutcomeReviewTests(unittest.TestCase):
         self.assertEqual([], self.check(schema2_outcome()))
 
     def test_schema2_review_can_run_with_approved_stack_and_deployment_gate(self) -> None:
-        with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
+        with patch("check_outcome_review.check_activation_text", return_value=[]) as activation_check, patch(
             "check_product_package.validate_texts", return_value=[]
-        ), patch("check_deployment.check_deployment_text", return_value=[]):
+        ), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ) as deployment_check:
             findings = check_outcome_review.check_outcome_review_text(
                 schema2_outcome(),
                 prd_text=PRD,
@@ -161,8 +167,15 @@ class OutcomeReviewTests(unittest.TestCase):
                 deployment_text=DEPLOYMENT,
                 activation_text=ACTIVATION,
                 stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
             )
         self.assertEqual([], findings)
+        self.assertTrue(
+            deployment_check.call_args.kwargs["require_source_provenance"]
+        )
+        self.assertEqual("# Stack Decisions: Example", activation_check.call_args.kwargs["stack_text"])
+        self.assertEqual(Path.cwd(), activation_check.call_args.kwargs["repo_root"])
+        self.assertTrue(activation_check.call_args.kwargs["package_validated"])
 
     def test_multi_target_prefix_and_first_target_projection_are_exact(self) -> None:
         multi = valid_outcome().replace(
@@ -292,6 +305,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "architecture.md": ARCHITECTURE,
                 "DEPLOYMENT.md": DEPLOYMENT,
                 "ACTIVATION.md": ACTIVATION,
+                "stack-decisions.md": "# Stack Decisions: Example\n",
             }
             for name, content in paths.items():
                 (root / name).write_text(content, encoding="utf-8")
@@ -309,6 +323,8 @@ class OutcomeReviewTests(unittest.TestCase):
                     str(root / "DEPLOYMENT.md"),
                     "--activation",
                     str(root / "ACTIVATION.md"),
+                    "--stack-decisions",
+                    str(root / "stack-decisions.md"),
                 ],
                 text=True,
                 capture_output=True,
@@ -355,7 +371,7 @@ class OutcomeReviewTests(unittest.TestCase):
             review_path.write_text(schema2_outcome(), encoding="utf-8")
             stack_failure = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(2, stack_failure.returncode)
-            self.assertIn("requires --stack-decisions", stack_failure.stderr)
+            self.assertIn("required: --stack-decisions", stack_failure.stderr)
 
     def test_prior_outcome_digest_binds_immutable_history(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -373,6 +389,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "--architecture", str(root / "architecture.md"),
                 "--deployment", str(root / "DEPLOYMENT.md"),
                 "--activation", str(root / "ACTIVATION.md"),
+                "--stack-decisions", str(root / "stack-decisions.md"),
                 "--prior-outcome", str(prior),
             ]
             for name, content in {
@@ -380,6 +397,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "architecture.md": ARCHITECTURE,
                 "DEPLOYMENT.md": DEPLOYMENT,
                 "ACTIVATION.md": ACTIVATION,
+                "stack-decisions.md": "# Stack Decisions: Example\n",
             }.items():
                 (root / name).write_text(content, encoding="utf-8")
             rejected = subprocess.run(command, capture_output=True, text=True, check=False)
@@ -407,6 +425,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "architecture.md": ARCHITECTURE,
                 "DEPLOYMENT.md": DEPLOYMENT,
                 "ACTIVATION.md": ACTIVATION,
+            "stack-decisions.md": "# Stack Decisions: Example\n",
             }.items():
                 (root / name).write_text(content, encoding="utf-8")
             command = [
@@ -417,6 +436,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "--architecture", str(root / "architecture.md"),
                 "--deployment", str(root / "DEPLOYMENT.md"),
                 "--activation", str(root / "ACTIVATION.md"),
+                "--stack-decisions", str(root / "stack-decisions.md"),
                 "--prior-outcome", str(prior),
             ]
             appended = append_schema2_history(prior_text)

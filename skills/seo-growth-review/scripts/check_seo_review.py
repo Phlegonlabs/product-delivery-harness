@@ -306,6 +306,10 @@ def check_seo_review_text(
     repo_root: Path | None = None,
 ) -> list[str]:
     findings: list[str] = []
+    record = _fields(_section(text, "## Record") or [])
+    verified_review = record.get("Schema") == "seo-review/2"
+    if verified_review and stack_text is None:
+        findings.append("Product package: verified SEO review requires stack-decisions.md")
     # Validate the package and Deployment once here; the nested Activation
     # check is told not to repeat it.
     if stack_text is not None:
@@ -327,7 +331,9 @@ def check_seo_review_text(
         findings.extend(
             f"Deployment: {item}"
             for item in check_deployment_text(
-                deployment_text, architecture_text=architecture_text
+                deployment_text,
+                architecture_text=architecture_text,
+                require_source_provenance=True,
             )
         )
     active = active_text(text)
@@ -340,7 +346,6 @@ def check_seo_review_text(
     if active.count("# SEO Growth Review") != 1:
         findings.append("expected one # SEO Growth Review title")
 
-    record = _fields(_section(text, "## Record") or [])
     for field in _duplicate_fields(_section(text, "## Record") or []):
         findings.append(f"Record: duplicate field {field}")
     schema = record.get("Schema", "")

@@ -213,7 +213,11 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[4]
         with patch(
             "check_seo_review.check_activation_text", return_value=[]
-        ) as activation_check:
+        ) as activation_check, patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ) as deployment_check:
             check_seo_review.check_seo_review_text(
                 valid_review_v2(),
                 prd_text=PRD,
@@ -226,6 +230,7 @@ class SeoLifecycleReviewTests(unittest.TestCase):
 
         self.assertEqual(stack_text, activation_check.call_args.kwargs["stack_text"])
         self.assertEqual(repo_root, activation_check.call_args.kwargs["repo_root"])
+        self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
 
     def test_package_and_deployment_are_validated_once(self) -> None:
         with patch(
@@ -319,7 +324,19 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         self.assertEqual([], self.check(valid_review()))
 
     def test_schema2_lifecycle_review_preserves_product_and_mode_fields(self) -> None:
-        self.assertEqual([], self.check(valid_review_v2()))
+        with patch("check_seo_review.check_activation_text", return_value=[]), patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch("check_deployment.check_deployment_text", return_value=[]):
+            findings = check_seo_review.check_seo_review_text(
+                valid_review_v2(),
+                prd_text=PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                activation_text=ACTIVATION,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+            )
+        self.assertEqual([], findings)
 
     def test_schema2_mode_specific_windows_and_segmentation_are_required(self) -> None:
         for mode in ("growth_review", "traffic_drop"):
