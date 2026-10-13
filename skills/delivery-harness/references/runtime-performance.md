@@ -118,3 +118,5 @@ At closeout record `run_wall_time_ms` and `critical_path_ms`. Record `baseline_w
 - Use a fresh bounded native task or child, then subscribe to terminal events or cursor waits when observed. Use bounded polling only when events are unavailable and record that fallback. Preserve installed role and model settings and the configured role bridge.
 
 Process each terminal result immediately. Streaming review and streaming serial integration may overlap remaining workers; RUN remains parent-owned and integration remains serial throughout. A mission integrated early that later fails its integration verifier is reverted or superseded like any other integration failure — that rare rollback is the cost of not making every finished mission wait for the slowest one.
+
+Record the product container's actual computed CSS width with each screenshot. A verifier's exit code 0 proves that the process ended; acceptance still requires the gate's current evidence.
