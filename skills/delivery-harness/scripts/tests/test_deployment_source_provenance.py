@@ -6,6 +6,8 @@ from __future__ import annotations
 import sys
 import unittest
 import re
+import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -78,6 +80,37 @@ def actual_evidence(sha: str, ref: str = "refs/heads/main") -> str:
 
 
 class DeploymentSourceProvenanceTests(unittest.TestCase):
+    def test_strict_flag_requires_architecture(self) -> None:
+        findings = check_deployment.check_deployment_text(
+            deployment_record(schema=None),
+            require_source_provenance=True,
+        )
+        self.assertIn(
+            "architecture: strict source provenance requires architecture.md",
+            findings,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = Path(temp) / "DEPLOYMENT.md"
+            deployment.write_text(deployment_record(schema=None), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "check_deployment.py"),
+                    "--deployment",
+                    str(deployment),
+                    "--require-source-provenance",
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(2, result.returncode)
+        self.assertIn(
+            "--require-source-provenance requires --architecture",
+            result.stderr,
+        )
+
     def test_valid_preparation_and_pass(self) -> None:
         preparation = deployment_record()
         self.assertEqual(
