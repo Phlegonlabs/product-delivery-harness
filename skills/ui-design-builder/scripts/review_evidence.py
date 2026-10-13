@@ -16,6 +16,14 @@ SHA = re.compile(r"^[0-9a-f]{64}$")
 IDENTITY = re.compile(r"^(?P<path>[A-Za-z0-9._/-]+) @ sha256:(?P<sha256>[0-9a-f]{64})$")
 MAX_BYTES = 32 * 1024 * 1024
 RESULTS = {"PASS", "FAIL", "BLOCKED", "MISSING"}
+DIAGNOSTIC_REQUEST_SCHEMA = "ui-diagnostic-wave-request/1"
+DIAGNOSTIC_REPORT_SCHEMA = "ui-diagnostic-wave-report/1"
+DIAGNOSTIC_CHECKS = {
+    "browser": "hifi-browser",
+    "critique": "hifi-browser-impeccable-critique",
+    "audit": "hifi-browser-impeccable-audit",
+    "grading": "hifi-browser-grading",
+}
 # Shared with check_ui_design_contract so both read the same manifest tags.
 HIFI_MANIFEST_RE = re.compile(
     r'<script\s+id=["\']ui-hifi-manifest["\']\s+type=["\']application/json["\']\s*>'
@@ -365,6 +373,139 @@ def score_findings(output, recorded):
     expected.update({key + " score": scores[key] for key in
                     (["W5"] if prefix == "W" else ["H2", "H4", "H5", "H7", "H8", "H9"])})
     return [] if expected == recorded else ["recorded grades differ from the actual assessment scores"]
+
+
+def _diagnostic_binding(value, label):
+    if not isinstance(value, dict) or set(value) != {"path", "sha256"}:
+        raise ValueError(label + " requires one path and sha256 identity")
+    return value
+
+
+def _diagnostic_wave_data(root, request):
+    """Join a hash-bound request to current, self-consistent ui-evidence/3 receipts."""
+
+    request_keys = {"schema", "subject", "frozenInputs", "requiredCases", "observations"}
+    if not isinstance(request, dict) or set(request) != request_keys:
+        raise ValueError("diagnostic request has an invalid key set")
+    if request.get("schema") != DIAGNOSTIC_REQUEST_SCHEMA:
+        raise ValueError("diagnostic request must use " + DIAGNOSTIC_REQUEST_SCHEMA)
+    subject = _diagnostic_binding(request["subject"], "subject")
+    frozen = request["frozenInputs"]
+    if not isinstance(frozen, dict) or set(frozen) != {"prd", "manifest"}:
+        raise ValueError("frozenInputs requires exact prd and manifest identities")
+    prd = _diagnostic_binding(frozen["prd"], "PRD")
+    manifest = _diagnostic_binding(frozen["manifest"], "manifest")
+    if manifest != subject:
+        raise ValueError("manifest identity must match the embedded HiFi manifest subject")
+    subject_data = read_identity(root, subject)
+    manifests = HIFI_MANIFEST_RE.findall(subject_data.decode("utf-8"))
+    if len(manifests) != 1:
+        raise ValueError("reviewed HiFi subject must embed exactly one manifest")
+    try:
+        parsed_manifest = json.loads(manifests[0])
+        valid_manifest = isinstance(parsed_manifest, dict) and parsed_manifest.get("schema") == "ui-hifi/2"
+    except json.JSONDecodeError as exc:
+        raise ValueError("reviewed HiFi manifest is unreadable") from exc
+    if not valid_manifest:
+        raise ValueError("reviewed HiFi manifest must use ui-hifi/2")
+    if not isinstance(request["requiredCases"], list) or not request["requiredCases"]:
+        raise ValueError("diagnostic request requires at least one observation case")
+    expected = sorted(_case_key(row) for row in request["requiredCases"])
+    if len(set(expected)) != len(expected):
+        raise ValueError("diagnostic request repeats an observation case")
+    observations = request["observations"]
+    if not isinstance(observations, dict) or set(observations) != set(DIAGNOSTIC_CHECKS):
+        raise ValueError("diagnostic request requires browser, critique, audit and grading receipts")
+
+    read_identity(root, prd)
+    findings: list[str] = []
+    loaded = []
+    seen_receipts: set[str] = set()
+    for role, check in DIAGNOSTIC_CHECKS.items():
+        binding = _diagnostic_binding(observations[role], role + " receipt")
+        if binding["path"].casefold() in seen_receipts:
+            findings.append(role + " reuses another receipt path")
+            continue
+        seen_receipts.add(binding["path"].casefold())
+        try:
+            payload = read_identity(root, binding)
+            evidence = json.loads(payload.decode("utf-8"))
+            receipt = evidence.get("receipt") if isinstance(evidence, dict) else None
+            if not isinstance(evidence, dict) or set(evidence) != {
+                "schema", "check", "result", "reviewedArtifact", "receipt"
+            }:
+                raise ValueError("receipt has an invalid closed ui-evidence/3 key set")
+            if evidence.get("schema") != "ui-evidence/3" or evidence.get("check") != check:
+                raise ValueError("receipt must use ui-evidence/3 and check " + check)
+            if evidence.get("reviewedArtifact") != subject or not isinstance(receipt, dict):
+                raise ValueError("receipt must bind the requested reviewed subject")
+            output = receipt.get("outputArtifact")
+            output_binding = _diagnostic_binding(output, role + " output")
+            if output_binding["path"].casefold() in {b["path"].casefold() for b in (prd, manifest, subject)}:
+                raise ValueError("output artifact must be separate from reviewed and frozen inputs")
+            output_data = read_identity(root, output_binding)
+            output_json = json.loads(output_data.decode("utf-8"))
+            expected_keys = {"schema", "check", "subject", "matrix", "results", "execution",
+                             *(set() if role == "browser" else {"assessment"})}
+            if not isinstance(output_json, dict) or set(output_json) != set(expected_keys):
+                raise ValueError("output artifact has an invalid ui-output/3 key set")
+            if output_json.get("schema") != "ui-output/3" or output_json.get("check") != check:
+                raise ValueError("output artifact must use ui-output/3 and check " + check)
+            if output_json.get("subject") != subject:
+                raise ValueError("output artifact subject is stale")
+            if observed_result(output_json) in {"BLOCKED", "MISSING"}:
+                findings.append(role + " observations are incomplete or blocked")
+            actual = sorted(_case_key(row) for row in output_json["matrix"]["cases"])
+            if actual != expected:
+                findings.append(role + " case matrix differs from the diagnostic request")
+            results = sorted(_case_key(row) for row in output_json["results"])
+            if results != expected:
+                findings.append(role + " lacks a result for every required case")
+            execution = output_json.get("execution", {})
+            artifacts = execution.get("artifacts", []) if isinstance(execution, dict) else []
+            if not isinstance(artifacts, list) or any(binding not in artifacts for binding in (prd, manifest, subject)):
+                findings.append(role + " execution must bind the current PRD, manifest and subject")
+            findings.extend(f"{role}: {item}" for item in execution_findings(root, output_json, receipt, subject))
+            if role != "browser":
+                findings.extend(f"{role}: {item}" for item in assessment_findings(root, output_json))
+            canonical = build_receipt(root, output_binding["path"])
+            if canonical != evidence:
+                findings.append(role + " receipt is not the exact canonical receipt for current bytes")
+            loaded.append((role, output_json, evidence))
+        except (OSError, ValueError, TypeError, KeyError, UnicodeError, json.JSONDecodeError) as exc:
+            findings.append(f"{role}: {exc}")
+    return findings, loaded
+
+
+def diagnostic_wave_findings(root, request):
+    """Return diagnostic completeness findings without granting repair approval."""
+
+    return _diagnostic_wave_data(root, request)[0]
+
+
+def diagnostic_wave_report(root, request):
+    """Report read-only diagnostic completeness; findings never imply acceptance."""
+
+    findings, observations = _diagnostic_wave_data(root, request)
+    if findings:
+        return {"schema": DIAGNOSTIC_REPORT_SCHEMA, "complete": False, "repairEligible": False,
+                "status": "blocked", "findings": findings}
+    results = {evidence["result"] for _, _, evidence in observations}
+    scores = next(output["assessment"]["scores"] for role, output, _ in observations
+                  if role == "grading")
+    thresholds = (("H2", 90), ("H4", 90), ("H5", 80), ("H7", 80), ("H8", 90), ("H9", 80))
+    defects = [f"grading {name} score {scores[name]} is below the accepted threshold"
+               for name, minimum in thresholds if scores[name] < minimum]
+    if round(sum(scores.values()) / 9) < 90:
+        defects.append("grading overall score is below 90")
+    if min(scores.values()) < 60:
+        defects.append("grading lowest score is below 60")
+    for role, output, _ in observations:
+        if output["results"] and any(row["result"] == "FAIL" for row in output["results"]):
+            defects.append(role + " observed FAIL")
+    repair_eligible = bool(defects) or results != {"PASS"}
+    return {"schema": DIAGNOSTIC_REPORT_SCHEMA, "complete": True, "repairEligible": repair_eligible,
+            "status": "findings" if repair_eligible else "complete", "findings": defects}
 
 
 if __name__ == "__main__":
