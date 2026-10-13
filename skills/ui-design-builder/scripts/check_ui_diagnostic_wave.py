@@ -18,6 +18,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.request.stat().st_size > evidence.MAX_BYTES:
+            raise ValueError("diagnostic request exceeds the bounded-input limit")
         payload = args.request.read_bytes()
         actual = hashlib.sha256(payload).hexdigest()
         if actual != args.request_sha256:

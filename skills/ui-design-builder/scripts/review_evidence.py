@@ -246,7 +246,7 @@ def execution_findings(root, output, receipt, subject):
     return errors
 
 
-def assessment_findings(root, output):
+def assessment_findings(root, output, *, allow_blocks=False):
     """Qualitative conclusions retain source captures and per-case observations."""
     check = output.get("check", "")
     if not any(part in check for part in ("grading", "critique", "audit")):
@@ -255,8 +255,12 @@ def assessment_findings(root, output):
     if not isinstance(value, dict) or set(value) != {"scores", "observations", "blocks"}:
         return ["review output requires scores, observations and blocks"]
     errors = []
-    if not isinstance(value["blocks"], list) or value["blocks"]:
+    if not isinstance(value["blocks"], list):
         errors.append("review output has unresolved blocks")
+    elif value["blocks"] and not allow_blocks:
+        errors.append("review output has unresolved blocks")
+    elif any(not isinstance(block, str) or not block.strip() for block in value["blocks"]):
+        errors.append("review blocks must contain concrete findings")
     scores = value["scores"]
     expected = {"W" + str(i) for i in range(1, 6)} if check.startswith("wireframe-") else {"H" + str(i) for i in range(1, 10)}
     if "grading" in check:
@@ -445,8 +449,15 @@ def _diagnostic_wave_data(root, request):
                 raise ValueError("output artifact must be separate from reviewed and frozen inputs")
             output_data = read_identity(root, output_binding)
             output_json = json.loads(output_data.decode("utf-8"))
-            expected_keys = {"schema", "check", "subject", "matrix", "results", "execution",
-                             *(set() if role == "browser" else {"assessment"})}
+            if role == "browser":
+                expected_keys = {
+                    "schema", "check", "subject", "matrix", "results", "execution",
+                    "sandbox", "console", "network", "navigation", "popups", "forms",
+                    "popupAttempts", "formAttempts", "interactions", "reviewer",
+                }
+            else:
+                expected_keys = {"schema", "check", "subject", "matrix", "results",
+                                 "execution", "assessment"}
             if not isinstance(output_json, dict) or set(output_json) != set(expected_keys):
                 raise ValueError("output artifact has an invalid ui-output/3 key set")
             if output_json.get("schema") != "ui-output/3" or output_json.get("check") != check:
@@ -455,6 +466,10 @@ def _diagnostic_wave_data(root, request):
                 raise ValueError("output artifact subject is stale")
             if observed_result(output_json) in {"BLOCKED", "MISSING"}:
                 findings.append(role + " observations are incomplete or blocked")
+            row_results = {tuple(_case_key(row)): row["result"] for row in output_json["results"]}
+            for case in expected:
+                if row_results.get(case) in {"BLOCKED", "MISSING"}:
+                    findings.append(role + " required case is unscorable: " + "/".join(case))
             actual = sorted(_case_key(row) for row in output_json["matrix"]["cases"])
             if actual != expected:
                 findings.append(role + " case matrix differs from the diagnostic request")
@@ -466,8 +481,24 @@ def _diagnostic_wave_data(root, request):
             if not isinstance(artifacts, list) or any(binding not in artifacts for binding in (prd, manifest, subject)):
                 findings.append(role + " execution must bind the current PRD, manifest and subject")
             findings.extend(f"{role}: {item}" for item in execution_findings(root, output_json, receipt, subject))
-            if role != "browser":
-                findings.extend(f"{role}: {item}" for item in assessment_findings(root, output_json))
+            if role == "browser":
+                from check_ui_design_contract import _bundle_transcript_findings, _hifi_bundle_documents
+                from hifi_reviewer import (
+                    has_current_reviewer_shell, reviewer_contract, reviewer_evidence_findings,
+                )
+
+                subject_path = safe_path(root, subject["path"])
+                documents = _hifi_bundle_documents(subject_path, subject_data.decode("utf-8"), parsed_manifest)
+                findings.extend(f"{role}: {item}" for item in _bundle_transcript_findings(output_json, parsed_manifest))
+                if not has_current_reviewer_shell(documents):
+                    findings.append(role + " requires the current reviewer shell")
+                else:
+                    review_errors, review_contract = reviewer_contract(documents, parsed_manifest)
+                    findings.extend(f"{role}: {item}" for item in review_errors)
+                    findings.extend(f"{role}: {item}" for item in
+                                    reviewer_evidence_findings(output_json["reviewer"], review_contract))
+            else:
+                findings.extend(f"{role}: {item}" for item in assessment_findings(root, output_json, allow_blocks=True))
             canonical = build_receipt(root, output_binding["path"])
             if canonical != evidence:
                 findings.append(role + " receipt is not the exact canonical receipt for current bytes")
@@ -503,6 +534,8 @@ def diagnostic_wave_report(root, request):
     for role, output, _ in observations:
         if output["results"] and any(row["result"] == "FAIL" for row in output["results"]):
             defects.append(role + " observed FAIL")
+        blocks = output.get("assessment", {}).get("blocks", []) if role != "browser" else []
+        defects.extend(f"{role} observed block: {block}" for block in blocks)
     repair_eligible = bool(defects) or results != {"PASS"}
     return {"schema": DIAGNOSTIC_REPORT_SCHEMA, "complete": True, "repairEligible": repair_eligible,
             "status": "findings" if repair_eligible else "complete", "findings": defects}
