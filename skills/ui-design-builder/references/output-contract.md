@@ -175,6 +175,35 @@ For `ui-design/3`, Style Integration adds:
 
 Each compared direction has one distinct self-contained rendered HTML study with the HiFi CSP rules, all in one existing `docs/design/directions/<round>/` folder. The study rows match the compared directions exactly: three by default, one under the explicit owner choice. One frontend author produces every study and self-checks each; a different checker, a failed self-check or a stale hash blocks. The owner may select, mix or modify (`Direction decision: modified-and-approved`); a mix or modification gets a renewed complete study set. The studies are selection evidence in the existing design folder, not another approval database.
 
+#### Direction Review Assembly
+
+New studies use the shared reviewer through `scripts/assemble_ui_review.py --mode direction`. The default `--mode hifi` and its `ui-hifi/2` contract do not change. The frontend author writes one product page per direction; the assembler adds only reviewer chrome.
+
+```json
+{
+  "schema": "ui-direction-review/1",
+  "round": "round-1",
+  "directions": [{"id": "VD-R1-01", "file": "vd-01.html", "sourceSha256": "[author source hash]"}],
+  "cases": [
+    {"id": "primary", "surface": "UI-001", "platform": "web", "targetFamily": "viewports", "widths": {"390": 390, "1200": 1200}},
+    {"id": "stress", "surface": "UI-004", "platform": "ios", "targetFamily": "sizeClasses", "widths": {"compact": 390, "regular": 820}}
+  ]
+}
+```
+
+- The profile is closed. `directions` lists three studies, or one under the explicit owner choice. Each row names the direction ID, the actual study filename and the author source SHA-256.
+- Each case declares its own `surface`, `platform`, `targetFamily` and ordered `widths` map. A `viewports` target equals its integer pixel width. A `sizeClasses` target is a name with a finite positive pixel width.
+- `web` cases use `viewports`; `ios` and `android` cases use `sizeClasses`. One profile may mix web and native cases.
+- Each author source provides one `[data-hifi-canvas]` and one `[data-direction-case-view="<case id>"]` per case. It contains no reviewer chrome.
+- Each source carries the local-page CSP: the HiFi policy with `navigate-to 'self'`. Its only file links are the profile's study filenames.
+- Pass one `--source <file>=<path>` per study. No `index.html`, Overview, Design Tokens panel or state matrix is required before selection.
+
+The assembler checks paths, source hashes, CSP, resources and input/output aliases before it writes any file. It keeps existing output unless `--overwrite` is given. Equal inputs produce equal bytes, so record each assembled study's hash in the Direction studies table.
+
+Each assembled study embeds the profile, the unchanged `REVIEWER_SHARED.css`, the unchanged HiFi core runtime and a small direction shim. The sidebar links studies by actual filename. Selecting a case shows only that case's approved targets and sets the canvas to the mapped width. The selection carries to the other studies, so the owner compares like for like. Arrow, Home and End keys move focus inside one control group.
+
+`ui_design_v3.direction_review_findings` applies the strict profile to a study that embeds one; `has_direction_review_profile` detects it. Studies approved before this profile have no embedded profile and keep the existing study checks. A reviewer control never proves a product interaction, and a browser-rendered study is not native or real-login evidence.
+
 A pre-selection study may include a bounded local deterministic motion demonstration within the approved Motion and Media scope, with normal and reduced-motion behavior. It is a selection aid only: it is not Required motion evidence, native proof, an approval, or permission to call a generation provider. The connected HiFi supplies the final motion review; provider work stays after direction selection with its exact separate authorization.
 
 ### Platform rules
