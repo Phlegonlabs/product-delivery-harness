@@ -203,7 +203,13 @@ class RetainedObservationTests(unittest.TestCase):
                 reference="file:docs/deployment-evidence/linked.json@sha256:" + "0" * 64,
                 expected_hash="0" * 64,
             )
-            self.assertTrue(any("link or reparse" in item for item in link_result[1]))
+            expected_link_diagnostic = (
+                "link or reparse" if os.name == "nt" else "symlink"
+            )
+            self.assertTrue(
+                any(expected_link_diagnostic in item for item in link_result[1]),
+                link_result[1],
+            )
 
             directory_result = load(
                 root,
