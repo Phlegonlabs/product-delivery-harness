@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import ctypes
+import ctypes.wintypes as wintypes
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import re
 import stat
+import sys
 from typing import Any
 
 
@@ -54,10 +57,47 @@ KNOWN_CREDENTIAL_PATHS = {
     ".env", ".env.local", ".dev.vars", "credentials.json", "credential-store",
     "id_rsa", "id_ed25519", "token.json",
 }
+ROOT_CREDENTIAL_COMPONENTS = {
+    "provider_config.json", "bridge.local.json", ".aws", ".ssh", ".gnupg",
+    ".docker", ".kube", ".azure",
+}
+INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
 
 class _DuplicateKeyError(ValueError):
     pass
+
+
+if sys.platform == "win32":
+    class _BY_HANDLE_FILE_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("file_attributes", ctypes.c_ulong),
+            ("_creation_time", wintypes.FILETIME),
+            ("_access_time", wintypes.FILETIME),
+            ("_write_time", wintypes.FILETIME),
+            ("volume_serial", ctypes.c_ulong),
+            ("size_high", ctypes.c_ulong),
+            ("size_low", ctypes.c_ulong),
+            ("number_of_links", ctypes.c_ulong),
+            ("index_high", ctypes.c_ulong),
+            ("index_low", ctypes.c_ulong),
+        ]
+
+        @property
+        def size(self) -> int:
+            return (self.size_high << 32) | self.size_low
+
+        @property
+        def index(self) -> int:
+            return (self.index_high << 32) | self.index_low
+
+        @property
+        def creation_time(self) -> int:
+            return (self._creation_time.dwHighDateTime << 32) | self._creation_time.dwLowDateTime
+
+        @property
+        def write_time(self) -> int:
+            return (self._write_time.dwHighDateTime << 32) | self._write_time.dwLowDateTime
 
 
 def _object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -110,29 +150,315 @@ def _reject_reference(path_text: str) -> str | None:
     raw = path_text.encode("utf-8", errors="surrogatepass")
     if any(code < 32 or code == 127 for code in raw):
         return "path contains a control character"
-    pure = PurePosixPath(path_text)
-    if pure.is_absolute():
-        return "path is absolute"
-    for part in pure.parts:
+    parts = path_text.split("/")
+    for part in parts:
         if part in {"", ".", ".."}:
             return "path contains an empty, current, or parent component"
         if part != part.strip() or part.endswith("."):
             return "path contains a dot-space or trailing-dot component"
         lowered = part.casefold()
-        if lowered in WINDOWS_DEVICE_NAMES or lowered in KNOWN_CREDENTIAL_PATHS:
+        device_basename = lowered.split(".", 1)[0]
+        if (
+            lowered in WINDOWS_DEVICE_NAMES
+            or device_basename in WINDOWS_DEVICE_NAMES
+            or lowered in KNOWN_CREDENTIAL_PATHS
+            or lowered in ROOT_CREDENTIAL_COMPONENTS
+            or (
+                (lowered.startswith(".env.") or lowered.startswith(".dev.vars."))
+                and lowered not in {".env.example", ".env.template"}
+            )
+        ):
             return "path names a device or known credential path"
+    if ".config" in parts and "gcloud" in parts:
+        return "path names a known credential path"
     return None
 
 
-def _is_reparse(path: Path) -> bool:
-    try:
-        metadata = os.lstat(path)
-    except OSError:
-        return False
-    if path.is_symlink():
+def _is_reparse_metadata(metadata: os.stat_result) -> bool:
+    if stat.S_ISLNK(metadata.st_mode):
         return True
     attributes = getattr(metadata, "st_file_attributes", 0)
-    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _identity_changed(before: os.stat_result, after: os.stat_result) -> bool:
+    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    return any(getattr(before, field) != getattr(after, field) for field in fields)
+
+
+def _directory_identity(metadata: os.stat_result) -> tuple[int, int, int]:
+    return (metadata.st_dev, metadata.st_ino, metadata.st_mode)
+
+
+def _read_bounded_regular_posix(
+    root: Path,
+    parts: tuple[str, ...],
+    label: str,
+    _race_probe=None,
+) -> tuple[bytes, str, list[str]]:
+    if sys.platform == "win32":
+        return b"", "", [f"{label}: safe descriptor binding is unavailable"]
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    leaf_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
+    descriptors: list[int] = []
+    leaf_fd = None
+    try:
+        descriptors.append(os.open(root.parts[0], directory_flags))
+        for part in root.parts[1:]:
+            descriptors.append(
+                os.open(part, directory_flags, dir_fd=descriptors[-1])
+            )
+            metadata = os.fstat(descriptors[-1])
+            if not stat.S_ISDIR(metadata.st_mode) or _is_reparse_metadata(metadata):
+                return b"", "", [
+                    f"{label}: retained evidence path contains a link or reparse point"
+                ]
+
+        for part in parts:
+            if _race_probe is not None:
+                _race_probe("before-read", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
+            parent_before = os.fstat(descriptors[-1])
+            leaf_fd = os.open(part, leaf_flags, dir_fd=descriptors[-1])
+            leaf_before = os.fstat(leaf_fd)
+            if not stat.S_ISREG(leaf_before.st_mode):
+                return b"", "", [f"{label}: retained evidence is not a regular file"]
+            if leaf_before.st_size > MAX_OBSERVATION_BYTES:
+                return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
+            if _race_probe is not None:
+                _race_probe("after-open", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
+            content = b""
+            while len(content) <= MAX_OBSERVATION_BYTES:
+                chunk = os.read(
+                    leaf_fd,
+                    min(65536, MAX_OBSERVATION_BYTES + 1 - len(content)),
+                )
+                if not chunk:
+                    break
+                content += chunk
+            leaf_after = os.fstat(leaf_fd)
+            if _race_probe is not None:
+                _race_probe("after-read", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
+            parent_after = os.fstat(descriptors[-1])
+            if _identity_changed(leaf_before, leaf_after):
+                return b"", "", [f"{label}: retained evidence changed while it was read"]
+            if _directory_identity(parent_before) != _directory_identity(parent_after):
+                return b"", "", [f"{label}: retained evidence parent changed while it was read"]
+            parent_reopened_fd = _posix_open_relative_directory(
+                descriptors[0],
+                tuple(root.parts[1:] + parts[:-1]),
+                directory_flags,
+            )
+            try:
+                parent_reopened = os.fstat(parent_reopened_fd)
+            finally:
+                os.close(parent_reopened_fd)
+            if _directory_identity(parent_before) != _directory_identity(parent_reopened):
+                return b"", "", [
+                    f"{label}: retained evidence parent changed while it was read"
+                ]
+            os.close(leaf_fd)
+            leaf_fd = None
+    except (OSError, ValueError):
+        return b"", "", [f"{label}: retained evidence cannot be read safely"]
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+        if leaf_fd is not None:
+            os.close(leaf_fd)
+
+    if len(content) > MAX_OBSERVATION_BYTES:
+        return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
+    return content, hashlib.sha256(content).hexdigest(), []
+
+
+def _posix_open_relative_directory(anchor_fd: int, parts: tuple[str, ...], flags: int) -> int:
+    fd = anchor_fd
+    opened = None
+    try:
+        for part in parts:
+            opened = os.open(part, flags, dir_fd=fd)
+            if fd != anchor_fd:
+                os.close(fd)
+            fd = opened
+        return fd
+    except (OSError, ValueError):
+        if opened is not None and opened != fd:
+            os.close(opened)
+        raise
+
+
+def _valid_handle(handle: int | None) -> bool:
+    return handle is not None and handle != INVALID_HANDLE_VALUE
+
+
+def _windows_kernel():
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = ctypes.c_void_p
+    kernel.CreateFileW.argtypes = (
+        ctypes.c_wchar_p, ctypes.c_ulong, ctypes.c_ulong,
+        ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_void_p,
+    )
+    kernel.GetFileInformationByHandle.argtypes = (
+        ctypes.c_void_p, ctypes.POINTER(_BY_HANDLE_FILE_INFORMATION),
+    )
+    kernel.GetFileInformationByHandleEx.argtypes = (
+        ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong,
+    )
+    kernel.ReadFile.argtypes = (
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong,
+        ctypes.POINTER(ctypes.c_ulong), ctypes.c_void_p,
+    )
+    kernel.CloseHandle.argtypes = (ctypes.c_void_p,)
+    kernel.CloseHandle.restype = wintypes.BOOL
+    return kernel
+
+
+def _windows_info(kernel: ctypes.WinDLL, handle: int) -> _BY_HANDLE_FILE_INFORMATION | None:
+    info = _BY_HANDLE_FILE_INFORMATION()
+    if not kernel.GetFileInformationByHandle(handle, ctypes.byref(info)):
+        return None
+    return info
+
+
+def _windows_identity(info: _BY_HANDLE_FILE_INFORMATION) -> tuple:
+    return (
+        info.volume_serial, info.index, info.size,
+        info.creation_time, info.write_time, info.file_attributes,
+    )
+
+
+def _windows_open(
+    kernel: ctypes.WinDLL,
+    path: Path,
+    *,
+    directory: bool,
+    read: bool,
+    share: int = 7,
+):
+    desired = 0x80 if not read else 0x80000000
+    flags = 0x00200000
+    flags |= 0x02000000
+    if not directory and not read:
+        flags |= 0x80
+    return kernel.CreateFileW(
+        str(path), desired, share, None, 3, flags, None
+    )
+
+
+def _read_bounded_regular_windows(
+    root: Path,
+    parts: tuple[str, ...],
+    label: str,
+    _race_probe=None,
+) -> tuple[bytes, str, list[str]]:
+    failure = [f"{label}: safe native descriptor binding is unavailable"]
+    open_failure = [f"{label}: retained evidence cannot be read safely"]
+    if sys.platform != "win32":
+        return b"", "", failure
+    handles: list[int] = []
+    kernel = None
+    try:
+        kernel = _windows_kernel()
+        root_path = Path(os.path.abspath(root))
+        if root_path.drive.startswith("\\\\"):
+            return b"", "", [f"{label}: UNC repository roots are not safe evidence roots"]
+        chain_paths = [root_path]
+        chain_paths.extend(
+            root_path.joinpath(*parts[:index])
+            for index in range(1, len(parts))
+        )
+        for chain_path in chain_paths:
+            handle = _windows_open(
+                kernel, chain_path, directory=True, read=False, share=3
+            )
+            if not _valid_handle(handle):
+                return b"", "", open_failure
+            handles.append(handle)
+            info = _windows_info(kernel, handle)
+            if info is None:
+                return b"", "", failure
+            if info.file_attributes & 0x400 or not info.file_attributes & 0x10:
+                return b"", "", [f"{label}: retained evidence root contains a link or reparse point"]
+        parent_before = _windows_info(kernel, handles[-1])
+        if parent_before is None:
+            return b"", "", failure
+
+        leaf_path = root_path.joinpath(*parts)
+        leaf_handle = _windows_open(kernel, leaf_path, directory=False, read=False)
+        if not _valid_handle(leaf_handle):
+            return b"", "", open_failure
+        handles.append(leaf_handle)
+        leaf_before = _windows_info(kernel, leaf_handle)
+        if leaf_before is None:
+            return b"", "", failure
+        if leaf_before.file_attributes & 0x400:
+            return b"", "", [f"{label}: retained evidence path contains a link or reparse point"]
+        if leaf_before.file_attributes & 0x10:
+            return b"", "", [f"{label}: retained evidence is not a regular file"]
+        if leaf_before.size > MAX_OBSERVATION_BYTES:
+            return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
+        if _race_probe is not None:
+            _race_probe("after-open", leaf_path)
+        read_handle = _windows_open(kernel, leaf_path, directory=False, read=True)
+        if not _valid_handle(read_handle):
+            return b"", "", open_failure
+        handles.append(read_handle)
+        if _race_probe is not None:
+            _race_probe("after-open", leaf_path)
+
+        content = b""
+        remaining = MAX_OBSERVATION_BYTES + 1
+        while remaining:
+            request = min(65536, remaining)
+            buffer = ctypes.create_string_buffer(65536)
+            count = ctypes.c_ulong(0)
+            if not kernel.ReadFile(
+                read_handle, buffer, request, ctypes.byref(count), None
+            ):
+                return b"", "", open_failure
+            if not count.value:
+                break
+            content += buffer.raw[:count.value]
+            remaining -= count.value
+        leaf_after = _windows_info(kernel, leaf_handle)
+        if leaf_after is None or _windows_identity(leaf_before) != _windows_identity(leaf_after):
+            return b"", "", [f"{label}: retained evidence changed while it was read"]
+        if _race_probe is not None:
+            _race_probe("after-read", leaf_path)
+
+        if parent_before is None:
+            return b"", "", failure
+        parent_handle = _windows_open(kernel, leaf_path.parent, directory=True, read=False)
+        if not _valid_handle(parent_handle):
+            return b"", "", open_failure
+        handles.append(parent_handle)
+        parent_after = _windows_info(kernel, parent_handle)
+        if parent_before is None or parent_after is None:
+            return b"", "", failure
+        if parent_before.volume_serial != parent_after.volume_serial or parent_before.index != parent_after.index:
+            return b"", "", [f"{label}: retained evidence parent changed while it was read"]
+        root_before = _windows_info(kernel, handles[0])
+        if root_before is None:
+            return b"", "", failure
+        root_handle = _windows_open(kernel, chain_paths[0], directory=True, read=False, share=3)
+        if not _valid_handle(root_handle):
+            return b"", "", open_failure
+        handles.append(root_handle)
+        root_after = _windows_info(kernel, root_handle)
+        if root_after is None:
+            return b"", "", failure
+        if root_before.volume_serial != root_after.volume_serial or root_before.index != root_after.index:
+            return b"", "", [f"{label}: retained evidence root changed while it was read"]
+    except (OSError, ValueError):
+        return b"", "", failure
+    finally:
+        for handle in reversed(handles):
+            if kernel is not None and _valid_handle(handle):
+                kernel.CloseHandle(handle)
+
+    if len(content) > MAX_OBSERVATION_BYTES:
+        return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
+    return content, hashlib.sha256(content).hexdigest(), []
 
 
 def _safe_regular_bytes(
@@ -143,51 +469,11 @@ def _safe_regular_bytes(
     path_error = _reject_reference(relative_path)
     if path_error:
         return b"", "", [f"{label}: retained evidence {path_error}"]
-
-    try:
-        root = repo_root.resolve()
-        if not root.is_dir():
-            return b"", "", [f"{label}: repository root is not a directory"]
-        candidate = root.joinpath(*pure_parts(relative_path))
-        if os.name == "nt":
-            relative = candidate.relative_to(root)
-            current = root
-            for part in relative.parts:
-                current = current / part
-                if _is_reparse(current):
-                    return b"", "", [f"{label}: retained evidence path contains a link or reparse point"]
-        else:
-            current = root
-            for part in pure_parts(relative_path):
-                current = current / part
-                if current.is_symlink():
-                    return b"", "", [f"{label}: retained evidence path contains a symlink"]
-
-        resolved = candidate.resolve()
-        resolved.relative_to(root)
-        before = os.lstat(resolved)
-        if not stat.S_ISREG(before.st_mode):
-            return b"", "", [f"{label}: retained evidence is not a regular file"]
-        if before.st_size > MAX_OBSERVATION_BYTES:
-            return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
-
-        with resolved.open("rb") as stream:
-            content = stream.read(MAX_OBSERVATION_BYTES + 1)
-        after = os.lstat(resolved)
-        identity_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns")
-        if any(getattr(before, field) != getattr(after, field) for field in identity_fields):
-            return b"", "", [f"{label}: retained evidence changed while it was read"]
-    except (OSError, ValueError):
-        return b"", "", [f"{label}: retained evidence cannot be read safely"]
-
-    if len(content) > MAX_OBSERVATION_BYTES:
-        return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
-    digest = hashlib.sha256(content).hexdigest()
-    return content, digest, []
-
-
-def pure_parts(relative_path: str) -> tuple[str, ...]:
-    return PurePosixPath(relative_path).parts
+    parts = tuple(part for part in relative_path.split("/") if part)
+    absolute_root = Path(os.path.abspath(repo_root))
+    if os.name == "nt":
+        return _read_bounded_regular_windows(absolute_root, parts, label)
+    return _read_bounded_regular_posix(absolute_root, parts, label)
 
 
 def _load_json(

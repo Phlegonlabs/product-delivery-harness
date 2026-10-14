@@ -16,6 +16,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+import deployment_source_observation as m
 from deployment_source_observation import load_retained_observation
 
 
@@ -161,7 +162,12 @@ class RetainedObservationTests(unittest.TestCase):
                 reference=f"file:{relative}@sha256:{digest}",
                 expected_hash=digest,
             )
-            self.assertTrue(any("repository root" in item for item in missing[1]))
+            self.assertTrue(
+                any(
+                    "cannot be read safely" in item
+                    for item in missing[1]
+                )
+            )
 
             root.joinpath(relative).write_bytes(b"tampered")
             tampered = load(
@@ -423,6 +429,172 @@ class RetainedObservationTests(unittest.TestCase):
                     expected_hash=digest,
                 )
                 self.assertTrue(result[1], mutation)
+
+    def test_root_and_parent_links_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "actual"
+            target.mkdir()
+            evidence = target / "observation.json"
+            evidence.write_bytes(b"{}")
+            digest = hashlib.sha256(evidence.read_bytes()).hexdigest()
+            root_link = root / "linked-root"
+            parent_link = root / "linked-parent"
+            if os.name == "nt":
+                import _winapi
+
+                _winapi.CreateJunction(str(target), str(root_link))
+                _winapi.CreateJunction(str(target), str(parent_link))
+            else:
+                os.symlink(target, root_link, target_is_directory=True)
+                os.symlink(target, parent_link, target_is_directory=True)
+
+            root_result = load(
+                root_link,
+                reference=f"file:observation.json@sha256:{digest}",
+                expected_hash=digest,
+            )
+            parent_result = load(
+                root,
+                reference=f"file:linked-parent/observation.json@sha256:{digest}",
+                expected_hash=digest,
+            )
+            self.assertIsNone(root_result[0])
+            self.assertIsNone(parent_result[0])
+            self.assertTrue(
+                any("link" in item or "symlink" in item for item in root_result[1])
+            )
+            self.assertTrue(
+                any("link" in item or "symlink" in item for item in parent_result[1])
+            )
+
+    def test_exact_bound_passes_and_one_byte_over_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = observation_value()
+            body = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+            body += b" " * (1024 * 1024 - len(body))
+            relative = "docs/exact.json"
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(body)
+            digest = hashlib.sha256(body).hexdigest()
+            reader = (
+                m._read_bounded_regular_windows
+                if os.name == "nt"
+                else m._read_bounded_regular_posix
+            )
+            content, actual_digest, findings = reader(root, ("docs", "exact.json"), "target")
+            self.assertEqual([], findings)
+            self.assertEqual(body, content)
+            self.assertEqual(digest, actual_digest)
+
+            path.write_bytes(body + b" ")
+            content, actual_digest, findings = reader(root, ("docs", "exact.json"), "target")
+            self.assertEqual(b"", content)
+            self.assertEqual("", actual_digest)
+            self.assertTrue(any("exceeds 1 MiB" in item for item in findings))
+
+    def test_known_credential_paths_reject_before_open(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            credential = root / ".env.production"
+            credential.write_bytes(b"SECRET=synthetic")
+            digest = hashlib.sha256(credential.read_bytes()).hexdigest()
+            platform_calls: list[tuple[Path, tuple[str, ...], str]] = []
+            original_platform_reader = (
+                m._read_bounded_regular_windows
+                if os.name == "nt"
+                else m._read_bounded_regular_posix
+            )
+
+            def platform_reader_spy(repo_root: Path, parts: tuple[str, ...], label: str):
+                platform_calls.append((repo_root, parts, label))
+                return original_platform_reader(repo_root, parts, label)
+
+            platform_reader_name = (
+                "_read_bounded_regular_windows"
+                if os.name == "nt"
+                else "_read_bounded_regular_posix"
+            )
+            setattr(m, platform_reader_name, platform_reader_spy)
+            try:
+                result = load(
+                    root,
+                    reference=f"file:.env.production@sha256:{digest}",
+                    expected_hash=digest,
+                )
+            finally:
+                setattr(m, platform_reader_name, original_platform_reader)
+            self.assertIsNone(result[0])
+            self.assertEqual([], platform_calls)
+            self.assertTrue(
+                any("known credential path" in item for item in result[1])
+            )
+            self.assertEqual(b"SECRET=synthetic", credential.read_bytes())
+
+    def test_race_probe_mutations_are_detected(self) -> None:
+        cases = (
+            ("growth", "after-open"),
+            ("metadata", "after-open"),
+            ("parent-replacement", "after-read"),
+        )
+        for case, stage in cases:
+            with self.subTest(case=case):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    parent = root / "docs"
+                    leaf = parent / "observation.json"
+                    leaf.parent.mkdir(parents=True)
+                    leaf.write_bytes(b"{}")
+                    original_parent_bytes = leaf.read_bytes()
+                    original_parent_digest = hashlib.sha256(original_parent_bytes).hexdigest()
+                    mutation_blocked = False
+
+                    def probe(stage: str, path: Path) -> None:
+                        if stage == "after-open" and case == "growth":
+                            path.write_bytes(path.read_bytes() + b"x")
+                        elif stage == "after-open" and case == "metadata":
+                            os.utime(path, (0, 0))
+                        elif stage == "after-read" and case == "parent-replacement":
+                            if os.name == "nt":
+                                nonlocal mutation_blocked
+
+                                try:
+                                    os.replace(path.parent, root / "replacement")
+                                except PermissionError:
+                                    mutation_blocked = True
+                                    return
+                                (root / "docs").mkdir()
+                            else:
+                                replacement = root / "replacement"
+                                os.replace(path.parent, replacement)
+                                (root / "docs").mkdir()
+
+                    reader = (
+                        m._read_bounded_regular_windows
+                        if os.name == "nt"
+                        else m._read_bounded_regular_posix
+                    )
+                    result = reader(root, ("docs", "observation.json"), "target x", _race_probe=probe)
+                    if os.name == "nt" and case == "parent-replacement":
+                        self.assertTrue(mutation_blocked)
+                        self.assertEqual(
+                            (original_parent_bytes, original_parent_digest),
+                            (result[0], result[1]),
+                        )
+                        self.assertEqual([], result[2])
+                        self.assertFalse((root / "replacement").exists())
+                    else:
+                        self.assertEqual(b"", result[0])
+                        self.assertEqual("", result[1])
+                        self.assertTrue(result[2], case)
+                    if case == "growth":
+                        self.assertTrue(any("changed" in item for item in result[2]))
+                    elif case == "metadata":
+                        self.assertTrue(any("changed" in item for item in result[2]))
+                    elif os.name != "nt":
+                        self.assertTrue(any("parent changed" in item for item in result[2]))
 
 
 if __name__ == "__main__":
