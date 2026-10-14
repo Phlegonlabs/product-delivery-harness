@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,25 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_activation  # noqa: E402
+
+
+def _load_fixture_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load fixture module {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+deployment_fixtures = _load_fixture_module(
+    "_activation_deployment_fixtures",
+    SKILL_ROOT.parent
+    / "delivery-harness"
+    / "scripts"
+    / "tests"
+    / "test_deployment_record.py",
+)
 
 
 SHA = "a" * 40
@@ -363,6 +383,74 @@ def valid_record_v2(*, task_blocks: list[str] | None = None) -> str:
     return text
 
 
+def full_deployment_fixture(
+    *,
+    shared_d1: bool = False,
+    duplicate_target: bool = False,
+    strict_provenance: bool = True,
+) -> str:
+    """A synthetic, structurally complete Deployment for real validator tests."""
+
+    text = deployment_fixtures.GOOD_DEPLOYMENT.replace(
+        "| web-app | web | example-web | example-web-dev | "
+        "Cloudflare;production route | Cloudflare;development route |",
+        "| web-app | web | fixture-web | fixture-web-dev | "
+        "Cloudflare;fixture-production-route | Cloudflare;fixture-development-route |",
+        1,
+    )
+    if strict_provenance:
+        text = text.replace(
+            "## Record\n",
+            "## Record\n\n- Record schema: deployment/2\n",
+            1,
+        )
+    if shared_d1:
+        text = text.replace(
+            "| D1 database | d1-prod-001 | d1-preview-001 |",
+            "| D1 database | d1-prod-001 | d1-prod-001 |",
+            1,
+        )
+    text += f"""
+
+## Release Target Status
+
+| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| web-dev | web-app | development | Cloudflare;fixture-development-route | pending | pending | pending | pending | pending | pending | pending |
+| web-prod | web-app | production | Cloudflare;fixture-production-route | https://example.com | {SHA} | {SHA} | {ARTIFACT} | production route answered the smoke check | 2026-09-07T18:04:00Z | PASS |
+"""
+    if strict_provenance:
+        text += f"""
+
+## Release Source Provenance
+
+| Release target | Source ref | Source SHA | Authority evidence |
+| --- | --- | --- | --- |
+| web-dev | run.integration.branch | pending | pending |
+| web-prod | refs/heads/main | {SHA} | repo=example/activation; ref=refs/heads/main; sha={SHA}; observed=2026-09-07T18:00:00Z; readback=command:git rev-parse refs/heads/main |
+"""
+    if duplicate_target:
+        text += (
+            f"| web-prod | refs/heads/main | {SHA} | repo=example/activation; "
+            f"ref=refs/heads/main; sha={SHA}; observed=2026-09-07T18:00:00Z; "
+            "readback=command:git rev-parse refs/heads/main |\n"
+        )
+    return text
+
+
+def run_authority_route(deployment: str, **arguments):
+    with patch("check_product_package.validate_texts", return_value=[]):
+        return check_activation.check_activation_text(
+            valid_record_v2(),
+            prd_text=APPROVED_PRD,
+            architecture_text=ARCHITECTURE,
+            deployment_text=deployment,
+            stack_text="# Stack Decisions: Example",
+            repo_root=Path.cwd(),
+            **arguments,
+        )
+
+
 class ActivationCheckerTests(unittest.TestCase):
     def test_prd_signal_parser_accepts_approved_and_legacy_metric_tables(self) -> None:
         for prd in (VALID_PRD, APPROVED_PRD):
@@ -388,7 +476,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 valid_record_v2(),
                 prd_text=APPROVED_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_verified_sources=True,
@@ -401,6 +489,40 @@ class ActivationCheckerTests(unittest.TestCase):
             deployment_check.call_args.kwargs["strict_target_subset"],
         )
 
+    def test_authority_routes_run_full_real_deployment_validation(self) -> None:
+        valid = full_deployment_fixture()
+        shared = full_deployment_fixture(shared_d1=True)
+        duplicate = full_deployment_fixture(duplicate_target=True)
+        routes = (
+            {"require_closeout": True},
+            {"require_verified_sources": True},
+            {"require_closeout": True, "require_verified_sources": True},
+            {"require_ready": ("web-prod",)},
+        )
+        for route in routes:
+            with self.subTest(route=route):
+                self.assertEqual([], run_authority_route(valid, **route))
+
+                shared_findings = run_authority_route(shared, **route)
+                self.assertTrue(
+                    any(
+                        "Resource Isolation: D1 database must not share one resource "
+                        "between production and development" in item
+                        for item in shared_findings
+                    ),
+                    shared_findings,
+                )
+
+                duplicate_findings = run_authority_route(duplicate, **route)
+                self.assertTrue(
+                    any(
+                        "Release Source Provenance: duplicate target 'web-prod'"
+                        in item
+                        for item in duplicate_findings
+                    ),
+                    duplicate_findings,
+                )
+
     def test_explicit_noop_can_pass_verified_source_handoff(self) -> None:
         with patch("check_product_package.validate_texts", return_value=[]), patch(
             "check_deployment.check_deployment_text", return_value=[]
@@ -409,7 +531,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 valid_noop_record(),
                 prd_text=NOOP_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_closeout=True,
@@ -460,7 +582,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 valid_record_v2(),
                 prd_text=APPROVED_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_ready=("web-prod",),
@@ -504,7 +626,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 early,
                 prd_text=APPROVED_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_ready=("web-prod",),
@@ -1198,7 +1320,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 blocked_owner_deferral_record(),
                 prd_text=APPROVED_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_closeout=True,
@@ -1207,7 +1329,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 valid_noop_record(),
                 prd_text=NOOP_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_closeout=True,
