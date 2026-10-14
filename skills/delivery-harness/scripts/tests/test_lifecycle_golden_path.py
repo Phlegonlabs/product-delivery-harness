@@ -53,7 +53,7 @@ from test_check_activation import task_block, task_fields, valid_record_v2  # no
 from test_check_seo_review import valid_review_v2  # noqa: E402
 import check_activation  # noqa: E402
 import check_deployment  # noqa: E402
-from release_targets import parse_release_targets  # noqa: E402
+from release_targets import parse_release_targets, parse_source_policy  # noqa: E402
 from test_deployment_record import GOOD_DEPLOYMENT  # noqa: E402
 from test_validate_node_result import running_result  # noqa: E402
 
@@ -80,6 +80,18 @@ def deployment_record(architecture: str, sha: str, artifact: str) -> str:
     targets = {target.stage: target for target in contract.targets}
     development = targets["development"]
     production = targets["production"]
+    development_authority, development_errors = parse_source_policy(
+        development.source_policy,
+        expected_stage=development.stage,
+        source_policy_protocol=development.source_policy_protocol,
+    )
+    production_authority, production_errors = parse_source_policy(
+        production.source_policy,
+        expected_stage=production.stage,
+        source_policy_protocol=production.source_policy_protocol,
+    )
+    if development_errors or production_errors:
+        raise AssertionError("fixture architecture has invalid source policies")
     unit_row = (
         "| web-app | web | example-web | example-web-dev | "
         "Cloudflare;production route | Cloudflare;development route |"
@@ -90,6 +102,11 @@ def deployment_record(architecture: str, sha: str, artifact: str) -> str:
         f"{development.provider};{development.channel} |"
     )
     text = GOOD_DEPLOYMENT.replace(unit_row, updated_unit_row, 1)
+    text = text.replace(
+        "## Record\n",
+        "## Record\n\n- Record schema: deployment/2\n",
+        1,
+    )
     text = text.replace(
         "| production | | | | | |",
         f"| production | https://example.com | {sha} | {sha} | 2026-09-07T18:04:00Z | PASS |",
@@ -113,6 +130,15 @@ def deployment_record(architecture: str, sha: str, artifact: str) -> str:
         f"{artifact} | production route answered the smoke check | "
         "2026-09-07T18:04:00Z | PASS |\n"
     )
+    text += f"""
+
+## Release Source Provenance
+
+| Release target | Source ref | Source SHA | Authority evidence |
+| --- | --- | --- | --- |
+| {development.target_id} | {development_authority.ref} | pending | pending |
+| {production.target_id} | {production_authority.ref} | {sha} | repo=synthetic/lifecycle-fixture; ref={production_authority.ref}; sha={sha}; observed=2026-09-07T18:00:00Z; readback=command:git rev-parse {production_authority.ref} |
+"""
     return text
 
 
@@ -364,6 +390,33 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
             )
             activation_path = root / "docs/ACTIVATION.md"
             activation_path.write_text(activation, encoding="utf-8")
+            tampered_deployment = deployment.replace(
+                f"sha={release_sha}; observed=",
+                f"sha={'0' * 40}; observed=",
+                1,
+            )
+            deployment_path.write_text(tampered_deployment, encoding="utf-8")
+            mismatched_check = run_cli(
+                str(ACTIVATION_SCRIPTS_DIR / "check_activation.py"),
+                "--activation", str(activation_path),
+                "--prd", str(paths["prd"]),
+                "--architecture", str(paths["architecture"]),
+                "--deployment", str(deployment_path),
+                "--stack-decisions", str(paths["stack"]),
+                "--repo-root", str(root),
+                "--require-verified-sources",
+                "--require-ready", activation_target,
+            )
+            self.assertNotEqual(
+                0,
+                mismatched_check.returncode,
+                mismatched_check.stdout + mismatched_check.stderr,
+            )
+            self.assertIn(
+                "evidence SHA does not match Source SHA",
+                mismatched_check.stdout + mismatched_check.stderr,
+            )
+            deployment_path.write_text(deployment, encoding="utf-8")
             activation_check = run_cli(
                 str(ACTIVATION_SCRIPTS_DIR / "check_activation.py"),
                 "--activation", str(activation_path),
