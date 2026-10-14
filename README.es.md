@@ -107,7 +107,13 @@ La publicación por trusted host y el push legacy (anterior a 0.38) de la run br
 
 </details>
 
-Un registro `deployment/2` añade Release Source Provenance. Cada destino de arquitectura registra su source ref exacto y su source SHA completo. La authority evidence debe contener repository, ref, SHA, hora de observación y un command o provider readback real; el checker solo lee la estructura y no ejecuta esa evidencia. La preparación puede conservar `pending`, pero la strict readiness exige el mismo source ref, Expected SHA y Deployed SHA. Activation verifica solo los destinos declarados; un informe SEO guardado verifica solo su destino revisado. Un verified-source handoff revisa el inventario de destinos y cada destino ready. El closeout completo sigue probando cada destino activo o registra un n/a concreto según la regla del owner.
+Un registro `deployment/2` añade Release Source Provenance. Cada destino vincula por hash un JSON de observación retenido y acotado: repository, refs source y resolved, source SHA, artifact, hora de observación y output real de command o provider. El caller aporta `repo-root` y `expected_repository` de forma independiente; un ref simbólico candidate/1 también necesita un `candidate_ref` concreto. El validator solo lee bytes, nunca ejecuta commands ni consulta providers, y trata el hash como integridad, no autenticidad. La preparación pending y la inspección histórica siguen siendo válidas. Las comprobaciones completas de Deployment, incluidas resource isolation y record validity, gobiernan ready closeout, verified sources, SEO y Outcome. Los subsets explícitos no sustituyen los inventarios completos; blocked y all-n/a conservan compatibilidad.
+
+Prueba estricta de symbolic candidate:
+
+```bash
+python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment docs/DEPLOYMENT.md --architecture docs/product/architecture.md --require-source-provenance --repo-root <actualFrozenRepo> --expected-repository <owner/repository> --candidate-ref <candidate-ref>
+```
 
 ## Empieza aquí
 
@@ -762,7 +768,7 @@ El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 
 <details>
 <summary><b>Verificación y medición: CI, suite de navegador, tiempos y evidencia de aceptación</b></summary>
 
-`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. Una ola completa puede informar FAIL y ser elegible para reparación bajo la autoridad existente. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Los checkers de Outcome y SEO llevan ahora el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
+`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. Las filas FAIL completamente observadas siguen siendo complete y elegibles para reparación bajo la autoridad existente, mientras la strict final approval sigue fallando. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Direction `--overwrite` compara destinations con author sources y manifest por identidad de archivo y rechaza hardlinks, conservando las entradas. Los checkers de Outcome y SEO llevan el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
 
 ## Verificación y medición de ejecución
 
