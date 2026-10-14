@@ -107,6 +107,8 @@ Trusted-host publication and the legacy pre-0.38 run-branch push both run isolat
 
 </details>
 
+A `deployment/2` record adds Release Source Provenance. Each architecture target names its exact source ref and full source SHA. Authority evidence must show repository, ref, SHA, observation time, and a real command or provider readback; the checker reads that evidence only and never executes it. Pending preparation remains valid, but strict readiness requires the same target ref, expected SHA, and deployed SHA. Activation can check only the claimed targets; a saved SEO review checks its reviewed target. Verified-source handoffs check the target inventory and each ready target. A complete closeout still proves every active target or records a concrete n/a disposition.
+
 ## Start here
 
 | If you have... | Start with | What you get |
@@ -477,6 +479,8 @@ Commercial products now pass two separate Product Definition decisions. The Mone
 
 </details>
 
+Each assignment gets private scratch and a finite deadline. Before cleanup or retry, the parent confirms the process tree exits and inspects partial work, prior operations, and evidence gaps. A 403 or a finding that research produced no useful sources is not a launch failure; it is never permission to synthesize evidence.
+
 ## Operating reference
 
 These groups hold the complete operating rules. Open a group to read its requirements in full.
@@ -548,6 +552,8 @@ Before RUN creation, plan-only validation checks an explicit branch policy and a
 <details>
 <summary><b>Unified design review: HiFi reviewer, design intake and PRD refinement</b></summary>
 
+New assembled studies use `assemble_ui_review.py --mode direction` and the closed `ui-direction-review/1` profile. `--mode hifi` remains the default and HiFi contracts do not change. The profile gives every case its own surface, platform, approved target family, and exact pixel widths. The assembler reuses the shared reviewer CSS and HiFi runtime, shows only one case's approved targets, and carries that case and target across studies.
+
 ## Unified design review
 
 HiFi uses a neutral reviewer shell isolated from product CSS, with App, Web front and administration groups, one product canvas, platform-specific sizes/states, and a source-derived Design Tokens view. Historical Wireframe packages retain their reviewer and original checks.
@@ -570,6 +576,10 @@ The PRD is refined throughout delivery. Before first-delivery approval, UI and t
 
 <details>
 <summary><b>Delivery model: Epics, acceptance and eval contracts, managed waves and repair routes</b></summary>
+
+Source authority is separate from availability evidence. Every target's provenance ref comes from its architecture source policy. Strict checks keep that ref, the observed source SHA, expected SHA, deployed SHA, and artifact hash joined. Target-review subsets remain explicit; Activation still inventories every active target, while a concrete n/a can replace an unavailable target only by owner rule.
+
+Strict Outcome Review requires stack-decisions.md and validates the Product Definition package once. It forwards that validated context to Activation, requires provenance on Deployment, and checks only the review's production-target subset. A saved SEO review forwards the same source context and checks only its reviewed target.
 
 ## Delivery model
 
@@ -676,6 +686,8 @@ flowchart TB
 <details>
 <summary><b>General runtime adapter: host capabilities, contract adoption and host handoff</b></summary>
 
+Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Host-specific models stay in host policy; shared skills retain configured roles and authorized fallbacks.
+
 ## General runtime adapter
 
 Resume keeps the same RUN and completed missions when an authorized repair advances the candidate. Historical verifier receipts retain their original SHA and attempt; current PASS results still require the current exact SHA. Candidate reconciliation re-arms stale gates within their remaining attempt budgets and requires fresh integration and security reviews. It does not authorize repairs, reset budgets or reopen a completed RUN. Resume checks the parent and currently bound workspaces; unrelated linked worktrees do not block it. Changed-file paths such as `[slug]` are literal paths, separate from write-scope patterns.
@@ -745,6 +757,8 @@ CI also runs the end-to-end spine check. In a POSIX shell use `HARNESS_GOLDEN_PA
 
 <details>
 <summary><b>Verification and measured execution: CI, browser suite, timing and acceptance evidence</b></summary>
+
+`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. A complete wave may report FAIL and be repair-eligible under existing authority. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Outcome and SEO checkers now carry the required Product/Stack context into strict Activation checks.
 
 ## Verification and measured execution
 

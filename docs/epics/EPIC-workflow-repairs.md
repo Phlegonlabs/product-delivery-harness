@@ -1,6 +1,6 @@
 # Workflow Repairs
 
-Status: implementation authorized; source and host changes pending.
+Status: implementation integrated at `5e9be6fb`; `v0.63.0` candidate verification, PR/main/tag and install remain pending.
 
 ## Accepted Outcome
 
@@ -29,7 +29,29 @@ Use this chat as the Dynamic Workflow coordinator. Preserve product design quali
 | WF-07 | Private scratch, finite processes, partial recovery, measured viewports and honest partial acceptance prevent recurrence. |
 | WF-08 | Fresh exact-candidate review and required checks precede Development installation; installed and loaded identities stay separate. |
 
-The 19 audit items map to these outcomes. Historical missing OwnerDirect files and unavailable external-source evidence remain explicit gaps.
+The 19 audit items map below. Historical missing OwnerDirect files and unavailable external-source evidence remain explicit gaps.
+
+| Audit item | Disposition | Evidence and remaining gap |
+| --- | --- | --- |
+| 1 | Host launcher forwarding policy is staged, not live. | Host v2 manifest `ee7e95f3`; controlled direct launcher retained. Parent apply/smoke pending. |
+| 2 | One global Claude instruction import replaces prompt-hook injection in staged bytes. | Same host v2 receipt; live application pending. |
+| 3 | Claude frontend bridge metadata is Opus 5.5/high in staged and current Dynamic no-op bytes. | Same host v2 receipt; live catalog smoke pending. |
+| 4 | Direction studies reuse the shared reviewer with per-case platform targets. | `540e160b` and `44f94f1d`; formal matrix and owner review pending. |
+| 5 | Same-author checkpoints and finite partial recovery are documented. | `8e35c235`; process behavior depends on host dispatch. |
+| 6 | A complete diagnostic wave reports all observed dimensions before repair eligibility. | `932a1ce6`, `eebaaf61`, `0ef642dd`; UI reference route still needs the CLI delta. |
+| 7 | Diagnostic requests bind PRD, manifest and child hashes; drift or missing input blocks. | Diagnostic tests pass at `0ef642dd`; final matrix pending. |
+| 8 | UI authorship explicitly requires the host `frontend_worker`; the parent cannot author UI. | `8ae95a80`; full review pending. |
+| 9 | Version-2 navigation remains all-pairs; version-3 uses the documented representative set. | `8ae95a80`; browser suite pending. |
+| 10 | State-prefixed `n/a` values receive no reviewer control. | `a06aaeda`; 16 integration and 36 HiFi tests passed. |
+| 11 | Document versions and release intent are synchronized in the docs/version checkpoint. | Current checkpoint; exact main/tag pending. |
+| 12 | Native reviewer browser identity is separated from bridge identity. | `4bc12f7b`; fourteen focused role tests passed. |
+| 13 | Deployment provenance binds architecture ref, source SHA and observed readback. | `2a4cd558` and `3a89df83`; release fixtures remain synthetic. |
+| 14 | Strict Activation checks complete inventory or concrete n/a, while Outcome/SEO subsets stay explicit. | `6e31a0ef` and `4f0e507d`; release checks pending. |
+| 15 | Assignments get private scratch and finite process ownership. | `8e35c235` and host v2; live routing pending. |
+| 16 | Interrupted worktrees require inspection of partial state before retry. | `8e35c235`; existing RUN reconciliation remains the durable path. |
+| 17 | Screenshots record actual computed product CSS width. | `8e35c235`; browser acceptance requires real captures. |
+| 18 | UTF-8, `python -I`, aliases, guards and exact authorized shell changes are staged. | Host v2 8-test PASS and injected nonzero PASS; live apply pending. |
+| 19 | A 403 or empty research finding is evidence, not launch failure or acceptance. | `8e35c235`; no partial research may become PASS. |
 
 ## Change Log
 
@@ -45,3 +67,5 @@ The 19 audit items map to these outcomes. Historical missing OwnerDirect files a
 | 2026-10-13 verification preparation | task evidence | Six baseline browser tests passed. Six synthetic before captures record actual canvas widths of 390, 768 and 1200 CSS pixels. The host helper now returns failure exit status; its real eight-test pass and injected failure were verified by the author and parent. Final candidate checks remain required. |
 | 2026-10-13 integrated repairs | `eebaaf61` | Integrated five provenance review repairs and four diagnostic/direction/operational commits. The author passed 245 provenance and 349 UI tests. The parent standalone diagnostic check failed at import; its earlier PASS evidence string is invalid and retained in the external record. |
 | 2026-10-13 verification correction | worker `c78182bd` | The same author fixed only focused-test imports. Author red/green and the corrected parent command now pass ten actual tests. The original failure remains at its recorded hash. Current Dynamic Workflow files changed externally; fresh host candidates preserve those updates. Formal publication and exact-candidate review remain pending. |
+| 2026-10-13 branch checkpoint | `5e9be6fb` | Parent push of the already committed `codex/workflow-repairs` succeeded. Remote readback was exactly `5e9be6fb08647d4e9b6130c5a171985d97877914`; receipt: [source-push-checkpoint-1.json](C:/Users/mps19/.codex/visualizations/2026/10/13/01a134eb-96b4-7410-a5a9-cac068b12238/workflow-repairs/source-push-checkpoint-1.json). `main` remained unchanged; PR, main/tag and install remain pending. |
+| 2026-10-13 docs checkpoint | current checkpoint | Four README descriptions describe integrated behavior; index and this Epic separate candidate verification from release. UI references still need a diagnostic CLI/request and complete-FAIL-versus-missing delta owned by the evidence author. Final acceptance waits for external `final-result.json`. |

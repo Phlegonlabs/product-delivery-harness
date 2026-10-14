@@ -107,6 +107,8 @@ Trusted-host publication 与 legacy（0.38 以前）run-branch push 都与 repos
 
 </details>
 
+`deployment/2` 纪录新增 Release Source Provenance。每个 architecture target 都要写精确 source ref 与完整 source SHA。Authority evidence 必须包含 repository、ref、SHA、观察时间，以及实际 command 或 provider readback；checker 只读取结构，不执行证据。准备阶段可保留 `pending`，但 strict readiness 要求 source ref、Expected SHA 与 Deployed SHA 一致。Activation 只检查声明的 target；保存的 SEO review 只检查受审 target。Verified-source handoff 检查 target inventory 与每个 ready target。完整 closeout 仍要证明每个 active target，或依 owner 规则记录 concrete n/a。
+
 ## 从这里开始
 
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
@@ -477,6 +479,8 @@ Gitignore 管理同时适用于 direct 与 managed 工作。scope scan 会记录
 
 </details>
 
+每个 assignment 有私人 scratch 和有限期限。清理或重试前，parent 要确认 process tree 已结束，并检查部分成果、前次操作与证据缺口。403 或「研究找不到可用来源」不是启动失败，也不授权合成证据。
+
 ## 运行参考
 
 以下分组收录完整的运行规则。展开分组即可阅读全部要求。
@@ -548,6 +552,8 @@ Product Definition 撰写英文正式来源 `PRD.md`、`architecture.md` 时，�
 <details>
 <summary><b>统一设计审阅：HiFi 审阅器、设计 intake 与 PRD 补全</b></summary>
 
+新组装的方向研究用 `assemble_ui_review.py --mode direction` 与封闭的 `ui-direction-review/1` profile。`--mode hifi` 仍是预设，HiFi 契约不变。Profile 为每个案例指定 surface、platform、核准 target family 与精确像素宽度。组装器重用共用 reviewer CSS 和 HiFi runtime，只显示该案例核准的 targets，并把案例与 target 带到其他研究。
+
 ## 统一设计审阅
 
 HiFi 使用与产品 CSS 隔离的中性审阅器，按 App、Web 前台及管理后台分组，一次显示一个产品画布，保留平台尺寸、状态与取自实际样式的 Design Tokens 页。历史 Wireframe 保留原审阅器及检查。
@@ -570,6 +576,10 @@ PRD 会在整个交付流程中持续补全。首次交付批准前，UI 与技�
 
 <details>
 <summary><b>交付模型：Epic、验收与 eval 契约、受管 wave 与修复路线</b></summary>
+
+Source authority 与 availability evidence 分开。每个 target 的 provenance ref 来自 architecture source policy。Strict 检查把 ref、observed source SHA、Expected SHA、Deployed SHA 和 artifact hash 连接起来。Target-review subset 必须明确；Activation 仍盘点每个 active target，而 concrete n/a 只能依 owner 规则取代不可用 target。
+
+Strict Outcome Review 需要 stack-decisions.md，并只验证一次 Product Definition package。它把已验证 context 传给 Activation，要求 Deployment 有 provenance，且只检查这次 review 的 production-target subset。保存的 SEO review 传送相同 source context，只检查受审 target。
 
 ## 交付模型
 
@@ -676,6 +686,8 @@ flowchart TB
 <details>
 <summary><b>通用运行时适配：宿主能力、契约采用与宿主交接</b></summary>
 
+Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Host 专属模型放在 host policy；共用 skills 保留设定角色与已授权 fallback。
+
 ## 通用运行时适配
 
 已授权的修复让 candidate 前进时，续跑保留同一个 RUN 与已完成 mission。历史 verifier receipt 保留原 SHA 与 attempt；当前 PASS 仍须绑定当前精确 SHA。Candidate reconciliation 在剩余次数内重新开启失效 gate，并要求新的 integration 与 security review，不授权修复、不重置次数，也不重开已完成 RUN。续跑检查 parent 与当前绑定的工作目录，无关 linked worktree 不会阻挡。`[slug]` 等 changed-file 路径按实际文件名处理，与 write-scope pattern 分开。
@@ -745,6 +757,8 @@ CI 也会运行端到端主干检查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 
 <details>
 <summary><b>验证与执行测量：CI、浏览器测试、计时与验收证据</b></summary>
+
+`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。完整 wave 可以回报 FAIL，并在既有授权下符合 repair-eligible。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Outcome 与 SEO checkers 现在把必要的 Product／Stack context 带进 strict Activation checks。
 
 ## 验证与执行测量
 
