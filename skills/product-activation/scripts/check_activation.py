@@ -1656,6 +1656,8 @@ def check_activation_text(
     deployment_text: str | None = None,
     stack_text: str | None = None,
     repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
     require_filled: bool = False,
     require_verified_sources: bool = False,
     require_ready: tuple[str, ...] = (),
@@ -1690,6 +1692,9 @@ def check_activation_text(
                 deployment_text,
                 architecture_text=architecture_text,
                 require_source_provenance=False,
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
         )
     if authority_required and prd_text is None:
@@ -2276,6 +2281,9 @@ def check_activation_text(
                     architecture_text=architecture_text or "",
                     require_source_provenance=True,
                     strict_target_subset=tuple(sorted(strict_readiness_targets)),
+                    repo_root=repo_root,
+                    expected_repository=expected_repository,
+                    candidate_ref=candidate_ref,
                 )
             )
 
@@ -2336,6 +2344,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--deployment", type=Path)
     parser.add_argument("--stack-decisions", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
+    parser.add_argument("--expected-repository")
+    parser.add_argument("--candidate-ref")
     parser.add_argument("--require-filled", action="store_true")
     parser.add_argument("--require-verified-sources", action="store_true")
     parser.add_argument("--require-ready", action="append", default=[])
@@ -2417,6 +2427,8 @@ def main(argv: list[str] | None = None) -> int:
         deployment_text=deployment_text,
         stack_text=loaded["stack"],
         repo_root=args.repo_root,
+        expected_repository=args.expected_repository,
+        candidate_ref=args.candidate_ref,
         require_filled=args.require_filled,
         require_verified_sources=args.require_verified_sources,
         require_ready=tuple(args.require_ready),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import json
 import io
 import importlib.util
 import subprocess
@@ -54,15 +55,47 @@ ARTIFACT = activation_fixtures.ARTIFACT
 ACTIVATION_SHA256 = hashlib.sha256(ACTIVATION.encode("utf-8")).hexdigest()
 
 
-def strict_deployment() -> str:
-    """A deployment/2 fixture with observed source proof for both targets."""
+def retained_evidence(root: Path, ref: str, target: str, artifact: str) -> str:
+    output = json.dumps(
+        {
+            "repository": "example/fixture",
+            "ref": "refs/heads/run/lifecycle" if target == "web-dev" else ref,
+            "sha": SHA,
+            "artifact": artifact,
+        },
+        separators=(",", ":"),
+    )
+    value = {
+        "schema": "deployment-source-observation/1",
+        "target": target,
+        "repository": "example/fixture",
+        "source_ref": ref,
+        "resolved_ref": "refs/heads/run/lifecycle" if target == "web-dev" else ref,
+        "source_sha": SHA,
+        "artifact": artifact,
+        "observed_at": "2026-09-07T18:00:00Z",
+        "readback": {
+            "kind": "command",
+            "request": "git rev-parse HEAD",
+            "status": 0,
+            "output": output,
+        },
+    }
+    relative = f"docs/deployment-evidence/{target}.json"
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    path.write_bytes(content)
+    digest = hashlib.sha256(content).hexdigest()
+    return (
+        "repo=example/fixture; "
+        f"ref={ref}; sha={SHA}; observed=2026-09-07T18:00:00Z; "
+        f"readback=file:{relative}@sha256:{digest}"
+    )
 
-    def evidence(ref: str) -> str:
-        return (
-            "repo=example/fixture; ref=" + ref + "; sha=" + SHA + "; "
-            "observed=2026-09-07T18:00:00Z; "
-            "readback=command:git rev-parse " + ref
-        )
+
+def strict_deployment(root: Path) -> str:
+    """A deployment/2 fixture with observed source proof for both targets."""
 
     record = deployment_fixtures.GOOD_DEPLOYMENT.replace(
         "| web-app | web | example-web | example-web-dev | Cloudflare;production route | Cloudflare;development route |",
@@ -85,12 +118,12 @@ def strict_deployment() -> str:
 
 | Release target | Source ref | Source SHA | Authority evidence |
 | --- | --- | --- | --- |
-| web-dev | run.integration.branch | {SHA} | {evidence("run.integration.branch")} |
-| web-prod | refs/heads/main | {SHA} | {evidence("refs/heads/main")} |
+| web-dev | run.integration.branch | {SHA} | {retained_evidence(root, "run.integration.branch", "web-dev", "web-build-dev")} |
+| web-prod | refs/heads/main | {SHA} | {retained_evidence(root, "refs/heads/main", "web-prod", ARTIFACT)} |
 """
 
 
-def strict_cli_inputs() -> tuple[str, str, str, str, str, str]:
+def strict_cli_inputs(root: Path) -> tuple[str, str, str, str, str, str]:
     activation = activation_fixtures.valid_record_v2()
     outcome = valid_outcome().replace(ACTIVATION, activation, 1)
     activation_digest = hashlib.sha256(activation.encode("utf-8")).hexdigest()
@@ -116,7 +149,7 @@ def strict_cli_inputs() -> tuple[str, str, str, str, str, str]:
         outcome,
         activation_fixtures.APPROVED_PRD,
         ARCHITECTURE,
-        strict_deployment(),
+        strict_deployment(root),
         activation,
         "# Stack Decisions: Example\n",
     )
@@ -464,10 +497,10 @@ class OutcomeReviewTests(unittest.TestCase):
             self.assertIn("required: --stack-decisions", stack_failure.stderr)
 
     def test_cli_package_validation_flag_reaches_final_checker(self) -> None:
-        outcome, prd, architecture, deployment, activation, stack = strict_cli_inputs()
-        with patch("check_product_package.validate_texts", return_value=[]):
-            with tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            outcome, prd, architecture, deployment, activation, stack = strict_cli_inputs(root)
+            with patch("check_product_package.validate_texts", return_value=[]):
                 paths = {
                     "outcome.md": outcome,
                     "PRD.md": prd,
@@ -486,6 +519,8 @@ class OutcomeReviewTests(unittest.TestCase):
                     "--activation", str(root / "ACTIVATION.md"),
                     "--stack-decisions", str(root / "stack-decisions.md"),
                     "--repo-root", str(root),
+                    "--expected-repository", "example/fixture",
+                    "--candidate-ref", "refs/heads/run/lifecycle",
                 ]
                 with contextlib.redirect_stdout(io.StringIO()) as output:
                     result = check_outcome_review.main(arguments)

@@ -6,6 +6,8 @@ from __future__ import annotations
 import sys
 import unittest
 import re
+import hashlib
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -72,10 +74,56 @@ def deployment_record(
     return record + table
 
 
-def actual_evidence(sha: str, ref: str = "refs/heads/main") -> str:
+def write_retained(
+    root: Path,
+    sha: str,
+    ref: str,
+    *,
+    artifact: str = "deployment-1",
+    repository: str = "example/deployment",
+    target: str = "web-prod",
+    kind: str = "command",
+    status: int = 0,
+    resolved_ref: str | None = None,
+    output_artifact: str | None = None,
+) -> str:
+    resolved_ref = resolved_ref or ref
+    output_artifact = output_artifact or artifact
+    output = json.dumps(
+        {
+            "repository": repository,
+            "ref": resolved_ref,
+            "sha": sha,
+            "artifact": output_artifact,
+        },
+        separators=(",", ":"),
+    )
+    value = {
+        "schema": "deployment-source-observation/1",
+        "target": target,
+        "repository": repository,
+        "source_ref": ref,
+        "resolved_ref": resolved_ref,
+        "source_sha": sha,
+        "artifact": artifact,
+        "observed_at": OBSERVED,
+        "readback": {
+            "kind": kind,
+            "request": "git rev-parse refs/heads/main",
+            "status": status,
+            "output": output,
+        },
+    }
+    safe_name = re.sub(r"[^a-z0-9]+", "-", ref.casefold()).strip("-")
+    relative = f"docs/deployment-evidence/{safe_name}.json"
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    path.write_bytes(content)
+    digest = hashlib.sha256(content).hexdigest()
     return (
-        f"repo=example/deployment; ref={ref}; sha={sha}; "
-        f"observed={OBSERVED}; readback=command:git rev-parse {ref}"
+        f"repo={repository}; ref={ref}; sha={sha}; observed={OBSERVED}; "
+        f"readback=file:{relative}@sha256:{digest}"
     )
 
 
@@ -120,43 +168,58 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
             ),
         )
 
-        passing = deployment_record(
-            web_sha=SHA,
-            prod_sha=SHA,
-            web_evidence=actual_evidence(SHA, "run.integration.branch"),
-            prod_evidence=actual_evidence(SHA),
-        ).replace(SHA, SHA)
-        self.assertEqual(
-            [],
-            check_deployment.check_deployment_text(
-                passing, architecture_text=ARCHITECTURE
-            ),
-        )
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            passing = deployment_record(
+                web_sha=SHA,
+                prod_sha=SHA,
+                web_evidence=write_retained(
+                    root,
+                    SHA,
+                    "run.integration.branch",
+                    target="web-dev",
+                    artifact="deployment-dev",
+                    resolved_ref="refs/heads/run/lifecycle",
+                ),
+                prod_evidence=write_retained(root, SHA, "refs/heads/main"),
+            )
+            self.assertEqual(
+                [],
+                check_deployment.check_deployment_text(
+                    passing,
+                    architecture_text=ARCHITECTURE,
+                    repo_root=root,
+                    expected_repository="example/deployment",
+                    candidate_ref="refs/heads/run/lifecycle",
+                ),
+            )
 
     def test_wrong_ref_sha_and_tampered_evidence_fail(self) -> None:
-        wrong_ref = deployment_record(prod_ref="refs/heads/release")
-        findings = check_deployment.check_deployment_text(
-            wrong_ref, architecture_text=ARCHITECTURE
-        )
-        self.assertTrue(
-            any("source ref must be" in item for item in findings), findings
-        )
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            wrong_ref = deployment_record(prod_ref="refs/heads/release")
+            findings = check_deployment.check_deployment_text(
+                wrong_ref, architecture_text=ARCHITECTURE
+            )
+            self.assertTrue(
+                any("source ref must be" in item for item in findings), findings
+            )
 
-        evidence = actual_evidence(SHA)
-        wrong_sha = deployment_record(prod_sha="d" * 40, prod_evidence=evidence)
-        findings = check_deployment.check_deployment_text(
-            wrong_sha, architecture_text=ARCHITECTURE
-        )
-        self.assertTrue(any("does not match" in item for item in findings))
+            evidence = write_retained(root, SHA, "refs/heads/main")
+            wrong_sha = deployment_record(prod_sha="d" * 40, prod_evidence=evidence)
+            findings = check_deployment.check_deployment_text(
+                wrong_sha, architecture_text=ARCHITECTURE
+            )
+            self.assertTrue(any("does not match" in item for item in findings))
 
-        tampered = deployment_record(
-            prod_sha=SHA,
-            prod_evidence=evidence.replace(SHA, "d" * 40, 1),
-        )
-        findings = check_deployment.check_deployment_text(
-            tampered, architecture_text=ARCHITECTURE
-        )
-        self.assertTrue(any("does not match" in item for item in findings))
+            tampered = deployment_record(
+                prod_sha=SHA,
+                prod_evidence=evidence.replace(SHA, "d" * 40, 1),
+            )
+            findings = check_deployment.check_deployment_text(
+                tampered, architecture_text=ARCHITECTURE
+            )
+            self.assertTrue(any("does not match" in item for item in findings))
 
     def test_missing_unsafe_and_nonregular_evidence_fail(self) -> None:
         missing = deployment_record().replace(
@@ -184,7 +247,7 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
         findings = check_deployment.check_deployment_text(
             prose, architecture_text=ARCHITECTURE
         )
-        self.assertTrue(any("begin with command:" in item for item in findings))
+        self.assertTrue(any("evidence must use repo=" in item for item in findings))
 
     def test_legacy_record_remains_compatible_but_fails_strict(self) -> None:
         legacy = deployment_record(schema=None)
@@ -209,144 +272,230 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
         )
         self.assertTrue(any("cannot gain strict readiness" in item for item in findings))
 
-        full = deployment_record(
-            web_sha=SHA,
-            prod_sha=SHA,
-            web_evidence=actual_evidence(SHA, "run.integration.branch"),
-            prod_evidence=actual_evidence(SHA),
-        )
-        full = re.sub(
-            r"\| web-dev .*?\n",
-            "| web-dev | web-app | development | Cloudflare;development route | "
-            f"https://dev.example.com | {SHA} | {SHA} | deployment-dev | development "
-            f"route answered the smoke check | {OBSERVED} | PASS |\n",
-            full,
-            count=1,
-        )
-        full = re.sub(
-            r"\| web-prod .*?\n",
-            "| web-prod | web-app | production | Cloudflare;production route | "
-            f"https://example.com | {SHA} | {SHA} | deployment-1 | production "
-            f"route answered the API smoke check | {OBSERVED} | PASS |\n",
-            full,
-            count=1,
-        )
-        self.assertEqual(
-            [],
-            check_deployment.check_deployment_text(
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            full = deployment_record(
+                web_sha=SHA,
+                prod_sha=SHA,
+                web_evidence=write_retained(
+                    root,
+                    SHA,
+                    "run.integration.branch",
+                    target="web-dev",
+                    artifact="deployment-dev",
+                    resolved_ref="refs/heads/run/lifecycle",
+                ),
+                prod_evidence=write_retained(root, SHA, "refs/heads/main"),
+            )
+            full = re.sub(
+                r"\| web-dev .*?\n",
+                "| web-dev | web-app | development | Cloudflare;development route | "
+                f"https://dev.example.com | {SHA} | {SHA} | deployment-dev | development "
+                f"route answered the smoke check | {OBSERVED} | PASS |\n",
                 full,
-                architecture_text=ARCHITECTURE,
-                require_source_provenance=True,
-            ),
-        )
+                count=1,
+            )
+            full = re.sub(
+                r"\| web-prod .*?\n",
+                "| web-prod | web-app | production | Cloudflare;production route | "
+                f"https://example.com | {SHA} | {SHA} | deployment-1 | production "
+                f"route answered the API smoke check | {OBSERVED} | PASS |\n",
+                full,
+                count=1,
+            )
+            self.assertEqual(
+                [],
+                check_deployment.check_deployment_text(
+                    full,
+                    architecture_text=ARCHITECTURE,
+                    require_source_provenance=True,
+                    repo_root=root,
+                    expected_repository="example/deployment",
+                    candidate_ref="refs/heads/run/lifecycle",
+                ),
+            )
 
     def test_strict_evidence_ref_and_readback_payload_must_match(self) -> None:
-        strict = deployment_record(
-            web_sha=SHA,
-            prod_sha=SHA,
-            web_evidence=actual_evidence(SHA, "run.integration.branch"),
-            prod_evidence=actual_evidence(SHA),
-        )
-        strict = re.sub(
-            r"\| web-dev .*?\n",
-            f"| web-dev | web-app | development | Cloudflare;development route | https://dev.example.com | {SHA} | {SHA} | deployment-dev | development route answered the smoke check | {OBSERVED} | PASS |\n",
-            strict,
-            count=1,
-        )
-        strict = re.sub(
-            r"\| web-prod .*?\n",
-            f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
-            strict,
-            count=1,
-        )
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            strict = deployment_record(
+                web_sha=SHA,
+                prod_sha=SHA,
+                web_evidence=write_retained(
+                    root,
+                    SHA,
+                    "run.integration.branch",
+                    target="web-dev",
+                    artifact="deployment-dev",
+                    resolved_ref="refs/heads/run/lifecycle",
+                ),
+                prod_evidence=write_retained(root, SHA, "refs/heads/main"),
+            )
+            strict = re.sub(
+                r"\| web-dev .*?\n",
+                f"| web-dev | web-app | development | Cloudflare;development route | https://dev.example.com | {SHA} | {SHA} | deployment-dev | development route answered the smoke check | {OBSERVED} | PASS |\n",
+                strict,
+                count=1,
+            )
+            strict = re.sub(
+                r"\| web-prod .*?\n",
+                f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+                strict,
+                count=1,
+            )
+            context = {
+                "repo_root": root,
+                "expected_repository": "example/deployment",
+                "candidate_ref": "refs/heads/run/lifecycle",
+            }
+            self.assertEqual(
+                [],
+                check_deployment.check_deployment_text(
+                    strict,
+                    architecture_text=ARCHITECTURE,
+                    require_source_provenance=True,
+                    **context,
+                ),
+                msg=strict,
+            )
 
-        evil_evidence_ref = strict.replace(
-            "ref=refs/heads/main; sha=",
-            "ref=refs/heads/evil; sha=",
-            1,
-        )
-        findings = check_deployment.check_deployment_text(
-            evil_evidence_ref,
-            architecture_text=ARCHITECTURE,
-            require_source_provenance=True,
-        )
-        self.assertTrue(
-            any("needs actual source provenance" in item for item in findings),
-            findings,
-        )
-
-        empty_payload = strict.replace(
-            "readback=command:git rev-parse refs/heads/main",
-            "readback=command:",
-            1,
-        )
-        findings = check_deployment.check_deployment_text(
-            empty_payload,
-            architecture_text=ARCHITECTURE,
-            require_source_provenance=True,
-        )
-        self.assertTrue(
-            any("needs actual source provenance" in item for item in findings),
-            findings,
-        )
-
-        artifact = "b" * 64
-        artifact_record = strict.replace(
-            "deployment-1", artifact, 1
-        ).replace(
-            "readback=command:git rev-parse refs/heads/main",
-            f"readback=command:git rev-parse refs/heads/main artifact-sha256={artifact}",
-            1,
-        )
-        self.assertEqual(
-            [],
-            check_deployment.check_deployment_text(
-                artifact_record,
+            evil_evidence_ref = strict.replace(
+                "ref=refs/heads/main; sha=",
+                "ref=refs/heads/evil; sha=",
+                1,
+            )
+            findings = check_deployment.check_deployment_text(
+                evil_evidence_ref,
                 architecture_text=ARCHITECTURE,
                 require_source_provenance=True,
-            ),
+                **context,
+            )
+            self.assertTrue(
+                any("evidence ref differs" in item for item in findings),
+                findings,
+            )
+
+            Path(root, "docs/deployment-evidence/refs-heads-main.json").unlink()
+            findings = check_deployment.check_deployment_text(
+                strict,
+                architecture_text=ARCHITECTURE,
+                require_source_provenance=True,
+                **context,
+            )
+            self.assertTrue(
+                any("cannot be read safely" in item for item in findings),
+                findings,
+            )
+
+    def test_retained_observation_joins_deployment_identity(self) -> None:
+        mutations = (
+            {"repository": "other/project"},
+            {"artifact": "other-build"},
+            {"output_artifact": "other-build"},
         )
-        tampered_artifact = artifact_record.replace(artifact, "d" * 64, 1)
-        findings = check_deployment.check_deployment_text(
-            tampered_artifact,
-            architecture_text=ARCHITECTURE,
-            require_source_provenance=True,
-        )
-        self.assertTrue(
-            any("needs actual source provenance" in item for item in findings),
-            findings,
-        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                record = deployment_record(
+                    web_sha=SHA,
+                    prod_sha=SHA,
+                    web_evidence=write_retained(
+                        root,
+                        SHA,
+                        "run.integration.branch",
+                        target="web-dev",
+                        artifact="deployment-dev",
+                        resolved_ref="refs/heads/run/lifecycle",
+                    ),
+                    prod_evidence=write_retained(root, SHA, "refs/heads/main", **mutation),
+                )
+                record = re.sub(
+                    r"\| web-prod .*?\n",
+                    f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+                    record,
+                    count=1,
+                )
+                findings = check_deployment.check_deployment_text(
+                    record,
+                    architecture_text=ARCHITECTURE,
+                    require_source_provenance=True,
+                    strict_target_subset=("web-prod",),
+                    repo_root=root,
+                    expected_repository="example/deployment",
+                    candidate_ref="refs/heads/run/lifecycle",
+                )
+                self.assertTrue(findings, mutation)
+
+    def test_command_and_provider_retained_observations_pass(self) -> None:
+        for kind, status in (("command", 0), ("provider", 204)):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                record = deployment_record(
+                    web_sha=SHA,
+                    prod_sha=SHA,
+                    web_evidence="pending",
+                    prod_evidence=write_retained(
+                        root,
+                        SHA,
+                        "refs/heads/main",
+                        kind=kind,
+                        status=status,
+                    ),
+                )
+                record = re.sub(
+                    r"\| web-prod .*?\n",
+                    f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+                    record,
+                    count=1,
+                )
+                self.assertEqual(
+                    [],
+                    check_deployment.check_deployment_text(
+                        record,
+                        architecture_text=ARCHITECTURE,
+                        require_source_provenance=True,
+                        strict_target_subset=("web-prod",),
+                        repo_root=root,
+                        expected_repository="example/deployment",
+                    ),
+                )
 
     def test_strict_target_subset_does_not_require_unclaimed_dev_readiness(self) -> None:
-        record = deployment_record(
-            web_sha=SHA,
-            prod_sha=SHA,
-            web_evidence="pending",
-            prod_evidence=actual_evidence(SHA),
-        )
-        record = re.sub(
-            r"\| web-prod .*?\n",
-            f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
-            record,
-            count=1,
-        )
-        self.assertEqual(
-            [],
-            check_deployment.check_deployment_text(
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = deployment_record(
+                web_sha=SHA,
+                prod_sha=SHA,
+                web_evidence="pending",
+                prod_evidence=write_retained(root, SHA, "refs/heads/main"),
+            )
+            record = re.sub(
+                r"\| web-prod .*?\n",
+                f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+                record,
+                count=1,
+            )
+            self.assertEqual(
+                [],
+                check_deployment.check_deployment_text(
+                    record,
+                    architecture_text=ARCHITECTURE,
+                    require_source_provenance=True,
+                    strict_target_subset=("web-prod",),
+                    repo_root=root,
+                    expected_repository="example/deployment",
+                ),
+            )
+
+            findings = check_deployment.check_deployment_text(
                 record,
                 architecture_text=ARCHITECTURE,
                 require_source_provenance=True,
-                strict_target_subset=("web-prod",),
-            ),
-        )
-
-        findings = check_deployment.check_deployment_text(
-            record,
-            architecture_text=ARCHITECTURE,
-            require_source_provenance=True,
-            strict_target_subset=("invented-prod",),
-        )
-        self.assertTrue(any("unknown strict target" in item for item in findings))
+                strict_target_subset=("invented-prod",),
+                repo_root=root,
+                expected_repository="example/deployment",
+            )
+            self.assertTrue(any("unknown strict target" in item for item in findings))
 
 
 if __name__ == "__main__":

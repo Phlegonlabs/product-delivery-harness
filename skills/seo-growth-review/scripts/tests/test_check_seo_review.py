@@ -236,7 +236,7 @@ class SeoLifecycleReviewTests(unittest.TestCase):
             deployment_check.call_args.kwargs["strict_target_subset"],
         )
 
-    def test_package_and_deployment_are_validated_once(self) -> None:
+    def test_package_validates_once_and_deployment_revalidates_at_entries(self) -> None:
         with patch(
             "check_product_package.validate_texts", return_value=["bad stack"]
         ) as package_check, patch(
@@ -252,14 +252,17 @@ class SeoLifecycleReviewTests(unittest.TestCase):
                 repo_root=Path(__file__).resolve().parents[4],
             )
         self.assertEqual(1, package_check.call_count)
-        self.assertEqual(1, deployment_check.call_count)
+        self.assertEqual(3, deployment_check.call_count)
         self.assertEqual(1, findings.count("Product package: bad stack"))
         self.assertEqual(1, findings.count("Deployment: bad deploy"))
         self.assertFalse(any(item.startswith("Activation: Product package") for item in findings))
 
     def test_activation_still_validates_package_unless_told_otherwise(self) -> None:
         check_activation = sys.modules["check_activation"]
-        for validated, expected_calls in ((False, 1), (True, 0)):
+        for validated, expected_package_calls, expected_deployment_calls in (
+            (False, 1, 2),
+            (True, 0, 2),
+        ):
             with self.subTest(package_validated=validated), patch(
                 "check_product_package.validate_texts", return_value=[]
             ) as package_check, patch(
@@ -275,8 +278,8 @@ class SeoLifecycleReviewTests(unittest.TestCase):
                     require_ready=("web-prod",),
                     package_validated=validated,
                 )
-            self.assertEqual(expected_calls, package_check.call_count)
-            self.assertEqual(expected_calls, deployment_check.call_count)
+            self.assertEqual(expected_package_calls, package_check.call_count)
+            self.assertEqual(expected_deployment_calls, deployment_check.call_count)
 
     def test_other_targets_may_stay_pending_but_reviewed_target_must_be_ready(self) -> None:
         architecture, deployment, activation = web_and_pending_ios()

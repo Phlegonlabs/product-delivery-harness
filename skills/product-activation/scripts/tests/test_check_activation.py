@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import importlib.util
 import subprocess
 import sys
@@ -385,6 +387,7 @@ def valid_record_v2(*, task_blocks: list[str] | None = None) -> str:
 
 def full_deployment_fixture(
     *,
+    root: Path | None = None,
     shared_d1: bool = False,
     duplicate_target: bool = False,
     strict_provenance: bool = True,
@@ -399,6 +402,8 @@ def full_deployment_fixture(
         1,
     )
     if strict_provenance:
+        if root is None:
+            raise AssertionError("strict Deployment fixture requires repository root")
         text = text.replace(
             "## Record\n",
             "## Record\n\n- Record schema: deployment/2\n",
@@ -427,15 +432,54 @@ def full_deployment_fixture(
 | Release target | Source ref | Source SHA | Authority evidence |
 | --- | --- | --- | --- |
 | web-dev | run.integration.branch | pending | pending |
-| web-prod | refs/heads/main | {SHA} | repo=example/activation; ref=refs/heads/main; sha={SHA}; observed=2026-09-07T18:00:00Z; readback=command:git rev-parse refs/heads/main |
+| web-prod | refs/heads/main | {SHA} | {retained_evidence(root, SHA, "refs/heads/main")} |
 """
     if duplicate_target:
         text += (
             f"| web-prod | refs/heads/main | {SHA} | repo=example/activation; "
             f"ref=refs/heads/main; sha={SHA}; observed=2026-09-07T18:00:00Z; "
-            "readback=command:git rev-parse refs/heads/main |\n"
+            "readback=inline-duplicate |\n"
         )
     return text
+
+
+def retained_evidence(root: Path, sha: str, ref: str) -> str:
+    output = json.dumps(
+        {
+            "repository": "example/activation",
+            "ref": ref,
+            "sha": sha,
+            "artifact": ARTIFACT,
+        },
+        separators=(",", ":"),
+    )
+    value = {
+        "schema": "deployment-source-observation/1",
+        "target": "web-prod",
+        "repository": "example/activation",
+        "source_ref": ref,
+        "resolved_ref": ref,
+        "source_sha": sha,
+        "artifact": ARTIFACT,
+        "observed_at": "2026-09-07T18:00:00Z",
+        "readback": {
+            "kind": "command",
+            "request": "git rev-parse refs/heads/main",
+            "status": 0,
+            "output": output,
+        },
+    }
+    relative = "docs/deployment-evidence/web-prod.json"
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    path.write_bytes(content)
+    digest = hashlib.sha256(content).hexdigest()
+    return (
+        "repo=example/activation; "
+        f"ref={ref}; sha={sha}; observed=2026-09-07T18:00:00Z; "
+        f"readback=file:{relative}@sha256:{digest}"
+    )
 
 
 def run_authority_route(deployment: str, **arguments):
@@ -446,7 +490,6 @@ def run_authority_route(deployment: str, **arguments):
             architecture_text=ARCHITECTURE,
             deployment_text=deployment,
             stack_text="# Stack Decisions: Example",
-            repo_root=Path.cwd(),
             **arguments,
         )
 
@@ -490,38 +533,58 @@ class ActivationCheckerTests(unittest.TestCase):
         )
 
     def test_authority_routes_run_full_real_deployment_validation(self) -> None:
-        valid = full_deployment_fixture()
-        shared = full_deployment_fixture(shared_d1=True)
-        duplicate = full_deployment_fixture(duplicate_target=True)
-        routes = (
-            {"require_closeout": True},
-            {"require_verified_sources": True},
-            {"require_closeout": True, "require_verified_sources": True},
-            {"require_ready": ("web-prod",)},
-        )
-        for route in routes:
-            with self.subTest(route=route):
-                self.assertEqual([], run_authority_route(valid, **route))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            valid = full_deployment_fixture(root=root)
+            shared = full_deployment_fixture(root=root, shared_d1=True)
+            duplicate = full_deployment_fixture(root=root, duplicate_target=True)
+            routes = (
+                {"require_closeout": True},
+                {"require_verified_sources": True},
+                {"require_closeout": True, "require_verified_sources": True},
+                {"require_ready": ("web-prod",)},
+            )
+            for route in routes:
+                with self.subTest(route=route):
+                    self.assertEqual(
+                        [],
+                        run_authority_route(
+                            valid,
+                            expected_repository="example/activation",
+                            repo_root=root,
+                            **route,
+                        ),
+                    )
 
-                shared_findings = run_authority_route(shared, **route)
-                self.assertTrue(
-                    any(
-                        "Resource Isolation: D1 database must not share one resource "
-                        "between production and development" in item
-                        for item in shared_findings
-                    ),
-                    shared_findings,
-                )
+                    shared_findings = run_authority_route(
+                        shared,
+                        expected_repository="example/activation",
+                        repo_root=root,
+                        **route,
+                    )
+                    self.assertTrue(
+                        any(
+                            "Resource Isolation: D1 database must not share one resource "
+                            "between production and development" in item
+                            for item in shared_findings
+                        ),
+                        shared_findings,
+                    )
 
-                duplicate_findings = run_authority_route(duplicate, **route)
-                self.assertTrue(
-                    any(
-                        "Release Source Provenance: duplicate target 'web-prod'"
-                        in item
-                        for item in duplicate_findings
-                    ),
-                    duplicate_findings,
-                )
+                    duplicate_findings = run_authority_route(
+                        duplicate,
+                        expected_repository="example/activation",
+                        repo_root=root,
+                        **route,
+                    )
+                    self.assertTrue(
+                        any(
+                            "Release Source Provenance: duplicate target 'web-prod'"
+                            in item
+                            for item in duplicate_findings
+                        ),
+                        duplicate_findings,
+                    )
 
     def test_explicit_noop_can_pass_verified_source_handoff(self) -> None:
         with patch("check_product_package.validate_texts", return_value=[]), patch(

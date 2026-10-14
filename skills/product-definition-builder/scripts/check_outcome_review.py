@@ -558,6 +558,8 @@ def _multi_target_findings(
     activation_text: str,
     stack_text: str | None,
     repo_root: Path | None,
+    expected_repository: str | None,
+    candidate_ref: str | None,
     deployment_rows: dict[str, dict[str, str]],
     reviewed_on: str,
     aggregate_verdict: str,
@@ -648,6 +650,8 @@ def _multi_target_findings(
             deployment_text=deployment_text,
             stack_text=stack_text,
             repo_root=repo_root,
+            expected_repository=expected_repository,
+            candidate_ref=candidate_ref,
             require_verified_sources=True,
             require_ready=(target_id,),
             package_validated=stack_text is not None,
@@ -958,6 +962,8 @@ def check_outcome_review_text(
     activation_text: str,
     stack_text: str | None = None,
     repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
     package_validated: bool = False,
 ) -> list[str]:
     findings: list[str] = []
@@ -998,6 +1004,9 @@ def check_outcome_review_text(
                 architecture_text=architecture_text,
                 require_source_provenance=True,
                 strict_target_subset=production_target_subset,
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
         )
     active = active_text(text)
@@ -1111,6 +1120,8 @@ def check_outcome_review_text(
         deployment_text=deployment_text,
         stack_text=stack_text,
         repo_root=repo_root,
+        expected_repository=expected_repository,
+        candidate_ref=candidate_ref,
         require_verified_sources=True,
         require_ready=(target_id,),
         package_validated=stack_text is not None,
@@ -1438,6 +1449,8 @@ def check_outcome_review_text(
                     activation_text=activation_text,
                     stack_text=stack_text,
                     repo_root=repo_root,
+                    expected_repository=expected_repository,
+                    candidate_ref=candidate_ref,
                     deployment_rows=deployment_rows,
                     reviewed_on=reviewed_on,
                     aggregate_verdict=verdict,
@@ -1457,6 +1470,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--require-lifecycle", action="store_true")
     parser.add_argument("--prior-outcome", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
+    parser.add_argument("--expected-repository")
+    parser.add_argument("--candidate-ref")
     args = parser.parse_args(argv)
     if args.require_lifecycle and args.prior_outcome is None:
         try:
@@ -1548,6 +1563,9 @@ def main(argv: list[str] | None = None) -> int:
         architecture_text=loaded["architecture"],
         require_source_provenance=True,
         strict_target_subset=production_target_subset,
+        repo_root=args.repo_root,
+        expected_repository=args.expected_repository,
+        candidate_ref=args.candidate_ref,
     )
     if deployment_findings:
         for item in deployment_findings:
@@ -1561,6 +1579,8 @@ def main(argv: list[str] | None = None) -> int:
         activation_text=loaded["activation"],
         stack_text=loaded["stack"],
         repo_root=args.repo_root,
+        expected_repository=args.expected_repository,
+        candidate_ref=args.candidate_ref,
         # The CLI validates the package/deployment immediately before this
         # call; avoid repeating the same findings in the final report.
         package_validated=True,

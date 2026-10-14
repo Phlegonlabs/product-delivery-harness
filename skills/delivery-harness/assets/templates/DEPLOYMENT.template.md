@@ -28,7 +28,7 @@ Record one row per independently released artifact or hosted unit. Production us
 
 ## Release Source Provenance
 
-Copy the source ref from the architecture target. Leave Source SHA and authority evidence `pending` until a read-only command or provider readback observes the exact SHA. Keep the evidence in one cell and use this form: `repo=<owner/repository>; ref=<source ref>; sha=<full SHA>; observed=<RFC3339>; readback=command:<actual command>` or `... readback=provider:<actual provider readback>`. Never store a credential or run the recorded command from `check_deployment.py`.
+Copy the source ref from the architecture target. Leave Source SHA and authority evidence `pending` until a read-only command or provider readback observes the exact SHA. Keep the evidence in one cell and use this form: `repo=<owner/repository>; ref=<source ref>; sha=<full SHA>; observed=<RFC3339>; readback=file:<repository-relative JSON path>@sha256:<file SHA-256>`. The bounded regular JSON file uses `deployment-source-observation/1` and retains the actual request, status, and normalized repository/ref/SHA/artifact output. Never store a credential or run the recorded command from `check_deployment.py`.
 
 | Release target | Source ref | Source SHA | Authority evidence |
 | --- | --- | --- | --- |
