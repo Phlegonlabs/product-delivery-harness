@@ -7,7 +7,7 @@ Current source focus: optional Void guidance is prepared for 0.63.1. Final relea
 | Document | Purpose | Status |
 | --- | --- | --- |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | Local source verified; owner-authorized 0.63.0 release/install follow-up in progress; exact outcome in linked receipts |
-| `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.63.0` candidate preparation | Integrated through `c27600c7`; draft PR #141, lifecycle fixture repair, fresh review, release checks and installation pending |
+| `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.63.0` release | Source checkpoint through `c27600c7`; exact verification, PR #141, release and installation outcomes are in the Epic's linked result |
 | `docs/epics/EPIC-lightweight-entry.md` | Full dispatch-message budgets and stage-scoped lightweight entry | Accepted; LIGHT-01–04 implemented and locally committed; LIGHT-05 exact candidate/result is authoritative in [lightweight-result.md](C:/Users/mps19/.codex/visualizations/2026/10/06/01a11277-8783-7192-8c29-2f37de1cf543/lightweight-result.md) |
 | `docs/epics/EPIC-readme-refresh.md` | Four-language README reorganization and generated cover refresh | Source complete for 0.62.2; exact publication and verification outcome in its linked release receipt |
 | docs/epics/EPIC-gen-verify-platform-delivery.md | Bounded Generate/Verify/Correct, feature acceptance and approved platform order | Accepted; P1/H1 and G1 local source changes committed; final unified checks/review authority is [loop-engineering-result.md](C:/Users/mps19/.codex/visualizations/2026/10/04/01a106f3-1755-7b42-873e-dbd7ebc45feb/loop-engineering-result.md) |
