@@ -42,6 +42,7 @@ from markdown_contract import (  # noqa: E402
     is_human_owner,
     is_substantive_identity,
 )
+from deployment_source_observation import load_retained_observation  # noqa: E402
 from release_targets import (  # noqa: E402
     allows_no_independent_artifact,
     parse_release_targets,
@@ -126,9 +127,8 @@ PROVENANCE_RE = re.compile(
     r" ref=(?P<ref>[A-Za-z0-9._/-]+);"
     r" sha=(?P<sha>[0-9a-f]{40});"
     r" observed=(?P<observed>\S+);"
-    r" readback=(?P<readback>.+)$"
+    r" readback=file:(?P<path>[^@]+)@sha256:(?P<hash>[0-9a-f]{64})$"
 )
-READBACK_ARTIFACT_RE = re.compile(r"artifact-sha256=([0-9a-f]{64})\b")
 DEPLOYMENT_SCHEMA_LINE_RE = re.compile(
     r"^-\s*Record schema:\s*(deployment/\d+)\s*$",
     re.MULTILINE,
@@ -444,38 +444,67 @@ def release_source_provenance_duplicates(text: str) -> set[str]:
     }
 
 
-def _actual_provenance(
+def _retained_proof_findings(
     authority: dict[str, str] | None,
     *,
+    target_id: str,
     expected_ref: str,
-    expected_artifact: str | None = None,
-) -> bool:
+    expected_artifact: str,
+    checked: str,
+    repo_root: Path | None,
+    expected_repository: str | None,
+    candidate_ref: str | None,
+) -> list[str]:
     if not authority:
-        return False
+        return [f"{target_id} needs a Release Source Provenance row"]
     evidence = authority.get("authority evidence", "")
     match = PROVENANCE_RE.fullmatch(evidence)
-    readback = match.group("readback").strip() if match else ""
-    payload = ""
-    for prefix in ("command:", "provider:"):
-        if readback.startswith(prefix):
-            payload = readback[len(prefix) :].strip()
-            break
-    artifact_hash = READBACK_ARTIFACT_RE.search(payload)
-    return (
-        FULL_SHA_RE.fullmatch(authority.get("source sha", "")) is not None
-        and match is not None
-        and authority.get("source ref") == expected_ref
-        and match.group("ref") == authority.get("source ref")
-        and match.group("sha") == authority.get("source sha")
-        and _timestamp(match.group("observed")) is not None
-        and len(payload) >= 8
-        and bool(re.search(r"[A-Za-z0-9]", payload))
-        and (
-            artifact_hash is None
-            or expected_artifact is None
-            or artifact_hash.group(1) == expected_artifact
-        )
+    if match is None:
+        return [
+            f"{target_id} authority evidence must retain a hash-referenced "
+            "observation file"
+        ]
+    if repo_root is None:
+        return [f"{target_id} retained proof requires repository root context"]
+    if not expected_repository:
+        return [f"{target_id} retained proof requires expected repository context"]
+    source_sha = authority.get("source sha", "")
+    if not FULL_SHA_RE.fullmatch(source_sha):
+        return [f"{target_id} retained proof requires a full lowercase source SHA"]
+    if authority.get("source ref") != expected_ref:
+        return [f"{target_id} source ref differs from architecture authority"]
+    if match.group("ref") != expected_ref:
+        return [f"{target_id} evidence ref differs from architecture authority"]
+    if match.group("sha") != source_sha:
+        return [f"{target_id} evidence SHA differs from Source SHA"]
+
+    resolved_ref = (
+        candidate_ref
+        if candidate_ref and expected_ref == "run.integration.branch"
+        else expected_ref
     )
+    checked_at = (
+        _timestamp(checked)
+        if checked and checked.lower() != "pending"
+        else None
+    )
+    observation, findings = load_retained_observation(
+        repo_root=repo_root,
+        reference=(
+            f"file:{match.group('path')}@sha256:{match.group('hash')}"
+        ),
+        expected_hash=match.group("hash"),
+        expected_repository=expected_repository,
+        target=target_id,
+        source_ref=expected_ref,
+        resolved_ref=resolved_ref,
+        source_sha=source_sha,
+        artifact=expected_artifact,
+        checked_at=checked_at,
+    )
+    if observation is None and not findings:
+        findings.append(f"{target_id} retained observation could not be loaded")
+    return findings
 
 
 def _validate_release_source_provenance(
@@ -560,14 +589,6 @@ def _validate_release_source_provenance(
                         f"{label}: {target_id} evidence observed time cannot "
                         "be in the future"
                     )
-                if not evidence_match.group("readback").strip().startswith(
-                    ("command:", "provider:")
-                ):
-                    findings.append(
-                        f"{label}: {target_id} readback must begin with "
-                        "command: or provider:"
-                    )
-
     missing = sorted(set(targets) - seen)
     if missing:
         findings.append(
@@ -622,6 +643,9 @@ def _validate_release_target_status(
     architecture_text: str,
     *,
     require_source_provenance: bool = False,
+    repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
 ) -> list[str]:
     contract, parser_findings = parse_release_targets(architecture_text)
     findings = list(parser_findings)
@@ -738,16 +762,7 @@ def _validate_release_target_status(
                     expected_stage=target.stage,
                     source_policy_protocol=target.source_policy_protocol,
                 )
-            if require_source_provenance and not _actual_provenance(
-                authority,
-                expected_ref=expected_authority.ref if expected_authority else "",
-                expected_artifact=artifact,
-            ):
-                findings.append(
-                    f"{label}: PASS target {target_id} needs actual source "
-                    "provenance"
-                )
-            elif authority is not None:
+            if authority is not None:
                 if (
                     expected_authority is not None
                     and authority.get("source ref") != expected_authority.ref
@@ -761,14 +776,21 @@ def _validate_release_target_status(
                         f"{label}: PASS target {target_id} Source SHA must "
                         "equal Expected SHA"
                     )
-                if not _actual_provenance(
+                proof_findings = _retained_proof_findings(
                     authority,
+                    target_id=target_id,
                     expected_ref=expected_authority.ref if expected_authority else "",
                     expected_artifact=artifact,
-                ):
+                    checked=checked,
+                    repo_root=repo_root,
+                    expected_repository=expected_repository,
+                    candidate_ref=candidate_ref,
+                )
+                findings.extend(proof_findings)
+                if require_source_provenance and proof_findings:
                     findings.append(
-                        f"{label}: PASS target {target_id} needs complete "
-                        "actual authority evidence"
+                        f"{label}: PASS target {target_id} needs actual source "
+                        "provenance"
                     )
             if not FULL_SHA_RE.fullmatch(expected):
                 findings.append(
@@ -832,6 +854,9 @@ def _strict_provenance_findings(
     architecture_text: str,
     deployment_rows: dict[str, dict[str, str]],
     strict_target_subset: tuple[str, ...] | None = None,
+    repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
 ) -> list[str]:
     findings: list[str] = []
     label = "Release Source Provenance"
@@ -868,14 +893,24 @@ def _strict_provenance_findings(
             source_policy_protocol=target.source_policy_protocol,
         )
         findings.extend(f"{label}: {item}" for item in expected_findings)
-        if not _actual_provenance(
+        proof_findings = _retained_proof_findings(
             authority,
+            target_id=target_id,
             expected_ref=expected_authority.ref if expected_authority else "",
-            expected_artifact=deployment.get("artifact / build identity"),
-        ):
+            expected_artifact=deployment.get("artifact / build identity", ""),
+            checked=deployment.get("checked", ""),
+            repo_root=repo_root,
+            expected_repository=expected_repository,
+            candidate_ref=candidate_ref,
+        )
+        if proof_findings:
             findings.append(
                 f"{label}: target {target_id} cannot gain strict readiness "
-                "without complete actual source proof"
+                "without complete retained source proof"
+            )
+            findings.extend(
+                f"{label}: target {target_id} {item}"
+                for item in proof_findings
             )
             continue
         if (
@@ -906,6 +941,9 @@ def strict_provenance_findings(
     architecture_text: str,
     deployment_rows: dict[str, dict[str, str]],
     strict_target_subset: tuple[str, ...] | None = None,
+    repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
 ) -> list[str]:
     """Public read-only strict-proof join for parsed readiness claims."""
 
@@ -914,6 +952,9 @@ def strict_provenance_findings(
         architecture_text,
         deployment_rows,
         strict_target_subset=strict_target_subset,
+        repo_root=repo_root,
+        expected_repository=expected_repository,
+        candidate_ref=candidate_ref,
     )
 
 
@@ -923,6 +964,9 @@ def check_deployment_text(
     architecture_text: str | None = None,
     require_source_provenance: bool = False,
     strict_target_subset: tuple[str, ...] | None = None,
+    repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
 ) -> list[str]:
     findings: list[str] = []
     if require_source_provenance and architecture_text is None:
@@ -941,6 +985,9 @@ def check_deployment_text(
                 text,
                 architecture_text,
                 require_source_provenance=require_source_provenance,
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
         )
     for number, line in enumerate(active_text(text).splitlines(), start=1):
@@ -1208,6 +1255,9 @@ def check_deployment_text(
                 architecture_text,
                 parse_release_target_status(text),
                 strict_target_subset=strict_target_subset,
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
         )
     return findings
@@ -1218,6 +1268,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--deployment", type=Path, default=Path("docs/DEPLOYMENT.md"))
     parser.add_argument("--architecture", type=Path)
     parser.add_argument("--require-source-provenance", action="store_true")
+    parser.add_argument("--repo-root", type=Path)
+    parser.add_argument("--expected-repository")
+    parser.add_argument("--candidate-ref")
     args = parser.parse_args(argv)
     if args.require_source_provenance and args.architecture is None:
         print(
@@ -1248,6 +1301,9 @@ def main(argv: list[str] | None = None) -> int:
         deployment_text,
         architecture_text=architecture_text,
         require_source_provenance=args.require_source_provenance,
+        repo_root=args.repo_root,
+        expected_repository=args.expected_repository,
+        candidate_ref=args.candidate_ref,
     )
     for finding in findings:
         print(f"{path}: {finding}")
