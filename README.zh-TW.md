@@ -107,6 +107,8 @@ Trusted-host publication 與 legacy（0.38 以前）run-branch push 都與 repos
 
 </details>
 
+`deployment/2` 紀錄新增 Release Source Provenance。每個 architecture target 都要寫精確 source ref 與完整 source SHA。Authority evidence 必須包含 repository、ref、SHA、觀察時間，以及實際 command 或 provider readback；checker 只讀取結構，不執行證據。準備階段可保留 `pending`，但 strict readiness 要求 source ref、Expected SHA 與 Deployed SHA 一致。Activation 只檢查宣告的 target；保存的 SEO review 只檢查受審 target。Verified-source handoff 檢查 target inventory 與每個 ready target。完整 closeout 仍要證明每個 active target，或依 owner 規則記錄 concrete n/a。
+
 ## 從這裡開始
 
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
@@ -479,6 +481,8 @@ Gitignore 衛生同時適用於 direct 與 managed 工作。scope scan 會記錄
 
 </details>
 
+每個 assignment 有私人 scratch 和有限期限。清理或重試前，parent 要確認 process tree 已結束，並檢查部分成果、前次操作與證據缺口。403 或「研究找不到可用來源」不是啟動失敗，也不授權合成證據。
+
 ## 運作參考
 
 以下分組收錄完整的運作規則。展開分組即可閱讀全部要求。
@@ -552,6 +556,8 @@ Cloudflare 優先使用原生 Workers Previews：專案 Wrangler 4.135.0+、`wra
 <details>
 <summary><b>統一設計審閱：HiFi 審閱器、設計 intake 與 PRD 補全</b></summary>
 
+新組裝的方向研究用 `assemble_ui_review.py --mode direction` 與封閉的 `ui-direction-review/1` profile。`--mode hifi` 仍是預設，HiFi 契約不變。Profile 為每個案例指定 surface、platform、核准 target family 與精確像素寬度。組裝器重用共用 reviewer CSS 和 HiFi runtime，只顯示該案例核准的 targets，並把案例與 target 帶到其他研究。
+
 ## 統一設計審閱
 
 HiFi 使用與產品 CSS 隔離的中性審閱器，按 App、Web 前台及管理後台分組，一次顯示一個產品畫布，保留平台尺寸、狀態與取自實際樣式的 Design Tokens 頁。歷史 Wireframe 保留原審閱器及檢查。
@@ -574,6 +580,10 @@ PRD 會在整個交付流程中持續補全。首次交付批准前，UI 與技�
 
 <details>
 <summary><b>交付模型：Epic、驗收與 eval 契約、受管 wave 與修復路線</b></summary>
+
+Source authority 與 availability evidence 分開。每個 target 的 provenance ref 來自 architecture source policy。Strict 檢查把 ref、observed source SHA、Expected SHA、Deployed SHA 和 artifact hash 連接起來。Target-review subset 必須明確；Activation 仍盤點每個 active target，而 concrete n/a 只能依 owner 規則取代不可用 target。
+
+Strict Outcome Review 需要 stack-decisions.md，並只驗證一次 Product Definition package。它把已驗證 context 傳給 Activation，要求 Deployment 有 provenance，且只檢查這次 review 的 production-target subset。保存的 SEO review 傳送相同 source context，只檢查受審 target。
 
 ## 交付模型
 
@@ -680,6 +690,8 @@ flowchart TB
 <details>
 <summary><b>通用執行環境適配：host 能力、契約採用與 host 交接</b></summary>
 
+Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Host 專屬模型放在 host policy；共用 skills 保留設定角色與已授權 fallback。
+
 ## 通用執行環境適配
 
 已授權的修復讓 candidate 前進時，續跑保留同一個 RUN 與已完成 mission。歷史 verifier receipt 保留原 SHA 與 attempt；目前的 PASS 仍須綁定目前精確 SHA。Candidate reconciliation 在剩餘次數內重開失效 gate，並要求新的 integration 與 security review，不授權修復、不重設次數，也不重開已完成 RUN。續跑檢查 parent 與目前綁定的工作目錄，無關 linked worktree 不會阻擋。`[slug]` 等 changed-file 路徑以實際檔名處理，與 write-scope pattern 分開。
@@ -749,6 +761,8 @@ CI 也會執行端到端主幹檢查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 
 <details>
 <summary><b>驗證與執行量測：CI、瀏覽器測試、計時與驗收證據</b></summary>
+
+`check_ui_diagnostic_wave.py` 連接 browser、critique、audit、grading、PRD、manifest 與 subject 身分。完整 wave 可以回報 FAIL，並在既有授權下符合 repair-eligible。缺少、blocked、部分、過期或超出範圍的證據會阻擋 handoff；partial report 不會得到 repair approval。Outcome 與 SEO checkers 現在把必要的 Product／Stack context 帶進 strict Activation checks。
 
 ## 驗證與執行量測
 

@@ -107,6 +107,8 @@ La publicación por trusted host y el push legacy (anterior a 0.38) de la run br
 
 </details>
 
+Un registro `deployment/2` añade Release Source Provenance. Cada destino de arquitectura registra su source ref exacto y su source SHA completo. La authority evidence debe contener repository, ref, SHA, hora de observación y un command o provider readback real; el checker solo lee la estructura y no ejecuta esa evidencia. La preparación puede conservar `pending`, pero la strict readiness exige el mismo source ref, Expected SHA y Deployed SHA. Activation verifica solo los destinos declarados; un informe SEO guardado verifica solo su destino revisado. Un verified-source handoff revisa el inventario de destinos y cada destino ready. El closeout completo sigue probando cada destino activo o registra un n/a concreto según la regla del owner.
+
 ## Empieza aquí
 
 | Si tienes... | Empieza con | Lo que obtienes |
@@ -479,6 +481,8 @@ Los productos comerciales ahora pasan dos decisiones separadas de Product Defini
 
 </details>
 
+Cada assignment tiene scratch privada y un plazo finito. Antes de limpiar o reintentar, el parent confirma que el process tree terminó y revisa el trabajo parcial, la operación previa y los huecos de evidencia. Un 403 o la ausencia de fuentes útiles no es un fallo de lanzamiento; tampoco autoriza a sintetizar evidencia.
+
 ## Referencia operativa
 
 Estos grupos contienen las reglas operativas completas. Abre un grupo para leer todos sus requisitos.
@@ -552,6 +556,8 @@ Antes de crear RUN, la validación de PLAN comprueba juntos la política de rama
 <details>
 <summary><b>Revisión de diseño unificada: visor HiFi, intake de diseño y refinamiento del PRD</b></summary>
 
+Los estudios nuevos usan `assemble_ui_review.py --mode direction` y el perfil cerrado `ui-direction-review/1`. `--mode hifi` sigue siendo el valor predeterminado y los contratos HiFi no cambian. El perfil asigna a cada caso su surface, platform, target family aprobada y anchos exactos en píxeles. El ensamblador reutiliza el CSS compartido del reviewer y el runtime HiFi, muestra solo los targets aprobados de ese caso y lleva el caso y el target a los demás estudios.
+
 ## Revisión de diseño unificada
 
 HiFi usa un visor neutro aislado del CSS del producto: grupos App, Web y administración, un lienzo, tamaños y estados por plataforma y una vista de Design Tokens derivada de estilos reales. Los Wireframes históricos conservan su visor y sus validaciones.
@@ -574,6 +580,10 @@ El PRD se completa durante toda la entrega. Antes de aprobar la primera entrega,
 
 <details>
 <summary><b>Modelo de entrega: Epics, contratos de aceptación y eval, waves gestionadas y rutas de reparación</b></summary>
+
+Source authority es independiente de la evidencia de disponibilidad. El provenance ref de cada destino procede de su política de origen en la arquitectura. La verificación estricta une el ref, el source SHA observado, el Expected SHA, el Deployed SHA y el hash del artifact. Los subsets de revisión deben declararse; Activation sigue inventariando cada destino activo, y un n/a concreto solo sustituye a un destino no disponible según la regla del owner.
+
+La strict Outcome Review requiere stack-decisions.md y valida una sola vez el paquete de Product Definition. Reenvía ese contexto validado a Activation, exige provenance en Deployment y revisa solo el subset de production targets de esa revisión. Un informe SEO guardado reenvía el mismo contexto de origen y revisa solo su destino auditado.
 
 ## Modelo de entrega
 
@@ -680,6 +690,8 @@ flowchart TB
 <details>
 <summary><b>Adaptador general de runtime: capacidades del host, adopción del contrato y handoff entre hosts</b></summary>
 
+La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Los modelos específicos del host pertenecen a la política del host; los skills compartidos conservan los roles configurados y los fallback autorizados.
+
 ## Adaptador general de runtime
 
 Al avanzar el candidato por una reparación autorizada, la recuperación conserva el mismo RUN y las missions completadas. Los recibos históricos mantienen su SHA e intento; los PASS actuales siguen exigiendo el SHA exacto actual. La reconciliación del candidato reactiva los gates obsoletos dentro del presupuesto restante y exige nuevas revisiones de integración y seguridad. No autoriza reparaciones, reinicia presupuestos ni reabre un RUN completado. Se comprueban el padre y los espacios actualmente vinculados; otros worktrees no bloquean la recuperación. Las rutas modificadas como `[slug]` se tratan como nombres literales, separados de los patrones de alcance de escritura.
@@ -749,6 +761,8 @@ El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 
 
 <details>
 <summary><b>Verificación y medición: CI, suite de navegador, tiempos y evidencia de aceptación</b></summary>
+
+`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. Una ola completa puede informar FAIL y ser elegible para reparación bajo la autoridad existente. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Los checkers de Outcome y SEO llevan ahora el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
 
 ## Verificación y medición de ejecución
 
