@@ -10,6 +10,7 @@ from reviewer_shell import shared_css_drift
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 INERT_CONTAINERS = {"template", "noscript"}
+DIAGNOSTIC_RESULTS = {"PASS", "FAIL", "BLOCKED", "MISSING"}
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
@@ -677,6 +678,147 @@ def product_control_findings(documents):
                 if selected not in {"true", "false"}:
                     errors.append(f"HiFi {page} product tab control must declare selected state")
     return errors
+
+
+def _diagnostic_observation_findings(
+    section: str,
+    actual_rows: object,
+    expected_rows: object,
+    *,
+    identity_keys: tuple[str, ...],
+    static_keys: set[str],
+    behavior_keys: set[str],
+) -> tuple[list[str], list[str]]:
+    """Separate missing malformed coverage from fully observed behavior defects."""
+
+    label = f"HiFi reviewer {section}"
+    if not isinstance(actual_rows, list) or not isinstance(expected_rows, list) or len(actual_rows) != len(expected_rows):
+        return [f"{label} does not match required browser observations"], []
+    expected_rows = list(expected_rows)
+    if any(not isinstance(row, dict) for row in expected_rows):
+        return [f"{label} source contract is invalid"], []
+    available = set(range(len(expected_rows)))
+    structural: list[str] = []
+    defects: list[str] = []
+    for row in actual_rows:
+        if not isinstance(row, dict) or any(key not in row for key in identity_keys):
+            structural.append(f"{label} observation has an invalid closed field set")
+            continue
+        identity = tuple(row[key] for key in identity_keys)
+        candidates = [index for index in available
+                      if all(expected_rows[index].get(key) == value for key, value in zip(identity_keys, identity))]
+        if not candidates:
+            structural.append(f"{label} observation is missing, extra or duplicate")
+            continue
+        expected_index = min(candidates, key=lambda index: json.dumps(expected_rows[index], sort_keys=True))
+        expected = expected_rows[expected_index]
+        if set(row) != set(expected):
+            missing = sorted(set(expected) - set(row))
+            extra = sorted(set(row) - set(expected))
+            structural.append(f"{label} observation has an invalid closed field set: "
+                              f"missing={missing}, extra={extra}")
+            continue
+        available.remove(expected_index)
+        if any(row[key] != expected[key] for key in static_keys):
+            structural.append(f"{label} observation differs from its source-bound identity")
+            continue
+        if "result" in behavior_keys and row["result"] not in DIAGNOSTIC_RESULTS:
+            structural.append(f"{label} has an invalid observation result")
+            continue
+        changed = [key for key in sorted(behavior_keys) if row[key] != expected[key]]
+        if changed:
+            defects.append(f"{label} observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
+    if available:
+        structural.append(f"{label} lacks required browser observations")
+    return structural, defects
+
+
+def _diagnostic_specimen_findings(actual_rows: object, expected_rows: object) -> tuple[list[str], list[str]]:
+    """Validate specimen identity separately from its observed value triple."""
+
+    label = "HiFi reviewer specimens"
+    if not isinstance(actual_rows, list) or not isinstance(expected_rows, list) or len(actual_rows) != len(expected_rows):
+        return [f"{label} does not match required browser observations"], []
+    expected_rows = list(expected_rows)
+    if any(not isinstance(row, dict) for row in expected_rows):
+        return [f"{label} source contract is invalid"], []
+    identity_keys = ("kind", "name", "sourcePage", "source", "property", "variant", "state", "element", "sharedGroup")
+    available = set(range(len(expected_rows)))
+    structural: list[str] = []
+    defects: list[str] = []
+    for row in actual_rows:
+        if not isinstance(row, dict) or any(key not in row for key in identity_keys):
+            structural.append(f"{label} observation has an invalid closed field set")
+            continue
+        identity = tuple(row[key] for key in identity_keys)
+        candidates = [index for index in available
+                      if all(expected_rows[index].get(key) == value for key, value in zip(identity_keys, identity))]
+        if not candidates:
+            structural.append(f"{label} observation is missing, extra or duplicate")
+            continue
+        expected_index = min(candidates, key=lambda index: json.dumps(expected_rows[index], sort_keys=True))
+        expected = expected_rows[expected_index]
+        value_keys = {"sourceValue", "specimenValue", "displayValue"}
+        if expected["kind"] == "token":
+            value_keys |= {"sourceComputedValue", "specimenComputedValue"}
+        if set(row) != set(expected) | value_keys:
+            structural.append(f"{label} observation has an invalid closed field set")
+            continue
+        available.remove(expected_index)
+        if any(row[key] != expected[key] for key in identity_keys):
+            structural.append(f"{label} observation differs from its source-bound identity")
+            continue
+        changed = [key for key in sorted(value_keys) if row[key] != expected.get(key)]
+        if changed:
+            defects.append(f"{label} observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
+    if available:
+        structural.append(f"{label} lacks required browser observations")
+    return structural, defects
+
+
+def reviewer_diagnostic_coverage_findings(
+    actual: object, expected: object,
+) -> tuple[list[str], list[str]]:
+    """Return structural coverage errors and fully observed behavior defects."""
+
+    if not isinstance(actual, dict) or not isinstance(expected, dict) or set(actual) != set(expected):
+        return ["HiFi reviewer evidence requires its closed source-bound observation record"], []
+    structural: list[str] = []
+    defects: list[str] = []
+    if actual["overview"] != expected["overview"] or actual["defaultSurface"] != expected["defaultSurface"]:
+        structural.append("HiFi reviewer Overview differs from its manifest source binding")
+    for key in ("defaultVisible", "overviewInitiallyHidden"):
+        if actual[key] != expected[key]:
+            defects.append(f"HiFi reviewer observed defect for {key}")
+
+    groups = (
+        ("views", ("from", "view", "target", "trigger"),
+         {"visible", "productVisible", "visibleSurfaces", "focusCorrect", "result"}),
+        ("navigation", ("from", "target", "trigger"),
+         {"to", "destinationTarget", "visible", "productVisible", "visibleSurfaces", "focusCorrect", "result"}),
+        ("recovery", ("from", "case", "target"),
+         {"surfaces", "selectedTarget", "productVisible", "panelsHidden", "result"}),
+        ("viewport", ("page", "surface", "target"),
+         {"requestedWidth", "measuredProductWidth", "visibleSurfaces", "containerQueryApplied", "hostMediaQueryApplied", "result"}),
+        ("retention", ("page", "surface", "target", "case"),
+         {"selectedTargetBefore", "selectedTargetAfter", "inputValueBefore", "inputValueAfter",
+          "selectedValueBefore", "selectedValueAfter", "productVisible", "visibleSurfaces", "result"}),
+    )
+    for section, identity_keys, behavior_keys in groups:
+        section_errors, section_defects = _diagnostic_observation_findings(
+            section, actual[section], expected[section],
+            identity_keys=identity_keys, static_keys=set(expected[section][0]) - behavior_keys
+            if expected[section] and isinstance(expected[section][0], dict) else set(),
+            behavior_keys=behavior_keys,
+        )
+        structural.extend(section_errors)
+        defects.extend(section_defects)
+
+    specimen_errors, specimen_defects = _diagnostic_specimen_findings(
+        actual["specimens"], expected["specimens"])
+    structural.extend(specimen_errors)
+    defects.extend(specimen_defects)
+    return structural, defects
 
 
 def reviewer_evidence_findings(actual, expected):

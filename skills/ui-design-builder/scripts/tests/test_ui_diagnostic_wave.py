@@ -17,6 +17,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 from types import SimpleNamespace
 from unittest.mock import patch
 import check_ui_diagnostic_wave as diagnostic_cli
+import check_ui_design_contract as ui_contract
+import hifi_reviewer
 import hifi_review_fixture as fixture
 import review_evidence as evidence
 
@@ -128,6 +130,10 @@ class DiagnosticWaveTests(unittest.TestCase):
         request["observations"][role] = self.write(
             self.root / "docs/evidence" / f"{role}.json", receipt)
 
+    def load_browser_output(self) -> tuple[Path, dict]:
+        path = self.root / "docs/evidence/browser-output.json"
+        return path, json.loads(path.read_text(encoding="utf-8"))
+
     def test_browser_uses_the_existing_offline_and_reviewer_contract(self) -> None:
         request = self.build()
         self.assertEqual([], evidence.diagnostic_wave_findings(self.root, request))
@@ -186,6 +192,69 @@ class DiagnosticWaveTests(unittest.TestCase):
         self.assertEqual("findings", report["status"])
         self.assertIn("browser observed FAIL", report["findings"])
         self.assertIn("grading H5 score 79 is below the accepted threshold", report["findings"])
+
+    def test_complete_behavioral_failures_are_repair_eligible_findings(self) -> None:
+        request = self.build(browser_result="FAIL")
+        output_path, output = self.load_browser_output()
+        reviewer = output["reviewer"]
+        reviewer["views"][0].update(focusCorrect=False, visible=False, result="FAIL")
+        reviewer["retention"][0].update(
+            inputValueBefore="before", inputValueAfter="after", result="FAIL")
+        reviewer["navigation"][0].update(to="unexpected.html", result="FAIL")
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "browser")
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertTrue(report["complete"])
+        self.assertTrue(report["repairEligible"])
+        findings = "\n".join(report["findings"])
+        self.assertIn("observed defect for", findings)
+        self.assertIn("focusCorrect, result", findings)
+        self.assertIn("inputValueAfter, inputValueBefore, result", findings)
+        self.assertIn("result, to", findings)
+
+        from check_ui_design_contract import _hifi_bundle_documents
+        subject_data = evidence.read_identity(self.root, self.subject)
+        documents = _hifi_bundle_documents(
+            evidence.safe_path(self.root, self.subject["path"]),
+            subject_data.decode("utf-8"), self.manifest)
+        _, expected = hifi_reviewer.reviewer_contract(documents, self.manifest)
+        self.assertTrue(hifi_reviewer.reviewer_evidence_findings(reviewer, expected))
+
+    def test_complete_wrong_destination_is_a_defect_and_not_acceptance(self) -> None:
+        output = self.browser_output(result="FAIL")
+        manifest = dict(self.manifest, interactions=[{
+            "id": "OP-001", "source": {"surface": "UI-001", "state": "ready"},
+            "destination": {"surface": "UI-002", "state": "ready"},
+            "control": "product-button", "kind": "navigate",
+        }])
+        output["interactions"] = [{
+            "id": "OP-001", "target": "390", "trigger": "click",
+            "source": {"surface": "UI-001", "state": "ready"},
+            "destination": {"surface": "UI-001", "state": "ready"},
+            "control": "product-button", "visible": True,
+            "focusCorrect": False, "result": "FAIL",
+        }]
+        output["interactions"].append(dict(output["interactions"][0], trigger="keyboard"))
+        output["navigation"] = [{
+            "id": "OP-001", "target": "390", "trigger": "click",
+            "from": "index.html", "to": "unexpected.html",
+        }]
+        output["navigation"].append(dict(output["navigation"][0], trigger="keyboard"))
+        structural, defects = ui_contract._bundle_diagnostic_findings(output, manifest)
+        self.assertEqual([], structural)
+        self.assertEqual(4, len(defects))
+        self.assertIn("destination", "\n".join(defects))
+        self.assertTrue(ui_contract._bundle_transcript_findings(output, manifest))
+
+    def test_missing_detailed_observation_still_blocks_repair(self) -> None:
+        request = self.build()
+        output_path, output = self.load_browser_output()
+        output["reviewer"]["views"].pop()
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "browser")
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertFalse(report["complete"])
+        self.assertFalse(report["repairEligible"])
 
     def test_negative_drift_missing_cases_and_partial_wave_block_handoff(self) -> None:
         request = self.build()
