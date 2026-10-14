@@ -12,7 +12,8 @@ Use this chat as the Dynamic Workflow coordinator. Preserve product design quali
 - Source baseline: `8a47dab37b0d7e6ffcfce447ad94f686aeae6f98`, version `0.62.3`, clean detached checkout.
 - Integration branch: `codex/workflow-repairs`.
 - The owner approved implementation, isolated writer worktrees, atomic local commits, parent integration and local Development installation.
-- Push, main landing, tags, product deployment, unrelated restarts and worktree deletion remain outside this task.
+- The initial scope excluded publication. The owner later authorized commit, push and formal version renewal. Prepare `v0.63.0` through the source PR route; exact protected-branch landing still follows Source Git Flow.
+- Product deployment, unrelated restarts and worktree deletion remain outside this task.
 - The Dynamic Workflow ledger is [the task run](C:/Users/mps19/.codex/visualizations/2026/10/13/01a134eb-96b4-7410-a5a9-cac068b12238/workflow-repairs/run). No consumer PLAN/RUN or product PRD is created.
 
 ## Requirements And Acceptance
@@ -42,3 +43,5 @@ The 19 audit items map to these outcomes. Historical missing OwnerDirect files a
 | 2026-10-13 WF-02 / WF-05 | UI integration | Opus/high attempt 2 exited successfully in 857 seconds with no permission denials. Integrated the direction reviewer, n/a normalization and author/navigation corrections. Parent checks passed 12 direction tests, 36 legacy reviewer tests, Pyflakes and the range diff check. Browser evidence and the dependent contract join remain pending. |
 | 2026-10-13 early review | `5bcc20aa` | Independent provenance review requested five repairs: Outcome CLI arguments, evidence ref/readback checks, strict target subsets, blocked closeout compatibility and missing strict context. The same author owns the repairs. The literal ledger scope now includes the deployment tests and contract already named by the original packet. Original results and branches remain retained. |
 | 2026-10-13 verification preparation | task evidence | Six baseline browser tests passed. Six synthetic before captures record actual canvas widths of 390, 768 and 1200 CSS pixels. The host helper now returns failure exit status; its real eight-test pass and injected failure were verified by the author and parent. Final candidate checks remain required. |
+| 2026-10-13 integrated repairs | `eebaaf61` | Integrated five provenance review repairs and four diagnostic/direction/operational commits. The author passed 245 provenance and 349 UI tests. The parent standalone diagnostic check failed at import; its earlier PASS evidence string is invalid and retained in the external record. |
+| 2026-10-13 verification correction | worker `c78182bd` | The same author fixed only focused-test imports. Author red/green and the corrected parent command now pass ten actual tests. The original failure remains at its recorded hash. Current Dynamic Workflow files changed externally; fresh host candidates preserve those updates. Formal publication and exact-candidate review remain pending. |
