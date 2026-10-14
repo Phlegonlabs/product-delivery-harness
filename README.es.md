@@ -822,7 +822,7 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
 
-- **0.63.0** — Es un candidato no publicado. Coincide la identidad del navegador del reviewer nativo con el host y conserva las comprobaciones de bridge. Ensambla estudios de dirección en el reviewer compartido con targets y anchos por caso. Une las olas diagnósticas completas a PRD, manifest e identidades de evidencia. Exige release source provenance en los handoffs estrictos de Activation, SEO y Outcome. Aclara authoring solo frontend, navegación versión 3, recuperación del worker, anchos medidos e investigación parcial honesta. La publicación formal y la instalación siguen pendientes.
+- **0.63.0** — Coincide la identidad del navegador del reviewer nativo con el host y conserva las comprobaciones de bridge. Ensambla estudios de dirección en el reviewer compartido con targets y anchos por caso. Une las olas diagnósticas completas a PRD, manifest e identidades de evidencia. Exige release source provenance en los handoffs estrictos de Activation, SEO y Outcome. Aclara authoring solo frontend, navegación versión 3, recuperación del worker, anchos medidos e investigación parcial honesta.
 
 - **0.62.3** — Limita los mensajes completos antes de las escrituras durables. Reduce las entradas y carga las reglas obligatorias por etapa. Separa el inventario del padre y las comprobaciones acotadas del hijo. Corrige las pruebas de propietarios y la limpieza de fixtures de archivo.
 

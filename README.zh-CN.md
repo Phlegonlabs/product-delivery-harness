@@ -822,7 +822,7 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
-- **0.63.0** — 这是未发布候选。让 native reviewer 的浏览器身份对应 host，同时保留 bridge 检查。在共用 reviewer 中组装方向研究，并提供每个案例的 targets 与宽度。把完整 diagnostic wave 连结 PRD、manifest 与 evidence 身分。在 strict Activation、SEO 与 Outcome 交接要求 release source provenance。厘清 frontend-only authoring、version-3 navigation、worker recovery、量测宽度与诚实的部分研究。正式发布与安装仍待完成。
+- **0.63.0** — 让 native reviewer 的浏览器身份对应 host，同时保留 bridge 检查。在共用 reviewer 中组装方向研究，并提供每个案例的 targets 与宽度。把完整 diagnostic wave 连结 PRD、manifest 与 evidence 身分。在 strict Activation、SEO 与 Outcome 交接要求 release source provenance。厘清 frontend-only authoring、version-3 navigation、worker recovery、量测宽度与诚实的部分研究。
 
 - **0.62.3** — 在持久写入前检查完整派工消息大小。缩短 skill 与治理入口，按工作阶段读取完整规则。分开 parent 全局盘点与 child 范围检查。修正规则来源测试与 archive fixture 清理。
 
