@@ -1665,7 +1665,8 @@ def check_activation_text(
     authority_required = require_verified_sources or bool(require_ready) or require_closeout
     require_filled = require_filled or authority_required
     findings: list[str] = []
-    # A caller that already validated the package and Deployment skips a rerun.
+    # package_validated covers only the Product package. Deployment remains
+    # fully checked so an authority entry cannot inherit a stale skip flag.
     if stack_text is not None and not package_validated:
         if repo_root is None:
             findings.append("Product package: stack validation requires repository root")
@@ -1681,17 +1682,16 @@ def check_activation_text(
                 repo_root=repo_root,
             )
         )
-        if require_ready:
-            from check_deployment import check_deployment_text
-            findings.extend(
-                f"Deployment: {item}"
-                for item in check_deployment_text(
-                    deployment_text or "",
-                    architecture_text=architecture_text,
-                    require_source_provenance=True,
-                    strict_target_subset=tuple(require_ready),
-                )
+    if deployment_text is not None and architecture_text is not None:
+        from check_deployment import check_deployment_text
+        findings.extend(
+            f"Deployment: {item}"
+            for item in check_deployment_text(
+                deployment_text,
+                architecture_text=architecture_text,
+                require_source_provenance=False,
             )
+        )
     if authority_required and prd_text is None:
         findings.append("PRD: verified-source handoff requires the current PRD")
     if authority_required and architecture_text is None:
@@ -2260,23 +2260,22 @@ def check_activation_text(
             continue
         findings.append(f"Target Readiness: {target} is not in the active activation scope")
 
-    if require_verified_sources and not require_ready:
-        strict_readiness_targets = tuple(
-            sorted(
-                target
-                for target, row in readiness.items()
-                if row["status"] == "ready"
-            )
+    strict_readiness_targets = set(require_ready)
+    if authority_required:
+        strict_readiness_targets.update(
+            target
+            for target, row in readiness.items()
+            if row["status"] == "ready"
         )
         if strict_readiness_targets:
-            from check_deployment import strict_provenance_findings
+            from check_deployment import check_deployment_text
             findings.extend(
-                f"Target Readiness: {item}"
-                for item in strict_provenance_findings(
-                    deployment_text or "",
-                    architecture_text or "",
-                    deployment_targets,
-                    strict_target_subset=strict_readiness_targets,
+                f"Deployment: {item}"
+                for item in check_deployment_text(
+                    text=deployment_text or "",
+                    architecture_text=architecture_text or "",
+                    require_source_provenance=True,
+                    strict_target_subset=tuple(sorted(strict_readiness_targets)),
                 )
             )
 
