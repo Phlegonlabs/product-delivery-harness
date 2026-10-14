@@ -25,6 +25,37 @@ The tool checks recorded input identities and emits ui-evidence/3 with schema, c
 
 Keep receipts, inspected captures and source artifacts tracked when they are required evidence. Temporary run logs/caches belong outside the product package or under a narrow existing ignore rule. Do not hide canonical HTML, manifests, token sources or evidence with a broad generated-file pattern.
 
+## Diagnostic Wave Completeness
+
+Before one consolidated HiFi repair handoff, verify the independent browser, critique, audit and H1–H9 wave. Run the read-only CLI with installed-command resolution:
+
+    python "<ui-design-builder-skill-root>/scripts/check_ui_diagnostic_wave.py" --repo-root . --request docs/evidence/diagnostic-request.json --request-sha256 <observed-request-digest>
+
+`--request-sha256` is the independently read hash of the complete request bytes. The request uses `ui-diagnostic-wave-request/1`:
+
+```json
+{
+  "schema": "ui-diagnostic-wave-request/1",
+  "subject": {"path": "docs/design/ui-references/run/index.html", "sha256": "<64-lowercase-hex>"},
+  "frozenInputs": {
+    "prd": {"path": "docs/product/PRD.md", "sha256": "<64-lowercase-hex>"},
+    "manifest": {"path": "docs/design/ui-references/run/index.html", "sha256": "<64-lowercase-hex>"}
+  },
+  "requiredCases": [{"surface": "UI-001", "state": "ready", "target": "390"}],
+  "observations": {
+    "browser": {"path": "docs/evidence/browser-receipt.json", "sha256": "<64-lowercase-hex>"},
+    "critique": {"path": "docs/evidence/critique-receipt.json", "sha256": "<64-lowercase-hex>"},
+    "audit": {"path": "docs/evidence/audit-receipt.json", "sha256": "<64-lowercase-hex>"},
+    "grading": {"path": "docs/evidence/grading-receipt.json", "sha256": "<64-lowercase-hex>"}
+  }
+}
+```
+
+Use actual repository paths and observed hashes. `manifest` equals the HiFi HTML subject because the manifest is embedded there; the checker joins child page hashes from that manifest and execution inputs. Before each write, the author rechecks the request and all frozen-input bytes in their own context. The checker changes no bytes, approval record or evidence schema.
+
+Exit 0 means diagnostic completeness only. Complete observed FAIL, low scores and concrete scoreable design blocks may enter one existing consolidated repair batch only under the existing write grant. Missing outputs or cases, unscorable `BLOCKED` or `MISSING`, an absent H dimension, malformed captures, or input drift blocks the dependent handoff regardless of aggregate FAIL. This is not a PASS, Visual Approval or new approval record.
+The existing attempt budget and same-author ownership remain binding.
+
 ## Frontend Design Usage
 
 Under the direction/HiFi handoff, record:
