@@ -14,6 +14,13 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+UI_SCRIPTS = Path(__file__).resolve().parent
+# A caller may remove its temporary copy of this directory after import.
+# Retain our own canonical copy for late sibling imports such as direction_review.
+sys.path.insert(0, str(UI_SCRIPTS))
+# A saved-path restore can remove even our duplicate entry. Preload the late
+# sibling while the canonical bytes are available, so cleanup cannot strand it.
+import direction_review  # noqa: E402
 import check_wireframe_html
 from motion_evidence import motion_findings
 from review_evidence import (
@@ -726,7 +733,6 @@ def _direction_profile_scope_findings(
 
     if scope is None:
         return []
-    import direction_review
     import json as json_module
 
     match = direction_review.PROFILE_RE.search(html)
