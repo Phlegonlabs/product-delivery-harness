@@ -280,6 +280,124 @@ class RetainedObservationTests(unittest.TestCase):
             )
             self.assertTrue(any("newer than deployment" in item for item in late[1]))
 
+    def test_malformed_scalars_and_kind_return_findings_without_raising(self) -> None:
+        invalid_values = (None, [], {}, True, False)
+        fields = ("repository", "source_sha", "observed_at", "kind")
+        for field in fields:
+            for value in invalid_values:
+                with self.subTest(field=field, value=repr(value)):
+                    with tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        value_overrides = {field: value}
+                        if field == "kind" and value in (True, False):
+                            value_overrides["status"] = 0
+                        observation = observation_value(**value_overrides)
+                        relative, digest = write_observation(
+                            root,
+                            observation,
+                            relative_path="malformed.json",
+                        )
+                        result = load(
+                            root,
+                            reference=f"file:{relative}@sha256:{digest}",
+                            expected_hash=digest,
+                        )
+                        self.assertIsNone(result[0])
+                        self.assertTrue(
+                            any("must be a string" in item for item in result[1]),
+                            result[1],
+                        )
+
+    def test_output_members_surrogates_placeholders_and_credentials_fail(self) -> None:
+        nested_output_values = (
+            {"repository": [], "ref": "refs/heads/main", "sha": SHA, "artifact": ARTIFACT},
+            {"repository": "example/project", "ref": {}, "sha": SHA, "artifact": ARTIFACT},
+            {"repository": "example/project", "ref": "refs/heads/main", "sha": True, "artifact": ARTIFACT},
+        )
+        credential_requests = (
+            "https://user:credential@example.com/read",
+            "Authorization: Bearer synthetic-credential",
+            "curl --data password=synthetic-credential",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index, output_value in enumerate(nested_output_values):
+                output = json.dumps(output_value, separators=(",", ":"))
+                observation = observation_value(output=output)
+                relative, digest = write_observation(
+                    root,
+                    observation,
+                    relative_path=f"nested-output-{index}.json",
+                )
+                result = load(
+                    root,
+                    reference=f"file:{relative}@sha256:{digest}",
+                    expected_hash=digest,
+                )
+                self.assertIsNone(result[0])
+                self.assertTrue(
+                    any("retained output" in item and "must be a string" in item
+                        for item in result[1]),
+                    result[1],
+                )
+
+            surrogate = observation_value(repository="\ud800")
+            relative, digest = write_observation(
+                root,
+                surrogate,
+                relative_path="surrogate.json",
+            )
+            result = load(
+                root,
+                reference=f"file:{relative}@sha256:{digest}",
+                expected_hash=digest,
+            )
+            self.assertIsNone(result[0])
+            self.assertTrue(
+                any("valid UTF-8 scalar text" in item for item in result[1]),
+                result[1],
+            )
+
+            placeholder = observation_value()
+            placeholder["readback"]["request"] = "<todo>"
+            relative, digest = write_observation(
+                root,
+                placeholder,
+                relative_path="placeholder.json",
+            )
+            result = load(
+                root,
+                reference=f"file:{relative}@sha256:{digest}",
+                expected_hash=digest,
+            )
+            self.assertIsNone(result[0])
+            self.assertTrue(
+                any("request must be substantive" in item for item in result[1]),
+                result[1],
+            )
+
+            for index, request in enumerate(credential_requests):
+                observation = observation_value()
+                observation["readback"]["request"] = request
+                relative, digest = write_observation(
+                    root,
+                    observation,
+                    relative_path=f"credential-{index}.json",
+                )
+                result = load(
+                    root,
+                    reference=f"file:{relative}@sha256:{digest}",
+                    expected_hash=digest,
+                )
+                self.assertIsNone(result[0])
+                self.assertTrue(
+                    any(
+                        "credential-bearing syntax" in item
+                        for item in result[1]
+                    ),
+                    result[1],
+                )
+
     def test_identity_and_output_joins_fail(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

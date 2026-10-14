@@ -37,6 +37,14 @@ REPOSITORY_RE = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)+$"
 )
 PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|<[^>]+>|\b(?:tbd|todo|placeholder)\b", re.I)
+UTF8_SCALAR_RE = re.compile(r"^[\x20-\x7e\t\n\r\u0080-\uffff]*$", re.A)
+CREDENTIAL_REQUEST_RE = re.compile(
+    r"(?is)"
+    r"(?:^|\r?\n)\s*(?:authorization|proxy-authorization|api-key|x-api-key)\s*:"
+    r"|\bbearer\s+[a-z0-9._~+/=-]{8,}\b"
+    r"|://[^\s/@:]+:[^\s/@]+@"
+    r"|(?:^|[;&\s])(?:password|secret|token|api[_-]?key|access[_-]?key)\s*="
+)
 WINDOWS_DEVICE_NAMES = {
     "con", "prn", "aux", "nul",
     *(f"com{number}" for number in range(1, 10)),
@@ -78,6 +86,18 @@ def _timestamp(value: str) -> datetime | None:
 
 def _substantive(value: str) -> bool:
     return bool(value.strip()) and PLACEHOLDER_RE.search(value) is None
+
+
+def _utf8_scalar(value: str) -> bool:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return UTF8_SCALAR_RE.fullmatch(value) is not None
+
+
+def _has_credential_request(request: str) -> bool:
+    return CREDENTIAL_REQUEST_RE.search(request) is not None
 
 
 def _reject_reference(path_text: str) -> str | None:
@@ -234,35 +254,85 @@ def load_retained_observation(
         findings.append(f"{label}: retained observation fields are not exactly closed")
         return None, findings
 
+    scalar_fields = (
+        "schema", "target", "repository", "source_ref", "resolved_ref",
+        "source_sha", "artifact", "observed_at",
+    )
+    strings: dict[str, str] = {}
+    for field in scalar_fields:
+        value = observation[field]
+        if not isinstance(value, str):
+            findings.append(
+                f"{label}: retained observation {field} must be a string"
+            )
+        elif not _utf8_scalar(value):
+            findings.append(
+                f"{label}: retained observation {field} must be valid UTF-8 "
+                "scalar text"
+            )
+        else:
+            strings[field] = value
+    if len(strings) != len(scalar_fields):
+        return None, findings
+
     readback = observation["readback"]
-    if not isinstance(readback, dict) or set(readback) != READBACK_FIELDS:
+    if not isinstance(readback, dict):
+        findings.append(f"{label}: retained readback must be an object")
+        return None, findings
+    if set(readback) != READBACK_FIELDS:
         findings.append(f"{label}: retained readback fields are not exactly closed")
+        return None, findings
+
+    readback_strings: dict[str, str] = {}
+    for field in ("kind", "request", "output"):
+        value = readback[field]
+        if not isinstance(value, str):
+            findings.append(f"{label}: retained readback {field} must be a string")
+        elif not _utf8_scalar(value):
+            findings.append(
+                f"{label}: retained readback {field} must be valid UTF-8 "
+                "scalar text"
+            )
+        else:
+            readback_strings[field] = value
+    status = readback["status"]
+    if isinstance(status, bool) or not isinstance(status, int):
+        findings.append(f"{label}: retained readback status must be an integer")
+    if len(readback_strings) != 3 or isinstance(status, bool) or not isinstance(
+        status, int
+    ):
         return None, findings
 
     output_text = readback["output"]
     output: dict[str, Any] | None = None
-    if not isinstance(output_text, str):
-        findings.append(f"{label}: retained output must be UTF-8 JSON text")
+    try:
+        output_value = json.loads(
+            output_text,
+            object_pairs_hook=_object_pairs,
+            parse_constant=_reject_constant,
+        )
+    except (ValueError, TypeError):
+        output_value = None
+    if not isinstance(output_value, dict) or set(output_value) != OUTPUT_FIELDS:
+        findings.append(f"{label}: retained output fields are not exactly closed")
     else:
-        try:
-            output_value = json.loads(
-                output_text,
-                object_pairs_hook=_object_pairs,
-                parse_constant=_reject_constant,
-            )
-        except (ValueError, TypeError):
-            output_value = None
-        if not isinstance(output_value, dict) or set(output_value) != OUTPUT_FIELDS:
-            findings.append(f"{label}: retained output fields are not exactly closed")
-        else:
+        output_strings: dict[str, str] = {}
+        for field in OUTPUT_FIELDS:
+            value = output_value[field]
+            if not isinstance(value, str):
+                findings.append(
+                    f"{label}: retained output {field} must be a string"
+                )
+            elif not _utf8_scalar(value):
+                findings.append(
+                    f"{label}: retained output {field} must be valid UTF-8 "
+                    "scalar text"
+                )
+            else:
+                output_strings[field] = value
+        if len(output_strings) == len(OUTPUT_FIELDS):
             output = output_value
 
-    for field in (
-        "schema", "target", "repository", "source_ref", "resolved_ref",
-        "source_sha", "artifact", "observed_at",
-    ):
-        if not isinstance(observation[field], str):
-            findings.append(f"{label}: retained observation {field} must be a string")
     if observation["schema"] != OBSERVATION_SCHEMA:
         findings.append(f"{label}: retained observation schema must be {OBSERVATION_SCHEMA}")
     if observation["target"] != target:
@@ -292,11 +362,14 @@ def load_retained_observation(
 
     kind = readback["kind"]
     request = readback["request"]
-    status = readback["status"]
     if kind not in {"command", "provider"}:
         findings.append(f"{label}: retained readback kind must be command or provider")
     if not isinstance(request, str) or not _substantive(request):
         findings.append(f"{label}: retained readback request must be substantive")
+    if _has_credential_request(request):
+        findings.append(
+            f"{label}: retained readback request contains credential-bearing syntax"
+        )
     if isinstance(status, bool) or not isinstance(status, int):
         findings.append(f"{label}: retained readback status must be an integer")
     elif kind == "command" and status != 0:
