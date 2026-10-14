@@ -38,6 +38,22 @@ def _linked_path(path: Path) -> bool:
                for part in (path, *path.parents))
 
 
+def _reject_input_hard_links(
+    destinations: list[Path], inputs: list[tuple[str, Path]],
+) -> None:
+    """Reject existing outputs that share identity with a read input."""
+
+    for destination in destinations:
+        if not destination.exists():
+            continue
+        for label, input_path in inputs:
+            try:
+                if destination.samefile(input_path):
+                    _fail(f"output {destination} hard links an input: {label}")
+            except OSError:
+                continue
+
+
 def _parse_sources(values: list[str], *, require_entry: bool = True) -> dict[str, Path]:
     sources: dict[str, Path] = {}
     lower_seen: dict[str, str] = {}
@@ -171,6 +187,10 @@ def assemble(
     existing = [path for path in destinations if path.exists()]
     if existing and not overwrite:
         _fail("output files already exist; pass --overwrite to replace them")
+    _reject_input_hard_links(
+        destinations,
+        [("manifest", manifest_path), *sources.items()],
+    )
 
     rendered: dict[str, bytes] = {}
     package_source = json.dumps(
@@ -247,6 +267,10 @@ def assemble_direction(
         _fail("output destination aliases an input or is a link")
     if any(path.exists() for path in destinations) and not overwrite:
         _fail("output files already exist; pass --overwrite to replace them")
+    _reject_input_hard_links(
+        destinations,
+        [("manifest", manifest_path), *sources.items()],
+    )
 
     rendered: dict[str, bytes] = {}
     for row in profile["directions"]:

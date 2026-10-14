@@ -7,6 +7,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -196,6 +197,50 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.assertIn("output destination aliases an input", stderr.getvalue())
         for file in FILES:
             self.assertEqual(self.pages[file], (self.sources / file).read_text(encoding="utf-8"))
+
+    def test_overwrite_rejects_hardlinked_outputs_and_preserves_inputs(self) -> None:
+        self.pages = {"vd-01.html": self.pages["vd-01.html"]}
+        for file, html in self.pages.items():
+            (self.sources / file).write_text(html, encoding="utf-8", newline="")
+        profile = self.profile()
+        manifest = self.root / "direction-review.json"
+        manifest.write_text(json.dumps(profile), encoding="utf-8")
+        self.out.mkdir(parents=True)
+        source = self.sources / "vd-01.html"
+        hard_output = self.out / "vd-01.html"
+        os.link(source, hard_output)
+        source_bytes = source.read_bytes()
+        output_bytes = hard_output.read_bytes()
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+            assemble_ui_review.assemble_direction(
+                manifest, [f"vd-01.html={source}"], self.out, overwrite=True)
+        self.assertIn("hard links an input", stderr.getvalue())
+        self.assertEqual(source_bytes, source.read_bytes())
+        self.assertEqual(output_bytes, hard_output.read_bytes())
+        self.assertTrue(hard_output.samefile(source))
+
+    def test_overwrite_rejects_a_hardlinked_manifest_output(self) -> None:
+        self.pages = {"vd-01.html": self.pages["vd-01.html"]}
+        for file, html in self.pages.items():
+            (self.sources / file).write_text(html, encoding="utf-8", newline="")
+        profile = self.profile()
+        manifest = self.root / "direction-review.json"
+        manifest.write_text(json.dumps(profile), encoding="utf-8")
+        self.out.mkdir(parents=True)
+        hard_output = self.out / "vd-01.html"
+        os.link(manifest, hard_output)
+        manifest_bytes = manifest.read_bytes()
+        output_bytes = hard_output.read_bytes()
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+            assemble_ui_review.assemble_direction(
+                manifest, [f"vd-01.html={self.sources / 'vd-01.html'}"], self.out,
+                overwrite=True)
+        self.assertIn("hard links an input", stderr.getvalue())
+        self.assertEqual(manifest_bytes, manifest.read_bytes())
+        self.assertEqual(output_bytes, hard_output.read_bytes())
+        self.assertTrue(hard_output.samefile(manifest))
 
     def test_existing_studies_are_kept_unless_overwrite_is_explicit(self) -> None:
         self.run_assembly()
