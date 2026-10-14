@@ -1,6 +1,6 @@
 # Workflow Repairs
 
-Status: source repairs integrated through `c27600c7`; draft PR #141 has a failed earlier CI run. Lifecycle fixture repair, exact-candidate review, release checks, main/tag and install remain pending.
+Source checkpoint: repairs integrated through `c27600c7`; draft PR #141 retains the failed earlier CI run. Publication, verification and installation outcomes are recorded in [final-result.json](C:/Users/mps19/.codex/visualizations/2026/10/13/01a134eb-96b4-7410-a5a9-cac068b12238/workflow-repairs/final-result.json).
 
 ## Accepted Outcome
 
