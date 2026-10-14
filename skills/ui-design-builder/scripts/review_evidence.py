@@ -423,6 +423,7 @@ def _diagnostic_wave_data(root, request):
 
     read_identity(root, prd)
     findings: list[str] = []
+    defects: list[str] = []
     loaded = []
     seen_receipts: set[str] = set()
     for role, check in DIAGNOSTIC_CHECKS.items():
@@ -482,21 +483,28 @@ def _diagnostic_wave_data(root, request):
                 findings.append(role + " execution must bind the current PRD, manifest and subject")
             findings.extend(f"{role}: {item}" for item in execution_findings(root, output_json, receipt, subject))
             if role == "browser":
-                from check_ui_design_contract import _bundle_transcript_findings, _hifi_bundle_documents
+                from check_ui_design_contract import (
+                    _bundle_diagnostic_findings, _hifi_bundle_documents,
+                )
                 from hifi_reviewer import (
-                    has_current_reviewer_shell, reviewer_contract, reviewer_evidence_findings,
+                    has_current_reviewer_shell, reviewer_contract,
+                    reviewer_diagnostic_coverage_findings,
                 )
 
                 subject_path = safe_path(root, subject["path"])
                 documents = _hifi_bundle_documents(subject_path, subject_data.decode("utf-8"), parsed_manifest)
-                findings.extend(f"{role}: {item}" for item in _bundle_transcript_findings(output_json, parsed_manifest))
+                coverage, observed_defects = _bundle_diagnostic_findings(output_json, parsed_manifest)
+                findings.extend(f"{role}: {item}" for item in coverage)
+                defects.extend(f"{role}: {item}" for item in observed_defects)
                 if not has_current_reviewer_shell(documents):
                     findings.append(role + " requires the current reviewer shell")
                 else:
                     review_errors, review_contract = reviewer_contract(documents, parsed_manifest)
                     findings.extend(f"{role}: {item}" for item in review_errors)
-                    findings.extend(f"{role}: {item}" for item in
-                                    reviewer_evidence_findings(output_json["reviewer"], review_contract))
+                    coverage, observed_defects = reviewer_diagnostic_coverage_findings(
+                        output_json["reviewer"], review_contract)
+                    findings.extend(f"{role}: {item}" for item in coverage)
+                    defects.extend(f"{role}: {item}" for item in observed_defects)
             else:
                 findings.extend(f"{role}: {item}" for item in assessment_findings(root, output_json, allow_blocks=True))
             canonical = build_receipt(root, output_binding["path"])
@@ -505,7 +513,7 @@ def _diagnostic_wave_data(root, request):
             loaded.append((role, output_json, evidence))
         except (OSError, ValueError, TypeError, KeyError, UnicodeError, json.JSONDecodeError) as exc:
             findings.append(f"{role}: {exc}")
-    return findings, loaded
+    return findings, defects, loaded
 
 
 def diagnostic_wave_findings(root, request):
@@ -517,7 +525,7 @@ def diagnostic_wave_findings(root, request):
 def diagnostic_wave_report(root, request):
     """Report read-only diagnostic completeness; findings never imply acceptance."""
 
-    findings, observations = _diagnostic_wave_data(root, request)
+    findings, observed_defects, observations = _diagnostic_wave_data(root, request)
     if findings:
         return {"schema": DIAGNOSTIC_REPORT_SCHEMA, "complete": False, "repairEligible": False,
                 "status": "blocked", "findings": findings}
@@ -525,8 +533,9 @@ def diagnostic_wave_report(root, request):
     scores = next(output["assessment"]["scores"] for role, output, _ in observations
                   if role == "grading")
     thresholds = (("H2", 90), ("H4", 90), ("H5", 80), ("H7", 80), ("H8", 90), ("H9", 80))
-    defects = [f"grading {name} score {scores[name]} is below the accepted threshold"
-               for name, minimum in thresholds if scores[name] < minimum]
+    defects = list(observed_defects)
+    defects.extend(f"grading {name} score {scores[name]} is below the accepted threshold"
+                   for name, minimum in thresholds if scores[name] < minimum)
     if round(sum(scores.values()) / 9) < 90:
         defects.append("grading overall score is below 90")
     if min(scores.values()) < 60:
