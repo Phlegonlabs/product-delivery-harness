@@ -107,7 +107,13 @@ Trusted-host publication 与 legacy（0.38 以前）run-branch push 都与 repos
 
 </details>
 
-`deployment/2` 纪录新增 Release Source Provenance。每个 architecture target 都要写精确 source ref 与完整 source SHA。Authority evidence 必须包含 repository、ref、SHA、观察时间，以及实际 command 或 provider readback；checker 只读取结构，不执行证据。准备阶段可保留 `pending`，但 strict readiness 要求 source ref、Expected SHA 与 Deployed SHA 一致。Activation 只检查声明的 target；保存的 SEO review 只检查受审 target。Verified-source handoff 检查 target inventory 与每个 ready target。完整 closeout 仍要证明每个 active target，或依 owner 规则记录 concrete n/a。
+`deployment/2` 纪录新增 Release Source Provenance。每个 target 以 hash 绑定一个有界保留 observation JSON：repository、source/resolved ref、source SHA、artifact、观察时间与实际 command/provider output。调用端独立提供 `repo-root` 与 `expected_repository`；symbolic candidate/1 ref 另需 concrete `candidate_ref`。Validator 只读取 bytes，不执行 command 或 fetch provider，hash 只证明完整性而非真实性。Pending 准备与历史检查仍可用。完整 Deployment 检查包含 resource isolation 与 record validity，并为 ready closeout、verified sources、SEO 与 Outcome 把关。明确 target subset 不取代完整 inventory；blocked 与 all-n/a 保留兼容。
+
+Strict symbolic-candidate proof：
+
+```bash
+python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment docs/DEPLOYMENT.md --architecture docs/product/architecture.md --require-source-provenance --repo-root <actualFrozenRepo> --expected-repository <owner/repository> --candidate-ref <candidate-ref>
+```
 
 ## 从这里开始
 
@@ -758,7 +764,7 @@ CI 也会运行端到端主干检查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 <details>
 <summary><b>验证与执行测量：CI、浏览器测试、计时与验收证据</b></summary>
 
-`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。完整 wave 可以回报 FAIL，并在既有授权下符合 repair-eligible。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Outcome 与 SEO checkers 现在把必要的 Product／Stack context 带进 strict Activation checks。
+`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。完整观察到的 FAIL rows 仍是 complete 且可在既有授权下 repair-eligible，但 strict final approval 仍失败。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Direction `--overwrite` 会比较 destination、author sources 与 manifest 的文件身份并拒绝 hardlink，保留输入。Outcome 与 SEO checkers 把必要的 Product／Stack context 带进 strict Activation checks。
 
 ## 验证与执行测量
 

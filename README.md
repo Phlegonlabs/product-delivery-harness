@@ -107,7 +107,13 @@ Trusted-host publication and the legacy pre-0.38 run-branch push both run isolat
 
 </details>
 
-A `deployment/2` record adds Release Source Provenance. Each architecture target names its exact source ref and full source SHA. Authority evidence must show repository, ref, SHA, observation time, and a real command or provider readback; the checker reads that evidence only and never executes it. Pending preparation remains valid, but strict readiness requires the same target ref, expected SHA, and deployed SHA. Activation can check only the claimed targets; a saved SEO review checks its reviewed target. Verified-source handoffs check the target inventory and each ready target. A complete closeout still proves every active target or records a concrete n/a disposition.
+A `deployment/2` record adds Release Source Provenance. Each target binds a bounded retained observation JSON by hash: repository, source and resolved refs, source SHA, artifact, observation time, and actual command or provider output. The caller supplies `repo-root` and `expected_repository` independently; a symbolic candidate/1 ref also needs a concrete `candidate_ref`. The validator reads bytes only, never executes commands or fetches providers, and treats a hash as integrity rather than authenticity. Pending preparation and historical inspection stay valid. Full Deployment checks, including resource isolation and record validity, gate ready closeout, verified sources, SEO, and Outcome. Explicit target subsets do not replace complete inventories; blocked and all-n/a records retain compatibility.
+
+For strict symbolic-candidate proof:
+
+```bash
+python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment docs/DEPLOYMENT.md --architecture docs/product/architecture.md --require-source-provenance --repo-root <actualFrozenRepo> --expected-repository <owner/repository> --candidate-ref <candidate-ref>
+```
 
 ## Start here
 
@@ -758,7 +764,7 @@ CI also runs the end-to-end spine check. In a POSIX shell use `HARNESS_GOLDEN_PA
 <details>
 <summary><b>Verification and measured execution: CI, browser suite, timing and acceptance evidence</b></summary>
 
-`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. A complete wave may report FAIL and be repair-eligible under existing authority. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Outcome and SEO checkers now carry the required Product/Stack context into strict Activation checks.
+`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. Fully observed FAIL rows remain complete and repair-eligible under existing authority, while strict final approval still fails. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Direction `--overwrite` rejects hardlinks after comparing destinations with author sources and the manifest, preserving inputs. Outcome and SEO checkers carry the required Product/Stack context into strict Activation checks.
 
 ## Verification and measured execution
 
