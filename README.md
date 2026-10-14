@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.62.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.63.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -821,6 +821,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.63.0** — This is an unreleased candidate. Match native reviewer browser identity to the host while keeping bridge checks. Assemble direction studies in the shared reviewer with per-case targets and widths. Join complete diagnostic waves to PRD, manifest, and evidence identities. Require release source provenance in strict Activation, SEO, and Outcome handoffs. Clarify frontend-only authoring, version-3 navigation, worker recovery, measured widths, and honest partial research. Formal publication and installation remain pending.
 
 - **0.62.3** — Bound complete dispatch messages before durable writes. Load required stage rules through smaller skill and governance entries. Keep parent inventories and scoped child checks separate. Repair owner assertions and archive fixture cleanup.
 

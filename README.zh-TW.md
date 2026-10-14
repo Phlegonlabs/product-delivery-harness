@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.62.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.63.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -821,6 +821,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.63.0** — 這是未發佈候選。讓 native reviewer 的瀏覽器身分對應 host，同時保留 bridge 檢查。在共用 reviewer 中組裝方向研究，並提供每個案例的 targets 與寬度。把完整 diagnostic wave 連結 PRD、manifest 與 evidence 身分。在 strict Activation、SEO 與 Outcome 交接要求 release source provenance。釐清 frontend-only authoring、version-3 navigation、worker recovery、量測寬度與誠實的部分研究。正式發佈與安裝仍待完成。
 
 - **0.62.3** — 在持久寫入前檢查完整派工訊息大小。縮短 skill 與治理入口，按工作階段讀取完整規則。分開 parent 全局盤點與 child 範圍檢查。修正規則來源測試與 archive fixture 清理。
 
