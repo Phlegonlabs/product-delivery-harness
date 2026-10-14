@@ -1,10 +1,10 @@
 # Workflow Repairs
 
-Status: implementation integrated at `5e9be6fb`; `v0.63.0` candidate verification, PR/main/tag and install remain pending.
+Status: source repairs integrated through `c27600c7`; draft PR #141 has a failed earlier CI run. Lifecycle fixture repair, exact-candidate review, release checks, main/tag and install remain pending.
 
 ## Accepted Outcome
 
-Repair the audited delivery workflow and update the local Development installation.
+Repair the audited delivery workflow, publish `v0.63.0`, and update the local shared skills after release verification.
 Use this chat as the Dynamic Workflow coordinator. Preserve product design quality, existing approvals, model assignments and publication controls.
 
 ## Baseline And Authority
@@ -38,7 +38,7 @@ The 19 audit items map below. Historical missing OwnerDirect files and unavailab
 | 3 | Claude frontend bridge metadata is Opus 5.5/high in staged and current Dynamic no-op bytes. | Same host v2 receipt; live catalog smoke pending. |
 | 4 | Direction studies reuse the shared reviewer with per-case platform targets. | `540e160b` and `44f94f1d`; formal matrix and owner review pending. |
 | 5 | Same-author checkpoints and finite partial recovery are documented. | `8e35c235`; process behavior depends on host dispatch. |
-| 6 | A complete diagnostic wave reports all observed dimensions before repair eligibility. | `932a1ce6`, `eebaaf61`, `0ef642dd`; UI reference route still needs the CLI delta. |
+| 6 | A complete diagnostic wave reports all observed dimensions before repair eligibility. | `932a1ce6`, `eebaaf61`, `0ef642dd` and `d9a37e16`; the CLI route is documented. Exact-candidate review remains pending. |
 | 7 | Diagnostic requests bind PRD, manifest and child hashes; drift or missing input blocks. | Diagnostic tests pass at `0ef642dd`; final matrix pending. |
 | 8 | UI authorship explicitly requires the host `frontend_worker`; the parent cannot author UI. | `8ae95a80`; full review pending. |
 | 9 | Version-2 navigation remains all-pairs; version-3 uses the documented representative set. | `8ae95a80`; browser suite pending. |
@@ -69,3 +69,5 @@ The 19 audit items map below. Historical missing OwnerDirect files and unavailab
 | 2026-10-13 verification correction | worker `c78182bd` | The same author fixed only focused-test imports. Author red/green and the corrected parent command now pass ten actual tests. The original failure remains at its recorded hash. Current Dynamic Workflow files changed externally; fresh host candidates preserve those updates. Formal publication and exact-candidate review remain pending. |
 | 2026-10-13 branch checkpoint | `5e9be6fb` | Parent push of the already committed `codex/workflow-repairs` succeeded. Remote readback was exactly `5e9be6fb08647d4e9b6130c5a171985d97877914`; receipt: [source-push-checkpoint-1.json](C:/Users/mps19/.codex/visualizations/2026/10/13/01a134eb-96b4-7410-a5a9-cac068b12238/workflow-repairs/source-push-checkpoint-1.json). `main` remained unchanged; PR, main/tag and install remain pending. |
 | 2026-10-13 docs checkpoint | current checkpoint | Four README descriptions describe integrated behavior; index and this Epic separate candidate verification from release. UI references still need a diagnostic CLI/request and complete-FAIL-versus-missing delta owned by the evidence author. Final acceptance is owned by [final-result.json](C:/Users/mps19/.codex/visualizations/2026/10/13/01a134eb-96b4-7410-a5a9-cac068b12238/workflow-repairs/final-result.json); it must not be preclaimed PASS. |
+| 2026-10-14 release candidate | `925b5d5c` | Diagnostic reference and 0.63.0 version surfaces are integrated. [Draft PR #141](https://github.com/Phlegonlabs/product-delivery-harness/pull/141) retains the failed CI run. Local focused checks passed, including six browser tests and twelve whole-viewport synthetic captures. The candidate cannot advance on failed required CI. |
+| 2026-10-14 CI repair | `c27600c7` | Integrated discovery isolation as `10c39cab` and canonical UI imports as `c27600c7`. The authors verified 302 Product tests, two loader tests, eight contract joins and the primary golden path. Lifecycle now reaches a stricter provenance gate and exposes an outdated fixture. Repair and fresh candidate checks remain required. |
