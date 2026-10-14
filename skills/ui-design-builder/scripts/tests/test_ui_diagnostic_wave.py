@@ -9,6 +9,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
 from types import SimpleNamespace
 from unittest.mock import patch
 import check_ui_diagnostic_wave as diagnostic_cli
