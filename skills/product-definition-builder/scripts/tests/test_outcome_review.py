@@ -17,16 +17,28 @@ SKILLS_ROOT = SCRIPTS_DIR.parents[1]
 ACTIVATION_TEST_PATH = (
     SKILLS_ROOT / "product-activation" / "scripts" / "tests" / "test_check_activation.py"
 )
+DELIVERY_TEST_PATH = (
+    SKILLS_ROOT / "delivery-harness" / "scripts" / "tests" / "test_deployment_record.py"
+)
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
-DELIVERY_TESTS = SKILLS_ROOT / "delivery-harness" / "scripts" / "tests"
-if str(DELIVERY_TESTS) not in sys.path:
-    sys.path.insert(0, str(DELIVERY_TESTS))
 
 import check_outcome_review  # noqa: E402
-import test_deployment_record as deployment_fixtures  # noqa: E402
 
 
+def _load_fixture_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load fixture module {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+deployment_fixtures = _load_fixture_module(
+    "_outcome_review_delivery_fixtures",
+    DELIVERY_TEST_PATH,
+)
 spec = importlib.util.spec_from_file_location("activation_fixtures", ACTIVATION_TEST_PATH)
 activation_fixtures = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
