@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import _winapi
 from pathlib import Path
 import sys
 import tempfile
@@ -194,6 +193,8 @@ class RetainedObservationTests(unittest.TestCase):
             target_dir.mkdir(parents=True)
             link = target_dir / "linked.json"
             if os.name == "nt":
+                import _winapi
+
                 _winapi.CreateJunction(str(target_dir), str(link))
             else:
                 os.symlink(target_dir, link)
