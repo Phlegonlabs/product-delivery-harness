@@ -100,10 +100,10 @@ class BranchPolicyTests(unittest.TestCase):
         with self.assertRaises(ManifestError):
             archive_ancestry_base(None, run_at("0.59.0"), "c" * 40)
 
-    def test_old_and_malformed_pins_do_not_require_policy_or_marker(self) -> None:
+    def test_valid_historical_pins_do_not_require_policy_or_marker(self) -> None:
         plan = valid_plan()
         with tempfile.TemporaryDirectory() as directory:
-            for version in ("0.58.0", None, "broken", "0.6.0"):
+            for version in ("0.58.0", "0.6.0"):
                 run = valid_run(plan)
                 gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
                 if version is None:

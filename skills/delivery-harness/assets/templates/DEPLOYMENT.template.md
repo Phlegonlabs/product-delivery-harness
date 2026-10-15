@@ -10,13 +10,16 @@ The deployment record for this repository: the platform model, the exact configu
 - Production branch: `main` (receives only the exact verified candidate SHA)
 - Candidate preview: isolated non-production environment bound to the exact candidate SHA; no persistent integration branch
 - Production URL: <url>
+- Preview mechanism: <Workers Previews / Pages Preview / approved isolated alternative>
 - Preview URL pattern: <pattern>
+- Fixed Preview deployment URL / ID: <observed identity>
+- Preview candidate SHA and acceptance: <full SHA, checks, result, checked time>
 - Deployed-commit check: <platform API/CLI command or response header>
 - Protected resources preview must never bind: <databases, buckets, secrets, domains>
 
 ## Release Unit Names
 
-Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`; no release name may appear under two different surfaces. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Record stage-specific provider/channel pairs as the exact `Provider;Exact channel / track` value. Chrome, Firefox, stores, and hosting vendors stay in those provider/channel cells unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, or `windows`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names.
+Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`; no release name may appear under two different surfaces. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Record stage-specific provider/channel pairs as the exact `Provider;Exact channel / track` value. Chrome, Firefox, stores, and hosting vendors stay in those provider/channel cells unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, or `windows`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names. Development is a logical non-production target, not a permanent branch or Worker. Record native Preview names and fixed deployment IDs separately.
 
 | Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
 | --- | --- | --- | --- | --- | --- |
@@ -41,7 +44,7 @@ This is the human configuration handoff. Inventory names and destinations only �
 | --- | --- | --- | --- | --- | --- | --- |
 | <secret or variable name> | <secret or variable> | <runtime, build, CI, or external service> | <fill> | <fill> | <fill> | pending |
 
-Placement means the exact control surface a human opens. Examples: a Cloudflare Worker's named development or production environment; Vercel Project Settings scoped to Preview or Production; or repository Actions secrets for a CI deploy token. Classify browser-exposed configuration as `variable`, not `secret`. Include deploy credentials used by CI as well as application runtime keys.
+Placement means the exact control surface a human opens. Examples: Cloudflare native Preview secrets or an approved named development environment, and production secrets; Vercel Project Settings scoped to Preview or Production; or repository Actions secrets for a CI deploy token. Classify browser-exposed configuration as `variable`, not `secret`. Include deploy credentials used by CI as well as application runtime keys.
 
 ## External Console Setup
 
@@ -59,10 +62,12 @@ Per-platform runbook. The order is fixed: each resource exists before config ref
 
 ### cloudflare
 
+Prefer native Workers Previews with project Wrangler 4.135.0+ and a complete `previews` configuration. Native Previews isolate Durable Objects and Containers. Bind D1/KV/R2 explicitly to non-production resources. Review service-binding, Workflow, Queue, Cron and route limitations; unsupported required journeys remain blocked or use an approved isolated alternative. Version URLs share existing Worker bindings and are not native Previews.
+
 For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Objects). The order is a hard constraint on both sides: create the resource first, then write the declaration — a declaration naming a missing resource fails deploy validation and turns the pipeline red.
 
-1. Create the development-side resource by adding `-dev` to its canonical production resource name, and record its ID. Any ID the wrangler config needs must exist before the declaration is written.
-2. Declare the binding in the development environment (for example `env.development`), deploy the exact candidate branch/SHA there, and verify it on the development URL. Add the binding class row to Resource Isolation.
+1. Create the development-side resource for D1/KV/R2 by adding `-dev` to its canonical production name, and record its ID. Native Previews provision their isolated Durable Object namespace at deployment; record that observed identity instead of precreating it. Any ID the wrangler config needs must exist before the declaration is written.
+2. Declare the binding in the development environment: native `previews`, or `env.development` only for an approved isolated fallback. Then deploy the exact candidate branch/SHA with `wrangler preview` and verify its fixed deployment URL; the fallback uses its recorded command. Add the binding class row to Resource Isolation.
 3. Create the production-side resource. This is an owner action — do not skip it or swap the order.
 4. Add the production declaration (for example `env.production`) to the same candidate lineage. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
 5. Secrets for the new binding: fake or dedicated values on the development worker, real values only in production, never in the wrangler config.
@@ -80,6 +85,7 @@ Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this rec
 - Run branch: <full branch ref>
 - Candidate SHA: <full SHA>
 - Candidate branch pushed and read back: <full SHA | local_only | pending>
+- Preview fixed deployment URL / ID: <observed URL or ID | pending>
 - Candidate environment verification: <PASS/FAIL/not applicable/pending; exact SHA, commands/checks, environment/URL, timestamp, evidence>
 - Main before: <full SHA>
 - Main ancestry/fast-forward proof: <PASS/FAIL/pending>
@@ -102,8 +108,8 @@ These steps are performed by a person with platform access; the Harness never pe
 
 - [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch main`) and run the separately authorized bootstrap deploy.
 - [ ] Add the repository workflow that deploys the exact candidate run branch/SHA to the internal environment and `main` to production.
-- [ ] On Workers, run `wrangler deploy` for `main` and target the named development environment from the exact candidate (`wrangler deploy --env development`, or `wrangler versions upload --env development`).
-- [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with the canonical production resource name plus `-dev` — and bind them through the named development environment with its full binding set declared explicitly; named environments do not inherit bindings.
+- [ ] On Workers, use project Wrangler 4.135.0+ and `wrangler preview` for the exact PR/branch candidate; configure main production separately with `wrangler deploy`. Record an isolated fallback only when native Previews cannot support required journeys.
+- [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with the canonical production resource name plus `-dev` — and bind them explicitly in `previews`. An approved fallback uses a complete named environment; bindings are not inherited.
 - [ ] Confirm a version preview of the production Worker is never used for stateful preview traffic: it shares that Worker's live bindings, so its writes reach production resources.
 - [ ] Store the platform API token as a repository secret; never place it in the repository itself.
 - [ ] Keep preview and production variables and secrets separate in the workflow, exactly as in a git-connected project.
@@ -125,7 +131,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ## Platform Notes
 
-- cloudflare: the exact candidate run branch/SHA targets the isolated preview Worker/environment and `main` targets production.
+- cloudflare: the exact candidate run branch/SHA targets its native Preview, Pages Preview, or approved isolated fallback; `main` targets production. Record the moving branch URL and fixed deployment URL/ID plus exact Git SHA.
 - vercel: the exact candidate run branch supplies the internally verified preview and `main` is production; environment scoping protects production.
 - aws: map the exact candidate run branch to isolated non-production and `main` to production; keep separate backend environments and secrets.
 - generic: record candidate and `main` source roles when supported; otherwise use `manual` with separate authorization and read-back.

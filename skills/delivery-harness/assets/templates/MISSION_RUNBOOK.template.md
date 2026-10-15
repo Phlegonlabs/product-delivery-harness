@@ -12,7 +12,7 @@ Before the first selection, fill `observed.captured_at` and the null observation
 
 A managed-sequential route is selected when fewer than two safe write missions are actually selected. It avoids fan-out-only ceremony but keeps the isolated writer, scope/head, review, and final gates. Two or more safe writers produce `parallel_graph`; this selector output is not persisted. Harness 0.38+ RUNs start and finish `local_only`. `integration_push` remains legacy recovery state only; archive candidate A is published after RUN close through the separate external request/attempt/receipt protocol.
 
-The resolved integration branch is always the exact non-protected run branch from the paired PLAN. `PLAN.branch_policy` freezes the original remote base and its full SHA; later waves re-anchor to the current integration head and never advance that frozen base. `main` is protected, ordinary-flow `development` is protected, and neither is a run-branch target. Protected-branch landing and promotion remain separate post-RUN authorizations.
+The resolved integration branch is always the exact non-protected run branch from the paired PLAN. `PLAN.branch_policy` freezes the original remote base and its full SHA; later waves re-anchor to the current integration head and never advance that frozen base. `main` is protected, existing `development` stays protected from cleanup, and neither is a run-branch target. Protected-branch landing and promotion remain separate post-RUN authorizations.
 
 ## Harness Run State
 
@@ -66,7 +66,7 @@ The resolved integration branch is always the exact non-protected run branch fro
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.62.3",
+          "required_harness_version": "0.63.0",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,

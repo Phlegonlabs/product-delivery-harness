@@ -12,12 +12,7 @@ from markdown_contract import active_text
 
 SECTION_HEADING = "## Release Targets"
 EXPECTED_PREFIX = "Expected deployable surfaces:"
-DUAL_BRANCH_MARKER_RE = re.compile(
-    r"^Release source policy: dual-branch/1\s*$", re.MULTILINE
-)
-RELEASE_MARKER_LINE_RE = re.compile(
-    r"^Release source policy:(?! dual-branch/1\s*$).*$", re.MULTILINE
-)
+RELEASE_MARKER_LINE_RE = re.compile(r"^Release source policy:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 TARGET_HEADING_RE = re.compile(r"^### Release Target:\s*(.*?)\s*$", re.MULTILINE)
 KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SOURCE_POLICY_RE = re.compile(
@@ -149,20 +144,20 @@ def _field_rows(block: str) -> tuple[dict[str, str], list[str]]:
 def _release_marker_protocol(section: str) -> tuple[str, list[str]]:
     """Read one active policy marker; ambiguous or unknown markers fail."""
 
-    dual_count = len(DUAL_BRANCH_MARKER_RE.findall(section))
-    unknown_count = len(RELEASE_MARKER_LINE_RE.findall(section))
+    markers = RELEASE_MARKER_LINE_RE.findall(section)
+    supported = {"dual-branch/1", "main-preview/1"}
     findings: list[str] = []
-    if dual_count > 1:
+    if len(markers) > 1:
         findings.append(
             "architecture: Release Targets must contain at most one "
             "active Release source policy marker"
         )
-    if unknown_count:
+    if any(marker not in supported for marker in markers):
         findings.append(
-            "architecture: the only supported Release source policy marker "
-            "is dual-branch/1; omit the line for the legacy candidate protocol"
+            "architecture: the only supported Release source policy markers "
+            "are dual-branch/1 and main-preview/1; omit the line for the legacy candidate protocol"
         )
-    protocol = "dual-branch/1" if dual_count == 1 and unknown_count == 0 else "candidate/1"
+    protocol = markers[0] if len(markers) == 1 and markers[0] in supported else "candidate/1"
     return protocol, findings
 
 

@@ -1,22 +1,35 @@
-# Dual-Branch Promotion Contract
+# Candidate Preview And Main Promotion Contract
 
 Use this contract after a direct change or managed RUN has produced one fixed, locally verified candidate SHA. For a Harness 0.38+ managed RUN, closeout candidate C is local-only; archive-only child A becomes the release candidate. The archived RUN remains immutable at C. Publishing A to its run branch and promoting A to `main` are separate post-RUN actions with separate action-time authorization.
 
-The repository has three branch roles:
+New delivery uses two branch roles: a temporary candidate branch and protected production `main`.
+PR or branch Preview supplies internal acceptance before main landing. No permanent `development` branch is required.
+The `development` release stage names a non-production target, not a Git branch.
+Existing `development` branches remain untouched and protected from generic RUN cleanup.
 
-- a non-default run or feature branch holds one candidate and remains the managed RUN integration branch; and
-- ordinary flow: `refs/heads/development` is a protected internal release branch and `refs/heads/main` is the protected production branch; and
-- hotfix flow: `refs/heads/main` is both the frozen base and protected production branch, with a later separately authorized forward landing on `development`.
-
-Never delete `main` or `development`. A platform environment named `development` still uses the exact candidate branch or immutable candidate SHA during managed execution and remains separate from production resources. The protected `development` release uses only its verified landing SHA after candidate A passes.
-
-Do not edit or commit directly on `main` or `development`. Promote an exact already-committed SHA. Every fetch, branch creation, ref update, merge, push, external test, and branch deletion keeps its ordinary authorization boundary. Cleanup never deletes either protected branch, including an old-RUN wildcard `delete_branches` grant.
+Do not edit or commit directly on protected branches. Promote an exact already-committed candidate.
+Every fetch, branch creation, ref update, merge, push, external test, and branch deletion keeps its ordinary authorization boundary.
 
 ## Delivery Kind And Base
 
-Classify the work as `initial_delivery`, `enhancement`, or `needs_owner_decision` for product and release semantics. A current managed PLAN declares `branch_policy` with `kind: ordinary` or `hotfix`, the canonical remote base ref, and the observed remote head's full SHA. Ordinary work freezes remote `development`; a hotfix freezes remote `main`. Start the non-default run branch from that frozen base, record the classification, base SHA, complete run-branch name, and any unresolved earlier candidate. A pinned pre-0.59 RUN keeps the main-only semantics recorded with it. Never advance the frozen PLAN base wave by wave, and never use a stale local protected ref as the base.
+Classify delivery as `initial_delivery`, `enhancement`, or `needs_owner_decision`.
+Harness 0.63+ PLANs use `branch_policy.protocol: main-preview/1` and architecture marker `Release source policy: main-preview/1`.
+Both `ordinary` and `hotfix` freeze the observed remote `refs/remotes/<remote>/main` head and its full SHA.
+Cut the owner-resolved temporary branch from that base. Never advance the frozen base between waves.
+Record unresolved earlier candidates; never substitute a stale local main ref for the observed remote head.
 
-Plan-only validation checks an explicit `branch_policy` and active architecture marker together before RUN creation. An absent RUN is not a historical version pin. This structural check grants no execution or promotion; a paired RUN still enforces its version and candidate ancestry.
+Plan-only validation checks an explicit policy and matching active architecture marker before RUN creation.
+An absent RUN is not a historical version pin or execution authority.
+
+## Pinned Historical Delivery
+
+RUNs pinned from 0.59 through 0.62 retain `dual-branch/1` without migration.
+Ordinary work freezes remote `development`, lands verified A there, verifies landing SHA S, then separately promotes S to main.
+A hotfix freezes main, releases A there, then separately forward-integrates A into current development without losing unrelated work.
+Verify the resulting development SHA T and retain its read-back.
+Pre-0.59 pins retain their recorded candidate/main contract. Malformed pins never establish historical compatibility.
+Historical corrections retain their original runtime pin and frozen policy; a new correction source cannot authorize a protocol downgrade.
+Never delete existing main or development branches through a RUN cleanup grant.
 
 ## Managed RUN Archive Before Promotion
 
@@ -46,41 +59,45 @@ Once A is archived or published, its history and evidence are immutable. A faile
 
 ## Promote To Main
 
-For a 0.59+ dual-branch RUN, archival and later archive-candidate publication prove C descends from the frozen `PLAN.branch_policy.base_sha`. Archive creation still binds the exact observed `main` SHA in the receipt and external anchor. A later unrelated move of `main` does not invalidate run-branch publication; protected-branch promotion performs its own fresh exact-target checks. Pre-0.59 archives keep their expected-main ancestry and publication freshness rules. An unforwarded hotfix at `main` does not rewrite an ordinary candidate's frozen development base or waive no-force landing checks.
+Archive and publication prove candidate ancestry from the frozen PLAN base.
+Archive creation also binds its separately observed main SHA; later main movement requires fresh promotion reconciliation.
+Run-branch publication and protected-main landing are separate actions. Publication is required only when Preview builds from the remote branch.
+Retain trusted-host publication receipts and signed evidence; they never authorize protected-main landing.
 
-Run-branch publication of A, protected-development landing, and `main` promotion use different controls on purpose. Publication goes through the trusted host because its signed evidence and v3 receipt are the durable publication state that archive and correction lineage read later (A2 checks the remote pre-state against it). A protected-branch update writes no archive receipt; it is a plain no-force push under its own action-time authorization naming the protected ref, remote, and exact SHA, with fetch and read-back. Promotion does not require prior run-branch publication. Publish A first only when a candidate environment must build from the remote run branch. A publication request, receipt or trusted-host grant never authorizes either protected branch.
+Promotion to main requires all these conditions:
 
-For ordinary flow, land the candidate-gated exact A on protected `development` first. If a required PR server creates landing SHA S, fetch S immediately, require its tree to equal A's tree, and rerun the complete required suite and fresh security review on S; otherwise S is exact A. Freeze S as the full release evidence, then separately authorize promotion of that exact verified SHA to `main`.
+1. The fixed candidate passes every required local, security and applicable isolated Preview gate at its exact SHA.
+2. Preview evidence records the PR or branch, immutable deployment identity, observed URL, deployed SHA and acceptance result.
+3. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base.
+4. Separate action-time authorization names main, remote and exact candidate SHA. Preview or run-branch authority never covers production.
+5. Use the required PR or merge-queue mechanism. A direct authorized update must be a fast-forward to that exact SHA.
+6. Fetch and read back main. If the server creates SHA S, require its tree to equal the verified candidate tree.
+7. Run the complete required suite and fresh security review on any server-created exact SHA before promotion or release completion.
+8. Verify the production deployment and required smoke against the actual main SHA, independently of Preview acceptance.
 
-A hotfix promotes candidate-gated exact A to `main` and verifies production against A. It then forward-integrates A into protected `development` under a separate action-time authorization. This is a no-force merge, not a demand that `development` equal `main`: preserve every unrelated current `development` commit, prove A is ancestry, resolve conflicts on a reviewed candidate, and read back the new development SHA T. A merge commit changes the tree, so rerun the required development gates and fresh security review on exact T before claiming internal-release readiness. Production remains reviewed at A and `main`; development remains T.
-
-Promotion to `main` is allowed only when all of these are true:
-
-1. In ordinary flow, protected `development` already records the fully verified release SHA S. A hotfix requires candidate A at `main`, with forward integration to development complete or separately scheduled as an explicit unresolved owner action.
-2. A fresh fetch proves the remote `main` head still equals its recorded pre-promotion head and the intended release SHA descends from the frozen original base.
-3. Every required local, candidate-environment, and protected-development gate passes on the exact release SHA.
-4. The `main` update is a fast-forward to that exact SHA. A merge, rebase, squash, conflict repair, generated-file change, or server-created commit changes the candidate and invalidates earlier exact-SHA evidence.
-5. Separate action-time authorization names `main`, the remote, and the exact release SHA. Authorization for the run branch, deployment, or `development` does not cover it.
-6. Push without force, fetch/read back remote `main`, and require it to equal the authorized candidate SHA.
-7. Verify production read-only against exact A and run the surface-specific smoke. Hosted-browser UI uses `parity_capture.py` against the production URL. Browser extensions use extension automation; native and desktop targets use platform UI tests or labeled manual device captures. Every capture binds the typed target, artifact, SHA, authority hashes, and production evidence separately from candidate PASS. Only after production verification may activation readiness, verified measurement handoff, outcome review, and SEO pass their own gates. Earlier `product-activation` preparation may configure deployment prerequisites at a fixed implementation SHA under separate exact external-action authorization; it cannot claim readiness.
-
-If branch protection requires a pull request, merge queue, or server-created commit and cannot preserve the candidate SHA, follow that mechanism only under its own authorization after the candidate gate passes. Fetch the resulting protected-branch SHA immediately, require its tree to equal the verified candidate tree, and treat that server-created SHA as the branch's release candidate. Rerun the complete required suite and fresh security review on that exact SHA before promotion, tagging, publishing a release, or claiming completion. A failure is repaired by a new candidate branch and PR; never force-push or rewrite a protected branch to erase the failed landing.
+A moving branch Preview URL is not immutable evidence. Record the fixed deployment URL or identity alongside the Git SHA.
+A new candidate, merge, rebase, squash or conflict repair invalidates earlier exact-SHA evidence.
+Repair a failed landing through a new candidate and reviewed PR; never force-push or rewrite protected history.
+Hosted-browser production uses `parity_capture.py`; native, extension and desktop targets use their platform evidence.
+Activation readiness, outcome review and SEO keep their separate post-production gates and authorization.
+Separately authorized Activation preparation cannot claim release readiness.
 
 ## Protected Branches
 
-`main` and ordinary-flow `development` are permanent protected branches. Cleanup authorization, archive publication, or promotion never deletes either one. A separate destructive decision still cannot make an old RUN grant cover a protected target; a future repository policy change would require a fresh explicit owner instruction and new exact validation.
+Main is the permanent protected production branch. New flow neither creates nor requires development.
+Existing development branches remain protected from RUN integration, publication and cleanup, including old or wildcard grants.
+Removing a policy requirement does not authorize deleting branches or their data.
 
 ## Outcome And Required Evidence
 
-A completed ordinary release leaves the exact verified candidate at protected `development` and then protected `main`. A completed hotfix leaves exact A at `main`; its separately authorized forward integration records a distinct development SHA T containing A plus retained development work. For a managed RUN, the implementation candidate is archive-only commit A. Any candidate-preview evidence names the candidate branch/SHA rather than a protected branch. Report:
+A completed new release has a reviewed candidate, exact-version Preview acceptance when applicable, verified main landing and separate production read-back.
+For a managed RUN, candidate A remains the archive-only child of C. Report:
 
-- delivery kind, run branch, candidate SHA, and candidate-gate results;
-- frozen PLAN base and observed protected-branch heads before and after each landing;
-- protected-development landing SHA S or forward-integration SHA T and read-back when applicable;
-- candidate-environment deployment SHA and smoke results when applicable;
-- `main` authorization source, fast-forward/ancestry proof, push, and read-back;
-- production deployment SHA and smoke result when applicable;
-- post-production activation, outcome-review, and SEO readiness/evidence results when applicable;
-- protected-branch read-back proving both refs remain present.
+- delivery kind, temporary branch, protocol, frozen base and candidate SHA;
+- local checks, independent review and Preview deployment identity, URL, SHA and acceptance;
+- main pre-state, authorization, ancestry, landing SHA and read-back;
+- production build/SHA, smoke and any activation or outcome handoff;
+- for historical dual-branch flow, development landing S or forward-integration SHA T and read-back.
 
-Unexpected remote movement, failed ancestry, non-fast-forward state, different server-created SHA, failed gate, or a missing protected branch stops the operation. Preserve the evidence and ask for an explicit reconciliation plan; never force-push or silently rewrite history.
+Unexpected remote movement, divergence, failed gates or mismatched deployments stop dependent operations.
+Preserve evidence and reconcile explicitly; never force-push or silently rewrite history.

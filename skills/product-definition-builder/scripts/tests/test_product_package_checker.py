@@ -2633,6 +2633,25 @@ Security scope: executable
             any("at most one active Release source policy marker" in item for item in findings)
         )
 
+    def test_main_preview_sources_use_candidate_and_reject_development_branch(self) -> None:
+        preview = release_architecture().replace(
+            "## Release Targets\n",
+            "## Release Targets\n\nRelease source policy: main-preview/1\n",
+        )
+        parsed, findings = parse_release_targets(preview)
+        self.assertEqual([], findings)
+        self.assertEqual("main-preview/1", parsed.source_policy_protocol)
+        wrong_source = preview.replace(
+            "ref=run.integration.branch; sha=run.integration.integration_head_sha",
+            "ref=refs/heads/development; sha=promotion.verified_development_sha",
+        )
+        self.assertTrue(parse_release_targets(wrong_source)[1])
+        mixed = preview.replace(
+            "Release source policy: main-preview/1",
+            "Release source policy: main-preview/1\nRelease source policy: dual-branch/1",
+        )
+        self.assertTrue(parse_release_targets(mixed)[1])
+
     def test_selected_stack_requires_repository_evidence_and_unique_sections(self) -> None:
         selected = valid_stack(status="Selected")
         self.assertTrue(

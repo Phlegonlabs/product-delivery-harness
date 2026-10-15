@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-import re
 import sys
 import tempfile
 import unittest
@@ -43,17 +42,10 @@ def current_release_architecture() -> str:
 
     architecture = release_architecture().replace(
         "## Release Targets",
-        "## Release Targets\n\nRelease source policy: dual-branch/1",
+        "## Release Targets\n\nRelease source policy: main-preview/1",
         1,
     )
-    return re.sub(
-        r"^- Source policy: stage=development; .*$",
-        "- Source policy: stage=development; ref=refs/heads/development; "
-        "sha=promotion.verified_development_sha",
-        architecture,
-        count=1,
-        flags=re.MULTILINE,
-    )
+    return architecture
 
 
 def two_mission_plan() -> dict:

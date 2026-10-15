@@ -56,7 +56,7 @@
 29. 在 staging 撰寫唯一英文 `PRD.md`、`architecture.md` 與 `stack-decisions.md`。
 30. 同步完整 `PRD.zh-TW.md` 與 `architecture.zh-TW.md`；中文供 owner 審閱，英文維持實作權威。
 31. 建立穩定需求、UI、operation、TEST 與 release-target ID，列出完整 journey、states、copy、responsive、accessibility 和 recovery。
-32. Release targets 分開 development／production 身分；新版來源政策明示雙保護分支，preview 保留自身精確 candidate 身分。
+32. Release targets 分開 development／production 身分；新版 main-preview/1 使用 candidate Preview 與 main，不要求永久 development branch。
 33. 依 `DEPLOYMENT.template.md` 建立適用部署 seed；只寫 secret 名稱與目的地，不寫值、不猜實作未決名稱。
 34. 依 `ACTIVATION.template.md` 建立適用 seed，列產品 profiles、metrics／TEST coverage；已有 live Activation 則保留，待後續對帳。
 35. 依 `DOCUMENTS.template.md` 建立或更新文件索引，區分候選、核准、發布及待完成。
@@ -115,8 +115,8 @@
 ## 任務圖、分工與驗收契約
 
 81. 重新觀察 Git、外部變動及文件影響；核對已有授權和目前 host 能力。
-82. 普通新工作從觀察到的 development 切工作分支；hotfix 從 main。首次建立雙分支制度要先明確記錄 bootstrap，不假裝 development 已存在。
-83. development／main 永久保留；worker 與 RUN 都在非保護工作分支，不直接在主軸分支 author。
+82. 新一般工作與 hotfix 都凍結 remote main，以 main-preview/1 切暫時工作分支；歷史 RUN 保留原有 pin。
+83. main 永久保護；現有 development 不自動刪除。Worker 與 RUN 在暫時工作分支 author。
 84. Managed 使用 `HARNESS_PLAN.template.md`，凍結產品、設計、接口、原始 branch base、需求 traces、scope、verifiers 與 stop conditions。
 85. 使用 `MISSION_RUNBOOK.template.md`、`WORKER_GOAL.template.md` 等適用模板建立角色正確且有界的派工；不用空白自由文取代必填契約。
 86. 將每個 mission 拆成小而能獨立驗證的 executable tasks；每個 task 一個初始 atomic commit，不為每一步重新啟動 agent。
@@ -169,18 +169,18 @@
 127. 若需發布工作分支 A，使用另外授權的正式 trusted-host publication request／attempt／receipt，無 force 並 read back exact A。
 128. Archive 後修復保留 A 和原 RUN，走有界 correction continuation；不得改舊 receipt 或重寫歷史。
 
-## development、main 與部署
+## PR／分支 Preview、main 與部署
 
-129. Direct candidate 或 Managed A 完成 development 整合要求後，取得或核對 exact target/SHA landing 授權。
-130. 觀察 development 現況與 ancestry，依 protection 的 PR／merge 機制落地，保留 task commits。
-131. Read back development 的精確 SHA S；server 若產生新 SHA，將它當新候選驗證，不能挪用其他 SHA 的 PASS。
-132. 固定 S 作為 release candidate；development 後續前進不自動擴張此 release。
-133. 對 S 完成必要 release matrix、fresh security 和適用隔離 candidate 部署驗證。
+129. Direct candidate 或 Managed A 完成本機檢查和 exact-SHA review，準備 PR／分支 Preview。
+130. Cloudflare 優先使用 Wrangler 4.135.0+ 原生 Previews；不支援的必要流程需隔離替代方案或保持 blocked。
+131. 記錄 Preview 固定 deployment URL／ID、candidate SHA、資料隔離及實際驗收結果。
+132. 凍結已驗 candidate；分支 Preview URL 後續更新不改寫既有驗收證據。
+133. 完成必要 release matrix、fresh security、migration 與隔離 Preview 驗證。
 134. 完成精確 main promotion 授權與最新 main／ancestry 對帳；drift 或 non-fast-forward 先重新處理，不 force。
 135. 依保護規則將已驗 SHA 升到 main，read back exact 結果；新 server SHA 須 tree equality 與完整 exact-SHA 驗證。
 136. 部署綁定正確 account／project／environment、SHA、artifact 及非 secret config identity；提交成功不等於部署成功。
 137. Read back 真正部署版本並做 production-safe smoke／適用 UI parity；不重播 synthetic fixture 建立或破壞性測試。
-138. Hotfix 正式發布後回整 development，避免後續 release 覆蓋修復。
+138. Hotfix 使用同一 main／Preview 流程，不再要求回整 development；歷史 dual-branch RUN 保留原規則。
 139. 任何 cleanup 都永久排除 development 和 main；其他 branch／worktree 刪除也保留個別授權與依賴檢查。
 
 ## Product Activation：完成外部設定
@@ -230,7 +230,7 @@
 176. CI 統一候選 SHA，保留 Linux／macOS／Windows 的必要覆蓋；排除 feature push／PR 重複 full run，聚合 required gate 不得因 skip 誤綠。
 177. 跨平台長 suite 在獨立 jobs 分片，保留完整 coverage 與每檔 timing；cache 只存相容依賴下載，不存測試 PASS。
 178. 對最終精確候選做獨立 review；修復後新候選重新跑受影響檢查，維持正式 release 所需完整結果。
-179. 依 development／main 流程升版；同一已驗 SHA 不無理由再跑相同 deterministic suite，新 SHA／配置／toolchain 則重新驗證。
+179. 依 main-only 來源維護流程升版；同 SHA 和輸入可保留 deterministic suite 來源，新 SHA／配置／toolchain 則重驗。
 180. 驗證正式 main release commit 後才建立對應 `v<version>` tag；本地未推送成果不宣稱正式發布。
 181. 正式 release 成功且 bundle digest 改變時，在安全載入邊界執行一次正式 installer，保留 backup、rollback 和 byte verification；feature／development push 不自動取代使用中的正式 skills。
 182. 安裝成功且需載入新版才重新啟動相關 host；不恢復已退役的 per-runtime copies，不停止無關 session。

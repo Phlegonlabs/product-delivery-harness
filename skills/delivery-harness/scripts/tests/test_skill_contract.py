@@ -1022,7 +1022,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for phrase in (
             "Production tracks `main`",
             "isolated internal environment tracks the exact candidate run branch",
-            "protected `refs/heads/development` at its verified landing SHA",
+            "PR or branch Preview replaces protected-development landing",
             "A development PASS never proves production",
             "adds no RUN authorization keys",
             "never triggers, rolls back, or reconfigures a deployment",
@@ -1033,7 +1033,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Report the observed non-production or production URL",
             "never construct or guess a URL",
             "Version previews inherit the Worker's existing bindings",
-            "named environments do not inherit bindings",
+            "Named environments do not inherit bindings",
             "`wrangler d1 create <resource-name>-dev`",
             "is a blocker, not a configuration preference",
             "shares live bindings",
@@ -1054,7 +1054,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Promote To Main",
             "Protected Branches",
             "require its tree to equal the verified candidate tree",
-            "exact SHA before promotion",
+            "exact SHA before promotion or release completion",
             "fast-forward to that exact SHA",
             "Every fetch, branch creation, ref update, merge, push, external test, and branch deletion",
             "The archived RUN grants nothing",
@@ -1063,7 +1063,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, promotion)
         self.assertIn("initial-delivery and enhancement run branches", orchestration)
-        self.assertIn("frozen ordinary `development` or hotfix `main` remote head", orchestration)
+        self.assertIn("frozen remote `main` head for both ordinary work and hotfixes", orchestration)
         self.assertIn("## Deployment", project_agents)
         self.assertIn("deployment-contract.md", project_agents)
         self.assertIn(
@@ -1154,7 +1154,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for phrase in (
             "create the non-production resource",
             "deploy the exact candidate branch/SHA",
-            "land that exact verified SHA on protected `development`",
+            "separately land the verified candidate on main",
             "Development secrets stay fake or dedicated",
             "D1 migrations run against the non-production database first",
         ):
@@ -1851,8 +1851,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not own shared state", adapters)
         self.assertIn("ask before branch creation", skill.lower())
         self.assertNotIn("- '**'", ci)
-        self.assertIn("<protected-branch-1>", ci)
-        self.assertIn("<protected-branch-2>", ci)
+        self.assertIn("- main", ci)
+        self.assertNotIn("- development", ci)
         self.assertNotIn("codex/**", ci)
 
     def test_repo_ci_workflow_verifies_every_pushed_branch(self) -> None:
@@ -1865,7 +1865,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.skipTest("repository has no harness-ci workflow")
         content = workflow.read_text(encoding="utf-8")
         self.assertIn("- main", content)
-        self.assertIn("- development", content)
+        self.assertNotIn("- development", content)
         self.assertNotIn("codex/**", content)
         self.assertNotIn("- '**'", content)
         self.assertIn("merge_group:", content)
