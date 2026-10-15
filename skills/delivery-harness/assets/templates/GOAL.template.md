@@ -54,7 +54,7 @@ Stop on requirements conflict, unsupported scope/resource claims, stale plan dig
 - [ ] Provider, observed drivers, selected route, runtime, workspace, and completion channel are recorded consistently.
 - [ ] Plan Readiness passes before implementation begins.
 - [ ] Every needed action is explicitly authorized in RUN; all other ledger entries remain false.
-- [ ] The Harness 0.38+ RUN is verified `local_only` with push false. Archive-only A has exact relocation proof; any run-branch publication has an external request/attempt/receipt and exact read-back. Protected-development landing and `main` promotion each have separate authorization and full exact-SHA evidence.
+- [ ] The Harness 0.38+ RUN is verified `local_only` with push false. Archive-only A has exact relocation proof; any run-branch publication has an external request/attempt/receipt and exact read-back. Candidate Preview acceptance and separately authorized main promotion have full exact-SHA evidence. Historical dual-branch RUNs retain their pinned protected-development landing requirement.
 - [ ] UI evidence and final E2E gates are defined when applicable, including the automated E2E command, current-head check/evidence, target environment, and manual-smoke disposition.
 - [ ] The frozen PLAN branch base, fixed integration base, and post-batch recomputation rule are recorded.
 - [ ] Destructive actions and external writes remain separate approval boundaries.

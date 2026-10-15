@@ -1064,6 +1064,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn(phrase, promotion)
         self.assertIn("initial-delivery and enhancement run branches", orchestration)
         self.assertIn("frozen remote `main` head for both ordinary work and hotfixes", orchestration)
+        state = self.read("references/execution-state-model.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+        for content in (operating, orchestration, state, goal):
+            self.assertIn("main-preview/1", content)
+        self.assertNotIn("freeze the observed remote `development` head for ordinary work", operating)
+        self.assertNotIn("A current managed run uses PLAN `branch_policy` to freeze remote `development`", state)
+        self.assertNotIn("Ordinary flow verifies S on `development`", orchestration)
+        self.assertNotIn("Protected-development landing and `main` promotion each", goal)
         self.assertIn("## Deployment", project_agents)
         self.assertIn("deployment-contract.md", project_agents)
         self.assertIn(
