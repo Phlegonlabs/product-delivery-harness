@@ -3058,19 +3058,22 @@ class SelectReadyNodesTests(unittest.TestCase):
         }
         self.assertIn("runtime_contract_unobserved", deferred["N-M1"])
 
-    def test_legacy_v10_run_without_a_version_gate_must_be_observed(self) -> None:
+    def test_current_run_without_a_version_pin_is_rejected_before_selection(self) -> None:
         plan, run = self._authorized_conflict_free_pair()
         run["runtime_capabilities"]["runtime_adapter"].pop("version_gate")
+        self.assertTrue(validate_run(plan, run))
+        with self.assertRaisesRegex(GraphSelectionError, "PLAN/RUN validation failed"):
+            select_ready_nodes(plan, run)
+
+    def test_legacy_v10_run_without_a_version_gate_remains_readable(self) -> None:
+        plan = valid_graph_plan()
+        plan["schema_version"] = 5
+        run = authorized_parent_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"].pop("version_gate")
+        self.assertEqual(10, run["schema_version"])
         self.assertEqual([], validate_run(plan, run))
-
-        selected = select_ready_nodes(plan, run)
-
-        self.assertEqual([], selected["dispatchable_nodes"])
-        deferred = {
-            item["node_id"]: item["reason_codes"]
-            for item in selected["deferred_nodes"]
-        }
-        self.assertIn("runtime_version_unobserved", deferred["N-M1"])
+        with self.assertRaisesRegex(GraphSelectionError, "typed graph selection requires PLAN v6 with RUN v11"):
+            select_ready_nodes(plan, run)
 
     def test_active_wave_still_defers_new_writer_nodes(self) -> None:
         plan = valid_graph_plan()
