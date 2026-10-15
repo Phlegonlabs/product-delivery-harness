@@ -20,6 +20,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import harness_contract_join as join  # noqa: E402
 import harness_design_contract as design_contract  # noqa: E402
+from harness_schema import version_at_least  # noqa: E402
 
 SKILLS = Path(__file__).resolve().parents[3]
 
@@ -56,16 +57,19 @@ def _run_version(run, version):
     run["runtime_capabilities"]["runtime_adapter"]["version_gate"]["required_harness_version"] = version
 
 
-def _mark_dual_branch(root):
+def _mark_release_policy(root, protocol):
     architecture = root / "docs/product/architecture.md"
     text = architecture.read_text(encoding="utf-8")
-    marker = "## Release Targets\n\nRelease source policy: dual-branch/1\n"
-    if "Release source policy: dual-branch/1" not in text:
+    marker = f"## Release Targets\n\nRelease source policy: {protocol}\n"
+    if f"Release source policy: {protocol}" not in text:
         text = text.replace("## Release Targets\n", marker, 1)
         text = re.sub(
             r"^- Source policy: stage=development; .*$",
-            "- Source policy: stage=development; ref=refs/heads/development; "
-            "sha=promotion.verified_development_sha",
+            "- Source policy: stage=development; " + (
+                "ref=run.integration.branch; sha=run.integration.integration_head_sha"
+                if protocol == "main-preview/1" else
+                "ref=refs/heads/development; sha=promotion.verified_development_sha"
+            ),
             text,
             count=1,
             flags=re.MULTILINE,
@@ -73,23 +77,26 @@ def _mark_dual_branch(root):
     architecture.write_text(text, encoding="utf-8")
 
 
-def _marked_release_architecture(original, *arguments, **keyword_arguments):
+def _marked_release_architecture(original, protocol, *arguments, **keyword_arguments):
     text = original(*arguments, **keyword_arguments)
-    if "Release source policy: dual-branch/1" not in text:
+    if f"Release source policy: {protocol}" not in text:
         text = text.replace(
             "## Release Targets\n",
-            "## Release Targets\n\nRelease source policy: dual-branch/1\n", 1)
+            f"## Release Targets\n\nRelease source policy: {protocol}\n", 1)
         text = re.sub(
             r"^- Source policy: stage=development; .*$",
-            "- Source policy: stage=development; ref=refs/heads/development; "
-            "sha=promotion.verified_development_sha",
+            "- Source policy: stage=development; " + (
+                "ref=run.integration.branch; sha=run.integration.integration_head_sha"
+                if protocol == "main-preview/1" else
+                "ref=refs/heads/development; sha=promotion.verified_development_sha"
+            ),
             text, count=1, flags=re.MULTILINE)
     return text
 
 
 @contextmanager
-def _marked_publications():
-    """Build every test publication with the active dual-branch marker."""
+def _marked_publications(protocol):
+    """Build test publications with the selected version's release marker."""
 
     import test_ui_design_contract as ui_contract_tests
     import test_structure_publication as structure_tests
@@ -99,13 +106,13 @@ def _marked_publications():
 
     def marked_materialization(root, *arguments, **keyword_arguments):
         result = original(root, *arguments, **keyword_arguments)
-        _mark_dual_branch(root)
+        _mark_release_policy(root, protocol)
         return result
 
     import test_harness_strict_authority as harness_tests
     for owner in (harness_tests, product_tests):
         owner.release_architecture = lambda *arguments, **keyword_arguments: (
-            _marked_release_architecture(original_release, *arguments, **keyword_arguments))
+            _marked_release_architecture(original_release, protocol, *arguments, **keyword_arguments))
     for owner in (harness_tests, ui_contract_tests, structure_tests):
         owner.materialize_publication = marked_materialization
     try:
@@ -144,23 +151,24 @@ def _refresh_pair_for_marker(root, design):
     view.write_bytes(render_view(registry_path.read_bytes(), markdown.read_bytes(), root).encode("utf-8"))
 
 
-def _start_dual_branch(root):
+def _start_release_base(root, protocol):
     """Create a real ordinary-flow base before any package bytes exist."""
 
     subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True, timeout=30)
     subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=root, check=True, capture_output=True, timeout=30)
-    (root / ".fixture-base").write_text("observed development base\n", encoding="utf-8")
+    branch = "main" if protocol == "main-preview/1" else "development"
+    (root / ".fixture-base").write_text(f"observed {branch} base\n", encoding="utf-8")
     subprocess.run(["git", "add", ".fixture-base"], cwd=root, check=True, capture_output=True, timeout=30)
     subprocess.run(["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
                     "commit", "-qm", "base"], cwd=root, check=True, capture_output=True, timeout=30)
     base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
                           capture_output=True, text=True, timeout=30).stdout.strip()
-    subprocess.run(["git", "update-ref", "refs/remotes/origin/development", base], cwd=root,
+    subprocess.run(["git", "update-ref", f"refs/remotes/origin/{branch}", base], cwd=root,
                    check=True, capture_output=True, timeout=30)
     return base
 
 
-def _freeze_dual_branch(plan, run, root, base):
+def _freeze_release_base(plan, run, root, base, protocol):
     """Commit the real candidate and bind its ancestry to the frozen base."""
 
     subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True, timeout=30)
@@ -169,9 +177,9 @@ def _freeze_dual_branch(plan, run, root, base):
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
                           capture_output=True, text=True, timeout=30).stdout.strip()
     plan["branch_policy"] = {
-        "protocol": "dual-branch/1",
+        "protocol": protocol,
         "kind": "ordinary",
-        "base_ref": "refs/remotes/origin/development",
+        "base_ref": "refs/remotes/origin/main" if protocol == "main-preview/1" else "refs/remotes/origin/development",
         "base_sha": base,
     }
     run["integration"]["batch_base_sha"] = base
@@ -223,9 +231,10 @@ class FrozenPackageJoinTests(unittest.TestCase):
 
     def fixture(self, root, *, pin="0.59.0", preview=True):
         legacy, showcase_tests, _ = _fixtures()
-        base = _start_dual_branch(root)
+        protocol = "main-preview/1" if version_at_least(pin, (0, 63, 0)) else "dual-branch/1"
+        base = _start_release_base(root, protocol)
         # Rebuild the UI package as ui-design/3 with a real design-system/4 pair.
-        with _marked_publications(), _sibling_paths():
+        with _marked_publications(protocol), _sibling_paths():
             plan, run, _ = legacy.StrictAuthorityJoinTests._ui_fixture(root, required=False)
             _, design, hifi = showcase_tests.PairIntegrationTests.build(None, root)
         _refresh_pair_for_marker(root, design)
@@ -237,7 +246,7 @@ class FrozenPackageJoinTests(unittest.TestCase):
             f"Compiled design system pair: docs/design/design-system.md @ sha256:{digest[markdown]} "
             f"and docs/design/design-system.json @ sha256:{digest[registry]}"), encoding="utf-8")
         view = design / "design-system-preview.html"
-        _freeze_dual_branch(plan, run, root, base)
+        _freeze_release_base(plan, run, root, base, protocol)
         paths = {"prd": root / "docs/product/PRD.md", "architecture": root / "docs/product/architecture.md",
                  "stack decisions": root / "docs/product/stack-decisions.md", "ui design": ui,
                  "approved ui target": hifi, "design system": markdown, "design system json": registry}
@@ -249,6 +258,20 @@ class FrozenPackageJoinTests(unittest.TestCase):
             trace["source_ids"] = ["SRC-0"]
         _run_version(run, pin)
         return plan, run, view, legacy
+
+    def test_current_and_legacy_packages_bind_their_own_release_policy(self):
+        from manifest_fixtures import eval_exempt_product_fixture
+        for pin, protocol, branch in (
+            ("0.62.3", "dual-branch/1", "development"),
+            ("0.63.0", "main-preview/1", "main"),
+        ):
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                with _sibling_paths(), eval_exempt_product_fixture():
+                    plan, run, _, _ = self.fixture(root, pin=pin)
+                self.assertEqual(protocol, plan["branch_policy"]["protocol"])
+                self.assertEqual(f"refs/remotes/origin/{branch}", plan["branch_policy"]["base_ref"])
+                self.assertEqual([], join.validate_frozen_contract_joins(plan, root, run=run))
 
     def test_new_full_ui_needs_ui_design_three_and_its_frozen_html(self):
         with tempfile.TemporaryDirectory() as directory:

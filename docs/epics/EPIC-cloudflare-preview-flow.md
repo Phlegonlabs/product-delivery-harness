@@ -44,6 +44,8 @@ Source AGENTS intentionally keeps its source-only Git and deployment exceptions.
 | Implement version-pinned main/Preview routing | PREVIEW-01–05; validators, templates, CI, live workflow and four READMEs; UI none | Working-tree candidate based on `8a47dab3`; detailed evidence in the linked result below | 388 affected Harness/CI tests, 300 Product Definition tests, new Preview archive test, four legacy dual-branch archive tests and archive-move smoke passed |
 | Retain failed diagnostics and recovery | New strict version rules exposed five fixtures without version pins; two follow-up fixture/CI assertions also needed repair | External logs retain the original failures. A combined supplemental run reached its 420-second deadline and its owned process tree exited | Completed focused groups replace no release obligation; full release matrix remains pending |
 | Repair retained dual-branch instructions after independent review | One P2 finding across five locations in operating rules, lifecycle, orchestration and GOAL checklist | Candidate `5de8434c` received security PASS but holistic changes requested; follow-up working-tree repair retains historical pins | Add focused contract checks and obtain fresh review on the repaired commit; final outcome remains in the linked receipt |
+| Owner requests push, release and installation | Explicit 2026-10-14 instruction covers the existing 0.63.0 candidate and required release repairs | Baseline `50e9e181`; remote main observed at `8a47dab3`; release receipt linked below | Full release verification and installation remain pending |
+| Repair current golden-path fixture | Enabled release spine rejected a 0.63 RUN because the synthetic package still used dual-branch/1 | Working-tree fixture now selects its marker, source rows and frozen remote base from the pin | Preserve 0.62 dual-branch coverage; rerun golden path and complete CI before release |
 
 ## Results And Remaining Work
 
@@ -53,3 +55,5 @@ Formal release, installation and migration of existing consumer repositories are
 
 The exact candidate, independent review and final outcome are authoritative in [preview-flow-result.md](C:/Users/mps19/.codex/visualizations/2026/10/15/01a13d9d-64d7-7fa2-97fe-73d39b523f32/preview-flow-result.md).
 The linked receipt is written after the fixed candidate review; this checkpoint does not predeclare its result.
+
+Release and installation follow-up is authoritative in [release-0.63.0-result.md](C:/Users/mps19/.codex/visualizations/2026/10/15/01a13d9d-64d7-7fa2-97fe-73d39b523f32/release-0.63.0-result.md).
