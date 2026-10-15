@@ -399,6 +399,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
                 "capability_probe": native_capability_probe(subagents=True),
+                "version_gate": current_version_gate(),
             }
             run["observed"]["git"].update(
                 {

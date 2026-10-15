@@ -1587,6 +1587,7 @@ class GraphManifestTests(unittest.TestCase):
             "available_drivers": ["sequential_parent"],
             "detection_source": "observed",
             "capability_probe": native_capability_probe(),
+            "version_gate": current_version_gate(),
         }
         for action in (
             "spawn_subagents",
@@ -2389,6 +2390,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["sequential_parent"],
             "detection_source": "observed",
+            "version_gate": current_version_gate(),
         }
         run["integration"]["batch_base_sha"] = None
 

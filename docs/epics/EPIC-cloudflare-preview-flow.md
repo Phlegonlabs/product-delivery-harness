@@ -46,6 +46,7 @@ Source AGENTS intentionally keeps its source-only Git and deployment exceptions.
 | Repair retained dual-branch instructions after independent review | One P2 finding across five locations in operating rules, lifecycle, orchestration and GOAL checklist | Candidate `5de8434c` received security PASS but holistic changes requested; follow-up working-tree repair retains historical pins | Add focused contract checks and obtain fresh review on the repaired commit; final outcome remains in the linked receipt |
 | Owner requests push, release and installation | Explicit 2026-10-14 instruction covers the existing 0.63.0 candidate and required release repairs | Baseline `50e9e181`; remote main observed at `8a47dab3`; release receipt linked below | Full release verification and installation remain pending |
 | Repair current golden-path fixture | Enabled release spine rejected a 0.63 RUN because the synthetic package still used dual-branch/1 | Working-tree fixture now selects its marker, source rows and frozen remote base from the pin | Preserve 0.62 dual-branch coverage; rerun golden path and complete CI before release |
+| Repair full-CI fixture assumptions | PR #142 run `38683014428` exposed three positive scheduler/E2E fixtures without explicit pins and three stale prose assertions | CI logs retained outside the repository; only synthetic fixtures/assertions change, strict validators stay intact | Rerun affected suites and the full release matrix on a new candidate; interrupted ec8fcade review is incomplete, not PASS |
 
 ## Results And Remaining Work
 
