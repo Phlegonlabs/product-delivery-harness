@@ -5735,7 +5735,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         and plan.get("schema_version") == 6
         and branch_policy_required(run)
     ):
-        errors.extend(validate_branch_policy_shape(plan))
+        errors.extend(validate_branch_policy_shape(plan, run=run))
     # The 0.55.0 shape checks skip only a pin that parses below 0.55.0; a
     # null or malformed pin gets the strict checks.
     parsed_pin = parse_harness_version(required_harness_version)

@@ -87,7 +87,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
         self.tearDown()
         self.assertFalse(remote.exists())
 
-    def _fixture(self, *, dual_branch: bool = False) -> dict[str, Path | str]:
+    def _fixture(self, *, dual_branch: bool = False, main_preview: bool = False) -> dict[str, Path | str]:
         """Create one real archive A with a bare remote and closed receipt."""
         from manifest_fixtures import git as fixture_git, manifest_markdown, mark_complete, valid_plan, valid_run
         holder = tempfile.TemporaryDirectory()
@@ -101,15 +101,17 @@ class ArchiveFirstPushTests(unittest.TestCase):
         product = root / "docs/product"
         product.mkdir(parents=True)
         architecture = release_architecture()
+        if main_preview:
+            architecture = architecture.replace("## Release Targets\n", "## Release Targets\n\nRelease source policy: main-preview/1\n")
         if dual_branch:
             architecture = architecture.replace("## Release Targets\n", "## Release Targets\n\nRelease source policy: dual-branch/1\n")
             architecture = re.sub(r"^- Source policy: stage=development; .*$",
                 "- Source policy: stage=development; ref=refs/heads/development; sha=promotion.verified_development_sha",
                 architecture, count=1, flags=re.MULTILINE)
         approved_prd, approved_architecture, approved_stack = strictize_approved_package(
-            valid_prd(), architecture, valid_stack()
+            mf.eval_exempt_prd(valid_prd()) if main_preview else valid_prd(), architecture, valid_stack()
         )
-        version = "0.59.0" if dual_branch else "0.38.0"
+        version = "0.63.0" if main_preview else "0.59.0" if dual_branch else "0.38.0"
         files = {
             "PRD.md": approved_prd,
             "architecture.md": approved_architecture,
@@ -148,9 +150,9 @@ class ArchiveFirstPushTests(unittest.TestCase):
         fixture_git(root, "add", "docs/product", "docs/DOCUMENTS.md")
         fixture_git(root, "commit", "-qm", "freeze sources")
         expected_main = fixture_git(root, "rev-parse", "HEAD")
-        if dual_branch:
-            plan["branch_policy"] = {"protocol": "dual-branch/1", "kind": "ordinary",
-                "base_ref": "refs/remotes/origin/development", "base_sha": expected_main}
+        if dual_branch or main_preview:
+            plan["branch_policy"] = {"protocol": "main-preview/1" if main_preview else "dual-branch/1", "kind": "ordinary",
+                "base_ref": "refs/remotes/origin/main" if main_preview else "refs/remotes/origin/development", "base_sha": expected_main}
             run["plan"]["digest_sha256"] = fixture_plan_digest(plan)
         fixture_git(root, "branch", "codex/test", expected_main)
         fixture_git(root, "checkout", "-q", "codex/test")
@@ -165,7 +167,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
         }
         run["integration"].update({"branch": "codex/test", "batch_base_sha": expected_main, "integration_head_sha": expected_main})
         run["landing"]["continuity"].update({"branch_ref": "refs/heads/codex/test", "head_sha": expected_main})
-        if dual_branch:
+        if dual_branch or main_preview:
             from role_contract_fixtures import native_reviewer_binding
             run["runtime_capabilities"]["runtime_adapter"]["role_bindings"] = {"reviewer": native_reviewer_binding()}
         (docs / "goal" / "PLAN.md").write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
@@ -338,6 +340,14 @@ class ArchiveFirstPushTests(unittest.TestCase):
         git(root, "add", ".")
         git(root, "commit", "-qm", "next archive A")
         return root, archive, git(root, "rev-parse", "HEAD")
+
+    def test_main_preview_archive_verifies_without_development_branch(self):
+        fixture = self._fixture(main_preview=True)
+        result = subject.verify_archive_candidate(
+            fixture["root"], archive_path=fixture["archive"], candidate_a=fixture["candidate_a"]
+        )
+        self.assertIsNone(result["replacement_base"])
+        self.assertNotIn("refs/heads/development", git(fixture["root"], "for-each-ref", "--format=%(refname)").splitlines())
 
     def test_dual_branch_landed_archive_is_outside_next_ordinary_lineage(self):
         fixture = self._fixture(dual_branch=True)

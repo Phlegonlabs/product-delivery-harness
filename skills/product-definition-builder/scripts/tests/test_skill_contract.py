@@ -1036,20 +1036,20 @@ async function agent(_prompt, options) {
             skill,
         )
         self.assertIn("## Candidate-to-Production Release Pattern", architecture)
-        self.assertIn("never default to one silently", architecture)
+        self.assertIn("resolve the platform before drafting", architecture)
         self.assertIn("AskUserQuestion", agent)
         self.assertIn("one repository and one codebase", architecture)
-        self.assertIn("separately named development and production Workers", frontend)
-        self.assertIn("Candidate branch/ref", contract)
-        self.assertIn("Exact protected-development release SHA", contract)
-        self.assertIn("exact hotfix A at remote `main`", contract)
-        self.assertIn("Ordinary managed work freezes remote `development`", skill)
+        self.assertIn("native Workers Previews and production", frontend)
+        self.assertIn("Exact PR/branch candidate", contract)
+        self.assertIn("Verified main landing SHA", contract)
+        self.assertIn("main-preview/1", contract)
+        self.assertIn("Both ordinary work and hotfixes freeze remote main", skill)
         self.assertIn("candidate run branch/SHA", architecture)
         self.assertIn(
             "Source policy: [`stage=development; ref=run.integration.branch; ",
             contract,
         )
-        self.assertIn("dual-branch governance", agent)
+        self.assertIn("main-preview/1", agent)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
@@ -1060,11 +1060,9 @@ async function agent(_prompt, options) {
         platform = frontend.split("### Any Platform", 1)[1].split("### Cloudflare", 1)[0]
 
         self.assertIn("output-contract.md#release-targets", platform)
-        self.assertIn("Release source policy: dual-branch/1", platform)
-        self.assertIn("`refs/heads/development`", platform)
-        self.assertIn("`promotion.verified_development_sha`", platform)
-        self.assertIn("without that marker, legacy development", platform)
-        self.assertIn("exact candidate run branch/SHA", platform)
+        self.assertIn("Release source policy: main-preview/1", platform)
+        self.assertIn("Historical dual-branch/1 packages retain", platform)
+        self.assertIn("exact candidate PR/branch SHA", platform)
         self.assertIn("`refs/heads/main`", platform)
         self.assertIn("`promotion.verified_main_sha`", platform)
         self.assertIn("separately authorized", platform)
@@ -1820,6 +1818,20 @@ async function agent(_prompt, options) {
         result = self.run_workflow(unknown)
         self.assertFalse(result["ok"])
         self.assertIn("candidate/1 or dual-branch/1", result["error"])
+
+    def test_graph_defaults_to_main_preview_and_keeps_explicit_legacy(self) -> None:
+        for protocol in (None, "main-preview/1", "candidate/1"):
+            args = self.base_workflow_args()
+            if protocol is not None:
+                args["release_source_policy"] = protocol
+            result = self.run_workflow(args)
+            self.assertTrue(result["ok"], result)
+            synthesis = next(call["prompt"] for call in result["calls"] if call["role"] == "synthesis")
+            self.assertIn('"release_source_policy":"' + (protocol or "main-preview/1") + '"', synthesis.replace(" ", ""))
+        args = self.base_workflow_args()
+        args["release_source_policy"] = "main-preview/1"
+        args["release_targets"][0]["source_policy"] = DUAL_DEV_SOURCE_POLICY
+        self.assertFalse(self.run_workflow(args)["ok"])
 
     def test_migration_order_drops_plan_v5_field_mapping(self) -> None:
         architecture = self.read("references/architecture-playbook.md")

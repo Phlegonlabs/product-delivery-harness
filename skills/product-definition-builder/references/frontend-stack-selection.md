@@ -88,7 +88,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 ### Any Platform
 
-- Use one codebase with separately named development and production environments. Follow [Release Targets](output-contract.md#release-targets): with `Release source policy: dual-branch/1`, development builds from `refs/heads/development` at `promotion.verified_development_sha`; without that marker, legacy development builds from the exact candidate run branch/SHA. Production builds from `refs/heads/main` at `promotion.verified_main_sha` after the required exact-candidate checks, separately authorized protected-main promotion and readback. Use isolated non-production bindings, data, auth and sandbox payment credentials in development.
+- Use one codebase and isolated non-production/production targets. Follow [Release Targets](output-contract.md#release-targets). New packages use `Release source policy: main-preview/1`: development is the exact candidate PR/branch SHA. Production uses `refs/heads/main` and `promotion.verified_main_sha` after separately authorized promotion and readback. Freeze remote main for ordinary work and hotfixes. Keep logical release names separate from provider-generated Preview identities. Historical dual-branch/1 packages retain their protected-development source and runtime pin. Isolate bindings, data, auth and sandbox payments.
 - Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
 - Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `stack-decisions.md`.
 
@@ -99,9 +99,9 @@ Verify these rules against current official documentation on the date the PRD is
 3. Use React + Vite for an interaction-heavy SPA when client rendering is intentional. Define SPA asset fallback and the Worker API/auth boundary.
 4. Use Astro + React islands when most pages are content-led and only named regions need hydration.
 5. If SSR or full-stack React conventions are needed, select a framework that current Cloudflare docs support rather than assuming a build tool supplies routing, data loading, caching, or server behavior.
-6. For Worker-backed apps, document the `compatibility_date`, runtime compatibility flags, bindings, secrets, asset routing, local preview path, and build environment requirements. Every stateful binding class gets separately created production and development resources, recorded as two ID sets in the deployment record's Resource Isolation table; the development resource name derives from its canonical production resource name plus `-dev`.
+6. For Worker-backed apps, document the `compatibility_date`, flags, bindings, secrets, asset routing, local preview and build requirements. Explicitly create separate D1/KV/R2 resources and record both ID sets in Resource Isolation. Native Previews provision isolated Durable Objects and Containers; record their observed IDs. An approved named-environment fallback declares all bindings explicitly.
 7. If authentication or middleware must run before protected assets, explicitly verify asset routing/order; never assume frontend route guards provide authorization.
-8. Use one codebase with separately named development and production Workers, following the Any Platform promotion rule above.
+8. Use one codebase with native Workers Previews and production, or an approved isolated alternative, following the Any Platform promotion rule above.
 9. Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each Worker.
 
 ### Vercel, AWS, and Self-Hosted

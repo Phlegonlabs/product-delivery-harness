@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-      - development
   workflow_dispatch:
     inputs:
       candidate_sha:
@@ -23,7 +22,7 @@ permissions:
 
 # Feature pushes are deliberately absent: a feature branch is verified once by
 # its pull_request run. Manual releases are grouped by immutable SHA, so later
-# development pushes cannot cancel or replace an exact-candidate release run.
+# later branch pushes cannot cancel or replace an exact-candidate release run.
 concurrency:
   group: >-
     ${{ github.workflow }}-${{

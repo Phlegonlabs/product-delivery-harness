@@ -35,7 +35,7 @@ class CICandidateGateTests(unittest.TestCase):
         self.assertIn("pull_request:", trigger)
         self.assertIn("merge_group:", trigger)
         self.assertIn("- main", trigger)
-        self.assertIn("- development", trigger)
+        self.assertNotIn("- development", trigger)
         self.assertNotIn("- '**'", trigger)
 
     def test_all_events_share_one_canonical_candidate(self) -> None:

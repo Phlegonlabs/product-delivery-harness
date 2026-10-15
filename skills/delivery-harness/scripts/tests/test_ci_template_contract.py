@@ -22,8 +22,8 @@ class ProjectCITemplateContractTests(unittest.TestCase):
         triggers = self.template.split("permissions:", 1)[0]
         self.assertIn("pull_request:", triggers)
         self.assertIn("merge_group:", triggers)
-        self.assertIn("<protected-branch-1>", triggers)
-        self.assertIn("<protected-branch-2>", triggers)
+        self.assertIn("- main", triggers)
+        self.assertNotIn("- development", triggers)
         self.assertIn("workflow_dispatch:", triggers)
         self.assertNotIn("- '**'", triggers)
 

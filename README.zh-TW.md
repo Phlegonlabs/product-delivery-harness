@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.62.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.63.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -537,9 +537,11 @@ Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，�
 - **Parity 靠實拍，不靠記憶。** hosted-browser surface 逐 route×viewport×state capture；extension、native 與 desktop app 使用平台工具或明確的人工 capture，不能拿 hosted URL 代替。任何未支援的 required group 都讓結果成為 partial、不可作 gate。每列綁定 Git blob、authority hash、baseline、capture method、trusted launcher identity 與 layout result。 截圖檔名包含完整 surface/route/breakpoint/state tuple 的 SHA-256，避免名稱正規化或大小寫不敏感的路徑合併不同證據。
 - **讀規則是強制的。** 種子化的專案 `AGENTS.md` 要求：受管工作前必讀已安裝的 `delivery-harness` SKILL.md，影響產品的直接工作前必讀受影響的 PRD 段落；跳過即 blocking review finding。
 - **程式安全是全新的最終審查。** 所有 code PLAN 都必須執行 `code-security-review`；`not_applicable` 只允許窄範圍的純文件工作。實際 candidate path 必須落在 mission/security scope，且永遠不能帶入 parent coordination files。專案要求的 security commands 是 graph 排序的 host 或 container verifiers；review 前會核對 exact current-head execution key。PASS 必須綁 exact SHA、完整 coverage、零 exclusion，且不可沿用舊結果。
-- **Release source 採用 dual-branch policy。** 0.59+ managed PLAN 會在 ordinary work 凍結 remote `development`、在 hotfix 凍結 remote `main`，再使用 non-protected run branch。Harness 0.38+ RUN 在 C 以 local-only 關閉，不能由 RUN push。A 的授權 publication 必須同時帶 pre-archive external anchor、immutable request/attempt/receipt 與 trusted-host/human boundary；candidate gates 通過後，ordinary flow 先把精確 A 落到受保護的 `development`，再將完整驗證的 SHA 升級到受保護的 `main`；hotfix 則先升級 A 到 `main`，再 no-force forward-integrate 到現有 `development`，並驗證保留 development work 的 SHA T。兩個 protected branch 都永不刪除。若 A 之後的 candidate/preview evidence 失敗，在同一個 non-default branch 以精確 A 建立新的 PLAN/RUN continuation，保留 branch policy，匯入既有 verified scope 與 repair、把 A records 綁為歷史輸入，關閉 C2、以新 anchor 收檔 A2；不能改寫 A history 或重用舊 records。已 publication 的 A 要求 A2 remote pre-state 精確等於 A；未 publication 的 A 則必須維持 absent。
+- **Release source 改用分支 Preview，再進 main。** 新版 0.63+ 使用 `main-preview/1`。一般功能與 hotfix 都凍結 remote main，使用暫時工作分支，完成精確 candidate 的審查與 PR／分支 Preview 驗收，再另行授權合併 protected main 並驗證正式部署。不再要求永久 development 分支。Managed RUN 仍在 C 以 local-only 關閉；archive A、trusted-host publication 與 main 授權保持分開。歷史 RUN 和 correction lineage 保留原有版本規則；這次更新不刪除既有分支。
 
-前端選型指南依明確的 release-source 協定記錄來源：`dual-branch/1` 使用已驗證的受保護 development SHA，舊協定使用 candidate branch/SHA。兩者的 production 都需要另行授權並驗證 main promotion。
+Cloudflare 優先使用原生 Workers Previews：專案 Wrangler 4.135.0+、`wrangler preview`，記錄固定 deployment URL／ID 與精確 SHA。D1／KV／R2、secret、登入與付款需明確隔離。Service binding、Workflow、Queue、Cron 或 route 的必要流程若受限制，改用隔離方案或保持 blocked。Pages Preview 仍需 owner 選用。
+
+前端 release source 以明示 `main-preview/1` 標記連接 candidate Preview 與已驗證 main。歷史 dual-branch/1 與無標記 candidate/1 保留原有語意。
 
 建立 RUN 前，只有 PLAN 的驗證會一起檢查明示的分支政策及 architecture 標記。缺少 RUN 不代表舊版本固定，也不授予執行權限。
 
@@ -750,7 +752,7 @@ CI 也會執行端到端主幹檢查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 
 CI 會先安裝釘選的 Node／Playwright 套件與 Chromium，再執行必要的 reviewer 瀏覽器測試；缺少相依套件會失敗。本機要執行同樣檢查，先跑 `npm ci` 與 `npx playwright install chromium`，設定 `PDH_REQUIRE_BROWSER_TESTS=1`，並讓 `PLAYWRIGHT_MODULE` 指向此 checkout 的 `node_modules/playwright`，再執行 UI suite。一般本機檢查仍可在瀏覽器不可用時跳過。
 
-Source CI 對 feature branch 只透過 pull request 驗證一次。`main` 或 `development` push、merge queue candidate 與手動 release 分開執行。每個 suite job 都 checkout 並驗證同一個完整 candidate SHA；手動 release 必須指定該 SHA 和完整的祖先 `base_sha`，並以 candidate 作 concurrency identity，後續 development push 無法取消它。resolver 會讓無法解析或非祖先的 base 失敗，並在 PR 和 merge queue 使用驗證過的 merge base，因此 fork 後只在 base 上的變更會被排除。若 push base 缺少或全為零，它會把 candidate tree 和 Git 推導的 empty tree 比較，而不是做空白 self-diff。內建的 consumer template 使用等效的 inline Git 檢查，不需要 skills checkout。最終 `validate` job 要求每個相依結果都是 `success`，包含所有 matrix shard。
+Source CI 對 feature branch 只透過 pull request 驗證一次。`main` push、merge queue candidate 與手動 release 分開執行。每個 suite job 都 checkout 並驗證同一個完整 candidate SHA；手動 release 必須指定該 SHA 和完整的祖先 `base_sha`，並以 candidate 作 concurrency identity，後續 branch push 無法取消它。resolver 會讓無法解析或非祖先的 base 失敗，並在 PR 和 merge queue 使用驗證過的 merge base，因此 fork 後只在 base 上的變更會被排除。若 push base 缺少或全為零，它會把 candidate tree 和 Git 推導的 empty tree 比較，而不是做空白 self-diff。內建的 consumer template 使用等效的 inline Git 檢查，不需要 skills checkout。最終 `validate` job 要求每個相依結果都是 `success`，包含所有 matrix shard。
 
 Harness suite 在每個 POSIX 平台分成四個 deterministic shard；Windows 的明確 native 檔案也分成四個 shard。`ci-test-timings.json` 記錄的是 Windows scheduling sample，不是通過測試或 release 證據。把這些權重用來切分 macOS 和 Linux 只是排程決定。未量測的新發現檔案只有在 `--allow-unmeasured` 時，才會用最大已量測權重保守排程，並明確回報為 fallback。這些觀察不能證明 hosted 環境提速。
 
@@ -780,7 +782,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 技能原始碼維護在每個 atomic task 跑 focused checks，固定 release candidate 才跑完整必要 matrix。相容的測試依賴可沿用；同 SHA、同輸入的 deterministic 結果保留來源後引用，不快取 PASS，也不沿用失效的 security、browser、live 或 migration 證據。Consumer 產品訪談、UI 核准與真實 Activation 不屬於本來源庫發布步驟。正式 release 驗證成功且 bundle digest 改變後，才在安全載入邊界用正式 installer 更新一次本機技能，保留備份與驗證。Feature／development push 不取代使用中的正式版本；安裝成功且有載入需要才重啟相關 host。
 
-CI 會以同一個精確 candidate SHA 執行 Linux、macOS 和 Windows job。Aggregate 回歸會從公開 CLI 驗證成功、失敗、skipped、cancelled 和缺少 job 結果的情況。失敗或執行零個測試的 shard 會失敗；穩定的 `validate` aggregate 也會讓任何 skipped 或 cancelled job 失敗。Feature branch 只由 pull request 驗證一次；`main`、`development`、merge queue 和精確 SHA release run 保持分開。瀏覽器測試在 Linux 執行；macOS 保留非瀏覽器 UI suite。Windows 保留 native Harness、installer 和 Design System 檢查。測試資料在綁定執行檔或儲存庫身分前先解析暫存路徑，包括 Windows 8.3 別名。macOS 無法執行綁定的檔案描述符，所以在 macOS 上 sandbox container verifier 和瀏覽器 parity capture 會直接報錯（fail closed）；trusted-host 簽章驗證只在使用受 SIP 保護的 `/usr/bin/ssh-keygen` 時可用。
+CI 會以同一個精確 candidate SHA 執行 Linux、macOS 和 Windows job。Aggregate 回歸會從公開 CLI 驗證成功、失敗、skipped、cancelled 和缺少 job 結果的情況。失敗或執行零個測試的 shard 會失敗；穩定的 `validate` aggregate 也會讓任何 skipped 或 cancelled job 失敗。Feature branch 只由 pull request 驗證一次；`main`、merge queue 和精確 SHA release run 保持分開。瀏覽器測試在 Linux 執行；macOS 保留非瀏覽器 UI suite。Windows 保留 native Harness、installer 和 Design System 檢查。測試資料在綁定執行檔或儲存庫身分前先解析暫存路徑，包括 Windows 8.3 別名。macOS 無法執行綁定的檔案描述符，所以在 macOS 上 sandbox container verifier 和瀏覽器 parity capture 會直接報錯（fail closed）；trusted-host 簽章驗證只在使用受 SIP 保護的 `/usr/bin/ssh-keygen` 時可用。
 
 HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Node 測試透過 stdin 讀取多行程式，避免 Windows 啟動器默默截斷斷言。
 
@@ -807,6 +809,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.63.0** — 改用 main-based 交付，先完成精確 candidate 的 PR／分支 Preview 驗收；加入原生 Workers Previews，保留歷史 RUN pins。
 
 - **0.62.3** — 在持久寫入前檢查完整派工訊息大小。縮短 skill 與治理入口，按工作階段讀取完整規則。分開 parent 全局盤點與 child 範圍檢查。修正規則來源測試與 archive fixture 清理。
 

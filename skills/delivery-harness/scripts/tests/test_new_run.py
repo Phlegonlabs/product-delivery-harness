@@ -45,6 +45,10 @@ PLAN_TEMPLATE = SCRIPTS_DIR.parent / "assets" / "templates" / "HARNESS_PLAN.temp
 
 
 def dual_branch_release_architecture() -> str:
+    if installed_version_requires_main_preview():
+        return release_architecture().replace(
+            "## Release Targets", "## Release Targets\n\nRelease source policy: main-preview/1", 1
+        )
     if not installed_version_requires_dual_branch():
         return release_architecture()
     architecture = release_architecture().replace(
@@ -66,6 +70,11 @@ def installed_version_requires_dual_branch() -> bool:
     version_text = (SCRIPTS_DIR.parent / "VERSION").read_text(encoding="utf-8").strip()
     version = tuple(int(part) for part in version_text.split(".", 2))
     return version >= (0, 59, 0)
+
+
+def installed_version_requires_main_preview() -> bool:
+    version_text = (SCRIPTS_DIR.parent / "VERSION").read_text(encoding="utf-8").strip()
+    return tuple(int(part) for part in version_text.split(".", 2)) >= (0, 63, 0)
 
 
 class NewRunTests(unittest.TestCase):
@@ -250,14 +259,14 @@ class NewRunTests(unittest.TestCase):
                 self.assertFalse(entry["authorized"])
                 self.assertIsNone(entry["source"])
 
-    def test_template_freezes_dual_branch_policy_without_advancing_base(self) -> None:
+    def test_template_freezes_main_preview_policy_without_advancing_base(self) -> None:
         run = load_run(self.generate())
 
         self.assertEqual(
             {
-                "protocol": "dual-branch/1",
+                "protocol": "main-preview/1",
                 "kind": "ordinary",
-                "base_ref": "refs/remotes/origin/development",
+                "base_ref": "refs/remotes/origin/main",
                 "base_sha": "0" * 40,
             },
             self.plan["branch_policy"],
@@ -267,7 +276,7 @@ class NewRunTests(unittest.TestCase):
         self.assertIsNone(run["integration"]["batch_base_sha"])
 
         gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate["required_harness_version"] = "0.59.0"
+        gate["required_harness_version"] = "0.63.0"
         errors = validate_current_plan_run(self.plan, run, repo_root=self.dir)
         if installed_version_requires_dual_branch():
             self.assertEqual([], errors)

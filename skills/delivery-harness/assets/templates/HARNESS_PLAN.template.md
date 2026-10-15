@@ -13,9 +13,9 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
     "objective": "<one measurable outcome and stopping condition>",
     "max_parallel_workers": 1,
     "branch_policy": {
-      "protocol": "dual-branch/1",
+      "protocol": "main-preview/1",
       "kind": "ordinary",
-      "base_ref": "refs/remotes/origin/development",
+      "base_ref": "refs/remotes/origin/main",
       "base_sha": "0000000000000000000000000000000000000000"
     },
     "sources": [
@@ -360,7 +360,7 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
 
 The exact fenced JSON block is the canonical plan. New plans use PLAN schema v6. Older PLAN schemas remain readable; their recorded schema decides which fields apply. Every runtime review has a stable `lineage_id` that survives node replacement and PLAN revision. The graph is the canonical source for mission dependencies and routing. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. There is no `execution_route` PLAN field: the selector derives it from the chosen route and actually selected safe write missions.
 
-`branch_policy` freezes the release baseline before execution: `ordinary` uses the observed remote development head and `hotfix` uses the observed remote main head. Replace the zero SHA with that exact remote head; it does not advance as waves or integration heads advance. A 0.59+ current join requires this policy and the architecture's active `Release source policy: dual-branch/1` marker. The exact-A correction source remains the only exception for a continuation that does not cut a new branch. `new_run.py --branch` still names the current non-protected integration branch selected by repository governance; the generator never invents or mutates this base.
+`branch_policy` freezes the observed remote main head for both `ordinary` work and `hotfix`. Replace the zero SHA with that full SHA; waves never advance it. Harness 0.63+ requires `main-preview/1` and the active architecture marker `Release source policy: main-preview/1`. Pinned 0.59–0.62 RUNs retain `dual-branch/1`; older pins retain their recorded contract. The exact-A correction exception retains its original policy and runtime pin. `new_run.py --branch` names the owner-resolved temporary integration branch; the generator never invents or mutates the base. PR/branch Preview acceptance precedes separately authorized main landing.
 
 Every new RUN records an explicit `security_review` policy. Use `required` for code delivery and include `security` in `required_reviews`; use `not_applicable` only with a concrete reason for a non-code delivery. `new_run.py` refuses an omitted policy. A required policy may add `required_checks`: batch or final verifier IDs whose single parent-run graph node must precede every security node and pass at the reviewed head before reservation; the review packet carries each with its `execution_key`. Existing PLAN-v6/RUN-v11 pairs remain readable and are never silently rewritten.
 

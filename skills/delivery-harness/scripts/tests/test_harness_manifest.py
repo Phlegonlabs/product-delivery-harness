@@ -2030,6 +2030,7 @@ class RunValidationTests(unittest.TestCase):
                 "provider": "pi",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
+                "version_gate": current_version_gate(),
             },
             "platform_lifecycle": {
                 "owner": "parent",
@@ -2068,6 +2069,7 @@ class RunValidationTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -2147,6 +2149,7 @@ class RunValidationTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -2406,6 +2409,7 @@ class RunValidationTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["subagents", "sequential_parent"],
                     "detection_source": "observed",
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -2927,6 +2931,7 @@ class RunValidationTests(unittest.TestCase):
                     "sequential_parent",
                 ],
                 "detection_source": "observed",
+                "version_gate": current_version_gate(),
                 "capability_probe": native_capability_probe(
                     app_threads=True,
                     subagents=True,
@@ -3050,6 +3055,9 @@ class RunValidationTests(unittest.TestCase):
         legacy_app_run["runtime_capabilities"]["runtime_adapter"].pop(
             "capability_probe"
         )
+        legacy_gate = legacy_app_run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+        for key in ("session_id", "loaded_contract_digest", "installed_contract_digest"):
+            legacy_gate.pop(key)
         legacy_app_run["authorizations"]["spawn_subagents"] = copy.deepcopy(
             run["authorizations"]["spawn_subagents"]
         )

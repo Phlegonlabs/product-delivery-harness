@@ -231,13 +231,13 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("writes closed `ARCHIVE_RECEIPT.json`", managed_route)
         self.assertIn("never moves anything under `docs/product/`", managed_route)
         self.assertIn("At RUN close, candidate C", promotion)
-        self.assertIn("archive-only commit A", promotion)
+        self.assertIn("archive-only child A", promotion)
         self.assertIn("If separately authorized, `push_archived_candidate.py`", promotion)
         self.assertIn("PENDING_TRUSTED_HOST_PUBLICATION", promotion)
         self.assertIn("never invokes `git push`", managed_route)
         self.assertIn("fresh PLAN/RUN on the same non-default branch from exact A", harness)
-        self.assertIn("Only after production verification may activation readiness", promotion)
-        self.assertIn("separate exact external-action authorization; it cannot claim readiness", promotion)
+        self.assertIn("Activation readiness, outcome review and SEO keep their separate post-production gates and authorization", promotion)
+        self.assertIn("Separately authorized Activation preparation cannot claim release readiness", promotion)
         self.assertLess(
             promotion.index("## Managed RUN Archive Before Promotion"),
             promotion.index("## Candidate Gate"),

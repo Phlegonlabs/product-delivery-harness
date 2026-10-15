@@ -5,10 +5,9 @@ on:
   merge_group:
   push:
     branches:
-      # Replace these placeholders with protected integration/release branches.
+      # New main-preview/1 flow verifies protected main; PRs verify candidates.
       # Do not add '**': a feature branch is verified once by its pull request.
-      - <protected-branch-1>
-      - <protected-branch-2>
+      - main
   workflow_dispatch:
     inputs:
       release_sha:
