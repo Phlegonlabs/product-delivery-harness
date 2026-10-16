@@ -32,6 +32,16 @@
 
 上述 server-driven HTML 組合於 2026-10-02 補查：[htmx 官方文件](https://htmx.org/docs/) 說明以 HTML 元素發送請求、通常取得 HTML response 更新 DOM。Django templates＋htmx＋PostgreSQL 是比較示例，適配為研究判斷；htmx 不決定 backend、資料庫或樣式。完整責任與 negative cases 見 [Architecture](architecture.md)。
 
+## Void 全端 SDK（2026-10-16 增補）
+
+[Void](https://void.cloud/guide/quickstart) 是專案本機的 SDK／CLI，不取代 Stack Decision Checkpoint。它可同時觸及 rendering、routing、backend、deployment 與 build-tool 層；Vite+ 是其預設 build context，但不是自動採用 Vite+ 全套工具的理由。
+
+Native Void 模式可提供 own routing、server loaders、actions 與 rendering。Framework 模式保留 TanStack Start、React Router、SvelteKit、Nuxt、Analog 或 Astro 既有的 routing 與 rendering，只加入資料、bindings、jobs 與 deployment。既有核准的 framework routing 權威不因加入 Void 改變。
+
+Auth 是另一層決策。官方 framework 說明目前指出 framework mode 尚無 Void-managed auth，並描述使用該框架的 Better Auth 整合；這不是核准新的 auth provider，也不能取代專案既有核准 auth。
+
+適合條件是產品確實需要整合的 Workers backend、storage、jobs 與 Cloudflare deployment，且團隊接受 package／CLI 版本一致與 init／deploy 的 diff review。避免條件是健康前端棧只需 build tool、目標 framework 未獲官方支援，或只想省略 routing／auth／資料決策。採納前先檢查 [framework overview](https://void.cloud/integrations/frameworks/overview)、[agents](https://void.cloud/integrations/agents) 與 [Cloudflare](https://void.cloud/integrations/cloudflare)。
+
 ## TanStack 生態分工（2026-10-02 增補）
 
 [官方目錄](https://tanstack.com/start/latest) 查核時列出以下 18 項 library，以及 Application Starter／Builder 工具。這是按需求選用的模組群；使用 Start 不要求全套安裝，使用 Query／Table 也不要求換成 Start。用途摘要用來比較，版本、framework adapter、成熟度、授權與安裝命令以每項當時文件為準。

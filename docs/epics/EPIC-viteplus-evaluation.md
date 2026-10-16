@@ -1,7 +1,7 @@
 # Vite+ evaluation
 
-Status: research complete; integration proposed, not implemented.
-Checked: 2026-09-28. UI impact: none. Route: direct research and documentation.
+Status: accepted optional Void guidance locally implemented; focused checks passed; independent exact-candidate review pending.
+Checked: 2026-09-28; Void sources checked 2026-10-16. UI impact: none. Route: direct implementation with one writer.
 
 ## Request and baseline
 
@@ -435,3 +435,42 @@ is accepted by publication. Whitespace, the single index row and all five
 proposed source locations passed local checks. No generated artifacts,
 ignore rules, skill sources or runtime settings change. Integration and
 the final combined candidate's required verification remain pending.
+
+### 2026-10-16 - accepted optional Void full-stack guidance
+
+The owner approved beginning implementation that adds Void as an optional
+full-stack development/deployment path to existing flows. The base was clean
+`f51c7beb4f40efd5e6ff1a7c70796477092d459b` on `codex/void-optional-flow`.
+One writer owns the checkout. The atomic local commit is authorized; push,
+merge, release, version bump, installation, application scaffolding, cloud
+login/provision/migration/deploy and cleanup remain outside this attempt.
+
+VOID-01 keeps Void optional and needs-led. VOID-02 covers the project-local
+SDK/CLI, matching versions, generated types, reviewed init/migrate effects,
+isolated local dev database/state, authority-gated remote AI calls and
+preserved instructions/skills. VOID-03 keeps direct Cloudflare as platform
+`cloudflare`, treats the team platform as a separate generic deployment
+decision, and requires isolated target mapping, resources, secrets and one
+integration owner. VOID-04 records lock/resource/DO history, side effects,
+fresh builds, staged versus bootstrap traffic, deploy/read-back evidence and
+migration/rollback limits. Canonical operational detail is in the deployment
+contract; catalog, Product Definition, template, workflow and README text
+point to it without new gates, schemas, stages, domains or roles.
+
+Official evidence was checked on 2026-10-16 from Void quickstart, coding
+agents, meta-framework overview, setup/deploy CLI references, Cloudflare
+integration and deployment pages. It supports SDK/CLI and framework boundaries
+but does not establish account access, pricing or a live deployment. The
+project instruction and named governance hashes matched the packet; the
+expected global instruction hash did not and remains a reported gap. Document
+sync remains `review_required` for first-use baseline and unobserved loaded
+identity; legacy-name review findings are retained, not declared PASS.
+
+Focused checks on this working-tree candidate: reference-library 12/12 PASS
+(including three new Void regressions), README structure 5/5 PASS,
+deployment-record 33/33 PASS, skill specification PASS, docs weight PASS,
+pyflakes PASS and `git diff --check` PASS. Logs are retained outside Git under
+the task visualization directory. These are working-tree results, not exact
+commit or review PASS evidence. The parent will run fresh exact-candidate
+regression and independent review. No live compatibility, pilot, performance
+or production claim is made.

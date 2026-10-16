@@ -215,6 +215,58 @@ class ReferenceLibraryTests(unittest.TestCase):
             self.assertNotIn("must read the option-library", text, name)
             self.assertNotIn("required option-library", text, name)
 
+    def test_void_guidance_keeps_optional_layers_and_routing_authority(self):
+        frontend = (LIBRARY / "frontend.md").read_text(encoding="utf-8")
+        backend = (LIBRARY / "backend.md").read_text(encoding="utf-8")
+        cloudflare = (LIBRARY / "cloudflare-platform.md").read_text(encoding="utf-8")
+        frontend_selection = (
+            ROOT / "skills/product-definition-builder/references/frontend-stack-selection.md"
+        ).read_text(encoding="utf-8")
+        backend_selection = (
+            ROOT / "skills/product-definition-builder/references/backend-stack-selection.md"
+        ).read_text(encoding="utf-8")
+
+        for phrase in ("Stack Decision Checkpoint", "Framework 模式", "Better Auth"):
+            self.assertIn(phrase, frontend)
+        for phrase in ("optional self-hosted Void platform", "Framework mode", "approved auth"):
+            self.assertIn(phrase, backend)
+        self.assertIn("isolated local database and state", backend)
+        self.assertIn("Remote Workers AI development calls", backend)
+        self.assertIn("team Void platform", cloudflare)
+        self.assertIn("Native Void mode owns routing and rendering", frontend_selection)
+        self.assertIn("If the owner approves Void", backend_selection)
+        self.assertNotIn("Void is an approved full-stack", backend_selection)
+
+    def test_void_sources_record_dated_official_scope(self):
+        sources = (LIBRARY / "sources.md").read_text(encoding="utf-8")
+        self.assertIn("2026-10-16 Void", sources)
+        for url in (
+            "https://void.cloud/guide/quickstart",
+            "https://void.cloud/integrations/agents",
+            "https://void.cloud/integrations/frameworks/overview",
+            "https://void.cloud/reference/cli/setup",
+            "https://void.cloud/reference/cli/deploy",
+            "https://void.cloud/integrations/cloudflare",
+            "https://void.cloud/guide/deployment",
+        ):
+            self.assertIn(url, sources)
+
+    def test_void_cloudflare_deployment_keeps_side_effect_and_isolation_guards(self):
+        contract = (
+            ROOT / "skills/delivery-harness/references/deployment-contract.md"
+        ).read_text(encoding="utf-8")
+        for phrase in (
+            "`void deploy --platform cloudflare`",
+            "adds no stage, gate, schema or agent role",
+            "supports neither named environments nor `--project`",
+            "is not proof of no side effects",
+            "may send traffic before checks",
+            "workers do not deploy independently",
+            "Code rollback does not reverse DB migrations",
+            "Never equate a production Worker's Version URL with an isolated Preview",
+        ):
+            self.assertIn(phrase, contract)
+
 
 if __name__ == "__main__":
     unittest.main()

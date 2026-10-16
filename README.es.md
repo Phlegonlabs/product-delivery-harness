@@ -133,6 +133,8 @@ El informe de visibilidad de docs-weight incluye el Markdown opcional anidado de
 
 El catálogo de Cloudflare separa compute, datos, agentes/búsqueda, navegador/sandbox, medios/email y analítica. Basin, K2, Artifacts, adaptadores, CLI y skills conservan comprobaciones de madurez o migración con fecha; su inclusión no confirma instalación local, disponibilidad en la cuenta ni preparación para desplegar.
 
+Void es una ruta opcional de SDK/CLI full-stack. El routing nativo o por framework sigue siendo una decisión de stack; Cloudflare directo continúa siendo `cloudflare`, y una plataforma Void de equipo es otra decisión de deployment.
+
 </details>
 
 <details>

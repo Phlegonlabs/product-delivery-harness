@@ -104,6 +104,8 @@ Verify these rules against current official documentation on the date the PRD is
 8. Use one codebase with native Workers Previews and production, or an approved isolated alternative, following the Any Platform promotion rule above.
 9. Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each Worker.
 
+If the owner approves Void, record it as one coherent full-stack choice, not an automatic build-tool or auth decision. Native Void mode owns routing and rendering. Framework mode retains the selected framework's router and renderer while adding Void data, bindings, jobs and deployment. Auth remains a separate layer; official framework-mode docs currently describe Better Auth rather than Void-managed auth, so preserve an existing approved provider unless the owner accepts a new decision.
+
 ### Vercel, AWS, and Self-Hosted
 
 Platform-specific rule sets for these targets are not yet authored in this guide. When one of these is the resolved platform, look up its current official deployment/framework documentation live and apply the same Any Platform rules above and the same verification-date discipline — do not invent platform-specific rules speculatively.
@@ -152,6 +154,7 @@ Use primary documentation, not marketplace roundups:
 - [Astro Cloudflare adapter](https://docs.astro.build/en/guides/integrations-guide/cloudflare/)
 - [React: Creating a React App](https://react.dev/learn/creating-a-react-app)
 - [Vite guide](https://vite.dev/guide/)
+- [Void quickstart](https://void.cloud/guide/quickstart), [meta-framework overview](https://void.cloud/integrations/frameworks/overview), and [Cloudflare integration](https://void.cloud/integrations/cloudflare) (checked 2026-10-16)
 - [shadcn/ui introduction and code-ownership model](https://ui.shadcn.com/docs)
 - [shadcn/ui manual installation and current styling requirements](https://ui.shadcn.com/docs/installation/manual)
 - [Base UI: about](https://base-ui.com/react/overview/about) and [accessibility](https://base-ui.com/react/overview/accessibility)

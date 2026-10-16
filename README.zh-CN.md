@@ -133,6 +133,8 @@ docs-weight 可见度报告会纳入嵌套的可选 reference Markdown，不新�
 
 Cloudflare 目录分开 compute、data、agent／search、browser／sandbox、media／email 与分析职责。Basin、K2、Artifacts、框架 adapter、CLI 与技能候选保留当日成熟度或迁移检查；目录涵盖不代表已安装、账号可用或已可部署。
 
+Void 是可选的 full-stack SDK／CLI 路线。native 或 framework routing 都是 stack 决策；direct Cloudflare 仍是 `cloudflare`，team Void platform 另做 deployment 决策。
+
 </details>
 
 <details>

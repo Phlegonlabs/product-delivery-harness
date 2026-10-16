@@ -36,6 +36,8 @@ Decide this before naming a specific backend runtime, since the topology choice 
 
 Record the decision status (`Required`/`Selected`/`Approved`/`Recommended`/`Provisional`) for topology and runtime the same way as every other layer in this guide.
 
+If the owner approves Void, record the full-stack SDK/CLI choice rather than letting it substitute for these layer records. Record the project-local package and matching CLI, the direct `cloudflare` target or the separately approved optional Void platform, each database/storage/job binding, auth, and migration owner. Pin matching versions, run `void prepare` before typechecking where used, and preserve existing tests, browser checks and approved auth. In framework mode, official docs currently describe Better Auth for auth because Void-managed auth is not yet supported there.
+
 ## Collect Decision Evidence
 
 When the owner has no preference, recommend one complete bundle plus one or two serious alternatives in plain language. An accepted recommendation request lets the builder investigate; it does not approve the resulting vendors or delegate the final choice. Present the hosting/runtime choice together with its downstream consequences before the Stack Decision Checkpoint.
@@ -167,6 +169,7 @@ Use primary documentation, not marketplace roundups. These links cover Cloudflar
 - [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)
 - [Cloudflare Queues](https://developers.cloudflare.com/queues/)
 - [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)
+- [Void quickstart](https://void.cloud/guide/quickstart), [meta-framework overview](https://void.cloud/integrations/frameworks/overview), and [Cloudflare integration](https://void.cloud/integrations/cloudflare) (checked 2026-10-16)
 
 ## Failure Modes
 

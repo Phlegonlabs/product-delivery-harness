@@ -133,6 +133,8 @@ The docs-weight visibility report includes nested optional reference Markdown an
 
 The Cloudflare catalog separates compute, data, agents/search, browser/sandbox, media/email and analytics roles. Basin, K2, Artifacts, framework adapters, CLI and skill candidates include dated maturity or migration checks; catalog coverage does not establish local installation, account availability or deployment readiness.
 
+Void appears as an optional full-stack SDK/CLI path. Native or framework routing is a stack decision, direct Cloudflare stays `cloudflare`, and a team Void platform remains a separate deployment decision.
+
 </details>
 
 <details>

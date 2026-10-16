@@ -69,9 +69,10 @@ For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Object
 1. Create the development-side resource for D1/KV/R2 by adding `-dev` to its canonical production name, and record its ID. Native Previews provision their isolated Durable Object namespace at deployment; record that observed identity instead of precreating it. Any ID the wrangler config needs must exist before the declaration is written.
 2. Declare the binding in the development environment: native `previews`, or `env.development` only for an approved isolated fallback. Then deploy the exact candidate branch/SHA with `wrangler preview` and verify its fixed deployment URL; the fallback uses its recorded command. Add the binding class row to Resource Isolation.
 3. Create the production-side resource. This is an owner action — do not skip it or swap the order.
-4. Add the production declaration (for example `env.production`) to the same candidate lineage. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
+4. Add the production declaration to the same candidate lineage. A named Wrangler environment may use `env.production`; direct Void Cloudflare instead uses its separate project config. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
 5. Secrets for the new binding: fake or dedicated values on the development worker, real values only in production, never in the wrangler config.
 6. With a D1 schema change: apply the migration to the development database and verify it there first; coordinate the production database migration with the protected-`main` deploy so new code never ships before the production schema exists.
+7. If this project uses Void, record `void.config.ts`, each isolated target's project config, and its matching `void.lock.json`/resource mapping. Inspect init/deploy diffs, run `void prepare` before typechecking, and capture deploy ID/read-back plus migration and rollback notes. See skills/delivery-harness/references/deployment-contract.md, "Platform: cloudflare"; never print secret values.
 
 ### vercel, aws, generic
 
