@@ -2,7 +2,7 @@
 
 The four READMEs remain the documentation of record for the skill bundle.
 
-Current source focus: owner-authorized optional Void full-stack guidance is implemented on `codex/void-optional-flow`; release and installation remain pending.
+Current source focus: owner-authorized optional Void full-stack guidance is implemented on `codex/void-optional-flow`; release and installation remain pending. Final checks/review status is recorded in [void-parent-result-20261016.json](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-parent-result-20261016.json).
 
 | Document | Purpose | Status |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ Current source focus: owner-authorized optional Void full-stack guidance is impl
 | `docs/epics/EPIC-document-review-handoff.md` | Complete Product Definition and UI document links in chat for whole-package review | Local source complete; 112 contract tests and source checks passed; release/install not performed |
 | `docs/epics/EPIC-readme-release-skills.md` | Standalone brand-first README writing and runtime-specific release artifact preparation | Source complete; reviewed candidate `8e2a0fe8`, validators and 60 contracts passed; native fixtures and scenario limits recorded; no install/release |
 | `docs/epics/EPIC-worktree-consolidation.md` | Publish all worktree heads and reconcile the current Eval/modernization sources | All 16 heads published; local source merged; unified candidate checks and exact main decision pending |
-| `docs/epics/EPIC-viteplus-evaluation.md` | Vite+/VoidZero frontend tooling, AI/skill evaluation assessment, and accepted optional Void guidance | Research complete; Void guidance locally implemented; focused checks passed and independent review pending |
+| `docs/epics/EPIC-viteplus-evaluation.md` | Vite+/VoidZero frontend tooling, AI/skill evaluation assessment, and accepted optional Void guidance | Research complete; Void guidance locally implemented; focused checks passed; final checks/review status in [void-parent-result-20261016.json](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-parent-result-20261016.json) |
 | `docs/epics/EPIC-eval-contract-integration.md` | Approved eval policy, deterministic quality gate and reproducible handoff integration | 0.60.0 local candidate `882dda69` verified on Windows; independent code/security review PASS; release/install pending |
 | `docs/epics/EPIC-eval-contract-research.md` | Eval rubric, frozen pass rate and reproducible handoff research | Research complete; accepted implementation continues in EPIC-eval-contract-integration |
 | `docs/research/eval-contract-integration.md` | Integration proposal, eval gate rules and future-project handoff | Accepted on 2026-10-03; implementation tracked separately |

@@ -1,6 +1,6 @@
 # Vite+ evaluation
 
-Status: accepted optional Void guidance locally implemented; focused checks passed; independent exact-candidate review pending.
+Status: local optional Void guidance implemented; final exact-candidate checks/review status is recorded in [void-parent-result-20261016.json](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-parent-result-20261016.json).
 Checked: 2026-09-28; Void sources checked 2026-10-16. UI impact: none. Route: direct implementation with one writer.
 
 ## Request and baseline
@@ -461,8 +461,7 @@ Official evidence was checked on 2026-10-16 from Void quickstart, coding
 agents, meta-framework overview, setup/deploy CLI references, Cloudflare
 integration and deployment pages. It supports SDK/CLI and framework boundaries
 but does not establish account access, pricing or a live deployment. The
-project instruction and named governance hashes matched the packet; the
-expected global instruction hash did not and remains a reported gap. Document
+project instruction and named governance hashes matched the packet. Document
 sync remains `review_required` for first-use baseline and unobserved loaded
 identity; legacy-name review findings are retained, not declared PASS.
 
@@ -474,3 +473,28 @@ the task visualization directory. These are working-tree results, not exact
 commit or review PASS evidence. The parent will run fresh exact-candidate
 regression and independent review. No live compatibility, pilot, performance
 or production claim is made.
+
+### 2026-10-16 - Void evidence and pointer repair
+
+Repair candidate: `3cc4dc735895ed1f00186282db0237a61e9f4561`. The initial
+global-hash check mistakenly used the project hash in the global comparison.
+The parent's task-entry observations are global
+`FB8EF6BA056D537272FCB665A532942D8EE34696EDC2A272BB763F92D6275F21` and project
+`965CACDCC98CE83B6A83A46CFC9ABBFCF16842B3A232B0557F2FF086B3B60059`; both match.
+No instruction change is claimed. The child's scoped sync retained 12 unchanged
+legacy-name findings, while the parent default sync retained only baseline and
+loaded-identity findings.
+
+This repair adds the project-local `node_modules/void/docs/` reading route,
+requires selected bundled Void docs/skills to match the pinned package and
+effective instructions, and forbids automatic adoption or global linking. It
+clarifies committed config/lock/migration history versus Gitignored generated
+`.void/` state and `.void-wrangler.jsonc`, preserves required recovery files on
+disk, and resolves operational pointers from the observed installed Harness
+root. The authoritative final verification/review state is the parent-owned
+[void-parent-result-20261016.json](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-parent-result-20261016.json).
+
+Repair working-tree checks: reference-library 12/12 PASS, README structure
+5/5 PASS, deployment-record 33/33 PASS, skill specification PASS, docs weight
+PASS, pyflakes PASS and whitespace check PASS. These results are not a
+substitute for the parent's exact-candidate checks or independent review.

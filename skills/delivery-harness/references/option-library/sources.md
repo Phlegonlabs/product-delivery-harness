@@ -130,7 +130,7 @@ Reference only · 查閱日期：2026-09-25
 - [官方來源：vercel.com — docs/functions](https://vercel.com/docs/functions)
 - [官方來源：vercel.com — docs/functions/limitations](https://vercel.com/docs/functions/limitations)
 
-2026-10-16 Void 官方頁面查核：[quickstart](https://void.cloud/guide/quickstart)、[coding agents](https://void.cloud/integrations/agents)、[meta-framework overview](https://void.cloud/integrations/frameworks/overview)、[project setup CLI](https://void.cloud/reference/cli/setup)、[deploy CLI](https://void.cloud/reference/cli/deploy)、[Cloudflare integration](https://void.cloud/integrations/cloudflare)、[deployment guide](https://void.cloud/guide/deployment)。來源支持 SDK／CLI、framework mode、auth 限制、direct Cloudflare 行為與 rollback 邊界；未驗證帳號、pricing 或實際部署。
+2026-10-16 Void 官方頁面查核：[quickstart](https://void.cloud/guide/quickstart)、[coding agents](https://void.cloud/integrations/agents)、[meta-framework overview](https://void.cloud/integrations/frameworks/overview)、[project setup CLI](https://void.cloud/reference/cli/setup)、[deploy CLI](https://void.cloud/reference/cli/deploy)、[Cloudflare integration](https://void.cloud/integrations/cloudflare)、[deployment guide](https://void.cloud/guide/deployment)、[project structure](https://void.cloud/reference/structure)。來源支持 SDK／CLI、framework mode、auth 限制、direct Cloudflare 行為、generated `.void/`／`.void-wrangler.jsonc` 邊界與 rollback；未驗證帳號、pricing 或實際部署。
 
 ## [design.md](design.md)
 

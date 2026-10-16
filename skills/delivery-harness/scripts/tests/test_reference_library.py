@@ -230,6 +230,9 @@ class ReferenceLibraryTests(unittest.TestCase):
             self.assertIn(phrase, frontend)
         for phrase in ("optional self-hosted Void platform", "Framework mode", "approved auth"):
             self.assertIn(phrase, backend)
+        self.assertIn("node_modules/void/docs/", backend)
+        self.assertIn("effective instructions", backend)
+        self.assertIn("不自動採用或全域連結", backend)
         self.assertIn("isolated local database and state", backend)
         self.assertIn("Remote Workers AI development calls", backend)
         self.assertIn("team Void platform", cloudflare)
@@ -248,6 +251,7 @@ class ReferenceLibraryTests(unittest.TestCase):
             "https://void.cloud/reference/cli/deploy",
             "https://void.cloud/integrations/cloudflare",
             "https://void.cloud/guide/deployment",
+            "https://void.cloud/reference/structure",
         ):
             self.assertIn(url, sources)
 
@@ -255,9 +259,16 @@ class ReferenceLibraryTests(unittest.TestCase):
         contract = (
             ROOT / "skills/delivery-harness/references/deployment-contract.md"
         ).read_text(encoding="utf-8")
+        template = (
+            ROOT / "skills/delivery-harness/assets/templates/DEPLOYMENT.template.md"
+        ).read_text(encoding="utf-8")
+        deployment_catalog = (LIBRARY / "deployment.md").read_text(encoding="utf-8")
         for phrase in (
             "`void deploy --platform cloudflare`",
             "adds no stage, gate, schema or agent role",
+            "Commit those files",
+            "generated `.void/` types/local state and `.void-wrangler.jsonc`",
+            "preserving required `.void/` recovery files on disk",
             "supports neither named environments nor `--project`",
             "is not proof of no side effects",
             "may send traffic before checks",
@@ -266,6 +277,9 @@ class ReferenceLibraryTests(unittest.TestCase):
             "Never equate a production Worker's Version URL with an isolated Preview",
         ):
             self.assertIn(phrase, contract)
+        self.assertIn("<delivery-harness-skill-root>/references/deployment-contract.md", template)
+        self.assertIn("logical `delivery-harness/references/deployment-contract.md`", deployment_catalog)
+        self.assertIn("observed installed skill root", deployment_catalog)
 
 
 if __name__ == "__main__":

@@ -58,7 +58,7 @@
 
 ### Void SDK（2026-10-16 增補）
 
-[Void](https://void.cloud/guide/quickstart) 是全端 SDK／CLI，不是單一 backend framework、database engine 或 auth provider。分開核對三層：project-local SDK 與 CLI、direct Cloudflare target，以及 optional self-hosted Void platform。專案必須固定同一版本的 `void` package 與 CLI；部署前可用 `void prepare` 生成 types。
+[Void](https://void.cloud/guide/quickstart) 是全端 SDK／CLI，不是單一 backend framework、database engine 或 auth provider。分開核對三層：project-local SDK 與 CLI、direct Cloudflare target，以及 optional self-hosted Void platform。專案必須固定同一版本的 `void` package 與 CLI；部署前可用 `void prepare` 生成 types。依需求先讀 `node_modules/void/docs/guide/quickstart.md` 與 `node_modules/void/docs/reference/cli.md`；選用的 bundled Void skill/docs 要對照 pinned package、effective instructions 與 skill pins，不自動採用或全域連結。
 
 官方 Cloudflare 頁面列出 D1、PostgreSQL、MySQL、KV、R2、Workers AI、Queues、Cron 與 Durable State 的 inferred bindings。direct Cloudflare 部署在 Cloudflare Workers 上；optional team platform 是另一個 deployment 決策。既有核准的 database、auth、jobs 與外部整合各自保留權威，不由 Void 自動取代。
 

@@ -72,7 +72,7 @@ For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Object
 4. Add the production declaration to the same candidate lineage. A named Wrangler environment may use `env.production`; direct Void Cloudflare instead uses its separate project config. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
 5. Secrets for the new binding: fake or dedicated values on the development worker, real values only in production, never in the wrangler config.
 6. With a D1 schema change: apply the migration to the development database and verify it there first; coordinate the production database migration with the protected-`main` deploy so new code never ships before the production schema exists.
-7. If this project uses Void, record `void.config.ts`, each isolated target's project config, and its matching `void.lock.json`/resource mapping. Inspect init/deploy diffs, run `void prepare` before typechecking, and capture deploy ID/read-back plus migration and rollback notes. See skills/delivery-harness/references/deployment-contract.md, "Platform: cloudflare"; never print secret values.
+7. If this project uses Void, record `void.config.ts`, each isolated target's project config, and its matching `void.lock.json`/resource mapping. Inspect init/deploy diffs, run `void prepare` before typechecking, and capture deploy ID/read-back plus migration and rollback notes. See `<delivery-harness-skill-root>/references/deployment-contract.md`, "Platform: cloudflare"; never print secret values.
 
 ### vercel, aws, generic
 
