@@ -387,6 +387,68 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
                 findings,
             )
 
+    def test_symbolic_dev_ref_requires_concrete_candidate_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            strict = deployment_record(
+                web_sha=SHA,
+                prod_sha=SHA,
+                web_evidence=write_retained(
+                    root,
+                    SHA,
+                    "run.integration.branch",
+                    target="web-dev",
+                    artifact="deployment-dev",
+                    resolved_ref="refs/heads/run/lifecycle",
+                ),
+                prod_evidence=write_retained(root, SHA, "refs/heads/main"),
+            )
+            strict = re.sub(
+                r"\| web-dev .*?\n",
+                f"| web-dev | web-app | development | Cloudflare;development route | https://dev.example.com | {SHA} | {SHA} | deployment-dev | development route answered the smoke check | {OBSERVED} | PASS |\n",
+                strict,
+                count=1,
+            )
+            strict = re.sub(
+                r"\| web-prod .*?\n",
+                f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+                strict,
+                count=1,
+            )
+            context = {
+                "architecture_text": ARCHITECTURE,
+                "require_source_provenance": True,
+                "repo_root": root,
+                "expected_repository": "example/deployment",
+            }
+            findings = check_deployment.check_deployment_text(strict, **context)
+            self.assertTrue(
+                any(
+                    "retained proof requires --candidate-ref for "
+                    "run.integration.branch" in item
+                    for item in findings
+                ),
+                findings,
+            )
+            self.assertEqual(
+                [],
+                check_deployment.check_deployment_text(
+                    strict,
+                    **context,
+                    candidate_ref="refs/heads/run/lifecycle",
+                ),
+                msg=strict,
+            )
+            findings = check_deployment.check_deployment_text(
+                strict,
+                **context,
+                candidate_ref="refs/heads/run/other",
+            )
+            self.assertTrue(
+                any("resolved ref differs" in item for item in findings),
+                findings,
+            )
+
     def test_retained_observation_joins_deployment_identity(self) -> None:
         mutations = (
             {"repository": "other/project"},

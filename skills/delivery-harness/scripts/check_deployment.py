@@ -478,11 +478,14 @@ def _retained_proof_findings(
     if match.group("sha") != source_sha:
         return [f"{target_id} evidence SHA differs from Source SHA"]
 
-    resolved_ref = (
-        candidate_ref
-        if candidate_ref and expected_ref == "run.integration.branch"
-        else expected_ref
-    )
+    resolved_ref = expected_ref
+    if expected_ref == "run.integration.branch":
+        if not candidate_ref:
+            return [
+                f"{target_id} retained proof requires --candidate-ref "
+                "for run.integration.branch"
+            ]
+        resolved_ref = candidate_ref
     checked_at = (
         _timestamp(checked)
         if checked and checked.lower() != "pending"
