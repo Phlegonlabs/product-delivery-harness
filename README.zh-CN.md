@@ -35,7 +35,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安装方式
 
-克隆仓库并运行安装脚本。它先取得整个目标目录的单一锁，只 staging 七个 skill 中已进入 Git index 的文件，把当前与旧版 managed ID 一起移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份，安装 staging tree，并在释放锁之前逐路径、逐字节验证：
+克隆仓库并运行安装脚本。它先取得整个目标目录的单一锁，只 staging 七个 skill 中已进入 Git index 的 runtime 文件，tests 与 CI 计时数据留在源仓库，把当前与旧版 managed ID 一起移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份，安装 staging tree，并在释放锁之前逐路径、逐字节验证：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -72,7 +72,7 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
-1. 安装一个受支持的宿主和七个 skills。Installer 会锁定目标目录、备份 managed IDs、只复制 Git-tracked files，并逐字节校验；完成后重启宿主。
+1. 安装一个受支持的宿主和七个 skills。Installer 会锁定目标目录、备份 managed IDs、只复制 Git-tracked runtime 文件，tests 与 CI 计时数据留在源仓库，并逐字节校验；完成后重启宿主。
 2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明确 recommendation choices、accepted 变更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 与人工 Product Definition Approval。入口保留 ownership 与 approvals；撰写、自查、preflight 与 domain routing 走必要的 stage reads。
 3. UI 先以 `--ui-contract ui-design/3` 跑 Product Definition 预检，再进行 intake、三个可渲染方向研究及作者自查、owner 选择及完整 HiFi。Impeccable／H1–H9 前先验 HiFi 完整性，最后一次人工 Visual Approval。入口保留 ownership 与 approvals；撰写、自查、preflight 与 domain routing 走必要的 stage reads。
 4. 从已批准来源编译 `design-system/4` Markdown／JSON pair 及其派生 HTML，再通过最终 UI 验证。0.59 RUN 只有在通过验证且冻结的 maintenance record 支持下才可保留 `ui-design/2`；enhancement 要编译现行包。保留的 pair 只在 Need Gate 为 `required` 时编译 schema-3；`not_required` 时记录既有 pair 处置并绑定 HiFi 替代契约。

@@ -123,6 +123,28 @@ class SkillBindingTests(unittest.TestCase):
         findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills])
         self.assertEqual([], findings)
 
+    def test_development_only_files_do_not_change_the_skill_hash(self) -> None:
+        # hash_skill covers the installed runtime tree, so development-only
+        # files must never move a pin; a runtime script change still must.
+        skill = self.skills / "taste-skill"
+        pinned = check_skill_bindings.hash_skill(skill / "SKILL.md")
+        tests_dir = skill / "scripts" / "tests"
+        tests_dir.mkdir(parents=True)
+        added = tests_dir / "test_new.py"
+        added.write_text("x = 1\n", encoding="utf-8", newline="\n")
+        timings = skill / "ci-test-timings.json"
+        timings.write_text('{"ci": {}}\n', encoding="utf-8", newline="\n")
+        requirements = skill / "requirements-test.txt"
+        requirements.write_text("pytest\n", encoding="utf-8", newline="\n")
+        self.assertEqual(pinned, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+        added.write_text("x = 2\n", encoding="utf-8", newline="\n")
+        (tests_dir / "test_other.py").write_text("y = 1\n", encoding="utf-8", newline="\n")
+        timings.write_text('{"ci": {"changed": true}}\n', encoding="utf-8", newline="\n")
+        requirements.write_text("pytest>=8\n", encoding="utf-8", newline="\n")
+        self.assertEqual(pinned, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+        (skill / "SKILL.md").write_text("# Taste two\n", encoding="utf-8", newline="\n")
+        self.assertNotEqual(pinned, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+
     def test_unpinned_changed_or_missing_skills_fail(self) -> None:
         pinned = check_skill_bindings.hash_skill(
             self.skills / "taste-skill" / "SKILL.md"

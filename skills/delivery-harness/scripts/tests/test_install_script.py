@@ -82,6 +82,15 @@ def is_cache_path(path: Path) -> bool:
     )
 
 
+def is_dev_only_path(path: Path) -> bool:
+    # Mirrors the installers' development-only rule: tests directories and CI
+    # timing/test-requirements data stay in the source repository.
+    return "tests" in path.parts[:-1] or path.name in {
+        "ci-test-timings.json",
+        "requirements-test.txt",
+    }
+
+
 def bash_path(path: Path, *, resolve: bool = True) -> str:
     resolved = path.resolve() if resolve else Path(os.path.abspath(path))
     parts = resolved.parts
@@ -100,11 +109,13 @@ def bash_path(path: Path, *, resolve: bool = True) -> str:
 
 
 def source_manifest(skill: str) -> dict[str, bytes]:
+    # The expected install is the tracked runtime tree: the same development
+    # only files the installers skip are skipped here.
     root = REPO_ROOT / "skills" / skill
     return {
         path.relative_to(root).as_posix(): path.read_bytes()
         for path in sorted(root.rglob("*"))
-        if path.is_file() and not is_cache_path(path)
+        if path.is_file() and not is_cache_path(path) and not is_dev_only_path(path)
     }
 
 
@@ -243,9 +254,18 @@ class InstallScriptTests(unittest.TestCase):
         for skill in self.SKILLS:
             with self.subTest(skill=skill):
                 self.assertEqual(source_manifest(skill), installed_manifest(skill, self.destination))
+                installed_root = self.destination / skill
                 self.assertFalse(
-                    any(is_cache_path(path) for path in (self.destination / skill).rglob("*"))
+                    any(is_cache_path(path) for path in installed_root.rglob("*"))
                 )
+                # Development-only trees and CI data files never install, while
+                # ordinary runtime scripts still do.
+                self.assertFalse(
+                    any(is_dev_only_path(path) for path in installed_root.rglob("*"))
+                )
+        self.assertTrue(
+            (self.destination / "delivery-harness" / "scripts" / "check_skill_bindings.py").is_file()
+        )
         for skill in self.LEGACY_SKILLS:
             self.assertFalse((self.destination / skill).exists())
         self.assertTrue((self.destination / "unrelated-skill" / "SKILL.md").is_file())

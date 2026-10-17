@@ -95,6 +95,22 @@ class ContractDigestTests(unittest.TestCase):
             runtime_file.write_text("# new runtime file\n", encoding="utf-8")
             self.assertNotEqual(contract_digest(skills_root), before)
 
+    def test_ci_data_files_do_not_change_the_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_required_skills(root)
+            skills_root = root / "skills"
+            before = contract_digest(skills_root)
+            harness = root / "skills" / "delivery-harness"
+            timings = harness / "ci-test-timings.json"
+            requirements = harness / "requirements-test.txt"
+            timings.write_text('{"ci": {}}\n', encoding="utf-8", newline="\n")
+            requirements.write_text("pytest\n", encoding="utf-8", newline="\n")
+            self.assertEqual(contract_digest(skills_root), before)
+            timings.write_text('{"ci": {"changed": true}}\n', encoding="utf-8", newline="\n")
+            requirements.write_text("pytest>=8\n", encoding="utf-8", newline="\n")
+            self.assertEqual(contract_digest(skills_root), before)
+
     def test_each_bundled_runtime_skill_is_part_of_the_digest(self) -> None:
         for skill_name in SKILL_NAMES:
             with self.subTest(skill=skill_name), tempfile.TemporaryDirectory() as directory:

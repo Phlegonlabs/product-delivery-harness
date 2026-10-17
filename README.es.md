@@ -35,7 +35,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Configuración más rápida
 
-Clona el repositorio y ejecuta el instalador. Primero toma un bloqueo único para todo el destino, prepara solo los archivos de los siete skills registrados en el índice de Git, mueve los IDs gestionados actuales y heredados a un backup con timestamp bajo `~/.agents/skill-backups/product-delivery-harness/`, instala los árboles preparados y verifica cada ruta y byte antes de liberar el bloqueo:
+Clona el repositorio y ejecuta el instalador. Primero toma un bloqueo único para todo el destino, prepara solo los archivos runtime de los siete skills registrados en el índice de Git, dejando los tests y los datos de tiempos de CI en el repositorio fuente, mueve los IDs gestionados actuales y heredados a un backup con timestamp bajo `~/.agents/skill-backups/product-delivery-harness/`, instala los árboles preparados y verifica cada ruta y byte antes de liberar el bloqueo:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -72,7 +72,7 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
-1. Instala un host soportado y los siete skills. El instalador bloquea el destino, respalda IDs gestionados, copia solo archivos tracked y verifica cada byte; reinicia el host.
+1. Instala un host soportado y los siete skills. El instalador bloquea el destino, respalda IDs gestionados, copia solo archivos tracked runtime, dejando los tests y los datos de tiempos de CI en el repositorio fuente, y verifica cada byte; reinicia el host.
 2. Empieza con `product-definition-builder`: evidencia research-first, drafting/reconciliación del candidate, decisiones explícitas de recommendations, cambios accepted, stack coherente, release targets tipados, tests, Stack Decision Checkpoint y Product Definition Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan sus lecturas obligatorias de stage.
 3. Para UI, ejecutar el preflight de Product Definition con `--ui-contract ui-design/3`, intake, tres estudios renderizados con autorrevisión del autor, selección del owner y HiFi completo. Comprobar HiFi antes de Impeccable/H1–H9 y una Visual Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan lecturas obligatorias de stage.
 4. Compilar el par Markdown/JSON `design-system/4` y su HTML derivado desde fuentes aprobadas y validar la UI final. Un RUN 0.59 retiene `ui-design/2` solo detrás de un frozen maintenance record validado; un enhancement compila el paquete actual. Un par retenido compila schema-3 solo si su gate es `required`; si es `not_required`, registrar la disposición del par existente y vincular el reemplazo HiFi aprobado.

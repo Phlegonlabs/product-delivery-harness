@@ -35,7 +35,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Fastest setup
 
-Clone the repository and run the installer. It takes one destination-wide lock, stages only Git-index-tracked files from the seven skills, moves current and legacy managed IDs to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, installs the staged trees, and verifies every path and byte before releasing the lock:
+Clone the repository and run the installer. It takes one destination-wide lock, stages only Git-index-tracked runtime files from the seven skills, leaving tests and CI timing data in the source repository, moves current and legacy managed IDs to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, installs the staged trees, and verifies every path and byte before releasing the lock:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -72,7 +72,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-1. Install one supported host and all seven skills. The installer locks the destination, backs up managed IDs, copies only Git-tracked files, and verifies every byte. Restart the host.
+1. Install one supported host and all seven skills. The installer locks the destination, backs up managed IDs, copies only Git-tracked runtime files, leaving tests and CI timing data in the source repository, and verifies every byte. Restart the host.
 2. Start with `product-definition-builder`: research-first evidence, candidate drafting and reconciliation, explicit recommendation choices, accepted changes, coherent stack choices, typed release targets, tests, Stack Decision Checkpoint, and human Product Definition Approval. Its entry retains ownership and approvals; authoring, review, preflight and domain routing use its mandatory stage reads.
 3. For UI, run Product Definition preflight with `--ui-contract ui-design/3`, then intake, three rendered direction studies with author self-checks, owner selection and complete HiFi. Run HiFi completeness checks before Impeccable/H1–H9 and one human Visual Approval. Its entry retains ownership and approvals; authoring, self-review, preflight and domain routing use mandatory stage reads.
 4. Compile the `design-system/4` Markdown/JSON pair and its derived HTML from approved sources and pass final UI validation. A 0.59 RUN retains `ui-design/2` only behind a validated frozen maintenance record; an enhancement compiles the current package. A retained pair compiles schema 3 only when its gate is `required`; if `not_required`, record existing-pair disposition and bind the approved HiFi replacement.

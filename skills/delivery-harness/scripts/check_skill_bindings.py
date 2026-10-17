@@ -233,6 +233,21 @@ def locate_skill(name: str, skill_dirs: list[Path]) -> Path | None:
     return None
 
 
+DEV_ONLY_DIRECTORY = "tests"
+DEV_ONLY_FILE_NAMES = {"ci-test-timings.json", "requirements-test.txt"}
+
+
+def is_development_only(relative: str) -> bool:
+    """Match the installer's development-only rule for a skill-relative path.
+
+    A path is development-only when one of its directory components is exactly
+    "tests", or when its file name carries CI timing or test-requirements data.
+    """
+
+    parts = relative.split("/")
+    return DEV_ONLY_DIRECTORY in parts[:-1] or parts[-1] in DEV_ONLY_FILE_NAMES
+
+
 def hash_skill(path: Path) -> str:
     root = path.parent if path.name == "SKILL.md" else path
     digest = hashlib.sha256()
@@ -249,6 +264,7 @@ def hash_skill(path: Path) -> str:
         and "__pycache__" not in candidate.parts
         and ".pytest_cache" not in candidate.parts
         and candidate.suffix.casefold() not in {".pyc", ".pyo"}
+        and not is_development_only(candidate.relative_to(root).as_posix())
     )
     if not files:
         raise ValueError(f"skill tree is empty: {root}")

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Stable identity for the installed Harness contract.
 
-The digest covers runtime-facing skill files while ignoring tests and generated
-Python caches. Text line endings are normalized so a Windows install and its
-packaged copy identify the same contract.
+The digest covers runtime-facing skill files while ignoring tests, CI timing
+data, and generated Python caches. Text line endings are normalized so a
+Windows install and its packaged copy identify the same contract.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ SKILL_NAMES = (
 )
 IGNORED_PARTS = {"__pycache__", "tests"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
+IGNORED_FILE_NAMES = {"ci-test-timings.json", "requirements-test.txt"}
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_BUNDLE_BYTES = 128 * 1024 * 1024
 MAX_ENTRIES = 10000
@@ -52,7 +53,11 @@ def _contract_files(skill_root: Path):
             entries += 1
             if entries > MAX_ENTRIES:
                 raise ValueError("skill tree exceeds entry limit")
-            if path.name in IGNORED_PARTS or path.suffix.lower() in IGNORED_SUFFIXES:
+            if (
+                path.name in IGNORED_PARTS
+                or path.name in IGNORED_FILE_NAMES
+                or path.suffix.lower() in IGNORED_SUFFIXES
+            ):
                 continue
             info = _plain_stat(path)
             if stat.S_ISDIR(info.st_mode):
@@ -103,7 +108,7 @@ def contract_digest(skills_root: str | Path | None = None) -> str:
             relative = path.relative_to(root)
             if any(part in IGNORED_PARTS for part in relative.parts):
                 continue
-            if path.suffix.lower() in IGNORED_SUFFIXES:
+            if path.name in IGNORED_FILE_NAMES or path.suffix.lower() in IGNORED_SUFFIXES:
                 continue
             data = _bounded_bytes(path)
             total_bytes += len(data)

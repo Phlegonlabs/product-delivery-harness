@@ -162,6 +162,13 @@ is_cache_file() {
   esac
 }
 
+is_dev_only_file() {
+  case "$1" in
+    tests/*|*/tests/*|ci-test-timings.json|*/ci-test-timings.json|requirements-test.txt|*/requirements-test.txt) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 is_forbidden_source_file() {
   local value="/$1/"
   case "$value" in
@@ -186,6 +193,7 @@ write_source_manifest() {
     relative="${tracked#"skills/$skill/"}"
     [ "$relative" != "$tracked" ] || fail "unexpected tracked path for $skill: $tracked"
     is_cache_file "$relative" && continue
+    is_dev_only_file "$relative" && continue
     is_forbidden_source_file "$relative" && fail "forbidden tracked source artifact: skills/$skill/$relative"
     printf '%s\n' "$relative" >>"$output"
   done < <(git -C "$repo_root" ls-files --stage -z -- "skills/$skill")
@@ -257,11 +265,12 @@ copy_tracked_tree() {
   mkdir "$target"
   # A single recursive copy avoids one Git-Bash process per tracked file. The
   # tracked/untracked gate already ran above; remove only reproducible cache
-  # artifacts that the manifest deliberately excludes, then verify every byte
-  # against the manifest before any destination mutation.
+  # artifacts and development-only files that the manifest deliberately
+  # excludes, then verify every byte against the manifest before any
+  # destination mutation.
   cp -a "$skills_src/$skill/." "$target/"
-  find "$target" -type d \( -name __pycache__ -o -name .pytest_cache \) -prune -exec rm -rf -- {} +
-  find "$target" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+  find "$target" -type d \( -name __pycache__ -o -name .pytest_cache -o -name tests \) -prune -exec rm -rf -- {} +
+  find "$target" -type f \( -name '*.pyc' -o -name '*.pyo' -o -name ci-test-timings.json -o -name requirements-test.txt \) -delete
   assert_no_reparse_tree "$target"
 }
 

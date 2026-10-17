@@ -105,6 +105,17 @@ function Test-CacheFile {
     return $extension -eq ".pyc" -or $extension -eq ".pyo"
 }
 
+function Test-DevOnlyFile {
+    param([string]$RelativePath)
+
+    $parts = @($RelativePath -split "[\\/]")
+    for ($index = 0; $index -lt $parts.Length - 1; $index++) {
+        if ($parts[$index] -eq "tests") { return $true }
+    }
+    $name = $parts[$parts.Length - 1]
+    return $name -eq "ci-test-timings.json" -or $name -eq "requirements-test.txt"
+}
+
 function Test-ForbiddenSourceFile {
     param([string]$RelativePath)
 
@@ -166,6 +177,7 @@ function Get-TrackedRelativeFiles {
         }
         $relative = $normalized.Substring($prefix.Length)
         if (Test-CacheFile $relative) { continue }
+        if (Test-DevOnlyFile $relative) { continue }
         if (Test-ForbiddenSourceFile $relative) {
             throw "forbidden tracked source artifact: $path"
         }
