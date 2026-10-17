@@ -145,6 +145,20 @@ class SkillBindingTests(unittest.TestCase):
         (skill / "SKILL.md").write_text("# Taste two\n", encoding="utf-8", newline="\n")
         self.assertNotEqual(pinned, check_skill_bindings.hash_skill(skill / "SKILL.md"))
 
+    def test_capital_tests_directory_is_part_of_the_skill_hash(self) -> None:
+        # The development-only rule is case-sensitive, so scripts/Tests/ with
+        # a capital T is runtime content: adding or changing one of its files
+        # must move the pin.
+        skill = self.skills / "taste-skill"
+        before = check_skill_bindings.hash_skill(skill / "SKILL.md")
+        runtime = skill / "scripts" / "Tests" / "runtime.py"
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text("value = 1\n", encoding="utf-8", newline="\n")
+        added = check_skill_bindings.hash_skill(skill / "SKILL.md")
+        self.assertNotEqual(before, added)
+        runtime.write_text("value = 2\n", encoding="utf-8", newline="\n")
+        self.assertNotEqual(added, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+
     def test_unpinned_changed_or_missing_skills_fail(self) -> None:
         pinned = check_skill_bindings.hash_skill(
             self.skills / "taste-skill" / "SKILL.md"

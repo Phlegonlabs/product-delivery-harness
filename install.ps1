@@ -109,11 +109,13 @@ function Test-DevOnlyFile {
     param([string]$RelativePath)
 
     $parts = @($RelativePath -split "[\\/]")
+    # -ceq keeps this rule case-sensitive, exactly like the shell case
+    # patterns in install.sh and the dev-only filters in the Python hashes.
     for ($index = 0; $index -lt $parts.Length - 1; $index++) {
-        if ($parts[$index] -eq "tests") { return $true }
+        if ($parts[$index] -ceq "tests") { return $true }
     }
     $name = $parts[$parts.Length - 1]
-    return $name -eq "ci-test-timings.json" -or $name -eq "requirements-test.txt"
+    return $name -ceq "ci-test-timings.json" -or $name -ceq "requirements-test.txt"
 }
 
 function Test-ForbiddenSourceFile {

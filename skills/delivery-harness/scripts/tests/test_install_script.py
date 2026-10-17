@@ -660,6 +660,72 @@ class InstallScriptTests(unittest.TestCase):
             self.assertNotEqual(0, result.returncode)
             self.assertIn("untracked or ignored source artifact is not installable", result.stderr + result.stdout)
 
+    def test_installers_keep_dev_only_matching_case_sensitive(self) -> None:
+        # A tracked runtime file such as scripts/Tests/runtime.py or
+        # REQUIREMENTS-TEST.TXT installs like any other runtime file, while
+        # the genuine development-only names stay in the source repository.
+        # The case variants live in different skills because Windows file
+        # systems ignore case, so both spellings could not sit in one
+        # directory.
+        source = self.make_minimal_repo()
+        tracked = {
+            "delivery-harness": ("scripts/Tests/runtime.py", "REQUIREMENTS-TEST.TXT"),
+            "product-definition-builder": (
+                "scripts/tests/test_x.py",
+                "requirements-test.txt",
+            ),
+        }
+        for skill, relatives in tracked.items():
+            for relative in relatives:
+                path = source / "skills" / skill / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    f"# {skill} {relative}\n", encoding="utf-8", newline="\n"
+                )
+        subprocess.run(["git", "add", "."], cwd=source, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "track dev-only lookalikes"], cwd=source, check=True
+        )
+
+        for installer, destination in (
+            ("bash", self.home / "bash-skills"),
+            ("powershell", self.home / "powershell-skills"),
+        ):
+            with self.subTest(installer=installer):
+                if installer == "bash":
+                    result = self.run_bash(
+                        {"SKILL_BACKUP_ROOT": str(self.backup_root)},
+                        installer=source / "install.sh",
+                        destination=destination,
+                    )
+                else:
+                    if POWERSHELL is None:
+                        self.skipTest("neither pwsh nor powershell is available")
+                    result = subprocess.run(
+                        [
+                            POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                            str(source / "install.ps1"), "-Destination", str(destination),
+                            "-BackupRoot", str(self.backup_root),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.home,
+                        timeout=INSTALL_TIMEOUT,
+                    )
+                self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+                self.assertTrue(
+                    (destination / "delivery-harness" / "scripts" / "Tests" / "runtime.py").is_file()
+                )
+                self.assertTrue(
+                    (destination / "delivery-harness" / "REQUIREMENTS-TEST.TXT").is_file()
+                )
+                self.assertFalse(
+                    (destination / "product-definition-builder" / "scripts" / "tests" / "test_x.py").exists()
+                )
+                self.assertFalse(
+                    (destination / "product-definition-builder" / "requirements-test.txt").exists()
+                )
+
     def assert_source_line_recorded(self, source: Path, install) -> None:
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=source, capture_output=True, text=True, check=True
