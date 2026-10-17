@@ -19,6 +19,7 @@ Verify source changes in three tiers: focused local checks per task, Linux-only 
 | VT-03 | Source rules and the four READMEs describe the three tiers and drop the local full-matrix step. |
 | VT-04 | Review runs once per final candidate; security review covers only executable code; a tree-equal main SHA keeps the candidate review. |
 | VT-05 | The PR template holds one verification table. |
+| VT-06 | CI verifies the platforms where the skills run. Linux and Windows run every suite, and macOS is no longer verified. |
 
 ## Document Impact
 
@@ -28,6 +29,8 @@ Verify source changes in three tiers: focused local checks per task, Linux-only 
 | `skills/delivery-harness/references/governance/source-maintenance.md` | Required Verification |
 | Four READMEs | Releasing section |
 | `.github/pull_request_template.md` | Verification section |
+| `skills/delivery-harness/scripts/ci_test_shards.py` | Windows plans every Harness file |
+| `skills/delivery-harness/scripts/tests/test_install_script*.py` | Installer tests split into three files |
 
 ## Change Log
 
@@ -37,3 +40,8 @@ Verify source changes in three tiers: focused local checks per task, Linux-only 
 | Three-tier rules in Required Verification, the four READMEs and the PR template | `1282b104` | README structure 5, skill contract 65 and document sync 27 tests pass. |
 | Version 0.64.1 | `62592778` | Skill contract 65 and README structure 5 tests pass. |
 | Review of `387cc49a..1282b104` | — | GPT-6.1 Sol: PASS, covering correctness and security, with 12 focused tests and 17 gate CLI cases. This PR's own CI is the first live draft-to-ready run. |
+| First live draft run on PR #145 | — | The Linux jobs finished in about 2 minutes, macOS and Windows were skipped, and `validate-draft` passed. |
+| Linux and Windows CI instead of macOS | `61c47ef4` | CI 42, skill contract 65 and installer CI 2 tests pass. The Windows planner prints eight shards that cover every Harness file. |
+| CI platform description in Required Verification and the four READMEs | `2cc20ba3` | README structure 5 and skill contract 65 tests pass. |
+| Installer tests split into three files | `c8f27e34` | An AST comparison shows every test unchanged. The 21 installer tests pass on Windows in 437 s. |
+| Version 0.64.2 | `0d45da7a` | Skill contract 65 and README structure 5 tests pass. |
