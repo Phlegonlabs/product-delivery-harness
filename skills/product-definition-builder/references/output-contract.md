@@ -176,6 +176,21 @@ SEO metadata is part of the surface contract, not an implementation-time inventi
 ## Frontend Delivery Requirements
 - [Target devices and browsers, content/interactivity profile, rendering, performance, accessibility, localization, offline, and deployment constraints; site-level SEO — indexing strategy, sitemap and robots policy, canonical policy, default structured data — while each route's own `<title>` and meta description live in its `UI-*` entry]
 
+### Browser Targets
+
+Browser targets contract: browser-targets/1
+
+| Release target | Browser | Platform | Smoke TEST ID |
+| --- | --- | --- | --- |
+| [hosted_web release target ID from architecture.md] | [chrome / edge / firefox / safari] | [desktop / android / macos / ios] | [TEST ID of a Required Yes smoke row] |
+
+- Include this subsection when the product supports a browser beyond Chromium. For Chromium-only verification, remove the whole subsection: heading, contract line and table.
+- Allowed pairs are chrome on desktop or android, edge on desktop, firefox on desktop, and safari on macos or ios.
+- Chrome and Edge run on the chromium engine, Firefox on firefox, and Safari on webkit.
+- WebKit approximates Safari. It does not prove real Safari, iOS or device coverage.
+- Each Smoke TEST ID names a Required Yes row in Test Obligations. Each release target names a hosted_web release target.
+- A malformed table fails the package check. It never falls back to Chromium only.
+
 Omit this section only when the product has no browser frontend.
 
 ## Data and Integration Requirements
@@ -287,7 +302,7 @@ During candidate refinement, use these existing fields for unresolved lifecycle 
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | [Observable behavior or quality obligation] | [Unit / integration / contract / E2E / performance / security / accessibility / operational] | [Yes / No] | PRD-001 | [Literal pass signal, measured result, or threshold] |
 
-Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row may cover more than one upstream requirement only when one test genuinely verifies all of them. Preserve each `TEST-*` ID when its obligation keeps the same meaning; retire rather than reuse an ID whose meaning changes.
+Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row may cover more than one upstream requirement only when one test genuinely verifies all of them. Preserve each `TEST-*` ID when its obligation keeps the same meaning; retire rather than reuse an ID whose meaning changes. A smoke row named in Browser Targets runs once for each mapped browser engine.
 
 ---
 

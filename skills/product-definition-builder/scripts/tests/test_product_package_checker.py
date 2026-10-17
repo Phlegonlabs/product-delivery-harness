@@ -333,6 +333,21 @@ def release_architecture(
     )
 
 
+def prd_with_browser_targets(*rows: str) -> str:
+    table = "\n".join(
+        [
+            "### Browser Targets",
+            "",
+            "Browser targets contract: browser-targets/1",
+            "",
+            "| Release target | Browser | Platform | Smoke TEST ID |",
+            "| --- | --- | --- | --- |",
+            *rows,
+        ]
+    )
+    return valid_prd() + "\n" + table + "\n"
+
+
 def documentation_only_package() -> tuple[str, str]:
     security_table = """| PRD ID | Asset / trust boundary | Abuse case | Control / safe failure | TEST IDs | Owner | Residual risk |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -2866,6 +2881,100 @@ Security scope: executable
             )
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("owner-approved", result.stdout)
+
+    def test_declared_browser_targets_pass_without_findings(self) -> None:
+        prd = prd_with_browser_targets(
+            "| web-production | chrome | desktop | TEST-001 |",
+            "| web-production | firefox | desktop | TEST-001 |",
+        )
+        self.assertEqual(
+            [], self.validate(prd=prd, architecture=release_architecture())
+        )
+
+    def test_browser_target_unknown_release_target_fails(self) -> None:
+        prd = prd_with_browser_targets("| no-such-target | chrome | desktop | TEST-001 |")
+        problems = self.validate(prd=prd, architecture=release_architecture())
+        self.assertTrue(
+            any(
+                "Browser Targets: release target 'no-such-target'" in item
+                for item in problems
+            ),
+            problems,
+        )
+
+    def test_browser_target_non_hosted_web_release_target_fails(self) -> None:
+        extra_targets = (
+            release_target(
+                "api-development",
+                stage="development",
+                surface="public-api",
+                release_name="fixture-api-dev",
+                suffix="api",
+            )
+            + "\n"
+            + release_target(
+                "api-production",
+                stage="production",
+                surface="public-api",
+                release_name="fixture-api",
+                suffix="api",
+            )
+        )
+        architecture = release_architecture(
+            expected="web-app, public-api", extra_targets=extra_targets
+        )
+        prd = prd_with_browser_targets("| api-production | chrome | desktop | TEST-001 |")
+        problems = self.validate(prd=prd, architecture=architecture)
+        self.assertTrue(
+            any(
+                "Browser Targets: release target 'api-production'" in item
+                for item in problems
+            ),
+            problems,
+        )
+
+    def test_browser_target_unknown_smoke_test_id_fails(self) -> None:
+        prd = prd_with_browser_targets("| web-production | chrome | desktop | TEST-999 |")
+        problems = self.validate(prd=prd, architecture=release_architecture())
+        self.assertTrue(
+            any(
+                "Browser Targets: Smoke TEST ID 'TEST-999'" in item for item in problems
+            ),
+            problems,
+        )
+
+    def test_browser_target_smoke_test_id_with_required_no_fails(self) -> None:
+        prd = prd_with_browser_targets(
+            "| web-production | chrome | desktop | TEST-004 |"
+        ).replace(
+            "| TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |",
+            "| TEST-002 | Reliable fixture | reliability | Yes | PRD-002 | All runs pass |\n"
+            "| TEST-004 | Cross browser smoke renders the fixture route | integration "
+            "| No | n/a | Every declared engine renders the route |",
+        )
+        problems = self.validate(prd=prd, architecture=release_architecture())
+        self.assertTrue(
+            any(
+                "Browser Targets: Smoke TEST ID 'TEST-004'" in item for item in problems
+            ),
+            problems,
+        )
+
+    def test_malformed_browser_targets_table_fails_with_prefix(self) -> None:
+        prd = prd_with_browser_targets("| web-production | opera | desktop | TEST-001 |")
+        problems = self.validate(prd=prd, architecture=release_architecture())
+        self.assertTrue(
+            any(
+                "Browser Targets: " in item and "unknown browser" in item
+                for item in problems
+            ),
+            problems,
+        )
+
+    def test_prd_without_browser_targets_section_adds_no_findings(self) -> None:
+        problems = self.validate(architecture=release_architecture())
+        self.assertEqual([], problems)
+        self.assertFalse(any("Browser Targets:" in item for item in problems))
 
 
 if __name__ == "__main__":

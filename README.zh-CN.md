@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -774,6 +774,8 @@ CI 也会运行端到端主干检查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 
 CI 会先安装固定版本的 Node／Playwright 包与 Chromium，再运行必要的 reviewer 浏览器测试；缺少依赖会失败。本地要运行同样检查，先运行 `npm ci` 和 `npx playwright install chromium`，设置 `PDH_REQUIRE_BROWSER_TESTS=1`，并让 `PLAYWRIGHT_MODULE` 指向此 checkout 的 `node_modules/playwright`，再运行 UI suite。普通本地检查仍可在浏览器不可用时跳过。
 
+Consumer 项目会验证 PRD 列出的浏览器。PRD 的 Browser Targets 表格（`browser-targets/1`）把 Chrome 和 Edge 对应到 Chromium、Firefox 对应到 Firefox、Safari 对应到 WebKit；WebKit 只是 Safari 的近似。seed 进 consumer 的 CI 在 PR 标记为 ready 时，每个引擎各运行一次 E2E；draft run 报告 `verify-draft`。PRD 列了 Firefox 或 Safari 时，delivery acceptance `/2` 需要每个 release target、smoke test 和引擎组合都有通过的 scenario。没有这张表时，仍只验证 Chromium。
+
 Source CI 对 feature branch 只通过 pull request 验证一次。`main` push、merge queue candidate 和手动 release 分开运行。每个 suite job 都 checkout 并验证同一个完整 candidate SHA；手动 release 必须指定该 SHA 和完整的祖先 `base_sha`，并以 candidate 作为 concurrency identity，后续 branch push 无法取消它。resolver 会让无法解析或非祖先的 base 失败，并在 PR 和 merge queue 使用验证过的 merge base，因此 fork 后只在 base 上的变更会被排除。若 push base 缺少或全为零，它会把 candidate tree 和 Git 推导的 empty tree 比较，而不是做空白 self-diff。内置的 consumer template 使用等效的 inline Git 检查，不需要 skills checkout。最终 `validate` job 要求每个依赖结果都是 `success`，包括所有 matrix shard。
 
 Harness suite 在每个 POSIX 平台分成四个 deterministic shard；Windows 的明确 native 文件也分成四个 shard。`ci-test-timings.json` 记录的是 Windows scheduling sample，不是通过测试或 release 证据。把这些权重用于切分 macOS 和 Linux 只是排程决定。未测量的新发现文件只有在 `--allow-unmeasured` 时，才会用最大已测量权重保守排程，并明确报告为 fallback。这些观察不能证明 hosted 环境提速。
@@ -831,6 +833,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.64.3** — 验证每份 PRD 列出的浏览器。Browser Targets 表格把 Chrome 和 Edge 对应到 Chromium、Firefox 对应到 Firefox、Safari 对应到 WebKit（近似）。consumer CI 在 PR 标记为 ready 时每个引擎各运行一次 E2E，delivery acceptance `/2` 要求每个 release target、smoke test 和引擎组合都有通过的 scenario。
 
 - **0.64.0** — 让 native reviewer 的浏览器身份对应 host，同时保留 bridge 检查。在共用 reviewer 中组装方向研究，并提供每个案例的 targets 与宽度。把完整 diagnostic wave 连结 PRD、manifest 与 evidence 身分。在 strict Activation、SEO 与 Outcome 交接要求 release source provenance，包含 main-preview/1 套件。CLI 输出改用 UTF-8，Windows 上含中文的 findings 不再崩溃。厘清 frontend-only authoring、version-3 navigation、worker recovery、量测宽度与诚实的部分研究。
 

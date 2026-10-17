@@ -75,6 +75,8 @@ Before an applicable release, record migration ordering and compatibility, backu
 
 After release, read back the actual build/artifact and verify health and required smoke against it. Report implementation delivery, release availability, operational activation and measured product outcomes separately. Green CI, a started deployment or successful upload proves none of the later stages.
 
+Deployment availability does not prove web delivery. When the PRD names Firefox or Safari, the delivery acceptance browser coverage must pass before a web release target is reported verified.
+
 ## Post-Deploy Verification (read-only)
 
 Verify the candidate environment before promotion when it applies, then verify production after the separately authorized `main` promotion:

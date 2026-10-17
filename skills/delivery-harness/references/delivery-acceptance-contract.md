@@ -6,6 +6,8 @@ Use this contract on new delivery work, both direct and managed. It supplements 
 
 Product Definition owns PRD requirements and required TEST IDs. First run its full approved-package checker to prove Must/NFR and gate coverage. The Harness then freezes the concrete scenario matrix derived from those obligations: TEST ID, scenario identity, platform/device/OS, authentication mode, environment, build/configuration identity, initial persona/data, observable assertions and external dependency mode. A primary journey needs complete user-to-data proof in addition to unit/integration checks; not every requirement needs an expensive UI test.
 
+When the PRD Browser Targets table names a non-Chromium engine, freeze one web scenario per browser combination. Each combination pairs one release target, one smoke TEST ID and one engine. Chrome and Edge map to `chromium`, Firefox maps to `firefox`, and Safari on macOS or iOS maps to `webkit`. Record that identity in the scenario's `execution.browser` field. A Chromium-only or undeclared PRD adds no browser scenarios.
+
 Retain the executable contract separately from the result register. Bind its SHA-256 in the accepted plan or direct-task scope record before execution. The acceptance CLI's expected contract hash comes from that parent-observed authority, never from the result file itself; its candidate is a parent-observed SHA or is proven against the checked-out head in Git. A result writer cannot remove a required platform, relabel real auth as mock, weaken an assertion or edit both expectation and result to obtain PASS. A changed expectation needs the original scope decision checked again, not a silent hash refresh.
 
 For managed work, freeze the contract as an additional PLAN source and declare `check_delivery_acceptance.py` as an always-run final gate with a matching verifier graph node between the final check and closeout. The existing verifier runtime records its execution key in RUN; link the register rather than copying its result rows into a competing RUN schema. Direct work runs the same CLI without PLAN/RUN. Gate-authoring review must reject a missing acceptance verifier; this is not automatic retroactive migration of old plans.
@@ -36,6 +38,8 @@ For an applicable PRD `eval-policy/1`, also use `eval-acceptance-contract.md`. A
 - Retain redacted logs/assertions, applicable screenshots and native build/configuration evidence with content hashes and exact candidate identity. A nonempty hashed file proves retained bytes, not the truth of its contents; reviewer inspection of assertions and provenance remains required.
 - Build and configuration identity must match the artifact actually exercised. A deployed environment is read back; a local commit SHA alone cannot prove the server or native binary matches it. Candidate checks and separately authorized production smoke are distinct.
 
+A web release target counts as delivery-verified only when every required browser combination has a frozen scenario and a passing result. Report WebKit results as a Safari approximation. WebKit does not prove real Safari, iOS or device coverage.
+
 ## Full-Stack Slices And Reproducible E2E
 
 Implement complete accepted user flows in small slices: screen/client → API/service → permissions → saved data → visible result. For each applicable slice, prove validation, real test login, tenant/role denial, persistence after reload or a separate read, safe retry, cancellation and external side effects. A working mock screen does not prove its backend. Use existing project test tools before proposing another dependency.
@@ -57,6 +61,17 @@ Concrete identity and execution fields reject embedded placeholder tokens such a
 - Contract: exactly `schema: delivery-acceptance/1`, `prd_sha256`, `tests`. Each test has `test_id` and `scenarios`; each scenario has `id`, `platform`, `auth_mode`, `environment`, `build`, `execution`, `fixtures`.
 - Result: exactly `schema: delivery-results/1`, `candidate_sha`, `results`. Each row has `test_id`, `scenario_id`, `platform`, `auth_mode`, `environment`, `build`, `execution`, `status`, `assertion_results`, `fixture_cleanup`, `evidence`.
 - `execution` freezes `target`, `device`, `os`, `persona` (exactly `role`, `tenant`, `account_state`), `initial_data`, ordered `actions`, `assertions` (stable ID to expected signal), `expected_side_effects`, and `dependency_mode`. Use concrete non-secret text; explain genuine non-applicability. Results repeat the exact observed context. For native tests name the actual device/simulator and OS; for agent trials name the tool/model setup and predeclared trial counts. Reviewer inspection must confirm this matches reality.
+- Version 2 pairs `schema: delivery-acceptance/2` with `delivery-results/2`. It adds exactly `browser` to the `execution` of every `web` scenario. Other platforms and version 1 reject the field. `browser` holds exactly `release_target` (lowercase kebab-case) and `engine` (`chromium`, `firefox`, or `webkit`). Results repeat the frozen `browser` identity exactly. When the frozen PRD maps a release target to Firefox or WebKit, the contract must be version 2. Every required combination then needs a `web` scenario with that identity and a passing result. Version 1 stays valid only when the PRD names no non-Chromium target.
+
+  ```json
+  {
+    "id": "web-firefox-smoke",
+    "platform": "web",
+    "execution": {
+      "browser": {"release_target": "web-production", "engine": "firefox"}
+    }
+  }
+  ```
 - `build` uses exactly `build_id` and lowercase SHA-256 `config_digest`. Only non-native local checks may instead use `not_applicable_reason` with a real explanation. A mocked UI cannot use this escape to claim native completion.
 - `platform` is `web`, `browser-extension`, `ios`, `android`, `macos`, `windows`, `desktop`, `agent`, `api`, or `cli`. `auth_mode` is `mock`, `real`, or `none`. `environment` is `local`, `test`, `preview`, `staging`, or `production`; mock auth and synthetic fixtures cannot target production.
 - Each fixture has exactly `namespace` (unique `synthetic-*` run namespace), `setup_authority`, `cleanup_authority`, `owned_resources` (unique `owned:` resource handles), `production: false`, `auth_bypass: false`. Authority text references an already verified grant, never creates one. An empty fixture list is allowed only when the scenario genuinely needs no seeded resource; the parent checks applicability.

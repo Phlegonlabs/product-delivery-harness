@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -774,6 +774,8 @@ CI 也會執行端到端主幹檢查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 
 CI 會先安裝釘選的 Node／Playwright 套件與 Chromium，再執行必要的 reviewer 瀏覽器測試；缺少相依套件會失敗。本機要執行同樣檢查，先跑 `npm ci` 與 `npx playwright install chromium`，設定 `PDH_REQUIRE_BROWSER_TESTS=1`，並讓 `PLAYWRIGHT_MODULE` 指向此 checkout 的 `node_modules/playwright`，再執行 UI suite。一般本機檢查仍可在瀏覽器不可用時跳過。
 
+Consumer 專案會驗證 PRD 列出的瀏覽器。PRD 的 Browser Targets 表格（`browser-targets/1`）把 Chrome 和 Edge 對應到 Chromium、Firefox 對應到 Firefox、Safari 對應到 WebKit；WebKit 只是 Safari 的近似。seed 進 consumer 的 CI 在 PR 標記為 ready 時，每個引擎各跑一次 E2E；draft run 回報 `verify-draft`。PRD 列了 Firefox 或 Safari 時，delivery acceptance `/2` 需要每個 release target、smoke test 和引擎組合都有通過的 scenario。沒有這張表時，仍只驗證 Chromium。
+
 Source CI 對 feature branch 只透過 pull request 驗證一次。`main` push、merge queue candidate 與手動 release 分開執行。每個 suite job 都 checkout 並驗證同一個完整 candidate SHA；手動 release 必須指定該 SHA 和完整的祖先 `base_sha`，並以 candidate 作 concurrency identity，後續 branch push 無法取消它。resolver 會讓無法解析或非祖先的 base 失敗，並在 PR 和 merge queue 使用驗證過的 merge base，因此 fork 後只在 base 上的變更會被排除。若 push base 缺少或全為零，它會把 candidate tree 和 Git 推導的 empty tree 比較，而不是做空白 self-diff。內建的 consumer template 使用等效的 inline Git 檢查，不需要 skills checkout。最終 `validate` job 要求每個相依結果都是 `success`，包含所有 matrix shard。
 
 Harness suite 在每個 POSIX 平台分成四個 deterministic shard；Windows 的明確 native 檔案也分成四個 shard。`ci-test-timings.json` 記錄的是 Windows scheduling sample，不是通過測試或 release 證據。把這些權重用來切分 macOS 和 Linux 只是排程決定。未量測的新發現檔案只有在 `--allow-unmeasured` 時，才會用最大已量測權重保守排程，並明確回報為 fallback。這些觀察不能證明 hosted 環境提速。
@@ -831,6 +833,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.64.3** — 驗證每份 PRD 列出的瀏覽器。Browser Targets 表格把 Chrome 和 Edge 對應到 Chromium、Firefox 對應到 Firefox、Safari 對應到 WebKit（近似）。consumer CI 在 PR 標記為 ready 時每個引擎各跑一次 E2E，delivery acceptance `/2` 要求每個 release target、smoke test 和引擎組合都有通過的 scenario。
 
 - **0.64.0** — 讓 native reviewer 的瀏覽器身分對應 host，同時保留 bridge 檢查。在共用 reviewer 中組裝方向研究，並提供每個案例的 targets 與寬度。把完整 diagnostic wave 連結 PRD、manifest 與 evidence 身分。在 strict Activation、SEO 與 Outcome 交接要求 release source provenance，包含 main-preview/1 套件。CLI 輸出改用 UTF-8，Windows 上含中文的 findings 不再 crash。釐清 frontend-only authoring、version-3 navigation、worker recovery、量測寬度與誠實的部分研究。
 

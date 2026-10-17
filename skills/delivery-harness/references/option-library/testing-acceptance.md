@@ -51,6 +51,11 @@
 - 每個 TEST ID 記錄環境性質（synthetic、mock、sandbox、production read-only）、工具版本、commit 與實際結果。
 - 負向與拒絕案例至少一條；單次成功不得宣稱安全或穩定。
 - 瀏覽器或真機工具不可用時記錄缺口；靜態檢查不得改稱實機證據。
+- 瀏覽器集合來自 PRD 的 Browser Targets 表（browser-targets/1）；未宣告此表時僅以 Chromium 驗證。
+- Playwright 以 chromium、firefox、webkit 三個引擎執行；Chrome 與 Edge 對應 chromium，Firefox 對應 firefox，Safari 對應 webkit。
+- WebKit 僅近似 Safari；通過 webkit 不證明真 Safari、iOS 或實機涵蓋。
+- agent-browser 與 Claude in Chrome 只驅動 Chromium；適合互動探索，不能作為跨瀏覽器證據。
+- 跨瀏覽器的綁定規則見 `delivery-acceptance-contract.md` 與 `verification-gates.md`。
 - 效能結果附環境與資料規模，不跨環境直接比較。
 
 ## 採納記錄落點（沿用既有文件，不新增關卡）

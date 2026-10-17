@@ -15,14 +15,18 @@ from delivery_acceptance_execution import concrete_text, execution, observations
 
 from delivery_acceptance_io import (
     AcceptanceError, _read_bytes, _load_json, _safe_file, _sha256,
-    _parse_required_prd_tests,
+    _parse_required_prd_tests, parse_frozen_browser_targets,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_schema import supported_coordination_path
 
 
 CONTRACT_SCHEMA = "delivery-acceptance/1"
+CONTRACT_SCHEMA_V2 = "delivery-acceptance/2"
 RESULT_SCHEMA = "delivery-results/1"
+RESULT_SCHEMA_V2 = "delivery-results/2"
+CONTRACT_SCHEMAS = {CONTRACT_SCHEMA, CONTRACT_SCHEMA_V2}
+RESULT_SCHEMAS = {RESULT_SCHEMA, RESULT_SCHEMA_V2}
 CONTRACT_KEYS = {"schema", "prd_sha256", "tests"}
 RESULT_KEYS = {"schema", "candidate_sha", "results"}
 SCENARIO_KEYS = {"id", "platform", "auth_mode", "environment", "build", "fixtures", "execution"}
@@ -161,8 +165,12 @@ def _contract(
     errors: list[str] = []
     if not _exact_keys(value, CONTRACT_KEYS, "contract", errors):
         return {}, errors
-    if value.get("schema") != CONTRACT_SCHEMA:
-        errors.append(f"contract.schema must be {CONTRACT_SCHEMA!r}")
+    schema = value.get("schema")
+    if not isinstance(schema, str) or schema not in CONTRACT_SCHEMAS:
+        errors.append(f"contract.schema must be one of {sorted(CONTRACT_SCHEMAS)}")
+        version = 0
+    else:
+        version = int(schema.rpartition("/")[2])
     tests = value.get("tests")
     if not isinstance(tests, list):
         errors.append("contract.tests must be a list")
@@ -206,7 +214,10 @@ def _contract(
                 errors.append(f"{scenario_path} cannot use mock authentication in production")
             build = _build(scenario["build"], f"{scenario_path}.build", platform, environment, errors)
             _fixtures(scenario["fixtures"], environment, f"{scenario_path}.fixtures", errors)
-            execution(scenario["execution"], f"{scenario_path}.execution", errors)
+            execution(
+                scenario["execution"], f"{scenario_path}.execution", errors,
+                browser=version == 2 and platform == "web",
+            )
             key = (test_id, scenario_id)
             if not scenario_id or key in scenarios:
                 errors.append(f"{scenario_path}.id must be unique within {test_id}")
@@ -276,6 +287,14 @@ def _evidence(
     return True
 
 
+def _result_schema(contract_schema: Any) -> str:
+    """The results schema paired with a contract schema by version."""
+
+    if isinstance(contract_schema, str) and contract_schema in CONTRACT_SCHEMAS:
+        return f"delivery-results/{contract_schema.rpartition('/')[2]}"
+    return ""
+
+
 def _results(
     value: dict[str, Any],
     scenarios: dict[tuple[str, str], dict[str, Any]],
@@ -284,12 +303,18 @@ def _results(
     root: Path,
     allowed_root: str,
     captured: dict[str, bytes],
+    contract_schema: str = CONTRACT_SCHEMA,
 ) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     if not _exact_keys(value, RESULT_KEYS, "results", errors):
         return [], errors
-    if value.get("schema") != RESULT_SCHEMA:
-        errors.append(f"results.schema must be {RESULT_SCHEMA!r}")
+    schema = value.get("schema")
+    if not isinstance(schema, str) or schema not in RESULT_SCHEMAS:
+        errors.append(f"results.schema must be one of {sorted(RESULT_SCHEMAS)}")
+    elif schema != _result_schema(contract_schema):
+        errors.append(
+            f"results.schema {schema!r} does not match contract schema {contract_schema!r}"
+        )
     recorded_sha = _string(value.get("candidate_sha"), "results.candidate_sha", errors)
     if recorded_sha and GIT_SHA_RE.fullmatch(recorded_sha) is None:
         errors.append("results.candidate_sha must be a lowercase 40-character Git SHA")
@@ -360,6 +385,63 @@ def _results(
     for test_id, scenario_id in missing:
         errors.append(f"required {test_id}/{scenario_id} has no exact passing evidence")
     return sorted(f"{test_id}/{scenario_id}" for test_id, scenario_id in matched), errors
+
+
+def _requires_cross_browser(targets: Any) -> bool:
+    """Whether a valid PRD declaration demands an engine other than chromium."""
+
+    return (
+        targets.declared
+        and not targets.errors
+        and any(engine != "chromium" for engine in targets.engines)
+    )
+
+
+def _browser_coverage_errors(
+    targets: Any,
+    contract_schema: Any,
+    scenarios: dict[tuple[str, str], dict[str, Any]],
+    results: dict[str, Any],
+) -> list[str]:
+    """Bind a cross-browser PRD declaration to frozen scenarios and results."""
+
+    if not _requires_cross_browser(targets):
+        return []
+    errors: list[str] = []
+    if contract_schema != CONTRACT_SCHEMA_V2:
+        errors.append("PRD browser targets require delivery-acceptance/2")
+    rows = results.get("results")
+    passing = {
+        (row["test_id"], row["scenario_id"])
+        for row in rows
+        if (
+            isinstance(row, dict)
+            and isinstance(row.get("test_id"), str)
+            and isinstance(row.get("scenario_id"), str)
+            and row.get("status") == "pass"
+        )
+    } if isinstance(rows, list) else set()
+    for release_target, test_id, engine in targets.coverage:
+        identity = {"release_target": release_target, "engine": engine}
+        frozen = [
+            scenario_id
+            for (scenario_test, scenario_id), scenario in scenarios.items()
+            if scenario_test == test_id
+            and scenario["platform"] == "web"
+            and isinstance(scenario["execution"], dict)
+            and scenario["execution"].get("browser") == identity
+        ]
+        if not frozen:
+            errors.append(
+                f"browser coverage: {test_id} on {release_target} "
+                f"has no frozen {engine} scenario"
+            )
+        elif not any((test_id, scenario_id) in passing for scenario_id in frozen):
+            errors.append(
+                f"browser coverage: {test_id} on {release_target} "
+                f"has no passing {engine} result"
+            )
+    return errors
 
 
 def _evidence_paths(value: dict[str, Any], allowed_root: str) -> set[str]:
@@ -489,12 +571,14 @@ def _run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         contract = _load_json(contract_bytes, "contract")
         results = _load_json(result_bytes, "results")
         all_tests, required_tests, errors = _parse_required_prd_tests(prd_bytes)
+        targets = parse_frozen_browser_targets(prd_bytes)
     except (AcceptanceError, OSError) as exc:
         return 1, _response([str(exc)])
 
     prd_hash = _sha256(prd_bytes)
     if contract.get("prd_sha256") != prd_hash:
         errors.append("contract.prd_sha256 does not match the actual PRD bytes")
+    errors.extend(f"PRD browser targets: {error}" for error in targets.errors)
     scenarios, contract_errors = _contract(contract, all_tests, required_tests)
     errors.extend(contract_errors)
     if errors:
@@ -509,9 +593,12 @@ def _run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     captured_evidence: dict[str, bytes] = {}
     matched, result_errors = _results(
         results, scenarios, required_tests, candidate_sha, root, allowed_root,
-        captured_evidence,
+        captured_evidence, contract.get("schema"),
     )
     errors.extend(result_errors)
+    errors.extend(
+        _browser_coverage_errors(targets, contract.get("schema"), scenarios, results)
+    )
     if head_sha is not None and GIT_SHA_RE.fullmatch(candidate_sha):
         errors.extend(_committed_file_errors(root, head_sha, results_path, result_bytes))
         for path, evidence_bytes in sorted(captured_evidence.items()):

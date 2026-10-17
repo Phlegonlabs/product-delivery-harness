@@ -2,6 +2,7 @@ name: project-ci
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
   push:
     branches:
@@ -26,7 +27,7 @@ concurrency:
   group: >-
     project-ci-${{
     github.event_name == 'workflow_dispatch' && inputs.release_sha ||
-    github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) ||
+    github.event_name == 'pull_request' && format('pr-{0}-{1}', github.event.pull_request.number, github.event.pull_request.draft && 'draft' || 'ready') ||
     github.ref
     }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -38,6 +39,9 @@ jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
+    outputs:
+      engines: ${{ steps.browsers.outputs.engines }}
+      declared: ${{ steps.browsers.outputs.declared }}
     env:
       DIFF_BASE_SHA: >-
         ${{
@@ -61,6 +65,10 @@ jobs:
           fi
           actual_sha="$(git rev-parse HEAD)"
           test "$actual_sha" = "$CANDIDATE_SHA"
+
+      - name: Resolve browser engines
+        id: browsers
+        run: python3 .github/scripts/browser_targets.py --prd docs/product/PRD.md --github-output "$GITHUB_OUTPUT"
 
       # Add the repo-specific runtime setup steps here.
 
@@ -133,8 +141,16 @@ jobs:
           git diff --check "$diff_base" "$actual_sha"
 
   e2e:
-    name: e2e
+    needs: checks
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: e2e-${{ matrix.engine }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ${{ fromJSON(needs.checks.outputs.engines) }}
+    env:
+      PLAYWRIGHT_ENGINE: ${{ matrix.engine }}
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -146,6 +162,13 @@ jobs:
 
       # Add the same repo-specific runtime and service setup used by the target environment.
 
+      - name: Install the browser engine
+        if: needs.checks.outputs.declared == 'true'
+        run: npx playwright install --with-deps "$PLAYWRIGHT_ENGINE"
+
+      # A declared PRD selects the engine project, for example
+      # npx playwright test --project="$PLAYWRIGHT_ENGINE".
+      # An undeclared PRD keeps the existing command.
       - name: Run automated E2E
         run: <e2e-command>
 
@@ -153,17 +176,22 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-${{ env.CANDIDATE_SHA }}
+          name: e2e-${{ matrix.engine }}-${{ env.CANDIDATE_SHA }}
           path: <e2e-artifact-path>
           if-no-files-found: error
 
   verify:
-    # Keep this stable name for branch protection. It is the final aggregate,
-    # so skipped or cancelled dependencies cannot produce a green release gate.
-    name: verify
+    # Keep this aggregate for branch protection. A draft pull request
+    # reports verify-draft and requires E2E to stay skipped. Only a
+    # complete run reports the required verify check. A manual run whose
+    # release_sha is not the dispatched commit reports verify-detached,
+    # so it cannot satisfy branch protection for that commit.
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_sha != github.sha && 'verify-detached' || github.event_name == 'pull_request' && github.event.pull_request.draft && 'verify-draft' || 'verify' }}
     needs: [checks, e2e]
     if: always()
     runs-on: ubuntu-latest
+    env:
+      DRAFT_PULL_REQUEST: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
     steps:
       - name: Require every result to succeed
         env:
@@ -171,10 +199,17 @@ jobs:
           E2E_RESULT: ${{ needs.e2e.result }}
         run: |
           failed=0
-          for result in "$CHECKS_RESULT" "$E2E_RESULT"; do
-            if [ "$result" != success ]; then
-              echo "required result: $result"
+          if [ "$CHECKS_RESULT" != success ]; then
+            echo "required result: $CHECKS_RESULT"
+            failed=1
+          fi
+          if [ "$DRAFT_PULL_REQUEST" = true ]; then
+            if [ "$E2E_RESULT" != skipped ]; then
+              echo "draft pull request requires E2E to be skipped, got: $E2E_RESULT"
               failed=1
             fi
-          done
+          elif [ "$E2E_RESULT" != success ]; then
+            echo "required result: $E2E_RESULT"
+            failed=1
+          fi
           exit "$failed"

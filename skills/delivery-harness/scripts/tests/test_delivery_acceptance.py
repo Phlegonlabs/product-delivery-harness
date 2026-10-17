@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import io
 import json
@@ -118,6 +119,73 @@ def results() -> dict[str, Any]:
     return {"schema": "delivery-results/1", "candidate_sha": CANDIDATE, "results": rows}
 
 
+BROWSER = {"release_target": "fixture-web-1", "engine": "chromium"}
+
+RELEASE_TARGET = "fixture-web-1"
+CROSS_PRD_ENGINES = ("chromium", "firefox", "webkit")
+
+
+def browser_identity(engine: str) -> dict[str, str]:
+    return {"release_target": RELEASE_TARGET, "engine": engine}
+
+
+def browser_prd(*rows: str) -> str:
+    table = (
+        "### Browser Targets\n"
+        "\n"
+        "Browser targets contract: browser-targets/1\n"
+        "\n"
+        "| Release target | Browser | Platform | Smoke TEST ID |\n"
+        "| --- | --- | --- | --- |\n"
+    ) + "".join(f"| {row} |\n" for row in rows)
+    return PRD.replace("## Test Obligations", table + "\n## Test Obligations")
+
+
+PRD_CROSS_BROWSER = browser_prd(
+    f"{RELEASE_TARGET} | chrome | desktop | TEST-001",
+    f"{RELEASE_TARGET} | firefox | desktop | TEST-001",
+    f"{RELEASE_TARGET} | safari | macos | TEST-001",
+)
+
+
+def contract_v2() -> dict[str, Any]:
+    value = contract()
+    value["schema"] = "delivery-acceptance/2"
+    value["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(BROWSER)
+    return value
+
+
+def results_v2() -> dict[str, Any]:
+    value = results()
+    value["schema"] = "delivery-results/2"
+    value["results"][0]["execution"]["browser"] = dict(BROWSER)
+    return value
+
+
+def contract_cross_browser() -> dict[str, Any]:
+    """One frozen web scenario per PRD engine under the required test."""
+
+    value = contract_v2()
+    scenarios = value["tests"][0]["scenarios"]
+    for engine in CROSS_PRD_ENGINES[1:]:
+        scenario = copy.deepcopy(scenarios[0])
+        scenario["id"] = f"web-{engine}"
+        scenario["execution"]["browser"] = browser_identity(engine)
+        scenarios.append(scenario)
+    return value
+
+
+def results_cross_browser() -> dict[str, Any]:
+    value = results_v2()
+    rows = value["results"]
+    for engine in CROSS_PRD_ENGINES[1:]:
+        row = copy.deepcopy(rows[0])
+        row["scenario_id"] = f"web-{engine}"
+        row["execution"]["browser"] = browser_identity(engine)
+        rows.append(row)
+    return value
+
+
 def invoke(
     contract_value: dict[str, Any] | None = None,
     result_value: dict[str, Any] | None = None,
@@ -182,7 +250,6 @@ class DeliveryAcceptanceTests(unittest.TestCase):
             row["assertion_results"] = {key: "pass" for key in expected}
         self.assertEqual(0, invoke(frozen, observed)[0])
         for change in ("summary", "mock", "stale", "skipped", "missing"):
-            import copy
             mutated = copy.deepcopy(observed)
             row = mutated["results"][1]
             if change == "summary":
@@ -436,6 +503,219 @@ class DeliveryAcceptanceTests(unittest.TestCase):
                 status, payload = invoke(result_value=value)
                 self.assertEqual(1, status)
                 self.assertIn(expected, " ".join(payload["errors"]))
+
+
+class BrowserIdentityTests(unittest.TestCase):
+    """Delivery acceptance version 2 carries a browser identity on web scenarios."""
+
+    def test_version_2_web_browser_identity_passes_for_every_engine(self) -> None:
+        for engine in ("chromium", "firefox", "webkit"):
+            with self.subTest(engine=engine):
+                frozen = contract_v2()
+                observed = results_v2()
+                identity = {"release_target": "fixture-web-1", "engine": engine}
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(identity)
+                observed["results"][0]["execution"]["browser"] = dict(identity)
+                status, payload = invoke(frozen, observed)
+                self.assertEqual((0, "PASS"), (status, payload["status"]))
+                self.assertEqual(2, len(payload["matched_scenarios"]))
+
+    def test_version_2_web_scenario_requires_browser(self) -> None:
+        frozen = contract_v2()
+        frozen["tests"][0]["scenarios"][0]["execution"].pop("browser")
+        status, payload = invoke(frozen, results_v2())
+        self.assertEqual(1, status)
+        self.assertIn("has invalid execution fields", " ".join(payload["errors"]))
+
+    def test_version_2_non_web_scenario_cannot_carry_browser(self) -> None:
+        frozen = contract_v2()
+        frozen["tests"][0]["scenarios"][1]["execution"]["browser"] = dict(BROWSER)
+        status, payload = invoke(frozen, results_v2())
+        self.assertEqual(1, status)
+        self.assertIn("has invalid execution fields", " ".join(payload["errors"]))
+
+    def test_version_2_engine_is_a_closed_set(self) -> None:
+        for engine in ("safari", "Chrome", ""):
+            with self.subTest(engine=engine):
+                frozen = contract_v2()
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = {
+                    "release_target": "fixture-web-1", "engine": engine}
+                status, payload = invoke(frozen, results_v2())
+                self.assertEqual(1, status)
+                self.assertIn("engine must be one of", " ".join(payload["errors"]))
+
+    def test_version_2_release_target_must_be_lower_kebab_case(self) -> None:
+        for target in ("Fixture-Web-1", "web_2", "-leading", "trailing-", "web 2", "a.b"):
+            with self.subTest(target=target):
+                frozen = contract_v2()
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = {
+                    "release_target": target, "engine": "chromium"}
+                status, payload = invoke(frozen, results_v2())
+                self.assertEqual(1, status)
+                self.assertIn("release_target must be lower kebab case",
+                              " ".join(payload["errors"]))
+
+    def test_version_2_browser_object_is_closed(self) -> None:
+        for identity in ({"release_target": "fixture-web-1"},
+                         {"release_target": "fixture-web-1", "engine": "chromium",
+                          "device": "desktop"}):
+            with self.subTest(identity=sorted(identity)):
+                frozen = contract_v2()
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(identity)
+                status, payload = invoke(frozen, results_v2())
+                self.assertEqual(1, status)
+                self.assertIn("browser requires release_target and engine",
+                              " ".join(payload["errors"]))
+
+    def test_contract_and_results_versions_must_agree(self) -> None:
+        status, payload = invoke(contract(), results_v2())
+        self.assertEqual(1, status)
+        text = " ".join(payload["errors"])
+        self.assertIn("does not match contract schema", text)
+        self.assertIn("delivery-acceptance/1", text)
+        self.assertIn("delivery-results/2", text)
+        status, payload = invoke(contract_v2(), results())
+        self.assertEqual(1, status)
+        text = " ".join(payload["errors"])
+        self.assertIn("does not match contract schema", text)
+        self.assertIn("delivery-acceptance/2", text)
+        self.assertIn("delivery-results/1", text)
+
+    def test_version_2_result_must_repeat_the_frozen_browser(self) -> None:
+        for changed in ({"release_target": "fixture-web-1", "engine": "firefox"},
+                        {"release_target": "other-release", "engine": "chromium"}):
+            with self.subTest(changed=changed):
+                frozen = contract_v2()
+                observed = results_v2()
+                observed["results"][0]["execution"]["browser"] = changed
+                status, payload = invoke(frozen, observed)
+                self.assertEqual(1, status)
+                self.assertIn(
+                    "identity does not match frozen scenario TEST-001/web-mock",
+                    " ".join(payload["errors"]),
+                )
+
+    def test_version_1_scenario_still_rejects_browser(self) -> None:
+        frozen = contract()
+        frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(BROWSER)
+        status, payload = invoke(frozen, results())
+        self.assertEqual(1, status)
+        self.assertIn("has invalid execution fields", " ".join(payload["errors"]))
+
+
+class SchemaValueTypeTests(unittest.TestCase):
+    """A non-string schema value is a finding, never an uncaught crash."""
+
+    def test_contract_schema_list_returns_finding_without_raising(self) -> None:
+        value = contract()
+        value["schema"] = []
+        status, payload = invoke(value)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "contract.schema must be one of", " ".join(payload["errors"]),
+        )
+
+    def test_contract_schema_dict_returns_finding_without_raising(self) -> None:
+        value = contract()
+        value["schema"] = {}
+        status, payload = invoke(value)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "contract.schema must be one of", " ".join(payload["errors"]),
+        )
+
+    def test_results_schema_list_returns_finding_without_raising(self) -> None:
+        value = results()
+        value["schema"] = []
+        status, payload = invoke(result_value=value)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "results.schema must be one of", " ".join(payload["errors"]),
+        )
+
+
+class BrowserCoverageTests(unittest.TestCase):
+    """The frozen PRD's Browser Targets table binds contract and results."""
+
+    def test_cross_browser_prd_with_one_frozen_passing_scenario_per_engine(self) -> None:
+        status, payload = invoke(
+            contract_cross_browser(), results_cross_browser(),
+            prd_text=PRD_CROSS_BROWSER,
+        )
+        self.assertEqual((0, "PASS"), (status, payload["status"]))
+        self.assertEqual(4, len(payload["matched_scenarios"]))
+
+    def test_missing_frozen_engine_scenario_fails(self) -> None:
+        frozen = contract_cross_browser()
+        observed = results_cross_browser()
+        frozen["tests"][0]["scenarios"] = [
+            scenario for scenario in frozen["tests"][0]["scenarios"]
+            if scenario["id"] != "web-firefox"
+        ]
+        observed["results"] = [
+            row for row in observed["results"] if row["scenario_id"] != "web-firefox"
+        ]
+        status, payload = invoke(frozen, observed, prd_text=PRD_CROSS_BROWSER)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "browser coverage: TEST-001 on fixture-web-1 has no frozen firefox scenario",
+            " ".join(payload["errors"]),
+        )
+
+    def test_failing_engine_result_fails(self) -> None:
+        observed = results_cross_browser()
+        for row in observed["results"]:
+            if row["scenario_id"] == "web-firefox":
+                row["status"] = "fail"
+                row["assertion_results"] = {"A1": "fail"}
+                row["fixture_cleanup"] = "failed"
+        status, payload = invoke(
+            contract_cross_browser(), observed, prd_text=PRD_CROSS_BROWSER,
+        )
+        self.assertEqual(1, status)
+        self.assertIn(
+            "browser coverage: TEST-001 on fixture-web-1 has no passing firefox result",
+            " ".join(payload["errors"]),
+        )
+
+    def test_cross_browser_prd_requires_contract_version_2(self) -> None:
+        status, payload = invoke(contract(), results(), prd_text=PRD_CROSS_BROWSER)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "PRD browser targets require delivery-acceptance/2",
+            " ".join(payload["errors"]),
+        )
+
+    def test_chromium_only_table_keeps_version_1_valid(self) -> None:
+        prd = browser_prd(f"{RELEASE_TARGET} | chrome | desktop | TEST-001")
+        status, payload = invoke(prd_text=prd)
+        self.assertEqual((0, "PASS"), (status, payload["status"]))
+        self.assertEqual(2, len(payload["matched_scenarios"]))
+
+    def test_malformed_table_fails_with_prd_browser_targets_prefix(self) -> None:
+        prd = browser_prd(f"{RELEASE_TARGET} | netscape | desktop | TEST-001")
+        status, payload = invoke(prd_text=prd)
+        self.assertEqual(1, status)
+        errors = payload["errors"]
+        self.assertTrue(
+            any(error.startswith("PRD browser targets: ") for error in errors),
+            errors,
+        )
+        self.assertIn("unknown browser", " ".join(errors))
+
+    def test_list_valued_test_id_cannot_crash_browser_coverage(self) -> None:
+        observed = results_cross_browser()
+        for row in observed["results"]:
+            if row["scenario_id"] == "web-firefox":
+                row["test_id"] = ["TEST-001"]
+        status, payload = invoke(
+            contract_cross_browser(), observed, prd_text=PRD_CROSS_BROWSER,
+        )
+        self.assertEqual(1, status)
+        self.assertIn(
+            "browser coverage: TEST-001 on fixture-web-1 has no passing firefox result",
+            " ".join(payload["errors"]),
+        )
 
 
 class CandidateTreeTests(unittest.TestCase):

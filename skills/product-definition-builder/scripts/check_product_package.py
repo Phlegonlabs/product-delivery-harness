@@ -11,6 +11,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from browser_targets import parse_browser_targets
 from markdown_contract import active_text, active_machine_block
 from platform_delivery import parse_platform_delivery, PROTOCOL
 from prd_operations import required_operations
@@ -1845,6 +1846,32 @@ def validate_texts(
             _add(problems, "prd", f"{test_id} needs a concrete test type")
         if not _meaningful(row[5], minimum=8):
             _add(problems, "prd", f"{test_id} needs an observable expected signal")
+
+    browser_targets_contract = parse_browser_targets(prd_text)
+    for error in browser_targets_contract.errors:
+        _add(problems, "prd", f"Browser Targets: {error}")
+    if browser_targets_contract.declared and not browser_targets_contract.errors:
+        hosted_web_target_ids = {
+            target.target_id
+            for target in release_contract.targets
+            if target.surface_class == "hosted_web"
+        }
+        for target in browser_targets_contract.targets:
+            if target.release_target not in hosted_web_target_ids:
+                _add(
+                    problems,
+                    "prd",
+                    f"Browser Targets: release target {target.release_target!r} is "
+                    "not a Release Target ID in architecture.md whose Surface "
+                    "class is hosted_web",
+                )
+            if target.smoke_test_id not in known_required_test_ids:
+                _add(
+                    problems,
+                    "prd",
+                    f"Browser Targets: Smoke TEST ID {target.smoke_test_id!r} is "
+                    "not a Test Obligations row whose Required value is Yes",
+                )
 
     requirement_ids: set[str] = set()
     must_ids: set[str] = set()
