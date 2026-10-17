@@ -304,6 +304,11 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.assertNotIn("wrangler preview", void_route)
         self.assertNotIn("--env development", void_route)
         self.assertNotIn("--project", void_route)
+        self.assertNotIn("env.production", void_route)
+        wrangler_route = template.split("#### Wrangler Workers", 1)[1].split(
+            "### vercel, aws, generic", 1
+        )[0]
+        self.assertIn("env.production", wrangler_route)
         self.assertIn("On other Workers", template)
         self.assertIn("For the Wrangler route, create", template)
         self.assertIn("Generated config alone is insufficient", contract)

@@ -539,3 +539,14 @@ Older research and release records retain their original evidence and status.
 The preceding Preview repair is `1c90eaee`. Its focused checks passed 116 tests.
 Current links resolve to this repository's open PR #143.
 Main release, tag, and local installation remain pending until their readback exists.
+
+### 2026-10-16 - retain the Wrangler production configuration example
+
+Exact-candidate CI at `ac5c0de23aa2d24804b8d54499f009220b6323fc` found a documentation regression.
+The generic binding contract requires the retained `env.production` example.
+The final Preview edit had removed it after the earlier 65-contract check.
+Restore that example only in the Wrangler procedure.
+The new Void regression checks that it stays outside the Void procedure.
+The interrupted candidate review provides no PASS for this repair.
+Working-tree checks passed: 116 tests, skill spec, docs weight, pyflakes, and whitespace.
+Fresh exact-candidate CI and independent review remain pending.
