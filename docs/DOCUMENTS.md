@@ -8,6 +8,7 @@ Current source focus: workflow repairs for 0.64.0 are in PR #144. Its review fin
 | --- | --- | --- |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | complete |
 | `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | in_progress; released in v0.64.0; local skill install pending |
+| `docs/epics/EPIC-repo-tidy.md` | Installs without tests, Epic status lines, no local paths, CHANGELOG and legacy wireframe files | in_progress; PR open for 0.65.0 |
 | `docs/epics/EPIC-lightweight-entry.md` | Full dispatch-message budgets and stage-scoped lightweight entry | complete |
 | `docs/epics/EPIC-readme-refresh.md` | Four-language README reorganization and generated cover refresh | complete |
 | docs/epics/EPIC-gen-verify-platform-delivery.md | Bounded Generate/Verify/Correct, feature acceptance and approved platform order | complete |
