@@ -98,7 +98,9 @@ function Test-CacheFile {
     param([string]$RelativePath)
 
     $parts = $RelativePath -split "[\\/]"
-    if ($parts -contains "__pycache__" -or $parts -contains ".pytest_cache") {
+    # -ccontains keeps this rule case-sensitive, exactly like the shell case
+    # patterns in install.sh and the cache filters in the Python hashes.
+    if ($parts -ccontains "__pycache__" -or $parts -ccontains ".pytest_cache") {
         return $true
     }
     $extension = [IO.Path]::GetExtension($RelativePath).ToLowerInvariant()

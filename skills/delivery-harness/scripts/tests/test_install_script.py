@@ -726,6 +726,85 @@ class InstallScriptTests(unittest.TestCase):
                     (destination / "product-definition-builder" / "requirements-test.txt").exists()
                 )
 
+    def test_installers_keep_cache_names_matching_case_sensitive(self) -> None:
+        # A regular file named exactly scripts/.pytest_cache or
+        # scripts/__pycache__ and a scripts/module.PYC file are cache artifacts
+        # the installers leave out, while foo__pycache__/runtime.py and
+        # scripts/__PYCACHE__/runtime.py are runtime content: the cache names
+        # match whole path parts case-sensitively and only the compiled suffix
+        # is matched in any letter case. The case variants live in different
+        # skills because Windows file systems ignore case, so both spellings
+        # could not sit in one directory.
+        source = self.make_minimal_repo()
+        tracked = {
+            "delivery-harness": (
+                "scripts/.pytest_cache",
+                "scripts/__pycache__",
+                "scripts/module.PYC",
+            ),
+            "product-definition-builder": (
+                "foo__pycache__/runtime.py",
+                "scripts/__PYCACHE__/runtime.py",
+            ),
+        }
+        for skill, relatives in tracked.items():
+            for relative in relatives:
+                path = source / "skills" / skill / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if path.suffix:
+                    path.write_bytes(b"\x00\x01cache bytes\n")
+                else:
+                    path.write_text(
+                        f"# {skill} {relative}\n", encoding="utf-8", newline="\n"
+                    )
+        # -f keeps global ignore rules from silently dropping the fixtures.
+        subprocess.run(["git", "add", "-f", "."], cwd=source, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "track cache-name lookalikes"], cwd=source, check=True
+        )
+
+        for installer, destination in (
+            ("bash", self.home / "bash-skills"),
+            ("powershell", self.home / "powershell-skills"),
+        ):
+            with self.subTest(installer=installer):
+                if installer == "bash":
+                    result = self.run_bash(
+                        {"SKILL_BACKUP_ROOT": str(self.backup_root)},
+                        installer=source / "install.sh",
+                        destination=destination,
+                    )
+                else:
+                    if POWERSHELL is None:
+                        self.skipTest("neither pwsh nor powershell is available")
+                    result = subprocess.run(
+                        [
+                            POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                            str(source / "install.ps1"), "-Destination", str(destination),
+                            "-BackupRoot", str(self.backup_root),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.home,
+                        timeout=INSTALL_TIMEOUT,
+                    )
+                self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+                self.assertFalse(
+                    (destination / "delivery-harness" / "scripts" / ".pytest_cache").exists()
+                )
+                self.assertFalse(
+                    (destination / "delivery-harness" / "scripts" / "__pycache__").exists()
+                )
+                self.assertFalse(
+                    (destination / "delivery-harness" / "scripts" / "module.PYC").exists()
+                )
+                self.assertTrue(
+                    (destination / "product-definition-builder" / "foo__pycache__" / "runtime.py").is_file()
+                )
+                self.assertTrue(
+                    (destination / "product-definition-builder" / "scripts" / "__PYCACHE__" / "runtime.py").is_file()
+                )
+
     def assert_source_line_recorded(self, source: Path, install) -> None:
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=source, capture_output=True, text=True, check=True

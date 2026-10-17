@@ -159,6 +159,32 @@ class SkillBindingTests(unittest.TestCase):
         runtime.write_text("value = 2\n", encoding="utf-8", newline="\n")
         self.assertNotEqual(added, check_skill_bindings.hash_skill(skill / "SKILL.md"))
 
+    def test_cache_names_and_suffixes_do_not_change_the_skill_hash(self) -> None:
+        # The cache rule matches whole path parts case-sensitively and only the
+        # .pyc/.pyo suffix in any letter case: regular files named exactly
+        # __pycache__ or .pytest_cache and a module.PYC file never move a pin,
+        # while foo__pycache__/ and __PYCACHE__/ lookalikes are runtime content.
+        # The case variants live in different skills because Windows file
+        # systems ignore case, so both spellings could not sit in one directory.
+        cache_skill = self.skills / "taste-skill"
+        runtime_skill = self.skills / "compiler-skill"
+        before = check_skill_bindings.hash_skill(cache_skill / "SKILL.md")
+        scripts = cache_skill / "scripts"
+        scripts.mkdir()
+        for name in (".pytest_cache", "__pycache__"):
+            (scripts / name).write_text("cache data\n", encoding="utf-8", newline="\n")
+            self.assertEqual(before, check_skill_bindings.hash_skill(cache_skill / "SKILL.md"))
+        (scripts / "module.PYC").write_bytes(b"\x00\x01cache bytes\n")
+        self.assertEqual(before, check_skill_bindings.hash_skill(cache_skill / "SKILL.md"))
+        runtime_before = check_skill_bindings.hash_skill(runtime_skill / "SKILL.md")
+        for relative in ("foo__pycache__/runtime.py", "__PYCACHE__/runtime.py"):
+            path = runtime_skill / "scripts" / relative
+            path.parent.mkdir(parents=True)
+            path.write_text("value = 1\n", encoding="utf-8", newline="\n")
+            self.assertNotEqual(
+                runtime_before, check_skill_bindings.hash_skill(runtime_skill / "SKILL.md")
+            )
+
     def test_unpinned_changed_or_missing_skills_fail(self) -> None:
         pinned = check_skill_bindings.hash_skill(
             self.skills / "taste-skill" / "SKILL.md"

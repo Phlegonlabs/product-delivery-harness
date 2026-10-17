@@ -156,8 +156,11 @@ for skill in "${skills[@]}"; do
 done
 
 is_cache_file() {
+  # Whole path parts only, like the cache filters in check_skill_bindings.py:
+  # foo__pycache__ and __PYCACHE__ are runtime content, and only the compiled
+  # suffix is matched in any letter case.
   case "$1" in
-    *__pycache__/*|.pytest_cache/*|*/.pytest_cache/*|*.pyc|*.pyo) return 0 ;;
+    __pycache__|__pycache__/*|*/__pycache__|*/__pycache__/*|.pytest_cache|.pytest_cache/*|*/.pytest_cache|*/.pytest_cache/*|*.[pP][yY][cC]|*.[pP][yY][oO]) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -269,8 +272,9 @@ copy_tracked_tree() {
   # excludes, then verify every byte against the manifest before any
   # destination mutation.
   cp -a "$skills_src/$skill/." "$target/"
-  find "$target" -type d \( -name __pycache__ -o -name .pytest_cache -o -name tests \) -prune -exec rm -rf -- {} +
-  find "$target" -type f \( -name '*.pyc' -o -name '*.pyo' -o -name ci-test-timings.json -o -name requirements-test.txt \) -delete
+  find "$target" \( -name __pycache__ -o -name .pytest_cache \) -prune -exec rm -rf -- {} +
+  find "$target" -type d -name tests -prune -exec rm -rf -- {} +
+  find "$target" -type f \( -iname '*.pyc' -o -iname '*.pyo' -o -name ci-test-timings.json -o -name requirements-test.txt \) -delete
   assert_no_reparse_tree "$target"
 }
 
