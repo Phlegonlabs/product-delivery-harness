@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -10,6 +11,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -611,6 +613,82 @@ class RetainedObservationTests(unittest.TestCase):
                         self.assertTrue(any("changed" in item for item in result[2]))
                     elif os.name != "nt":
                         self.assertTrue(any("parent changed" in item for item in result[2]))
+
+
+class PosixEvidenceReaderTests(unittest.TestCase):
+    """Direct POSIX-helper tests with mocked descriptors so they run on Windows."""
+
+    def test_open_relative_directory_failure_closes_every_helper_descriptor(self) -> None:
+        anchor_fd = 101
+        opened_fd = 202
+        opened_calls: list[tuple[str, int | None]] = []
+        closed: list[int] = []
+
+        def fake_open(path, flags, dir_fd=None):
+            opened_calls.append((path, dir_fd))
+            if len(opened_calls) == 1:
+                return opened_fd
+            raise OSError(errno.EIO, f"synthetic open failure for {path!r}")
+
+        def fake_close(fd: int) -> None:
+            closed.append(fd)
+
+        with mock.patch("os.open", side_effect=fake_open), mock.patch(
+            "os.close", side_effect=fake_close
+        ):
+            with self.assertRaises(OSError):
+                m._posix_open_relative_directory(
+                    anchor_fd,
+                    ("docs", "deployment-evidence"),
+                    os.O_RDONLY,
+                )
+
+        self.assertEqual(
+            [("docs", anchor_fd), ("deployment-evidence", opened_fd)],
+            opened_calls,
+        )
+        self.assertEqual([opened_fd], closed)
+        self.assertNotIn(anchor_fd, closed)
+
+    def test_open_relative_directory_close_failure_does_not_double_close(self) -> None:
+        anchor_fd = 101
+        opened_calls: list[str] = []
+        closed: list[int] = []
+
+        def fake_open(path, flags, dir_fd=None):
+            opened_calls.append(path)
+            if len(opened_calls) == 1:
+                return 202
+            if len(opened_calls) == 2:
+                return 303
+            raise OSError(errno.EIO, f"synthetic open failure for {path!r}")
+
+        def fake_close(fd: int) -> None:
+            closed.append(fd)
+            if fd == 202:
+                raise OSError(errno.EIO, "synthetic close failure for 202")
+
+        with mock.patch("os.open", side_effect=fake_open), mock.patch(
+            "os.close", side_effect=fake_close
+        ):
+            with self.assertRaises(OSError):
+                m._posix_open_relative_directory(
+                    anchor_fd,
+                    ("docs", "deployment-evidence", "leaf"),
+                    os.O_RDONLY,
+                )
+
+        self.assertEqual([202, 303], closed)
+        self.assertNotIn(anchor_fd, closed)
+
+    def test_refused_link_covers_linux_symlinked_directories(self) -> None:
+        self.assertTrue(
+            m._posix_refused_link(OSError(errno.ELOOP, "too many symlink levels"))
+        )
+        self.assertTrue(
+            m._posix_refused_link(OSError(errno.ENOTDIR, "not a directory"))
+        )
+        self.assertFalse(m._posix_refused_link(OSError(errno.EIO, "i/o error")))
 
 
 if __name__ == "__main__":

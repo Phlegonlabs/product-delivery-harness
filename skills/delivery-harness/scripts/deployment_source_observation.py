@@ -192,7 +192,8 @@ def _directory_identity(metadata: os.stat_result) -> tuple[int, int, int]:
 
 
 def _posix_refused_link(exception: OSError) -> bool:
-    return exception.errno in (errno.ELOOP, getattr(errno, "ENOTDIR", errno.ELOOP))
+    # Linux reports a symlinked directory opened with O_DIRECTORY | O_NOFOLLOW as ENOTDIR, the same errno as a regular file in that position.
+    return exception.errno in (errno.ELOOP, errno.ENOTDIR)
 
 
 def _read_bounded_regular_posix(
@@ -275,7 +276,7 @@ def _read_bounded_regular_posix(
     except (OSError, ValueError) as exception:
         if isinstance(exception, OSError) and _posix_refused_link(exception):
             return b"", "", [
-                f"{label}: retained evidence path contains a symlink or reparse point"
+                f"{label}: retained evidence path contains a symlink or a non-directory component"
             ]
         return b"", "", [f"{label}: retained evidence cannot be read safely"]
     finally:
@@ -291,17 +292,15 @@ def _read_bounded_regular_posix(
 
 def _posix_open_relative_directory(anchor_fd: int, parts: tuple[str, ...], flags: int) -> int:
     fd = anchor_fd
-    opened = None
     try:
         for part in parts:
-            opened = os.open(part, flags, dir_fd=fd)
-            if fd != anchor_fd:
-                os.close(fd)
-            fd = opened
+            previous, fd = fd, os.open(part, flags, dir_fd=fd)
+            if previous != anchor_fd:
+                os.close(previous)
         return fd
     except (OSError, ValueError):
-        if opened is not None and opened != fd:
-            os.close(opened)
+        if fd != anchor_fd:
+            os.close(fd)
         raise
 
 
