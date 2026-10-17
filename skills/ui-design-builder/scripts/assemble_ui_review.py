@@ -41,20 +41,21 @@ def _write_bytes(destination: Path, content: bytes) -> None:
     output directory; writing in place would destroy that file's bytes.
     """
 
+    try:
+        existing = destination.stat()
+    except FileNotFoundError:
+        mode = 0o644
+    else:
+        mode = stat.S_IMODE(existing.st_mode) if stat.S_ISREG(existing.st_mode) else 0o644
     handle, temporary_name = tempfile.mkstemp(
         dir=destination.parent, prefix=".", suffix=".tmp")
     temporary = Path(temporary_name)
     try:
         with os.fdopen(handle, "wb") as stream:
             stream.write(content)
-        try:
-            destination_mode = destination.stat().st_mode
-        except OSError:
-            destination_mode = None
-        # mkstemp creates 0600 files; keep the destination's own readable mode.
-        mode = stat.S_IMODE(destination_mode) if (
-            destination_mode is not None and stat.S_ISREG(destination_mode)) else 0o644
-        os.chmod(temporary, mode)
+            if os.name != "nt":
+                # mkstemp creates 0600 files; set the readable mode on the open file, not by path.
+                os.fchmod(stream.fileno(), mode)
         os.replace(temporary, destination)
     except BaseException:
         temporary.unlink(missing_ok=True)

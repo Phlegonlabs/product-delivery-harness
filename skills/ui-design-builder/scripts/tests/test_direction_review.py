@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
@@ -401,6 +402,52 @@ class DirectionAssemblyTests(unittest.TestCase):
             self.assertIn(expected, " ".join(findings))
             if platform_gap:
                 self.assertIn("every platform", " ".join(findings))
+
+
+class WriteBytesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_write_bytes_propagates_metadata_errors_without_writing(self) -> None:
+        destination = self.root / "out.html"
+        destination.write_bytes(b"old")
+        real_stat = Path.stat
+
+        def failing_stat(self, *args, **kwargs):
+            if self == destination:
+                raise PermissionError(destination)
+            return real_stat(self, *args, **kwargs)
+
+        with mock.patch.object(Path, "stat", failing_stat):
+            with self.assertRaises(PermissionError):
+                assemble_ui_review._write_bytes(destination, b"new")
+        self.assertEqual(b"old", destination.read_bytes())
+        self.assertEqual([], [path.name for path in self.root.iterdir() if path.name.endswith(".tmp")])
+
+    @unittest.skipIf(os.name == "nt", "POSIX permission bits are not emulated on Windows")
+    def test_write_bytes_sets_mode_through_the_open_descriptor(self) -> None:
+        destination = self.root / "out.html"
+        real_fchmod = os.fchmod
+        recorded = []
+
+        def recording_fchmod(descriptor, mode):
+            recorded.append((descriptor, mode))
+            return real_fchmod(descriptor, mode)
+
+        chmod = mock.Mock(side_effect=AssertionError("os.chmod must not be used"))
+        with mock.patch.object(os, "chmod", chmod), \
+                mock.patch.object(os, "fchmod", recording_fchmod):
+            assemble_ui_review._write_bytes(destination, b"new")
+        self.assertEqual(1, len(recorded))
+        self.assertIsInstance(recorded[0][0], int)
+        self.assertEqual(0o644, recorded[0][1])
+        chmod.assert_not_called()
+        self.assertEqual(b"new", destination.read_bytes())
+        self.assertEqual(0o644, stat.S_IMODE(destination.stat().st_mode))
 
 
 class SharedReviewerBytesTests(unittest.TestCase):
