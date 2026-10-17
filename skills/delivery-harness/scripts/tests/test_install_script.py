@@ -157,37 +157,33 @@ class InstallScriptTests(unittest.TestCase):
             )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_ci_runs_installer_and_python_suites_on_macos(self) -> None:
-        # The harness suite includes these installer tests, so macOS CI
-        # covers install.sh under BSD tools and symlinked temp roots.
+    def test_ci_runs_installer_and_python_suites_on_windows(self) -> None:
+        # The harness suite includes these installer tests, so Windows CI
+        # covers install.ps1 parsing and the native dependency-check route.
         workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
             encoding="utf-8"
         )
-        harness = workflow.split("\n  macos-harness:\n", 1)[1].split("\n  macos-other:\n", 1)[0]
-        other = workflow.split("\n  macos-other:\n", 1)[1].split("\n  windows-native:\n", 1)[0]
+        harness = workflow.split("\n  windows-native:\n", 1)[1].split("\n  windows-other:\n", 1)[0]
+        other = workflow.split("\n  windows-other:\n", 1)[1].split("\n  windows-installer:\n", 1)[0]
         for job in (harness, other):
-            self.assertIn("runs-on: macos-latest", job)
-            # macOS is supported, so its jobs block like the others.
+            self.assertIn("runs-on: windows-latest", job)
+            # Windows is the owner's platform, so its jobs block like the others.
             self.assertNotIn("continue-on-error", job)
-            # Apple's root-owned Git must win over Homebrew's before Python setup.
-            prefer_git = 'echo "/usr/bin" >> "$GITHUB_PATH"'
-            self.assertIn(prefer_git, job)
-            self.assertLess(job.index(prefer_git), job.index("actions/setup-python"))
-            # Test repositories must not sit under the /var -> /private/var link.
-            self.assertIn('echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"', job)
+            # The checked-out SHA must be verified natively before any step runs.
+            self.assertIn('-ne $env:CANDIDATE_SHA', job)
         # The long Harness suite is measured and sharded; installer tests stay
-        # in the discovered files and therefore retain macOS native coverage.
+        # in the discovered files and therefore retain Windows native coverage.
         # Workflow expands the index from the matrix, so assert the matrix and
-        # its templated use rather than four literal copies of one command.
+        # its templated use rather than literal copies of one command.
         matrix = re.search(r"^\s*shard:\s*\[([^]]+)\]", harness, re.MULTILINE)
         self.assertIsNotNone(matrix)
         self.assertEqual(
-            ["0", "1", "2", "3"],
+            ["0", "1", "2", "3", "4", "5", "6", "7"],
             [item.strip() for item in matrix.group(1).split(",")],
         )
-        self.assertIn("--platform macos --shard-count 4", harness)
+        self.assertIn("--platform windows --shard-count 8", harness)
         self.assertIn("--shard-index '${{ matrix.shard }}'", harness)
-        self.assertIn("name: macos-harness-${{ matrix.shard }}", harness)
+        self.assertIn("name: windows-native-${{ matrix.shard }}", harness)
         for skill in (
             "product-definition-builder",
             "ui-design-builder",

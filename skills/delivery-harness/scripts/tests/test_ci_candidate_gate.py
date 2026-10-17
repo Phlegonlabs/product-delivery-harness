@@ -14,7 +14,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from ci_test_shards import balance_files, candidate_files, discover_files
+from ci_test_shards import balance_files, discover_files
 
 
 SCRIPT = SCRIPTS_DIR / "ci_test_shards.py"
@@ -49,10 +49,9 @@ class CICandidateGateTests(unittest.TestCase):
             "linux-harness": "\n  linux-other:\n",
             "linux-other": "\n  linux-browser:\n",
             "linux-browser": "\n  golden-path:\n",
-            "golden-path": "\n  macos-harness:\n",
-            "macos-harness": "\n  macos-other:\n",
-            "macos-other": "\n  windows-native:\n",
-            "windows-native": "\n  windows-installer:\n",
+            "golden-path": "\n  windows-native:\n",
+            "windows-native": "\n  windows-other:\n",
+            "windows-other": "\n  windows-installer:\n",
             "windows-installer": "\n  validate:\n",
         }
         headers = {
@@ -64,7 +63,7 @@ class CICandidateGateTests(unittest.TestCase):
         draft_if = (
             "    if: github.event_name != 'pull_request' || !github.event.pull_request.draft"
         )
-        for job in ("macos-harness", "macos-other", "windows-native", "windows-installer"):
+        for job in ("windows-native", "windows-other", "windows-installer"):
             with self.subTest(job=job):
                 self.assertIn(draft_if, headers[job])
         for job in ("quality", "linux-harness", "linux-other", "linux-browser", "golden-path"):
@@ -75,7 +74,7 @@ class CICandidateGateTests(unittest.TestCase):
                 self.assertEqual([], job_if_lines, headers[job])
         self.assertIn(
             "        platform: ${{ fromJSON(github.event_name == 'pull_request' && "
-            "github.event.pull_request.draft && '[\"linux\"]' || '[\"linux\", \"macos\"]') }}",
+            "github.event.pull_request.draft && '[\"linux\"]' || '[\"linux\", \"windows\"]') }}",
             self.workflow,
         )
 
@@ -84,9 +83,9 @@ class CICandidateGateTests(unittest.TestCase):
             "CANDIDATE_SHA: ${{ inputs.candidate_sha || github.event.pull_request.head.sha || github.sha }}",
             self.workflow,
         )
-        self.assertEqual(10, self.workflow.count("ref: ${{ env.CANDIDATE_SHA }}"))
-        self.assertEqual(7, self.workflow.count('test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"'))
-        self.assertEqual(2, self.workflow.count('-ne $env:CANDIDATE_SHA'))
+        self.assertEqual(9, self.workflow.count("ref: ${{ env.CANDIDATE_SHA }}"))
+        self.assertEqual(5, self.workflow.count('test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"'))
+        self.assertEqual(3, self.workflow.count('-ne $env:CANDIDATE_SHA'))
         self.assertIn("Full 40-character commit SHA", self.workflow)
         self.assertIn("^[0-9a-f]{40}$", self.workflow)
 
@@ -121,9 +120,8 @@ class CICandidateGateTests(unittest.TestCase):
             "linux-other",
             "linux-browser",
             "golden-path",
-            "macos-harness",
-            "macos-other",
             "windows-native",
+            "windows-other",
             "windows-installer",
         ]
         for job in required_jobs:
@@ -167,9 +165,8 @@ class CICandidateGateTests(unittest.TestCase):
             "LINUX_OTHER_RESULT": succeeded,
             "LINUX_BROWSER_RESULT": succeeded,
             "GOLDEN_PATH_RESULT": succeeded,
-            "MACOS_HARNESS_RESULT": skipped,
-            "MACOS_OTHER_RESULT": skipped,
             "WINDOWS_NATIVE_RESULT": skipped,
+            "WINDOWS_OTHER_RESULT": skipped,
             "WINDOWS_INSTALLER_RESULT": skipped,
         }
 
@@ -195,23 +192,31 @@ class CICandidateGateTests(unittest.TestCase):
             0, gate("false", {name: succeeded for name in results}).returncode
         )
 
-    def test_browser_and_macos_suite_coverage_matches_original_matrix(self) -> None:
+    def test_browser_and_windows_suite_coverage_matches_original_matrix(self) -> None:
         linux_browser = self.workflow.split("\n  linux-browser:\n", 1)[1].split(
             "\n  golden-path:\n", 1
         )[0]
         linux_other = self.workflow.split("\n  linux-other:\n", 1)[1].split(
             "\n  linux-browser:\n", 1
         )[0]
-        macos_other = self.workflow.split("\n  macos-other:\n", 1)[1].split(
-            "\n  windows-native:\n", 1
+        windows_other = self.workflow.split("\n  windows-other:\n", 1)[1].split(
+            "\n  windows-installer:\n", 1
         )[0]
         for env in ("PDH_REQUIRE_BROWSER_TESTS: \"1\"", "PLAYWRIGHT_MODULE:"):
             self.assertIn(env, linux_browser)
         self.assertIn("skills/ui-design-builder/scripts/tests -v", linux_browser)
         self.assertIn("skills/design-system-compiler/scripts/tests -v", linux_browser)
         self.assertNotIn("skills/design-system-compiler/scripts/tests -v", linux_other)
-        self.assertIn("skills/ui-design-builder/scripts/tests -v", macos_other)
-        self.assertNotIn("PDH_REQUIRE_BROWSER_TESTS", macos_other)
+        for skill in (
+            "product-definition-builder",
+            "ui-design-builder",
+            "design-system-compiler",
+            "product-activation",
+            "seo-growth-review",
+        ):
+            self.assertIn(f"unittest discover -s skills/{skill}/scripts/tests -v", windows_other)
+        self.assertNotIn("PDH_REQUIRE_BROWSER_TESTS", windows_other)
+        self.assertNotIn("macos", self.workflow)
 
     def test_posix_shards_discover_harness_files_exactly_once(self) -> None:
         discovered = discover_files(self.repo_root, "harness")
@@ -266,9 +271,9 @@ class CICandidateGateTests(unittest.TestCase):
                 planned.update(names)
         self.assertEqual(discovered, planned)
 
-    def test_actual_windows_plan_selects_the_explicit_native_set(self) -> None:
+    def test_actual_windows_plan_covers_discovered_files_across_eight_shards(self) -> None:
         planned: set[str] = set()
-        for shard_index in range(4):
+        for shard_index in range(8):
             result = subprocess.run(
                 [
                     sys.executable,
@@ -281,7 +286,7 @@ class CICandidateGateTests(unittest.TestCase):
                     "--platform",
                     "windows",
                     "--shard-count",
-                    "4",
+                    "8",
                     "--shard-index",
                     str(shard_index),
                     "--timings",
@@ -302,19 +307,16 @@ class CICandidateGateTests(unittest.TestCase):
             self.assertTrue(names)
             self.assertEqual(len(names), len(set(names)))
             planned.update(names)
-        selected = {Path(name).name for name in candidate_files(
-            self.repo_root, "harness", "windows", discover_files(self.repo_root, "harness")
-        )}
-        self.assertEqual(13, len(selected))
-        self.assertEqual(selected, planned)
+        discovered = {Path(name).name for name in discover_files(self.repo_root, "harness")}
+        self.assertEqual(discovered, planned)
 
     def test_workflow_launches_a_positive_count_for_every_shard_file(self) -> None:
-        self.assertEqual(2, self.workflow.count("grep -Eq '^Ran [1-9][0-9]* tests?'"))
-        self.assertEqual(2, self.workflow.count("suite_status=\"${PIPESTATUS[0]}\""))
+        self.assertEqual(1, self.workflow.count("grep -Eq '^Ran [1-9][0-9]* tests?'"))
+        self.assertEqual(1, self.workflow.count("suite_status=\"${PIPESTATUS[0]}\""))
         self.assertNotIn('suite_output="$(', self.workflow)
         self.assertNotIn("$suiteOutput = & python", self.workflow)
         windows_step = self.workflow.split("Run measured native Harness shard", 1)[1].split(
-            "  windows-installer:", 1
+            "  windows-other:", 1
         )[0]
         self.assertIn("$planJson = python", windows_step)
         self.assertIn("$plannerStatus = $LASTEXITCODE", windows_step)
@@ -414,14 +416,14 @@ class CICandidateGateTests(unittest.TestCase):
             self.assertIn("Ran 1 test", run.stderr)
             self.assertIn("FAILED", run.stderr)
 
-    def test_windows_native_shard_set_is_explicit_and_complete(self) -> None:
+    def test_windows_shard_set_is_explicit_and_complete(self) -> None:
         discovered = discover_files(self.repo_root, "harness")
-        selected = candidate_files(self.repo_root, "harness", "windows", discovered)
-        timings = {name: 1.0 for name in selected}
-        shards = balance_files(selected, timings, 4)
+        timings = {name: 1.0 for name in discovered}
+        shards = balance_files(discovered, timings, 8)
         planned = [name for shard in shards for name in shard]
-        self.assertEqual(13, len(selected))
-        self.assertEqual(sorted(selected), sorted(planned))
+        self.assertEqual(discovered, sorted(planned))
+        self.assertEqual(len(discovered), len(set(planned)))
+        self.assertEqual(8, len(shards))
         self.assertTrue(all(shards))
 
 

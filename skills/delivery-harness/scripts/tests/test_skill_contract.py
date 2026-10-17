@@ -102,14 +102,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                          "Windows CI candidate identity")
     def test_windows_ci_uses_exact_candidate_and_stops_at_each_failed_shard(self) -> None:
         workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(encoding="utf-8")
-        job = workflow.split("\n  windows-native:\n", 1)[1].split("\n  windows-installer:\n", 1)[0]
+        job = workflow.split("\n  windows-native:\n", 1)[1].split("\n  windows-other:\n", 1)[0]
         self.assertIn("ref: ${{ env.CANDIDATE_SHA }}", job)
         self.assertIn('-ne $env:CANDIDATE_SHA', job)
         step = job.split("      - name: Run measured native Harness shard\n", 1)[1]
         step = step.split("      - name:", 1)[0].split("        run: |\n", 1)[1]
-        self.assertIn("--platform windows --shard-count 4", step)
+        self.assertIn("--platform windows --shard-count 8", step)
         self.assertIn("--shard-index '${{ matrix.shard }}'", step)
-        self.assertIn("shard: [0, 1, 2, 3]", job)
+        self.assertIn("shard: [0, 1, 2, 3, 4, 5, 6, 7]", job)
         self.assertIn("$plannerStatus = $LASTEXITCODE", step)
         self.assertIn("if ($plannerStatus -ne 0) {", step)
         self.assertIn("exit $plannerStatus", step)
