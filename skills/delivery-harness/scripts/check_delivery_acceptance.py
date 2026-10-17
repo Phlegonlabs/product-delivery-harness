@@ -166,7 +166,7 @@ def _contract(
     if not _exact_keys(value, CONTRACT_KEYS, "contract", errors):
         return {}, errors
     schema = value.get("schema")
-    if schema not in CONTRACT_SCHEMAS:
+    if not isinstance(schema, str) or schema not in CONTRACT_SCHEMAS:
         errors.append(f"contract.schema must be one of {sorted(CONTRACT_SCHEMAS)}")
         version = 0
     else:
@@ -309,7 +309,7 @@ def _results(
     if not _exact_keys(value, RESULT_KEYS, "results", errors):
         return [], errors
     schema = value.get("schema")
-    if schema not in RESULT_SCHEMAS:
+    if not isinstance(schema, str) or schema not in RESULT_SCHEMAS:
         errors.append(f"results.schema must be one of {sorted(RESULT_SCHEMAS)}")
     elif schema != _result_schema(contract_schema):
         errors.append(
@@ -412,9 +412,14 @@ def _browser_coverage_errors(
         errors.append("PRD browser targets require delivery-acceptance/2")
     rows = results.get("results")
     passing = {
-        (row.get("test_id"), row.get("scenario_id"))
+        (row["test_id"], row["scenario_id"])
         for row in rows
-        if isinstance(row, dict) and row.get("status") == "pass"
+        if (
+            isinstance(row, dict)
+            and isinstance(row.get("test_id"), str)
+            and isinstance(row.get("scenario_id"), str)
+            and row.get("status") == "pass"
+        )
     } if isinstance(rows, list) else set()
     for release_target, test_id, engine in targets.coverage:
         identity = {"release_target": release_target, "engine": engine}

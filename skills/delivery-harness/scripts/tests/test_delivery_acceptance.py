@@ -603,6 +603,37 @@ class BrowserIdentityTests(unittest.TestCase):
         self.assertIn("has invalid execution fields", " ".join(payload["errors"]))
 
 
+class SchemaValueTypeTests(unittest.TestCase):
+    """A non-string schema value is a finding, never an uncaught crash."""
+
+    def test_contract_schema_list_returns_finding_without_raising(self) -> None:
+        value = contract()
+        value["schema"] = []
+        status, payload = invoke(value)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "contract.schema must be one of", " ".join(payload["errors"]),
+        )
+
+    def test_contract_schema_dict_returns_finding_without_raising(self) -> None:
+        value = contract()
+        value["schema"] = {}
+        status, payload = invoke(value)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "contract.schema must be one of", " ".join(payload["errors"]),
+        )
+
+    def test_results_schema_list_returns_finding_without_raising(self) -> None:
+        value = results()
+        value["schema"] = []
+        status, payload = invoke(result_value=value)
+        self.assertEqual(1, status)
+        self.assertIn(
+            "results.schema must be one of", " ".join(payload["errors"]),
+        )
+
+
 class BrowserCoverageTests(unittest.TestCase):
     """The frozen PRD's Browser Targets table binds contract and results."""
 
@@ -671,6 +702,20 @@ class BrowserCoverageTests(unittest.TestCase):
             errors,
         )
         self.assertIn("unknown browser", " ".join(errors))
+
+    def test_list_valued_test_id_cannot_crash_browser_coverage(self) -> None:
+        observed = results_cross_browser()
+        for row in observed["results"]:
+            if row["scenario_id"] == "web-firefox":
+                row["test_id"] = ["TEST-001"]
+        status, payload = invoke(
+            contract_cross_browser(), observed, prd_text=PRD_CROSS_BROWSER,
+        )
+        self.assertEqual(1, status)
+        self.assertIn(
+            "browser coverage: TEST-001 on fixture-web-1 has no passing firefox result",
+            " ".join(payload["errors"]),
+        )
 
 
 class CandidateTreeTests(unittest.TestCase):
