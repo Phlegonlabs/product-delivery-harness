@@ -16,7 +16,11 @@ from pathlib import Path
 import re
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Consumer repositories copy this file next to markdown_contract.py; import
+# the sibling without duplicating the path entry on repeated imports.
+SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 
 from markdown_contract import active_text  # noqa: E402
 
@@ -72,12 +76,18 @@ class BrowserTargets:
 
 
 def _table_cells(row: str) -> list[str]:
-    return [cell.strip() for cell in row.strip().strip("|").split("|")]
+    """Split one pipe-bounded row into cells without trimming outer pipes."""
+    return [cell.strip() for cell in row.strip()[1:-1].split("|")]
 
 
 def _is_delimiter_row(row: str) -> bool:
-    cells = _table_cells(row)
-    return bool(cells) and all(DELIMITER_CELL_RE.fullmatch(cell) for cell in cells)
+    stripped = row.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        return False
+    cells = _table_cells(stripped)
+    return len(cells) == 4 and all(
+        DELIMITER_CELL_RE.fullmatch(cell) for cell in cells
+    )
 
 
 def parse_browser_targets(prd_text: str) -> BrowserTargets:
@@ -134,15 +144,46 @@ def parse_browser_targets(prd_text: str) -> BrowserTargets:
         errors.append(
             "browser targets: the contract marker must appear before the targets table"
         )
+    # A stray table or piped prose line before the canonical header would
+    # otherwise be ignored silently; report each such active line once.
+    for line in section[:header_offset]:
+        if "|" in line:
+            errors.append(
+                "browser targets: unexpected table content before the targets table"
+            )
 
+    delimiter_offset = header_offset + 1
+    if delimiter_offset >= len(section) or not _is_delimiter_row(
+        section[delimiter_offset]
+    ):
+        errors.append(
+            "browser targets: the table header must be followed by a delimiter "
+            "row with exactly four cells matching :?-+:?"
+        )
+        return BrowserTargets(True, (), (), (), tuple(errors))
+
+    # Data rows are the contiguous pipe-bounded lines after the delimiter. A
+    # piped line that is not a proper row is reported instead of silently
+    # ending the table; the table only ends at a line without any pipe.
     rows: list[str] = []
-    for offset in range(header_offset + 1, len(section)):
+    for offset in range(delimiter_offset + 1, len(section)):
         stripped = section[offset].strip()
-        if not stripped.startswith("|"):
-            break
-        rows.append(stripped)
-    if rows and _is_delimiter_row(rows[0]):
-        rows = rows[1:]
+        if stripped.startswith("|") and stripped.endswith("|"):
+            rows.append(stripped)
+            continue
+        if "|" in stripped:
+            errors.append(
+                "browser targets: table row must start and end with '|': "
+                f"{stripped!r}"
+            )
+            continue
+        for later in section[offset + 1 :]:
+            if "|" in later:
+                errors.append(
+                    "browser targets: unexpected table content after the "
+                    "targets table"
+                )
+        break
     if not rows:
         errors.append("browser targets: the targets table has no data rows")
         return BrowserTargets(True, (), (), (), tuple(errors))

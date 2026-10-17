@@ -1,4 +1,6 @@
 from pathlib import Path
+import importlib
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -267,6 +269,125 @@ class BrowserTargetParsingTests(unittest.TestCase):
             "unsupported browser and platform pair 'chrome' on 'ios'",
         )
 
+    def test_row_without_leading_pipe_after_a_valid_row_is_an_error(self):
+        self.assertErrors(
+            declaration(
+                "\n".join(
+                    [
+                        TABLE_HEADER,
+                        TABLE_DELIMITER,
+                        "| web-production | chrome | desktop | TEST-WEB-SMOKE |",
+                        "web-production | firefox | desktop | TEST-WEB-SMOKE |",
+                    ]
+                )
+            ),
+            "must start and end with '|'",
+            "web-production | firefox | desktop | TEST-WEB-SMOKE |",
+        )
+
+    def test_second_table_after_prose_in_the_section_is_an_error(self):
+        second_table = "\n".join(
+            [
+                TABLE_HEADER,
+                TABLE_DELIMITER,
+                "| web-production | opera | desktop | TEST-WEB-SMOKE |",
+            ]
+        )
+        self.assertErrors(
+            declaration(THREE_ROW_BODY + "\n\nProse between the tables.\n\n" + second_table),
+            "unexpected table content after the targets table",
+        )
+
+    def test_level_four_heading_followed_by_another_table_is_an_error(self):
+        second_table = "\n".join(
+            [
+                TABLE_HEADER,
+                TABLE_DELIMITER,
+                "| web-production | edge | desktop | TEST-WEB-SMOKE |",
+            ]
+        )
+        self.assertErrors(
+            declaration(THREE_ROW_BODY + "\n\n#### Notes\n\n" + second_table),
+            "unexpected table content after the targets table",
+        )
+
+    def test_second_table_before_the_canonical_table_is_an_error(self):
+        stray_table = "\n".join(
+            [
+                "| Old coverage | Notes |",
+                "| --- | --- |",
+                "| web-production | opera |",
+            ]
+        )
+        prd = declaration(stray_table + "\n\n" + THREE_ROW_BODY)
+        result = self.assertErrors(
+            prd, "browser targets: unexpected table content before the targets table"
+        )
+        self.assertEqual(3, len(result.errors))
+        self.assertEqual(
+            ("browser targets: unexpected table content before the targets table",) * 3,
+            result.errors,
+        )
+
+    def test_prose_with_a_pipe_before_the_canonical_table_is_an_error(self):
+        prd = declaration(
+            "Compare chrome | firefox results before the table.\n\n" + THREE_ROW_BODY
+        )
+        result = self.assertErrors(
+            prd, "browser targets: unexpected table content before the targets table"
+        )
+        self.assertEqual(
+            ("browser targets: unexpected table content before the targets table",),
+            result.errors,
+        )
+
+    def test_missing_delimiter_row_is_an_error(self):
+        self.assertErrors(
+            declaration(
+                "\n".join(
+                    [
+                        TABLE_HEADER,
+                        "| web-production | chrome | desktop | TEST-WEB-SMOKE |",
+                    ]
+                )
+            ),
+            "delimiter",
+        )
+
+    def test_one_cell_delimiter_is_an_error(self):
+        self.assertErrors(
+            declaration("\n".join([TABLE_HEADER, "| --- |"])),
+            "delimiter",
+        )
+
+    def test_doubled_outer_pipes_are_an_error(self):
+        self.assertErrors(
+            declaration(
+                "\n".join(
+                    [
+                        TABLE_HEADER,
+                        TABLE_DELIMITER,
+                        "|| web-production | chrome | desktop | TEST-WEB-SMOKE ||",
+                    ]
+                )
+            ),
+            "has 6 cells, expected 4",
+        )
+
+    def test_extra_empty_cell_is_an_error(self):
+        self.assertErrors(
+            declaration(
+                "\n".join(
+                    [
+                        TABLE_HEADER,
+                        TABLE_DELIMITER,
+                        "| web-production | chrome | desktop | TEST-WEB-SMOKE | |",
+                    ]
+                )
+            ),
+            "has 5 cells, expected 4",
+        )
+
     def test_every_android_and_macos_pair_maps_to_expected_engines(self):
         prd = declaration(
             "\n".join(
@@ -356,6 +477,21 @@ class BrowserTargetHelperTests(unittest.TestCase):
             )
         )
 
+    def test_repeated_module_loads_keep_one_script_dir_entry_in_sys_path(self):
+        script_dir = str(SCRIPTS_DIR)
+        import browser_targets
+
+        importlib.reload(browser_targets)
+        spec = importlib.util.spec_from_file_location(
+            "browser_targets_second_load", SCRIPTS_DIR / "browser_targets.py"
+        )
+        second_load = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = second_load
+        self.addCleanup(sys.modules.pop, spec.name, None)
+        spec.loader.exec_module(second_load)
+        entries = [entry for entry in sys.path if entry == script_dir]
+        self.assertEqual(1, len(entries))
+
 
 class BrowserTargetsCliTests(unittest.TestCase):
     def setUp(self):
@@ -363,9 +499,9 @@ class BrowserTargetsCliTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
-    def run_cli(self, *args, cwd=None):
+    def run_cli(self, *args, script=None, cwd=None):
         return subprocess.run(
-            [sys.executable, str(SCRIPTS_DIR / "browser_targets.py"), *args],
+            [sys.executable, str(script or SCRIPTS_DIR / "browser_targets.py"), *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -432,7 +568,12 @@ class BrowserTargetsCliTests(unittest.TestCase):
         prd.write_text(THREE_ROW_PRD, encoding="utf-8")
         output = portable / "github_output.txt"
         result = self.run_cli(
-            "--prd", str(prd), "--github-output", str(output), cwd=portable
+            "--prd",
+            str(prd),
+            "--github-output",
+            str(output),
+            script=portable / "browser_targets.py",
+            cwd=portable,
         )
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(DECLARED_JSON, result.stdout.strip())
