@@ -1,6 +1,6 @@
 # Vite+ evaluation
 
-Status: optional Void guidance is prepared for 0.63.1. Final release and installation evidence: [release result](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-release-0.63.1-result.json).
+Status: optional Void guidance is prepared for 0.63.1. Final release and installation evidence: [release result](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
 Checked: 2026-09-28; Void sources checked 2026-10-16. UI impact: none. Route: direct implementation with one writer.
 
 ## Request and baseline
@@ -492,7 +492,7 @@ clarifies committed config/lock/migration history versus Gitignored generated
 `.void/` state and `.void-wrangler.jsonc`, preserves required recovery files on
 disk, and resolves operational pointers from the observed installed Harness
 root. The authoritative final verification/review state is the parent-owned
-[void-parent-result-20261016.json](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-parent-result-20261016.json).
+[PR #143 verification record](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
 
 Repair working-tree checks: reference-library 12/12 PASS, README structure
 5/5 PASS, deployment-record 33/33 PASS, skill specification PASS, docs weight
@@ -512,7 +512,7 @@ choice. Preserve earlier commits and evidence.
 
 PR #143 targets main. Exact-candidate CI and review, exact-main tree equality,
 fresh main verification/review, tag readback, backup and installation evidence
-are recorded in [release result](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-release-0.63.1-result.json).
+are recorded in [release result](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
 
 ### 2026-10-16 - repair Void Preview routing after PR review
 
@@ -528,3 +528,14 @@ A regression checks routing order, isolation evidence, and forbidden command inh
 Official CLI and Cloudflare references were rechecked on 2026-10-16.
 Working-tree checks passed: 116 tests, skill spec, docs weight, pyflakes, and whitespace.
 The new exact-candidate CI and independent review remain pending.
+
+### 2026-10-16 - make current release evidence accessible
+
+PR #143 review identified machine-local links in the current release status.
+Replace this attempt's current-result links with the shared PR verification record.
+The PR records exact-SHA CI, review, release, and per-host installation results separately.
+Older research and release records retain their original evidence and status.
+
+The preceding Preview repair is `1c90eaee`. Its focused checks passed 116 tests.
+Current links resolve to this repository's open PR #143.
+Main release, tag, and local installation remain pending until their readback exists.
