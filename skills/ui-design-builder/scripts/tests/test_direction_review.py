@@ -9,6 +9,7 @@ import io
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -259,6 +260,17 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.assertTrue(ui_design_v3.has_direction_review_profile(rendered.decode("utf-8")))
         self.assertEqual(b"unrelated study bytes", unrelated.read_bytes())
         self.assertFalse(hard_output.samefile(unrelated))
+
+    @unittest.skipIf(os.name == "nt", "POSIX permission bits are not emulated on Windows")
+    def test_written_outputs_are_readable_and_overwrites_keep_the_existing_mode(self) -> None:
+        paths = [Path(path) for path in self.run_assembly()]
+        for path in paths:
+            self.assertEqual(0o644, stat.S_IMODE(path.stat().st_mode), path.name)
+        for path in paths:
+            os.chmod(path, 0o640)
+        self.run_assembly(overwrite=True)
+        for path in paths:
+            self.assertEqual(0o640, stat.S_IMODE(path.stat().st_mode), path.name)
 
     def test_existing_studies_are_kept_unless_overwrite_is_explicit(self) -> None:
         self.run_assembly()

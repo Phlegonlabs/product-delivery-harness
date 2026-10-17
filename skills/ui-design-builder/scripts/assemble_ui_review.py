@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -46,6 +47,14 @@ def _write_bytes(destination: Path, content: bytes) -> None:
     try:
         with os.fdopen(handle, "wb") as stream:
             stream.write(content)
+        try:
+            destination_mode = destination.stat().st_mode
+        except OSError:
+            destination_mode = None
+        # mkstemp creates 0600 files; keep the destination's own readable mode.
+        mode = stat.S_IMODE(destination_mode) if (
+            destination_mode is not None and stat.S_ISREG(destination_mode)) else 0o644
+        os.chmod(temporary, mode)
         os.replace(temporary, destination)
     except BaseException:
         temporary.unlink(missing_ok=True)
