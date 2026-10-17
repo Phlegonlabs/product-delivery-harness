@@ -53,6 +53,6 @@ Parent 以固定 main SHA 的 57 份文件交錯量測四次，逐檔字數 mapp
 
 首次完整 suite 與 parent 最後的來源修正重疊。`test_powershell_has_migration_rollback_and_complete_install_parity` 明確回報來源 bytes／manifest 不符；`test_powershell_foreign_race_target_is_never_deleted` 缺少測試 sentinel。停止修改 canonical sources 後，兩項單獨重跑分別在 59 秒及 27 秒通過。沒有宣稱首次完整 suite 一次全綠，也沒有略過 installer 檢查。
 
-測試及量測都從研究 worktree 根目錄執行。詳細 log 與最終修改檔案的 SHA-256 清單保存在 `C:\Users\mps19\AppData\Local\Temp\pdh-speed-review-dcclpbyf`。Python caches 由現有 `.gitignore` 覆蓋，log／暫存證據放在 checkout 外；研究文件保留追蹤，沒有新增需忽略的產物類型。已檢查 `git check-ignore -v`、`git status --short --ignored` 與 `git ls-files`。
+測試及量測都從研究 worktree 根目錄執行。詳細 log 與最終修改檔案的 SHA-256 清單保存在 `pdh-speed-review-dcclpbyf`。Python caches 由現有 `.gitignore` 覆蓋，log／暫存證據放在 checkout 外；研究文件保留追蹤，沒有新增需忽略的產物類型。已檢查 `git check-ignore -v`、`git status --short --ignored` 與 `git ls-files`。
 
 本次 diff review 發現的問題都已修正並補測。這是未提交工作目錄的 review，不是 exact-SHA 安全 gate 或 release promotion。真實 container 效能仍待前述 Podman 環境問題解決後量測。

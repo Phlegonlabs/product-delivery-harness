@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from assemble_ui_review import assemble
 
 
-TEMPLATE = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+TEMPLATE = Path(__file__).resolve().parents[2] / "assets/templates/legacy/WIREFRAMES.template.html"
 HIFI_BROWSER_TIMEOUT_SECONDS = 90
 
 

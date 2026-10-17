@@ -1,5 +1,7 @@
 # Shared Reviewer Sidebar Polish
 
+Status: complete
+
 Design workflow: maintenance
 UI impact: style
 
@@ -23,7 +25,7 @@ Refine the existing shared CSS and synchronize its embedded segments in Wirefram
 
 ## Change Log
 
-- 2026-09-25: clean exact-main baseline observed. Created the owner-accepted named branch in the existing isolated checkout. GLM Flash frontend worker owns only canonical shared CSS, its two embedded template segments and four README descriptions; no worker commit, push, install, clone or cleanup is authorized. Parent retained baseline preview fixtures outside the checkout at C:/Users/mps19/AppData/Local/Temp/pdh-sidebar-preview-20260925-043345/. Implementation and visual verification pending.
+- 2026-09-25: clean exact-main baseline observed. Created the owner-accepted named branch in the existing isolated checkout. GLM Flash frontend worker owns only canonical shared CSS, its two embedded template segments and four README descriptions; no worker commit, push, install, clone or cleanup is authorized. Parent retained baseline preview fixtures outside the checkout at `pdh-sidebar-preview-20260925-043345/`. Implementation and visual verification pending.
 
 - 2026-09-25 implementation: GLM Flash run 20260925-043627-4814b8b8c0094a13afcefe2e36f7fab6 reached the 900-second deadline after writing canonical shared CSS and synchronizing both embedded template segments. The wrapper inspected and terminated its owned process tree; parent confirmed the worker processes ended. No worker completion or test PASS is claimed. Parent reviewed the retained three-file diff and supplied the four-language descriptive documentation. Shadow DOM, sidebar width, shell markup, runtime and product CSS remain unchanged. Parent-owned Epic/index edits happened while the worker was running, so they are tracked separately from its three authored files.
 

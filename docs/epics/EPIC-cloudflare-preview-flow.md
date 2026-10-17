@@ -1,6 +1,6 @@
 # EPIC-cloudflare-preview-flow: branch previews before main
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 
@@ -55,7 +55,7 @@ Installed Harness version: 0.62.3. Loaded bundle identity is unobserved.
 Document inventory reports first-observation review and unknown loaded identity; neither is a verification PASS.
 Formal release, installation and migration of existing consumer repositories are outside this task.
 
-The exact candidate, independent review and final outcome are authoritative in [preview-flow-result.md](C:/Users/mps19/.codex/visualizations/2026/10/15/01a13d9d-64d7-7fa2-97fe-73d39b523f32/preview-flow-result.md).
+The exact candidate, independent review and final outcome are authoritative in preview-flow-result.md.
 The linked receipt is written after the fixed candidate review; this checkpoint does not predeclare its result.
 
-Release and installation follow-up is authoritative in [release-0.63.0-result.md](C:/Users/mps19/.codex/visualizations/2026/10/15/01a13d9d-64d7-7fa2-97fe-73d39b523f32/release-0.63.0-result.md).
+Release and installation follow-up is authoritative in release-0.63.0-result.md.

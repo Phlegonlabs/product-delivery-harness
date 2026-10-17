@@ -81,7 +81,7 @@ def _image_module() -> Any:
             from PIL import Image as pillow_image
         except ImportError as exc:
             raise RuntimeError(
-                "UI image evidence decoding requires Pillow; install the engineering test dependencies"
+                "UI image evidence decoding requires Pillow; install it with: python -m pip install Pillow"
             ) from exc
         Image = pillow_image
     return Image

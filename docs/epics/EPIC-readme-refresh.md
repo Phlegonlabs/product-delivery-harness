@@ -1,6 +1,7 @@
 # README Refresh
 
-Status: source_complete; release outcome recorded in the linked receipt
+Status: complete
+Source complete; release outcome recorded in the linked receipt.
 Route: bounded direct documentation maintenance
 Product UI impact: none; README presentation changes
 
@@ -52,7 +53,7 @@ Logs, previews, prompts and temporary dependencies stay outside the checkout; no
 | --- | --- | --- |
 | 2026-10-05 entry | Detached baseline above; local history starts with the 0.62.1 repair release | First observation only. Installed Harness is `0.62.1`; loaded identity is unobserved. Document inventory requests semantic review and flags legacy names in retained history. No snapshot saved. |
 | 2026-10-05 generated covers | Built-in image generation; editorial blueprint composition with ivory, black, cobalt, lavender and mint | English, Traditional Chinese and Simplified Chinese title/subtitle inspection passed. Prompts and original outputs remain checkout-external. Copy and reference verification follow. |
-| 2026-10-05 before preview | `C:/Users/mps19/.codex/visualizations/2026/10/06/01a10fde-1ee1-7283-9ab3-b8cd44745537/preview-before.json` | Twelve local Chromium captures cover four languages, 1200px light/dark and 390px light. This is local Markdown fallback evidence, not GitHub verification. Badge pixels loaded despite the preview's requested blocking route; they do not establish CI status. All captured task processes exited. |
+| 2026-10-05 before preview | `preview-before.json` | Twelve local Chromium captures cover four languages, 1200px light/dark and 390px light. This is local Markdown fallback evidence, not GitHub verification. Badge pixels loaded despite the preview's requested blocking route; they do not establish CI status. All captured task processes exited. |
 | 2026-10-05 asset checkpoint | Working-tree covers copied to their three existing paths. PNG SHA-256: English `d1f2f794c83e4b396870cf4fb362298414466c898f59f41fd435dcfa4959abe8`; Traditional Chinese `72ab665ed5869c589de429ae73810db7f816cff757819cf0e9b0014a6e6d37ad`; Simplified Chinese `3c49f1c2a841344c71b1f8db5a535f871e7858ca811c030f0d6ab787d1119090` | All decode at 1774×887. Existing references resolve. Twelve matching captures are in `preview-covers.json`; recorded task processes exited. Whitespace and tracked-asset checks passed. Atomic commit awaits exact branch confirmation. |
 | 2026-10-05 interim handoff | HEAD unchanged at the detached baseline; three modified PNGs, modified index document and one new Epic; no staged files | Installed and source template `0.62.1` share SHA-256 `feed8dcc70b3691d9822a1b05641d4502dae452fd1926954f09db3fc78fff62f`. Shared rules are current by meaning. The source repository retains its documented Git Flow, Required Reading and stage-slot/deployment exceptions. README text remains unchanged. Local `main` is stale at `bdae1d82`; current HEAD carries local tag `v0.62.1`. No fetch or publication ran. |
 | 2026-10-06 publication request and branch | Owner: `ccommit and push and merge all`; remote `main` read through GitHub is exactly the entry baseline | Created `codex/readme-refresh` from that released baseline. Only the recorded covers/Epic/index are dirty. Image decoding, existing references and whitespace checks passed before the first atomic commit. |
@@ -67,7 +68,7 @@ Logs, previews, prompts and temporary dependencies stay outside the checkout; no
 Generated covers now occupy the current README asset paths.
 Four-language authoring and focused source checks are complete.
 Version metadata is synchronized for `0.62.2`.
-The [release receipt](C:/Users/mps19/.codex/visualizations/2026/10/06/01a10fde-1ee1-7283-9ab3-b8cd44745537/release-result.md) records exact candidate and main SHAs, verification, publication and remaining work.
+The release receipt records exact candidate and main SHAs, verification, publication and remaining work.
 Shared AGENTS rules match the observed installed `0.62.1` template by meaning; its SHA-256 is recorded above.
 The VERSION/RUNBOOK update does not change that template. Loaded skill identity remains unknown.
-Evidence root: `C:/Users/mps19/.codex/visualizations/2026/10/06/01a10fde-1ee1-7283-9ab3-b8cd44745537/`.
+Evidence root: `01a10fde-1ee1-7283-9ab3-b8cd44745537/`.

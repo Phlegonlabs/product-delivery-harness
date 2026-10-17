@@ -1,6 +1,6 @@
 # EPIC-pre-delivery-self-review: Review each authoring stage before delivery
 
-Status: candidate_verification
+Status: complete
 
 ## Problem And Baseline
 
@@ -76,7 +76,7 @@ claimed by this candidate record; retain their actual results in the release
 handoff and PR evidence before claiming completion.
 
 Verification evidence is retained outside the checkout under
-`C:/Users/mps19/.codex/work/self-review-20260928/work/`:
+`work/`:
 
 - `setup-20260928-114325`: npm ci, Chromium installation and Python test requirements passed.
 - `static-20260928-115552`: repaired source passes skill spec, Pyflakes, docs weight and diff whitespace checks; staged whitespace also passed.

@@ -438,8 +438,8 @@ async function agent(_prompt, options) {
         skill = self.read(STAGE)
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
-        guide = self.read("references/wireframe-guide.md")
-        html_template = self.read("assets/templates/WIREFRAMES.template.html")
+        guide = self.read("references/legacy/wireframe-guide.md")
+        html_template = self.read("assets/templates/legacy/WIREFRAMES.template.html")
         workflow = self.read("scripts/product_agent_graph.cjs")
 
         for content in (skill, contract, lifecycle):
@@ -486,7 +486,7 @@ async function agent(_prompt, options) {
 
         checker = UI_SKILL_ROOT / "scripts/check_wireframe_html.py"
         result = subprocess.run(
-            [sys.executable, str(checker), "--html", str(UI_SKILL_ROOT / "assets/templates/WIREFRAMES.template.html")],
+            [sys.executable, str(checker), "--html", str(UI_SKILL_ROOT / "assets/templates/legacy/WIREFRAMES.template.html")],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -517,7 +517,7 @@ async function agent(_prompt, options) {
     def run_checker_with_data(
         self, data: dict, extra_args: list[str] | None = None
     ) -> subprocess.CompletedProcess:
-        html_template = self.read("assets/templates/WIREFRAMES.template.html")
+        html_template = self.read("assets/templates/legacy/WIREFRAMES.template.html")
         marker = '<script id="wireframe-data" type="application/json">'
         original_payload = html_template.split(marker, 1)[1].split("</script>", 1)[0]
         modified = html_template.replace(
@@ -543,7 +543,7 @@ async function agent(_prompt, options) {
     def test_prd_cross_check_requires_matching_ui_sets(self) -> None:
         data = self.minimal_wireframe_data()
         with tempfile.TemporaryDirectory() as tmp:
-            html_template = self.read("assets/templates/WIREFRAMES.template.html")
+            html_template = self.read("assets/templates/legacy/WIREFRAMES.template.html")
             marker = '<script id="wireframe-data" type="application/json">'
             original_payload = html_template.split(marker, 1)[1].split(
                 "</script>", 1
@@ -669,7 +669,7 @@ async function agent(_prompt, options) {
             "<!-- ui-surface-contract:end -->\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
-            html_template = self.read("assets/templates/WIREFRAMES.template.html")
+            html_template = self.read("assets/templates/legacy/WIREFRAMES.template.html")
             marker = '<script id="wireframe-data" type="application/json">'
             original_payload = html_template.split(marker, 1)[1].split(
                 "</script>", 1
@@ -807,8 +807,8 @@ async function agent(_prompt, options) {
     def test_wireframe_template_projects_flows_traces_and_display_contracts(
         self,
     ) -> None:
-        guide = self.read("references/wireframe-guide.md")
-        html_template = self.read("assets/templates/WIREFRAMES.template.html")
+        guide = self.read("references/legacy/wireframe-guide.md")
+        html_template = self.read("assets/templates/legacy/WIREFRAMES.template.html")
         payload = html_template.split(
             '<script id="wireframe-data" type="application/json">', 1
         )[1].split("</script>", 1)[0]
@@ -928,7 +928,7 @@ async function agent(_prompt, options) {
         self.assertIn("connected `ui-hifi/2` HTML package", guide)
         self.assertIn(
             "generationStatus: deferred",
-            self.read_ui("references/wireframe-guide.md"),
+            self.read_ui("references/legacy/wireframe-guide.md"),
         )
         self.assertIn("## Impeccable Quality Review And PRD-Bound Grading", guide)
         self.assertIn("Render every page-target-state", guide)
@@ -2638,7 +2638,7 @@ async function agent(_prompt, options) {
     def test_wireframe_reference_pass_consults_comparable_structures(self) -> None:
         skill = self.read_ui("SKILL.md")
         stage = self.read_ui("references/stages/ui-design.md")
-        guide = self.read_ui("references/wireframe-guide.md")
+        guide = self.read_ui("references/legacy/wireframe-guide.md")
         contract = self.read_ui("references/output-contract.md")
 
         self.assertIn("## Reference Pass", guide)
@@ -2660,7 +2660,7 @@ async function agent(_prompt, options) {
             skill,
         )
         self.assertIn(
-            "Read `references/wireframe-guide.md` only to inspect or validate "
+            "Read `references/legacy/wireframe-guide.md` only to inspect or validate "
             "an existing legacy wireframe",
             stage,
         )
@@ -2673,7 +2673,7 @@ async function agent(_prompt, options) {
     def test_enhancement_classifies_ui_impact_before_drafting(self) -> None:
         skill = self.read(STAGE)
         interview = self.read("references/interview-guide.md")
-        guide = self.read_ui("references/wireframe-guide.md")
+        guide = self.read_ui("references/legacy/wireframe-guide.md")
         contract = self.read("references/output-contract.md")
 
         self.assertIn(
@@ -2686,7 +2686,7 @@ async function agent(_prompt, options) {
         self.assertIn("## Enhancement Revisions", guide)
         for marker in (
             "re-run Wireframe Validation on the changed scope",
-            "re-run `references/ui-design-pass.md` for the affected scope",
+            "re-run `../ui-design-pass.md` for the affected scope",
             "A stale visual contract never publishes silently",
         ):
             self.assertIn(marker, guide)
@@ -2756,7 +2756,7 @@ async function agent(_prompt, options) {
         self.assertIn("login, registration, recovery", lowered)
         self.assertIn(
             "generationstatus: deferred",
-            self.read_ui("references/wireframe-guide.md").lower(),
+            self.read_ui("references/legacy/wireframe-guide.md").lower(),
         )
         for marker in (
             "A product tab or page link uses a real anchor",
@@ -2784,7 +2784,7 @@ async function agent(_prompt, options) {
 
     def test_multi_agent_ui_grading_is_prd_bound_authorized_and_capability_optional(self) -> None:
         skill = self.read_ui("SKILL.md")
-        wireframe = self.read_ui("references/wireframe-guide.md")
+        wireframe = self.read_ui("references/legacy/wireframe-guide.md")
         guide = self.read_ui("references/ui-design-pass.md")
         rubric = self.read_ui("references/ui-grading-rubric.md")
         contract = self.read_ui("references/output-contract.md")
@@ -2844,7 +2844,7 @@ async function agent(_prompt, options) {
     def test_motion_and_media_gate_separates_ui_motion_from_generated_assets(self) -> None:
         skill = self.read_ui("SKILL.md")
         interview = self.read("references/interview-guide.md")
-        wireframe = self.read_ui("references/wireframe-guide.md")
+        wireframe = self.read_ui("references/legacy/wireframe-guide.md")
         guide = self.read_ui("references/ui-design-pass.md")
         rubric = self.read_ui("references/ui-grading-rubric.md")
         contract = self.read_ui("references/output-contract.md")
@@ -2863,8 +2863,8 @@ async function agent(_prompt, options) {
         self.assertIn("implements no final image or animation", wireframe)
 
     def test_wireframe_actions_and_media_handoffs_are_executable_and_validated(self) -> None:
-        wireframe = self.read_ui("references/wireframe-guide.md")
-        template = self.read_ui("assets/templates/WIREFRAMES.template.html")
+        wireframe = self.read_ui("references/legacy/wireframe-guide.md")
+        template = self.read_ui("assets/templates/legacy/WIREFRAMES.template.html")
         checker = self.read_ui("scripts/check_wireframe_html.py")
 
         for content in (wireframe, template):
@@ -2899,7 +2899,7 @@ async function agent(_prompt, options) {
         node = shutil.which("node")
         if node is None:
             self.skipTest("Node.js is required for wireframe JavaScript validation")
-        template_path = UI_SKILL_ROOT / "assets/templates/WIREFRAMES.template.html"
+        template_path = UI_SKILL_ROOT / "assets/templates/legacy/WIREFRAMES.template.html"
         runner = r"""
 const fs = require("fs");
 const html = fs.readFileSync(process.argv[1], "utf8");
@@ -2933,7 +2933,7 @@ new Function(scripts.at(-1)[1]);
         skill = self.read(STAGE)
         contract = self.read("references/output-contract.md")
         ui_skill = self.read_ui("SKILL.md")
-        wireframe = self.read_ui("references/wireframe-guide.md")
+        wireframe = self.read_ui("references/legacy/wireframe-guide.md")
 
         order = [
             skill.index("12. Draft or repair the core Markdown package"),

@@ -39,7 +39,7 @@
 
 合計 1,495 個測試案例，15 個 skipped，沒有 failure/error。Skipped 包含 Windows 不適用的 POSIX fixture、缺少 symlink 權限，以及主 suite 預設略過的 Golden Path；Golden Path 已另行啟用並通過。Delivery suite 約 1,082 秒，這是驗證耗時，不是效能改善基準。
 
-最終日誌、逐命令結果與 SHA-256 清單：`C:/Users/mps19/AppData/Local/Temp/pdh-simplify-final-q260_ygt/`。完整驗證期間 227 份 skills／README 檔案雜湊未變。第一輪失敗證據保留於 `C:/Users/mps19/AppData/Local/Temp/pdh-simplify-review-6gn4hh2x/`。
+最終日誌、逐命令結果與 SHA-256 清單：`pdh-simplify-final-q260_ygt/`。完整驗證期間 227 份 skills／README 檔案雜湊未變。第一輪失敗證據保留於 `pdh-simplify-review-6gn4hh2x/`。
 
 Gitignore 無需更動：現有 Python cache 規則已涵蓋新增腳本，source、tests 與研究報告保持 Git 可見，測試日誌放在 checkout 外。已核對 check-ignore、status --ignored 與 ls-files。
 

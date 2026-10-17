@@ -2553,6 +2553,7 @@ def validate(
                 Path(__file__).resolve().parents[1]
                 / "assets"
                 / "templates"
+                / "legacy"
                 / template_name
             )
             canonical_shell_sha = canonical_shell_sha256(

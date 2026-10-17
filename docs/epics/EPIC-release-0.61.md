@@ -1,6 +1,7 @@
 # Release 0.61.0
 
-Status: source verification recorded; publication tracked by [PR #136](https://github.com/Phlegonlabs/product-delivery-harness/pull/136)
+Status: complete
+Source verification recorded; publication tracked by [PR #136](https://github.com/Phlegonlabs/product-delivery-harness/pull/136).
 UI impact: none
 
 ## Scope And Authority
@@ -39,7 +40,7 @@ the resulting main tree, repeat exact-main CI and fresh security review, then
 tag main and compare/install the released seven-skill bundle at a quiet boundary.
 
 Logs and temporary artifacts stay outside Git under
-`C:/Users/mps19/AppData/Local/Temp/pdh-release-20261004-cmvxqzgi/`.
+`pdh-release-20261004-cmvxqzgi/`.
 The existing dependency/cache/environment ignore rules cover this task.
 No consumer PRD, architecture, design package or PLAN/RUN applies.
 Loaded skill identity is unobserved. Installed baseline is 0.60.0, digest
@@ -76,7 +77,7 @@ destinations. An expected path, tag name or link does not prove completion.
 
 After verified publication, the parent will write the installation and branch
 read-back receipt to
-`C:/Users/mps19/AppData/Local/Temp/pdh-release-20261004-cmvxqzgi/release-outcome.json`.
+`release-outcome.json`.
 The PR, verified tag and receipt will retain later outcomes without rewriting
 this frozen candidate's historical observations.
 Remote execution remains pending in its source Epic.

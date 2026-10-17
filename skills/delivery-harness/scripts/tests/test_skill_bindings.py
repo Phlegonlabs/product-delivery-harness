@@ -123,6 +123,82 @@ class SkillBindingTests(unittest.TestCase):
         findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills])
         self.assertEqual([], findings)
 
+    def test_development_only_files_do_not_change_the_skill_hash(self) -> None:
+        # hash_skill covers the installed runtime tree, so development-only
+        # files must never move a pin; a runtime script change still must.
+        skill = self.skills / "taste-skill"
+        pinned = check_skill_bindings.hash_skill(skill / "SKILL.md")
+        tests_dir = skill / "scripts" / "tests"
+        tests_dir.mkdir(parents=True)
+        added = tests_dir / "test_new.py"
+        added.write_text("x = 1\n", encoding="utf-8", newline="\n")
+        timings = skill / "ci-test-timings.json"
+        timings.write_text('{"ci": {}}\n', encoding="utf-8", newline="\n")
+        requirements = skill / "requirements-test.txt"
+        requirements.write_text("pytest\n", encoding="utf-8", newline="\n")
+        self.assertEqual(pinned, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+        added.write_text("x = 2\n", encoding="utf-8", newline="\n")
+        (tests_dir / "test_other.py").write_text("y = 1\n", encoding="utf-8", newline="\n")
+        timings.write_text('{"ci": {"changed": true}}\n', encoding="utf-8", newline="\n")
+        requirements.write_text("pytest>=8\n", encoding="utf-8", newline="\n")
+        self.assertEqual(pinned, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+        (skill / "SKILL.md").write_text("# Taste two\n", encoding="utf-8", newline="\n")
+        self.assertNotEqual(pinned, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+
+    def test_capital_tests_directory_is_part_of_the_skill_hash(self) -> None:
+        # The development-only rule is case-sensitive, so scripts/Tests/ with
+        # a capital T is runtime content: adding or changing one of its files
+        # must move the pin.
+        skill = self.skills / "taste-skill"
+        before = check_skill_bindings.hash_skill(skill / "SKILL.md")
+        runtime = skill / "scripts" / "Tests" / "runtime.py"
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text("value = 1\n", encoding="utf-8", newline="\n")
+        added = check_skill_bindings.hash_skill(skill / "SKILL.md")
+        self.assertNotEqual(before, added)
+        runtime.write_text("value = 2\n", encoding="utf-8", newline="\n")
+        self.assertNotEqual(added, check_skill_bindings.hash_skill(skill / "SKILL.md"))
+
+    def test_cache_names_and_suffixes_do_not_change_the_skill_hash(self) -> None:
+        # The cache rule matches whole path parts case-sensitively and only the
+        # .pyc/.pyo suffix in any letter case over the file name: regular files
+        # named exactly __pycache__ or .pytest_cache, a module.PYC file, and a
+        # file named exactly .pyc never move a pin, while foo__pycache__/ and
+        # __PYCACHE__/ lookalikes and a directory named module.PYC are runtime
+        # content. The case variants live in different skills because Windows
+        # file systems ignore case, so both spellings could not sit in one
+        # directory.
+        cache_skill = self.skills / "taste-skill"
+        runtime_skill = self.skills / "compiler-skill"
+        compiled_skill = self.skills / "front-skill"
+        scripts = cache_skill / "scripts"
+        scripts.mkdir()
+        for name in (".pytest_cache", "__pycache__", "module.PYC", ".pyc"):
+            before = check_skill_bindings.hash_skill(cache_skill / "SKILL.md")
+            path = scripts / name
+            if path.suffix:
+                path.write_bytes(b"\x00\x01cache bytes\n")
+            else:
+                path.write_text("cache data\n", encoding="utf-8", newline="\n")
+            self.assertEqual(
+                before, check_skill_bindings.hash_skill(cache_skill / "SKILL.md")
+            )
+        for relative in ("foo__pycache__/runtime.py", "__PYCACHE__/runtime.py"):
+            before = check_skill_bindings.hash_skill(runtime_skill / "SKILL.md")
+            path = runtime_skill / "scripts" / relative
+            path.parent.mkdir(parents=True)
+            path.write_text("value = 1\n", encoding="utf-8", newline="\n")
+            self.assertNotEqual(
+                before, check_skill_bindings.hash_skill(runtime_skill / "SKILL.md")
+            )
+        before = check_skill_bindings.hash_skill(compiled_skill / "SKILL.md")
+        runtime = compiled_skill / "scripts" / "module.PYC" / "runtime.py"
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text("value = 2\n", encoding="utf-8", newline="\n")
+        self.assertNotEqual(
+            before, check_skill_bindings.hash_skill(compiled_skill / "SKILL.md")
+        )
+
     def test_unpinned_changed_or_missing_skills_fail(self) -> None:
         pinned = check_skill_bindings.hash_skill(
             self.skills / "taste-skill" / "SKILL.md"

@@ -1,6 +1,6 @@
 # EPIC-agent-delegation-contract: Enforce parent-owned agent assignments
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 
@@ -69,7 +69,7 @@ Branch remains `codex/agent-delegation-contract`, HEAD `b591a618ba8454da8b9ec22b
 
 ### Preserved Working-Tree Handoff — 2026-09-29
 
-The frozen 60-file snapshot is retained outside the checkout at `C:/Users/mps19/.codex/work/agent-delegation-contract-20260929/candidate-20260929T095600786062Z`; its manifest SHA-256 is `d622b8c4843afde5b0d70eddc6356702cdde411424c7ce88becab4a0fcf3193a`. On those bytes, Product tests passed (253), required-browser UI tests passed (311), design-system tests passed (120, four platform skips), activation tests passed (56), SEO tests passed (21), and the enabled golden-path test passed. Skill specification, skill validation, pyflakes, module-cap tests and diff checks passed; docs weight ran successfully.
+The frozen 60-file snapshot is retained outside the checkout at `candidate-20260929T095600786062Z`; its manifest SHA-256 is `d622b8c4843afde5b0d70eddc6356702cdde411424c7ce88becab4a0fcf3193a`. On those bytes, Product tests passed (253), required-browser UI tests passed (311), design-system tests passed (120, four platform skips), activation tests passed (56), SEO tests passed (21), and the enabled golden-path test passed. Skill specification, skill validation, pyflakes, module-cap tests and diff checks passed; docs weight ran successfully.
 
 The full Harness check reached its actual 1,200-second deadline before completion. It exposed a legacy review-state object-identity regression; this is not a full-suite PASS. The runner terminated the owned process tree, and the recorded Python PID and the two child PIDs named in cleanup output were subsequently absent. The final follow-up changed only the review/result staging wrappers: pinned pre-role-contract RUNs retain in-place updates, while current role-contract RUNs retain atomic staging. The failing test was reproduced before repair. The complete `test_harness_v11.py` file and `test_agent_*.py` tests passed after repair. These final wrapper bytes are not represented by the frozen snapshot; the complete Harness suite still needs a fresh successful run.
 

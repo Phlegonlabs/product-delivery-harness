@@ -28,7 +28,7 @@ Worker process exit code 為 0，但 dispatcher 最後將本輪 parent 建立的
 
 所有 Harness 測試命令都從本分支 worktree root 執行。測試日誌及修改檔 SHA-256 清單位於：
 
-`C:/Users/mps19/AppData/Local/Temp/pdh-jolvex-review-16gbyoc5/`
+`pdh-jolvex-review-16gbyoc5/`
 
 - 安裝 test requirements：成功，既有套件已滿足需求。
 - Parent 聚焦測試：Product checker 62 個 PASS；inspector 9 個 PASS。

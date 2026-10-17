@@ -82,6 +82,15 @@ def is_cache_path(path: Path) -> bool:
     )
 
 
+def is_dev_only_path(path: Path) -> bool:
+    # Mirrors the installers' development-only rule: tests directories and CI
+    # timing/test-requirements data stay in the source repository.
+    return "tests" in path.parts[:-1] or path.name in {
+        "ci-test-timings.json",
+        "requirements-test.txt",
+    }
+
+
 def bash_path(path: Path, *, resolve: bool = True) -> str:
     resolved = path.resolve() if resolve else Path(os.path.abspath(path))
     parts = resolved.parts
@@ -100,11 +109,13 @@ def bash_path(path: Path, *, resolve: bool = True) -> str:
 
 
 def source_manifest(skill: str) -> dict[str, bytes]:
+    # The expected install is the tracked runtime tree: the same development
+    # only files the installers skip are skipped here.
     root = REPO_ROOT / "skills" / skill
     return {
         path.relative_to(root).as_posix(): path.read_bytes()
         for path in sorted(root.rglob("*"))
-        if path.is_file() and not is_cache_path(path)
+        if path.is_file() and not is_cache_path(path) and not is_dev_only_path(path)
     }
 
 
@@ -243,9 +254,18 @@ class InstallScriptTests(unittest.TestCase):
         for skill in self.SKILLS:
             with self.subTest(skill=skill):
                 self.assertEqual(source_manifest(skill), installed_manifest(skill, self.destination))
+                installed_root = self.destination / skill
                 self.assertFalse(
-                    any(is_cache_path(path) for path in (self.destination / skill).rglob("*"))
+                    any(is_cache_path(path) for path in installed_root.rglob("*"))
                 )
+                # Development-only trees and CI data files never install, while
+                # ordinary runtime scripts still do.
+                self.assertFalse(
+                    any(is_dev_only_path(path) for path in installed_root.rglob("*"))
+                )
+        self.assertTrue(
+            (self.destination / "delivery-harness" / "scripts" / "check_skill_bindings.py").is_file()
+        )
         for skill in self.LEGACY_SKILLS:
             self.assertFalse((self.destination / skill).exists())
         self.assertTrue((self.destination / "unrelated-skill" / "SKILL.md").is_file())
@@ -639,6 +659,161 @@ class InstallScriptTests(unittest.TestCase):
             )
             self.assertNotEqual(0, result.returncode)
             self.assertIn("untracked or ignored source artifact is not installable", result.stderr + result.stdout)
+
+    def test_installers_keep_dev_only_matching_case_sensitive(self) -> None:
+        # A tracked runtime file such as scripts/Tests/runtime.py or
+        # REQUIREMENTS-TEST.TXT installs like any other runtime file, while
+        # the genuine development-only names stay in the source repository.
+        # The case variants live in different skills because Windows file
+        # systems ignore case, so both spellings could not sit in one
+        # directory.
+        source = self.make_minimal_repo()
+        tracked = {
+            "delivery-harness": ("scripts/Tests/runtime.py", "REQUIREMENTS-TEST.TXT"),
+            "product-definition-builder": (
+                "scripts/tests/test_x.py",
+                "requirements-test.txt",
+            ),
+        }
+        for skill, relatives in tracked.items():
+            for relative in relatives:
+                path = source / "skills" / skill / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    f"# {skill} {relative}\n", encoding="utf-8", newline="\n"
+                )
+        subprocess.run(["git", "add", "."], cwd=source, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "track dev-only lookalikes"], cwd=source, check=True
+        )
+
+        for installer, destination in (
+            ("bash", self.home / "bash-skills"),
+            ("powershell", self.home / "powershell-skills"),
+        ):
+            with self.subTest(installer=installer):
+                if installer == "bash":
+                    result = self.run_bash(
+                        {"SKILL_BACKUP_ROOT": str(self.backup_root)},
+                        installer=source / "install.sh",
+                        destination=destination,
+                    )
+                else:
+                    if POWERSHELL is None:
+                        self.skipTest("neither pwsh nor powershell is available")
+                    result = subprocess.run(
+                        [
+                            POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                            str(source / "install.ps1"), "-Destination", str(destination),
+                            "-BackupRoot", str(self.backup_root),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.home,
+                        timeout=INSTALL_TIMEOUT,
+                    )
+                self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+                self.assertTrue(
+                    (destination / "delivery-harness" / "scripts" / "Tests" / "runtime.py").is_file()
+                )
+                self.assertTrue(
+                    (destination / "delivery-harness" / "REQUIREMENTS-TEST.TXT").is_file()
+                )
+                self.assertFalse(
+                    (destination / "product-definition-builder" / "scripts" / "tests" / "test_x.py").exists()
+                )
+                self.assertFalse(
+                    (destination / "product-definition-builder" / "requirements-test.txt").exists()
+                )
+
+    def test_installers_keep_cache_names_matching_case_sensitive(self) -> None:
+        # A regular file named exactly scripts/.pytest_cache,
+        # scripts/__pycache__, or scripts/.pyc and a scripts/module.PYC file
+        # are cache artifacts the installers leave out, while
+        # foo__pycache__/runtime.py and scripts/__PYCACHE__/runtime.py are
+        # runtime content: the cache names match whole path parts
+        # case-sensitively and only the compiled suffix over the file name is
+        # matched in any letter case, so a directory named module.PYC is
+        # ordinary content whose files install. The case variants live in
+        # different skills because Windows file systems ignore case, so both
+        # spellings could not sit in one directory.
+        source = self.make_minimal_repo()
+        tracked = {
+            "delivery-harness": (
+                "scripts/.pytest_cache",
+                "scripts/__pycache__",
+                "scripts/module.PYC",
+            ),
+            "ui-design-builder": ("scripts/.pyc",),
+            "design-system-compiler": ("scripts/module.PYC/runtime.py",),
+            "product-definition-builder": (
+                "foo__pycache__/runtime.py",
+                "scripts/__PYCACHE__/runtime.py",
+            ),
+        }
+        for skill, relatives in tracked.items():
+            for relative in relatives:
+                path = source / "skills" / skill / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if path.name.lower().endswith((".pyc", ".pyo")):
+                    path.write_bytes(b"\x00\x01cache bytes\n")
+                else:
+                    path.write_text(
+                        f"# {skill} {relative}\n", encoding="utf-8", newline="\n"
+                    )
+        # -f keeps global ignore rules from silently dropping the fixtures.
+        subprocess.run(["git", "add", "-f", "."], cwd=source, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "track cache-name lookalikes"], cwd=source, check=True
+        )
+
+        for installer, destination in (
+            ("bash", self.home / "bash-skills"),
+            ("powershell", self.home / "powershell-skills"),
+        ):
+            with self.subTest(installer=installer):
+                if installer == "bash":
+                    result = self.run_bash(
+                        {"SKILL_BACKUP_ROOT": str(self.backup_root)},
+                        installer=source / "install.sh",
+                        destination=destination,
+                    )
+                else:
+                    if POWERSHELL is None:
+                        self.skipTest("neither pwsh nor powershell is available")
+                    result = subprocess.run(
+                        [
+                            POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                            str(source / "install.ps1"), "-Destination", str(destination),
+                            "-BackupRoot", str(self.backup_root),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        cwd=self.home,
+                        timeout=INSTALL_TIMEOUT,
+                    )
+                self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+                self.assertFalse(
+                    (destination / "delivery-harness" / "scripts" / ".pytest_cache").exists()
+                )
+                self.assertFalse(
+                    (destination / "delivery-harness" / "scripts" / "__pycache__").exists()
+                )
+                self.assertFalse(
+                    (destination / "delivery-harness" / "scripts" / "module.PYC").exists()
+                )
+                self.assertFalse(
+                    (destination / "ui-design-builder" / "scripts" / ".pyc").exists()
+                )
+                self.assertTrue(
+                    (destination / "product-definition-builder" / "foo__pycache__" / "runtime.py").is_file()
+                )
+                self.assertTrue(
+                    (destination / "product-definition-builder" / "scripts" / "__PYCACHE__" / "runtime.py").is_file()
+                )
+                self.assertTrue(
+                    (destination / "design-system-compiler" / "scripts" / "module.PYC" / "runtime.py").is_file()
+                )
 
     def assert_source_line_recorded(self, source: Path, install) -> None:
         head = subprocess.run(

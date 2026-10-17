@@ -47,13 +47,20 @@ container verifiers require container probes and machine trust evidence; a
 host-only PLAN records its PLAN/host binding without those probes.
 
 The supported test/runtime baseline is Python 3.10 or newer (CI runs 3.13).
-Install and verify the repository test dependencies from the repository root:
+Installed skills need Pillow for UI evidence decoding. Install and verify it:
+
+```text
+python -m pip install "Pillow>=11.0.0"
+python -c "import PIL; print(PIL.__version__)"
+```
+
+This works without the source checkout. Source maintainers install the test
+dependencies from the source repository root:
 
 ```text
 python -m pip install -r skills/delivery-harness/requirements-test.txt
-python -c "import PIL, pyflakes; print(PIL.__version__)"
 ```
 
-`Pillow` is required by visual evidence checks; `pyflakes` is required by the
-canonical verification suite. Do not silently substitute an older Python or a
-different image library in a candidate gate.
+That file adds pyflakes and PyYAML for the source verification suite. Do not
+silently substitute an older Python or a different image library in a candidate
+gate.

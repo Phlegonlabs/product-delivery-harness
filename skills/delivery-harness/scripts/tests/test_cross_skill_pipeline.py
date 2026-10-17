@@ -72,7 +72,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
     def test_ui_design_builder_owns_hifi_review_and_retains_legacy_scores(self) -> None:
         ui = self.read("ui-design-builder/SKILL.md")
-        wireframe = self.read("ui-design-builder/references/wireframe-guide.md")
+        wireframe = self.read("ui-design-builder/references/legacy/wireframe-guide.md")
         hifi = self.read("ui-design-builder/references/ui-design-pass.md")
         rubric = self.read("ui-design-builder/references/ui-grading-rubric.md")
 
@@ -289,7 +289,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
     def test_downstream_skills_always_run_the_full_product_gate_with_repo_root(self) -> None:
         sources = {
             "ui design": self.read("ui-design-builder/references/stages/ui-design.md"),
-            "wireframes": self.read("ui-design-builder/references/wireframe-guide.md"),
+            "wireframes": self.read("ui-design-builder/references/legacy/wireframe-guide.md"),
             "design system": self.read("design-system-compiler/references/stages/design-compilation.md"),
             "activation": self.read("product-activation/references/stages/activation.md"),
         }

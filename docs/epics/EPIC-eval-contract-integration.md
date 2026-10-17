@@ -1,6 +1,7 @@
 # EPIC-eval-contract-integration: Freeze eval policy and verify handoff
 
-Status: local_verified; source integration complete, release pending.
+Status: complete
+Source integration complete, release pending.
 
 ## Problem And Accepted Outcome
 
@@ -148,7 +149,7 @@ hashes after every suite and at receipt reconciliation.
 
 Review packets, separate code verdicts, raw logs, process receipts and
 `final-882dda69-verification.json` stay in the checkout-external task directory
-`C:/Users/mps19/.codex/work/eval-integration-e493a8f9c14747c4a8e75e833cb6b5d4/`.
+`eval-integration-e493a8f9c14747c4a8e75e833cb6b5d4/`.
 The completion child changes only this Epic and `docs/DOCUMENTS.md`; code and
 test evidence remains bound to candidate C above, not relabeled as the child.
 No source, fixture or version change follows the verified candidate.

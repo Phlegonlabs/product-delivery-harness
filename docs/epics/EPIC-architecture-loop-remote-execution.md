@@ -1,6 +1,7 @@
 # EPIC-architecture-loop-remote-execution: Integrate architecture and remote execution methods
 
-Status: in progress (T2/T3 source methods implemented and focused checks passed; remote execution pending)
+Status: in_progress
+T2/T3 source methods implemented and focused checks passed; remote execution pending.
 
 ## Problem And Baseline
 

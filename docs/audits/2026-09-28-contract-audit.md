@@ -79,7 +79,7 @@ passes both the clean-source and rejected-raw-style checks.
 The parent runs the full required suite, golden path and browser checks from the
 repository root. Exact candidate verification and independent-review output are
 retained outside this checkout under
-`C:/Users/mps19/Documents/Codex/2026-09-28/pdh-audit-fixes/work/`.
+`work/`.
 See the matching Epic for the repository checkpoints and final handoff for the exact
 candidate SHA, test results, publication, installation and remaining promotion gate.
 This record grants no actions or PASS.

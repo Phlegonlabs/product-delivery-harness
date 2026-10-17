@@ -349,6 +349,7 @@ def render_html(data):
         Path(__file__).resolve().parents[2]
         / "assets"
         / "templates"
+        / "legacy"
         / template_name
     ).read_text(encoding="utf-8")
     match = check_wireframe_html.DATA_BLOCK_RE.search(template)
@@ -416,6 +417,7 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             Path(__file__).resolve().parents[2]
             / "assets"
             / "templates"
+            / "legacy"
             / "WIREFRAMES.template.html"
         ).read_text(encoding="utf-8")
         binding = "const targetResponsive = responsiveSpecFor(target);"
@@ -425,7 +427,7 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         self.assertLess(template.index(binding), template.index(lookup))
 
     def test_current_template_covers_four_review_widths_on_every_screen(self):
-        template = (Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html").read_text(encoding="utf-8")
+        template = (Path(__file__).resolve().parents[2] / "assets/templates/legacy/WIREFRAMES.template.html").read_text(encoding="utf-8")
         data = json.loads(re.search(r'<script id="wireframe-data" type="application/json">(.*?)</script>', template, re.S).group(1))
         targets = [390, 768, 1024, 1440]
         self.assertEqual(targets, data["viewports"])

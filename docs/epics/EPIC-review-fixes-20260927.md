@@ -1,6 +1,6 @@
 # EPIC-review-fixes-20260927: Fix the verified findings from the seven-skill review
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 
@@ -177,7 +177,7 @@ This follow-up repairs the same seven-skill contract outcome; earlier evidence a
   exact-SHA main-promotion gate. The pasted L17 and several other lines are truncated;
   unresolved source text must be reported rather than invented.
 - Gitignore: no new repository-local generated artifact class. Test/review logs live
-  outside the checkout at `C:/Users/mps19/Documents/Codex/2026-09-28/pdh-audit-fixes/work/`.
+  outside the checkout at `work/`.
 - Document sync: installed Harness `0.55.0`; loaded digest unobserved. First-observation
   report requires semantic review, as expected. No consumer PRD/architecture translation
   is applicable. Installed-template drift and final diff evidence are pending.
@@ -204,7 +204,7 @@ the source's `0.38+` threshold clarification adds no permission or policy change
 Local main-only Git Flow, required-reading replacement, absent consumer bindings
 and deployment/activation omissions remain intentional. The final exact-SHA test,
 review and publication receipt is maintained at
-`C:/Users/mps19/Documents/Codex/2026-09-28/pdh-audit-fixes/work/handoff.json` and
+`handoff.json` and
 reported in the task handoff. Next owner/action: parent verifies and publishes the
 candidate; owner supplies the separate exact-SHA main-promotion decision when ready.
 

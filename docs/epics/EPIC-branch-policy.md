@@ -1,6 +1,6 @@
 # EPIC-branch-policy: dual-branch managed release policy
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 
@@ -69,4 +69,4 @@ Earlier branch-policy and MOD-JOIN commits are integrated. The current golden re
 
 The bounded archive suite passed 48 tests. A 300-second bounded run of the publisher suite timed out and was stopped; it needs the parent's longer final-suite budget. Remaining: parent integration, frontend overlap reconciliation, independent exact-head review, 0.59 final suite, release documentation/version-history ownership, and any final security review. No push, install, branch deletion, worktree removal, or protected-branch mutation was performed. Root AGENTS remains owner-owned for the parent's final main-only migration; this checkout observed VERSION 0.59.0 and did not edit it.
 
-- 2026-10-03 consolidation repair, baseline `108ec8014b808ff40432ed0adf49dcefe76104ce` on `codex/harness-flow-modernization`: independent correctness review found that plan-only validation treated absent RUN as an old pin. Validate an explicit PLAN branch policy and architecture marker together; retain actual historical RUN rules and defer candidate ancestry until RUN exists. Update the golden-path expectation, branch-policy matrix, promotion reference and all four README descriptions. UI impact none. The new regression failed before the fix; working-tree checks then passed branch policy 9/9 and the full golden path 1/1, including missing marker/policy, invalid base, duplicate/unknown marker and old-pin rejection. Whitespace passed. Logs and the scoped diff/commit receipt are under `C:/Users/mps19/AppData/Local/Temp/pdh-worktree-merge-20261003-eb6k85jg`. Fresh final-SHA CI and follow-up review remain pending; this check grants no execution or protected landing.
+- 2026-10-03 consolidation repair, baseline `108ec8014b808ff40432ed0adf49dcefe76104ce` on `codex/harness-flow-modernization`: independent correctness review found that plan-only validation treated absent RUN as an old pin. Validate an explicit PLAN branch policy and architecture marker together; retain actual historical RUN rules and defer candidate ancestry until RUN exists. Update the golden-path expectation, branch-policy matrix, promotion reference and all four README descriptions. UI impact none. The new regression failed before the fix; working-tree checks then passed branch policy 9/9 and the full golden path 1/1, including missing marker/policy, invalid base, duplicate/unknown marker and old-pin rejection. Whitespace passed. Logs and the scoped diff/commit receipt are under `pdh-worktree-merge-20261003-eb6k85jg`. Fresh final-SHA CI and follow-up review remain pending; this check grants no execution or protected landing.

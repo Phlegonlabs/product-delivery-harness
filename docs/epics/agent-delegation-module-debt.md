@@ -1,5 +1,7 @@
 # Agent Delegation Module Debt
 
+Status: complete
+
 Superseded scope: the owner clarified on 2026-09-29 that the 500-line hard cap belongs only in the consumer AGENTS template. This source-repository inventory is retained as historical evidence, not an active migration backlog or test exemption list. No Harness module split is required by this task.
 
 Baseline: `b591a618ba8454da8b9ec22b6ea633def2203c24`. Measured physical lines in tracked source and test modules. Excluded documentation, README files, lockfiles, binary assets, data fixtures, and generated, vendor, dependency, build, or minified paths.
