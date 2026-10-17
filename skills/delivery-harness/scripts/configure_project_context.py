@@ -9,6 +9,7 @@ import json
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 
 from check_skill_bindings import PIN_RE, STAGE_SLOTS, bound_skill_name, parse_binding_contract
@@ -531,4 +532,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

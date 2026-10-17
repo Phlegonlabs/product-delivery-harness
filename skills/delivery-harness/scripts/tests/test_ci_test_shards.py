@@ -100,7 +100,7 @@ class CITestShardTests(unittest.TestCase):
             with self.subTest(status=status):
                 result = subprocess.run(
                     [sys.executable, str(SCRIPT), "gate", "--result", "success", "--result", status],
-                    cwd=SCRIPTS_DIR.parents[2], capture_output=True, text=True,
+                    cwd=SCRIPTS_DIR.parents[2], capture_output=True, text=True, encoding="utf-8",
                     timeout=15, check=False,
                 )
                 self.assertEqual(2, result.returncode, result.stderr)
@@ -110,7 +110,7 @@ class CITestShardTests(unittest.TestCase):
     def test_gate_cli_requires_results(self) -> None:
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "gate"],
-            cwd=SCRIPTS_DIR.parents[2], capture_output=True, text=True,
+            cwd=SCRIPTS_DIR.parents[2], capture_output=True, text=True, encoding="utf-8",
             timeout=15, check=False,
         )
         self.assertEqual(2, result.returncode)
@@ -191,6 +191,7 @@ class CITestShardTests(unittest.TestCase):
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
                 cwd=root,
                 timeout=30,
                 check=False,
@@ -278,7 +279,7 @@ class CITestShardTests(unittest.TestCase):
                     result = subprocess.run(
                         [sys.executable, str(SCRIPT), "--repo-root", str(root), "profile",
                          "--timeout-seconds", deadline, "--manifest-out", str(root / "timings.json")],
-                        cwd=root, capture_output=True, text=True, timeout=15, check=False,
+                        cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=15, check=False,
                     )
                     self.assertEqual(2, result.returncode)
                     self.assertIn("finite nonnegative", result.stderr)
@@ -296,7 +297,7 @@ class CITestShardTests(unittest.TestCase):
                 result = subprocess.run(
                     [sys.executable, str(SCRIPT), "--repo-root", str(root), "profile", "--fail-fast",
                      "--manifest-out", str(root / "timings.json"), "--results-out", str(root / "results.json")],
-                    cwd=root, capture_output=True, text=True, timeout=15, check=False,
+                    cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=15, check=False,
                 )
                 self.assertEqual(2, result.returncode)
                 payload = json.loads((root / "results.json").read_text(encoding="utf-8"))

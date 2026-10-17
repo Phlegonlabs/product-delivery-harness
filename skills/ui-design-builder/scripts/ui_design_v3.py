@@ -86,27 +86,62 @@ def direction_study_rows(rows: list[list[str]], compared: set[str]) -> tuple[lis
     return studies, problems
 
 
-def study_html_findings(html: str, path: str) -> list[str]:
-    """Rendered studies are local self-contained HTML, like the HiFi projection."""
+def study_html_findings(html: str, path: str, *, local_pages: frozenset[str] = frozenset()) -> list[str]:
+    """Rendered studies are local self-contained HTML, like the HiFi projection.
+
+    ``local_pages`` names the sibling study files a ui-direction-review/1 study may
+    link to; such a study uses the local-page CSP, as a connected HiFi bundle does.
+    """
 
     import check_wireframe_html  # local import keeps this module dependency-light
+
+    class SiblingResourceParser(check_wireframe_html.ResourceParser):
+        def _record_url(self, tag: str, name: str, value: str) -> None:
+            if tag == "a" and name == "href" and value in local_pages:
+                return
+            super()._record_url(tag, name, value)
 
     problems: list[str] = []
     if re.search(r"<html\b", html, re.I) is None or re.search(r"<body\b", html, re.I) is None:
         problems.append(f"Direction study {path} must be a rendered HTML document")
-    parser = check_wireframe_html.ResourceParser()
+    parser = SiblingResourceParser() if local_pages else check_wireframe_html.ResourceParser()
     parser.feed(html)
     parser.close()
     if len(parser.content_security_policies) != 1:
         problems.append(f"Direction study {path} requires exactly one restrictive CSP meta")
     else:
+        policy = parser.content_security_policies[0]
+        if local_pages:
+            local_policy = check_wireframe_html.REQUIRED_HIFI_CSP.replace("navigate-to 'none'", "navigate-to 'self'")
+            if policy != local_policy:
+                problems.append(f"Direction study {path} must use the exact local-page CSP policy: {local_policy}")
+            policy = policy.replace("navigate-to 'self'", "navigate-to 'none'")
         problems.extend(f"Direction study {path}: {item}" for item in
-                        check_wireframe_html.validate_hifi_csp_policy(parser.content_security_policies[0]))
+                        check_wireframe_html.validate_hifi_csp_policy(policy))
     if parser.link_tags or parser.css_imports or parser.external_resources or parser.external_css_resources:
         problems.append(f"Direction study {path} must not load linked, imported or external resources")
     if parser.active_security_surfaces:
         problems.append(f"Direction study {path} must not contain active external or executable surfaces")
     return problems
+
+
+def has_direction_review_profile(html: str) -> bool:
+    """True for a study assembled with ui-direction-review/1; older studies have none."""
+
+    import direction_review  # imports this module; resolve it at call time
+
+    return direction_review.has_profile(html)
+
+
+def direction_review_findings(html: str, path: str) -> list[str]:
+    """Strict checks for a newly assembled direction study.
+
+    Existing approved studies keep ``study_html_findings`` and stay readable.
+    """
+
+    import direction_review
+
+    return direction_review.assembled_study_findings(html, path)
 
 
 def _viewports(surface: dict[str, Any], scope: dict[str, Any]) -> list[float] | None:

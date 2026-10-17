@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import json
+import io
 import importlib.util
 import subprocess
 import sys
@@ -15,12 +18,28 @@ SKILLS_ROOT = SCRIPTS_DIR.parents[1]
 ACTIVATION_TEST_PATH = (
     SKILLS_ROOT / "product-activation" / "scripts" / "tests" / "test_check_activation.py"
 )
+DELIVERY_TEST_PATH = (
+    SKILLS_ROOT / "delivery-harness" / "scripts" / "tests" / "test_deployment_record.py"
+)
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_outcome_review  # noqa: E402
 
 
+def _load_fixture_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load fixture module {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+deployment_fixtures = _load_fixture_module(
+    "_outcome_review_delivery_fixtures",
+    DELIVERY_TEST_PATH,
+)
 spec = importlib.util.spec_from_file_location("activation_fixtures", ACTIVATION_TEST_PATH)
 activation_fixtures = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -34,6 +53,106 @@ ACTIVATION = activation_fixtures.valid_record()
 SHA = activation_fixtures.SHA
 ARTIFACT = activation_fixtures.ARTIFACT
 ACTIVATION_SHA256 = hashlib.sha256(ACTIVATION.encode("utf-8")).hexdigest()
+
+
+def retained_evidence(root: Path, ref: str, target: str, artifact: str) -> str:
+    output = json.dumps(
+        {
+            "repository": "example/fixture",
+            "ref": "refs/heads/run/lifecycle" if target == "web-dev" else ref,
+            "sha": SHA,
+            "artifact": artifact,
+        },
+        separators=(",", ":"),
+    )
+    value = {
+        "schema": "deployment-source-observation/1",
+        "target": target,
+        "repository": "example/fixture",
+        "source_ref": ref,
+        "resolved_ref": "refs/heads/run/lifecycle" if target == "web-dev" else ref,
+        "source_sha": SHA,
+        "artifact": artifact,
+        "observed_at": "2026-09-07T18:00:00Z",
+        "readback": {
+            "kind": "command",
+            "request": "git rev-parse HEAD",
+            "status": 0,
+            "output": output,
+        },
+    }
+    relative = f"docs/deployment-evidence/{target}.json"
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    path.write_bytes(content)
+    digest = hashlib.sha256(content).hexdigest()
+    return (
+        "repo=example/fixture; "
+        f"ref={ref}; sha={SHA}; observed=2026-09-07T18:00:00Z; "
+        f"readback=file:{relative}@sha256:{digest}"
+    )
+
+
+def strict_deployment(root: Path) -> str:
+    """A deployment/2 fixture with observed source proof for both targets."""
+
+    record = deployment_fixtures.GOOD_DEPLOYMENT.replace(
+        "| web-app | web | example-web | example-web-dev | Cloudflare;production route | Cloudflare;development route |",
+        "| web-app | web | fixture-web | fixture-web-dev | Cloudflare;fixture-production-route | Cloudflare;fixture-development-route |",
+    ).replace(
+        "# Deployment\n",
+        "# Deployment\n\n- Record schema: deployment/2\n",
+        1,
+    )
+    return record + f"""
+
+## Release Target Status
+
+| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| web-dev | web-app | development | Cloudflare;fixture-development-route | https://dev.example.com | {SHA} | {SHA} | web-build-dev | development route answered the smoke check | 2026-09-07T18:00:00Z | PASS |
+| web-prod | web-app | production | Cloudflare;fixture-production-route | https://example.com | {SHA} | {SHA} | {ARTIFACT} | production route answered the smoke check | 2026-09-07T18:04:00Z | PASS |
+
+## Release Source Provenance
+
+| Release target | Source ref | Source SHA | Authority evidence |
+| --- | --- | --- | --- |
+| web-dev | run.integration.branch | {SHA} | {retained_evidence(root, "run.integration.branch", "web-dev", "web-build-dev")} |
+| web-prod | refs/heads/main | {SHA} | {retained_evidence(root, "refs/heads/main", "web-prod", ARTIFACT)} |
+"""
+
+
+def strict_cli_inputs(root: Path) -> tuple[str, str, str, str, str, str]:
+    activation = activation_fixtures.valid_record_v2()
+    outcome = valid_outcome().replace(ACTIVATION, activation, 1)
+    activation_digest = hashlib.sha256(activation.encode("utf-8")).hexdigest()
+    outcome = outcome.replace(
+        f"- Activation sha256: {ACTIVATION_SHA256}",
+        f"- Activation sha256: {activation_digest}",
+        1,
+    )
+    outcome = outcome.replace(
+        "| Activation rate | none recorded | 70% in 14 days |",
+        "| Activation rate | 0% | 70% |",
+        1,
+    )
+    outcome = outcome.replace(
+        "| Activation rate | 0% | 70% | 2026-09-07 | 2026-09-09 | 72% | MS-001 |",
+        "| Activation rate | 0% | 70% | 2026-09-07 | 2026-09-21 | 72% | MS-001 |",
+        1,
+    )
+    outcome = outcome.replace(
+        "- Reviewed on: 2026-09-10", "- Reviewed on: 2026-09-22", 1
+    )
+    return (
+        outcome,
+        activation_fixtures.APPROVED_PRD,
+        ARCHITECTURE,
+        strict_deployment(root),
+        activation,
+        "# Stack Decisions: Example\n",
+    )
 
 
 def valid_outcome(*, verdict: str = "no_change") -> str:
@@ -135,13 +254,17 @@ class OutcomeReviewTests(unittest.TestCase):
     def check(self, outcome: str) -> list[str]:
         # Outcome tests isolate the Outcome contract; the activation gate is
         # covered by the dedicated Product Activation suite.
-        with patch("check_outcome_review.check_activation_text", return_value=[]):
+        with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch("check_deployment.check_deployment_text", return_value=[]):
             return check_outcome_review.check_outcome_review_text(
                 outcome,
                 prd_text=PRD,
                 architecture_text=ARCHITECTURE,
                 deployment_text=DEPLOYMENT,
                 activation_text=ACTIVATION,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
             )
 
     def test_valid_outcome_is_bound_to_verified_release(self) -> None:
@@ -151,9 +274,11 @@ class OutcomeReviewTests(unittest.TestCase):
         self.assertEqual([], self.check(schema2_outcome()))
 
     def test_schema2_review_can_run_with_approved_stack_and_deployment_gate(self) -> None:
-        with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
+        with patch("check_outcome_review.check_activation_text", return_value=[]) as activation_check, patch(
             "check_product_package.validate_texts", return_value=[]
-        ), patch("check_deployment.check_deployment_text", return_value=[]):
+        ), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ) as deployment_check:
             findings = check_outcome_review.check_outcome_review_text(
                 schema2_outcome(),
                 prd_text=PRD,
@@ -161,8 +286,19 @@ class OutcomeReviewTests(unittest.TestCase):
                 deployment_text=DEPLOYMENT,
                 activation_text=ACTIVATION,
                 stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
             )
         self.assertEqual([], findings)
+        self.assertTrue(
+            deployment_check.call_args.kwargs["require_source_provenance"]
+        )
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
+        self.assertEqual("# Stack Decisions: Example", activation_check.call_args.kwargs["stack_text"])
+        self.assertEqual(Path.cwd(), activation_check.call_args.kwargs["repo_root"])
+        self.assertTrue(activation_check.call_args.kwargs["package_validated"])
 
     def test_multi_target_prefix_and_first_target_projection_are_exact(self) -> None:
         multi = valid_outcome().replace(
@@ -292,6 +428,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "architecture.md": ARCHITECTURE,
                 "DEPLOYMENT.md": DEPLOYMENT,
                 "ACTIVATION.md": ACTIVATION,
+                "stack-decisions.md": "# Stack Decisions: Example\n",
             }
             for name, content in paths.items():
                 (root / name).write_text(content, encoding="utf-8")
@@ -309,8 +446,11 @@ class OutcomeReviewTests(unittest.TestCase):
                     str(root / "DEPLOYMENT.md"),
                     "--activation",
                     str(root / "ACTIVATION.md"),
+                    "--stack-decisions",
+                    str(root / "stack-decisions.md"),
                 ],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -355,7 +495,37 @@ class OutcomeReviewTests(unittest.TestCase):
             review_path.write_text(schema2_outcome(), encoding="utf-8")
             stack_failure = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(2, stack_failure.returncode)
-            self.assertIn("requires --stack-decisions", stack_failure.stderr)
+            self.assertIn("required: --stack-decisions", stack_failure.stderr)
+
+    def test_cli_package_validation_flag_reaches_final_checker(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            outcome, prd, architecture, deployment, activation, stack = strict_cli_inputs(root)
+            with patch("check_product_package.validate_texts", return_value=[]):
+                paths = {
+                    "outcome.md": outcome,
+                    "PRD.md": prd,
+                    "architecture.md": architecture,
+                    "DEPLOYMENT.md": deployment,
+                    "ACTIVATION.md": activation,
+                    "stack-decisions.md": stack,
+                }
+                for name, content in paths.items():
+                    (root / name).write_text(content, encoding="utf-8")
+                arguments = [
+                    "--outcome", str(root / "outcome.md"),
+                    "--prd", str(root / "PRD.md"),
+                    "--architecture", str(root / "architecture.md"),
+                    "--deployment", str(root / "DEPLOYMENT.md"),
+                    "--activation", str(root / "ACTIVATION.md"),
+                    "--stack-decisions", str(root / "stack-decisions.md"),
+                    "--repo-root", str(root),
+                    "--expected-repository", "example/fixture",
+                    "--candidate-ref", "refs/heads/run/lifecycle",
+                ]
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    result = check_outcome_review.main(arguments)
+        self.assertEqual(0, result, output.getvalue())
 
     def test_prior_outcome_digest_binds_immutable_history(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -373,6 +543,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "--architecture", str(root / "architecture.md"),
                 "--deployment", str(root / "DEPLOYMENT.md"),
                 "--activation", str(root / "ACTIVATION.md"),
+                "--stack-decisions", str(root / "stack-decisions.md"),
                 "--prior-outcome", str(prior),
             ]
             for name, content in {
@@ -380,6 +551,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "architecture.md": ARCHITECTURE,
                 "DEPLOYMENT.md": DEPLOYMENT,
                 "ACTIVATION.md": ACTIVATION,
+                "stack-decisions.md": "# Stack Decisions: Example\n",
             }.items():
                 (root / name).write_text(content, encoding="utf-8")
             rejected = subprocess.run(command, capture_output=True, text=True, check=False)
@@ -407,6 +579,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "architecture.md": ARCHITECTURE,
                 "DEPLOYMENT.md": DEPLOYMENT,
                 "ACTIVATION.md": ACTIVATION,
+            "stack-decisions.md": "# Stack Decisions: Example\n",
             }.items():
                 (root / name).write_text(content, encoding="utf-8")
             command = [
@@ -417,6 +590,7 @@ class OutcomeReviewTests(unittest.TestCase):
                 "--architecture", str(root / "architecture.md"),
                 "--deployment", str(root / "DEPLOYMENT.md"),
                 "--activation", str(root / "ACTIVATION.md"),
+                "--stack-decisions", str(root / "stack-decisions.md"),
                 "--prior-outcome", str(prior),
             ]
             appended = append_schema2_history(prior_text)

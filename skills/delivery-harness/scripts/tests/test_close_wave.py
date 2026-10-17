@@ -159,6 +159,7 @@ class CloseWaveCliTests(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
 
     def _seed_sandbox_observation(self) -> None:
@@ -511,7 +512,7 @@ class CloseWaveCliTests(unittest.TestCase):
                 "--plan", str(self.plan_path), "--run", str(self.run_path),
                 "pause", "--source", "x",
             ],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
         )
         self.assertEqual(2, result.returncode)
         self.assertIn("run lock is held by session 'OTHER'", result.stderr)

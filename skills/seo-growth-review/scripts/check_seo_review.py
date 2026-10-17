@@ -304,8 +304,14 @@ def check_seo_review_text(
     activation_text: str,
     stack_text: str | None = None,
     repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
 ) -> list[str]:
     findings: list[str] = []
+    record = _fields(_section(text, "## Record") or [])
+    verified_review = record.get("Schema") == "seo-review/2"
+    if verified_review and stack_text is None:
+        findings.append("Product package: verified SEO review requires stack-decisions.md")
     # Validate the package and Deployment once here; the nested Activation
     # check is told not to repeat it.
     if stack_text is not None:
@@ -327,7 +333,13 @@ def check_seo_review_text(
         findings.extend(
             f"Deployment: {item}"
             for item in check_deployment_text(
-                deployment_text, architecture_text=architecture_text
+                deployment_text,
+                architecture_text=architecture_text,
+                require_source_provenance=True,
+                strict_target_subset=(record.get("Production release target", ""),),
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
         )
     active = active_text(text)
@@ -340,7 +352,6 @@ def check_seo_review_text(
     if active.count("# SEO Growth Review") != 1:
         findings.append("expected one # SEO Growth Review title")
 
-    record = _fields(_section(text, "## Record") or [])
     for field in _duplicate_fields(_section(text, "## Record") or []):
         findings.append(f"Record: duplicate field {field}")
     schema = record.get("Schema", "")
@@ -458,6 +469,8 @@ def check_seo_review_text(
         deployment_text=deployment_text,
         stack_text=stack_text,
         repo_root=repo_root,
+        expected_repository=expected_repository,
+        candidate_ref=candidate_ref,
         require_ready=(target_id,),
         package_validated=stack_text is not None,
     )
@@ -650,6 +663,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--activation", type=Path, required=True)
     parser.add_argument("--stack-decisions", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
+    parser.add_argument("--expected-repository")
+    parser.add_argument("--candidate-ref")
     parser.add_argument("--require-lifecycle", action="store_true")
     args = parser.parse_args(argv)
     findings: list[str] = []
@@ -698,6 +713,8 @@ def main(argv: list[str] | None = None) -> int:
             activation_text=loaded["activation"],
             stack_text=loaded.get("stack"),
             repo_root=args.repo_root,
+            expected_repository=args.expected_repository,
+            candidate_ref=args.candidate_ref,
         )
     )
     if args.require_lifecycle:
@@ -716,4 +733,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 PDB_TESTS = Path(__file__).resolve().parent
 PDB_SCRIPTS = PDB_TESTS.parent
+DELIVERY_TESTS = PDB_SCRIPTS.parent.parent / "delivery-harness" / "scripts" / "tests"
 ACTIVATION_TESTS = PDB_SCRIPTS.parent.parent / "product-activation" / "scripts" / "tests"
 ACTIVATION_SCRIPTS = ACTIVATION_TESTS.parent
 for path in (PDB_SCRIPTS, ACTIVATION_SCRIPTS, ACTIVATION_TESTS):
@@ -40,6 +41,10 @@ activation_fixtures = _load_fixture_module(
 product_fixtures = _load_fixture_module(
     "_activation_seed_product_fixtures",
     PDB_TESTS / "test_product_package_checker.py",
+)
+deployment_fixtures = _load_fixture_module(
+    "_activation_seed_delivery_fixtures",
+    DELIVERY_TESTS / "test_deployment_record.py",
 )
 from release_targets import parse_release_targets  # noqa: E402
 
@@ -115,7 +120,20 @@ def architecture_with_hybrid_targets() -> str:
     )
 
 
-def deployment_for_hybrid_targets() -> str:
+def deployment_for_hybrid_targets(*, preparation: bool = False) -> str:
+    release_units = "\n".join(
+        f"| {surface} | {suffix} | fixture-{suffix} | fixture-{suffix}-dev | "
+        f"{provider};fixture-{suffix}-production-track | "
+        f"{provider};fixture-{suffix}-development-track |"
+        for surface, (_class, suffix, provider, _artifact, _availability)
+        in SURFACES.items()
+    )
+    text = deployment_fixtures.GOOD_DEPLOYMENT.replace(
+        "| web-app | web | example-web | example-web-dev | "
+        "Cloudflare;production route | Cloudflare;development route |",
+        release_units,
+        1,
+    )
     rows = [
         "| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
@@ -123,15 +141,31 @@ def deployment_for_hybrid_targets() -> str:
     for surface, (surface_class, suffix, provider, artifact, availability) in SURFACES.items():
         for stage, target_id in (("development", f"{suffix}-dev"), ("production", f"{suffix}-prod")):
             channel = f"fixture-{suffix}-{stage}-track"
+            if preparation:
+                rows.append(
+                    f"| {target_id} | {surface} | {stage} | {provider};{channel} | pending | "
+                    "pending | pending | pending | pending | pending | pending |"
+                )
+                continue
             if stage == "development":
                 rows.append(
-                    f"| {target_id} | {surface} | development | {provider};{channel} | pending | pending | pending | pending | pending | pending | n/a |"
+                    f"| {target_id} | {surface} | development | {provider};{channel} | pending | "
+                    "pending | pending | pending | pending | pending | pending |"
+                )
+            elif suffix == "api":
+                rows.append(
+                    f"| {target_id} | {surface} | production | {provider};{channel} | "
+                    f"https://api.example.com | {SHA} | {SHA} | {artifact} | "
+                    "production deployed API smoke check passed | 2026-09-12T18:04:00Z | PASS |"
                 )
             else:
                 rows.append(
-                    f"| {target_id} | {surface} | production | {provider};{channel} | n/a — store or signed installer target | {SHA} | {SHA} | {artifact} | production {availability} smoke check passed | 2026-09-12T18:04:00Z | PASS |"
+                    f"| {target_id} | {surface} | production | {provider};{channel} | "
+                    f"n/a — artifact-only:{artifact}; no network endpoint | {SHA} | {SHA} | "
+                    f"{artifact} | production {availability} smoke check passed | "
+                    "2026-09-12T18:04:00Z | PASS |"
                 )
-    return "# Deployment\n\n## Release Target Status\n\n" + "\n".join(rows) + "\n"
+    return text + "\n\n## Release Target Status\n\n" + "\n".join(rows) + "\n"
 
 
 def activation_for_hybrid_targets() -> str:
@@ -418,7 +452,7 @@ class ProductDefinitionActivationSeedTests(unittest.TestCase):
     def test_documented_seed_command_uses_staged_architecture_and_deployment(self) -> None:
         architecture = architecture_with_hybrid_targets()
         activation = seeded_activation_for_hybrid_targets()
-        deployment = deployment_for_hybrid_targets()
+        deployment = deployment_for_hybrid_targets(preparation=True)
         prd = product_fixtures.valid_prd()
         checker = ACTIVATION_SCRIPTS / "check_activation.py"
         with tempfile.TemporaryDirectory() as temp:
@@ -446,7 +480,9 @@ class ProductDefinitionActivationSeedTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
+                timeout=120,
             )
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 

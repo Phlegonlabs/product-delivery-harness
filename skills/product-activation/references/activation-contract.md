@@ -194,7 +194,7 @@ When required execution work is blocked or deferred, keep the task `blocked`. An
 Readiness is per release target. A target is `ready` only when:
 
 - its source identity is a full lowercase Git SHA and its artifact/build identity is exact or explicitly `n/a`;
-- it resolves through the shared `product-definition-builder/scripts/release_targets.py` parser, and its stage, provider/channel, source identity, artifact identity, and availability state match the architecture-backed Deployment row;
+- it resolves through the shared `product-definition-builder/scripts/release_targets.py` parser, and its stage, provider/channel, retained source observation, artifact identity, and availability state match the architecture-backed Deployment row and independently supplied expected repository/candidate-ref context;
 - every required ACT task bound to it is `verified`;
 - every non-`n/a` Outcome Coverage row for it is `verified` through a verified `MS-*` source;
 - no blocker names that target;
@@ -224,8 +224,8 @@ Run:
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --require-filled
-python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --require-verified-sources --require-ready <release-target-id>
-python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --require-closeout
+python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --expected-repository <owner/repository> --candidate-ref <full-or-authority-ref> --require-verified-sources --require-ready <release-target-id>
+python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --expected-repository <owner/repository> --candidate-ref <full-or-authority-ref> --require-closeout
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --show-action-digests
 ```
 

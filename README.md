@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -106,6 +106,14 @@ Private HTTPS publication may use the administrator's exact-endpoint credential-
 Trusted-host publication and the legacy pre-0.38 run-branch push both run isolated from repository hooks, fsmonitor and askpass: `core.hooksPath` points at a fresh empty directory, `core.fsmonitor` is off and askpass is empty. The Git config preflight treats a linked worktree's shared config and `config.worktree` as repository config, and rejects a repository `core.askPass`; URL-scoped TLS, header and cookie settings are rejected for remote access and publication, while local reads in a CI checkout still work. Git and verifier output is read as UTF-8. A short window remains between the remote recheck and the no-force push, in which another actor could fast-forward the run branch to an ancestor of A, so keep run-branch push access limited to the trusted host. Run-branch publication uses the trusted host because its signed evidence is archive state; `main` promotion is a separately authorized plain no-force push and does not require A to be published to its run branch first.
 
 </details>
+
+A `deployment/2` record adds Release Source Provenance. Each target binds a bounded retained observation JSON by hash: repository, source and resolved refs, source SHA, artifact, observation time, and actual command or provider output. The caller supplies `repo-root` and `expected_repository` independently; a symbolic candidate/1 ref also needs a concrete `candidate_ref`. The validator reads bytes only, never executes commands or fetches providers, and treats a hash as integrity rather than authenticity. Pending preparation and historical inspection stay valid. Full Deployment checks, including resource isolation and record validity, gate ready closeout, verified sources, SEO, and Outcome. Explicit target subsets do not replace complete inventories; blocked and all-n/a records retain compatibility.
+
+For strict symbolic-candidate proof:
+
+```bash
+python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment docs/DEPLOYMENT.md --architecture docs/product/architecture.md --require-source-provenance --repo-root <actualFrozenRepo> --expected-repository <owner/repository> --candidate-ref <candidate-ref>
+```
 
 ## Start here
 
@@ -479,6 +487,8 @@ Commercial products now pass two separate Product Definition decisions. The Mone
 
 </details>
 
+Each assignment gets private scratch and a finite deadline. Before cleanup or retry, the parent confirms the process tree exits and inspects partial work, prior operations, and evidence gaps. A 403 or a finding that research produced no useful sources is not a launch failure; it is never permission to synthesize evidence.
+
 ## Operating reference
 
 These groups hold the complete operating rules. Open a group to read its requirements in full.
@@ -552,6 +562,8 @@ Before RUN creation, plan-only validation checks an explicit branch policy and a
 <details>
 <summary><b>Unified design review: HiFi reviewer, design intake and PRD refinement</b></summary>
 
+New assembled studies use `assemble_ui_review.py --mode direction` and the closed `ui-direction-review/1` profile. `--mode hifi` remains the default and HiFi contracts do not change. The profile gives every case its own surface, platform, approved target family, and exact pixel widths. The assembler reuses the shared reviewer CSS and HiFi runtime, shows only one case's approved targets, and carries that case and target across studies.
+
 ## Unified design review
 
 HiFi uses a neutral reviewer shell isolated from product CSS, with App, Web front and administration groups, one product canvas, platform-specific sizes/states, and a source-derived Design Tokens view. Historical Wireframe packages retain their reviewer and original checks.
@@ -574,6 +586,10 @@ The PRD is refined throughout delivery. Before first-delivery approval, UI and t
 
 <details>
 <summary><b>Delivery model: Epics, acceptance and eval contracts, managed waves and repair routes</b></summary>
+
+Source authority is separate from availability evidence. Every target's provenance ref comes from its architecture source policy. Strict checks keep that ref, the observed source SHA, expected SHA, deployed SHA, and artifact hash joined. Target-review subsets remain explicit; Activation still inventories every active target, while a concrete n/a can replace an unavailable target only by owner rule.
+
+Strict Outcome Review requires stack-decisions.md and validates the Product Definition package once. It forwards that validated context to Activation, requires provenance on Deployment, and checks only the review's production-target subset. A saved SEO review forwards the same source context and checks only its reviewed target.
 
 ## Delivery model
 
@@ -680,6 +696,8 @@ flowchart TB
 <details>
 <summary><b>General runtime adapter: host capabilities, contract adoption and host handoff</b></summary>
 
+Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Host-specific models stay in host policy; shared skills retain configured roles and authorized fallbacks.
+
 ## General runtime adapter
 
 Resume keeps the same RUN and completed missions when an authorized repair advances the candidate. Historical verifier receipts retain their original SHA and attempt; current PASS results still require the current exact SHA. Candidate reconciliation re-arms stale gates within their remaining attempt budgets and requires fresh integration and security reviews. It does not authorize repairs, reset budgets or reopen a completed RUN. Resume checks the parent and currently bound workspaces; unrelated linked worktrees do not block it. Changed-file paths such as `[slug]` are literal paths, separate from write-scope patterns.
@@ -750,6 +768,8 @@ CI also runs the end-to-end spine check. In a POSIX shell use `HARNESS_GOLDEN_PA
 <details>
 <summary><b>Verification and measured execution: CI, browser suite, timing and acceptance evidence</b></summary>
 
+`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. Fully observed FAIL rows remain complete and repair-eligible under existing authority, while strict final approval still fails. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Direction `--overwrite` rejects hardlinks after comparing destinations with author sources and the manifest, preserving inputs. Outcome and SEO checkers carry the required Product/Stack context into strict Activation checks.
+
 ## Verification and measured execution
 
 CI installs the pinned Node/Playwright packages and Chromium before the required reviewer browser suite. Missing browser prerequisites fail that suite. For the same local check, run `npm ci` and `npx playwright install chromium`, set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`, then run the UI suite. Ordinary local checks may still skip unavailable browsers.
@@ -811,6 +831,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.64.0** — Match native reviewer browser identity to the host while keeping bridge checks. Assemble direction studies in the shared reviewer with per-case targets and widths. Join complete diagnostic waves to PRD, manifest, and evidence identities. Require release source provenance in strict Activation, SEO, and Outcome handoffs, including main-preview/1 packages. Write CLI output as UTF-8 so Chinese findings no longer crash on Windows. Clarify frontend-only authoring, version-3 navigation, worker recovery, measured widths, and honest partial research.
 
 - **0.63.1** — Add optional Void full-stack SDK/CLI guidance. Preserve owner-approved stacks, isolated deployment resources, migration recovery and exact-version evidence.
 

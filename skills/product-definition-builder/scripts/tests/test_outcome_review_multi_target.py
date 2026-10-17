@@ -201,7 +201,9 @@ def incident_multi_target_outcome() -> str:
 
 class MultiTargetOutcomeReviewTests(unittest.TestCase):
     def check(self, text: str) -> list[str]:
-        with patch("check_outcome_review.check_activation_text", return_value=[]):
+        with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch("check_deployment.check_deployment_text", return_value=[]):
             return check_outcome_review.check_outcome_review_text(
                 text,
                 prd_text=seed.product_fixtures.valid_prd(),
@@ -210,7 +212,40 @@ class MultiTargetOutcomeReviewTests(unittest.TestCase):
                     "2026-09-12T18:04:00Z", "2026-08-01T18:04:00Z"
                 ),
                 activation_text=outcome_activation(),
+                stack_text="# Stack Decisions: fixture",
+                repo_root=Path.cwd(),
             )
+
+    def test_verified_multi_target_call_forwards_strict_context(self) -> None:
+        with patch(
+            "check_outcome_review.check_activation_text", return_value=[]
+        ) as activation_check, patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ) as deployment_check:
+            findings = check_outcome_review.check_outcome_review_text(
+                multi_target_outcome(),
+                prd_text=seed.product_fixtures.valid_prd(),
+                architecture_text=seed.architecture_with_hybrid_targets(),
+                deployment_text=seed.deployment_for_hybrid_targets().replace(
+                    "2026-09-12T18:04:00Z", "2026-08-01T18:04:00Z"
+                ),
+                activation_text=outcome_activation(),
+                stack_text="# Stack Decisions: fixture",
+                repo_root=Path.cwd(),
+            )
+        self.assertEqual([], findings)
+        self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            tuple(seed.PRODUCTION),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
+        self.assertGreaterEqual(activation_check.call_count, 2)
+        for call in activation_check.call_args_list:
+            self.assertEqual("# Stack Decisions: fixture", call.kwargs["stack_text"])
+            self.assertEqual(Path.cwd(), call.kwargs["repo_root"])
+            self.assertTrue(call.kwargs["package_validated"])
 
     def test_multi_target_outcome_review_passes(self) -> None:
         self.assertEqual([], self.check(multi_target_outcome()))

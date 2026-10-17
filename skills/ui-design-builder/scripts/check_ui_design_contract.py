@@ -14,6 +14,13 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+UI_SCRIPTS = Path(__file__).resolve().parent
+# A caller may remove its temporary copy of this directory after import.
+# Retain our own canonical copy for late sibling imports such as direction_review.
+sys.path.insert(0, str(UI_SCRIPTS))
+# A saved-path restore can remove even our duplicate entry. Preload the late
+# sibling while the canonical bytes are available, so cleanup cannot strand it.
+import direction_review  # noqa: E402
 import check_wireframe_html
 from motion_evidence import motion_findings
 from review_evidence import (
@@ -714,7 +721,59 @@ def _direction_studies(style: str, problems: list[str]) -> None:
     _direction_study_identities(style, problems)
 
 
-def _resolve_direction_studies(style: str, repo_root: Path, problems: list[str]) -> None:
+def _direction_profile_scope_findings(
+    html: str, path: str, scope: dict[str, Any] | None,
+) -> list[str]:
+    """Join an assembled direction profile to the approved scope, not its own claims.
+
+    Direction review intentionally does not require complete state coverage. A
+    representative case may use any approved surface, but its platform and
+    target set must come from that surface's approved contract.
+    """
+
+    if scope is None:
+        return []
+    import json as json_module
+
+    match = direction_review.PROFILE_RE.search(html)
+    if match is None:
+        return []
+    try:
+        profile = json_module.loads(match.group(1))
+    except json.JSONDecodeError:
+        return []
+    raw_surfaces = scope.get("surfaces", [])
+    surfaces = {item["id"]: item for item in (raw_surfaces if isinstance(raw_surfaces, list) else [])
+                if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    seen_platforms: set[str] = set()
+    problems: list[str] = []
+    for case in profile.get("cases", []) if isinstance(profile, dict) else []:
+        if not isinstance(case, dict) or case.get("surface") not in surfaces:
+            problems.append(f"Direction study {path} names a case outside Approved target scope")
+            continue
+        surface = surfaces[case["surface"]]
+        platform = _surface_platform(surface)
+        seen_platforms.add(platform)
+        responsive = surface.get("responsive") or scope.get("responsive") or {}
+        mode = surface.get("captureMode", scope.get("captureMode"))
+        family = "viewports" if mode in {"hosted-browser", "browser-extension"} else "sizeClasses"
+        expected_targets = [str(value) for value in responsive.get("targets", [])] if isinstance(responsive, dict) else []
+        if case.get("platform") != platform:
+            problems.append(f"Direction study {path} case {case.get('id', '')} uses a platform outside Approved target scope")
+        if case.get("targetFamily") != family:
+            problems.append(f"Direction study {path} case {case.get('id', '')} uses the wrong target family")
+        if not isinstance(case.get("widths"), dict) or set(case["widths"]) != set(expected_targets):
+            problems.append(f"Direction study {path} case {case.get('id', '')} uses targets outside Approved target scope")
+    expected_platforms = {_surface_platform(surface) for surface in surfaces.values()}
+    if seen_platforms != expected_platforms:
+        problems.append(f"Direction study {path} must review every platform in Approved target scope")
+    return problems
+
+
+def _resolve_direction_studies(
+    style: str, repo_root: Path, problems: list[str],
+    scope: dict[str, Any] | None = None,
+) -> None:
     """Hash-check each rendered study and apply the self-contained HTML rules."""
     for study in _direction_study_identities(style, []):
         before = len(problems)
@@ -722,7 +781,14 @@ def _resolve_direction_studies(style: str, repo_root: Path, problems: list[str])
                         label="Direction study", problems=problems)
         if len(problems) == before:
             html = (repo_root / study["path"]).read_text(encoding="utf-8", errors="replace")
-            for finding in ui_design_v3.study_html_findings(html, study["path"]):
+            findings_for_study = (
+                ui_design_v3.direction_review_findings
+                if ui_design_v3.has_direction_review_profile(html)
+                else ui_design_v3.study_html_findings
+            )
+            for finding in findings_for_study(html, study["path"]):
+                _add(problems, finding)
+            for finding in _direction_profile_scope_findings(html, study["path"], scope):
                 _add(problems, finding)
 
 
@@ -2171,13 +2237,9 @@ def _evidence_check(label: str, capture_mode: str | None) -> str | None:
         return f"hifi-{suffix}-impeccable-{'critique' if 'critique' in label.casefold() else 'audit'}"
 
 
-def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
-    """Check attested click/key outcomes against the hash-bound interaction map."""
-    baseline = dict(output, navigation=[], sandbox={"network": "disabled", "topNavigation": "blocked", "popups": "blocked", "forms": "blocked"})
-    findings = _offline_transcript_findings(baseline)
-    expected_sandbox = dict(baseline["sandbox"], topNavigation="allowlisted-local-pages")
-    if output.get("sandbox") != expected_sandbox:
-        findings.append("HiFi bundle requires the allowlisted-local-pages offline sandbox")
+def _interaction_expectations(manifest: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    """Return the closed success and navigation rows bound to manifest interactions."""
+
     try:
         by_id = {row["id"]: row for row in manifest["surfaces"]}
         expected = []
@@ -2194,14 +2256,122 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
                     })
                     if action["kind"] == "navigate":
                         navigation.append({"id": action["id"], "target": str(target), "trigger": trigger, "from": source["page"], "to": destination["page"]})
-        def rows_equal(actual: Any, required: list[dict[str, Any]]) -> bool:
-            return isinstance(actual, list) and sorted(json.dumps(row, sort_keys=True) for row in actual) == sorted(json.dumps(row, sort_keys=True) for row in required)
-        if not rows_equal(output.get("interactions"), expected):
-            findings.append("HiFi interaction evidence must exactly cover click and keyboard destination, visibility, and focus results at every target")
-        if not rows_equal(output.get("navigation"), navigation):
-            findings.append("HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail")
     except (KeyError, TypeError, ValueError):
+        return None
+    return expected, navigation
+
+
+def _offline_transcript_shape_findings(output: dict[str, Any]) -> list[str]:
+    """Validate the closed offline transcript containers without success bias."""
+
+    expected_sandbox = {
+        "network": "disabled", "topNavigation": "allowlisted-local-pages",
+        "popups": "blocked", "forms": "blocked",
+    }
+    if output.get("sandbox") != expected_sandbox:
+        return ["HiFi bundle requires the allowlisted-local-pages offline sandbox"]
+    values = [output.get(key) for key in
+              ("console", "network", "navigation", "popups", "forms")]
+    counts = [output.get(key) for key in ("popupAttempts", "formAttempts")]
+    if (any(not isinstance(value, list) for value in values)
+            or any(not isinstance(value, int) or isinstance(value, bool) for value in counts)
+            or counts[0] != len(output["popups"]) or counts[1] != len(output["forms"])):
+        return ["HiFi offline transcript must retain complete arrays and attempt counts"]
+    return []
+
+
+def _bundle_diagnostic_findings(
+    output: dict[str, Any], manifest: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    """Return transcript coverage errors and fully observed browser defects."""
+
+    structural = _offline_transcript_shape_findings(output)
+    defects: list[str] = []
+    expectations = _interaction_expectations(manifest)
+    if expectations is None:
+        return structural + ["HiFi bundle interaction manifest is invalid"], defects
+    expected, expected_navigation = expectations
+    actual = output.get("interactions")
+    actual_navigation = output.get("navigation")
+    if (not isinstance(actual, list) or not isinstance(actual_navigation, list)
+            or len(actual) != len(expected) or len(actual_navigation) != len(expected_navigation)):
+        structural.extend([
+            "HiFi interaction evidence must exactly cover click and keyboard destination, "
+            "visibility, and focus results at every target",
+            "HiFi navigation transcript must exactly match declared local-page transitions; "
+            "extra or missing attempts fail",
+        ])
+        return structural, defects
+    expected_by_id = {tuple(row[key] for key in ("id", "target", "trigger")): row for row in expected}
+    navigation_by_id = {tuple(row[key] for key in ("id", "target", "trigger")): row for row in expected_navigation}
+    seen: set[tuple[object, ...]] = set()
+    for row in actual:
+        if not isinstance(row, dict) or any(key not in row for key in ("id", "target", "trigger")):
+            structural.append("HiFi interaction observation has an invalid closed field set")
+            continue
+        identity = tuple(row[key] for key in ("id", "target", "trigger"))
+        contract = expected_by_id.get(identity)
+        if contract is None or identity in seen or set(row) != set(contract):
+            structural.append("HiFi interaction observation is missing, extra or stale")
+            continue
+        seen.add(identity)
+        static_fields = ("id", "target", "trigger", "source")
+        if any(row[key] != contract[key] for key in static_fields):
+            structural.append("HiFi interaction observation differs from its manifest identity")
+            continue
+        changed = [key for key in sorted(set(contract) - set(static_fields)) if row[key] != contract[key]]
+        if changed:
+            defects.append("HiFi interaction observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
+    if len(seen) != len(expected):
+        structural.append("HiFi interaction evidence lacks a required click or keyboard observation")
+    seen_navigation: set[tuple[object, ...]] = set()
+    for row in actual_navigation:
+        if not isinstance(row, dict) or any(key not in row for key in ("id", "target", "trigger")):
+            structural.append("HiFi navigation observation has an invalid closed field set")
+            continue
+        identity = tuple(row[key] for key in ("id", "target", "trigger"))
+        contract = navigation_by_id.get(identity)
+        if contract is None or identity in seen_navigation or set(row) != set(contract):
+            structural.append("HiFi navigation observation is missing, extra or stale")
+            continue
+        seen_navigation.add(identity)
+        if row["from"] != contract["from"]:
+            structural.append("HiFi navigation observation differs from its manifest source page")
+            continue
+        changed = [key for key in sorted(set(contract) - {"id", "target", "trigger", "from"}) if row[key] != contract[key]]
+        if changed:
+            defects.append("HiFi navigation observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
+    if len(seen_navigation) != len(expected_navigation):
+        structural.append("HiFi navigation transcript lacks a required local-page observation")
+    content_findings = _offline_transcript_findings(dict(output, navigation=[]))
+    behavior_markers = (
+        "contains a console error", "recorded a network request",
+        "recorded a navigation or popup attempt", "recorded a popup attempt",
+        "recorded a form attempt",
+    )
+    defects.extend(f"browser {finding}" for finding in content_findings
+                   if any(marker in finding for marker in behavior_markers))
+    return structural, defects
+
+
+def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
+    """Check attested click/key outcomes against the hash-bound interaction map."""
+    baseline = dict(output, navigation=[], sandbox={"network": "disabled", "topNavigation": "blocked", "popups": "blocked", "forms": "blocked"})
+    findings = _offline_transcript_findings(baseline)
+    expected_sandbox = dict(baseline["sandbox"], topNavigation="allowlisted-local-pages")
+    if output.get("sandbox") != expected_sandbox:
+        findings.append("HiFi bundle requires the allowlisted-local-pages offline sandbox")
+    expectations = _interaction_expectations(manifest)
+    if expectations is None:
         findings.append("HiFi bundle interaction manifest is invalid")
+        return findings
+    expected, navigation = expectations
+    def rows_equal(actual: Any, required: list[dict[str, Any]]) -> bool:
+        return isinstance(actual, list) and sorted(json.dumps(row, sort_keys=True) for row in actual) == sorted(json.dumps(row, sort_keys=True) for row in required)
+    if not rows_equal(output.get("interactions"), expected):
+        findings.append("HiFi interaction evidence must exactly cover click and keyboard destination, visibility, and focus results at every target")
+    if not rows_equal(output.get("navigation"), navigation):
+        findings.append("HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail")
     return findings
 
 
@@ -3112,9 +3282,12 @@ def _validate_impl(
             _resolve_target_source(recorded_target, repo_root=root, label="Approved target", problems=problems)
 
     if require_visual_approved:
-        _direction_comparison(style, _section(active, "## UI Design Intake") or "", None, problems, repo_root=root)
+        scope_errors_before = len(problems)
+        resolved_scope = _target_scope(recorded_target, "Approved target", problems)
+        resolved_scope = resolved_scope if len(problems) == scope_errors_before else None
+        _direction_comparison(style, _section(active, "## UI Design Intake") or "", resolved_scope, problems, repo_root=root)
         if version == UI_CONTRACT_V3:
-            _resolve_direction_studies(style, root, problems)
+            _resolve_direction_studies(style, root, problems, scope=resolved_scope)
 
     if approved_gate:
         product_matches = [
@@ -3664,4 +3837,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

@@ -213,7 +213,11 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[4]
         with patch(
             "check_seo_review.check_activation_text", return_value=[]
-        ) as activation_check:
+        ) as activation_check, patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch(
+            "check_deployment.check_deployment_text", return_value=[]
+        ) as deployment_check:
             check_seo_review.check_seo_review_text(
                 valid_review_v2(),
                 prd_text=PRD,
@@ -226,8 +230,13 @@ class SeoLifecycleReviewTests(unittest.TestCase):
 
         self.assertEqual(stack_text, activation_check.call_args.kwargs["stack_text"])
         self.assertEqual(repo_root, activation_check.call_args.kwargs["repo_root"])
+        self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
 
-    def test_package_and_deployment_are_validated_once(self) -> None:
+    def test_package_validates_once_and_deployment_revalidates_at_entries(self) -> None:
         with patch(
             "check_product_package.validate_texts", return_value=["bad stack"]
         ) as package_check, patch(
@@ -243,14 +252,17 @@ class SeoLifecycleReviewTests(unittest.TestCase):
                 repo_root=Path(__file__).resolve().parents[4],
             )
         self.assertEqual(1, package_check.call_count)
-        self.assertEqual(1, deployment_check.call_count)
+        self.assertEqual(3, deployment_check.call_count)
         self.assertEqual(1, findings.count("Product package: bad stack"))
         self.assertEqual(1, findings.count("Deployment: bad deploy"))
         self.assertFalse(any(item.startswith("Activation: Product package") for item in findings))
 
     def test_activation_still_validates_package_unless_told_otherwise(self) -> None:
         check_activation = sys.modules["check_activation"]
-        for validated, expected_calls in ((False, 1), (True, 0)):
+        for validated, expected_package_calls, expected_deployment_calls in (
+            (False, 1, 2),
+            (True, 0, 2),
+        ):
             with self.subTest(package_validated=validated), patch(
                 "check_product_package.validate_texts", return_value=[]
             ) as package_check, patch(
@@ -266,8 +278,8 @@ class SeoLifecycleReviewTests(unittest.TestCase):
                     require_ready=("web-prod",),
                     package_validated=validated,
                 )
-            self.assertEqual(expected_calls, package_check.call_count)
-            self.assertEqual(expected_calls, deployment_check.call_count)
+            self.assertEqual(expected_package_calls, package_check.call_count)
+            self.assertEqual(expected_deployment_calls, deployment_check.call_count)
 
     def test_other_targets_may_stay_pending_but_reviewed_target_must_be_ready(self) -> None:
         architecture, deployment, activation = web_and_pending_ios()
@@ -319,7 +331,19 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         self.assertEqual([], self.check(valid_review()))
 
     def test_schema2_lifecycle_review_preserves_product_and_mode_fields(self) -> None:
-        self.assertEqual([], self.check(valid_review_v2()))
+        with patch("check_seo_review.check_activation_text", return_value=[]), patch(
+            "check_product_package.validate_texts", return_value=[]
+        ), patch("check_deployment.check_deployment_text", return_value=[]):
+            findings = check_seo_review.check_seo_review_text(
+                valid_review_v2(),
+                prd_text=PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                activation_text=ACTIVATION,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+            )
+        self.assertEqual([], findings)
 
     def test_schema2_mode_specific_windows_and_segmentation_are_required(self) -> None:
         for mode in ("growth_review", "traffic_drop"):

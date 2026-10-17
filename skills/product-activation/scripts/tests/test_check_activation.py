@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -15,6 +18,25 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_activation  # noqa: E402
+
+
+def _load_fixture_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load fixture module {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+deployment_fixtures = _load_fixture_module(
+    "_activation_deployment_fixtures",
+    SKILL_ROOT.parent
+    / "delivery-harness"
+    / "scripts"
+    / "tests"
+    / "test_deployment_record.py",
+)
 
 
 SHA = "a" * 40
@@ -161,6 +183,31 @@ def valid_noop_record() -> str:
 | Blocker ID | Release targets | Kind | Owner | Next step | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 """
+
+
+def blocked_owner_deferral_record() -> str:
+    """Return a blocked closeout fixture with no readiness claim."""
+
+    fields = task_fields(status="blocked", evidence_ids="none")
+    fields["Authorization"] = "pending"
+    fields["Authorization source"] = "none"
+    fields["Blocker / N/A reason"] = (
+        "owner-deferred by product owner: connect the production measurement event next week"
+    )
+    record = valid_record_v2(task_blocks=[task_block("ACT-001", fields)])
+    record = "\n".join(
+        line
+        for line in record.splitlines()
+        if not line.startswith("| EVID-001 |")
+        and not line.startswith("| EVID-002 |")
+        and not line.startswith("| EVID-003 |")
+    )
+    record = record.replace("- Status: handoff_ready", "- Status: blocked", 1)
+    return record.replace(
+        f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed | ready |",
+        f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | pending | blocked |",
+        1,
+    )
 
 
 def task_fields(
@@ -338,6 +385,115 @@ def valid_record_v2(*, task_blocks: list[str] | None = None) -> str:
     return text
 
 
+def full_deployment_fixture(
+    *,
+    root: Path | None = None,
+    shared_d1: bool = False,
+    duplicate_target: bool = False,
+    strict_provenance: bool = True,
+) -> str:
+    """A synthetic, structurally complete Deployment for real validator tests."""
+
+    text = deployment_fixtures.GOOD_DEPLOYMENT.replace(
+        "| web-app | web | example-web | example-web-dev | "
+        "Cloudflare;production route | Cloudflare;development route |",
+        "| web-app | web | fixture-web | fixture-web-dev | "
+        "Cloudflare;fixture-production-route | Cloudflare;fixture-development-route |",
+        1,
+    )
+    if strict_provenance:
+        if root is None:
+            raise AssertionError("strict Deployment fixture requires repository root")
+        text = text.replace(
+            "## Record\n",
+            "## Record\n\n- Record schema: deployment/2\n",
+            1,
+        )
+    if shared_d1:
+        text = text.replace(
+            "| D1 database | d1-prod-001 | d1-preview-001 |",
+            "| D1 database | d1-prod-001 | d1-prod-001 |",
+            1,
+        )
+    text += f"""
+
+## Release Target Status
+
+| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| web-dev | web-app | development | Cloudflare;fixture-development-route | pending | pending | pending | pending | pending | pending | pending |
+| web-prod | web-app | production | Cloudflare;fixture-production-route | https://example.com | {SHA} | {SHA} | {ARTIFACT} | production route answered the smoke check | 2026-09-07T18:04:00Z | PASS |
+"""
+    if strict_provenance:
+        text += f"""
+
+## Release Source Provenance
+
+| Release target | Source ref | Source SHA | Authority evidence |
+| --- | --- | --- | --- |
+| web-dev | run.integration.branch | pending | pending |
+| web-prod | refs/heads/main | {SHA} | {retained_evidence(root, SHA, "refs/heads/main")} |
+"""
+    if duplicate_target:
+        text += (
+            f"| web-prod | refs/heads/main | {SHA} | repo=example/activation; "
+            f"ref=refs/heads/main; sha={SHA}; observed=2026-09-07T18:00:00Z; "
+            "readback=inline-duplicate |\n"
+        )
+    return text
+
+
+def retained_evidence(root: Path, sha: str, ref: str) -> str:
+    output = json.dumps(
+        {
+            "repository": "example/activation",
+            "ref": ref,
+            "sha": sha,
+            "artifact": ARTIFACT,
+        },
+        separators=(",", ":"),
+    )
+    value = {
+        "schema": "deployment-source-observation/1",
+        "target": "web-prod",
+        "repository": "example/activation",
+        "source_ref": ref,
+        "resolved_ref": ref,
+        "source_sha": sha,
+        "artifact": ARTIFACT,
+        "observed_at": "2026-09-07T18:00:00Z",
+        "readback": {
+            "kind": "command",
+            "request": "git rev-parse refs/heads/main",
+            "status": 0,
+            "output": output,
+        },
+    }
+    relative = "docs/deployment-evidence/web-prod.json"
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    path.write_bytes(content)
+    digest = hashlib.sha256(content).hexdigest()
+    return (
+        "repo=example/activation; "
+        f"ref={ref}; sha={sha}; observed=2026-09-07T18:00:00Z; "
+        f"readback=file:{relative}@sha256:{digest}"
+    )
+
+
+def run_authority_route(deployment: str, **arguments):
+    with patch("check_product_package.validate_texts", return_value=[]):
+        return check_activation.check_activation_text(
+            valid_record_v2(),
+            prd_text=APPROVED_PRD,
+            architecture_text=ARCHITECTURE,
+            deployment_text=deployment,
+            stack_text="# Stack Decisions: Example",
+            **arguments,
+        )
+
+
 class ActivationCheckerTests(unittest.TestCase):
     def test_prd_signal_parser_accepts_approved_and_legacy_metric_tables(self) -> None:
         for prd in (VALID_PRD, APPROVED_PRD):
@@ -358,18 +514,77 @@ class ActivationCheckerTests(unittest.TestCase):
     def test_verified_record_passes_prd_source_and_target_checks(self) -> None:
         with patch("check_product_package.validate_texts", return_value=[]), patch(
             "check_deployment.check_deployment_text", return_value=[]
-        ):
+        ) as deployment_check:
             findings = check_activation.check_activation_text(
                 valid_record_v2(),
                 prd_text=APPROVED_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_verified_sources=True,
                 require_ready=("web-prod",),
             )
         self.assertEqual([], findings)
+        self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
+
+    def test_authority_routes_run_full_real_deployment_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            valid = full_deployment_fixture(root=root)
+            shared = full_deployment_fixture(root=root, shared_d1=True)
+            duplicate = full_deployment_fixture(root=root, duplicate_target=True)
+            routes = (
+                {"require_closeout": True},
+                {"require_verified_sources": True},
+                {"require_closeout": True, "require_verified_sources": True},
+                {"require_ready": ("web-prod",)},
+            )
+            for route in routes:
+                with self.subTest(route=route):
+                    self.assertEqual(
+                        [],
+                        run_authority_route(
+                            valid,
+                            expected_repository="example/activation",
+                            repo_root=root,
+                            **route,
+                        ),
+                    )
+
+                    shared_findings = run_authority_route(
+                        shared,
+                        expected_repository="example/activation",
+                        repo_root=root,
+                        **route,
+                    )
+                    self.assertTrue(
+                        any(
+                            "Resource Isolation: D1 database must not share one resource "
+                            "between production and development" in item
+                            for item in shared_findings
+                        ),
+                        shared_findings,
+                    )
+
+                    duplicate_findings = run_authority_route(
+                        duplicate,
+                        expected_repository="example/activation",
+                        repo_root=root,
+                        **route,
+                    )
+                    self.assertTrue(
+                        any(
+                            "Release Source Provenance: duplicate target 'web-prod'"
+                            in item
+                            for item in duplicate_findings
+                        ),
+                        duplicate_findings,
+                    )
 
     def test_explicit_noop_can_pass_verified_source_handoff(self) -> None:
         with patch("check_product_package.validate_texts", return_value=[]), patch(
@@ -379,11 +594,10 @@ class ActivationCheckerTests(unittest.TestCase):
                 valid_noop_record(),
                 prd_text=NOOP_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_closeout=True,
-                require_verified_sources=True,
             )
         self.assertEqual([], findings)
 
@@ -426,17 +640,22 @@ class ActivationCheckerTests(unittest.TestCase):
         with patch("check_product_package.validate_texts", return_value=[]), patch(
             "check_deployment.check_deployment_text",
             return_value=["Release Target Status is not a current PASS"],
-        ):
+        ) as deployment_check:
             findings = check_activation.check_activation_text(
                 valid_record_v2(),
                 prd_text=APPROVED_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_ready=("web-prod",),
             )
         self.assertIn("Deployment: Release Target Status is not a current PASS", "\n".join(findings))
+        self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
+        self.assertEqual(
+            ("web-prod",),
+            deployment_check.call_args.kwargs["strict_target_subset"],
+        )
 
     def test_schema2_source_method_owner_and_target_window_join(self) -> None:
         wrong_method = valid_record_v2().replace(
@@ -470,7 +689,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 early,
                 prd_text=APPROVED_PRD,
                 architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
                 stack_text="# Stack Decisions: Example",
                 repo_root=Path.cwd(),
                 require_ready=("web-prod",),
@@ -1143,26 +1362,7 @@ class ActivationCheckerTests(unittest.TestCase):
         self.assertIn("Activation closeout: ACT-001 is unattempted", joined)
 
     def test_closeout_accepts_explicit_owner_deferral_only_as_blocked(self) -> None:
-        fields = task_fields(status="blocked", evidence_ids="none")
-        fields["Authorization"] = "pending"
-        fields["Authorization source"] = "none"
-        fields["Blocker / N/A reason"] = (
-            "owner-deferred by product owner: connect the production measurement event next week"
-        )
-        record = valid_record_v2(task_blocks=[task_block("ACT-001", fields)])
-        record = "\n".join(
-            line
-            for line in record.splitlines()
-            if not line.startswith("| EVID-001 |")
-            and not line.startswith("| EVID-002 |")
-            and not line.startswith("| EVID-003 |")
-        )
-        record = record.replace("- Status: handoff_ready", "- Status: blocked", 1)
-        record = record.replace(
-            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | deployed | ready |",
-            f"| web-prod | production | Cloudflare;fixture-production-route | {SHA} | {ARTIFACT} | pending | blocked |",
-            1,
-        )
+        record = blocked_owner_deferral_record()
         with patch("check_product_package.validate_texts", return_value=[]), patch(
             "check_deployment.check_deployment_text", return_value=[]
         ):
@@ -1176,6 +1376,43 @@ class ActivationCheckerTests(unittest.TestCase):
                 require_closeout=True,
             )
         self.assertEqual([], findings)
+
+    def test_closeout_context_passes_legacy_deployment_without_ready_claim(self) -> None:
+        with patch("check_product_package.validate_texts", return_value=[]):
+            blocked = check_activation.check_activation_text(
+                blocked_owner_deferral_record(),
+                prd_text=APPROVED_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_closeout=True,
+            )
+            noop = check_activation.check_activation_text(
+                valid_noop_record(),
+                prd_text=NOOP_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=full_deployment_fixture(strict_provenance=False),
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_closeout=True,
+            )
+        self.assertEqual([], blocked)
+        self.assertEqual([], noop)
+
+    def test_verified_ready_claim_rejects_legacy_deployment(self) -> None:
+        with patch("check_product_package.validate_texts", return_value=[]):
+            findings = check_activation.check_activation_text(
+                valid_record_v2(),
+                prd_text=APPROVED_PRD,
+                architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT,
+                stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(),
+                require_verified_sources=True,
+            )
+        joined = "\n".join(findings)
+        self.assertIn("needs complete actual source proof", joined)
 
     def test_closeout_owner_deferral_requires_a_human_and_blocked_record(self) -> None:
         fields = task_fields(status="blocked", evidence_ids="none")
@@ -1355,6 +1592,7 @@ class ActivationCheckerTests(unittest.TestCase):
             passed = subprocess.run(
                 [sys.executable, str(script), "--activation", str(path), "--show-action-digests"],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -1363,6 +1601,7 @@ class ActivationCheckerTests(unittest.TestCase):
             missing = subprocess.run(
                 [sys.executable, str(script), "--activation", str(Path(temp) / "missing.md")],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -1376,6 +1615,7 @@ class ActivationCheckerTests(unittest.TestCase):
                     "--require-verified-sources",
                 ],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -1390,11 +1630,27 @@ class ActivationCheckerTests(unittest.TestCase):
                     "--require-closeout",
                 ],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
             self.assertEqual(2, closeout_without_prd.returncode)
             self.assertIn("requires --prd", closeout_without_prd.stderr)
+
+    def test_documented_authority_commands_supply_expected_repository_and_candidate_ref(self) -> None:
+        contract = (SKILL_ROOT / "references" / "activation-contract.md").read_text(
+            encoding="utf-8"
+        )
+        authority_flags = ("--require-closeout", "--require-verified-sources", "--require-ready")
+        command_lines = [
+            line
+            for line in contract.splitlines()
+            if "check_activation.py" in line and any(flag in line for flag in authority_flags)
+        ]
+        self.assertGreater(len(command_lines), 0)
+        for line in command_lines:
+            self.assertIn("--expected-repository", line, line)
+            self.assertIn("--candidate-ref", line, line)
 
 
 if __name__ == "__main__":

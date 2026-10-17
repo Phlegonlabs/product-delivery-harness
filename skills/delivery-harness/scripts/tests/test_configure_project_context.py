@@ -49,7 +49,7 @@ class ConfigureProjectContextTests(unittest.TestCase):
             before = (root / "AGENTS.md").read_bytes()
             result = subprocess.run([sys.executable, str(SCRIPT), "--root", str(root),
                                      "--check", "--require-resolved", "--stage", "product-definition"],
-                                    capture_output=True, text=True, cwd=SCRIPTS_DIR.parents[2])
+                                    capture_output=True, text=True, encoding="utf-8", cwd=SCRIPTS_DIR.parents[2])
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertEqual(before, (root / "AGENTS.md").read_bytes())
             strict = subprocess.run([sys.executable, str(SCRIPT), "--root", str(root),
@@ -147,6 +147,7 @@ class ConfigureProjectContextTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 cwd=SCRIPTS_DIR,
                 timeout=10,
             )
@@ -367,6 +368,7 @@ class ConfigureProjectContextTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 cwd=SCRIPTS_DIR,
                 timeout=10,
             )
@@ -479,6 +481,7 @@ class ConfigureProjectContextTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 cwd=SCRIPTS_DIR,
                 timeout=10,
             )
@@ -557,6 +560,7 @@ class ConfigureProjectContextTests(unittest.TestCase):
                 check=False,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
             )
 
             self.assertEqual(1, result.returncode)

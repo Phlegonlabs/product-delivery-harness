@@ -58,7 +58,7 @@ class PublicationTests(unittest.TestCase):
                                              "--registry", str(design / "design-system.json"),
                                              "--markdown", str(design / "design-system.md"),
                                              "--check", str(design / "design-system-preview.html")],
-                                            capture_output=True, text=True)
+                                            capture_output=True, text=True, encoding="utf-8")
                     self.assertEqual(0, result.returncode, result.stderr)
                 def git(*args):
                     subprocess.run(["git", "-C", str(source), *args], check=True, capture_output=True)
@@ -200,7 +200,7 @@ class PublicationTests(unittest.TestCase):
             path = Path(temp) / "ui design.md"
             path.write_text(linked, encoding="utf-8")
             script = Path(publication.__file__).with_name("ui_approval_digest.py")
-            result = subprocess.run([sys.executable, str(script), str(path)], capture_output=True, text=True)
+            result = subprocess.run([sys.executable, str(script), str(path)], capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(canonical_ui_approval_sha256(linked), result.stdout.strip())
 

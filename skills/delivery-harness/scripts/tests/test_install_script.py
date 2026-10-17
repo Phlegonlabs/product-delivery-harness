@@ -460,7 +460,7 @@ class InstallScriptTests(unittest.TestCase):
             ("seo-growth-review", "check_seo_review.py"),
         ):
             result = subprocess.run([sys.executable, str(self.destination / skill / "scripts" / script), "--help"],
-                                    cwd=target, capture_output=True, text=True)
+                                    cwd=target, capture_output=True, text=True, encoding="utf-8")
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertFalse((target / "skills").exists())
 

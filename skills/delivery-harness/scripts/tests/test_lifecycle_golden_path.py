@@ -53,7 +53,7 @@ from test_check_activation import task_block, task_fields, valid_record_v2  # no
 from test_check_seo_review import valid_review_v2  # noqa: E402
 import check_activation  # noqa: E402
 import check_deployment  # noqa: E402
-from release_targets import parse_release_targets  # noqa: E402
+from release_targets import parse_release_targets, parse_source_policy  # noqa: E402
 from test_deployment_record import GOOD_DEPLOYMENT  # noqa: E402
 from test_validate_node_result import running_result  # noqa: E402
 
@@ -69,17 +69,81 @@ def run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
         check=False,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=45,
     )
 
 
-def deployment_record(architecture: str, sha: str, artifact: str) -> str:
+def retained_observation(
+    repo_root: Path,
+    target: str,
+    source_ref: str,
+    resolved_ref: str,
+    sha: str,
+    artifact: str,
+) -> str:
+    output = json.dumps(
+        {
+            "repository": "synthetic/lifecycle-fixture",
+            "ref": resolved_ref,
+            "sha": sha,
+            "artifact": artifact,
+        },
+        separators=(",", ":"),
+    )
+    value = {
+        "schema": "deployment-source-observation/1",
+        "target": target,
+        "repository": "synthetic/lifecycle-fixture",
+        "source_ref": source_ref,
+        "resolved_ref": resolved_ref,
+        "source_sha": sha,
+        "artifact": artifact,
+        "observed_at": "2026-09-07T18:00:00Z",
+        "readback": {
+            "kind": "command",
+            "request": "git rev-parse HEAD",
+            "status": 0,
+            "output": output,
+        },
+    }
+    relative = f"docs/deployment-evidence/{target}.json"
+    path = repo_root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    path.write_bytes(content)
+    digest = hashlib.sha256(content).hexdigest()
+    return (
+        "repo=synthetic/lifecycle-fixture; "
+        f"ref={source_ref}; sha={sha}; observed=2026-09-07T18:00:00Z; "
+        f"readback=file:{relative}@sha256:{digest}"
+    )
+
+
+def deployment_record(
+    architecture: str,
+    sha: str,
+    artifact: str,
+    repo_root: Path,
+) -> str:
     contract, errors = parse_release_targets(architecture)
     if errors:
         raise AssertionError("fixture architecture is invalid: " + "; ".join(errors))
     targets = {target.stage: target for target in contract.targets}
     development = targets["development"]
     production = targets["production"]
+    development_authority, development_errors = parse_source_policy(
+        development.source_policy,
+        expected_stage=development.stage,
+        source_policy_protocol=development.source_policy_protocol,
+    )
+    production_authority, production_errors = parse_source_policy(
+        production.source_policy,
+        expected_stage=production.stage,
+        source_policy_protocol=production.source_policy_protocol,
+    )
+    if development_errors or production_errors:
+        raise AssertionError("fixture architecture has invalid source policies")
     unit_row = (
         "| web-app | web | example-web | example-web-dev | "
         "Cloudflare;production route | Cloudflare;development route |"
@@ -90,6 +154,11 @@ def deployment_record(architecture: str, sha: str, artifact: str) -> str:
         f"{development.provider};{development.channel} |"
     )
     text = GOOD_DEPLOYMENT.replace(unit_row, updated_unit_row, 1)
+    text = text.replace(
+        "## Record\n",
+        "## Record\n\n- Record schema: deployment/2\n",
+        1,
+    )
     text = text.replace(
         "| production | | | | | |",
         f"| production | https://example.com | {sha} | {sha} | 2026-09-07T18:04:00Z | PASS |",
@@ -113,6 +182,15 @@ def deployment_record(architecture: str, sha: str, artifact: str) -> str:
         f"{artifact} | production route answered the smoke check | "
         "2026-09-07T18:04:00Z | PASS |\n"
     )
+    text += f"""
+
+## Release Source Provenance
+
+| Release target | Source ref | Source SHA | Authority evidence |
+| --- | --- | --- | --- |
+| {development.target_id} | {development_authority.ref} | pending | pending |
+| {production.target_id} | {production_authority.ref} | {sha} | {retained_observation(repo_root, production.target_id, production_authority.ref, production_authority.ref, sha, artifact)} |
+"""
     return text
 
 
@@ -122,6 +200,9 @@ def activation_record(
     deployment: str,
     sha: str,
     artifact: str,
+    repo_root: Path,
+    expected_repository: str,
+    candidate_ref: str,
 ) -> tuple[str, str]:
     contract, errors = parse_release_targets(architecture)
     if errors:
@@ -184,7 +265,11 @@ def activation_record(
     # Source fields in the activation fixture are a non-secret synthetic GA4
     # property; release bindings use the exact architecture-backed target.
     deployment_errors = check_deployment.check_deployment_text(
-        deployment, architecture_text=architecture
+        deployment,
+        architecture_text=architecture,
+        repo_root=repo_root,
+        expected_repository=expected_repository,
+        candidate_ref=candidate_ref,
     )
     if deployment_errors:
         raise AssertionError("fixture Deployment is invalid: " + "; ".join(deployment_errors))
@@ -351,6 +436,7 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
                 paths["architecture"].read_text(encoding="utf-8"),
                 release_sha,
                 artifact,
+                root,
             )
             deployment_path = root / "docs/DEPLOYMENT.md"
             deployment_path.parent.mkdir(parents=True, exist_ok=True)
@@ -361,9 +447,43 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
                 deployment,
                 release_sha,
                 artifact,
+                root,
+                "synthetic/lifecycle-fixture",
+                "refs/heads/run/lifecycle",
             )
             activation_path = root / "docs/ACTIVATION.md"
             activation_path.write_text(activation, encoding="utf-8")
+            production_evidence_path = (
+                root / "docs/deployment-evidence" / f"{production.target_id}.json"
+            )
+            production_evidence_bytes = production_evidence_path.read_bytes()
+            production_evidence_path.write_bytes(
+                production_evidence_bytes.replace(release_sha.encode(), ("f" * 40).encode(), 1)
+            )
+            mismatched_check = run_cli(
+                str(ACTIVATION_SCRIPTS_DIR / "check_activation.py"),
+                "--activation", str(activation_path),
+                "--prd", str(paths["prd"]),
+                "--architecture", str(paths["architecture"]),
+                "--deployment", str(deployment_path),
+                "--stack-decisions", str(paths["stack"]),
+                "--repo-root", str(root),
+                "--require-verified-sources",
+                "--require-ready", activation_target,
+                "--expected-repository", "synthetic/lifecycle-fixture",
+                "--candidate-ref", "refs/heads/run/lifecycle",
+            )
+            self.assertNotEqual(
+                0,
+                mismatched_check.returncode,
+                mismatched_check.stdout + mismatched_check.stderr,
+            )
+            self.assertIn(
+                "hash does not match authority evidence",
+                mismatched_check.stdout + mismatched_check.stderr,
+            )
+            production_evidence_path.write_bytes(production_evidence_bytes)
+            deployment_path.write_text(deployment, encoding="utf-8")
             activation_check = run_cli(
                 str(ACTIVATION_SCRIPTS_DIR / "check_activation.py"),
                 "--activation", str(activation_path),
@@ -374,6 +494,8 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
                 "--repo-root", str(root),
                 "--require-verified-sources",
                 "--require-ready", activation_target,
+                "--expected-repository", "synthetic/lifecycle-fixture",
+                "--candidate-ref", "refs/heads/run/lifecycle",
             )
             self.assertEqual(0, activation_check.returncode, activation_check.stdout + activation_check.stderr)
 
@@ -401,6 +523,8 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
                 "--deployment", str(deployment_path),
                 "--activation", str(activation_path),
                 "--repo-root", str(root),
+                "--expected-repository", "synthetic/lifecycle-fixture",
+                "--candidate-ref", "refs/heads/run/lifecycle",
                 "--require-lifecycle",
             )
             self.assertEqual(0, seo_check.returncode, seo_check.stdout + seo_check.stderr)

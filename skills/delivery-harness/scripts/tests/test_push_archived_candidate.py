@@ -178,7 +178,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
             sys.executable, str(SCRIPTS / "archive_run.py"), "--repo-root", str(root), "--apply",
             "--stamp", "20260913-000000", "--expected-main", expected_main,
             "--main-ref", "refs/heads/main", "--anchor-out", str(anchor),
-        ], capture_output=True, text=True)
+        ], capture_output=True, text=True, encoding="utf-8")
         if result.returncode != 0:
             raise AssertionError(result.stdout + result.stderr)
         archive_run_path = next((root / "docs/goal/archived").iterdir())
@@ -640,7 +640,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
         (goal / "RUN.md").write_text(mf.manifest_markdown("## Harness Run State", "harness_run", run), encoding="utf-8")
         anchor2 = root.parent / f"archive-anchor-case-{root.name}.json"
         self._anchors.append(anchor2)
-        result = subprocess.run([sys.executable, str(SCRIPTS / "archive_run.py"), "--repo-root", str(root), "--apply", "--stamp", "20260913-000010", "--expected-main", str(fixture["candidate_c"]), "--main-ref", "refs/heads/main", "--anchor-out", str(anchor2)], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, str(SCRIPTS / "archive_run.py"), "--repo-root", str(root), "--apply", "--stamp", "20260913-000010", "--expected-main", str(fixture["candidate_c"]), "--main-ref", "refs/heads/main", "--anchor-out", str(anchor2)], capture_output=True, text=True, encoding="utf-8")
         if result.returncode:
             self.fail(result.stdout + result.stderr)
         archive2 = next(path for path in (root / "docs/goal/archived").iterdir() if path.name.startswith("20260913-000010"))
@@ -1160,7 +1160,7 @@ class ArchiveFirstPushTests(unittest.TestCase):
             sys.executable, str(SCRIPTS / "archive_run.py"), "--repo-root", str(root), "--apply",
             "--stamp", "20260913-000001", "--expected-main", str(fixture["candidate_c"]),
             "--main-ref", "refs/heads/main", "--anchor-out", str(anchor2),
-        ], capture_output=True, text=True)
+        ], capture_output=True, text=True, encoding="utf-8")
         if archive_result.returncode != 0:
             self.fail(archive_result.stdout + archive_result.stderr)
         archive2 = next(path for path in (root / "docs/goal/archived").iterdir() if path.name.startswith("20260913-000001"))

@@ -556,6 +556,10 @@ def _multi_target_findings(
     architecture_text: str,
     deployment_text: str,
     activation_text: str,
+    stack_text: str | None,
+    repo_root: Path | None,
+    expected_repository: str | None,
+    candidate_ref: str | None,
     deployment_rows: dict[str, dict[str, str]],
     reviewed_on: str,
     aggregate_verdict: str,
@@ -644,8 +648,13 @@ def _multi_target_findings(
             prd_text=prd_text,
             architecture_text=architecture_text,
             deployment_text=deployment_text,
+            stack_text=stack_text,
+            repo_root=repo_root,
+            expected_repository=expected_repository,
+            candidate_ref=candidate_ref,
             require_verified_sources=True,
             require_ready=(target_id,),
+            package_validated=stack_text is not None,
         )
         findings.extend(f"Activation {target_id}: {item}" for item in target_findings)
 
@@ -952,9 +961,28 @@ def check_outcome_review_text(
     deployment_text: str,
     activation_text: str,
     stack_text: str | None = None,
+    repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
+    package_validated: bool = False,
 ) -> list[str]:
     findings: list[str] = []
-    if stack_text is not None:
+    target_record = _fields(_section(text, "## Record") or [])
+    target_set_value = target_record.get("Production release targets", "")
+    if target_set_value:
+        target_set_value = target_set_value.removeprefix("target-set:").strip()
+        production_target_subset = tuple(
+            item.strip() for item in target_set_value.split(",") if item.strip()
+        )
+    else:
+        production_target_subset = (
+            target_record.get("Production release target", ""),
+        )
+    if stack_text is None:
+        findings.append("Product package: verified outcome review requires stack-decisions.md")
+    if stack_text is not None and not package_validated:
+        if repo_root is None:
+            findings.append("Product package: stack validation requires repository root")
         from check_product_package import validate_texts
         findings.extend(
             f"Product package: {item}"
@@ -964,13 +992,21 @@ def check_outcome_review_text(
                 stack_text,
                 require_filled=True,
                 require_approved=True,
+                repo_root=repo_root,
             )
         )
+    if stack_text is not None:
         from check_deployment import check_deployment_text
         findings.extend(
             f"Deployment: {item}"
             for item in check_deployment_text(
-                deployment_text, architecture_text=architecture_text
+                deployment_text,
+                architecture_text=architecture_text,
+                require_source_provenance=True,
+                strict_target_subset=production_target_subset,
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
         )
     active = active_text(text)
@@ -1082,8 +1118,13 @@ def check_outcome_review_text(
         prd_text=prd_text,
         architecture_text=architecture_text,
         deployment_text=deployment_text,
+        stack_text=stack_text,
+        repo_root=repo_root,
+        expected_repository=expected_repository,
+        candidate_ref=candidate_ref,
         require_verified_sources=True,
         require_ready=(target_id,),
+        package_validated=stack_text is not None,
     )
     findings.extend(f"Activation: {item}" for item in activation_findings)
     matching_sources, source_findings = _activation_sources(
@@ -1406,6 +1447,10 @@ def check_outcome_review_text(
                     architecture_text=architecture_text,
                     deployment_text=deployment_text,
                     activation_text=activation_text,
+                    stack_text=stack_text,
+                    repo_root=repo_root,
+                    expected_repository=expected_repository,
+                    candidate_ref=candidate_ref,
                     deployment_rows=deployment_rows,
                     reviewed_on=reviewed_on,
                     aggregate_verdict=verdict,
@@ -1421,10 +1466,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--architecture", type=Path, required=True)
     parser.add_argument("--deployment", type=Path, required=True)
     parser.add_argument("--activation", type=Path, required=True)
-    parser.add_argument("--stack-decisions", type=Path)
+    parser.add_argument("--stack-decisions", type=Path, required=True)
     parser.add_argument("--require-lifecycle", action="store_true")
     parser.add_argument("--prior-outcome", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
+    parser.add_argument("--expected-repository")
+    parser.add_argument("--candidate-ref")
     args = parser.parse_args(argv)
     if args.require_lifecycle and args.prior_outcome is None:
         try:
@@ -1465,12 +1512,8 @@ def main(argv: list[str] | None = None) -> int:
             for finding in prior_history_findings:
                 print(finding, file=sys.stderr)
             return 1
-    if args.stack_decisions is None and args.require_lifecycle:
-        print("--require-lifecycle requires --stack-decisions", file=sys.stderr)
-        return 2
     paths = (args.outcome, args.prd, args.architecture, args.deployment, args.activation)
-    if args.stack_decisions is not None:
-        paths += (args.stack_decisions,)
+    paths += (args.stack_decisions,)
     if any(not path.is_file() for path in paths):
         print("one or more input files do not exist", file=sys.stderr)
         return 2
@@ -1483,8 +1526,6 @@ def main(argv: list[str] | None = None) -> int:
         "activation": args.activation,
         "stack": args.stack_decisions,
     }.items():
-        if path is None:
-            continue
         value, error = safe_read_text(path)
         if error:
             print(error, file=sys.stderr)
@@ -1495,35 +1536,54 @@ def main(argv: list[str] | None = None) -> int:
         if lifecycle_record.get("Schema") != "outcome-review/2":
             print("--require-lifecycle requires Schema: outcome-review/2", file=sys.stderr)
             return 1
-    if args.stack_decisions is not None:
-        from check_product_package import validate_texts
-        package_findings = validate_texts(
-            loaded["prd"], loaded["architecture"], loaded["stack"],
-            require_filled=True, require_approved=True,
-            repo_root=args.repo_root,
+    target_record = _fields(_section(loaded["outcome"], "## Record") or [])
+    target_set_value = target_record.get("Production release targets", "")
+    if target_set_value:
+        target_set_value = target_set_value.removeprefix("target-set:").strip()
+        production_target_subset = tuple(
+            item.strip() for item in target_set_value.split(",") if item.strip()
         )
-        if package_findings:
-            for item in package_findings:
-                print(f"Product package: {item}", file=sys.stderr)
-            return 1
-    if args.stack_decisions is not None or args.require_lifecycle:
-        from check_deployment import check_deployment_text
-        deployment_findings = check_deployment_text(
-            loaded["deployment"], architecture_text=loaded["architecture"]
+    else:
+        production_target_subset = (
+            target_record.get("Production release target", ""),
         )
-        if deployment_findings:
-            for item in deployment_findings:
-                print(f"Deployment: {item}", file=sys.stderr)
-            return 1
+    from check_product_package import validate_texts
+    package_findings = validate_texts(
+        loaded["prd"], loaded["architecture"], loaded["stack"],
+        require_filled=True, require_approved=True,
+        repo_root=args.repo_root,
+    )
+    if package_findings:
+        for item in package_findings:
+            print(f"Product package: {item}", file=sys.stderr)
+        return 1
+    from check_deployment import check_deployment_text
+    deployment_findings = check_deployment_text(
+        loaded["deployment"],
+        architecture_text=loaded["architecture"],
+        require_source_provenance=True,
+        strict_target_subset=production_target_subset,
+        repo_root=args.repo_root,
+        expected_repository=args.expected_repository,
+        candidate_ref=args.candidate_ref,
+    )
+    if deployment_findings:
+        for item in deployment_findings:
+            print(f"Deployment: {item}", file=sys.stderr)
+        return 1
     findings = check_outcome_review_text(
         loaded["outcome"],
         prd_text=loaded["prd"],
         architecture_text=loaded["architecture"],
         deployment_text=loaded["deployment"],
         activation_text=loaded["activation"],
+        stack_text=loaded["stack"],
+        repo_root=args.repo_root,
+        expected_repository=args.expected_repository,
+        candidate_ref=args.candidate_ref,
         # The CLI validates the package/deployment immediately before this
         # call; avoid repeating the same findings in the final report.
-        stack_text=None,
+        package_validated=True,
     )
     for finding in findings:
         print(f"{args.outcome}: {finding}")
@@ -1534,4 +1594,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

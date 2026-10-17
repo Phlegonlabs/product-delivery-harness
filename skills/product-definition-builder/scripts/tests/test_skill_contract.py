@@ -489,6 +489,7 @@ async function agent(_prompt, options) {
             [sys.executable, str(checker), "--html", str(UI_SKILL_ROOT / "assets/templates/WIREFRAMES.template.html")],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -507,6 +508,7 @@ async function agent(_prompt, options) {
                 [sys.executable, str(checker), "--html", str(external)],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
             )
             self.assertNotEqual(result.returncode, 0)
@@ -534,6 +536,7 @@ async function agent(_prompt, options) {
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
             )
 
@@ -570,6 +573,7 @@ async function agent(_prompt, options) {
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -593,6 +597,7 @@ async function agent(_prompt, options) {
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
             )
             self.assertNotEqual(result.returncode, 0)
@@ -617,6 +622,7 @@ async function agent(_prompt, options) {
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
             )
             self.assertNotEqual(result.returncode, 0)
@@ -645,6 +651,7 @@ async function agent(_prompt, options) {
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=False,
             )
             self.assertNotEqual(result.returncode, 0)
@@ -719,6 +726,7 @@ async function agent(_prompt, options) {
                         ],
                         capture_output=True,
                         text=True,
+                        encoding="utf-8",
                         check=False,
                     )
                     self.assertNotEqual(0, result.returncode)

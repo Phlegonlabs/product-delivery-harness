@@ -152,6 +152,7 @@ class CICandidateGateTests(unittest.TestCase):
                     cwd=self.repo_root,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     timeout=30,
                     check=False,
                 )
@@ -189,6 +190,7 @@ class CICandidateGateTests(unittest.TestCase):
                 cwd=self.repo_root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=30,
                 check=False,
             )
@@ -281,6 +283,7 @@ class CICandidateGateTests(unittest.TestCase):
                 cwd=root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=30,
                 check=False,
             )

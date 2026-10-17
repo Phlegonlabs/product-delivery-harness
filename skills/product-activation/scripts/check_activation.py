@@ -1656,6 +1656,8 @@ def check_activation_text(
     deployment_text: str | None = None,
     stack_text: str | None = None,
     repo_root: Path | None = None,
+    expected_repository: str | None = None,
+    candidate_ref: str | None = None,
     require_filled: bool = False,
     require_verified_sources: bool = False,
     require_ready: tuple[str, ...] = (),
@@ -1665,7 +1667,8 @@ def check_activation_text(
     authority_required = require_verified_sources or bool(require_ready) or require_closeout
     require_filled = require_filled or authority_required
     findings: list[str] = []
-    # A caller that already validated the package and Deployment skips a rerun.
+    # package_validated covers only the Product package. Deployment remains
+    # fully checked so an authority entry cannot inherit a stale skip flag.
     if stack_text is not None and not package_validated:
         if repo_root is None:
             findings.append("Product package: stack validation requires repository root")
@@ -1681,11 +1684,17 @@ def check_activation_text(
                 repo_root=repo_root,
             )
         )
+    if deployment_text is not None and architecture_text is not None:
         from check_deployment import check_deployment_text
         findings.extend(
             f"Deployment: {item}"
             for item in check_deployment_text(
-                deployment_text or "", architecture_text=architecture_text
+                deployment_text,
+                architecture_text=architecture_text,
+                require_source_provenance=False,
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
         )
     if authority_required and prd_text is None:
@@ -2256,6 +2265,28 @@ def check_activation_text(
             continue
         findings.append(f"Target Readiness: {target} is not in the active activation scope")
 
+    strict_readiness_targets = set(require_ready)
+    if authority_required:
+        strict_readiness_targets.update(
+            target
+            for target, row in readiness.items()
+            if row["status"] == "ready"
+        )
+        if strict_readiness_targets:
+            from check_deployment import check_deployment_text
+            findings.extend(
+                f"Deployment: {item}"
+                for item in check_deployment_text(
+                    text=deployment_text or "",
+                    architecture_text=architecture_text or "",
+                    require_source_provenance=True,
+                    strict_target_subset=tuple(sorted(strict_readiness_targets)),
+                    repo_root=repo_root,
+                    expected_repository=expected_repository,
+                    candidate_ref=candidate_ref,
+                )
+            )
+
     if require_verified_sources:
         if record.get("Status") != "handoff_ready":
             findings.append("Record: verified-source handoff requires status handoff_ready")
@@ -2313,6 +2344,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--deployment", type=Path)
     parser.add_argument("--stack-decisions", type=Path)
     parser.add_argument("--repo-root", type=Path, default=Path("."))
+    parser.add_argument("--expected-repository")
+    parser.add_argument("--candidate-ref")
     parser.add_argument("--require-filled", action="store_true")
     parser.add_argument("--require-verified-sources", action="store_true")
     parser.add_argument("--require-ready", action="append", default=[])
@@ -2394,6 +2427,8 @@ def main(argv: list[str] | None = None) -> int:
         deployment_text=deployment_text,
         stack_text=loaded["stack"],
         repo_root=args.repo_root,
+        expected_repository=args.expected_repository,
+        candidate_ref=args.candidate_ref,
         require_filled=args.require_filled,
         require_verified_sources=args.require_verified_sources,
         require_ready=tuple(args.require_ready),
@@ -2408,4 +2443,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

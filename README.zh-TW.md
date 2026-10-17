@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -106,6 +106,14 @@ Private HTTPS 發布可使用 `trusted-host-publication.md` 定義的管理員 c
 Trusted-host publication 與 legacy（0.38 以前）run-branch push 都與 repository hooks、fsmonitor 和 askpass 隔離：`core.hooksPath` 指向全新空目錄，`core.fsmonitor` 關閉，askpass 為空。Git config preflight 把 linked worktree 的共用 config 與 `config.worktree` 視為 repository config，並拒絕 repository 內的 `core.askPass`；限定 URL 的 TLS、header 與 cookie 設定在遠端存取和發佈時會被拒絕，CI checkout 中的本地讀取仍可正常進行。Git 與 verifier 輸出以 UTF-8 讀取。遠端重新檢查與 no-force push 之間仍有短暫空窗，其他人可能把 run branch fast-forward 到 A 的祖先，因此 run-branch push 權限應只給 trusted host。Run-branch publication 使用 trusted host，是因為它的簽名 evidence 屬於 archive 狀態；`main` promotion 是另行授權的一般 no-force push，不需要先把 A 發布到 run branch。
 
 </details>
+
+`deployment/2` 紀錄新增 Release Source Provenance。每個 target 以 hash 綁定一個有界保留 observation JSON：repository、source/resolved ref、source SHA、artifact、觀察時間與實際 command/provider output。呼叫端獨立提供 `repo-root` 與 `expected_repository`；symbolic candidate/1 ref 另需 concrete `candidate_ref`。Validator 只讀取 bytes，不執行 command 或 fetch provider，hash 只證明完整性而非真實性。Pending 準備與歷史檢查仍可用。完整 Deployment 檢查包含 resource isolation 與 record validity，並為 ready closeout、verified sources、SEO 與 Outcome 把關。明確 target subset 不取代完整 inventory；blocked 與 all-n/a 保留相容。
+
+Strict symbolic-candidate proof：
+
+```bash
+python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment docs/DEPLOYMENT.md --architecture docs/product/architecture.md --require-source-provenance --repo-root <actualFrozenRepo> --expected-repository <owner/repository> --candidate-ref <candidate-ref>
+```
 
 ## 從這裡開始
 
@@ -479,6 +487,8 @@ Gitignore 衛生同時適用於 direct 與 managed 工作。scope scan 會記錄
 
 </details>
 
+每個 assignment 有私人 scratch 和有限期限。清理或重試前，parent 要確認 process tree 已結束，並檢查部分成果、前次操作與證據缺口。403 或「研究找不到可用來源」不是啟動失敗，也不授權合成證據。
+
 ## 運作參考
 
 以下分組收錄完整的運作規則。展開分組即可閱讀全部要求。
@@ -552,6 +562,8 @@ Cloudflare 優先使用原生 Workers Previews：專案 Wrangler 4.135.0+、`wra
 <details>
 <summary><b>統一設計審閱：HiFi 審閱器、設計 intake 與 PRD 補全</b></summary>
 
+新組裝的方向研究用 `assemble_ui_review.py --mode direction` 與封閉的 `ui-direction-review/1` profile。`--mode hifi` 仍是預設，HiFi 契約不變。Profile 為每個案例指定 surface、platform、核准 target family 與精確像素寬度。組裝器重用共用 reviewer CSS 和 HiFi runtime，只顯示該案例核准的 targets，並把案例與 target 帶到其他研究。
+
 ## 統一設計審閱
 
 HiFi 使用與產品 CSS 隔離的中性審閱器，按 App、Web 前台及管理後台分組，一次顯示一個產品畫布，保留平台尺寸、狀態與取自實際樣式的 Design Tokens 頁。歷史 Wireframe 保留原審閱器及檢查。
@@ -574,6 +586,10 @@ PRD 會在整個交付流程中持續補全。首次交付批准前，UI 與技�
 
 <details>
 <summary><b>交付模型：Epic、驗收與 eval 契約、受管 wave 與修復路線</b></summary>
+
+Source authority 與 availability evidence 分開。每個 target 的 provenance ref 來自 architecture source policy。Strict 檢查把 ref、observed source SHA、Expected SHA、Deployed SHA 和 artifact hash 連接起來。Target-review subset 必須明確；Activation 仍盤點每個 active target，而 concrete n/a 只能依 owner 規則取代不可用 target。
+
+Strict Outcome Review 需要 stack-decisions.md，並只驗證一次 Product Definition package。它把已驗證 context 傳給 Activation，要求 Deployment 有 provenance，且只檢查這次 review 的 production-target subset。保存的 SEO review 傳送相同 source context，只檢查受審 target。
 
 ## 交付模型
 
@@ -680,6 +696,8 @@ flowchart TB
 <details>
 <summary><b>通用執行環境適配：host 能力、契約採用與 host 交接</b></summary>
 
+Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Host 專屬模型放在 host policy；共用 skills 保留設定角色與已授權 fallback。
+
 ## 通用執行環境適配
 
 已授權的修復讓 candidate 前進時，續跑保留同一個 RUN 與已完成 mission。歷史 verifier receipt 保留原 SHA 與 attempt；目前的 PASS 仍須綁定目前精確 SHA。Candidate reconciliation 在剩餘次數內重開失效 gate，並要求新的 integration 與 security review，不授權修復、不重設次數，也不重開已完成 RUN。續跑檢查 parent 與目前綁定的工作目錄，無關 linked worktree 不會阻擋。`[slug]` 等 changed-file 路徑以實際檔名處理，與 write-scope pattern 分開。
@@ -750,6 +768,8 @@ CI 也會執行端到端主幹檢查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 <details>
 <summary><b>驗證與執行量測：CI、瀏覽器測試、計時與驗收證據</b></summary>
 
+`check_ui_diagnostic_wave.py` 連接 browser、critique、audit、grading、PRD、manifest 與 subject 身分。完整觀察到的 FAIL rows 仍是 complete 且可在既有授權下 repair-eligible，但 strict final approval 仍失敗。缺少、blocked、部分、過期或超出範圍的證據會阻擋 handoff；partial report 不會得到 repair approval。Direction `--overwrite` 會比較 destination、author sources 與 manifest 的檔案身分並拒絕 hardlink，保留輸入。Outcome 與 SEO checkers 把必要的 Product／Stack context 帶進 strict Activation checks。
+
 ## 驗證與執行量測
 
 CI 會先安裝釘選的 Node／Playwright 套件與 Chromium，再執行必要的 reviewer 瀏覽器測試；缺少相依套件會失敗。本機要執行同樣檢查，先跑 `npm ci` 與 `npx playwright install chromium`，設定 `PDH_REQUIRE_BROWSER_TESTS=1`，並讓 `PLAYWRIGHT_MODULE` 指向此 checkout 的 `node_modules/playwright`，再執行 UI suite。一般本機檢查仍可在瀏覽器不可用時跳過。
@@ -811,6 +831,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.64.0** — 讓 native reviewer 的瀏覽器身分對應 host，同時保留 bridge 檢查。在共用 reviewer 中組裝方向研究，並提供每個案例的 targets 與寬度。把完整 diagnostic wave 連結 PRD、manifest 與 evidence 身分。在 strict Activation、SEO 與 Outcome 交接要求 release source provenance，包含 main-preview/1 套件。CLI 輸出改用 UTF-8，Windows 上含中文的 findings 不再 crash。釐清 frontend-only authoring、version-3 navigation、worker recovery、量測寬度與誠實的部分研究。
 
 - **0.63.1** — 加入 Void 可選全端 SDK／CLI 開發與部署指引。保留 owner 已核准的技術棧、部署資源隔離、migration 恢復及精確版本證據。
 

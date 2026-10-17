@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -106,6 +106,14 @@ La publicación HTTPS privada admite la política administrativa de credential-h
 La publicación por trusted host y el push legacy (anterior a 0.38) de la run branch se ejecutan aislados de hooks, fsmonitor y askpass del repositorio: `core.hooksPath` apunta a un directorio vacío nuevo, `core.fsmonitor` está desactivado y askpass está vacío. El preflight de configuración Git trata la config compartida de un linked worktree y `config.worktree` como config del repositorio, y rechaza un `core.askPass` del repositorio; los ajustes TLS, header y cookie limitados a una URL se rechazan en el acceso remoto y la publicación, mientras que las lecturas locales en un checkout de CI siguen funcionando. La salida de Git y del verifier se lee como UTF-8. Queda una ventana corta entre la recomprobación remota y el push sin force, en la que otro actor podría hacer fast-forward de la run branch a un ancestro de A, así que limita el acceso de push a la run branch al trusted host. La publicación de la run branch usa el trusted host porque su evidencia firmada es estado del archivo; la promoción a `main` es un push normal sin force con autorización separada y no requiere publicar antes A en su run branch.
 
 </details>
+
+Un registro `deployment/2` añade Release Source Provenance. Cada destino vincula por hash un JSON de observación retenido y acotado: repository, refs source y resolved, source SHA, artifact, hora de observación y output real de command o provider. El caller aporta `repo-root` y `expected_repository` de forma independiente; un ref simbólico candidate/1 también necesita un `candidate_ref` concreto. El validator solo lee bytes, nunca ejecuta commands ni consulta providers, y trata el hash como integridad, no autenticidad. La preparación pending y la inspección histórica siguen siendo válidas. Las comprobaciones completas de Deployment, incluidas resource isolation y record validity, gobiernan ready closeout, verified sources, SEO y Outcome. Los subsets explícitos no sustituyen los inventarios completos; blocked y all-n/a conservan compatibilidad.
+
+Prueba estricta de symbolic candidate:
+
+```bash
+python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment docs/DEPLOYMENT.md --architecture docs/product/architecture.md --require-source-provenance --repo-root <actualFrozenRepo> --expected-repository <owner/repository> --candidate-ref <candidate-ref>
+```
 
 ## Empieza aquí
 
@@ -479,6 +487,8 @@ Los productos comerciales ahora pasan dos decisiones separadas de Product Defini
 
 </details>
 
+Cada assignment tiene scratch privada y un plazo finito. Antes de limpiar o reintentar, el parent confirma que el process tree terminó y revisa el trabajo parcial, la operación previa y los huecos de evidencia. Un 403 o la ausencia de fuentes útiles no es un fallo de lanzamiento; tampoco autoriza a sintetizar evidencia.
+
 ## Referencia operativa
 
 Estos grupos contienen las reglas operativas completas. Abre un grupo para leer todos sus requisitos.
@@ -552,6 +562,8 @@ Antes de crear RUN, la validación de PLAN comprueba juntos la política de rama
 <details>
 <summary><b>Revisión de diseño unificada: visor HiFi, intake de diseño y refinamiento del PRD</b></summary>
 
+Los estudios nuevos usan `assemble_ui_review.py --mode direction` y el perfil cerrado `ui-direction-review/1`. `--mode hifi` sigue siendo el valor predeterminado y los contratos HiFi no cambian. El perfil asigna a cada caso su surface, platform, target family aprobada y anchos exactos en píxeles. El ensamblador reutiliza el CSS compartido del reviewer y el runtime HiFi, muestra solo los targets aprobados de ese caso y lleva el caso y el target a los demás estudios.
+
 ## Revisión de diseño unificada
 
 HiFi usa un visor neutro aislado del CSS del producto: grupos App, Web y administración, un lienzo, tamaños y estados por plataforma y una vista de Design Tokens derivada de estilos reales. Los Wireframes históricos conservan su visor y sus validaciones.
@@ -574,6 +586,10 @@ El PRD se completa durante toda la entrega. Antes de aprobar la primera entrega,
 
 <details>
 <summary><b>Modelo de entrega: Epics, contratos de aceptación y eval, waves gestionadas y rutas de reparación</b></summary>
+
+Source authority es independiente de la evidencia de disponibilidad. El provenance ref de cada destino procede de su política de origen en la arquitectura. La verificación estricta une el ref, el source SHA observado, el Expected SHA, el Deployed SHA y el hash del artifact. Los subsets de revisión deben declararse; Activation sigue inventariando cada destino activo, y un n/a concreto solo sustituye a un destino no disponible según la regla del owner.
+
+La strict Outcome Review requiere stack-decisions.md y valida una sola vez el paquete de Product Definition. Reenvía ese contexto validado a Activation, exige provenance en Deployment y revisa solo el subset de production targets de esa revisión. Un informe SEO guardado reenvía el mismo contexto de origen y revisa solo su destino auditado.
 
 ## Modelo de entrega
 
@@ -680,6 +696,8 @@ flowchart TB
 <details>
 <summary><b>Adaptador general de runtime: capacidades del host, adopción del contrato y handoff entre hosts</b></summary>
 
+La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Los modelos específicos del host pertenecen a la política del host; los skills compartidos conservan los roles configurados y los fallback autorizados.
+
 ## Adaptador general de runtime
 
 Al avanzar el candidato por una reparación autorizada, la recuperación conserva el mismo RUN y las missions completadas. Los recibos históricos mantienen su SHA e intento; los PASS actuales siguen exigiendo el SHA exacto actual. La reconciliación del candidato reactiva los gates obsoletos dentro del presupuesto restante y exige nuevas revisiones de integración y seguridad. No autoriza reparaciones, reinicia presupuestos ni reabre un RUN completado. Se comprueban el padre y los espacios actualmente vinculados; otros worktrees no bloquean la recuperación. Las rutas modificadas como `[slug]` se tratan como nombres literales, separados de los patrones de alcance de escritura.
@@ -750,6 +768,8 @@ El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 
 <details>
 <summary><b>Verificación y medición: CI, suite de navegador, tiempos y evidencia de aceptación</b></summary>
 
+`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. Las filas FAIL completamente observadas siguen siendo complete y elegibles para reparación bajo la autoridad existente, mientras la strict final approval sigue fallando. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Direction `--overwrite` compara destinations con author sources y manifest por identidad de archivo y rechaza hardlinks, conservando las entradas. Los checkers de Outcome y SEO llevan el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
+
 ## Verificación y medición de ejecución
 
 CI instala las versiones fijadas de Node/Playwright y Chromium antes de las pruebas obligatorias del navegador. La falta de dependencias hace fallar esa suite. Para la misma comprobación local, ejecuta `npm ci` y `npx playwright install chromium`, define `PDH_REQUIRE_BROWSER_TESTS=1` y `PLAYWRIGHT_MODULE` con la ruta `node_modules/playwright` de este checkout, y ejecuta la suite UI. Las comprobaciones locales ordinarias aún pueden omitir el navegador si no está disponible.
@@ -811,6 +831,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.64.0** — Coincide la identidad del navegador del reviewer nativo con el host y conserva las comprobaciones de bridge. Ensambla estudios de dirección en el reviewer compartido con targets y anchos por caso. Une las olas diagnósticas completas a PRD, manifest e identidades de evidencia. Exige release source provenance en los handoffs estrictos de Activation, SEO y Outcome, incluidos los paquetes main-preview/1. Escribe la salida de los CLI en UTF-8 para que los hallazgos en chino ya no fallen en Windows. Aclara authoring solo frontend, navegación versión 3, recuperación del worker, anchos medidos e investigación parcial honesta.
 
 - **0.63.1** — Añade Void como opción de SDK/CLI full-stack. Conserva las decisiones aprobadas, el aislamiento de recursos, la recuperación de migraciones y la evidencia de versión exacta.
 

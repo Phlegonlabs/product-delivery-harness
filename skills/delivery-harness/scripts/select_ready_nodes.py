@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
@@ -108,9 +109,12 @@ def _reviewer_tool_reasons(
         elif capability.get("status") != "available":
             reasons.add(f"reviewer_tool_unavailable:{tool_name}")
         elif binding is not None:
-            expected_provider = binding.get("model_provider", binding.get("provider"))
+            is_bridge = binding.get("driver") == "external_bridge"
+            expected_provider = (
+                binding.get("model_provider") if is_bridge else binding.get("provider")
+            )
             expected_driver = binding.get("driver")
-            expected_session = binding.get("probe_session_id")
+            expected_session = binding.get("probe_session_id") if is_bridge else None
             if (
                 capability.get("provider") != expected_provider
                 or capability.get("driver") != expected_driver
@@ -1679,4 +1683,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

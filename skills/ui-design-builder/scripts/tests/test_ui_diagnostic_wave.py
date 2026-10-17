@@ -1,0 +1,451 @@
+"""Diagnostic completeness joins existing receipts; fixtures are not browser proof."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from types import SimpleNamespace
+from unittest.mock import patch
+import check_ui_diagnostic_wave as diagnostic_cli
+import check_ui_design_contract as ui_contract
+import hifi_reviewer
+import hifi_review_fixture as fixture
+import review_evidence as evidence
+
+SCRIPT = Path(__file__).resolve().parents[1] / "check_ui_diagnostic_wave.py"
+CASE = [{"surface": "UI-001", "state": "ready", "target": "390"}]
+SCORES = {f"H{index}": 90 for index in range(1, 10)}
+
+
+class DiagnosticWaveTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.child = self.root / "child.html"
+        self.child.write_text("<h1>Child</h1>", encoding="utf-8", newline="")
+        self.child_bytes = self.child.read_bytes()
+        index_surface = {
+            "id": "UI-001", "page": "index.html", "route": "/home", "states": ["ready"],
+            "responsive": {"kind": "viewports", "targets": [390]},
+            "navigation": [], "controls": [],
+        }
+        child_surface = dict(index_surface, id="UI-002", page="child.html", route="/detail")
+        self.manifest = {
+            "schema": "ui-hifi/2", "surfaces": [index_surface, child_surface],
+            "pages": [{"path": "child.html", "sha256": self.sha(self.child)}],
+            "interactions": [],
+        }
+        index_source = fixture.add_shell(fixture._source_html(index_surface, component_types=("button",), version=3),
+                                         self.manifest, component_types=("button",), version=3)
+        child_source = fixture.add_shell(fixture._source_html(child_surface, component_types=("button",), version=3),
+                                         self.manifest, page="child.html", component_types=("button",), version=3)
+        self.child.write_text(child_source, encoding="utf-8", newline="")
+        self.child_bytes = self.child.read_bytes()
+        self.manifest["pages"] = [{"path": "child.html", "sha256": self.sha(self.child)}]
+        manifest_script = ('<script id="ui-hifi-manifest" type="application/json">'
+                           + json.dumps(self.manifest) + "</script>")
+        subject = self.root / "index.html"
+        subject.write_text(manifest_script + index_source, encoding="utf-8", newline="")
+        self.subject = self.binding(subject)
+        self.prd = self.root / "PRD.md"
+        self.prd.write_text("# Frozen PRD", encoding="utf-8", newline="")
+        self.prd_bytes = self.prd.read_bytes()
+        self.prd_binding = self.binding(self.prd)
+        self.capture = self.root / "capture.json"
+        self.capture.write_text(json.dumps({"observed": "synthetic fixture"}), encoding="utf-8")
+        self.capture_binding = self.binding(self.capture)
+
+    def sha(self, path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def binding(self, path: Path) -> dict[str, str]:
+        return {"path": path.relative_to(self.root).as_posix(), "sha256": self.sha(path)}
+
+    def write(self, path: Path, payload: object) -> dict[str, str]:
+        path.write_text(json.dumps(payload), encoding="utf-8", newline="")
+        return self.binding(path)
+
+    def observation(self, *, result: str = "PASS", h5: int = 90) -> dict:
+        output = {
+            "schema": "ui-output/3", "check": "hifi-browser", "subject": self.subject,
+            "matrix": {"cases": CASE},
+            "results": [dict(CASE[0], result=result)],
+            "execution": {
+                "startedAt": "2026-01-01T00:00:00Z", "finishedAt": "2026-01-01T00:00:01Z",
+                "tool": "playwright", "method": "browser-matrix",
+                "environment": {"runtime": "synthetic test fixture"},
+                "artifacts": [self.prd_binding, self.subject, self.binding(self.child)],
+            },
+        }
+        return output
+
+    def browser_output(self, result: str = "PASS") -> dict:
+        output = self.observation(result=result)
+        output.update({
+            "sandbox": {"network": "disabled", "topNavigation": "allowlisted-local-pages",
+                        "popups": "blocked", "forms": "blocked"},
+            "console": [], "network": [], "navigation": [], "popups": [], "forms": [],
+            "popupAttempts": 0, "formAttempts": 0, "interactions": [],
+            "reviewer": fixture.observations(self.manifest, component_types=("button",), version=3),
+        })
+        return output
+
+    def build(self, *, browser_result: str = "PASS", h5: int = 90) -> dict:
+        evidence_dir = self.root / "docs/evidence"
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        observations: dict[str, dict[str, str]] = {}
+        for role, check in evidence.DIAGNOSTIC_CHECKS.items():
+            output = self.browser_output(browser_result) if role == "browser" else self.observation()
+            output["check"] = check
+            if role != "browser":
+                output["assessment"] = {
+                    "scores": dict(SCORES, H5=h5), "blocks": [],
+                    "observations": [dict(CASE[0], finding="Concrete synthetic rendering observation.",
+                                          evidence=[self.capture_binding])],
+                }
+            output_path = evidence_dir / f"{role}-output.json"
+            output_binding = self.write(output_path, output)
+            receipt = evidence.build_receipt(self.root, output_binding["path"])
+            observations[role] = self.write(evidence_dir / f"{role}.json", receipt)
+        return {
+            "schema": evidence.DIAGNOSTIC_REQUEST_SCHEMA, "subject": self.subject,
+            "frozenInputs": {"prd": self.prd_binding, "manifest": self.subject},
+            "requiredCases": CASE, "observations": observations,
+        }
+
+    def rebind(self, request: dict, role: str) -> None:
+        output_path = self.root / "docs/evidence" / f"{role}-output.json"
+        receipt = evidence.build_receipt(self.root, output_path.relative_to(self.root).as_posix())
+        request["observations"][role] = self.write(
+            self.root / "docs/evidence" / f"{role}.json", receipt)
+
+    def load_browser_output(self) -> tuple[Path, dict]:
+        path = self.root / "docs/evidence/browser-output.json"
+        return path, json.loads(path.read_text(encoding="utf-8"))
+
+    def test_browser_uses_the_existing_offline_and_reviewer_contract(self) -> None:
+        request = self.build()
+        self.assertEqual([], evidence.diagnostic_wave_findings(self.root, request))
+        output_path = self.root / "docs/evidence/browser-output.json"
+        output = json.loads(output_path.read_text(encoding="utf-8"))
+        output.pop("sandbox")
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "browser")
+        findings = evidence.diagnostic_wave_findings(self.root, request)
+        self.assertIn("invalid ui-output/3 key set", " ".join(findings))
+
+    def test_complete_design_fail_with_concrete_blocks_is_repair_eligible(self) -> None:
+        request = self.build(browser_result="FAIL", h5=79)
+        for role in ("critique", "audit", "grading"):
+            output_path = self.root / "docs/evidence" / f"{role}-output.json"
+            output = json.loads(output_path.read_text(encoding="utf-8"))
+            output["results"][0]["result"] = "FAIL"
+            output["assessment"]["blocks"] = ["Concrete observed hierarchy defect"]
+            output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+            self.rebind(request, role)
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertTrue(report["complete"])
+        self.assertTrue(report["repairEligible"])
+        self.assertIn("critique observed block: Concrete observed hierarchy defect",
+                      report["findings"])
+
+    def test_missing_or_blocked_case_blocks_despite_an_observed_fail(self) -> None:
+        request = self.build(browser_result="FAIL")
+        request["requiredCases"] = [CASE[0], dict(CASE[0], surface="UI-002")]
+        output_path = self.root / "docs/evidence/browser-output.json"
+        output = json.loads(output_path.read_text(encoding="utf-8"))
+        output["matrix"]["cases"].append(dict(CASE[0], surface="UI-002"))
+        output["results"] = [dict(CASE[0], result="FAIL"), dict(CASE[0], surface="UI-002", result="BLOCKED")]
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "browser")
+        findings = " ".join(evidence.diagnostic_wave_findings(self.root, request))
+        self.assertIn("browser required case is unscorable: UI-002/ready/390", findings)
+        self.assertFalse(evidence.diagnostic_wave_report(self.root, request)["complete"])
+
+    def test_unscorable_blocks_block_even_when_scores_exist(self) -> None:
+        request = self.build()
+        output_path = self.root / "docs/evidence/grading-output.json"
+        output = json.loads(output_path.read_text(encoding="utf-8"))
+        output["assessment"]["blocks"] = [123]
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "grading")
+        findings = " ".join(evidence.diagnostic_wave_findings(self.root, request))
+        self.assertIn("review blocks must contain concrete findings", findings)
+        self.assertFalse(evidence.diagnostic_wave_report(self.root, request)["complete"])
+
+    def test_complete_fail_and_low_score_are_eligible_findings(self) -> None:
+        request = self.build(browser_result="FAIL", h5=79)
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertTrue(report["complete"])
+        self.assertTrue(report["repairEligible"])
+        self.assertEqual("findings", report["status"])
+        self.assertIn("browser observed FAIL", report["findings"])
+        self.assertIn("grading H5 score 79 is below the accepted threshold", report["findings"])
+
+    def test_complete_behavioral_failures_are_repair_eligible_findings(self) -> None:
+        request = self.build(browser_result="FAIL")
+        output_path, output = self.load_browser_output()
+        reviewer = output["reviewer"]
+        reviewer["views"][0].update(focusCorrect=False, visible=False, result="FAIL")
+        reviewer["retention"][0].update(
+            inputValueBefore="before", inputValueAfter="after", result="FAIL")
+        reviewer["navigation"][0].update(to="unexpected.html", result="FAIL")
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "browser")
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertTrue(report["complete"])
+        self.assertTrue(report["repairEligible"])
+        findings = "\n".join(report["findings"])
+        self.assertIn("observed defect for", findings)
+        self.assertIn("focusCorrect, result", findings)
+        self.assertIn("inputValueAfter, inputValueBefore, result", findings)
+        self.assertIn("result, to", findings)
+
+        from check_ui_design_contract import _hifi_bundle_documents
+        subject_data = evidence.read_identity(self.root, self.subject)
+        documents = _hifi_bundle_documents(
+            evidence.safe_path(self.root, self.subject["path"]),
+            subject_data.decode("utf-8"), self.manifest)
+        _, expected = hifi_reviewer.reviewer_contract(documents, self.manifest)
+        self.assertTrue(hifi_reviewer.reviewer_evidence_findings(reviewer, expected))
+
+    def test_complete_wrong_destination_is_a_defect_and_not_acceptance(self) -> None:
+        output = self.browser_output(result="FAIL")
+        manifest = dict(self.manifest, interactions=[{
+            "id": "OP-001", "source": {"surface": "UI-001", "state": "ready"},
+            "destination": {"surface": "UI-002", "state": "ready"},
+            "control": "product-button", "kind": "navigate",
+        }])
+        output["interactions"] = [{
+            "id": "OP-001", "target": "390", "trigger": "click",
+            "source": {"surface": "UI-001", "state": "ready"},
+            "destination": {"surface": "UI-001", "state": "ready"},
+            "control": "product-button", "visible": True,
+            "focusCorrect": False, "result": "FAIL",
+        }]
+        output["interactions"].append(dict(output["interactions"][0], trigger="keyboard"))
+        output["navigation"] = [{
+            "id": "OP-001", "target": "390", "trigger": "click",
+            "from": "index.html", "to": "unexpected.html",
+        }]
+        output["navigation"].append(dict(output["navigation"][0], trigger="keyboard"))
+        structural, defects = ui_contract._bundle_diagnostic_findings(output, manifest)
+        self.assertEqual([], structural)
+        self.assertEqual(4, len(defects))
+        self.assertIn("destination", "\n".join(defects))
+        self.assertTrue(ui_contract._bundle_transcript_findings(output, manifest))
+
+    def test_missing_detailed_observation_still_blocks_repair(self) -> None:
+        request = self.build()
+        output_path, output = self.load_browser_output()
+        output["reviewer"]["views"].pop()
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "browser")
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertFalse(report["complete"])
+        self.assertFalse(report["repairEligible"])
+
+    def test_unobserved_nested_rows_block_the_wave_despite_an_observed_fail(self) -> None:
+        identity_keys = {
+            "views": ("from", "view", "target", "trigger"),
+            "navigation": ("from", "target", "trigger"),
+            "recovery": ("from", "case", "target"),
+            "viewport": ("page", "surface", "target"),
+            "retention": ("page", "surface", "target", "case"),
+        }
+        for group, keys in identity_keys.items():
+            for result in ("BLOCKED", "MISSING"):
+                request = self.build(browser_result="FAIL")
+                output_path, output = self.load_browser_output()
+                row = output["reviewer"][group][0]
+                row["result"] = result
+                output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+                self.rebind(request, "browser")
+                identity = "/".join(map(str, (row[key] for key in keys)))
+                self.assertIn(
+                    f"browser: HiFi reviewer {group} observation for {identity} is {result}; "
+                    "the browser review is incomplete",
+                    " ".join(evidence.diagnostic_wave_findings(self.root, request)))
+                report = evidence.diagnostic_wave_report(self.root, request)
+                self.assertFalse(report["complete"])
+                self.assertFalse(report["repairEligible"])
+
+    def test_negative_drift_missing_cases_and_partial_wave_block_handoff(self) -> None:
+        request = self.build()
+        self.assertEqual([], evidence.diagnostic_wave_findings(self.root, request))
+
+        request["requiredCases"] = [dict(CASE[0], surface="UI-002")]
+        self.assertIn("browser case matrix", " ".join(
+            evidence.diagnostic_wave_findings(self.root, request)))
+        request = self.build()
+        request["observations"].pop("audit")
+        with self.assertRaises(ValueError):
+            evidence.diagnostic_wave_findings(self.root, request)
+
+        request = self.build()
+        self.prd.write_text("# Changed PRD", encoding="utf-8", newline="")
+        with self.assertRaises(ValueError):
+            evidence.diagnostic_wave_findings(self.root, request)
+        self.prd.write_bytes(self.prd_bytes)
+        request = self.build()
+        self.child.write_text("<h1>Changed</h1>", encoding="utf-8", newline="")
+        self.assertIn("artifact identity is stale: child.html", " ".join(
+            evidence.diagnostic_wave_findings(self.root, request)))
+        self.child.write_bytes(self.child_bytes)
+
+        request = self.build()
+        output = self.root / "docs/evidence/browser-output.json"
+        output.unlink()
+        self.assertIn("browser:", " ".join(evidence.diagnostic_wave_findings(self.root, request)))
+
+    def test_blocked_and_missing_observations_are_not_repair_eligible(self) -> None:
+        for result, expected in (("BLOCKED", "blocked"), ("MISSING", "incomplete")):
+            request = self.build(browser_result=result)
+            findings = evidence.diagnostic_wave_findings(self.root, request)
+            self.assertIn("browser observations are incomplete or blocked", " ".join(findings))
+            report = evidence.diagnostic_wave_report(self.root, request)
+            self.assertFalse(report["complete"])
+            self.assertFalse(report["repairEligible"])
+
+    def test_missing_review_capture_blocks_even_when_scores_are_present(self) -> None:
+        request = self.build()
+        grading = self.root / "docs/evidence/grading-output.json"
+        payload = json.loads(grading.read_text(encoding="utf-8"))
+        payload["assessment"]["observations"][0]["evidence"] = []
+        grading.write_text(json.dumps(payload), encoding="utf-8", newline="")
+        receipt_path = self.root / "docs/evidence/grading.json"
+        canonical = evidence.build_receipt(self.root, "docs/evidence/grading-output.json")
+        self.assertEqual("BLOCKED", canonical["result"])
+        receipt_path.write_text(json.dumps(canonical), encoding="utf-8", newline="")
+        request["observations"]["grading"] = self.binding(receipt_path)
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertFalse(report["complete"])
+
+    def test_cli_enforces_the_independent_read_ack_and_writes_nothing(self) -> None:
+        request = self.build(browser_result="FAIL", h5=79)
+        path = self.root / "diagnostic-request.json"
+        path.write_text(json.dumps(request), encoding="utf-8", newline="")
+        digest = self.sha(path)
+        before = sorted(str(item.relative_to(self.root)) for item in self.root.rglob("*") if item.is_file())
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--repo-root", str(self.root), "--request", str(path),
+             "--request-sha256", digest], capture_output=True, text=True, encoding="utf-8", timeout=15, check=True)
+        report = json.loads(result.stdout)
+        self.assertTrue(report["complete"])
+        after = sorted(str(item.relative_to(self.root)) for item in self.root.rglob("*") if item.is_file())
+        self.assertEqual(before, after)
+        bad = subprocess.run(
+            [sys.executable, str(SCRIPT), "--repo-root", str(self.root), "--request", str(path),
+             "--request-sha256", "0" * 64], capture_output=True, text=True, encoding="utf-8", timeout=15)
+        self.assertEqual(2, bad.returncode)
+        self.assertIn("changed after", bad.stdout)
+
+    def test_cli_bounds_the_request_read(self) -> None:
+        path = self.root / "huge-request.json"
+        path.write_text("{}", encoding="utf-8", newline="")
+        fake_stat = lambda item: SimpleNamespace(st_size=evidence.MAX_BYTES + 1)
+        with patch.object(Path, "stat", fake_stat):
+            blocked = diagnostic_cli.main([
+                "--repo-root", str(self.root), "--request", str(path),
+                "--request-sha256", self.sha(path),
+            ])
+        self.assertEqual(2, blocked)
+
+
+class DiagnosticSpecimenFindingsTests(unittest.TestCase):
+    """Specimen values are browser-observed fields; the contract carries identity only."""
+
+    def expected(self, **overrides) -> dict:
+        row = {
+            "kind": "component", "name": "Primary button", "sourcePage": "index.html",
+            "source": ".product-button", "property": "color", "variant": "default",
+            "state": "default", "element": "button", "sharedGroup": None,
+        }
+        row.update(overrides)
+        return row
+
+    def observed(self, expected: dict, **values) -> dict:
+        row = dict(expected)
+        row.update({"sourceValue": "#243447", "specimenValue": "#243447", "displayValue": "#243447"})
+        if expected["kind"] == "token":
+            row.update({"sourceComputedValue": "rgb(36, 52, 71)", "specimenComputedValue": "rgb(36, 52, 71)"})
+        row.update(values)
+        return row
+
+    def test_matching_nonempty_values_are_clean(self) -> None:
+        expected = [self.expected(), self.expected(kind="token", name="Ink color",
+                                                   source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0]), self.observed(expected[1])]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual([], defects)
+
+    def test_a_different_display_value_is_one_defect(self) -> None:
+        expected = [self.expected()]
+        observed = [self.observed(expected[0], displayValue="#ff0000")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("displayed values differ from the style source", defects[0])
+
+    def test_a_token_with_a_different_computed_value_is_one_defect(self) -> None:
+        expected = [self.expected(kind="token", name="Ink color", source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0], specimenComputedValue="rgb(0, 0, 0)")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("applied token value differs from the browser-normalized source property", defects[0])
+
+    def test_token_row_reports_both_value_problems_in_one_defect(self) -> None:
+        expected = [self.expected(kind="token", name="Ink color", source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0], displayValue="#ff0000", specimenComputedValue="rgb(0, 0, 0)")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("displayed values differ from the style source", defects[0])
+        self.assertIn("applied token value differs from the browser-normalized source property", defects[0])
+
+    def test_an_empty_source_value_is_incomplete(self) -> None:
+        expected = [self.expected()]
+        observed = [self.observed(expected[0], sourceValue="")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual(1, len(structural))
+        self.assertIn("is incomplete", structural[0])
+        self.assertEqual([], defects)
+
+    def test_missing_token_measurement_is_incomplete_even_with_a_display_defect(self) -> None:
+        expected = [self.expected(kind="token", name="Ink color", source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0], sourceComputedValue="", displayValue="#ff0000")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual(1, len(structural))
+        self.assertIn("is incomplete", structural[0])
+        self.assertEqual([], defects)
+
+    def test_a_shared_group_with_differing_values_is_one_defect(self) -> None:
+        expected = [
+            self.expected(name="Ink color", sourcePage="index.html", sharedGroup="ink"),
+            self.expected(name="Ink color", sourcePage="child.html", sharedGroup="ink"),
+        ]
+        observed = [
+            self.observed(expected[0]),
+            self.observed(expected[1], sourceValue="#ffffff", specimenValue="#ffffff", displayValue="#ffffff"),
+        ]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("shared group ink: values differ across member pages", defects[0])
+
+
+if __name__ == "__main__":
+    unittest.main()

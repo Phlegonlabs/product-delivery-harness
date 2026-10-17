@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -106,6 +106,14 @@ Private HTTPS 发布可使用 `trusted-host-publication.md` 定义的管理员 c
 Trusted-host publication 与 legacy（0.38 以前）run-branch push 都与 repository hooks、fsmonitor 和 askpass 隔离：`core.hooksPath` 指向全新空目录，`core.fsmonitor` 关闭，askpass 为空。Git config preflight 把 linked worktree 的共享 config 与 `config.worktree` 视为 repository config，并拒绝仓库内的 `core.askPass`；限定 URL 的 TLS、header 与 cookie 设置在远端访问和发布时会被拒绝，CI checkout 中的本地读取仍可正常进行。Git 与 verifier 输出以 UTF-8 读取。远端重新检查与 no-force push 之间仍有短暂空窗，其他人可能把 run branch fast-forward 到 A 的祖先，因此 run-branch push 权限应只给 trusted host。Run-branch publication 使用 trusted host，是因为它的签名 evidence 属于 archive 状态；`main` promotion 是另行授权的普通 no-force push，不需要先把 A 发布到 run branch。
 
 </details>
+
+`deployment/2` 纪录新增 Release Source Provenance。每个 target 以 hash 绑定一个有界保留 observation JSON：repository、source/resolved ref、source SHA、artifact、观察时间与实际 command/provider output。调用端独立提供 `repo-root` 与 `expected_repository`；symbolic candidate/1 ref 另需 concrete `candidate_ref`。Validator 只读取 bytes，不执行 command 或 fetch provider，hash 只证明完整性而非真实性。Pending 准备与历史检查仍可用。完整 Deployment 检查包含 resource isolation 与 record validity，并为 ready closeout、verified sources、SEO 与 Outcome 把关。明确 target subset 不取代完整 inventory；blocked 与 all-n/a 保留兼容。
+
+Strict symbolic-candidate proof：
+
+```bash
+python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment docs/DEPLOYMENT.md --architecture docs/product/architecture.md --require-source-provenance --repo-root <actualFrozenRepo> --expected-repository <owner/repository> --candidate-ref <candidate-ref>
+```
 
 ## 从这里开始
 
@@ -479,6 +487,8 @@ Gitignore 管理同时适用于 direct 与 managed 工作。scope scan 会记录
 
 </details>
 
+每个 assignment 有私人 scratch 和有限期限。清理或重试前，parent 要确认 process tree 已结束，并检查部分成果、前次操作与证据缺口。403 或「研究找不到可用来源」不是启动失败，也不授权合成证据。
+
 ## 运行参考
 
 以下分组收录完整的运行规则。展开分组即可阅读全部要求。
@@ -552,6 +562,8 @@ Cloudflare 优先使用原生 Workers Previews：项目 Wrangler 4.135.0+、`wra
 <details>
 <summary><b>统一设计审阅：HiFi 审阅器、设计 intake 与 PRD 补全</b></summary>
 
+新组装的方向研究用 `assemble_ui_review.py --mode direction` 与封闭的 `ui-direction-review/1` profile。`--mode hifi` 仍是预设，HiFi 契约不变。Profile 为每个案例指定 surface、platform、核准 target family 与精确像素宽度。组装器重用共用 reviewer CSS 和 HiFi runtime，只显示该案例核准的 targets，并把案例与 target 带到其他研究。
+
 ## 统一设计审阅
 
 HiFi 使用与产品 CSS 隔离的中性审阅器，按 App、Web 前台及管理后台分组，一次显示一个产品画布，保留平台尺寸、状态与取自实际样式的 Design Tokens 页。历史 Wireframe 保留原审阅器及检查。
@@ -574,6 +586,10 @@ PRD 会在整个交付流程中持续补全。首次交付批准前，UI 与技�
 
 <details>
 <summary><b>交付模型：Epic、验收与 eval 契约、受管 wave 与修复路线</b></summary>
+
+Source authority 与 availability evidence 分开。每个 target 的 provenance ref 来自 architecture source policy。Strict 检查把 ref、observed source SHA、Expected SHA、Deployed SHA 和 artifact hash 连接起来。Target-review subset 必须明确；Activation 仍盘点每个 active target，而 concrete n/a 只能依 owner 规则取代不可用 target。
+
+Strict Outcome Review 需要 stack-decisions.md，并只验证一次 Product Definition package。它把已验证 context 传给 Activation，要求 Deployment 有 provenance，且只检查这次 review 的 production-target subset。保存的 SEO review 传送相同 source context，只检查受审 target。
 
 ## 交付模型
 
@@ -680,6 +696,8 @@ flowchart TB
 <details>
 <summary><b>通用运行时适配：宿主能力、契约采用与宿主交接</b></summary>
 
+Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Host 专属模型放在 host policy；共用 skills 保留设定角色与已授权 fallback。
+
 ## 通用运行时适配
 
 已授权的修复让 candidate 前进时，续跑保留同一个 RUN 与已完成 mission。历史 verifier receipt 保留原 SHA 与 attempt；当前 PASS 仍须绑定当前精确 SHA。Candidate reconciliation 在剩余次数内重新开启失效 gate，并要求新的 integration 与 security review，不授权修复、不重置次数，也不重开已完成 RUN。续跑检查 parent 与当前绑定的工作目录，无关 linked worktree 不会阻挡。`[slug]` 等 changed-file 路径按实际文件名处理，与 write-scope pattern 分开。
@@ -750,6 +768,8 @@ CI 也会运行端到端主干检查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 <details>
 <summary><b>验证与执行测量：CI、浏览器测试、计时与验收证据</b></summary>
 
+`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。完整观察到的 FAIL rows 仍是 complete 且可在既有授权下 repair-eligible，但 strict final approval 仍失败。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Direction `--overwrite` 会比较 destination、author sources 与 manifest 的文件身份并拒绝 hardlink，保留输入。Outcome 与 SEO checkers 把必要的 Product／Stack context 带进 strict Activation checks。
+
 ## 验证与执行测量
 
 CI 会先安装固定版本的 Node／Playwright 包与 Chromium，再运行必要的 reviewer 浏览器测试；缺少依赖会失败。本地要运行同样检查，先运行 `npm ci` 和 `npx playwright install chromium`，设置 `PDH_REQUIRE_BROWSER_TESTS=1`，并让 `PLAYWRIGHT_MODULE` 指向此 checkout 的 `node_modules/playwright`，再运行 UI suite。普通本地检查仍可在浏览器不可用时跳过。
@@ -811,6 +831,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.64.0** — 让 native reviewer 的浏览器身份对应 host，同时保留 bridge 检查。在共用 reviewer 中组装方向研究，并提供每个案例的 targets 与宽度。把完整 diagnostic wave 连结 PRD、manifest 与 evidence 身分。在 strict Activation、SEO 与 Outcome 交接要求 release source provenance，包含 main-preview/1 套件。CLI 输出改用 UTF-8，Windows 上含中文的 findings 不再崩溃。厘清 frontend-only authoring、version-3 navigation、worker recovery、量测宽度与诚实的部分研究。
 
 - **0.63.1** — 加入 Void 可选全栈 SDK／CLI 开发与部署指引。保留 owner 已批准的技术栈、部署资源隔离、migration 恢复及精确版本证据。
 

@@ -70,15 +70,20 @@ def runtime_source() -> str:
     return html[start + len(prefix) : end]
 
 
+def runtime_block() -> str:
+    """The marked core runtime without a connect call; direction studies add their own."""
+
+    return (
+        "<!-- hifi-reviewer:runtime:start -->\n"
+        + runtime_source()
+        + "\n<!-- hifi-reviewer:runtime:end -->"
+    )
+
+
 def inject_runtime(html: str) -> str:
     if 'id="hifi-reviewer-runtime"' in html:
         return html
-    block = (
-        "<!-- hifi-reviewer:runtime:start -->\n"
-        + runtime_source()
-        + "\n<!-- hifi-reviewer:runtime:end -->\n"
-        + "<script>connectHifiReviewer()</script>"
-    )
+    block = runtime_block() + "\n<script>connectHifiReviewer()</script>"
     index = html.casefold().rfind("</body>")
     if index < 0:
         raise ValueError("HiFi product page has no </body> insertion point")
@@ -93,6 +98,13 @@ def platform_label(row: dict[str, Any]) -> str | None:
         return None
     value = str(supplied).strip().casefold()
     return {"app": "App", "web": "Web", "admin": "Admin"}.get(value)
+
+
+def is_na_state(value: Any) -> bool:
+    """A not-applicable state: ``n/a`` or ``na``, bare or as a ``<state>:n/a`` suffix."""
+
+    normalized = str(value).strip().casefold().lstrip(":")
+    return normalized in {"n/a", "na"} or normalized.endswith((":n/a", ":na"))
 
 
 def ordered_pages(manifest: dict[str, Any]) -> list[str]:
@@ -166,7 +178,7 @@ def build_shell(manifest: dict[str, Any], page: str, *, version: int = 3) -> str
         html += '<fieldset data-hifi-state-controls><legend>Product state</legend>\n'
         for row in page_rows:
             for index, state in enumerate(row.get("states", [])):
-                if str(state).strip().casefold() in {"n/a", "na"}:
+                if is_na_state(state):
                     continue
                 html += (
                     f'<button type="button" data-hifi-state-control="{escape(str(state))}" '
