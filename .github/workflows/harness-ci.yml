@@ -27,11 +27,12 @@ permissions:
 # Draft pull requests run only the Linux jobs and report validate-draft. Ready
 # pull requests, main, merge queue and manual releases run every job and report
 # the required validate check, so only a complete run can satisfy the ruleset.
+# Draft and ready pull request runs use separate groups, so a late draft run cannot cancel a complete run.
 concurrency:
   group: >-
     ${{ github.workflow }}-${{
     github.event_name == 'workflow_dispatch' && inputs.candidate_sha ||
-    github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) ||
+    github.event_name == 'pull_request' && format('pr-{0}-{1}', github.event.pull_request.number, github.event.pull_request.draft && 'draft' || 'ready') ||
     github.ref
     }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
