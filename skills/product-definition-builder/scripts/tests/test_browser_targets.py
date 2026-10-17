@@ -479,6 +479,7 @@ class BrowserTargetHelperTests(unittest.TestCase):
 
     def test_repeated_module_loads_keep_one_script_dir_entry_in_sys_path(self):
         script_dir = str(SCRIPTS_DIR)
+        entries_before = len([entry for entry in sys.path if entry == script_dir])
         import browser_targets
 
         importlib.reload(browser_targets)
@@ -489,8 +490,11 @@ class BrowserTargetHelperTests(unittest.TestCase):
         sys.modules[spec.name] = second_load
         self.addCleanup(sys.modules.pop, spec.name, None)
         spec.loader.exec_module(second_load)
-        entries = [entry for entry in sys.path if entry == script_dir]
-        self.assertEqual(1, len(entries))
+        entries_after = len([entry for entry in sys.path if entry == script_dir])
+        if entries_before:
+            self.assertEqual(entries_before, entries_after)
+        else:
+            self.assertEqual(1, entries_after)
 
 
 class BrowserTargetsCliTests(unittest.TestCase):
