@@ -2443,6 +2443,7 @@ async function agent(_prompt, options) {
             ("AQ-DESKTOP-TARGETS", "final", "Desktop target operating systems"),
             ("AQ-CLIENT-STRATEGY", "final", "Native versus cross-platform client strategy"),
             ("AQ-BROWSER-TARGETS", "final", "Browser-extension targets"),
+            ("AQ-WEB-BROWSER-TARGETS", "final", "Web browser verification targets"),
             ("AQ-MONETIZATION-MODEL", "final", "Monetization model"),
             ("AQ-PARTNER-CHANNEL", "final", "Partner channel"),
             ("AQ-DATABASE-CATEGORY", "final", "Database category"),
