@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -776,7 +776,7 @@ CI 會先安裝釘選的 Node／Playwright 套件與 Chromium，再執行必要�
 
 Source CI 對 feature branch 只透過 pull request 驗證一次。`main` push、merge queue candidate 與手動 release 分開執行。每個 suite job 都 checkout 並驗證同一個完整 candidate SHA；手動 release 必須指定該 SHA 和完整的祖先 `base_sha`，並以 candidate 作 concurrency identity，後續 branch push 無法取消它。resolver 會讓無法解析或非祖先的 base 失敗，並在 PR 和 merge queue 使用驗證過的 merge base，因此 fork 後只在 base 上的變更會被排除。若 push base 缺少或全為零，它會把 candidate tree 和 Git 推導的 empty tree 比較，而不是做空白 self-diff。內建的 consumer template 使用等效的 inline Git 檢查，不需要 skills checkout。最終 `validate` job 要求每個相依結果都是 `success`，包含所有 matrix shard。
 
-Harness suite 在每個 POSIX 平台分成四個 deterministic shard；Windows 的明確 native 檔案也分成四個 shard。`ci-test-timings.json` 記錄的是 Windows scheduling sample，不是通過測試或 release 證據。把這些權重用來切分 macOS 和 Linux 只是排程決定。未量測的新發現檔案只有在 `--allow-unmeasured` 時，才會用最大已量測權重保守排程，並明確回報為 fallback。這些觀察不能證明 hosted 環境提速。
+Harness suite 在 Linux 分成四個 deterministic shard，在 Windows 分成八個，兩者都執行所有 Harness 檔案。`ci-test-timings.json` 記錄的是 Windows scheduling sample，不是通過測試或 release 證據。把這些權重用來切分 Linux 只是排程決定。未量測的新發現檔案只有在 `--allow-unmeasured` 時，才會用最大已量測權重保守排程，並明確回報為 fallback。這些觀察不能證明 hosted 環境提速。
 
 必要瀏覽器模式會直接啟動 Playwright 隨附的 Chromium。HiFi 案例超過總時限時會回報最後完成的階段；每個瀏覽器操作仍有自己的時限，所有產品斷言都會執行。
 
@@ -802,9 +802,9 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 ## 發佈
 
-技能原始碼維護分三個層級驗證。每個 atomic task 都跑 focused local checks，每次 push 到 draft PR 都會執行 Linux CI job。把 PR 標記為 ready for review 時，會跑完整的 Linux、macOS 和 Windows matrix。那次 run 就是 release 驗證，所以 matrix 不會在本機重跑。相容的測試依賴可沿用；同 SHA、同輸入的 deterministic 結果保留來源後引用，不快取 PASS，也不沿用失效的 security、browser、live 或 migration 證據。Consumer 產品訪談、UI 核准與真實 Activation 不屬於本來源庫發布步驟。正式 release 驗證成功且 bundle digest 改變後，才在安全載入邊界用正式 installer 更新一次本機技能，保留備份與驗證。Feature／development push 不取代使用中的正式版本；安裝成功且有載入需要才重啟相關 host。
+技能原始碼維護分三個層級驗證。每個 atomic task 都跑 focused local checks，每次 push 到 draft PR 都會執行 Linux CI job。把 PR 標記為 ready for review 時，會跑完整的 Linux 和 Windows matrix。那次 run 就是 release 驗證，所以 matrix 不會在本機重跑。相容的測試依賴可沿用；同 SHA、同輸入的 deterministic 結果保留來源後引用，不快取 PASS，也不沿用失效的 security、browser、live 或 migration 證據。Consumer 產品訪談、UI 核准與真實 Activation 不屬於本來源庫發布步驟。正式 release 驗證成功且 bundle digest 改變後，才在安全載入邊界用正式 installer 更新一次本機技能，保留備份與驗證。Feature／development push 不取代使用中的正式版本；安裝成功且有載入需要才重啟相關 host。
 
-CI 會以同一個精確 candidate SHA 執行 Linux、macOS 和 Windows job。draft PR 只執行 Linux job，aggregate 回報為 `validate-draft`；ready PR 執行所有 job，並回報必要的 `validate` check。Aggregate 回歸會從公開 CLI 驗證成功、失敗、skipped、cancelled 和缺少 job 結果的情況。失敗或執行零個測試的 shard 會失敗；穩定的 `validate` aggregate 也會讓該 run 需要的任何 skipped 或 cancelled job 失敗。Feature branch 只由 pull request 驗證一次；`main`、merge queue 和精確 SHA release run 保持分開。瀏覽器測試在 Linux 執行；macOS 保留非瀏覽器 UI suite。Windows 保留 native Harness、installer 和 Design System 檢查。測試資料在綁定執行檔或儲存庫身分前先解析暫存路徑，包括 Windows 8.3 別名。macOS 無法執行綁定的檔案描述符，所以在 macOS 上 sandbox container verifier 和瀏覽器 parity capture 會直接報錯（fail closed）；trusted-host 簽章驗證只在使用受 SIP 保護的 `/usr/bin/ssh-keygen` 時可用。
+CI 會以同一個精確 candidate SHA 執行 Linux 和 Windows job；macOS 不在 CI 驗證範圍內。draft PR 只執行 Linux job，aggregate 回報為 `validate-draft`；ready PR 執行所有 job，並回報必要的 `validate` check。Aggregate 回歸會從公開 CLI 驗證成功、失敗、skipped、cancelled 和缺少 job 結果的情況。失敗或執行零個測試的 shard 會失敗；穩定的 `validate` aggregate 也會讓該 run 需要的任何 skipped 或 cancelled job 失敗。Feature branch 只由 pull request 驗證一次；`main`、merge queue 和精確 SHA release run 保持分開。瀏覽器測試在 Linux 執行。Windows 執行完整的 Harness 與各 skill suite、golden path 和 installer 檢查。測試資料在綁定執行檔或儲存庫身分前先解析暫存路徑，包括 Windows 8.3 別名。macOS 無法執行綁定的檔案描述符，所以在 macOS 上 sandbox container verifier 和瀏覽器 parity capture 會直接報錯（fail closed）；trusted-host 簽章驗證只在使用受 SIP 保護的 `/usr/bin/ssh-keygen` 時可用。
 
 HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Node 測試透過 stdin 讀取多行程式，避免 Windows 啟動器默默截斷斷言。
 
@@ -831,6 +831,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.64.2** — CI 改為驗證實際執行 skill 的平台：Windows 以八個 shard 執行所有 Harness 檔案，並跑其他 skill suite 和 golden path；Linux 保留 draft 層級；macOS 不再驗證。installer 測試拆成三個檔案，不再讓單一 shard 卡住。
 
 - **0.64.1** — 分三個層級驗證原始碼變更：每個 task 跑 focused local checks，draft PR 只跑 Linux CI，PR 標記為 ready for review 後才跑完整的 Linux、macOS 和 Windows matrix。最終候選只 review 一次，之後只 review 新的 commit，安全審查只針對可執行的程式碼。
 

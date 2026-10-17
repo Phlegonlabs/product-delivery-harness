@@ -24,9 +24,9 @@ permissions:
 # Feature pushes are deliberately absent: a feature branch is verified once by
 # its pull_request run. Manual releases are grouped by immutable SHA, so later
 # later branch pushes cannot cancel or replace an exact-candidate release run.
-# Draft pull requests run only the Linux jobs and report validate-draft. Ready
-# pull requests, main, merge queue and manual releases run every job and report
-# the required validate check, so only a complete run can satisfy the ruleset.
+# Draft pull requests run only the Linux jobs and report validate-draft. Every
+# other run covers Linux and Windows and reports the required validate check,
+# so only a complete run can satisfy the ruleset.
 # Draft and ready pull request runs use separate groups, so a late draft run cannot cancel a complete run.
 concurrency:
   group: >-
@@ -216,11 +216,14 @@ jobs:
 
   golden-path:
     name: golden-path-${{ matrix.platform }}
-    runs-on: ${{ matrix.platform == 'macos' && 'macos-latest' || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.platform == 'windows' && 'windows-latest' || 'ubuntu-latest' }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft && '["linux"]' || '["linux", "macos"]') }}
+        platform: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft && '["linux"]' || '["linux", "windows"]') }}
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -229,14 +232,6 @@ jobs:
 
       - name: Verify exact checked-out candidate
         run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-
-      - name: Prefer system Git
-        if: matrix.platform == 'macos'
-        run: echo "/usr/bin" >> "$GITHUB_PATH"
-
-      - name: Resolve macOS temp root
-        if: matrix.platform == 'macos'
-        run: echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -253,102 +248,6 @@ jobs:
           HARNESS_GOLDEN_PATH: "1"
         run: python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 
-  macos-harness:
-    name: macos-harness-${{ matrix.shard }}
-    runs-on: macos-latest
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3]
-    steps:
-      - name: Check out exact candidate
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ env.CANDIDATE_SHA }}
-
-      - name: Verify exact checked-out candidate
-        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-
-      - name: Prefer system Git
-        run: echo "/usr/bin" >> "$GITHUB_PATH"
-
-      - name: Resolve temp root
-        run: echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: skills/delivery-harness/requirements-test.txt
-
-      - name: Install harness test dependencies
-        run: python -m pip install -r skills/delivery-harness/requirements-test.txt
-
-      - name: Run measured Harness shard
-        run: |
-          shard_files="$(python skills/delivery-harness/scripts/ci_test_shards.py plan --suite harness --platform macos --shard-count 4 --shard-index '${{ matrix.shard }}' --timings skills/delivery-harness/ci-test-timings.json --allow-unmeasured --format names)"
-          test -n "$shard_files"
-          while IFS= read -r test_file; do
-            [ -n "$test_file" ] || continue
-            suite_log="$RUNNER_TEMP/pdh-macos-${{ matrix.shard }}-$test_file.log"
-            set +e
-            python -m unittest discover -s skills/delivery-harness/scripts/tests -p "$test_file" -v 2>&1 | tee "$suite_log"
-            suite_status="${PIPESTATUS[0]}"
-            set -e
-            if [ "$suite_status" -ne 0 ]; then
-              exit "$suite_status"
-            fi
-            grep -Eq '^Ran [1-9][0-9]* tests?' "$suite_log"
-          done <<< "$shard_files"
-
-  macos-other:
-    name: macos-other-suites
-    runs-on: macos-latest
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    steps:
-      - name: Check out exact candidate
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ env.CANDIDATE_SHA }}
-
-      - name: Verify exact checked-out candidate
-        run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-
-      - name: Prefer system Git
-        run: echo "/usr/bin" >> "$GITHUB_PATH"
-
-      - name: Resolve temp root
-        run: echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: skills/delivery-harness/requirements-test.txt
-
-      - name: Install harness test dependencies
-        run: python -m pip install -r skills/delivery-harness/requirements-test.txt
-
-      - name: Run Product Definition suite
-        run: python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
-
-      - name: Run UI design builder contract tests
-        run: python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
-
-      - name: Run Design System suite
-        run: python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
-
-      - name: Run Activation suite
-        run: python -m unittest discover -s skills/product-activation/scripts/tests -v
-
-      - name: Run SEO suite
-        run: python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
-
   windows-native:
     name: windows-native-${{ matrix.shard }}
     runs-on: windows-latest
@@ -356,7 +255,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -381,7 +280,7 @@ jobs:
       - name: Run measured native Harness shard
         shell: pwsh
         run: |
-          $planJson = python skills/delivery-harness/scripts/ci_test_shards.py plan --suite harness --platform windows --shard-count 4 --shard-index '${{ matrix.shard }}' --timings skills/delivery-harness/ci-test-timings.json --allow-unmeasured --format json
+          $planJson = python skills/delivery-harness/scripts/ci_test_shards.py plan --suite harness --platform windows --shard-count 8 --shard-index '${{ matrix.shard }}' --timings skills/delivery-harness/ci-test-timings.json --allow-unmeasured --format json
           $plannerStatus = $LASTEXITCODE
           if ($plannerStatus -ne 0) {
             exit $plannerStatus
@@ -403,6 +302,51 @@ jobs:
               throw "discovered test file ran zero tests: $testFile"
             }
           }
+
+  windows-other:
+    name: windows-other-suites
+    runs-on: windows-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Verify exact checked-out candidate
+        shell: pwsh
+        run: if ("$(git rev-parse HEAD)" -ne $env:CANDIDATE_SHA) { throw "checked-out SHA does not match candidate" }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: skills/delivery-harness/requirements-test.txt
+
+      - name: Install harness test dependencies
+        shell: pwsh
+        run: python -m pip install -r skills/delivery-harness/requirements-test.txt
+
+      - name: Run Product Definition suite
+        shell: pwsh
+        run: python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
+
+      - name: Run UI design builder contract tests
+        shell: pwsh
+        run: python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
+
+      - name: Run Design System suite
+        shell: pwsh
+        run: python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
+
+      - name: Run Activation suite
+        shell: pwsh
+        run: python -m unittest discover -s skills/product-activation/scripts/tests -v
+
+      - name: Run SEO suite
+        shell: pwsh
+        run: python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 
   windows-installer:
     name: windows-installer-and-native-contract
@@ -464,9 +408,8 @@ jobs:
       - linux-other
       - linux-browser
       - golden-path
-      - macos-harness
-      - macos-other
       - windows-native
+      - windows-other
       - windows-installer
     if: always()
     runs-on: ubuntu-latest
@@ -486,9 +429,8 @@ jobs:
           LINUX_OTHER_RESULT: ${{ needs.linux-other.result }}
           LINUX_BROWSER_RESULT: ${{ needs.linux-browser.result }}
           GOLDEN_PATH_RESULT: ${{ needs.golden-path.result }}
-          MACOS_HARNESS_RESULT: ${{ needs.macos-harness.result }}
-          MACOS_OTHER_RESULT: ${{ needs.macos-other.result }}
           WINDOWS_NATIVE_RESULT: ${{ needs.windows-native.result }}
+          WINDOWS_OTHER_RESULT: ${{ needs.windows-other.result }}
           WINDOWS_INSTALLER_RESULT: ${{ needs.windows-installer.result }}
           DRAFT_PULL_REQUEST: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
         run: |
@@ -501,9 +443,8 @@ jobs:
           )
           if [ "$DRAFT_PULL_REQUEST" != "true" ]; then
             results+=(
-              --result "$MACOS_HARNESS_RESULT"
-              --result "$MACOS_OTHER_RESULT"
               --result "$WINDOWS_NATIVE_RESULT"
+              --result "$WINDOWS_OTHER_RESULT"
               --result "$WINDOWS_INSTALLER_RESULT"
             )
           fi

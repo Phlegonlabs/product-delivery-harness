@@ -1,6 +1,6 @@
 # macOS Support
 
-Status: integrated on `main` in the 0.56 release line. PR #129 was superseded by PR #131.
+Status: integrated on `main` in the 0.56 release line. PR #129 was superseded by PR #131. Since 0.64.2, CI no longer verifies macOS, because the owner runs the skills only on Windows.
 Design workflow: maintenance
 UI impact: none
 
@@ -53,3 +53,7 @@ Still fail-closed on macOS: sandboxed container verifiers and browser parity cap
 
 - `daac7206` on `codex/macos-support` was integrated into `codex/release-0.56.0` by merge `412db6b4`, together with the review follow-ups and Wireframe-stage removal. PR #131 carries the combined release; PR #129 remains historical review evidence.
 - At `7fa1e935`, PR #131's `validate`, `macos` and `windows-hardening` CI jobs passed. The release and exact-`main` verification remain pending.
+
+### 2026-10-17 — macOS leaves CI
+
+- The owner runs the skills only on Windows and does not use the Mac mini. 0.64.2 removes the macOS CI jobs (`61c47ef4`). The macOS code paths and README notes stay, but CI no longer verifies them. See `EPIC-verification-tiers.md` (VT-06).

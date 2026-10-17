@@ -37,7 +37,7 @@ Edit the canonical skill sources in `skills/`. Source maintenance does not creat
 
 1. For each atomic task, run focused checks for its changed behavior and negative cases on the local platform. Unknown impact requires the full suite of the affected skill. Do not run other platforms locally.
 2. After an authorized push, open the PR as a draft. Each push to a draft PR runs only the Linux CI jobs on the exact head.
-3. When the candidate is final, mark the PR ready for review. CI then runs the complete matrix below on Linux, macOS and Windows for the exact head. Every later push repeats it. This run is the release verification, so do not repeat the matrix locally. Run the commands below locally only to reproduce or debug a CI result.
+3. When the candidate is final, mark the PR ready for review. CI then runs the complete matrix below on Linux and Windows for the exact head. Every later push repeats it. This run is the release verification, so do not repeat the matrix locally. Run the commands below locally only to reproduce or debug a CI result.
 
 For required UI browser checks, prepare dependencies with `npm ci` and `npx playwright install chromium` when missing or changed, then set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`. Reuse only an observed installation matching the current lockfile and Playwright browser revision; do not reinstall it for every task. Linux CI installs Chromium with `--with-deps`. Missing prerequisites must fail required browser verification. Python test dependencies follow the current requirements file.
 

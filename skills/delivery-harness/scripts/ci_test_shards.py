@@ -28,25 +28,6 @@ SUITES = {
     "seo": "skills/seo-growth-review/scripts/tests",
 }
 
-# These are the Windows-only runtime and installer checks from the previous
-# monolithic CI step. Keep the list explicit so sharding cannot broaden or
-# accidentally remove this platform's focused coverage.
-WINDOWS_NATIVE_FILES = (
-    "test_platform_delivery_contract.py",
-    "test_skill_contract.py",
-    "test_host_verifier_runtime.py",
-    "test_verifier_runtime.py",
-    "test_harness_git.py",
-    "test_parity_capture.py",
-    "test_node_transitions.py",
-    "test_configure_project_context.py",
-    "test_write_path_transitions.py",
-    "test_archive_run.py",
-    "test_trusted_host_publication.py",
-    "test_harness_strict_authority.py",
-    "test_install_script.py",
-)
-
 AGGREGATE_SUCCESS = "success"
 
 
@@ -119,21 +100,6 @@ def load_timings(root: Path, args: argparse.Namespace, expected: Iterable[str]) 
     for name in missing:
         result[name] = fallback_estimate
     return result
-
-
-def candidate_files(root: Path, suite: str, platform: str, discovered: list[str]) -> list[str]:
-    if suite != "harness" or platform != "windows":
-        return discovered
-    selected = set(WINDOWS_NATIVE_FILES)
-    selected_paths = {
-        relative_name
-        for relative_name in discovered
-        if Path(relative_name).name in selected
-    }
-    missing = selected - {Path(name).name for name in selected_paths}
-    if missing:
-        raise CommandError(f"Windows-native files no longer discovered: {', '.join(sorted(missing))}")
-    return sorted(selected_paths)
 
 
 def balance_files(files: list[str], timings: dict[str, float], shard_count: int) -> list[list[str]]:
@@ -269,10 +235,9 @@ def write_manifest(root: Path, args: argparse.Namespace) -> None:
 
 
 def plan_shard(root: Path, args: argparse.Namespace) -> None:
-    discovered = discover_files(root, args.suite)
-    if not discovered:
+    selected = discover_files(root, args.suite)
+    if not selected:
         raise CommandError("discovery found no tests")
-    selected = candidate_files(root, args.suite, args.platform, discovered)
     timings = load_timings(root, args, selected)
     shards = balance_files(selected, timings, args.shard_count)
     if not 0 <= args.shard_index < args.shard_count:

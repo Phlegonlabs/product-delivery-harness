@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -776,7 +776,7 @@ CI installs the pinned Node/Playwright packages and Chromium before the required
 
 Source CI verifies a feature branch once through its pull request. Pushes to `main`, merge-queue candidates, and manual releases run separately. Every suite job checks out and verifies one full candidate SHA; a manual release names that SHA plus a full ancestor `base_sha` and is grouped by the candidate, so a later branch push cannot cancel it. The resolver fails an unresolved or unrelated base and uses the verified merge base for PR and merge-group checks, so base-only changes made after the fork are excluded. For a missing or all-zero push base, it compares the candidate tree with Git's derived empty tree instead of an empty self-diff. The seeded consumer template uses equivalent inline Git checks and does not require a skills checkout. The final `validate` job requires every dependency to be `success`, including matrix shards.
 
-The Harness suite runs in four deterministic shards per POSIX platform; Windows runs its explicit native files in four shards. `ci-test-timings.json` records a Windows scheduling sample, not passing-suite or release evidence. Reusing those weights to split macOS and Linux is a scheduling choice. An unmeasured discovered file is scheduled at the largest measured weight only with `--allow-unmeasured`, and is reported as a fallback. These observations do not establish a hosted speedup.
+The Harness suite runs in four deterministic shards on Linux and eight on Windows, and both run every Harness file. `ci-test-timings.json` records a Windows scheduling sample, not passing-suite or release evidence. Reusing those weights to split Linux is a scheduling choice. An unmeasured discovered file is scheduled at the largest measured weight only with `--allow-unmeasured`, and is reported as a fallback. These observations do not establish a hosted speedup.
 
 Required browser mode launches Playwright's bundled Chromium directly. A timed-out HiFi scenario reports its last completed phase. Browser operations keep their own time limits, and every product assertion remains active.
 
@@ -802,9 +802,9 @@ The READMEs are documentation-of-record: every change that adds or alters a skil
 
 ## Releasing
 
-Source maintenance verifies in three tiers. Each atomic task gets focused local checks, and each push to a draft PR runs the Linux CI jobs. Marking the PR ready for review runs the full Linux, macOS and Windows matrix. That run is the release verification, so the matrix is not repeated locally. Reuse compatible installed test dependencies and cite unchanged exact-SHA deterministic results with their origin; never cache PASS or reuse stale security, browser, live-state or migration evidence. Consumer product interviews, UI approvals and Activation execution are not source-repository release steps. After a verified formal release, update local skills once only when the bundle digest changed, using the official installer at a quiescent boundary with backup and verification. Feature/development pushes do not replace the installed release; restart the relevant host only after successful installation when needed.
+Source maintenance verifies in three tiers. Each atomic task gets focused local checks, and each push to a draft PR runs the Linux CI jobs. Marking the PR ready for review runs the full Linux and Windows matrix. That run is the release verification, so the matrix is not repeated locally. Reuse compatible installed test dependencies and cite unchanged exact-SHA deterministic results with their origin; never cache PASS or reuse stale security, browser, live-state or migration evidence. Consumer product interviews, UI approvals and Activation execution are not source-repository release steps. After a verified formal release, update local skills once only when the bundle digest changed, using the official installer at a quiescent boundary with backup and verification. Feature/development pushes do not replace the installed release; restart the relevant host only after successful installation when needed.
 
-CI runs Linux, macOS and Windows jobs against one exact candidate SHA. A draft PR runs only the Linux jobs and reports `validate-draft`; a ready PR runs every job and reports the required `validate` check. Aggregate regressions execute the public CLI with successful, failed, skipped, cancelled and missing job results. A failed or zero-coverage shard fails, and the stable `validate` aggregate also fails any skipped or cancelled job that the run requires. Feature branches verify once by pull request; `main`, merge queue and exact-SHA release runs stay separate. Browser tests run on Linux, while macOS retains its non-browser UI suite. Windows keeps native Harness, installer and Design System checks. Test fixtures resolve temporary paths before binding executable or repository identities, including Windows 8.3 aliases. On macOS, sandboxed container verifiers and browser parity capture fail closed, because macOS cannot execute a bound file descriptor. Trusted-host signature verification runs there only with the SIP-protected `/usr/bin/ssh-keygen`.
+CI runs Linux and Windows jobs against one exact candidate SHA; macOS is not verified. A draft PR runs only the Linux jobs and reports `validate-draft`; a ready PR runs every job and reports the required `validate` check. Aggregate regressions execute the public CLI with successful, failed, skipped, cancelled and missing job results. A failed or zero-coverage shard fails, and the stable `validate` aggregate also fails any skipped or cancelled job that the run requires. Feature branches verify once by pull request; `main`, merge queue and exact-SHA release runs stay separate. Browser tests run on Linux. Windows runs the full Harness and skill suites, the golden path and the installer checks. Test fixtures resolve temporary paths before binding executable or repository identities, including Windows 8.3 aliases. On macOS, sandboxed container verifiers and browser parity capture fail closed, because macOS cannot execute a bound file descriptor. Trusted-host signature verification runs there only with the SIP-protected `/usr/bin/ssh-keygen`.
 
 Byte-bound HiFi examples retain LF line endings across checkouts. Wireframe Node tests read multiline scripts from stdin so Windows launchers cannot silently truncate assertions.
 
@@ -831,6 +831,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.64.2** — CI verifies the platforms where the skills run: Windows now runs every Harness file in eight shards plus the other skill suites and the golden path, Linux keeps the draft tier, and macOS is no longer verified. The installer tests are split into three files so one shard no longer waits on them.
 
 - **0.64.1** — Verify source changes in three tiers: focused local checks per task, Linux-only CI for draft PRs, and the full Linux, macOS and Windows matrix once a PR is ready for review. Review the final candidate once, then only new commits, and run security review only for executable code.
 
