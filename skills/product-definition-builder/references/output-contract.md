@@ -184,7 +184,7 @@ Browser targets contract: browser-targets/1
 | --- | --- | --- | --- |
 | [hosted_web release target ID from architecture.md] | [chrome / edge / firefox / safari] | [desktop / android / macos / ios] | [TEST ID of a Required Yes smoke row] |
 
-- Include this table when the product supports a browser beyond Chromium. Omit it to keep Chromium-only verification.
+- Include this subsection when the product supports a browser beyond Chromium. For Chromium-only verification, remove the whole subsection: heading, contract line and table.
 - Allowed pairs are chrome on desktop or android, edge on desktop, firefox on desktop, and safari on macos or ios.
 - Chrome and Edge run on the chromium engine, Firefox on firefox, and Safari on webkit.
 - WebKit approximates Safari. It does not prove real Safari, iOS or device coverage.
