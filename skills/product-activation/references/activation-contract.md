@@ -225,7 +225,7 @@ python "<product-activation-skill-root>/scripts/check_activation.py" --activatio
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --require-filled
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --expected-repository <owner/repository> --candidate-ref <full-or-authority-ref> --require-verified-sources --require-ready <release-target-id>
-python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --require-closeout
+python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --expected-repository <owner/repository> --candidate-ref <full-or-authority-ref> --require-closeout
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --show-action-digests
 ```
 

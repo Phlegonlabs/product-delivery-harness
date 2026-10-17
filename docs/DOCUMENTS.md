@@ -2,13 +2,13 @@
 
 The four READMEs remain the documentation of record for the skill bundle.
 
-Current source focus: workflow repairs for 0.64.0 await the owner's push and PR approval on `workflow-repairs-0.64`. Tiered source verification for 0.64.1 is stacked on that branch as `verification-tiers`.
+Current source focus: 0.64.0 is merged to main. Tiered source verification for 0.64.1 is in PR #145, and Linux and Windows CI coverage for 0.64.2 follows on `ci-windows-linux`.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | Local source verified; owner-authorized 0.63.0 release/install follow-up in progress; exact outcome in linked receipts |
-| `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | Rebased onto 0.63.1 as `workflow-repairs-0.64`; review findings repaired and re-reviewed; push and PR await owner approval; PR #141 is superseded |
-| `docs/epics/EPIC-verification-tiers.md` | Tiered source verification: draft PRs run Linux CI, ready PRs run the full matrix | Accepted; stacked on `workflow-repairs-0.64` as `verification-tiers` |
+| `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | Rebased onto 0.63.1 as `workflow-repairs-0.64`; merged to main in PR #144 as 0.64.0; the tag and local installation follow main CI; PR #141 is superseded |
+| `docs/epics/EPIC-verification-tiers.md` | Tiered source verification: draft PRs run Linux CI, ready PRs run the full matrix | Accepted; in PR #145 |
 | `docs/epics/EPIC-lightweight-entry.md` | Full dispatch-message budgets and stage-scoped lightweight entry | Accepted; LIGHT-01–04 implemented and locally committed; LIGHT-05 exact candidate/result is authoritative in [lightweight-result.md](C:/Users/mps19/.codex/visualizations/2026/10/06/01a11277-8783-7192-8c29-2f37de1cf543/lightweight-result.md) |
 | `docs/epics/EPIC-readme-refresh.md` | Four-language README reorganization and generated cover refresh | Source complete for 0.62.2; exact publication and verification outcome in its linked release receipt |
 | docs/epics/EPIC-gen-verify-platform-delivery.md | Bounded Generate/Verify/Correct, feature acceptance and approved platform order | Accepted; P1/H1 and G1 local source changes committed; final unified checks/review authority is [loop-engineering-result.md](C:/Users/mps19/.codex/visualizations/2026/10/04/01a106f3-1755-7b42-873e-dbd7ebc45feb/loop-engineering-result.md) |

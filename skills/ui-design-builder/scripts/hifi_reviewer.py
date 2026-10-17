@@ -750,6 +750,7 @@ def _diagnostic_specimen_findings(actual_rows: object, expected_rows: object) ->
     available = set(range(len(expected_rows)))
     structural: list[str] = []
     defects: list[str] = []
+    groups: dict = {}
     for row in actual_rows:
         if not isinstance(row, dict) or any(key not in row for key in identity_keys):
             structural.append(f"{label} observation has an invalid closed field set")
@@ -772,11 +773,32 @@ def _diagnostic_specimen_findings(actual_rows: object, expected_rows: object) ->
         if any(row[key] != expected[key] for key in identity_keys):
             structural.append(f"{label} observation differs from its source-bound identity")
             continue
-        changed = [key for key in sorted(value_keys) if row[key] != expected.get(key)]
-        if changed:
-            defects.append(f"{label} observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
+        value = row["sourceValue"]
+        is_token = expected["kind"] == "token"
+        computed = row["sourceComputedValue"] if is_token else None
+        if not isinstance(value, str) or not value.strip() or (
+                is_token and (not isinstance(computed, str) or not computed.strip())):
+            structural.append(f"{label} observation for {'/'.join(map(str, identity))} is incomplete")
+            continue
+        problems: list[str] = []
+        if value != row["specimenValue"] or value != row["displayValue"]:
+            problems.append("displayed values differ from the style source")
+        if is_token and computed != row["specimenComputedValue"]:
+            problems.append("applied token value differs from the browser-normalized source property")
+        if problems:
+            defects.append(f"{label} observed defect for {'/'.join(map(str, identity))}: "
+                           + "; ".join(problems))
+            continue
+        group = row.get("sharedGroup")
+        if group:
+            groups.setdefault(group, []).append(row)
     if available:
         structural.append(f"{label} lacks required browser observations")
+    for group, rows in groups.items():
+        values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue"),
+                   row.get("sourceComputedValue"), row.get("specimenComputedValue")) for row in rows}
+        if len(values) != 1:
+            defects.append(f"{label} observed defect for shared group {group}: values differ across member pages")
     return structural, defects
 
 
