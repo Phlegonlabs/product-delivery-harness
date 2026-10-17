@@ -111,6 +111,27 @@ class ContractDigestTests(unittest.TestCase):
             requirements.write_text("pytest>=8\n", encoding="utf-8", newline="\n")
             self.assertEqual(contract_digest(skills_root), before)
 
+    def test_directories_named_like_ci_files_are_still_walked(self) -> None:
+        # Installers ship ci-test-timings.json and requirements-test.txt as
+        # files. A directory with one of those names is ordinary content, so
+        # its files must still contribute to the digest.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_required_skills(root)
+            skills_root = root / "skills"
+            harness = root / "skills" / "delivery-harness"
+            timings_runtime = harness / "ci-test-timings.json" / "runtime.py"
+            requirements_runtime = harness / "requirements-test.txt" / "runtime.py"
+            for path in (timings_runtime, requirements_runtime):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("VERSION = 1\n", encoding="utf-8", newline="\n")
+            before = contract_digest(skills_root)
+            requirements_runtime.write_text("VERSION = 2\n", encoding="utf-8", newline="\n")
+            after_requirements = contract_digest(skills_root)
+            self.assertNotEqual(after_requirements, before)
+            timings_runtime.write_text("VERSION = 2\n", encoding="utf-8", newline="\n")
+            self.assertNotEqual(contract_digest(skills_root), after_requirements)
+
     def test_each_bundled_runtime_skill_is_part_of_the_digest(self) -> None:
         for skill_name in SKILL_NAMES:
             with self.subTest(skill=skill_name), tempfile.TemporaryDirectory() as directory:

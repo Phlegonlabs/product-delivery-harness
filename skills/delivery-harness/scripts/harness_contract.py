@@ -53,16 +53,17 @@ def _contract_files(skill_root: Path):
             entries += 1
             if entries > MAX_ENTRIES:
                 raise ValueError("skill tree exceeds entry limit")
-            if (
-                path.name in IGNORED_PARTS
-                or path.name in IGNORED_FILE_NAMES
-                or path.suffix.lower() in IGNORED_SUFFIXES
-            ):
+            if path.name in IGNORED_PARTS or path.suffix.lower() in IGNORED_SUFFIXES:
                 continue
             info = _plain_stat(path)
             if stat.S_ISDIR(info.st_mode):
                 pending.append(path)
             elif stat.S_ISREG(info.st_mode):
+                # IGNORED_FILE_NAMES describes shipped files, not directories:
+                # a directory with one of these names is ordinary content and
+                # must still be walked.
+                if path.name in IGNORED_FILE_NAMES:
+                    continue
                 files.append(path)
             else:
                 raise ValueError("skill artifact must be a regular file")
