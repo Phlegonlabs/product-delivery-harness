@@ -1,5 +1,7 @@
 # Unified Product Design Review
 
+Status: complete
+
 ## Problem And Baseline
 
 Wireframe and HiFi reviewers differ in shell style and navigation. Separate wireframe/copy approvals interrupt review before the owner can judge the full design. Product controls can be missing from both artifacts while their comparison passes. Routine product repairs should not regenerate historical design packages.

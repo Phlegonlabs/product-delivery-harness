@@ -1,6 +1,7 @@
 # Vite+ evaluation
 
-Status: optional Void guidance is prepared for 0.63.1. Final release and installation evidence: [release result](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
+Status: complete
+Optional Void guidance is prepared for 0.63.1. Final release and installation evidence: [release result](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
 Checked: 2026-09-28; Void sources checked 2026-10-16. UI impact: none. Route: direct implementation with one writer.
 
 ## Request and baseline

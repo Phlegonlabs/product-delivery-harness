@@ -1,5 +1,7 @@
 # PRD-Bound Design Authoring Flow
 
+Status: complete
+
 ## Goal And Baseline
 
 Owner requests integrating the discussed design/taste/page-profile/motion flow across the existing skills. On 2026-09-25 the owner explicitly selected glm-workers with GLM 5.3 FlashX and authorized the `codex/design-flow-glm` isolated worktree plus a baseline commit of current scoped changes. The initial dispatcher lacked FlashX; after the owner corrected that mismatch and authorized adding it, the parent added and verified `glm-5.3-flashx` at max through the existing Coding Plan endpoint. The owner resumed commit, push, merge and local skill installation on 2026-09-25; no cleanup is authorized.

@@ -1,6 +1,7 @@
 # EPIC-eval-contract-integration: Freeze eval policy and verify handoff
 
-Status: local_verified; source integration complete, release pending.
+Status: complete
+Source integration complete, release pending.
 
 ## Problem And Accepted Outcome
 

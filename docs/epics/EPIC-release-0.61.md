@@ -1,6 +1,7 @@
 # Release 0.61.0
 
-Status: source verification recorded; publication tracked by [PR #136](https://github.com/Phlegonlabs/product-delivery-harness/pull/136)
+Status: complete
+Source verification recorded; publication tracked by [PR #136](https://github.com/Phlegonlabs/product-delivery-harness/pull/136).
 UI impact: none
 
 ## Scope And Authority

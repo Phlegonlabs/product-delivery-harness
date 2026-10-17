@@ -1,6 +1,6 @@
 # Generate, verify and correct with platform ordering
 
-Status: accepted
+Status: complete
 UI impact: none
 
 ## Problem And Baseline

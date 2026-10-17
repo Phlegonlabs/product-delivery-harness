@@ -1,6 +1,7 @@
 # Remove The Wireframe Stage
 
-Status: committed as `511a7a5b`, integrated with review follow-ups and macOS support, then landed on `main` in the 0.56 release line.
+Status: complete
+Committed as `511a7a5b`, integrated with review follow-ups and macOS support, then landed on `main` in the 0.56 release line.
 Design workflow: enhancement
 UI impact: none (skill contracts and validators; no product UI authored).
 

@@ -1,6 +1,6 @@
 # EPIC-activation-execution-closure: Require external execution closeout
 
-Status: local_candidate
+Status: complete
 
 ## Problem And Baseline
 

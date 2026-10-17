@@ -1,6 +1,6 @@
 # EPIC-lightweight-entry: Bound dispatch input and shorten routine entry
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 

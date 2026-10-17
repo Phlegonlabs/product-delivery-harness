@@ -1,6 +1,7 @@
 # General Runtime Adapter
 
-Status: implemented and verified locally. Route: direct, one writer and one coherent verification sequence. UI impact: none.
+Status: complete
+Route: direct, one writer and one coherent verification sequence. UI impact: none.
 
 Problem: one nominal adapter still routes by host name, pins model defaults and carries native launch templates and compatibility state.
 

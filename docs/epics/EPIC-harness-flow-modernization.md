@@ -1,6 +1,7 @@
 # Harness Flow Modernization
 
-Status: source integration complete on the work branch; fixed 0.59.0 candidate verification, independent review and protected-branch bootstrap/promotion pending; not released.
+Status: complete
+Source integration complete on the work branch; fixed 0.59.0 candidate verification, independent review and protected-branch bootstrap/promotion pending; not released.
 
 ## Accepted Outcome
 

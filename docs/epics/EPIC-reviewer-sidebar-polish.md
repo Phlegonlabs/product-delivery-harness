@@ -1,5 +1,7 @@
 # Shared Reviewer Sidebar Polish
 
+Status: complete
+
 Design workflow: maintenance
 UI impact: style
 

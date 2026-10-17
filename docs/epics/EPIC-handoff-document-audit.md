@@ -1,6 +1,7 @@
 # Handoff Documentation Audit
 
-Status: the original audit work is included in released v0.54.1; the 2026-09-24 audit record and the 2026-09-26 branch reconciliation are published with v0.54.5.
+Status: complete
+The original audit work is included in released v0.54.1; the 2026-09-24 audit record and the 2026-09-26 branch reconciliation are published with v0.54.5.
 
 The owner requested a handoff check so repository documents, Epics, tasks and seeded `AGENTS.md` instructions stay current enough for a reliable next-owner handoff. The cadence is every task handoff, not a timer. The shared rule requires checking the observed installed project template and refreshing stale shared guidance in place while preserving repository-specific rules.
 

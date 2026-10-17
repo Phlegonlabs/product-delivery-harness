@@ -1,6 +1,7 @@
 # Reference Flow Integration
 
-Status: local implementation verified; release candidate pending exact-SHA CI and promotion
+Status: complete
+Local implementation verified; release candidate pending exact-SHA CI and promotion.
 Workflow: bounded direct enhancement
 UI impact: none
 

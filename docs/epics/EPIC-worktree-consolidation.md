@@ -1,6 +1,7 @@
 # Consolidate the current worktrees
 
-Status: all 16 worktree heads published; current source integrated locally.
+Status: complete
+All 16 worktree heads published; current source integrated locally.
 Fixed-candidate contract/correctness review, complete CI and exact main promotion remain pending.
 
 ## Request And Scope

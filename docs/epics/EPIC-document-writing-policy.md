@@ -1,6 +1,6 @@
 # EPIC-document-writing-policy: Use STE core writing rules
 
-Status: complete (source guideline; formal release and installation pending)
+Status: complete
 
 ## Problem And Baseline
 

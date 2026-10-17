@@ -1,5 +1,7 @@
 # Workflow Repairs
 
+Status: in_progress
+
 Source checkpoint: the repairs are rebased onto released 0.63.1 as `workflow-repairs-0.64` for 0.64.0. SHAs in rows before 2026-10-17 are pre-rebase commits; they remain on `codex/workflow-repairs` and draft PR #141.
 
 ## Accepted Outcome

@@ -1,6 +1,6 @@
 # EPIC-pre-delivery-self-review: Review each authoring stage before delivery
 
-Status: candidate_verification
+Status: complete
 
 ## Problem And Baseline
 

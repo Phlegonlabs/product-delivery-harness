@@ -1,6 +1,7 @@
 # English Product Sources And Chinese Review
 
-Status: implemented and verified locally. UI impact: none; this changes skill authoring contracts, not a product UI.
+Status: complete
+UI impact: none; this changes skill authoring contracts, not a product UI.
 
 The owner requested Chinese PRD and architecture content for review while software delivery references English. The accepted outcome is canonical English `PRD.md` and `architecture.md`, with complete synchronized `*.zh-TW.md` review copies, no separate approval authority, and stale-source checks before review and publication.
 

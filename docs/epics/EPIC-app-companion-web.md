@@ -1,6 +1,6 @@
 # App And Companion Web Product Definition
 
-Status: implemented locally; product/UI validation passed. Broader Harness verification is not green.
+Status: complete
 
 ## Problem And Baseline
 

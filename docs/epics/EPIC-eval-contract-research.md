@@ -1,6 +1,6 @@
 # EPIC-eval-contract-research: Define eval acceptance and handoff
 
-Status: complete (research outcome only; implementation proposal not accepted)
+Status: complete
 
 ## Problem And Baseline
 

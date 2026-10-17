@@ -1,6 +1,6 @@
 # EPIC-001: Incremental design and interactive review
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 

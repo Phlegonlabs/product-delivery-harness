@@ -1,6 +1,7 @@
 # Harness Recovery And Review Inputs
 
-Status: all six outcomes integrated in atomic local commits; focused checks passed; complete release matrix and candidate review remain separate; not released or installed.
+Status: complete
+All six outcomes integrated in atomic local commits; focused checks passed; complete release matrix and candidate review remain separate; not released or installed.
 
 ## Accepted Outcome
 

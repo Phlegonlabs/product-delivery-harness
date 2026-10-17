@@ -1,6 +1,6 @@
 # EPIC-ci-candidate-efficiency: exact-candidate source CI and measured sharding
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 

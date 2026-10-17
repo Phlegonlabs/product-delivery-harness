@@ -1,6 +1,6 @@
 # EPIC-branch-policy: dual-branch managed release policy
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 

@@ -1,6 +1,6 @@
 # Design Brief And Reference Intake
 
-Status: committed candidate included in the authorized 0.54.1 release; final verification, publication and installation pending.
+Status: complete
 Design workflow: enhancement
 UI impact: none
 

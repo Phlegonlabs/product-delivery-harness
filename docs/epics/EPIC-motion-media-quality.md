@@ -1,6 +1,7 @@
 # Motion, 3D And Reference Quality In UI Design
 
-Status: committed on `codex/review-fixes` for the 0.55.0 release (`d0c3320e`, `2fb4b973`, `f094299c`); push, main promotion, tag and install follow under the owner's 2026-09-27 commit/push/merge instruction and are reported in the handoff.
+Status: complete
+Committed on `codex/review-fixes` for the 0.55.0 release (`d0c3320e`, `2fb4b973`, `f094299c`); push, main promotion, tag and install follow under the owner's 2026-09-27 commit/push/merge instruction and are reported in the handoff.
 Design workflow: enhancement
 UI impact: none (skill guidance and one checker rule; no product UI)
 

@@ -1,6 +1,7 @@
 # README Refresh
 
-Status: source_complete; release outcome recorded in the linked receipt
+Status: complete
+Source complete; release outcome recorded in the linked receipt.
 Route: bounded direct documentation maintenance
 Product UI impact: none; README presentation changes
 

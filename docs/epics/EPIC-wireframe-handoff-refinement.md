@@ -1,6 +1,7 @@
 # Wireframe Handoff Refinement
 
-Status: release preparation authorized; exact-candidate verification pending. Route: direct, one writer and one verification sequence.
+Status: complete
+Release preparation authorized; exact-candidate verification pending. Route: direct, one writer and one verification sequence.
 Baseline: remote main 59ae7203d6fb2c3848d3b058697dd06c4b581ed1; canonical seven-skill bundle. This source repository has no product PRD; the skills and four READMEs are the current contracts.
 
 Problem: design translation, repeated content/interaction work and skill-update impact leave too much interpretation between PRD, wireframe and HiFi.

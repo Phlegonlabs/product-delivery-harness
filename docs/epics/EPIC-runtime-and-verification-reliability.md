@@ -1,6 +1,6 @@
 # EPIC-runtime-and-verification-reliability: Measured execution and dependable verification
 
-Status: locally_verified_release_repair
+Status: complete
 
 ## Problem And Baseline
 

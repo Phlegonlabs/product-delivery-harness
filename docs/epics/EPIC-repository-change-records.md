@@ -1,6 +1,7 @@
 # Repository Changes Recorded Without A Full Harness Run
 
-Status: implemented and verified locally. UI impact: none.
+Status: complete
+Implemented and verified locally. UI impact: none.
 
 The owner requested `AGENTS.md` rules that keep Epic records current even when a project does not run the full Product Delivery Harness. The owner selected checks at task start, significant change boundaries and task completion, rather than a timed background job.
 

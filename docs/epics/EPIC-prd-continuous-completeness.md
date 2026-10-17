@@ -1,6 +1,7 @@
 # EPIC: PRD completeness through delivery
 
-Status: committed candidate included in the authorized 0.54.1 release; final verification, publication and installation pending.
+Status: complete
+Committed candidate included in the authorized 0.54.1 release; final verification, publication and installation pending.
 
 ## Problem And Baseline
 

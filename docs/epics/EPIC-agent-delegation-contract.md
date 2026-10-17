@@ -1,6 +1,6 @@
 # EPIC-agent-delegation-contract: Enforce parent-owned agent assignments
 
-Status: in_progress
+Status: complete
 
 ## Problem And Baseline
 
