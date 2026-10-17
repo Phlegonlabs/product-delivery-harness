@@ -137,10 +137,14 @@ class CICandidateGateTests(unittest.TestCase):
         self.assertIn("if: always()", validate)
         self.assertIn("ci_test_shards.py gate", validate)
         self.assertIn(
-            "    name: ${{ github.event_name == 'pull_request' && "
+            "    name: ${{ github.event_name == 'workflow_dispatch' && "
+            "inputs.candidate_sha != github.sha && 'validate-detached' || "
+            "github.event_name == 'pull_request' && "
             "github.event.pull_request.draft && 'validate-draft' || 'validate' }}",
             validate,
         )
+        self.assertIn("'validate-detached'", validate)
+        self.assertIn("inputs.candidate_sha != github.sha", validate)
         self.assertIn(
             "DRAFT_PULL_REQUEST: ${{ github.event_name == 'pull_request' && "
             "github.event.pull_request.draft }}",

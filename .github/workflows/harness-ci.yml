@@ -27,6 +27,7 @@ permissions:
 # Draft pull requests run only the Linux jobs and report validate-draft. Every
 # other run covers Linux and Windows and reports the required validate check,
 # so only a complete run can satisfy the ruleset.
+# A manual run whose candidate_sha differs from the commit it runs on reports validate-detached, so it cannot satisfy the ruleset for that commit.
 # Draft and ready pull request runs use separate groups, so a late draft run cannot cancel a complete run.
 concurrency:
   group: >-
@@ -401,7 +402,7 @@ jobs:
           exit 0
 
   validate:
-    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'validate-draft' || 'validate' }}
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_sha != github.sha && 'validate-detached' || github.event_name == 'pull_request' && github.event.pull_request.draft && 'validate-draft' || 'validate' }}
     needs:
       - quality
       - linux-harness
