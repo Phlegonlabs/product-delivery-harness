@@ -11,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import sys
 
 SHA = re.compile(r"^[0-9a-f]{64}$")
 IDENTITY = re.compile(r"^(?P<path>[A-Za-z0-9._/-]+) @ sha256:(?P<sha256>[0-9a-f]{64})$")
@@ -551,4 +552,7 @@ def diagnostic_wave_report(root, request):
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

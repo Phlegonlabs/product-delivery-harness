@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 
 HEX_RE = re.compile(r"^#?([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})$")
 AA_NORMAL_THRESHOLD = 4.5
@@ -145,4 +146,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())

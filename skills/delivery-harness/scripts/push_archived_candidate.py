@@ -1487,6 +1487,8 @@ def _remote_state(root: Path, endpoint: str, branch_ref: str, *, credentials=UNB
             cwd=isolated_directory,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
             env=environment,
@@ -2073,4 +2075,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     raise SystemExit(main())
