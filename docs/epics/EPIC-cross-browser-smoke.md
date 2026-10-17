@@ -37,3 +37,13 @@ Consumer projects verify the browsers their PRD names. The owner chose the compl
 
 | Change | Commit | Verification |
 | --- | --- | --- |
+| PRD browser target parser and CLI (CB-01, CB-02) | `a6c2b5cf` | Parser tests pass, including a run from a copy of only the two scripts. |
+| PRD template section and owner question (CB-01, CB-06) | `b7b3c442` | Product Definition skill contract passes. |
+| Delivery acceptance version 2 with browser identity (CB-04) | `f3e38110` | Nine new version 2 cases pass. |
+| Package check joins targets and tests (CB-05) | `1d3f6bb9` | Seven new package checker cases pass. |
+| Consumer CI engine matrix with the draft and ready split (CB-03) | `13a37953` | Template tests pass. The six verify gate cases and the resolver passed through local Git Bash. |
+| PRD-derived browser coverage in delivery acceptance (CB-04) | `dee439ee` | Six coverage cases pass. |
+| References and four READMEs (CB-06) | `cec9ac25` | Reference library, skill contract and README structure tests pass. |
+| Integration exercise | — | A fixture PRD with Chrome, Edge, Firefox and iOS Safari resolved to chromium, firefox and webkit. Playwright 1.62.1 then launched Chromium 151, Firefox 153 and WebKit 26.5 on Windows, each rendering the smoke page. |
+| Review fixes: strict table parsing, type-safe schemas, `verify-detached`, subsection wording | `15f8ebe5`, `75df1464`, `ee5dc3d3`, `3353ebbe` | GPT-6.1 Sol reviews of both halves returned FIX_REQUIRED. One finding was high in each half, plus medium findings. All are fixed, with new tests. The detached-check gap also exists in source CI and is tracked for a separate change. |
+| Version 0.64.3 | `448f8738` | Skill contract and README structure tests pass. |
