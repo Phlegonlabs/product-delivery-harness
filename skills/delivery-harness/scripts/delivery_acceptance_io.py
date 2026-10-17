@@ -7,6 +7,7 @@ import importlib.util
 import json
 import re
 import stat
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +104,38 @@ def _sibling_active_text(text: str) -> str:
     except (OSError, TypeError, AttributeError) as exc:
         raise AcceptanceError(
             f"cannot load sibling Product Markdown parser {parser}: {exc}"
+        ) from exc
+
+
+def parse_frozen_browser_targets(raw: bytes) -> Any:
+    """Return the frozen PRD's browser-target contract from the Product parser."""
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeError as exc:
+        raise AcceptanceError(f"PRD is not UTF-8: {exc}") from exc
+    parser = (
+        Path(__file__).resolve().parents[2]
+        / "product-definition-builder"
+        / "scripts"
+        / "browser_targets.py"
+    )
+    try:
+        spec = importlib.util.spec_from_file_location("delivery_browser_targets", parser)
+        if spec is None or spec.loader is None:
+            raise OSError("parser loader is unavailable")
+        module = importlib.util.module_from_spec(spec)
+        # Dataclass creation resolves the module from sys.modules, so the
+        # loaded parser must be registered before it executes.
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        parse_browser_targets = module.parse_browser_targets
+        if not callable(parse_browser_targets):
+            raise TypeError("parse_browser_targets is not callable")
+        return parse_browser_targets(text)
+    except (OSError, TypeError, AttributeError) as exc:
+        raise AcceptanceError(
+            f"cannot load sibling Product browser-target parser {parser}: {exc}"
         ) from exc
 
 
