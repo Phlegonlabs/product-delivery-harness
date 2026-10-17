@@ -242,6 +242,24 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.assertEqual(output_bytes, hard_output.read_bytes())
         self.assertTrue(hard_output.samefile(manifest))
 
+    def test_overwrite_replaces_a_hardlinked_output_entry_without_truncating_the_link(self) -> None:
+        self.pages = {"vd-01.html": self.pages["vd-01.html"]}
+        unrelated = self.root / "elsewhere" / "unrelated.html"
+        unrelated.parent.mkdir()
+        unrelated.write_bytes(b"unrelated study bytes")
+        self.out.mkdir(parents=True)
+        hard_output = self.out / "vd-01.html"
+        try:
+            os.link(unrelated, hard_output)
+        except OSError:
+            self.skipTest("hard links are unavailable")
+        self.run_assembly(overwrite=True)
+        rendered = hard_output.read_bytes()
+        self.assertNotEqual(b"unrelated study bytes", rendered)
+        self.assertTrue(ui_design_v3.has_direction_review_profile(rendered.decode("utf-8")))
+        self.assertEqual(b"unrelated study bytes", unrelated.read_bytes())
+        self.assertFalse(hard_output.samefile(unrelated))
+
     def test_existing_studies_are_kept_unless_overwrite_is_explicit(self) -> None:
         self.run_assembly()
         kept = (self.out / "vd-01.html").read_bytes()

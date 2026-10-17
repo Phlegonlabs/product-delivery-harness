@@ -9,8 +9,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from reviewer_shell import inject_runtime, inject_shared_css, inject_shell, update_manifest_child_hashes
@@ -29,6 +31,25 @@ def _fail(message: str) -> None:
 
 def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def _write_bytes(destination: Path, content: bytes) -> None:
+    """Replace the destination's directory entry instead of truncating in place.
+
+    An existing destination may be a hard link to an unrelated file outside the
+    output directory; writing in place would destroy that file's bytes.
+    """
+
+    handle, temporary_name = tempfile.mkstemp(
+        dir=destination.parent, prefix=".", suffix=".tmp")
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(handle, "wb") as stream:
+            stream.write(content)
+        os.replace(temporary, destination)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def _linked_path(path: Path) -> bool:
@@ -224,7 +245,7 @@ def assemble(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for page, content in rendered.items():
-        (output_dir / page).write_bytes(content)
+        _write_bytes(output_dir / page, content)
     return [str(path) for path in destinations]
 
 
@@ -294,7 +315,7 @@ def assemble_direction(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for file, content in rendered.items():
-        (output_dir / file).write_bytes(content)
+        _write_bytes(output_dir / file, content)
     return [str(path) for path in destinations]
 
 

@@ -391,6 +391,24 @@ class AssembleUiReviewTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             assemble_ui_review._parse_sources(["Index.html=x.html", "index.html=y.html"])
 
+    def test_overwrite_replaces_a_hardlinked_output_entry_without_truncating_the_link(self):
+        self.write_sources()
+        unrelated = Path(self.temp.name) / "elsewhere" / "unrelated.html"
+        unrelated.parent.mkdir()
+        unrelated.write_bytes(b"unrelated bytes")
+        self.output.mkdir(parents=True)
+        hard_output = self.output / "index.html"
+        try:
+            os.link(unrelated, hard_output)
+        except OSError:
+            self.skipTest("hard links are unavailable")
+        self.assemble(overwrite=True)
+        rendered = hard_output.read_bytes()
+        self.assertNotEqual(b"unrelated bytes", rendered)
+        self.assertIn(b'connectHifiReviewer({"packageId"', rendered)
+        self.assertEqual(b"unrelated bytes", unrelated.read_bytes())
+        self.assertFalse(hard_output.samefile(unrelated))
+
     def test_identical_manifest_in_distinct_bundle_locations_has_distinct_package_identity(self):
         self.write_sources()
         first = self.assemble()
