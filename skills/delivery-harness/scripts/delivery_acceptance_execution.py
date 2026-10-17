@@ -7,6 +7,9 @@ PLACEHOLDER_TOKEN = re.compile(r"<[A-Za-z_][A-Za-z0-9_. /-]*>")
 CONTEXT_KEYS = {"target", "device", "os", "persona", "initial_data", "actions",
                 "assertions", "expected_side_effects", "dependency_mode"}
 PERSONA_KEYS = {"role", "tenant", "account_state"}
+BROWSER_KEYS = {"release_target", "engine"}
+BROWSER_ENGINES = {"chromium", "firefox", "webkit"}
+RELEASE_TARGET_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
 def concrete_text(item):
@@ -17,12 +20,13 @@ def concrete_text(item):
                                              "n/a", "none", "unknown", "not applicable"})
 
 
-def execution(value, path, errors):
+def execution(value, path, errors, *, browser=False):
     def text(item, label):
         if not concrete_text(item):
             errors.append(f"{label} needs concrete non-secret text")
 
-    if not isinstance(value, dict) or set(value) != CONTEXT_KEYS:
+    allowed = (CONTEXT_KEYS | {"browser"}) if browser else CONTEXT_KEYS
+    if not isinstance(value, dict) or set(value) != allowed:
         errors.append(f"{path} has invalid execution fields")
         return value
     for key in CONTEXT_KEYS - {"persona", "actions", "assertions"}:
@@ -46,6 +50,17 @@ def execution(value, path, errors):
         for key, signal in assertions.items():
             text(key, f"{path}.assertions ID")
             text(signal, f"{path}.assertions signal")
+    if browser:
+        identity = value["browser"]
+        if not isinstance(identity, dict) or set(identity) != BROWSER_KEYS:
+            errors.append(f"{path}.browser requires release_target and engine")
+        else:
+            target = identity["release_target"]
+            if not isinstance(target, str) or RELEASE_TARGET_RE.fullmatch(target) is None:
+                errors.append(f"{path}.browser.release_target must be lower kebab case")
+            engine = identity["engine"]
+            if not isinstance(engine, str) or engine not in BROWSER_ENGINES:
+                errors.append(f"{path}.browser.engine must be one of {sorted(BROWSER_ENGINES)}")
     return value
 
 

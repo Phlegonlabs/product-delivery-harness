@@ -118,6 +118,23 @@ def results() -> dict[str, Any]:
     return {"schema": "delivery-results/1", "candidate_sha": CANDIDATE, "results": rows}
 
 
+BROWSER = {"release_target": "fixture-web-1", "engine": "chromium"}
+
+
+def contract_v2() -> dict[str, Any]:
+    value = contract()
+    value["schema"] = "delivery-acceptance/2"
+    value["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(BROWSER)
+    return value
+
+
+def results_v2() -> dict[str, Any]:
+    value = results()
+    value["schema"] = "delivery-results/2"
+    value["results"][0]["execution"]["browser"] = dict(BROWSER)
+    return value
+
+
 def invoke(
     contract_value: dict[str, Any] | None = None,
     result_value: dict[str, Any] | None = None,
@@ -436,6 +453,104 @@ class DeliveryAcceptanceTests(unittest.TestCase):
                 status, payload = invoke(result_value=value)
                 self.assertEqual(1, status)
                 self.assertIn(expected, " ".join(payload["errors"]))
+
+
+class BrowserIdentityTests(unittest.TestCase):
+    """Delivery acceptance version 2 carries a browser identity on web scenarios."""
+
+    def test_version_2_web_browser_identity_passes_for_every_engine(self) -> None:
+        for engine in ("chromium", "firefox", "webkit"):
+            with self.subTest(engine=engine):
+                frozen = contract_v2()
+                observed = results_v2()
+                identity = {"release_target": "fixture-web-1", "engine": engine}
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(identity)
+                observed["results"][0]["execution"]["browser"] = dict(identity)
+                status, payload = invoke(frozen, observed)
+                self.assertEqual((0, "PASS"), (status, payload["status"]))
+                self.assertEqual(2, len(payload["matched_scenarios"]))
+
+    def test_version_2_web_scenario_requires_browser(self) -> None:
+        frozen = contract_v2()
+        frozen["tests"][0]["scenarios"][0]["execution"].pop("browser")
+        status, payload = invoke(frozen, results_v2())
+        self.assertEqual(1, status)
+        self.assertIn("has invalid execution fields", " ".join(payload["errors"]))
+
+    def test_version_2_non_web_scenario_cannot_carry_browser(self) -> None:
+        frozen = contract_v2()
+        frozen["tests"][0]["scenarios"][1]["execution"]["browser"] = dict(BROWSER)
+        status, payload = invoke(frozen, results_v2())
+        self.assertEqual(1, status)
+        self.assertIn("has invalid execution fields", " ".join(payload["errors"]))
+
+    def test_version_2_engine_is_a_closed_set(self) -> None:
+        for engine in ("safari", "Chrome", ""):
+            with self.subTest(engine=engine):
+                frozen = contract_v2()
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = {
+                    "release_target": "fixture-web-1", "engine": engine}
+                status, payload = invoke(frozen, results_v2())
+                self.assertEqual(1, status)
+                self.assertIn("engine must be one of", " ".join(payload["errors"]))
+
+    def test_version_2_release_target_must_be_lower_kebab_case(self) -> None:
+        for target in ("Fixture-Web-1", "web_2", "-leading", "trailing-", "web 2", "a.b"):
+            with self.subTest(target=target):
+                frozen = contract_v2()
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = {
+                    "release_target": target, "engine": "chromium"}
+                status, payload = invoke(frozen, results_v2())
+                self.assertEqual(1, status)
+                self.assertIn("release_target must be lower kebab case",
+                              " ".join(payload["errors"]))
+
+    def test_version_2_browser_object_is_closed(self) -> None:
+        for identity in ({"release_target": "fixture-web-1"},
+                         {"release_target": "fixture-web-1", "engine": "chromium",
+                          "device": "desktop"}):
+            with self.subTest(identity=sorted(identity)):
+                frozen = contract_v2()
+                frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(identity)
+                status, payload = invoke(frozen, results_v2())
+                self.assertEqual(1, status)
+                self.assertIn("browser requires release_target and engine",
+                              " ".join(payload["errors"]))
+
+    def test_contract_and_results_versions_must_agree(self) -> None:
+        status, payload = invoke(contract(), results_v2())
+        self.assertEqual(1, status)
+        text = " ".join(payload["errors"])
+        self.assertIn("does not match contract schema", text)
+        self.assertIn("delivery-acceptance/1", text)
+        self.assertIn("delivery-results/2", text)
+        status, payload = invoke(contract_v2(), results())
+        self.assertEqual(1, status)
+        text = " ".join(payload["errors"])
+        self.assertIn("does not match contract schema", text)
+        self.assertIn("delivery-acceptance/2", text)
+        self.assertIn("delivery-results/1", text)
+
+    def test_version_2_result_must_repeat_the_frozen_browser(self) -> None:
+        for changed in ({"release_target": "fixture-web-1", "engine": "firefox"},
+                        {"release_target": "other-release", "engine": "chromium"}):
+            with self.subTest(changed=changed):
+                frozen = contract_v2()
+                observed = results_v2()
+                observed["results"][0]["execution"]["browser"] = changed
+                status, payload = invoke(frozen, observed)
+                self.assertEqual(1, status)
+                self.assertIn(
+                    "identity does not match frozen scenario TEST-001/web-mock",
+                    " ".join(payload["errors"]),
+                )
+
+    def test_version_1_scenario_still_rejects_browser(self) -> None:
+        frozen = contract()
+        frozen["tests"][0]["scenarios"][0]["execution"]["browser"] = dict(BROWSER)
+        status, payload = invoke(frozen, results())
+        self.assertEqual(1, status)
+        self.assertIn("has invalid execution fields", " ".join(payload["errors"]))
 
 
 class CandidateTreeTests(unittest.TestCase):

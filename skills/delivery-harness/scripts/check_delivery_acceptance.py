@@ -22,7 +22,11 @@ from harness_schema import supported_coordination_path
 
 
 CONTRACT_SCHEMA = "delivery-acceptance/1"
+CONTRACT_SCHEMA_V2 = "delivery-acceptance/2"
 RESULT_SCHEMA = "delivery-results/1"
+RESULT_SCHEMA_V2 = "delivery-results/2"
+CONTRACT_SCHEMAS = {CONTRACT_SCHEMA, CONTRACT_SCHEMA_V2}
+RESULT_SCHEMAS = {RESULT_SCHEMA, RESULT_SCHEMA_V2}
 CONTRACT_KEYS = {"schema", "prd_sha256", "tests"}
 RESULT_KEYS = {"schema", "candidate_sha", "results"}
 SCENARIO_KEYS = {"id", "platform", "auth_mode", "environment", "build", "fixtures", "execution"}
@@ -161,8 +165,12 @@ def _contract(
     errors: list[str] = []
     if not _exact_keys(value, CONTRACT_KEYS, "contract", errors):
         return {}, errors
-    if value.get("schema") != CONTRACT_SCHEMA:
-        errors.append(f"contract.schema must be {CONTRACT_SCHEMA!r}")
+    schema = value.get("schema")
+    if schema not in CONTRACT_SCHEMAS:
+        errors.append(f"contract.schema must be one of {sorted(CONTRACT_SCHEMAS)}")
+        version = 0
+    else:
+        version = int(schema.rpartition("/")[2])
     tests = value.get("tests")
     if not isinstance(tests, list):
         errors.append("contract.tests must be a list")
@@ -206,7 +214,10 @@ def _contract(
                 errors.append(f"{scenario_path} cannot use mock authentication in production")
             build = _build(scenario["build"], f"{scenario_path}.build", platform, environment, errors)
             _fixtures(scenario["fixtures"], environment, f"{scenario_path}.fixtures", errors)
-            execution(scenario["execution"], f"{scenario_path}.execution", errors)
+            execution(
+                scenario["execution"], f"{scenario_path}.execution", errors,
+                browser=version == 2 and platform == "web",
+            )
             key = (test_id, scenario_id)
             if not scenario_id or key in scenarios:
                 errors.append(f"{scenario_path}.id must be unique within {test_id}")
@@ -276,6 +287,14 @@ def _evidence(
     return True
 
 
+def _result_schema(contract_schema: Any) -> str:
+    """The results schema paired with a contract schema by version."""
+
+    if isinstance(contract_schema, str) and contract_schema in CONTRACT_SCHEMAS:
+        return f"delivery-results/{contract_schema.rpartition('/')[2]}"
+    return ""
+
+
 def _results(
     value: dict[str, Any],
     scenarios: dict[tuple[str, str], dict[str, Any]],
@@ -284,12 +303,18 @@ def _results(
     root: Path,
     allowed_root: str,
     captured: dict[str, bytes],
+    contract_schema: str = CONTRACT_SCHEMA,
 ) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     if not _exact_keys(value, RESULT_KEYS, "results", errors):
         return [], errors
-    if value.get("schema") != RESULT_SCHEMA:
-        errors.append(f"results.schema must be {RESULT_SCHEMA!r}")
+    schema = value.get("schema")
+    if schema not in RESULT_SCHEMAS:
+        errors.append(f"results.schema must be one of {sorted(RESULT_SCHEMAS)}")
+    elif schema != _result_schema(contract_schema):
+        errors.append(
+            f"results.schema {schema!r} does not match contract schema {contract_schema!r}"
+        )
     recorded_sha = _string(value.get("candidate_sha"), "results.candidate_sha", errors)
     if recorded_sha and GIT_SHA_RE.fullmatch(recorded_sha) is None:
         errors.append("results.candidate_sha must be a lowercase 40-character Git SHA")
@@ -509,7 +534,7 @@ def _run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     captured_evidence: dict[str, bytes] = {}
     matched, result_errors = _results(
         results, scenarios, required_tests, candidate_sha, root, allowed_root,
-        captured_evidence,
+        captured_evidence, contract.get("schema"),
     )
     errors.extend(result_errors)
     if head_sha is not None and GIT_SHA_RE.fullmatch(candidate_sha):
