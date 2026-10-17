@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -831,6 +831,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.64.2** — CI 改為驗證實際執行 skill 的平台：Windows 以八個 shard 執行所有 Harness 檔案，並跑其他 skill suite 和 golden path；Linux 保留 draft 層級；macOS 不再驗證。installer 測試拆成三個檔案，不再讓單一 shard 卡住。
 
 - **0.64.1** — 分三個層級驗證原始碼變更：每個 task 跑 focused local checks，draft PR 只跑 Linux CI，PR 標記為 ready for review 後才跑完整的 Linux、macOS 和 Windows matrix。最終候選只 review 一次，之後只 review 新的 commit，安全審查只針對可執行的程式碼。
 
