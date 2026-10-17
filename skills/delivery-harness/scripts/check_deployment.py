@@ -478,6 +478,8 @@ def _retained_proof_findings(
         return [f"{target_id} evidence ref differs from architecture authority"]
     if match.group("sha") != source_sha:
         return [f"{target_id} evidence SHA differs from Source SHA"]
+    if match.group("repo") != expected_repository:
+        return [f"{target_id} evidence repo differs from expected repository"]
 
     resolved_ref = expected_ref
     if expected_ref == "run.integration.branch":
@@ -513,6 +515,14 @@ def _retained_proof_findings(
     )
     if observation is None and not findings:
         findings.append(f"{target_id} retained observation could not be loaded")
+    if observation is not None and not findings:
+        if _timestamp(match.group("observed")) != _timestamp(
+            observation["observed_at"]
+        ):
+            findings.append(
+                f"{target_id} evidence observed time differs from the retained "
+                "observation"
+            )
     return findings
 
 
