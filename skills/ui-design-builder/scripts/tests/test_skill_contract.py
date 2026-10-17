@@ -12,7 +12,7 @@ UI_STAGE = "references/stages/ui-design.md"
 
 class UiDesignBuilderSkillContractTests(unittest.TestCase):
     def test_wireframe_runtime_uses_target_context_and_discards_stale_qa(self):
-        template = self.read("assets/templates/WIREFRAMES.template.html")
+        template = self.read("assets/templates/legacy/WIREFRAMES.template.html")
         self.assertIn("targetResponsiveTarget", template)
         self.assertIn("targetCanvasWidth", template)
         self.assertIn("regionOrder(target, targetResponsiveTarget)", template)
@@ -24,7 +24,7 @@ class UiDesignBuilderSkillContractTests(unittest.TestCase):
         node = shutil.which("node")
         if node is None:
             self.skipTest("Node.js is required for wireframe runtime validation")
-        template = SKILL_ROOT / "assets" / "templates" / "WIREFRAMES.template.html"
+        template = SKILL_ROOT / "assets" / "templates" / "legacy" / "WIREFRAMES.template.html"
         runner = r'''
 const fs = require("fs");
 const vm = require("vm");
@@ -195,7 +195,7 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_frontend_design_is_admitted_before_both_authoring_stages(self):
         prompt = self.read("agents/openai.yaml")
         stage = self.read(UI_STAGE)
-        wireframe = self.read("references/wireframe-guide.md")
+        wireframe = self.read("references/legacy/wireframe-guide.md")
         hifi = self.read("references/ui-design-pass.md")
         workflow = self.read("references/review-workflow.md")
         binding = (
@@ -248,8 +248,8 @@ console.log("hybrid fallback and stale QA assertions completed");
 
     def test_new_wireframes_use_schema_five_and_keep_legacy_readability(self):
         checker = self.read("scripts/check_wireframe_html.py")
-        template = self.read("assets/templates/WIREFRAMES.template.html")
-        guide = self.read("references/wireframe-guide.md")
+        template = self.read("assets/templates/legacy/WIREFRAMES.template.html")
+        guide = self.read("references/legacy/wireframe-guide.md")
         for content in (checker, template, guide):
             self.assertIn("wireframes/5", content)
         self.assertIn("wireframes/4", checker)
@@ -260,7 +260,7 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_new_wireframe_validation_has_no_human_copy_or_structure_gate(self):
         stage = self.read(UI_STAGE)
         contract = self.read("references/output-contract.md")
-        guide = self.read("references/wireframe-guide.md")
+        guide = self.read("references/legacy/wireframe-guide.md")
         self.assertLess(
             stage.index("run a cheap machine completeness check"),
             stage.index("Present the complete current HiFi entry"),

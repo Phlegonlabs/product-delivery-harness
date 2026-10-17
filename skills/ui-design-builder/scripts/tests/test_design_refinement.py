@@ -116,7 +116,7 @@ class ReadingAndMotionTests(unittest.TestCase):
         node = shutil.which("node")
         if node is None:
             self.skipTest("Node unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/legacy/WIREFRAMES.template.html"
         script = r'''
 const fs=require('fs'),vm=require('vm');
 const html=fs.readFileSync(process.argv[2],'utf8').replace(/\r\n/g,'\n');
@@ -141,7 +141,7 @@ if(details.open||!details.children[0].focused)throw Error('Escape did not close 
         node = shutil.which("node")
         if node is None:
             self.skipTest("Node unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/legacy/WIREFRAMES.template.html"
         script = r'''
 const fs=require('fs'),vm=require('vm');
 const html=fs.readFileSync(process.argv[2],'utf8').replace(/\r\n/g,'\n');
@@ -169,7 +169,7 @@ if(panel.status!=='fail')throw Error('Open overflowing navigation falsely passes
         node = shutil.which("node")
         if node is None:
             self.skipTest("Node unavailable")
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/legacy/WIREFRAMES.template.html"
         script = r'''
 const fs=require('fs'), vm=require('vm');
 const html=fs.readFileSync(process.argv[2],'utf8').replace(/\r\n/g,'\n');

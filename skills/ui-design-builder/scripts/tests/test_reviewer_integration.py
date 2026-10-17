@@ -26,7 +26,7 @@ from hifi_review_fixture import add_shell, _source_html
 from test_wireframe_contract import render_html, validate_html, wireframe_data
 
 
-WIREFRAME_V5 = SCRIPTS_DIR.parents[0] / "assets/templates/WIREFRAMES.template.html"
+WIREFRAME_V5 = SCRIPTS_DIR.parents[0] / "assets/templates/legacy/WIREFRAMES.template.html"
 HIFI_TEMPLATE = SCRIPTS_DIR.parents[0] / "assets/templates/HIFI_REVIEWER.template.html"
 
 

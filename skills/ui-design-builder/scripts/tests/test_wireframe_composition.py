@@ -90,7 +90,7 @@ class CompositionTests(unittest.TestCase):
                 self.assertTrue(validate_html(render_html(data)))
 
     def test_template_palette_is_neutral(self):
-        template = Path(__file__).resolve().parents[2] / "assets/templates/WIREFRAMES.template.html"
+        template = Path(__file__).resolve().parents[2] / "assets/templates/legacy/WIREFRAMES.template.html"
         css = template.read_text(encoding="utf-8").split("<style>")[1].split("</style>")[0]
         for color in re.findall(r"#([0-9a-f]{6}|[0-9a-f]{3})\b", css):
             channels = [color[index:index+2] for index in (0, 2, 4)] if len(color) == 6 else list(color)

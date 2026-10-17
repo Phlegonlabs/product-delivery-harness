@@ -272,7 +272,7 @@ PASS 綁精確 candidate SHA 與輸入；受影響輸入變更會讓相關證據
 | `REFINEMENT_BACKLOG.template.md` | 只有 RUN 內 backlog 太難閱讀才展開；保留 TEST／failure／next action，不因此產生新授權 |
 | `OUTCOME_REVIEW.template.md` | 步驟 159：窗口結束後的新 dated outcome，保留既有 verdict history |
 | `SEO_REVIEW.template.md` | 步驟 165：owner 要求保存的 lifecycle SEO review；inline 唯讀 review 不強制建檔 |
-| `WIREFRAMES.template.html`、`WIREFRAMES_V4.template.html` | 僅維護原本採用該契約的歷史 package；新版完整 UI 沿 PRD → 三方向 → HiFi，不重啟已退役的 Wireframe stage |
+| `assets/templates/legacy/WIREFRAMES.template.html`、`assets/templates/legacy/WIREFRAMES_V4.template.html` | 已退役 Wireframe stage 的唯讀驗證範本（legacy 資料夾）；僅維護原本採用該契約的歷史 package，新版完整 UI 沿 PRD → 三方向 → HiFi |
 
 HTML 展示的參考來源：[Bootstrap Cheatsheet](https://getbootstrap.com/docs/5.3/examples/cheatsheet/) 的單頁元件目錄、[Storybook Controls](https://storybook.js.org/docs/essentials/controls) 的變體控制，以及 [Carbon Motion](https://carbondesignsystem.com/elements/motion/overview/) 的動效說明。這些只供展示方式參考；實際元件與樣式仍取自產品已核准的 HiFi，不因此更換 stack 或增加套件。
 

@@ -50,7 +50,7 @@ These author checks retain the existing review/repair limits and do not replace 
 - Read `references/ui-design-intake.md` before asking UI direction questions.
 - Read `references/motion-and-media-routing.md` for placeholder type, CSS/WAAPI, Motion, GSAP, Three.js and Higgsfield routing, the silent-owner motion proposal and HiFi embedding limits.
 - Read `references/design-reference-guide.md` before inspecting or recording a visual reference or direction.
-- Read `references/wireframe-guide.md` only to inspect or validate an existing legacy wireframe; it is not the new authoring stage.
+- Read `references/legacy/wireframe-guide.md` only to inspect or validate an existing legacy wireframe; it is not the new authoring stage.
 - Read `references/ui-design-pass.md` for the PRD-to-direction pass, connected HiFi reference, completeness preflight, Impeccable review, visual approval, and the Design System Need Gate.
 - Read `references/ui-grading-rubric.md` before scoring current HiFi; its W1–W5 material is legacy validation guidance only. Apply its Layout Integrity And Anti-Slop Review during HiFi authoring and repair as well as review; scores cannot clear collapsed controls, clipped content or unreachable layers.
 - Read `references/output-contract.md` for `ui-design.md` and evidence fields.
