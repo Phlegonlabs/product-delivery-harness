@@ -33,7 +33,11 @@ These rules own skill-source reading, Git, release verification, installation, a
 
 ## Required Verification
 
-Edit the canonical skill sources in `skills/`. For each atomic task, run focused checks for its changed behavior and negative cases; unknown impact requires the full applicable suite. Source maintenance does not create a consumer Product Definition, UI approval, Activation pass or managed archive merely to edit a skill. Before a formal release, run the complete required matrix below on the fixed candidate from the repository root. Preserve all suites; this separates the development loop from release verification.
+Edit the canonical skill sources in `skills/`. Source maintenance does not create a consumer Product Definition, UI approval, Activation pass or managed archive merely to edit a skill. Verify in three tiers:
+
+1. For each atomic task, run focused checks for its changed behavior and negative cases on the local platform. Unknown impact requires the full suite of the affected skill. Do not run other platforms locally.
+2. After an authorized push, open the PR as a draft. Each push to a draft PR runs only the Linux CI jobs on the exact head.
+3. When the candidate is final, mark the PR ready for review. CI then runs the complete matrix below on Linux, macOS and Windows for the exact head. Every later push repeats it. This run is the release verification, so do not repeat the matrix locally. Run the commands below locally only to reproduce or debug a CI result.
 
 For required UI browser checks, prepare dependencies with `npm ci` and `npx playwright install chromium` when missing or changed, then set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`. Reuse only an observed installation matching the current lockfile and Playwright browser revision; do not reinstall it for every task. Linux CI installs Chromium with `--with-deps`. Missing prerequisites must fail required browser verification. Python test dependencies follow the current requirements file.
 
@@ -55,7 +59,9 @@ python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 git diff --check
 ```
 
-CI retains the same required coverage with exact-candidate jobs and a required aggregate. A successful deterministic suite may be cited from that same exact SHA and unchanged configuration, dependencies and toolchain; retain its origin, do not relabel it as a fresh execution. New SHA or relevant input changes require new evidence. Security freshness, browser/live state and migration checks retain their own contracts. Never cache PASS or waive a missing platform result.
+CI runs exact-candidate jobs and the required `validate` aggregate. A draft PR run requires every Linux job and reports the aggregate as `validate-draft`. Every other run requires every job and reports the required `validate` check. Only a complete run can therefore satisfy the `main` ruleset. A successful deterministic suite may be cited from that same exact SHA and unchanged configuration, dependencies and toolchain; retain its origin, do not relabel it as a fresh execution. New SHA or relevant input changes require new evidence. Security freshness, browser/live state and migration checks retain their own contracts. Never cache PASS or waive a missing platform result.
+
+Run the independent review once on the final candidate, before the PR is marked ready. After a fix, review only the new commits and their interaction with reviewed code. Run a security review only for changes to executable code. Executable code means skill scripts outside `tests/`, the installers, `.github/workflows/` and dependencies. Documentation-only and test-only changes need no security review. When the provider creates a new main SHA with a tree equal to the reviewed candidate, the candidate review stands.
 
 Every flow that promotes to `main` bumps the release version in the same change: `package.json`, `skills/delivery-harness/VERSION`, the README badges and version-history entries in all four languages, and the RUNBOOK `required_harness_version` default. `test_skill_contract.py` reads `VERSION` and fails when any of these surfaces differ from it. A breaking skill-bundle change bumps the minor version. After the release promotion reaches `main`, tag that commit with the matching `v<version>` tag — the READMEs' Releasing section is the full checklist.
 
