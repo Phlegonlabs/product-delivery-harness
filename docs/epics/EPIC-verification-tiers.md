@@ -37,3 +37,4 @@ Verify source changes in three tiers: focused local checks per task, Linux-only 
 | Three-tier rules in Required Verification, the four READMEs and the PR template | `1282b104` | README structure 5, skill contract 65 and document sync 27 tests pass. |
 | Version 0.64.1 | `62592778` | Skill contract 65 and README structure 5 tests pass. |
 | Review of `387cc49a..1282b104` | — | GPT-6.1 Sol: PASS, covering correctness and security, with 12 focused tests and 17 gate CLI cases. This PR's own CI is the first live draft-to-ready run. |
+| Separate concurrency groups for draft and ready runs | `db3ab897` | On PR #145, a push and the ready mark landed one second apart. The push's draft-mode run cancelled the complete run, and `validate` correctly failed. The two run kinds now use separate groups. CI 42 and skill contract 65 tests pass. |
