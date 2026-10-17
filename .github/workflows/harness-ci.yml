@@ -2,6 +2,7 @@ name: product-delivery-harness
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
   push:
     branches:
@@ -23,6 +24,9 @@ permissions:
 # Feature pushes are deliberately absent: a feature branch is verified once by
 # its pull_request run. Manual releases are grouped by immutable SHA, so later
 # later branch pushes cannot cancel or replace an exact-candidate release run.
+# Draft pull requests run only the Linux jobs and report validate-draft. Ready
+# pull requests, main, merge queue and manual releases run every job and report
+# the required validate check, so only a complete run can satisfy the ruleset.
 concurrency:
   group: >-
     ${{ github.workflow }}-${{
@@ -215,7 +219,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [linux, macos]
+        platform: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft && '["linux"]' || '["linux", "macos"]') }}
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -251,6 +255,7 @@ jobs:
   macos-harness:
     name: macos-harness-${{ matrix.shard }}
     runs-on: macos-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     strategy:
       fail-fast: false
       matrix:
@@ -301,6 +306,7 @@ jobs:
   macos-other:
     name: macos-other-suites
     runs-on: macos-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -345,6 +351,7 @@ jobs:
   windows-native:
     name: windows-native-${{ matrix.shard }}
     runs-on: windows-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     strategy:
       fail-fast: false
       matrix:
@@ -399,6 +406,7 @@ jobs:
   windows-installer:
     name: windows-installer-and-native-contract
     runs-on: windows-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -448,7 +456,7 @@ jobs:
           exit 0
 
   validate:
-    name: validate
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'validate-draft' || 'validate' }}
     needs:
       - quality
       - linux-harness
@@ -470,7 +478,7 @@ jobs:
       - name: Verify exact checked-out candidate
         run: test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
 
-      - name: Require every matrix result to succeed
+      - name: Require every selected matrix result to succeed
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
           LINUX_HARNESS_RESULT: ${{ needs.linux-harness.result }}
@@ -481,14 +489,21 @@ jobs:
           MACOS_OTHER_RESULT: ${{ needs.macos-other.result }}
           WINDOWS_NATIVE_RESULT: ${{ needs.windows-native.result }}
           WINDOWS_INSTALLER_RESULT: ${{ needs.windows-installer.result }}
+          DRAFT_PULL_REQUEST: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
         run: |
-          python skills/delivery-harness/scripts/ci_test_shards.py gate \
-            --result "$QUALITY_RESULT" \
-            --result "$LINUX_HARNESS_RESULT" \
-            --result "$LINUX_OTHER_RESULT" \
-            --result "$LINUX_BROWSER_RESULT" \
-            --result "$GOLDEN_PATH_RESULT" \
-            --result "$MACOS_HARNESS_RESULT" \
-            --result "$MACOS_OTHER_RESULT" \
-            --result "$WINDOWS_NATIVE_RESULT" \
-            --result "$WINDOWS_INSTALLER_RESULT"
+          results=(
+            --result "$QUALITY_RESULT"
+            --result "$LINUX_HARNESS_RESULT"
+            --result "$LINUX_OTHER_RESULT"
+            --result "$LINUX_BROWSER_RESULT"
+            --result "$GOLDEN_PATH_RESULT"
+          )
+          if [ "$DRAFT_PULL_REQUEST" != "true" ]; then
+            results+=(
+              --result "$MACOS_HARNESS_RESULT"
+              --result "$MACOS_OTHER_RESULT"
+              --result "$WINDOWS_NATIVE_RESULT"
+              --result "$WINDOWS_INSTALLER_RESULT"
+            )
+          fi
+          python skills/delivery-harness/scripts/ci_test_shards.py gate "${results[@]}"
