@@ -8,9 +8,15 @@
 
 ## Verification
 
-- [ ] `git diff --check`
-- [ ] Required local tests pass
-- [ ] GitHub CI passes for the current PR head
+| Tier | Result | Evidence |
+| --- | --- | --- |
+| Focused local checks | | |
+| Draft CI (Linux jobs) | | |
+| Full CI after ready for review | | |
+| Review | | |
+| Security review | | |
+
+<!-- Evidence: commands and counts, run links, or "not needed" with the reason. Documentation-only and test-only changes need no security review. -->
 
 ## Review focus
 

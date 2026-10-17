@@ -3,8 +3,12 @@ from __future__ import annotations
 import sys
 import subprocess
 import json
+import os
+import shutil
 import unittest
 from pathlib import Path
+
+import yaml
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
@@ -33,10 +37,47 @@ class CICandidateGateTests(unittest.TestCase):
     def test_feature_push_and_pr_do_not_duplicate_ci(self) -> None:
         trigger = self.workflow.split("jobs:", 1)[0]
         self.assertIn("pull_request:", trigger)
+        self.assertIn("types: [opened, synchronize, reopened, ready_for_review]", trigger)
         self.assertIn("merge_group:", trigger)
         self.assertIn("- main", trigger)
         self.assertNotIn("- development", trigger)
         self.assertNotIn("- '**'", trigger)
+
+    def test_draft_pull_requests_run_only_linux_jobs(self) -> None:
+        boundaries = {
+            "quality": "\n  linux-harness:\n",
+            "linux-harness": "\n  linux-other:\n",
+            "linux-other": "\n  linux-browser:\n",
+            "linux-browser": "\n  golden-path:\n",
+            "golden-path": "\n  macos-harness:\n",
+            "macos-harness": "\n  macos-other:\n",
+            "macos-other": "\n  windows-native:\n",
+            "windows-native": "\n  windows-installer:\n",
+            "windows-installer": "\n  validate:\n",
+        }
+        headers = {
+            job: self.workflow.split(f"\n  {job}:\n", 1)[1]
+            .split(boundary, 1)[0]
+            .split("\n    steps:\n", 1)[0]
+            for job, boundary in boundaries.items()
+        }
+        draft_if = (
+            "    if: github.event_name != 'pull_request' || !github.event.pull_request.draft"
+        )
+        for job in ("macos-harness", "macos-other", "windows-native", "windows-installer"):
+            with self.subTest(job=job):
+                self.assertIn(draft_if, headers[job])
+        for job in ("quality", "linux-harness", "linux-other", "linux-browser", "golden-path"):
+            with self.subTest(job=job):
+                job_if_lines = [
+                    line for line in headers[job].splitlines() if line.startswith("    if:")
+                ]
+                self.assertEqual([], job_if_lines, headers[job])
+        self.assertIn(
+            "        platform: ${{ fromJSON(github.event_name == 'pull_request' && "
+            "github.event.pull_request.draft && '[\"linux\"]' || '[\"linux\", \"macos\"]') }}",
+            self.workflow,
+        )
 
     def test_all_events_share_one_canonical_candidate(self) -> None:
         self.assertIn(
@@ -52,7 +93,13 @@ class CICandidateGateTests(unittest.TestCase):
     def test_release_concurrency_is_frozen_by_candidate_sha(self) -> None:
         concurrency = self.workflow.split("concurrency:", 1)[1].split("env:", 1)[0]
         self.assertIn("inputs.candidate_sha", concurrency)
-        self.assertIn("format('pr-{0}', github.event.pull_request.number)", concurrency)
+        self.assertIn(
+            "format('pr-{0}-{1}', github.event.pull_request.number, "
+            "github.event.pull_request.draft && 'draft' || 'ready')",
+            concurrency,
+        )
+        self.assertIn("'draft'", concurrency)
+        self.assertIn("'ready'", concurrency)
         self.assertIn("github.ref", concurrency)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", concurrency)
 
@@ -91,6 +138,68 @@ class CICandidateGateTests(unittest.TestCase):
                 self.assertIn(f"_RESULT: ${{{{ needs.{job}.result }}}}", validate)
         self.assertIn("if: always()", validate)
         self.assertIn("ci_test_shards.py gate", validate)
+        self.assertIn(
+            "    name: ${{ github.event_name == 'pull_request' && "
+            "github.event.pull_request.draft && 'validate-draft' || 'validate' }}",
+            validate,
+        )
+        self.assertIn(
+            "DRAFT_PULL_REQUEST: ${{ github.event_name == 'pull_request' && "
+            "github.event.pull_request.draft }}",
+            validate,
+        )
+        self.assertIn('if [ "$DRAFT_PULL_REQUEST" != "true" ]; then', validate)
+
+    @unittest.skipIf(
+        os.name == "nt" or shutil.which("bash") is None,
+        "bash execution of the validate gate requires a POSIX host",
+    )
+    def test_validate_script_requires_the_jobs_each_run_selects(self) -> None:
+        document = yaml.safe_load(self.workflow)
+        step = next(
+            step
+            for step in document["jobs"]["validate"]["steps"]
+            if step["name"].startswith("Require every selected")
+        )
+        script = step["run"].replace(
+            "python skills/delivery-harness/scripts/ci_test_shards.py",
+            f"'{sys.executable}' skills/delivery-harness/scripts/ci_test_shards.py",
+            1,
+        )
+        succeeded, skipped = "success", "skipped"
+        results = {
+            "QUALITY_RESULT": succeeded,
+            "LINUX_HARNESS_RESULT": succeeded,
+            "LINUX_OTHER_RESULT": succeeded,
+            "LINUX_BROWSER_RESULT": succeeded,
+            "GOLDEN_PATH_RESULT": succeeded,
+            "MACOS_HARNESS_RESULT": skipped,
+            "MACOS_OTHER_RESULT": skipped,
+            "WINDOWS_NATIVE_RESULT": skipped,
+            "WINDOWS_INSTALLER_RESULT": skipped,
+        }
+
+        def gate(draft: str, overrides: dict[str, str] | None = None):
+            environment = {**os.environ, **results, **(overrides or {}), "DRAFT_PULL_REQUEST": draft}
+            return subprocess.run(
+                ["bash", "-c", script],
+                cwd=self.repo_root,
+                env=environment,
+                capture_output=True,
+                encoding="utf-8",
+                timeout=60,
+                check=False,
+            )
+
+        self.assertEqual(0, gate("true").returncode)
+        self.assertNotEqual(0, gate("false").returncode)
+        self.assertNotEqual(0, gate("").returncode)
+        self.assertNotEqual(
+            0, gate("true", {"LINUX_BROWSER_RESULT": "failure"}).returncode
+        )
+        self.assertEqual(
+            0, gate("false", {name: succeeded for name in results}).returncode
+        )
 
     def test_browser_and_macos_suite_coverage_matches_original_matrix(self) -> None:
         linux_browser = self.workflow.split("\n  linux-browser:\n", 1)[1].split(
