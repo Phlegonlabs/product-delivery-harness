@@ -1,6 +1,6 @@
 # Vite+ evaluation
 
-Status: local optional Void guidance implemented; final exact-candidate checks/review status is recorded in [void-parent-result-20261016.json](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-parent-result-20261016.json).
+Status: optional Void guidance is prepared for 0.63.1. Final release and installation evidence: [release result](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-release-0.63.1-result.json).
 Checked: 2026-09-28; Void sources checked 2026-10-16. UI impact: none. Route: direct implementation with one writer.
 
 ## Request and baseline
@@ -498,3 +498,18 @@ Repair working-tree checks: reference-library 12/12 PASS, README structure
 5/5 PASS, deployment-record 33/33 PASS, skill specification PASS, docs weight
 PASS, pyflakes PASS and whitespace check PASS. These results are not a
 substitute for the parent's exact-candidate checks or independent review.
+
+### 2026-10-16 - release 0.63.1 and local skill update
+
+The owner requested main integration and a local seven-skill update.
+Prepare patch 0.63.1 under the source release policy.
+The feature base is `49386109e2b4e21cbf560e390035f0f5e8f04c26`.
+The observed remote main is `f51c7beb4f40efd5e6ff1a7c70796477092d459b`.
+
+Update package and lock metadata, VERSION, four README badges/history entries,
+and the RUNBOOK default together. This changes no runtime schema or product
+choice. Preserve earlier commits and evidence.
+
+PR #143 targets main. Exact-candidate CI and review, exact-main tree equality,
+fresh main verification/review, tag readback, backup and installation evidence
+are recorded in [release result](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-release-0.63.1-result.json).

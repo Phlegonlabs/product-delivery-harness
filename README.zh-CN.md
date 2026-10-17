@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -811,6 +811,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.63.1** — 加入 Void 可选全栈 SDK／CLI 开发与部署指引。保留 owner 已批准的技术栈、部署资源隔离、migration 恢复及精确版本证据。
 
 - **0.63.0** — 改用 main-based 交付，先完成精确 candidate 的 PR／分支 Preview 验收；加入原生 Workers Previews，保留历史 RUN pins。
 

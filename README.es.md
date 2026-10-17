@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -811,6 +811,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.63.1** — Añade Void como opción de SDK/CLI full-stack. Conserva las decisiones aprobadas, el aislamiento de recursos, la recuperación de migraciones y la evidencia de versión exacta.
 
 - **0.63.0** — Entrega desde main con aceptación del Preview de PR/rama y SHA exacto. Añade Workers Previews y conserva las versiones históricas de RUN.
 
