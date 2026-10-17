@@ -132,10 +132,14 @@ class ProjectCITemplateContractTests(unittest.TestCase):
         self.assertIn("needs: [checks, e2e]", verify)
         self.assertIn("if: always()", verify)
         self.assertIn(
-            "name: ${{ github.event_name == 'pull_request' && "
+            "name: ${{ github.event_name == 'workflow_dispatch' && "
+            "inputs.release_sha != github.sha && 'verify-detached' || "
+            "github.event_name == 'pull_request' && "
             "github.event.pull_request.draft && 'verify-draft' || 'verify' }}",
             verify,
         )
+        self.assertIn("'verify-detached'", verify)
+        self.assertIn("inputs.release_sha != github.sha", verify)
         self.assertIn(
             "DRAFT_PULL_REQUEST: ${{ github.event_name == 'pull_request' && "
             "github.event.pull_request.draft }}",

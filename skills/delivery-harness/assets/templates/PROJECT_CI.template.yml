@@ -183,8 +183,10 @@ jobs:
   verify:
     # Keep this aggregate for branch protection. A draft pull request
     # reports verify-draft and requires E2E to stay skipped. Only a
-    # complete run reports the required verify check.
-    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft && 'verify-draft' || 'verify' }}
+    # complete run reports the required verify check. A manual run whose
+    # release_sha is not the dispatched commit reports verify-detached,
+    # so it cannot satisfy branch protection for that commit.
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_sha != github.sha && 'verify-detached' || github.event_name == 'pull_request' && github.event.pull_request.draft && 'verify-draft' || 'verify' }}
     needs: [checks, e2e]
     if: always()
     runs-on: ubuntu-latest
