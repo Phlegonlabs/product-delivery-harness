@@ -13,6 +13,10 @@ import check_ui_publication as publication
 from ui_approval_digest import canonical_ui_approval_sha256
 
 
+# A commit can otherwise start background maintenance that creates and deletes .git/objects/maintenance.lock while copytree runs.
+GIT = ("git", "-c", "maintenance.auto=false", "-c", "gc.auto=0")
+
+
 # After the 0.55.0 cutover instant, and still on 2026-09-27 under the UTC-12
 # receipt date that the "Decided on predates" check uses.
 POST_CUTOVER_RECEIPT = "2026-09-27T20:00:00Z"
@@ -61,7 +65,7 @@ class PublicationTests(unittest.TestCase):
                                             capture_output=True, text=True, encoding="utf-8")
                     self.assertEqual(0, result.returncode, result.stderr)
                 def git(*args):
-                    subprocess.run(["git", "-C", str(source), *args], check=True, capture_output=True)
+                    subprocess.run([*GIT, "-C", str(source), *args], check=True, capture_output=True)
                 git("init", "-q")
                 git("add", ".")
                 git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
@@ -111,7 +115,7 @@ class PublicationTests(unittest.TestCase):
                 ui_path = source / "docs/design/ui-design.md"
                 text = ui_path.read_text(encoding="utf-8")
                 def git(*args):
-                    subprocess.run(["git", "-C", str(source), *args], check=True, capture_output=True)
+                    subprocess.run([*GIT, "-C", str(source), *args], check=True, capture_output=True)
                 git("init", "-q")
                 git("add", ".")
                 if committed == "absent":
@@ -142,7 +146,7 @@ class PublicationTests(unittest.TestCase):
                 materialize_publication(source, required=False, visual_decided_on=decided_on,
                                         hifi_executed_at=executed_at)
                 def git(*args):
-                    subprocess.run(["git", "-C", str(source), *args], check=True, capture_output=True)
+                    subprocess.run([*GIT, "-C", str(source), *args], check=True, capture_output=True)
                 git("init", "-q")
                 git("add", ".")
                 git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
