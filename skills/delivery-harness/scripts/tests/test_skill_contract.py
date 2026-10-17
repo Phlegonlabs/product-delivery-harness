@@ -135,7 +135,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             with self.subTest(readme=readme):
                 text = (REPO_ROOT / readme).read_text(encoding="utf-8")
                 self.assertIn(f"badge/version-{version}-", text)
-                self.assertIn(f"\n- **{version}** ", text)
+        self.assertIn(
+            f"\n- **{version}** ",
+            (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+        )
         self.assertFalse(
             (REPO_ROOT / "Tasks.md").exists(),
             "the source repository must not keep a root Tasks.md flow log",

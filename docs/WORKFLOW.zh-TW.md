@@ -225,7 +225,7 @@
 171. 每個語意／流程變更同步四語 README 描述；小任務 focused checks 後 atomic commit，不每任務 bump release。
 172. 依變更影響選本地 focused suite；未知或跨契約影響走完整必要驗證，不任意略過測試。
 173. 只在需要時準備 Python test dependencies、`npm ci` 和對應 Playwright Chromium；正確版本的安裝可沿用，required browser prerequisites 缺少就失敗。
-174. 固定 release 統一更新 package version、Harness VERSION、四語 badge／版本記錄與 RUNBOOK 預設版本。
+174. 固定 release 統一更新 package version、Harness VERSION、四語 badge、英文 CHANGELOG與 RUNBOOK 預設版本。
 175. 對該固定候選跑 skill spec、Pyflakes、docs weight、Harness、enabled golden path、Product Definition、UI、Design System、Activation、SEO 和 diff checks。
 176. CI 統一候選 SHA，保留 Linux／macOS／Windows 的必要覆蓋；排除 feature push／PR 重複 full run，聚合 required gate 不得因 skip 誤綠。
 177. 跨平台長 suite 在獨立 jobs 分片，保留完整 coverage 與每檔 timing；cache 只存相容依賴下載，不存測試 PASS。
