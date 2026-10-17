@@ -92,7 +92,13 @@ class CICandidateGateTests(unittest.TestCase):
     def test_release_concurrency_is_frozen_by_candidate_sha(self) -> None:
         concurrency = self.workflow.split("concurrency:", 1)[1].split("env:", 1)[0]
         self.assertIn("inputs.candidate_sha", concurrency)
-        self.assertIn("format('pr-{0}', github.event.pull_request.number)", concurrency)
+        self.assertIn(
+            "format('pr-{0}-{1}', github.event.pull_request.number, "
+            "github.event.pull_request.draft && 'draft' || 'ready')",
+            concurrency,
+        )
+        self.assertIn("'draft'", concurrency)
+        self.assertIn("'ready'", concurrency)
         self.assertIn("github.ref", concurrency)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", concurrency)
 

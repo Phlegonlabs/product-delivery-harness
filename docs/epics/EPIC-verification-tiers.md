@@ -41,6 +41,7 @@ Verify source changes in three tiers: focused local checks per task, Linux-only 
 | Version 0.64.1 | `62592778` | Skill contract 65 and README structure 5 tests pass. |
 | Review of `387cc49a..1282b104` | — | GPT-6.1 Sol: PASS, covering correctness and security, with 12 focused tests and 17 gate CLI cases. This PR's own CI is the first live draft-to-ready run. |
 | First live draft run on PR #145 | — | The Linux jobs finished in about 2 minutes, macOS and Windows were skipped, and `validate-draft` passed. |
+| Separate concurrency groups for draft and ready runs | `db3ab897` | On PR #145, a push and the ready mark landed one second apart. The push's draft-mode run cancelled the complete run, and `validate` correctly failed. The two run kinds now use separate groups. CI 42 and skill contract 65 tests pass. |
 | Linux and Windows CI instead of macOS | `61c47ef4` | CI 42, skill contract 65 and installer CI 2 tests pass. The Windows planner prints eight shards that cover every Harness file. |
 | CI platform description in Required Verification and the four READMEs | `2cc20ba3` | README structure 5 and skill contract 65 tests pass. |
 | Installer tests split into three files | `c8f27e34` | An AST comparison shows every test unchanged. The 21 installer tests pass on Windows in 437 s. |
