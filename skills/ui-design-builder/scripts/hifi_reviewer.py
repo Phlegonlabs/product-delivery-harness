@@ -725,6 +725,10 @@ def _diagnostic_observation_findings(
         if "result" in behavior_keys and row["result"] not in DIAGNOSTIC_RESULTS:
             structural.append(f"{label} has an invalid observation result")
             continue
+        if "result" in behavior_keys and row["result"] in {"BLOCKED", "MISSING"}:
+            structural.append(f"{label} observation for {'/'.join(map(str, identity))} is "
+                              f"{row['result']}; the browser review is incomplete")
+            continue
         changed = [key for key in sorted(behavior_keys) if row[key] != expected[key]]
         if changed:
             defects.append(f"{label} observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))

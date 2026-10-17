@@ -256,6 +256,31 @@ class DiagnosticWaveTests(unittest.TestCase):
         self.assertFalse(report["complete"])
         self.assertFalse(report["repairEligible"])
 
+    def test_unobserved_nested_rows_block_the_wave_despite_an_observed_fail(self) -> None:
+        identity_keys = {
+            "views": ("from", "view", "target", "trigger"),
+            "navigation": ("from", "target", "trigger"),
+            "recovery": ("from", "case", "target"),
+            "viewport": ("page", "surface", "target"),
+            "retention": ("page", "surface", "target", "case"),
+        }
+        for group, keys in identity_keys.items():
+            for result in ("BLOCKED", "MISSING"):
+                request = self.build(browser_result="FAIL")
+                output_path, output = self.load_browser_output()
+                row = output["reviewer"][group][0]
+                row["result"] = result
+                output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+                self.rebind(request, "browser")
+                identity = "/".join(map(str, (row[key] for key in keys)))
+                self.assertIn(
+                    f"browser: HiFi reviewer {group} observation for {identity} is {result}; "
+                    "the browser review is incomplete",
+                    " ".join(evidence.diagnostic_wave_findings(self.root, request)))
+                report = evidence.diagnostic_wave_report(self.root, request)
+                self.assertFalse(report["complete"])
+                self.assertFalse(report["repairEligible"])
+
     def test_negative_drift_missing_cases_and_partial_wave_block_handoff(self) -> None:
         request = self.build()
         self.assertEqual([], evidence.diagnostic_wave_findings(self.root, request))
