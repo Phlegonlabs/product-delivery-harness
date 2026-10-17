@@ -95,6 +95,42 @@ class ContractDigestTests(unittest.TestCase):
             runtime_file.write_text("# new runtime file\n", encoding="utf-8")
             self.assertNotEqual(contract_digest(skills_root), before)
 
+    def test_regular_file_named_tests_is_kept_but_tests_directory_is_not(self) -> None:
+        # Installers and hash_skill treat a directory component named "tests"
+        # as development-only, while a regular file named "tests" is shipped
+        # content that must reach the digest.
+        with tempfile.TemporaryDirectory() as file_dir, tempfile.TemporaryDirectory() as dir_dir:
+            file_root, dir_root = Path(file_dir), Path(dir_dir)
+            create_required_skills(file_root)
+            create_required_skills(dir_root)
+            file_scripts = file_root / "skills" / "delivery-harness" / "scripts"
+            file_scripts.mkdir(parents=True, exist_ok=True)
+            before = contract_digest(file_root / "skills")
+            named_tests = file_scripts / "tests"
+            named_tests.write_text("RUNTIME = 1\n", encoding="utf-8", newline="\n")
+            with_file = contract_digest(file_root / "skills")
+            self.assertNotEqual(with_file, before)
+            named_tests.write_text("RUNTIME = 2\n", encoding="utf-8", newline="\n")
+            self.assertNotEqual(contract_digest(file_root / "skills"), with_file)
+            dir_scripts = dir_root / "skills" / "delivery-harness" / "scripts"
+            dir_before = contract_digest(dir_root / "skills")
+            dev_only = dir_scripts / "tests" / "test_new.py"
+            dev_only.parent.mkdir(parents=True, exist_ok=True)
+            dev_only.write_text("x = 1\n", encoding="utf-8")
+            self.assertEqual(contract_digest(dir_root / "skills"), dir_before)
+
+    def test_pytest_cache_directory_does_not_change_the_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_required_skills(root)
+            skills_root = root / "skills"
+            before = contract_digest(skills_root)
+            cache = root / "skills" / "delivery-harness" / "scripts" / ".pytest_cache"
+            (cache / "v" / "cache").mkdir(parents=True)
+            (cache / "CACHEDIR.TAG").write_bytes(b"junk")
+            (cache / "v" / "cache" / "nodeids").write_bytes(b"[]")
+            self.assertEqual(contract_digest(skills_root), before)
+
     def test_ci_data_files_do_not_change_the_digest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

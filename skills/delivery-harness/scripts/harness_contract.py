@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Stable identity for the installed Harness contract.
 
-The digest covers runtime-facing skill files while ignoring tests, CI timing
-data, and generated Python caches. Text line endings are normalized so a
+The digest covers runtime-facing skill files while ignoring tests directories,
+CI timing data, and generated caches. Text line endings are normalized so a
 Windows install and its packaged copy identify the same contract.
 """
 
@@ -26,7 +26,8 @@ SKILL_NAMES = (
     "product-activation",
     "seo-growth-review",
 )
-IGNORED_PARTS = {"__pycache__", "tests"}
+CACHE_PARTS = {"__pycache__", ".pytest_cache"}
+DEV_ONLY_DIRECTORY = "tests"
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
 IGNORED_FILE_NAMES = {"ci-test-timings.json", "requirements-test.txt"}
 MAX_FILE_BYTES = 16 * 1024 * 1024
@@ -53,10 +54,14 @@ def _contract_files(skill_root: Path):
             entries += 1
             if entries > MAX_ENTRIES:
                 raise ValueError("skill tree exceeds entry limit")
-            if path.name in IGNORED_PARTS or path.suffix.lower() in IGNORED_SUFFIXES:
+            if path.name in CACHE_PARTS or path.suffix.lower() in IGNORED_SUFFIXES:
                 continue
             info = _plain_stat(path)
             if stat.S_ISDIR(info.st_mode):
+                # DEV_ONLY_DIRECTORY excludes directories named "tests"; a
+                # regular file with that name is shipped content and is kept.
+                if path.name == DEV_ONLY_DIRECTORY:
+                    continue
                 pending.append(path)
             elif stat.S_ISREG(info.st_mode):
                 # IGNORED_FILE_NAMES describes shipped files, not directories:
@@ -107,9 +112,12 @@ def contract_digest(skills_root: str | Path | None = None) -> str:
             )
         for path in _contract_files(skill_root):
             relative = path.relative_to(root)
-            if any(part in IGNORED_PARTS for part in relative.parts):
-                continue
-            if path.name in IGNORED_FILE_NAMES or path.suffix.lower() in IGNORED_SUFFIXES:
+            if (
+                any(part in CACHE_PARTS for part in relative.parts)
+                or DEV_ONLY_DIRECTORY in relative.parts[:-1]
+                or path.name in IGNORED_FILE_NAMES
+                or path.suffix.lower() in IGNORED_SUFFIXES
+            ):
                 continue
             data = _bounded_bytes(path)
             total_bytes += len(data)
