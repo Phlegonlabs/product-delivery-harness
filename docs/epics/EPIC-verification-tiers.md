@@ -33,3 +33,7 @@ Verify source changes in three tiers: focused local checks per task, Linux-only 
 
 | Change | Commit | Verification |
 | --- | --- | --- |
+| Draft PRs run only the Linux jobs and report `validate-draft`; every other run reports `validate` | `7cab027f` | CI gate 14, workflow YAML 2, shard 13 and skill contract 65 tests pass on Windows. The POSIX-only gate test is skipped there; its five scenarios passed through local Git Bash. |
+| Three-tier rules in Required Verification, the four READMEs and the PR template | `1282b104` | README structure 5, skill contract 65 and document sync 27 tests pass. |
+| Version 0.64.1 | `62592778` | Skill contract 65 and README structure 5 tests pass. |
+| Review of `387cc49a..1282b104` | — | GPT-6.1 Sol: PASS, covering correctness and security, with 12 focused tests and 17 gate CLI cases. This PR's own CI is the first live draft-to-ready run. |
