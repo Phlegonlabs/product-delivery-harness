@@ -53,10 +53,13 @@ On 2026-10-17 the owner accepted four tidy items on branch `codex/repo-tidy`: mo
 | Follow-up review of the fixes | — | GPT-6.1 Sol confirmed the three findings closed. It found one older mismatch: the digest skipped a regular file named `tests` and kept `.pytest_cache`. |
 | Digest follows the same rule | `fd58127b` | Harness contract 11, skill binding 10 and skill contract 65 tests pass. |
 | Review of `fd58127b` | — | GPT-6.1 Sol: the `tests` finding is closed. It found an older cache-rule gap: bash ships a regular file named `.pytest_cache` or `__pycache__`, which PowerShell and both hashes leave out. The rules also differ on letter case. |
+| One cache rule in both installers | `cfb7f548` | A new installer test runs both installers on cache-name variants. The installer suite of 23 tests passes in 356 s. |
+| Review of `cfb7f548` | — | GPT-6.1 Sol: closed. Two older suffix gaps remained: the digest skipped directories ending in `.pyc`, and both hashes kept a file named exactly `.pyc`. |
+| Compiled files matched by name | `3f7ef22e` | Each included test path now proves itself on its own. The installer suite of 23 tests passes in 352 s, along with harness UI 50, the skill spec and pyflakes. |
+| Final review of the shared rule | — | GPT-6.1 Sol: PASS. It compared 4,668 tricky paths across both installers, `hash_skill` and `contract_digest` and found no disagreement. |
 
 Four GLM workers timed out on this work. In each case the parent checked the partial result, finished or corrected it, and verified it before integration.
 
 ## Remaining Work
 
-- Give the bash and PowerShell installers the same cache rule as both hashes, then review that change.
 - When 0.64.1 to 0.64.5 land first, merge `main` into this branch: move their README history entries into `CHANGELOG.md`, give their Epics and index rows the status form, and move the installer tests from this branch into the split installer test files.
