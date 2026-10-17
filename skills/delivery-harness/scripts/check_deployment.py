@@ -72,6 +72,7 @@ RFC3339_RE = re.compile(
 BUILD_IDENTITY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:+/-]*$")
 HOST_RE = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 LOWER_KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+CONCRETE_CANDIDATE_REF_RE = re.compile(r"^refs/heads/[^\s<>\[\]]+$")
 ENVIRONMENT_ROWS = ("development", "production")
 BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
 ABSENT_VALUES = {"", "-", "n/a"}
@@ -484,6 +485,11 @@ def _retained_proof_findings(
             return [
                 f"{target_id} retained proof requires --candidate-ref "
                 "for run.integration.branch"
+            ]
+        if not CONCRETE_CANDIDATE_REF_RE.fullmatch(candidate_ref):
+            return [
+                f"{target_id} --candidate-ref must be a concrete "
+                "refs/heads/ branch"
             ]
         resolved_ref = candidate_ref
     checked_at = (

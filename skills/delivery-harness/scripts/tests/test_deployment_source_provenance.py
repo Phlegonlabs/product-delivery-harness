@@ -389,8 +389,7 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
             )
 
     def test_symbolic_dev_ref_requires_concrete_candidate_ref(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+        def strict_record(root: Path, resolved_ref: str) -> str:
             strict = deployment_record(
                 web_sha=SHA,
                 prod_sha=SHA,
@@ -400,7 +399,7 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
                     "run.integration.branch",
                     target="web-dev",
                     artifact="deployment-dev",
-                    resolved_ref="refs/heads/run/lifecycle",
+                    resolved_ref=resolved_ref,
                 ),
                 prod_evidence=write_retained(root, SHA, "refs/heads/main"),
             )
@@ -416,6 +415,11 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
                 strict,
                 count=1,
             )
+            return strict
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            strict = strict_record(root, "refs/heads/run/lifecycle")
             context = {
                 "architecture_text": ARCHITECTURE,
                 "require_source_provenance": True,
@@ -447,6 +451,51 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
             )
             self.assertTrue(
                 any("resolved ref differs" in item for item in findings),
+                findings,
+            )
+
+        for rejected in (
+            "run.integration.branch",
+            "pending",
+            "refs/heads/<branch>",
+        ):
+            with (
+                self.subTest(candidate_ref=rejected),
+                tempfile.TemporaryDirectory() as temp,
+            ):
+                repeated = strict_record(Path(temp), resolved_ref=rejected)
+                findings = check_deployment.check_deployment_text(
+                    repeated,
+                    architecture_text=ARCHITECTURE,
+                    require_source_provenance=True,
+                    repo_root=Path(temp),
+                    expected_repository="example/deployment",
+                    candidate_ref=rejected,
+                )
+                self.assertTrue(
+                    any(
+                        "--candidate-ref must be a concrete refs/heads/ branch"
+                        in item
+                        for item in findings
+                    ),
+                    findings,
+                )
+
+        with tempfile.TemporaryDirectory() as temp:
+            accepted = strict_record(Path(temp), "refs/heads/run/todo-app")
+            findings = check_deployment.check_deployment_text(
+                accepted,
+                architecture_text=ARCHITECTURE,
+                require_source_provenance=True,
+                repo_root=Path(temp),
+                expected_repository="example/deployment",
+                candidate_ref="refs/heads/run/todo-app",
+            )
+            self.assertFalse(
+                any(
+                    "--candidate-ref must be a concrete" in item
+                    for item in findings
+                ),
                 findings,
             )
 
