@@ -281,6 +281,34 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.assertIn("logical `delivery-harness/references/deployment-contract.md`", deployment_catalog)
         self.assertIn("observed installed skill root", deployment_catalog)
 
+    def test_void_preview_routes_before_generic_wrangler_commands(self):
+        template = (
+            ROOT / "skills/delivery-harness/assets/templates/DEPLOYMENT.template.md"
+        ).read_text(encoding="utf-8")
+        contract = (
+            ROOT / "skills/delivery-harness/references/deployment-contract.md"
+        ).read_text(encoding="utf-8")
+        void_route = template.split("#### Void direct Cloudflare\n", 1)[1].split(
+            "#### Wrangler Workers", 1
+        )[0]
+        for phrase in (
+            "Do not inherit the Wrangler procedure or CI checklist commands",
+            "separate config root and `void.lock.json` mapping",
+            "approved isolated development Worker alternative",
+            "project-local `void deploy --platform cloudflare`",
+            "Worker apps cannot use `--skip-build`",
+            "candidate SHA, resources, and smoke result",
+            "Native Preview remains blocked",
+        ):
+            self.assertIn(phrase, void_route)
+        self.assertNotIn("wrangler preview", void_route)
+        self.assertNotIn("--env development", void_route)
+        self.assertNotIn("--project", void_route)
+        self.assertIn("On other Workers", template)
+        self.assertIn("For the Wrangler route, create", template)
+        self.assertIn("Generated config alone is insufficient", contract)
+        self.assertIn("Do not substitute raw `wrangler preview`", contract)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -62,6 +62,23 @@ Per-platform runbook. The order is fixed: each resource exists before config ref
 
 ### cloudflare
 
+Choose the tool-specific procedure before adding a binding. Void projects use the Void procedure below; other Workers use the Wrangler procedure.
+
+#### Void direct Cloudflare
+
+Do not inherit the Wrangler procedure or CI checklist commands. A generated Wrangler config alone does not prove native Preview compatibility.
+
+1. Record the pinned Void version, framework, and each target's separate config root and `void.lock.json` mapping.
+2. Prove the pinned build/config path supports native Workers Previews before selecting it. Otherwise record an approved isolated development Worker alternative.
+3. Verify that alternative's Worker, resource IDs, secrets, routes, and triggers are separate from production. Record any authorized provisioning and migrations.
+4. From the isolated config root, run the project-local `void deploy --platform cloudflare` for the exact candidate. Let Void build and resolve resources; Worker apps cannot use `--skip-build`.
+5. Read back the fixed deployment ID, candidate SHA, resources, and smoke result. A production Worker's Version URL cannot satisfy isolation.
+6. Prepare the separate production config and schema before main promotion. Reverify the candidate whenever committed inputs change.
+
+Record config/lock diffs, `void prepare`, side effects, migration compatibility, and recovery. Native Preview remains blocked until its pinned build/config path is proven. See `<delivery-harness-skill-root>/references/deployment-contract.md`, "Platform: cloudflare".
+
+#### Wrangler Workers
+
 Prefer native Workers Previews with project Wrangler 4.135.0+ and a complete `previews` configuration. Native Previews isolate Durable Objects and Containers. Bind D1/KV/R2 explicitly to non-production resources. Review service-binding, Workflow, Queue, Cron and route limitations; unsupported required journeys remain blocked or use an approved isolated alternative. Version URLs share existing Worker bindings and are not native Previews.
 
 For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Objects). The order is a hard constraint on both sides: create the resource first, then write the declaration — a declaration naming a missing resource fails deploy validation and turns the pipeline red.
@@ -69,10 +86,9 @@ For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Object
 1. Create the development-side resource for D1/KV/R2 by adding `-dev` to its canonical production name, and record its ID. Native Previews provision their isolated Durable Object namespace at deployment; record that observed identity instead of precreating it. Any ID the wrangler config needs must exist before the declaration is written.
 2. Declare the binding in the development environment: native `previews`, or `env.development` only for an approved isolated fallback. Then deploy the exact candidate branch/SHA with `wrangler preview` and verify its fixed deployment URL; the fallback uses its recorded command. Add the binding class row to Resource Isolation.
 3. Create the production-side resource. This is an owner action — do not skip it or swap the order.
-4. Add the production declaration to the same candidate lineage. A named Wrangler environment may use `env.production`; direct Void Cloudflare instead uses its separate project config. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
+4. Add the production declaration to the same candidate lineage. Use the recorded Wrangler production configuration. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
 5. Secrets for the new binding: fake or dedicated values on the development worker, real values only in production, never in the wrangler config.
 6. With a D1 schema change: apply the migration to the development database and verify it there first; coordinate the production database migration with the protected-`main` deploy so new code never ships before the production schema exists.
-7. If this project uses Void, record `void.config.ts`, each isolated target's project config, and its matching `void.lock.json`/resource mapping. Inspect init/deploy diffs, run `void prepare` before typechecking, and capture deploy ID/read-back plus migration and rollback notes. See `<delivery-harness-skill-root>/references/deployment-contract.md`, "Platform: cloudflare"; never print secret values.
 
 ### vercel, aws, generic
 
@@ -109,8 +125,9 @@ These steps are performed by a person with platform access; the Harness never pe
 
 - [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch main`) and run the separately authorized bootstrap deploy.
 - [ ] Add the repository workflow that deploys the exact candidate run branch/SHA to the internal environment and `main` to production.
-- [ ] On Workers, use project Wrangler 4.135.0+ and `wrangler preview` for the exact PR/branch candidate; configure main production separately with `wrangler deploy`. Record an isolated fallback only when native Previews cannot support required journeys.
-- [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with the canonical production resource name plus `-dev` — and bind them explicitly in `previews`. An approved fallback uses a complete named environment; bindings are not inherited.
+- [ ] For Void, use the tool-specific procedure above. Record its isolated target, pinned build/config path, and exact deploy command.
+- [ ] On other Workers, use project Wrangler 4.135.0+ and `wrangler preview` for the exact PR/branch candidate; configure main production separately with `wrangler deploy`. Record an isolated fallback only when native Previews cannot support required journeys.
+- [ ] For the Wrangler route, create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with the canonical production resource name plus `-dev` — and bind them explicitly in `previews`. An approved fallback uses a complete named environment; bindings are not inherited.
 - [ ] Confirm a version preview of the production Worker is never used for stateful preview traffic: it shares that Worker's live bindings, so its writes reach production resources.
 - [ ] Store the platform API token as a repository secret; never place it in the repository itself.
 - [ ] Keep preview and production variables and secrets separate in the workflow, exactly as in a git-connected project.

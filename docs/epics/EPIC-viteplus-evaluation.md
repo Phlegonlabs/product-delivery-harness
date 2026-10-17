@@ -513,3 +513,18 @@ choice. Preserve earlier commits and evidence.
 PR #143 targets main. Exact-candidate CI and review, exact-main tree equality,
 fresh main verification/review, tag readback, backup and installation evidence
 are recorded in [release result](C:/Users/mps19/.codex/visualizations/2026/10/16/01a145a8-5d07-7f33-bba7-9fc01d6f4b9d/void-release-0.63.1-result.json).
+
+### 2026-10-16 - repair Void Preview routing after PR review
+
+PR #143 review identified an inherited Wrangler Preview path for Void projects.
+Candidate `575d805bf16d87686e7d7e5c8e8dfa19972b7199` passed CI and security review,
+but those results do not cover this repair. Main remains unchanged.
+
+The template now selects Void before the generic Wrangler binding procedure.
+Native Preview requires proof for the pinned package, build, and generated config.
+Otherwise use an approved isolated development Worker through project-local Void deploy.
+The deployment contract, CI checklist, workflow, and four README descriptions agree.
+A regression checks routing order, isolation evidence, and forbidden command inheritance.
+Official CLI and Cloudflare references were rechecked on 2026-10-16.
+Working-tree checks passed: 116 tests, skill spec, docs weight, pyflakes, and whitespace.
+The new exact-candidate CI and independent review remain pending.
