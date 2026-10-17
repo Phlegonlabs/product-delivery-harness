@@ -177,9 +177,9 @@ def parse_source_policy(
 ) -> tuple[SourcePolicyAuthority | None, list[str]]:
     """Return the stage, ref, and SHA authorities selected by the protocol."""
 
-    if source_policy_protocol not in {"candidate/1", "dual-branch/1"}:
+    if source_policy_protocol not in {"candidate/1", "dual-branch/1", "main-preview/1"}:
         return None, [
-            "Source policy protocol must be candidate/1 or dual-branch/1"
+            "Source policy protocol must be candidate/1, dual-branch/1 or main-preview/1"
         ]
     if expected_stage not in {"development", "production"}:
         return None, ["Source policy expected stage must be development or production"]

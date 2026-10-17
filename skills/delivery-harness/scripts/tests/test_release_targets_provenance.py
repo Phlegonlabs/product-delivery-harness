@@ -40,6 +40,24 @@ class ParseSourcePolicyTests(unittest.TestCase):
         self.assertEqual("refs/heads/development", dual[0].ref)
         self.assertEqual("promotion.verified_development_sha", dual[0].sha)
 
+    def test_main_preview_uses_candidate_development_authority(self) -> None:
+        preview = parse_source_policy(
+            "stage=development; ref=run.integration.branch; "
+            "sha=run.integration.integration_head_sha",
+            expected_stage="development",
+            source_policy_protocol="main-preview/1",
+        )
+        self.assertEqual([], preview[1])
+        self.assertEqual("run.integration.branch", preview[0].ref)
+
+        development_branch = parse_source_policy(
+            "stage=development; ref=refs/heads/development; "
+            "sha=promotion.verified_development_sha",
+            expected_stage="development",
+            source_policy_protocol="main-preview/1",
+        )
+        self.assertIsNone(development_branch[0])
+
     def test_wrong_ref_sha_and_protocol_fail(self) -> None:
         wrong_ref = parse_source_policy(
             "stage=development; ref=refs/heads/development; "
