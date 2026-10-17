@@ -404,6 +404,22 @@ class RetainedObservationTests(unittest.TestCase):
                     result[1],
                 )
 
+    def test_supplementary_scalar_in_command_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = observation_value()
+            value["readback"]["request"] = (
+                "git rev-parse refs/heads/main \U0001F4E6"
+            )
+            relative, digest = write_observation(root, value)
+            observation, findings = load(
+                root,
+                reference=f"file:{relative}@sha256:{digest}",
+                expected_hash=digest,
+            )
+            self.assertEqual([], findings)
+            self.assertIn("\U0001F4E6", observation["readback"]["request"])
+
     def test_identity_and_output_joins_fail(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

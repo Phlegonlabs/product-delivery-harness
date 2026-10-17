@@ -41,7 +41,7 @@ REPOSITORY_RE = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)+$"
 )
 PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]|<[^>]+>|\b(?:tbd|todo|placeholder)\b", re.I)
-UTF8_SCALAR_RE = re.compile(r"^[\x20-\x7e\t\n\r\u0080-\uffff]*$", re.A)
+UTF8_SCALAR_RE = re.compile(r"^[\x20-\x7e\t\n\r\u0080-\ud7ff\ue000-\U0010ffff]*$", re.A)
 CREDENTIAL_REQUEST_RE = re.compile(
     r"(?is)"
     r"(?:^|\r?\n)\s*(?:authorization|proxy-authorization|api-key|x-api-key)\s*:"
