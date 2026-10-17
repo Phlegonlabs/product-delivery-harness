@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -831,6 +831,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.64.4** — A manual source CI run that tests a `candidate_sha` other than the commit it runs on reports `validate-detached`, so it can no longer turn that commit's required `validate` check green.
 
 - **0.64.2** — CI verifies the platforms where the skills run: Windows now runs every Harness file in eight shards plus the other skill suites and the golden path, Linux keeps the draft tier, and macOS is no longer verified. The installer tests are split into three files so one shard no longer waits on them.
 

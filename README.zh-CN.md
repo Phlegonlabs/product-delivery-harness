@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -831,6 +831,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.64.4** — 手动运行的 source CI 若测试的 `candidate_sha` 不是运行所在的 commit，会报告为 `validate-detached`，不再让该 commit 的必需 `validate` check 变绿。
 
 - **0.64.2** — CI 改为验证实际运行 skill 的平台：Windows 以八个 shard 运行所有 Harness 文件，并运行其他 skill suite 和 golden path；Linux 保留 draft 层级；macOS 不再验证。installer 测试拆成三个文件，不再让单一 shard 卡住。
 
