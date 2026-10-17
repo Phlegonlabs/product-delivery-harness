@@ -154,6 +154,7 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(checker), "--activation", str(template)],
             text=True,
+            encoding="utf-8",
             capture_output=True,
             check=False,
         )

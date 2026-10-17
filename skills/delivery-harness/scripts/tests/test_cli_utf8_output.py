@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import subprocess
 import sys
@@ -85,6 +86,58 @@ class CliUtf8OutputTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertNotIn(b"Traceback", result.stderr)
         self.assertIn("準備中", result.stdout.decode("utf-8"))
+
+    def test_repo_script_subprocess_calls_decode_utf8(self) -> None:
+        """Text-mode subprocess calls running repo scripts must set encoding=."""
+        root = _repo_root()
+        runners = {"run", "Popen", "check_output", "check_call"}
+        failing: list[str] = []
+        for path in sorted(root.glob("skills/*/scripts/tests/*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                function = node.func
+                if not (
+                    isinstance(function, ast.Attribute)
+                    and function.attr in runners
+                    and isinstance(function.value, ast.Name)
+                    and function.value.id == "subprocess"
+                ):
+                    continue
+                keywords = {keyword.arg for keyword in node.keywords}
+                text_mode = bool({"text", "universal_newlines"} & keywords)
+                if not text_mode or "encoding" in keywords:
+                    continue
+                arguments = node.args
+                if not arguments or not isinstance(arguments[0], ast.List):
+                    continue
+                elements = arguments[0].elts
+                if not elements or not _is_sys_executable(elements[0]):
+                    continue
+                if any(
+                    isinstance(element, ast.Constant)
+                    and element.value in ("-c", "-m")
+                    for element in elements
+                ):
+                    continue
+                relative = path.relative_to(root).as_posix()
+                failing.append(f"{relative}:{node.lineno}")
+        self.assertEqual(
+            [],
+            failing,
+            "text-mode subprocess calls decoding repo scripts with the locale"
+            " encoding; add encoding=\"utf-8\" after text=True",
+        )
+
+
+def _is_sys_executable(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "executable"
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "sys"
+    )
 
 
 if __name__ == "__main__":

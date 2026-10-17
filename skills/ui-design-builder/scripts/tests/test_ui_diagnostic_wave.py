@@ -340,14 +340,14 @@ class DiagnosticWaveTests(unittest.TestCase):
         before = sorted(str(item.relative_to(self.root)) for item in self.root.rglob("*") if item.is_file())
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--repo-root", str(self.root), "--request", str(path),
-             "--request-sha256", digest], capture_output=True, text=True, timeout=15, check=True)
+             "--request-sha256", digest], capture_output=True, text=True, encoding="utf-8", timeout=15, check=True)
         report = json.loads(result.stdout)
         self.assertTrue(report["complete"])
         after = sorted(str(item.relative_to(self.root)) for item in self.root.rglob("*") if item.is_file())
         self.assertEqual(before, after)
         bad = subprocess.run(
             [sys.executable, str(SCRIPT), "--repo-root", str(self.root), "--request", str(path),
-             "--request-sha256", "0" * 64], capture_output=True, text=True, timeout=15)
+             "--request-sha256", "0" * 64], capture_output=True, text=True, encoding="utf-8", timeout=15)
         self.assertEqual(2, bad.returncode)
         self.assertIn("changed after", bad.stdout)
 

@@ -79,6 +79,7 @@ class ReviewerBrowserTests(unittest.TestCase):
                  "ReviewerBrowserTests.test_hifi_product_css_cannot_change_shell_and_state_controls_work"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 env=env,
                 timeout=15,
             )

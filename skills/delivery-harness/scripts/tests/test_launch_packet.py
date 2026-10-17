@@ -77,6 +77,7 @@ class LaunchPacketCheckTests(unittest.TestCase):
                 check=True,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=15,
             )
             self.assertEqual(
@@ -105,6 +106,7 @@ class LaunchPacketCheckTests(unittest.TestCase):
                         ],
                         capture_output=True,
                         text=True,
+                        encoding="utf-8",
                         timeout=15,
                     )
                     self.assertEqual(2, result.returncode)
@@ -127,6 +129,7 @@ class LaunchPacketCheckTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=15,
             )
             self.assertEqual(2, result.returncode)

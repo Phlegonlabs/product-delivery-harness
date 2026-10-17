@@ -1592,6 +1592,7 @@ class ActivationCheckerTests(unittest.TestCase):
             passed = subprocess.run(
                 [sys.executable, str(script), "--activation", str(path), "--show-action-digests"],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -1600,6 +1601,7 @@ class ActivationCheckerTests(unittest.TestCase):
             missing = subprocess.run(
                 [sys.executable, str(script), "--activation", str(Path(temp) / "missing.md")],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -1613,6 +1615,7 @@ class ActivationCheckerTests(unittest.TestCase):
                     "--require-verified-sources",
                 ],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
@@ -1627,6 +1630,7 @@ class ActivationCheckerTests(unittest.TestCase):
                     "--require-closeout",
                 ],
                 text=True,
+                encoding="utf-8",
                 capture_output=True,
                 check=False,
             )
