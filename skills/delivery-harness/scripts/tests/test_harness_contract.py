@@ -133,32 +133,40 @@ class ContractDigestTests(unittest.TestCase):
 
     def test_cache_names_and_suffixes_match_the_installers_in_the_digest(self) -> None:
         # The cache rule matches whole path parts case-sensitively and only the
-        # .pyc/.pyo suffix in any letter case, exactly like the installers and
-        # hash_skill: regular files named exactly __pycache__ or .pytest_cache
-        # and a module.PYC file change nothing, while foo__pycache__/ and
-        # __PYCACHE__/ lookalikes are runtime content. The case variants live in
-        # different skills because Windows file systems ignore case, so both
-        # spellings could not sit in one directory.
+        # .pyc/.pyo suffix in any letter case over the file name, exactly like
+        # the installers and hash_skill: regular files named exactly
+        # __pycache__ or .pytest_cache, a module.PYC file, and a file named
+        # exactly .pyc change nothing, while foo__pycache__/ and __PYCACHE__/
+        # lookalikes and a directory named module.PYC are runtime content. The
+        # case variants live in different skills because Windows file systems
+        # ignore case, so both spellings could not sit in one directory.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_required_skills(root)
             skills_root = root / "skills"
-            before = contract_digest(skills_root)
             scripts = root / "skills" / "delivery-harness" / "scripts"
             scripts.mkdir()
-            for name in (".pytest_cache", "__pycache__"):
-                (scripts / name).write_text(
-                    "cache data\n", encoding="utf-8", newline="\n"
-                )
+            for name in (".pytest_cache", "__pycache__", "module.PYC", ".pyc"):
+                before = contract_digest(skills_root)
+                path = scripts / name
+                if path.suffix:
+                    path.write_bytes(b"\x00\x01cache bytes\n")
+                else:
+                    path.write_text("cache data\n", encoding="utf-8", newline="\n")
                 self.assertEqual(contract_digest(skills_root), before)
-            (scripts / "module.PYC").write_bytes(b"\x00\x01cache bytes\n")
-            self.assertEqual(contract_digest(skills_root), before)
             runtime_scripts = root / "skills" / "product-definition-builder" / "scripts"
             for relative in ("foo__pycache__/runtime.py", "__PYCACHE__/runtime.py"):
+                before = contract_digest(skills_root)
                 path = runtime_scripts / relative
                 path.parent.mkdir(parents=True)
                 path.write_text("value = 1\n", encoding="utf-8", newline="\n")
                 self.assertNotEqual(contract_digest(skills_root), before)
+            compiled_scripts = root / "skills" / "design-system-compiler" / "scripts"
+            before = contract_digest(skills_root)
+            runtime = compiled_scripts / "module.PYC" / "runtime.py"
+            runtime.parent.mkdir(parents=True)
+            runtime.write_text("value = 2\n", encoding="utf-8", newline="\n")
+            self.assertNotEqual(contract_digest(skills_root), before)
 
     def test_ci_data_files_do_not_change_the_digest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

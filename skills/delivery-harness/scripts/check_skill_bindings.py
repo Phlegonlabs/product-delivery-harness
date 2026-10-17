@@ -263,7 +263,7 @@ def hash_skill(path: Path) -> str:
         if candidate.is_file()
         and "__pycache__" not in candidate.parts
         and ".pytest_cache" not in candidate.parts
-        and candidate.suffix.casefold() not in {".pyc", ".pyo"}
+        and not candidate.name.casefold().endswith((".pyc", ".pyo"))
         and not is_development_only(candidate.relative_to(root).as_posix())
     )
     if not files:

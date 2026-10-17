@@ -54,7 +54,7 @@ def _contract_files(skill_root: Path):
             entries += 1
             if entries > MAX_ENTRIES:
                 raise ValueError("skill tree exceeds entry limit")
-            if path.name in CACHE_PARTS or path.suffix.lower() in IGNORED_SUFFIXES:
+            if path.name in CACHE_PARTS:
                 continue
             info = _plain_stat(path)
             if stat.S_ISDIR(info.st_mode):
@@ -64,10 +64,15 @@ def _contract_files(skill_root: Path):
                     continue
                 pending.append(path)
             elif stat.S_ISREG(info.st_mode):
-                # IGNORED_FILE_NAMES describes shipped files, not directories:
-                # a directory with one of these names is ordinary content and
-                # must still be walked.
-                if path.name in IGNORED_FILE_NAMES:
+                # The compiled-cache suffix and IGNORED_FILE_NAMES describe
+                # shipped files, not directories: a directory with such a name
+                # is ordinary content and must still be walked. The suffix is
+                # matched over the whole file name, so a file named exactly
+                # ".pyc" is a cache file just like "module.pyc".
+                if (
+                    path.name.lower().endswith(tuple(IGNORED_SUFFIXES))
+                    or path.name in IGNORED_FILE_NAMES
+                ):
                     continue
                 files.append(path)
             else:
@@ -116,7 +121,7 @@ def contract_digest(skills_root: str | Path | None = None) -> str:
                 any(part in CACHE_PARTS for part in relative.parts)
                 or DEV_ONLY_DIRECTORY in relative.parts[:-1]
                 or path.name in IGNORED_FILE_NAMES
-                or path.suffix.lower() in IGNORED_SUFFIXES
+                or path.name.lower().endswith(tuple(IGNORED_SUFFIXES))
             ):
                 continue
             data = _bounded_bytes(path)

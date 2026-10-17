@@ -727,14 +727,16 @@ class InstallScriptTests(unittest.TestCase):
                 )
 
     def test_installers_keep_cache_names_matching_case_sensitive(self) -> None:
-        # A regular file named exactly scripts/.pytest_cache or
-        # scripts/__pycache__ and a scripts/module.PYC file are cache artifacts
-        # the installers leave out, while foo__pycache__/runtime.py and
-        # scripts/__PYCACHE__/runtime.py are runtime content: the cache names
-        # match whole path parts case-sensitively and only the compiled suffix
-        # is matched in any letter case. The case variants live in different
-        # skills because Windows file systems ignore case, so both spellings
-        # could not sit in one directory.
+        # A regular file named exactly scripts/.pytest_cache,
+        # scripts/__pycache__, or scripts/.pyc and a scripts/module.PYC file
+        # are cache artifacts the installers leave out, while
+        # foo__pycache__/runtime.py and scripts/__PYCACHE__/runtime.py are
+        # runtime content: the cache names match whole path parts
+        # case-sensitively and only the compiled suffix over the file name is
+        # matched in any letter case, so a directory named module.PYC is
+        # ordinary content whose files install. The case variants live in
+        # different skills because Windows file systems ignore case, so both
+        # spellings could not sit in one directory.
         source = self.make_minimal_repo()
         tracked = {
             "delivery-harness": (
@@ -742,6 +744,8 @@ class InstallScriptTests(unittest.TestCase):
                 "scripts/__pycache__",
                 "scripts/module.PYC",
             ),
+            "ui-design-builder": ("scripts/.pyc",),
+            "design-system-compiler": ("scripts/module.PYC/runtime.py",),
             "product-definition-builder": (
                 "foo__pycache__/runtime.py",
                 "scripts/__PYCACHE__/runtime.py",
@@ -751,7 +755,7 @@ class InstallScriptTests(unittest.TestCase):
             for relative in relatives:
                 path = source / "skills" / skill / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
-                if path.suffix:
+                if path.name.lower().endswith((".pyc", ".pyo")):
                     path.write_bytes(b"\x00\x01cache bytes\n")
                 else:
                     path.write_text(
@@ -798,11 +802,17 @@ class InstallScriptTests(unittest.TestCase):
                 self.assertFalse(
                     (destination / "delivery-harness" / "scripts" / "module.PYC").exists()
                 )
+                self.assertFalse(
+                    (destination / "ui-design-builder" / "scripts" / ".pyc").exists()
+                )
                 self.assertTrue(
                     (destination / "product-definition-builder" / "foo__pycache__" / "runtime.py").is_file()
                 )
                 self.assertTrue(
                     (destination / "product-definition-builder" / "scripts" / "__PYCACHE__" / "runtime.py").is_file()
+                )
+                self.assertTrue(
+                    (destination / "design-system-compiler" / "scripts" / "module.PYC" / "runtime.py").is_file()
                 )
 
     def assert_source_line_recorded(self, source: Path, install) -> None:
