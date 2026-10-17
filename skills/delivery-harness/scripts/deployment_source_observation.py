@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import ctypes
 import ctypes.wintypes as wintypes
+import errno
 import hashlib
 import json
 import os
@@ -190,6 +191,10 @@ def _directory_identity(metadata: os.stat_result) -> tuple[int, int, int]:
     return (metadata.st_dev, metadata.st_ino, metadata.st_mode)
 
 
+def _posix_refused_link(exception: OSError) -> bool:
+    return exception.errno in (errno.ELOOP, getattr(errno, "ENOTDIR", errno.ELOOP))
+
+
 def _read_bounded_regular_posix(
     root: Path,
     parts: tuple[str, ...],
@@ -211,54 +216,67 @@ def _read_bounded_regular_posix(
             metadata = os.fstat(descriptors[-1])
             if not stat.S_ISDIR(metadata.st_mode) or _is_reparse_metadata(metadata):
                 return b"", "", [
-                    f"{label}: retained evidence path contains a link or reparse point"
+                    f"{label}: retained evidence path contains a symlink or reparse point"
                 ]
 
-        for part in parts:
-            if _race_probe is not None:
-                _race_probe("before-read", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
-            parent_before = os.fstat(descriptors[-1])
-            leaf_fd = os.open(part, leaf_flags, dir_fd=descriptors[-1])
-            leaf_before = os.fstat(leaf_fd)
-            if not stat.S_ISREG(leaf_before.st_mode):
-                return b"", "", [f"{label}: retained evidence is not a regular file"]
-            if leaf_before.st_size > MAX_OBSERVATION_BYTES:
-                return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
-            if _race_probe is not None:
-                _race_probe("after-open", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
-            content = b""
-            while len(content) <= MAX_OBSERVATION_BYTES:
-                chunk = os.read(
-                    leaf_fd,
-                    min(65536, MAX_OBSERVATION_BYTES + 1 - len(content)),
-                )
-                if not chunk:
-                    break
-                content += chunk
-            leaf_after = os.fstat(leaf_fd)
-            if _race_probe is not None:
-                _race_probe("after-read", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
-            parent_after = os.fstat(descriptors[-1])
-            if _identity_changed(leaf_before, leaf_after):
-                return b"", "", [f"{label}: retained evidence changed while it was read"]
-            if _directory_identity(parent_before) != _directory_identity(parent_after):
-                return b"", "", [f"{label}: retained evidence parent changed while it was read"]
-            parent_reopened_fd = _posix_open_relative_directory(
-                descriptors[0],
-                tuple(root.parts[1:] + parts[:-1]),
-                directory_flags,
+        for part in parts[:-1]:
+            descriptors.append(
+                os.open(part, directory_flags, dir_fd=descriptors[-1])
             )
-            try:
-                parent_reopened = os.fstat(parent_reopened_fd)
-            finally:
-                os.close(parent_reopened_fd)
-            if _directory_identity(parent_before) != _directory_identity(parent_reopened):
+            metadata = os.fstat(descriptors[-1])
+            if not stat.S_ISDIR(metadata.st_mode) or _is_reparse_metadata(metadata):
                 return b"", "", [
-                    f"{label}: retained evidence parent changed while it was read"
+                    f"{label}: retained evidence path contains a symlink or reparse point"
                 ]
-            os.close(leaf_fd)
-            leaf_fd = None
-    except (OSError, ValueError):
+
+        if _race_probe is not None:
+            _race_probe("before-read", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
+        parent_before = os.fstat(descriptors[-1])
+        leaf_fd = os.open(parts[-1], leaf_flags, dir_fd=descriptors[-1])
+        leaf_before = os.fstat(leaf_fd)
+        if not stat.S_ISREG(leaf_before.st_mode):
+            return b"", "", [f"{label}: retained evidence is not a regular file"]
+        if leaf_before.st_size > MAX_OBSERVATION_BYTES:
+            return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
+        if _race_probe is not None:
+            _race_probe("after-open", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
+        content = b""
+        while len(content) <= MAX_OBSERVATION_BYTES:
+            chunk = os.read(
+                leaf_fd,
+                min(65536, MAX_OBSERVATION_BYTES + 1 - len(content)),
+            )
+            if not chunk:
+                break
+            content += chunk
+        leaf_after = os.fstat(leaf_fd)
+        if _race_probe is not None:
+            _race_probe("after-read", Path(root.parts[0]).joinpath(*root.parts[1:], *parts))
+        parent_after = os.fstat(descriptors[-1])
+        if _identity_changed(leaf_before, leaf_after):
+            return b"", "", [f"{label}: retained evidence changed while it was read"]
+        if _directory_identity(parent_before) != _directory_identity(parent_after):
+            return b"", "", [f"{label}: retained evidence parent changed while it was read"]
+        parent_reopened_fd = _posix_open_relative_directory(
+            descriptors[0],
+            tuple(root.parts[1:] + parts[:-1]),
+            directory_flags,
+        )
+        try:
+            parent_reopened = os.fstat(parent_reopened_fd)
+        finally:
+            os.close(parent_reopened_fd)
+        if _directory_identity(parent_before) != _directory_identity(parent_reopened):
+            return b"", "", [
+                f"{label}: retained evidence parent changed while it was read"
+            ]
+        os.close(leaf_fd)
+        leaf_fd = None
+    except (OSError, ValueError) as exception:
+        if isinstance(exception, OSError) and _posix_refused_link(exception):
+            return b"", "", [
+                f"{label}: retained evidence path contains a symlink or reparse point"
+            ]
         return b"", "", [f"{label}: retained evidence cannot be read safely"]
     finally:
         for descriptor in reversed(descriptors):
