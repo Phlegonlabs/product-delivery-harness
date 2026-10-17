@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -833,6 +833,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.64.3** — Verifica los navegadores que nombra cada PRD. Una tabla Browser Targets asigna Chrome y Edge a Chromium, Firefox a Firefox y Safari a WebKit, una aproximación. La CI del consumidor ejecuta el E2E una vez por motor cuando el PR está listo, y delivery acceptance `/2` exige un escenario aprobado por cada release target, smoke test y motor.
 
 - **0.64.0** — Coincide la identidad del navegador del reviewer nativo con el host y conserva las comprobaciones de bridge. Ensambla estudios de dirección en el reviewer compartido con targets y anchos por caso. Une las olas diagnósticas completas a PRD, manifest e identidades de evidencia. Exige release source provenance en los handoffs estrictos de Activation, SEO y Outcome, incluidos los paquetes main-preview/1. Escribe la salida de los CLI en UTF-8 para que los hallazgos en chino ya no fallen en Windows. Aclara authoring solo frontend, navegación versión 3, recuperación del worker, anchos medidos e investigación parcial honesta.
 
