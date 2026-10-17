@@ -4,7 +4,7 @@ Status: complete
 
 ## Problem And Baseline
 
-At detached baseline `bdae1d82acfd24cdeb2866f5480ff4d4d73b0b61` (Harness 0.58.0), `configure_project_context.py` created missing context files but left every existing `AGENTS.md` untouched. A target could therefore remain without current shared guidance after an authorized bootstrap. The approved review in `C:/Users/mps19/Documents/Codex/2026-09-29/harness-flow-review-01a0ed97/流程與提速評估.md` identified the merge gap and host-specific installer wording. The checkout started clean at that baseline.
+At detached baseline `bdae1d82acfd24cdeb2866f5480ff4d4d73b0b61` (Harness 0.58.0), `configure_project_context.py` created missing context files but left every existing `AGENTS.md` untouched. A target could therefore remain without current shared guidance after an authorized bootstrap. The approved review in `流程與提速評估.md` identified the merge gap and host-specific installer wording. The checkout started clean at that baseline.
 
 ## Accepted Scope
 

@@ -10,7 +10,7 @@ and HiFi pages, but do not explicitly reconcile all current package documents
 or combine Product Definition and UI at the final UI handoff.
 
 First observation on 2026-10-04: repository
-`C:/Users/mps19/.codex/worktrees/831e/product-delivery-harness`, detached HEAD
+`product-delivery-harness`, detached HEAD
 `1782fa000b107396fd36787c7df7fad8a2141c82`, clean working tree. No prior baseline
 exists for this outcome. The owner named `codex/document-review-handoff`; it was
 created from observed local remote-tracking `origin/development` at
@@ -56,7 +56,7 @@ Required Reading, Git Flow and omission of consumer bindings/deployment remain
 intentional local choices. No AGENTS update or translation backfill applies.
 
 Focused verification completed on the scoped working-tree candidate. Logs:
-`C:/Users/mps19/AppData/Local/Temp/pdh-document-review-1uyvykeh/`.
+`pdh-document-review-1uyvykeh/`.
 The parent inspected individual-file coverage, missing-file and later-stage
 handling, current versus archived sources, stage-specific path rules and the
 combined review. Both skill reference targets resolve. Existing ignore rules

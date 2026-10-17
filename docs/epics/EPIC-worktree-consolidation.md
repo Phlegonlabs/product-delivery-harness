@@ -102,7 +102,7 @@ Eval merge commit: skill specification, full six-skill Pyflakes, docs weight,
 new RUN, tasks view, both golden paths, all three Eval suites, current source
 binding and version contract. These are working-tree results, not repinned
 final-SHA evidence. Logs and immutable publication inventory are outside Git:
-`C:/Users/mps19/AppData/Local/Temp/pdh-worktree-merge-20261003-eb6k85jg`.
+`pdh-worktree-merge-20261003-eb6k85jg`.
 
 The complete fixed-candidate Linux/macOS/Windows CI, required browser suites,
 golden path and independent contract/correctness review must cover the unified SHA.

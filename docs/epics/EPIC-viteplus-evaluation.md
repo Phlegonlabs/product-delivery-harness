@@ -16,7 +16,7 @@ not install dependencies, change skill behavior, commit, push, or release.
   `2fa9b343175f585aca1da551edc0a8654380de9b`.
 - Base: local `main` and `origin/main` both pointed at that SHA. No remote fetch
   or live remote-head check was performed; this is the locally observed base.
-- Worktree: `C:/Users/mps19/.codex/worktrees/viteplus-evaluation/product-delivery-harness`.
+- Worktree: `product-delivery-harness`.
 - Original checkout: `codex/macos-support` at
   `1591a4482155f9601b568b2c357857629dd6c0b1`, with substantial unfinished changes.
   Its existing audit Epic records that work. Those changes were not copied,

@@ -131,7 +131,7 @@ full source skill suites and formal independent review are not claimed.
   `loaded_identity_unobserved` and `baseline_review_required`; no missing
   required research document was reported.
 - Inspection report retained outside the checkout at
-  `C:/Users/mps19/AppData/Local/Temp/pdh-eval-research-validation-a7e4w6gv/document-sync-handoff.json`.
+  `document-sync-handoff.json`.
 - The local research commit contains only the report, this Epic and the
   DOCUMENTS entries. Resolve its SHA from `git log -1 -- docs/research/eval-contract-integration.md`;
   the commit does not need to name its own hash in its content.

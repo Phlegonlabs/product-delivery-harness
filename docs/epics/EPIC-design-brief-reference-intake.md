@@ -21,7 +21,7 @@ Sources: current `ui-design-builder` SKILL and intake/reference/output/pass guid
 
 ## Baseline And Authority
 
-Observed 2026-09-24 UTC: repository `C:/Users/mps19/Documents/GitHub/product-delivery-harness`, local main and locally observed origin/main at `b4ffe691b97265d5a76817c2e0ccf457e084fa54` (0.53.1). No remote freshness claim or fetch. The owner explicitly confirmed branch `codex/design-brief-references` and GLM workers. That branch was created from the observed origin/main SHA. No local commits, push, promotion, installation, worktree creation or cleanup is authorized by this task.
+Observed 2026-09-24 UTC: repository `product-delivery-harness`, local main and locally observed origin/main at `b4ffe691b97265d5a76817c2e0ccf457e084fa54` (0.53.1). No remote freshness claim or fetch. The owner explicitly confirmed branch `codex/design-brief-references` and GLM workers. That branch was created from the observed origin/main SHA. No local commits, push, promotion, installation, worktree creation or cleanup is authorized by this task.
 
 Original untracked `scripts/design/hifi_model.py` is observed/unverified, unrelated to this task and preserved. There were no staged or tracked working-tree changes at entry. The prior research observed the same baseline; this task does not re-verify historical release results.
 
@@ -33,7 +33,7 @@ Write scope: `skills/ui-design-builder/SKILL.md`, its `ui-design-intake.md`, `de
 
 - Entry: semantic review of the existing intake, REF/RP and direction records completed. Loaded skill identity remains unknown; document sync must not label installed bytes as the loaded identity.
 - Working-tree implementation: GLM Flash run `20260923-235042-d7c84034c9f74eddb8c7d9a79d9fa5fd` completed read-only and returned a patch. The parent repaired its diff formatting, narrowed missing-input waits to dependent work, and applied the five scoped UI documents. Four README descriptions now match the flow. No schema, executable validator, runtime or historical design artifact changed.
-- Before full verification, the nine changed skill/README files have fingerprint `9bc4512e0ea942016cdf5378d538ce7a9a654b7bb25c63fde8db26b39ba6e254`; full per-file hashes are in `C:/Users/mps19/AppData/Local/Temp/pdh-design-brief-a5bf243f3e2d4ac9b7e4e3e749e70b8b/source-before.json`. Epic/index edits are excluded to avoid recursive evidence updates. HEAD remains the baseline; this is working-tree evidence, not a committed candidate.
+- Before full verification, the nine changed skill/README files have fingerprint `9bc4512e0ea942016cdf5378d538ce7a9a654b7bb25c63fde8db26b39ba6e254`; full per-file hashes are in `source-before.json`. Epic/index edits are excluded to avoid recursive evidence updates. HEAD remains the baseline; this is working-tree evidence, not a committed candidate.
 - Shared document sync reports `loaded_identity_unobserved` and `baseline_review_required`; installed digest is `dd610610baff6e3d607f61a9d5e7c40114a610d7ae17090958b8d813cc0f699f`. The named live scope was reviewed; no installed or loaded identity was relabeled or updated.
 - Required dependency commands completed: pip requirements, `npm ci` and `npx playwright install chromium`. A task-local log-tail printer hit Windows console encoding after Chromium had exited 0; the printer was corrected to UTF-8. This was a reporting error, not a dependency-install failure, and no source repair or repeated installation was needed.
 - Specification, pyflakes and docs-weight checks passed; normative documentation grows by 555 words against v0.53.1. Required-browser UI suite passed all 279 tests in 64.472 seconds with Chromium and no skips.
@@ -60,7 +60,7 @@ DB-1 through DB-4 are implemented in the scoped guidance and four README descrip
 
 The skips cover Windows/POSIX or symlink-privilege limits and the default opt-in golden-path skip; golden path passed in its separate enabled run. Browser verification did not skip. Negative-test diagnostic lines are expected output, not suite failures. Linux CI, production UI quality and human design approval are not claimed.
 
-Logs, the command manifest and result summaries are under `C:/Users/mps19/AppData/Local/Temp/pdh-design-brief-a5bf243f3e2d4ac9b7e4e3e749e70b8b/`; see `check-jobs.json.results.json`, each named `.log`, `brief_compatibility.py` and `final-identity.json`. The final nine-file source fingerprint matches the pre-verification fingerprint above. Only Epic/index bookkeeping changed after the suites.
+Logs, the command manifest and result summaries are under `pdh-design-brief-a5bf243f3e2d4ac9b7e4e3e749e70b8b/`; see `check-jobs.json.results.json`, each named `.log`, `brief_compatibility.py` and `final-identity.json`. The final nine-file source fingerprint matches the pre-verification fingerprint above. Only Epic/index bookkeeping changed after the suites.
 
 Final repository/branch/HEAD remain the named checkout, `codex/design-brief-references` and `b4ffe691b97265d5a76817c2e0ccf457e084fa54`. No staged changes or commits exist. The original untracked `scripts/design/hifi_model.py` is unchanged, SHA-256 `66b61a803153d4da49e10ce3e25b72a51229728a84bc48371620012e21e38b9c`. Ignore checks confirmed `.env`, dependency output and Python caches are covered; source/README/Epic paths remain visible. No new ignore rule or tracked-file removal was needed.
 
