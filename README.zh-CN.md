@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -804,7 +804,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 技能源码维护分三个层级验证。每个 atomic task 都跑 focused local checks，每次 push 到 draft PR 都会运行 Linux CI job。把 PR 标记为 ready for review 时，会运行完整的 Linux 和 Windows matrix。那次 run 就是 release 验证，所以 matrix 不会在本地重跑。兼容的测试依赖可沿用；同 SHA、同输入的 deterministic 结果保留来源后引用，不缓存 PASS，也不沿用失效的 security、browser、live 或 migration 证据。Consumer 产品访谈、UI 批准与真实 Activation 不属于本源码库发布步骤。正式 release 验证成功且 bundle digest 改变后，才在安全加载边界用正式 installer 更新一次本地技能，保留备份与验证。Feature／development push 不替换正在使用的正式版本；安装成功且需要加载时才重启相关 host。
 
-CI 会以同一个精确 candidate SHA 运行 Linux 和 Windows job；macOS 不在 CI 验证范围内。draft PR 只运行 Linux job，aggregate 报告为 `validate-draft`；ready PR 运行所有 job，并报告必需的 `validate` check。Aggregate 回归会从公开 CLI 验证成功、失败、skipped、cancelled 和缺少 job 结果的情况。失败或执行零个测试的 shard 会失败；稳定的 `validate` aggregate 也会让该 run 需要的任何 skipped 或 cancelled job 失败。Feature branch 只由 pull request 验证一次；`main`、merge queue 和精确 SHA release run 保持分开。浏览器测试在 Linux 运行。Windows 运行完整的 Harness 与各 skill suite、golden path 和 installer 检查。测试数据在绑定可执行文件或仓库身份前先解析临时路径，包括 Windows 8.3 别名。macOS 无法执行绑定的文件描述符，所以在 macOS 上 sandbox container verifier 和浏览器 parity capture 会直接报错（fail closed）；trusted-host 签名验证只在使用受 SIP 保护的 `/usr/bin/ssh-keygen` 时可用。
+CI 会以同一个精确 candidate SHA 运行 Linux 和 Windows job；macOS 不在 CI 验证范围内。draft PR 只运行 Linux job，aggregate 报告为 `validate-draft`；ready PR 运行所有 job，并报告必需的 `validate` check。手动运行时，若 `candidate_sha` 不是这次运行所在的 commit，aggregate 会报告为 `validate-detached`，因此无法让该 commit 通过 ruleset。Aggregate 回归会从公开 CLI 验证成功、失败、skipped、cancelled 和缺少 job 结果的情况。失败或执行零个测试的 shard 会失败；稳定的 `validate` aggregate 也会让该 run 需要的任何 skipped 或 cancelled job 失败。Feature branch 只由 pull request 验证一次；`main`、merge queue 和精确 SHA release run 保持分开。浏览器测试在 Linux 运行。Windows 运行完整的 Harness 与各 skill suite、golden path 和 installer 检查。测试数据在绑定可执行文件或仓库身份前先解析临时路径，包括 Windows 8.3 别名。macOS 无法执行绑定的文件描述符，所以在 macOS 上 sandbox container verifier 和浏览器 parity capture 会直接报错（fail closed）；trusted-host 签名验证只在使用受 SIP 保护的 `/usr/bin/ssh-keygen` 时可用。
 
 HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node 测试通过 stdin 读取多行程序，避免 Windows 启动器静默截断断言。
 
@@ -831,6 +831,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.64.4** — 手动运行的 source CI 若测试的 `candidate_sha` 不是运行所在的 commit，会报告为 `validate-detached`，不再让该 commit 的必需 `validate` check 变绿。
 
 - **0.64.2** — CI 改为验证实际运行 skill 的平台：Windows 以八个 shard 运行所有 Harness 文件，并运行其他 skill suite 和 golden path；Linux 保留 draft 层级；macOS 不再验证。installer 测试拆成三个文件，不再让单一 shard 卡住。
 

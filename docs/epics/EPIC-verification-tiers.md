@@ -46,3 +46,5 @@ Verify source changes in three tiers: focused local checks per task, Linux-only 
 | CI platform description in Required Verification and the four READMEs | `2cc20ba3` | README structure 5 and skill contract 65 tests pass. |
 | Installer tests split into three files | `c8f27e34` | An AST comparison shows every test unchanged. The 21 installer tests pass on Windows in 437 s. |
 | Version 0.64.2 | `0d45da7a` | Skill contract 65 and README structure 5 tests pass. |
+| Detached manual runs report `validate-detached` | `1b255457` | The cross-browser review found that a manual run tests `candidate_sha` but attaches its check to the commit it runs on. Such a run no longer reports the required `validate`. CI 42, skill contract 65, README structure 5 and document sync 27 tests pass, and the workflow YAML parses. |
+| Version 0.64.4 | `c054daaf` | Skill contract 65 and README structure 5 tests pass. |

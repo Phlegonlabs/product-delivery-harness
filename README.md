@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -804,7 +804,7 @@ The READMEs are documentation-of-record: every change that adds or alters a skil
 
 Source maintenance verifies in three tiers. Each atomic task gets focused local checks, and each push to a draft PR runs the Linux CI jobs. Marking the PR ready for review runs the full Linux and Windows matrix. That run is the release verification, so the matrix is not repeated locally. Reuse compatible installed test dependencies and cite unchanged exact-SHA deterministic results with their origin; never cache PASS or reuse stale security, browser, live-state or migration evidence. Consumer product interviews, UI approvals and Activation execution are not source-repository release steps. After a verified formal release, update local skills once only when the bundle digest changed, using the official installer at a quiescent boundary with backup and verification. Feature/development pushes do not replace the installed release; restart the relevant host only after successful installation when needed.
 
-CI runs Linux and Windows jobs against one exact candidate SHA; macOS is not verified. A draft PR runs only the Linux jobs and reports `validate-draft`; a ready PR runs every job and reports the required `validate` check. Aggregate regressions execute the public CLI with successful, failed, skipped, cancelled and missing job results. A failed or zero-coverage shard fails, and the stable `validate` aggregate also fails any skipped or cancelled job that the run requires. Feature branches verify once by pull request; `main`, merge queue and exact-SHA release runs stay separate. Browser tests run on Linux. Windows runs the full Harness and skill suites, the golden path and the installer checks. Test fixtures resolve temporary paths before binding executable or repository identities, including Windows 8.3 aliases. On macOS, sandboxed container verifiers and browser parity capture fail closed, because macOS cannot execute a bound file descriptor. Trusted-host signature verification runs there only with the SIP-protected `/usr/bin/ssh-keygen`.
+CI runs Linux and Windows jobs against one exact candidate SHA; macOS is not verified. A draft PR runs only the Linux jobs and reports `validate-draft`; a ready PR runs every job and reports the required `validate` check. A manual run whose `candidate_sha` differs from the commit it runs on reports `validate-detached`, so it cannot satisfy the ruleset for that commit. Aggregate regressions execute the public CLI with successful, failed, skipped, cancelled and missing job results. A failed or zero-coverage shard fails, and the stable `validate` aggregate also fails any skipped or cancelled job that the run requires. Feature branches verify once by pull request; `main`, merge queue and exact-SHA release runs stay separate. Browser tests run on Linux. Windows runs the full Harness and skill suites, the golden path and the installer checks. Test fixtures resolve temporary paths before binding executable or repository identities, including Windows 8.3 aliases. On macOS, sandboxed container verifiers and browser parity capture fail closed, because macOS cannot execute a bound file descriptor. Trusted-host signature verification runs there only with the SIP-protected `/usr/bin/ssh-keygen`.
 
 Byte-bound HiFi examples retain LF line endings across checkouts. Wireframe Node tests read multiline scripts from stdin so Windows launchers cannot silently truncate assertions.
 
@@ -831,6 +831,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.64.4** — A manual source CI run that tests a `candidate_sha` other than the commit it runs on reports `validate-detached`, so it can no longer turn that commit's required `validate` check green.
 
 - **0.64.2** — CI verifies the platforms where the skills run: Windows now runs every Harness file in eight shards plus the other skill suites and the golden path, Linux keeps the draft tier, and macOS is no longer verified. The installer tests are split into three files so one shard no longer waits on them.
 
