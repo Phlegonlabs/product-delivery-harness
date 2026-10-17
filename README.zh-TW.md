@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -831,6 +831,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.64.0** — 讓 native reviewer 的瀏覽器身分對應 host，同時保留 bridge 檢查。在共用 reviewer 中組裝方向研究，並提供每個案例的 targets 與寬度。把完整 diagnostic wave 連結 PRD、manifest 與 evidence 身分。在 strict Activation、SEO 與 Outcome 交接要求 release source provenance，包含 main-preview/1 套件。CLI 輸出改用 UTF-8，Windows 上含中文的 findings 不再 crash。釐清 frontend-only authoring、version-3 navigation、worker recovery、量測寬度與誠實的部分研究。
 
 - **0.63.1** — 加入 Void 可選全端 SDK／CLI 開發與部署指引。保留 owner 已核准的技術棧、部署資源隔離、migration 恢復及精確版本證據。
 
