@@ -363,5 +363,89 @@ class DiagnosticWaveTests(unittest.TestCase):
         self.assertEqual(2, blocked)
 
 
+class DiagnosticSpecimenFindingsTests(unittest.TestCase):
+    """Specimen values are browser-observed fields; the contract carries identity only."""
+
+    def expected(self, **overrides) -> dict:
+        row = {
+            "kind": "component", "name": "Primary button", "sourcePage": "index.html",
+            "source": ".product-button", "property": "color", "variant": "default",
+            "state": "default", "element": "button", "sharedGroup": None,
+        }
+        row.update(overrides)
+        return row
+
+    def observed(self, expected: dict, **values) -> dict:
+        row = dict(expected)
+        row.update({"sourceValue": "#243447", "specimenValue": "#243447", "displayValue": "#243447"})
+        if expected["kind"] == "token":
+            row.update({"sourceComputedValue": "rgb(36, 52, 71)", "specimenComputedValue": "rgb(36, 52, 71)"})
+        row.update(values)
+        return row
+
+    def test_matching_nonempty_values_are_clean(self) -> None:
+        expected = [self.expected(), self.expected(kind="token", name="Ink color",
+                                                   source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0]), self.observed(expected[1])]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual([], defects)
+
+    def test_a_different_display_value_is_one_defect(self) -> None:
+        expected = [self.expected()]
+        observed = [self.observed(expected[0], displayValue="#ff0000")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("displayed values differ from the style source", defects[0])
+
+    def test_a_token_with_a_different_computed_value_is_one_defect(self) -> None:
+        expected = [self.expected(kind="token", name="Ink color", source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0], specimenComputedValue="rgb(0, 0, 0)")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("applied token value differs from the browser-normalized source property", defects[0])
+
+    def test_token_row_reports_both_value_problems_in_one_defect(self) -> None:
+        expected = [self.expected(kind="token", name="Ink color", source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0], displayValue="#ff0000", specimenComputedValue="rgb(0, 0, 0)")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("displayed values differ from the style source", defects[0])
+        self.assertIn("applied token value differs from the browser-normalized source property", defects[0])
+
+    def test_an_empty_source_value_is_incomplete(self) -> None:
+        expected = [self.expected()]
+        observed = [self.observed(expected[0], sourceValue="")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual(1, len(structural))
+        self.assertIn("is incomplete", structural[0])
+        self.assertEqual([], defects)
+
+    def test_missing_token_measurement_is_incomplete_even_with_a_display_defect(self) -> None:
+        expected = [self.expected(kind="token", name="Ink color", source=":root", property="--color-ink")]
+        observed = [self.observed(expected[0], sourceComputedValue="", displayValue="#ff0000")]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual(1, len(structural))
+        self.assertIn("is incomplete", structural[0])
+        self.assertEqual([], defects)
+
+    def test_a_shared_group_with_differing_values_is_one_defect(self) -> None:
+        expected = [
+            self.expected(name="Ink color", sourcePage="index.html", sharedGroup="ink"),
+            self.expected(name="Ink color", sourcePage="child.html", sharedGroup="ink"),
+        ]
+        observed = [
+            self.observed(expected[0]),
+            self.observed(expected[1], sourceValue="#ffffff", specimenValue="#ffffff", displayValue="#ffffff"),
+        ]
+        structural, defects = hifi_reviewer._diagnostic_specimen_findings(observed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertIn("shared group ink: values differ across member pages", defects[0])
+
+
 if __name__ == "__main__":
     unittest.main()

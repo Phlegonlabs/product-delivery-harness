@@ -1637,6 +1637,21 @@ class ActivationCheckerTests(unittest.TestCase):
             self.assertEqual(2, closeout_without_prd.returncode)
             self.assertIn("requires --prd", closeout_without_prd.stderr)
 
+    def test_documented_authority_commands_supply_expected_repository_and_candidate_ref(self) -> None:
+        contract = (SKILL_ROOT / "references" / "activation-contract.md").read_text(
+            encoding="utf-8"
+        )
+        authority_flags = ("--require-closeout", "--require-verified-sources", "--require-ready")
+        command_lines = [
+            line
+            for line in contract.splitlines()
+            if "check_activation.py" in line and any(flag in line for flag in authority_flags)
+        ]
+        self.assertGreater(len(command_lines), 0)
+        for line in command_lines:
+            self.assertIn("--expected-repository", line, line)
+            self.assertIn("--candidate-ref", line, line)
+
 
 if __name__ == "__main__":
     unittest.main()

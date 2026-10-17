@@ -388,6 +388,109 @@ class DeploymentSourceProvenanceTests(unittest.TestCase):
                 findings,
             )
 
+    def test_strict_evidence_repo_and_observed_time_must_match_context(self) -> None:
+        def strict_record(root: Path, prod_evidence: str) -> str:
+            record = deployment_record(
+                web_sha=SHA,
+                prod_sha=SHA,
+                web_evidence=write_retained(
+                    root,
+                    SHA,
+                    "run.integration.branch",
+                    target="web-dev",
+                    artifact="deployment-dev",
+                    resolved_ref="refs/heads/run/lifecycle",
+                ),
+                prod_evidence=prod_evidence,
+            )
+            record = re.sub(
+                r"\| web-dev .*?\n",
+                f"| web-dev | web-app | development | Cloudflare;development route | https://dev.example.com | {SHA} | {SHA} | deployment-dev | development route answered the smoke check | {OBSERVED} | PASS |\n",
+                record,
+                count=1,
+            )
+            record = re.sub(
+                r"\| web-prod .*?\n",
+                f"| web-prod | web-app | production | Cloudflare;production route | https://example.com | {SHA} | {SHA} | deployment-1 | production route answered the API smoke check | {OBSERVED} | PASS |\n",
+                record,
+                count=1,
+            )
+            return record
+
+        context = {
+            "architecture_text": ARCHITECTURE,
+            "require_source_provenance": True,
+            "expected_repository": "example/deployment",
+            "candidate_ref": "refs/heads/run/lifecycle",
+        }
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            wrong_repo = strict_record(
+                root,
+                prod_evidence=write_retained(root, SHA, "refs/heads/main").replace(
+                    "repo=example/deployment",
+                    "repo=wrong/project",
+                    1,
+                ),
+            )
+            findings = check_deployment.check_deployment_text(
+                wrong_repo,
+                repo_root=root,
+                **context,
+            )
+            self.assertIn(
+                "web-prod evidence repo differs from expected repository",
+                findings,
+            )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            shifted = strict_record(
+                root,
+                prod_evidence=write_retained(root, SHA, "refs/heads/main").replace(
+                    f"observed={OBSERVED}",
+                    "observed=2026-09-03T13:00:00+00:00",
+                    1,
+                ),
+            )
+            findings = check_deployment.check_deployment_text(
+                shifted,
+                repo_root=root,
+                **context,
+            )
+            self.assertIn(
+                "web-prod evidence observed time differs from the retained "
+                "observation",
+                findings,
+            )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            same_instant = strict_record(
+                root,
+                prod_evidence=write_retained(root, SHA, "refs/heads/main").replace(
+                    f"observed={OBSERVED}",
+                    "observed=2026-09-03T12:00:00+00:00",
+                    1,
+                ),
+            )
+            findings = check_deployment.check_deployment_text(
+                same_instant,
+                repo_root=root,
+                **context,
+            )
+            self.assertNotIn(
+                "web-prod evidence repo differs from expected repository",
+                findings,
+            )
+            self.assertNotIn(
+                "web-prod evidence observed time differs from the retained "
+                "observation",
+                findings,
+            )
+            self.assertEqual([], findings, msg=same_instant)
+
     def test_symbolic_dev_ref_requires_concrete_candidate_ref(self) -> None:
         def strict_record(root: Path, resolved_ref: str) -> str:
             strict = deployment_record(
