@@ -2,6 +2,8 @@
 
 Release notes for the Product Delivery Harness skill bundle, newest first.
 
+- **0.65.0** — Installed skills leave out each skill's tests, CI timing data and test requirements, so a test-only release no longer moves Skill Binding pins; the installers, `hash_skill` and the contract digest share one rule. The retired Wireframe guide and templates move into `legacy/` folders. Release notes move from the four READMEs into this file. Every Epic has one status line, tracked documents drop local machine paths, and research reports move under `docs/research/`.
+
 - **0.64.0** — Match native reviewer browser identity to the host while keeping bridge checks. Assemble direction studies in the shared reviewer with per-case targets and widths. Join complete diagnostic waves to PRD, manifest, and evidence identities. Require release source provenance in strict Activation, SEO, and Outcome handoffs, including main-preview/1 packages. Write CLI output as UTF-8 so Chinese findings no longer crash on Windows. Clarify frontend-only authoring, version-3 navigation, worker recovery, measured widths, and honest partial research.
 
 - **0.63.1** — Add optional Void full-stack SDK/CLI guidance. Preserve owner-approved stacks, isolated deployment resources, migration recovery and exact-version evidence.

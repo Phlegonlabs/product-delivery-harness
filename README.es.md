@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
