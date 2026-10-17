@@ -2,7 +2,7 @@
 
 The four READMEs remain the documentation of record for the skill bundle.
 
-Current source focus: workflow repairs for 0.64.0 are repaired and re-reviewed on `workflow-repairs-0.64`. The push and PR await owner approval.
+Current source focus: workflow repairs for 0.64.0 await the owner's push and PR approval on `workflow-repairs-0.64`. Tiered source verification for 0.64.1 is stacked on that branch as `verification-tiers`.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ Current source focus: workflow repairs for 0.64.0 are repaired and re-reviewed o
 | `docs/epics/EPIC-design-authoring-flow.md` | PRD-bound style and playable-motion authoring across skills | Released in v0.54.2 |
 | `docs/epics/EPIC-prd-continuous-completeness.md` | First-delivery UI/technical completeness and ongoing evidence-based PRD refinement | Released in v0.54.1 |
 | `docs/epics/EPIC-design-brief-reference-intake.md` | Explicit reference questions and a concise Design Brief in existing UI intake | Released in v0.54.1 |
-| `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior and release instructions | 0.64.0 candidate source; observed released main and installed skills remain 0.63.1 |
+| `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior and release instructions | 0.64.1 candidate source; observed released main and installed skills remain 0.63.1 |
 | `docs/epics/EPIC-runtime-and-verification-reliability.md` | Browser CI, lifecycle, runtime metrics, document review and same-RUN recovery | Released in v0.54.1 |
 | `docs/epics/EPIC-ui-reviewer-integration.md` | Unified Wireframe/HiFi review, evidence, and lifecycle integration | Released in v0.54.1 |
 | `docs/epics/EPIC-001-incremental-design-review.md` | Incremental UI authoring and interactive review repair | Work released through v0.50.0; Epic status still `in_progress` |
