@@ -172,7 +172,7 @@
 ## PR／分支 Preview、main 與部署
 
 129. Direct candidate 或 Managed A 完成本機檢查和 exact-SHA review，準備 PR／分支 Preview。
-130. Cloudflare 優先使用 Wrangler 4.135.0+ 原生 Previews；不支援的必要流程需隔離替代方案或保持 blocked。
+130. Cloudflare 優先使用 Wrangler 4.135.0+ 原生 Previews；不支援的必要流程需隔離替代方案或保持 blocked。核准採用 Void 時，direct target 仍是 `cloudflare`。先證明 pinned build／config 支援原生 Preview；否則經核准使用分離 config／lock 的 development Worker，以 project-local `void deploy --platform cloudflare` 完成 fresh build 與隔離部署。檢查資源副作用、migration rollback 與 exact deploy readback，不沿用一般 Wrangler 指令。
 131. 記錄 Preview 固定 deployment URL／ID、candidate SHA、資料隔離及實際驗收結果。
 132. 凍結已驗 candidate；分支 Preview URL 後續更新不改寫既有驗收證據。
 133. 完成必要 release matrix、fresh security、migration 與隔離 Preview 驗證。

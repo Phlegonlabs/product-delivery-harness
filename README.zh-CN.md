@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.63.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.63.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -132,6 +132,8 @@ Trusted-host publication 与 legacy（0.38 以前）run-branch push 都与 repos
 docs-weight 可见度报告会纳入嵌套的可选 reference Markdown，不新增 gate。
 
 Cloudflare 目录分开 compute、data、agent／search、browser／sandbox、media／email 与分析职责。Basin、K2、Artifacts、框架 adapter、CLI 与技能候选保留当日成熟度或迁移检查；目录涵盖不代表已安装、账号可用或已可部署。
+
+Void 是可选的 full-stack SDK／CLI 路线。native 或 framework routing 都是 stack 决策；direct Cloudflare 仍是 `cloudflare`，team Void platform 另做 deployment 决策。 Void Preview 需先证明 build／config 路径兼容，否则使用批准且隔离的 Void 部署。
 
 </details>
 
@@ -809,6 +811,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.63.1** — 加入 Void 可选全栈 SDK／CLI 开发与部署指引。保留 owner 已批准的技术栈、部署资源隔离、migration 恢复及精确版本证据。
 
 - **0.63.0** — 改用 main-based 交付，先完成精确 candidate 的 PR／分支 Preview 验收；加入原生 Workers Previews，保留历史 RUN pins。
 

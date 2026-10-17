@@ -215,6 +215,105 @@ class ReferenceLibraryTests(unittest.TestCase):
             self.assertNotIn("must read the option-library", text, name)
             self.assertNotIn("required option-library", text, name)
 
+    def test_void_guidance_keeps_optional_layers_and_routing_authority(self):
+        frontend = (LIBRARY / "frontend.md").read_text(encoding="utf-8")
+        backend = (LIBRARY / "backend.md").read_text(encoding="utf-8")
+        cloudflare = (LIBRARY / "cloudflare-platform.md").read_text(encoding="utf-8")
+        frontend_selection = (
+            ROOT / "skills/product-definition-builder/references/frontend-stack-selection.md"
+        ).read_text(encoding="utf-8")
+        backend_selection = (
+            ROOT / "skills/product-definition-builder/references/backend-stack-selection.md"
+        ).read_text(encoding="utf-8")
+
+        for phrase in ("Stack Decision Checkpoint", "Framework 模式", "Better Auth"):
+            self.assertIn(phrase, frontend)
+        for phrase in ("optional self-hosted Void platform", "Framework mode", "approved auth"):
+            self.assertIn(phrase, backend)
+        self.assertIn("node_modules/void/docs/", backend)
+        self.assertIn("effective instructions", backend)
+        self.assertIn("不自動採用或全域連結", backend)
+        self.assertIn("isolated local database and state", backend)
+        self.assertIn("Remote Workers AI development calls", backend)
+        self.assertIn("team Void platform", cloudflare)
+        self.assertIn("Native Void mode owns routing and rendering", frontend_selection)
+        self.assertIn("If the owner approves Void", backend_selection)
+        self.assertNotIn("Void is an approved full-stack", backend_selection)
+
+    def test_void_sources_record_dated_official_scope(self):
+        sources = (LIBRARY / "sources.md").read_text(encoding="utf-8")
+        self.assertIn("2026-10-16 Void", sources)
+        for url in (
+            "https://void.cloud/guide/quickstart",
+            "https://void.cloud/integrations/agents",
+            "https://void.cloud/integrations/frameworks/overview",
+            "https://void.cloud/reference/cli/setup",
+            "https://void.cloud/reference/cli/deploy",
+            "https://void.cloud/integrations/cloudflare",
+            "https://void.cloud/guide/deployment",
+            "https://void.cloud/reference/structure",
+        ):
+            self.assertIn(url, sources)
+
+    def test_void_cloudflare_deployment_keeps_side_effect_and_isolation_guards(self):
+        contract = (
+            ROOT / "skills/delivery-harness/references/deployment-contract.md"
+        ).read_text(encoding="utf-8")
+        template = (
+            ROOT / "skills/delivery-harness/assets/templates/DEPLOYMENT.template.md"
+        ).read_text(encoding="utf-8")
+        deployment_catalog = (LIBRARY / "deployment.md").read_text(encoding="utf-8")
+        for phrase in (
+            "`void deploy --platform cloudflare`",
+            "adds no stage, gate, schema or agent role",
+            "Commit those files",
+            "generated `.void/` types/local state and `.void-wrangler.jsonc`",
+            "preserving required `.void/` recovery files on disk",
+            "supports neither named environments nor `--project`",
+            "is not proof of no side effects",
+            "may send traffic before checks",
+            "workers do not deploy independently",
+            "Code rollback does not reverse DB migrations",
+            "Never equate a production Worker's Version URL with an isolated Preview",
+        ):
+            self.assertIn(phrase, contract)
+        self.assertIn("<delivery-harness-skill-root>/references/deployment-contract.md", template)
+        self.assertIn("logical `delivery-harness/references/deployment-contract.md`", deployment_catalog)
+        self.assertIn("observed installed skill root", deployment_catalog)
+
+    def test_void_preview_routes_before_generic_wrangler_commands(self):
+        template = (
+            ROOT / "skills/delivery-harness/assets/templates/DEPLOYMENT.template.md"
+        ).read_text(encoding="utf-8")
+        contract = (
+            ROOT / "skills/delivery-harness/references/deployment-contract.md"
+        ).read_text(encoding="utf-8")
+        void_route = template.split("#### Void direct Cloudflare\n", 1)[1].split(
+            "#### Wrangler Workers", 1
+        )[0]
+        for phrase in (
+            "Do not inherit the Wrangler procedure or CI checklist commands",
+            "separate config root and `void.lock.json` mapping",
+            "approved isolated development Worker alternative",
+            "project-local `void deploy --platform cloudflare`",
+            "Worker apps cannot use `--skip-build`",
+            "candidate SHA, resources, and smoke result",
+            "Native Preview remains blocked",
+        ):
+            self.assertIn(phrase, void_route)
+        self.assertNotIn("wrangler preview", void_route)
+        self.assertNotIn("--env development", void_route)
+        self.assertNotIn("--project", void_route)
+        self.assertNotIn("env.production", void_route)
+        wrangler_route = template.split("#### Wrangler Workers", 1)[1].split(
+            "### vercel, aws, generic", 1
+        )[0]
+        self.assertIn("env.production", wrangler_route)
+        self.assertIn("On other Workers", template)
+        self.assertIn("For the Wrangler route, create", template)
+        self.assertIn("Generated config alone is insufficient", contract)
+        self.assertIn("Do not substitute raw `wrangler preview`", contract)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -130,6 +130,8 @@ Reference only · 查閱日期：2026-09-25
 - [官方來源：vercel.com — docs/functions](https://vercel.com/docs/functions)
 - [官方來源：vercel.com — docs/functions/limitations](https://vercel.com/docs/functions/limitations)
 
+2026-10-16 Void 官方頁面查核：[quickstart](https://void.cloud/guide/quickstart)、[coding agents](https://void.cloud/integrations/agents)、[meta-framework overview](https://void.cloud/integrations/frameworks/overview)、[project setup CLI](https://void.cloud/reference/cli/setup)、[deploy CLI](https://void.cloud/reference/cli/deploy)、[Cloudflare integration](https://void.cloud/integrations/cloudflare)、[deployment guide](https://void.cloud/guide/deployment)、[project structure](https://void.cloud/reference/structure)。來源支持 SDK／CLI、framework mode、auth 限制、direct Cloudflare 行為、generated `.void/`／`.void-wrangler.jsonc` 邊界與 rollback；未驗證帳號、pricing 或實際部署。
+
 ## [design.md](design.md)
 
 2026-10-02 發布者入口：[Mobbin](https://mobbin.com/)、[Dribbble](https://dribbble.com/)、[Awwwards](https://www.awwwards.com/websites/)、[Refero](https://refero.design/)、[MotionSites](https://motionsites.ai/)。這次核對來源用途，沒有替任何個別作品做視覺／操作驗收。MotionSites 網址由名稱暫定，沒有宣稱 owner 已確認。制度型設計參考：[Material 3](https://m3.material.io/)、[Fluent 2](https://fluent2.microsoft.design/)、[Carbon](https://carbondesignsystem.com/)。八種方向為本輪研究判斷，不是官方分類。

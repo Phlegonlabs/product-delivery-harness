@@ -56,6 +56,16 @@
 
 適合薄 API、edge gateway 或多 runtime 候選；若想要完整 ORM/admin/job 系統，需比較自行組裝成本。框架的跨 runtime 支援不代表所有第三方套件相容。採納時逐一核對 adapter、authentication middleware、schema validation、DB driver 與背景工作機制。平台 bindings 往往比路由本身更難搬移；成本要看宿主、外部 DB 與網路。[官方介紹](https://hono.dev/docs)
 
+### Void SDK（2026-10-16 增補）
+
+[Void](https://void.cloud/guide/quickstart) 是全端 SDK／CLI，不是單一 backend framework、database engine 或 auth provider。分開核對三層：project-local SDK 與 CLI、direct Cloudflare target，以及 optional self-hosted Void platform。專案必須固定同一版本的 `void` package 與 CLI；部署前可用 `void prepare` 生成 types。依需求先讀 `node_modules/void/docs/guide/quickstart.md` 與 `node_modules/void/docs/reference/cli.md`；選用的 bundled Void skill/docs 要對照 pinned package、effective instructions 與 skill pins，不自動採用或全域連結。
+
+官方 Cloudflare 頁面列出 D1、PostgreSQL、MySQL、KV、R2、Workers AI、Queues、Cron 與 Durable State 的 inferred bindings。direct Cloudflare 部署在 Cloudflare Workers 上；optional team platform 是另一個 deployment 決策。既有核准的 database、auth、jobs 與外部整合各自保留權威，不由 Void 自動取代。
+
+Local development can migrate local D1 automatically. Give each writer an isolated local database and state. Remote Workers AI development calls consume the connected cloud account's allowance, so require matching external authority before using them.
+
+Framework mode 目前不提供 Void-managed auth；官方描述以 Better Auth 的 framework integration 作為現行路線。這只表示可評估的 integration，不是預設 provider，也不能覆蓋既有 approved auth。採納前核對 [Cloudflare](https://void.cloud/integrations/cloudflare) 的 resources、migrations、secrets、rollback 與 named-environment 限制。
+
 ### ASP.NET Core
 
 適合 C# 團隊、既有 .NET domain library 或企業整合；若團隊只熟其他語言，先衡量學習與維護成本。確認 middleware 次序、DI lifetime、資料存取、驗證授權、background service 與 runtime 支援期。可比較雲端或自管部署；使用 ASP.NET Core 不等於必須用 Azure。遷移主要牽涉 .NET 元件與資料層，標準 HTTP 契約可獨立保留。[官方概覽](https://learn.microsoft.com/en-us/aspnet/core/overview?view=aspnetcore-10.0)

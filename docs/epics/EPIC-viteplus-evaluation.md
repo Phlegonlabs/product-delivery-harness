@@ -1,7 +1,7 @@
 # Vite+ evaluation
 
-Status: research complete; integration proposed, not implemented.
-Checked: 2026-09-28. UI impact: none. Route: direct research and documentation.
+Status: optional Void guidance is prepared for 0.63.1. Final release and installation evidence: [release result](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
+Checked: 2026-09-28; Void sources checked 2026-10-16. UI impact: none. Route: direct implementation with one writer.
 
 ## Request and baseline
 
@@ -435,3 +435,118 @@ is accepted by publication. Whitespace, the single index row and all five
 proposed source locations passed local checks. No generated artifacts,
 ignore rules, skill sources or runtime settings change. Integration and
 the final combined candidate's required verification remain pending.
+
+### 2026-10-16 - accepted optional Void full-stack guidance
+
+The owner approved beginning implementation that adds Void as an optional
+full-stack development/deployment path to existing flows. The base was clean
+`f51c7beb4f40efd5e6ff1a7c70796477092d459b` on `codex/void-optional-flow`.
+One writer owns the checkout. The atomic local commit is authorized; push,
+merge, release, version bump, installation, application scaffolding, cloud
+login/provision/migration/deploy and cleanup remain outside this attempt.
+
+VOID-01 keeps Void optional and needs-led. VOID-02 covers the project-local
+SDK/CLI, matching versions, generated types, reviewed init/migrate effects,
+isolated local dev database/state, authority-gated remote AI calls and
+preserved instructions/skills. VOID-03 keeps direct Cloudflare as platform
+`cloudflare`, treats the team platform as a separate generic deployment
+decision, and requires isolated target mapping, resources, secrets and one
+integration owner. VOID-04 records lock/resource/DO history, side effects,
+fresh builds, staged versus bootstrap traffic, deploy/read-back evidence and
+migration/rollback limits. Canonical operational detail is in the deployment
+contract; catalog, Product Definition, template, workflow and README text
+point to it without new gates, schemas, stages, domains or roles.
+
+Official evidence was checked on 2026-10-16 from Void quickstart, coding
+agents, meta-framework overview, setup/deploy CLI references, Cloudflare
+integration and deployment pages. It supports SDK/CLI and framework boundaries
+but does not establish account access, pricing or a live deployment. The
+project instruction and named governance hashes matched the packet. Document
+sync remains `review_required` for first-use baseline and unobserved loaded
+identity; legacy-name review findings are retained, not declared PASS.
+
+Focused checks on this working-tree candidate: reference-library 12/12 PASS
+(including three new Void regressions), README structure 5/5 PASS,
+deployment-record 33/33 PASS, skill specification PASS, docs weight PASS,
+pyflakes PASS and `git diff --check` PASS. Logs are retained outside Git under
+the task visualization directory. These are working-tree results, not exact
+commit or review PASS evidence. The parent will run fresh exact-candidate
+regression and independent review. No live compatibility, pilot, performance
+or production claim is made.
+
+### 2026-10-16 - Void evidence and pointer repair
+
+Repair candidate: `3cc4dc735895ed1f00186282db0237a61e9f4561`. The initial
+global-hash check mistakenly used the project hash in the global comparison.
+The parent's task-entry observations are global
+`FB8EF6BA056D537272FCB665A532942D8EE34696EDC2A272BB763F92D6275F21` and project
+`965CACDCC98CE83B6A83A46CFC9ABBFCF16842B3A232B0557F2FF086B3B60059`; both match.
+No instruction change is claimed. The child's scoped sync retained 12 unchanged
+legacy-name findings, while the parent default sync retained only baseline and
+loaded-identity findings.
+
+This repair adds the project-local `node_modules/void/docs/` reading route,
+requires selected bundled Void docs/skills to match the pinned package and
+effective instructions, and forbids automatic adoption or global linking. It
+clarifies committed config/lock/migration history versus Gitignored generated
+`.void/` state and `.void-wrangler.jsonc`, preserves required recovery files on
+disk, and resolves operational pointers from the observed installed Harness
+root. The authoritative final verification/review state is the parent-owned
+[PR #143 verification record](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
+
+Repair working-tree checks: reference-library 12/12 PASS, README structure
+5/5 PASS, deployment-record 33/33 PASS, skill specification PASS, docs weight
+PASS, pyflakes PASS and whitespace check PASS. These results are not a
+substitute for the parent's exact-candidate checks or independent review.
+
+### 2026-10-16 - release 0.63.1 and local skill update
+
+The owner requested main integration and a local seven-skill update.
+Prepare patch 0.63.1 under the source release policy.
+The feature base is `49386109e2b4e21cbf560e390035f0f5e8f04c26`.
+The observed remote main is `f51c7beb4f40efd5e6ff1a7c70796477092d459b`.
+
+Update package and lock metadata, VERSION, four README badges/history entries,
+and the RUNBOOK default together. This changes no runtime schema or product
+choice. Preserve earlier commits and evidence.
+
+PR #143 targets main. Exact-candidate CI and review, exact-main tree equality,
+fresh main verification/review, tag readback, backup and installation evidence
+are recorded in [release result](https://github.com/Phlegonlabs/product-delivery-harness/pull/143).
+
+### 2026-10-16 - repair Void Preview routing after PR review
+
+PR #143 review identified an inherited Wrangler Preview path for Void projects.
+Candidate `575d805bf16d87686e7d7e5c8e8dfa19972b7199` passed CI and security review,
+but those results do not cover this repair. Main remains unchanged.
+
+The template now selects Void before the generic Wrangler binding procedure.
+Native Preview requires proof for the pinned package, build, and generated config.
+Otherwise use an approved isolated development Worker through project-local Void deploy.
+The deployment contract, CI checklist, workflow, and four README descriptions agree.
+A regression checks routing order, isolation evidence, and forbidden command inheritance.
+Official CLI and Cloudflare references were rechecked on 2026-10-16.
+Working-tree checks passed: 116 tests, skill spec, docs weight, pyflakes, and whitespace.
+The new exact-candidate CI and independent review remain pending.
+
+### 2026-10-16 - make current release evidence accessible
+
+PR #143 review identified machine-local links in the current release status.
+Replace this attempt's current-result links with the shared PR verification record.
+The PR records exact-SHA CI, review, release, and per-host installation results separately.
+Older research and release records retain their original evidence and status.
+
+The preceding Preview repair is `1c90eaee`. Its focused checks passed 116 tests.
+Current links resolve to this repository's open PR #143.
+Main release, tag, and local installation remain pending until their readback exists.
+
+### 2026-10-16 - retain the Wrangler production configuration example
+
+Exact-candidate CI at `ac5c0de23aa2d24804b8d54499f009220b6323fc` found a documentation regression.
+The generic binding contract requires the retained `env.production` example.
+The final Preview edit had removed it after the earlier 65-contract check.
+Restore that example only in the Wrangler procedure.
+The new Void regression checks that it stays outside the Void procedure.
+The interrupted candidate review provides no PASS for this repair.
+Working-tree checks passed: 116 tests, skill spec, docs weight, pyflakes, and whitespace.
+Fresh exact-candidate CI and independent review remain pending.
