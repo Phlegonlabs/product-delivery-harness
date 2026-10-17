@@ -67,7 +67,8 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                 subject,
                 "_image_module",
                 side_effect=RuntimeError(
-                    "UI image evidence decoding requires Pillow; install the engineering test dependencies"
+                    "UI image evidence decoding requires Pillow; "
+                    "install it with: python -m pip install Pillow"
                 ),
             ):
                 errors = subject.validate_ui_evidence_files(
@@ -82,7 +83,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
             errors,
             [
                 "run.ui_evidence[0].artifact_path: UI image evidence decoding "
-                "requires Pillow; install the engineering test dependencies"
+                "requires Pillow; install it with: python -m pip install Pillow"
             ],
         )
 
