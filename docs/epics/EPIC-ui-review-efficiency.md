@@ -68,3 +68,10 @@ The installed template and VERSION are 0.64.0. Shared AGENTS rules agree by mean
 The loaded skill digest remains unknown. Document sync reports `review_required`; it is not a verification PASS.
 No consumer PRD, design package, PLAN/RUN or generated tasks view applies to this source change.
 No push, version promotion, release, installation or product visual-quality result is claimed.
+
+## Verification Follow-up
+
+On 2026-10-18, initial-foundation checks exposed a stale Product Definition cross-skill rubric assertion at baseline `3f659517`.
+Six expected phrases still required the superseded score policy, and one expected the replaced review-scope wording. UI sources were unchanged from that baseline.
+The assertion now checks advisory overall scoring, retained dimension floors, complete H1-H9 scoring and the bounded repair scope.
+No rubric or validator behavior changes. The focused grading-contract test passed; the foundation candidate receives the next independent review.

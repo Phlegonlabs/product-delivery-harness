@@ -2801,12 +2801,12 @@ async function agent(_prompt, options) {
             "`80–100 — pass`",
             "`60–79 — advisory`",
             "`0–59 — block`",
-            "wireframe overall score",
-            "overall score is at least `90`",
-            "design-reference overall score",
-            "overall score is at least `90`",
-            "each score at least `90`",
-            "`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`",
+            "Legacy Wireframe thresholds stay unchanged: overall at least `80`",
+            "`W5` at least `80`, every dimension at least `60`, and no `block`",
+            "HiFi readiness requires every dimension at least `60`",
+            "`H2/H4/H8` each at least `90`",
+            "`H5/H7/H9` each at least `80`",
+            "This overall score is advisory; it cannot trigger repair or prevent Visual Approval by itself",
             "Any such failure on required content is a `block`",
             "`W1 PRD conformance`",
             "`W5 Structural clarity and evidence`",
@@ -2839,7 +2839,8 @@ async function agent(_prompt, options) {
         self.assertIn("one consolidated repair batch", skill)
         self.assertIn("one re-review", skill)
         self.assertIn("one consolidated repair batch", wireframe)
-        self.assertIn("complete rubric once", guide)
+        self.assertIn("complete `H1`–`H9` scoring", guide)
+        self.assertIn("Repair Re-review Scope", guide)
 
     def test_motion_and_media_gate_separates_ui_motion_from_generated_assets(self) -> None:
         skill = self.read_ui("SKILL.md")
