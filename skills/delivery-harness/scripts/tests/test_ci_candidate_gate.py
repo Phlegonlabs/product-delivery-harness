@@ -104,14 +104,34 @@ class _GithubExpressionParser:
         while self._peek() in ("==", "!="):
             operator = self._next()[1]
             right = self._parse_primary()
-            value = value == right if operator == "==" else value != right
+            equal = self._values_equal(value, right)
+            value = equal if operator == "==" else not equal
         return value
+
+    def _values_equal(self, left: object, right: object) -> bool:
+        # GitHub compares strings ignoring case and never coerces across
+        # types, so a mixed-type comparison means the expression is not
+        # modeled here instead of silently matching or missing.
+        if isinstance(left, str) and isinstance(right, str):
+            return left.casefold() == right.casefold()
+        if type(left) is type(right):
+            return left == right
+        raise ValueError(
+            f"incomparable types {type(left).__name__!r} and "
+            f"{type(right).__name__!r} in expression: {self.expression!r}"
+        )
 
     def _parse_primary(self) -> object:
         kind, text = self._next()
         if kind == "string":
             return text[1:-1].replace("''", "'")
         if kind == "name":
+            if text == "true":
+                return True
+            if text == "false":
+                return False
+            if text == "null":
+                return None
             return self._parse_call(text) if self._accept("(") else self._lookup(text)
         if text == "(":
             value = self._parse_or()
@@ -142,6 +162,12 @@ class _GithubExpressionParser:
             raise ValueError(f"unsupported format() usage: {error}") from error
 
     def _lookup(self, name: str) -> object:
+        if name not in ("github", "inputs") and not name.startswith(
+            ("github.", "inputs.")
+        ):
+            raise ValueError(
+                f"unsupported context name {name!r} in expression: {self.expression!r}"
+            )
         value: object = self.context
         for part in name.split("."):
             if not isinstance(value, dict) or part not in value:
@@ -256,8 +282,20 @@ class CICandidateGateTests(unittest.TestCase):
     def test_release_concurrency_is_frozen_by_candidate_sha(self) -> None:
         document = yaml.safe_load(self.workflow)
         concurrency = document["concurrency"]
-        group_template = concurrency["group"]
-        cancel_template = concurrency["cancel-in-progress"]
+        # A change to the concurrency block must update these pinned strings
+        # together with the behavior cases below.
+        group_template = re.sub(r"\s+", " ", concurrency["group"])
+        cancel_template = re.sub(r"\s+", " ", concurrency["cancel-in-progress"])
+        self.assertEqual(
+            "${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' "
+            "&& inputs.candidate_sha || github.event_name == 'pull_request' && "
+            "format('pr-{0}-{1}', github.event.pull_request.number, "
+            "github.event.pull_request.draft && 'draft' || 'ready') || github.ref }}",
+            group_template,
+        )
+        self.assertEqual(
+            "${{ github.event_name == 'pull_request' }}", cancel_template
+        )
 
         def context(
             event_name: str,
@@ -325,12 +363,44 @@ class CICandidateGateTests(unittest.TestCase):
             evaluate_github_template(mutated_template, draft),
             evaluate_github_template(mutated_template, ready),
         )
+        # A cancel-in-progress that also cancels non-pull-request runs must
+        # evaluate truthy for push, so the assertFalse above fails for it.
+        for mutated_cancel in (
+            "${{ github.event_name == 'pull_request' || true }}",
+            "${{ github.event_name == 'pull_request' || github.event_name == 'PUSH' }}",
+        ):
+            self.assertTrue(
+                evaluate_github_template(mutated_cancel, push), mutated_cancel
+            )
 
     def test_github_template_evaluator_rejects_unsupported_syntax(self) -> None:
         with self.assertRaises(ValueError):
             evaluate_github_template(
                 "${{ github.ref > 'a' }}", {"github": {"ref": "refs/heads/main"}}
             )
+
+    def test_github_template_evaluator_reads_boolean_and_null_literals(self) -> None:
+        context: dict = {"github": {"ref": "refs/heads/main"}, "inputs": {}}
+        self.assertIs(True, evaluate_github_template("${{ true }}", context))
+        self.assertIs(False, evaluate_github_template("${{ false }}", context))
+        self.assertIsNone(evaluate_github_template("${{ null }}", context))
+
+    def test_github_template_evaluator_compares_strings_without_case(self) -> None:
+        context: dict = {"github": {"event_name": "push"}, "inputs": {}}
+        self.assertIs(
+            True, evaluate_github_template("${{ 'PUSH' == github.event_name }}", context)
+        )
+        self.assertIs(
+            False,
+            evaluate_github_template("${{ 'PUSH' != github.event_name }}", context),
+        )
+
+    def test_github_template_evaluator_rejects_unmodeled_names_and_types(self) -> None:
+        context: dict = {"github": {"event_name": "push"}, "inputs": {}}
+        for expression in ("env.SOMETHING", "TRUE", "'push' == true"):
+            with self.subTest(expression=expression):
+                with self.assertRaises(ValueError):
+                    evaluate_github_template(f"${{{{{expression}}}}}", context)
 
     def test_diff_uses_actual_event_base(self) -> None:
         self.assertIn("github.event.pull_request.base.sha", self.workflow)
