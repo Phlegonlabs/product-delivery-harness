@@ -83,9 +83,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("frontend-design", hifi)
         self.assertIn("impeccable critique", hifi)
         self.assertIn("impeccable audit", hifi)
-        self.assertIn("wireframe overall score", rubric)
-        self.assertIn("design-reference overall score", rubric)
-        self.assertIn("`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`", rubric)
+        self.assertIn("Legacy Wireframe thresholds stay unchanged: overall at least `80`, `W5` at least `80`, every dimension at least `60`, and no `block`.", rubric)
+        self.assertIn("HiFi readiness requires every dimension at least `60`, `H2/H4/H8` each at least `90`, and `H5/H7/H9` each at least `80`.", rubric)
+        self.assertIn("This overall score is advisory; it cannot trigger repair or prevent Visual Approval by itself.", rubric)
+        self.assertIn("required Impeccable HiFi review", rubric)
         self.assertIn("## Wireframe Validation Gate (wireframes/5)", wireframe)
         self.assertIn("Schema 5 has no human Copy Freeze or Wireframe Approval", wireframe)
         self.assertIn("--require-structure-validated", wireframe)
@@ -258,11 +259,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("docs/ACTIVATION.md", lifecycle)
         self.assertIn("Never create, edit, reopen, or extend `docs/goal/PLAN.md`", activation)
         self.assertIn("verified `MS-*` measurement sources", activation_stage)
-        self.assertIn(
-            "Readiness, measurement handoff, outcome review, and SEO require promotion and production verification",
-            delivery,
-        )
-        self.assertIn("preparation requires a fixed SHA and separate authorization", delivery)
+        self.assertIn("Final readiness, measurement handoff, outcome review and live SEO review retain their applicable release and production verification; no RUN grant authorizes them.", delivery)
+        self.assertIn("preparation may start at a fixed initial build before dependent features, under separate authorization.", delivery)
 
     def test_security_reviewer_reads_full_stage_and_returns_evidence_only(self) -> None:
         entry = self.read("code-security-review/SKILL.md")
