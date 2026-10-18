@@ -4,6 +4,41 @@ Apply this contract before choosing direct or managed execution. It governs Prod
 
 For managed role-bound results and availability recovery, use [parent-retained execution receipts](agent-execution-receipts.md).
 
+## Delivery Collaboration Overview
+
+This overview explains how stage roles fit together. It does not replace [execution task decomposition](execution-task-decomposition.md), [task and handoff governance](governance/task-and-handoff.md), [worker results](worker-result-contract.md), [runtime adapters](runtime-adapters.md), or [execution receipts](agent-execution-receipts.md).
+
+| Role | When it is needed | Authority and result |
+| --- | --- | --- |
+| Human owner | Existing gates | Product, stack, visual and action decisions |
+| Parent | Throughout delivery | Scope, canonical coordination, sibling dispatch, reconciliation, serial integration and handoff |
+| Researcher / explorer | Substantive unanswered questions | Read-only sourced findings, file evidence and unknowns |
+| Code architect | Unresolved interface, state, trust or migration boundary | Proposes contracts and failure behavior; the parent reconciles and freezes within approved decisions |
+| Product / design author | Applicable upstream stage | Assigned artifacts under the owning skill; UI uses the host frontend binding |
+| Backend / general author | Accepted implementation | Scoped code and focused checks; no frontend substitution |
+| Test executor | Separate verification is useful | Actual command, environment and outcome evidence; no approval or review substitution |
+| Independent reviewer | Existing required review points | Read-only findings on the exact candidate with its required tools available |
+
+```mermaid
+flowchart TD
+  O[Owner: existing decisions] --> P[Parent: scope and coordination]
+  P --> R[Read-only research / exploration]
+  R --> P
+  P --> A[Conditional architecture]
+  A --> P
+  P --> W[Scoped authors]
+  W --> P
+  P --> T[Conditional test executor]
+  T --> P
+  P --> V[Existing independent review]
+  V --> P
+  P --> E[Existing records and handoff]
+```
+
+Arrows show parent dispatch and returned evidence; they grant no actions. Every delegate is a parent-dispatched sibling.
+Roles are selected by stage, and the parent resolves the minimum topology. Independent substantive research questions keep their distinct assignments; mandatory frontend and reviewer bindings do not disappear.
+One writer owns each checkout. Parallel writers need authorized isolation and nonconflicting scopes. A worker PASS is only a candidate; existing reviews, repair budgets, failure records and exact-source checks remain binding.
+
 ## Decompose Before Launch
 
 The parent lists the substantive questions and implementation outcomes, their frozen inputs, dependencies, required skills, tools, result shape and acceptance checks. A role is reusable; each assignment and launch attempt has its own identity. Business roles such as `frontend-platform` remain separate from execution roles such as `code_architect`.

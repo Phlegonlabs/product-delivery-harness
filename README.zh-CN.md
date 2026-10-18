@@ -72,7 +72,7 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
-网站与 App 在 Product Definition 就规划 AEO／公开搜索入口、部署、Google Analytics 与 build access。第一个可执行版本完成后，先处理已授权的基础设置，再做依赖它们的功能；正式发布时沿用设置并重新验证。启动准备也覆盖实际保护 readback、一条范围明确的反馈通道，以及第一版最低错误／警报处理。按 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) 执行，不增加批准关卡。
+网站与 App 在 Product Definition 就规划 AEO／公开搜索入口、部署、Google Analytics 与 build access。第一个可执行版本完成后，先处理已授权的基础设置，再做依赖它们的功能；正式发布时沿用设置并重新验证。启动准备也覆盖实际保护 readback、一条范围明确的反馈通道，以及第一版最低错误／警报处理。按 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) 执行，不增加批准关卡。交付角色采用按阶段选择的[协作总览](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview)；详细规则仍管理派工与证据。
 
 1. 安装一个受支持的宿主和七个 skills。Installer 会锁定目标目录、备份 managed IDs、只复制 Git-tracked files，并逐字节校验；完成后重启宿主。
 2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明确 recommendation choices、accepted 变更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 与人工 Product Definition Approval。入口保留 ownership 与 approvals；撰写、自查、preflight 与 domain routing 走必要的 stage reads。

@@ -5,6 +5,7 @@
 ## 角色與分工
 
 角色名稱是職責，不是固定模型。Codex、Pi、Claude Code 或其他 host 都先依有效本機政策與實際工具完成綁定。
+整體派工與證據流向見 [Delivery Collaboration Overview](../skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview)；詳細分解、結果、runtime 與 receipt 規則仍以原有檔案為準。
 
 | 角色 | 何時使用 | 交付責任 |
 | --- | --- | --- |
@@ -52,7 +53,7 @@
 25. 對適用產品確認 data/trust、security、AI/automation、monetization 和 partner gates；不適用也給理由。新版 package 明確記錄 eval-policy/1 的 applicability；適用產品凍結 rubric、樣本分母、重跑次數、pass rate、critical cases 與 judge 輸入，不使用全項目共用門檻。
 26. 將 billing、entitlement、merchant-of-record、affiliate／reseller 等責任分開，不用單一供應商名稱取代設計。
 27. 收集已選 stack 與 unresolved layers，記錄 owner 如何選擇 coherent 技術方案；沒有偏好不等於核准。
-28. 需要時派 architect、frontend/backend 分析角色研究接口與技術選項；分析不直接建立 Approved 決定。
+28. 需要時派 architect、frontend/backend 分析角色研究接口與技術選項；architect 只提出方案，parent 在核准決定內對帳並凍結接口，分析不直接建立 Approved 決定。
 29. 在 staging 撰寫唯一英文 `PRD.md`、`architecture.md` 與 `stack-decisions.md`。
 30. 同步完整 `PRD.zh-TW.md` 與 `architecture.zh-TW.md`；中文供 owner 審閱，英文維持實作權威。
 31. 建立穩定需求、UI、operation、TEST 與 release-target ID，列出完整 journey、states、copy、responsive、accessibility 和 recovery。
