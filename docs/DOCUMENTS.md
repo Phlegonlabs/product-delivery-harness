@@ -6,6 +6,7 @@ Current source focus: workflow repairs for 0.64.0 are in PR #144. Its review fin
 
 | Document | Purpose | Status |
 | --- | --- | --- |
+| `docs/epics/EPIC-ui-review-efficiency.md` | Advisory HiFi overall score and bounded repair review with mandatory Impeccable | Owner-approved local source work on `ui-review-thresholds`; verification and independent review pending |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | Local source verified; owner-authorized 0.63.0 release/install follow-up in progress; exact outcome in linked receipts |
 | `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | Rebased onto 0.63.1 as `workflow-repairs-0.64`; in PR #144 with its review findings repaired; PR #141 is superseded |
 | `docs/epics/EPIC-lightweight-entry.md` | Full dispatch-message budgets and stage-scoped lightweight entry | Accepted; LIGHT-01–04 implemented and locally committed; LIGHT-05 exact candidate/result is authoritative in [lightweight-result.md](C:/Users/mps19/.codex/visualizations/2026/10/06/01a11277-8783-7192-8c29-2f37de1cf543/lightweight-result.md) |
