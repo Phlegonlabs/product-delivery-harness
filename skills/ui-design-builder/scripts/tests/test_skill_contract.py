@@ -316,6 +316,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("H9 score:", contract)
         self.assertIn("docs/design/design-system.md", contract)
 
+    def test_repair_review_preserves_mandatory_checks_and_current_evidence(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        scope = rubric.split("## Repair Re-review Scope", 1)[1]
+        self.assertIn("initial diagnostic wave covers the complete approved scope", scope)
+        self.assertIn("Run Impeccable critique and audit again", scope)
+        self.assertIn("complete required browser matrix on the current candidate", scope)
+        self.assertIn("complete current `H1`–`H9` assessment", scope)
+        self.assertIn("It never grants another repair round", scope)
+        self.assertNotIn("and the full rubric once", rubric)
+        for source in ("references/ui-design-pass.md", "references/review-workflow.md",
+                       "references/review-evidence.md", UI_STAGE):
+            with self.subTest(source=source):
+                self.assertIn("ui-grading-rubric.md#repair-re-review-scope", self.read(source))
+
 
 if __name__ == "__main__":
     unittest.main()

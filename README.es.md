@@ -308,6 +308,7 @@ HiFi incluye Design Tokens derivados de estilos reales. Un paquete `ui-design/3`
 HiFi conserva la procedencia del texto mediante `ui-hifi-copy/1` incrustado y bindings al DOM del producto. Se validan textos estáticos, contratos dinámicos e idiomas emparejados. Los tokens muestran valores, usos y variantes reales; el texto del visor no satisface la cobertura del producto.
 
 Impeccable critique y audit siguen siendo obligatorios. La puntuación global HiFi es orientativa. Se mantienen los umbrales por dimensión, los defectos bloqueantes y las comprobaciones de evidencia.
+Una ronda diagnóstica completa permite un lote de reparaciones y una revisión de los defectos originales y sus consumidores afectados. Se mantienen evidencia actual y cobertura obligatoria del navegador, sin reiniciar una búsqueda estética completa.
 
 Las observaciones conservan los valores originales y los valores normalizados por el navegador por separado, para comparar correctamente colores hexadecimales, dimensiones rem y pesos definidos por palabras clave.
 

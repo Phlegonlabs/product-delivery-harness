@@ -308,6 +308,7 @@ HiFi supplies the complete source-derived Design Tokens view. A `ui-design/3` pa
 HiFi copy provenance uses embedded `ui-hifi-copy/1` metadata and product DOM bindings. Static text, dynamic display contracts and paired languages remain checkable. Tokens show actual values, purposes and control variants; reviewer text cannot satisfy product coverage.
 
 Impeccable critique and audit remain mandatory. The HiFi overall score is advisory. Every dimension threshold, blocking finding and required evidence check still applies.
+One complete diagnostic wave allows one repair batch and one re-review of original defects and affected consumers. Keep current receipts and required browser coverage; do not restart broad qualitative discovery.
 
 Token observations retain raw source/display values separately from browser-normalized source/applied values, so hex colors, rem dimensions and keyword weights compare correctly.
 

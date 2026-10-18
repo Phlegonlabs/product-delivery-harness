@@ -145,7 +145,7 @@ Before human visual approval:
 3. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects, so it needs that authorization, but it is required: Visual Approval and publication need both PASS records, and a declined authorization leaves the stage `blocked`. Its Nielsen, detector, accessibility, responsive, performance, theming, and implementation-integrity scores are diagnostic evidence; the record uses exact `PASS` verdicts after the human gate standard is met.
 4. Run `ui-grading-rubric.md`'s Technical Hard Gate and complete `H1`–`H9` scoring. These scores, not Impeccable's native totals, decide readiness.
 5. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
-6. Let `frontend-design` make one repair batch. Then re-run the authorized Impeccable critique and audit checks plus the complete rubric once on the new SHA-256.
+6. Let `frontend-design` make one repair batch. Re-review the new SHA-256 under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Recheck original defects and affected consumers. Keep mandatory Impeccable critique/audit, required browser coverage and a complete current H1–H9 assessment.
 
 Readiness requires `H2/H4/H8` each at least 90, `H5/H7/H9` each at least 80, and every dimension at least 60.
 No block or disputed dimension may remain. Record the actual overall score as advisory, including values below 90.

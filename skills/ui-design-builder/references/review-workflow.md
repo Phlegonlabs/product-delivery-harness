@@ -23,6 +23,11 @@ Combine missing design, image and motion preferences. Reuse supplied answers. Ru
 
 Product/stack and PRD preflight with `--ui-contract ui-design/3` → unresolved preferences → three rendered direction studies, each self-checked by the same author → owner select/mix/modify → complete HiFi at every approved and intermediate width, cheap completeness preflight and HiFi author self-review → independent browser, Impeccable critique/audit and H1–H9 wave → diagnostic completeness gate before consolidated repair ([review-evidence.md](review-evidence.md#diagnostic-wave-completeness)) → one repair batch when eligible and its re-review → one human Visual Approval → design-system package compile/update/reuse → Harness handoff check → implementation. A retained `ui-design/2` package keeps its original sequence and conditional compiler.
 
+Use [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope) after the single repair batch.
+Browser, critique, audit and grading are checks within one diagnostic wave; they do not each start another grading wave.
+Repair review follows original defects and affected consumers while retaining required coverage and current receipts.
+Managed mission, integration and security reviews follow their separate Harness contracts.
+
 Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two checks by the same producing agent and their evidence. PRD self-review belongs to Product Definition after market reconciliation and before its approval. In the existing Epic/task record, record the producing agent identity, equal self-check agent identity, final candidate hash, actual checks, findings and repairs, and link the current candidate and review evidence. Complete repair and recheck before owner choice or approval; stale hashes do not count. An unresolved required finding blocks the next dependent stage; a structural checker PASS or the producing agent's own score does not replace independent review or human approval.
 
 A `ui-design/2` package has no wireframe, W1–W5, Copy Freeze or human Wireframe Approval stage. It reads the PRD's complete sourced wording and contract directly. The final HiFi review includes wording, structure, product menus, tabs, other interactions, visuals and all product tokens. Formal design-system compilation runs only when the Need Gate requires it.

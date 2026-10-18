@@ -137,8 +137,28 @@ For H5/H7/H9, compare the primary task and dense case against the selected direc
 - With one grader, use its score directly. With multiple graders, the reconciled numeric value for each dimension is their median score. Any `block` remains a block regardless of the median. When the highest and lowest scores for one dimension differ by more than 20 points, mark it `disputed`, preserve the evidence rows, and reconcile that evidence inside the same diagnostic wave before repair; do not start another full grading wave merely to sample a different opinion.
 - Preserve every Impeccable finding, rubric `block`, and grader disagreement. Failed dimension thresholds, blocks and disputes prevent readiness. The overall score stays advisory.
 - Before any edit, the parent reconciles the complete Impeccable critique/audit and grading wave into one consolidated defect ledger grouped by semantic root cause. Each family names all known variants, affected surfaces and states, the repair objective, and the acceptance-matrix cases that prove closure. Do not send separate reports to separate writers for the same HTML.
-- A below-threshold candidate gets one repair batch by `frontend-design`, the artifact's single owning writer, and one re-review on the new SHA-256. The HiFi re-review repeats Impeccable critique/audit, the Technical Hard Gate, browser matrix, every ledger acceptance case, and the full rubric once. It does not start a new open-ended diagnostic cycle. A partial re-score cannot clear the gate. Do not present a below-threshold candidate for human visual approval.
+- A below-threshold candidate gets one repair batch by `frontend-design` and one re-review on the new SHA-256. Apply Repair Re-review Scope below. Impeccable critique/audit, required coverage and a complete current assessment remain mandatory. Do not present a below-threshold candidate for Visual Approval.
 - If the re-review finds another variant of a family claimed closed, another block, or a disputed dimension, stop at `blocked`. Return a missing or contradictory obligation to the PRD flow. Otherwise propose one structural repair with a complete acceptance matrix. One exceptional successor re-review may be granted only once by an explicit owner decision that approves the changed strategy and acceptance matrix; a generic instruction to continue does not grant it.
 - A grader initialization, browser-access, interruption, or report-completion failure is an execution failure inside the current diagnostic wave, not a new grading or repair round. Replace the failed slot at most once when its lens is still required; otherwise record the capability gap. Never dispatch another same-scope review on an unchanged SHA.
 - Record the initial diagnostic wave and, when needed, the one repair batch and one re-review with their input and output HTML SHA-256 values, scores, consolidated root-cause families, acceptance cases, and outcome. An owner-requested product or design change after a pass starts a named new revision cycle; it does not extend the completed grading lineage.
 - The owning flow records one `UI grading:` line in the matching `ui-design.md` gate: grader count and lenses, rubric scope, frozen PRD and UI-design identities, current candidate HTML SHA-256, Impeccable evidence when HiFi applies, Technical Hard Gate and DOM geometry results, per-dimension grader scores, medians and statuses when applicable, overall score, advisories, disputed dimensions, the `H2`, `H4`, and `H8` safety-threshold results and `H5`, `H7`, and `H9` visual-quality-threshold results, consolidated defect ledger, repair/re-review outcome or blocked owner decision, and the location of the inline detail rows.
+
+## Repair Re-review Scope
+
+The initial diagnostic wave covers the complete approved scope.
+Its repair re-review follows the same lineage and attempt budget; it does not open another broad qualitative search.
+
+1. Record changed sources, affected dimensions, surfaces, states, targets and shared consumers in the existing defect ledger.
+2. Give every requested repair its inspected capture, concrete defect, applicable requirement or dimension threshold, and observable completion criteria.
+3. Recheck each original defect and every affected consumer on the current candidate. Include shared styles, navigation and motion dependencies.
+4. Run Impeccable critique and audit again under their required workflow and existing authorization. Preserve their actual scope and required checks.
+5. Run the Technical Hard Gate and complete required browser matrix on the current candidate.
+6. Inspect changed dimensions and confirm unaffected dimensions against current evidence and the reviewed source diff.
+7. Return a complete current `H1`–`H9` assessment, including remaining advisories. Do not copy old scores into a new result without inspection.
+
+Retain every current-candidate receipt, capture and input identity required by `review-evidence.md`.
+Do not relabel old captures, refresh stale receipt hashes, or treat a partial inspection as complete coverage.
+Missing impact evidence requires broader inspection; unresolved coverage remains `blocked`.
+A new concrete blocker expands the affected scope within this attempt. It never grants another repair round.
+Preference-only suggestions remain advisories unless evidence proves an accepted requirement or dimension threshold fails.
+After required checks pass, present the candidate for Visual Approval without another same-scope review wave.
