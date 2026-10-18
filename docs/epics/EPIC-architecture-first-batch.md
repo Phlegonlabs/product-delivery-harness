@@ -1,6 +1,6 @@
 # Architecture Improvements: First Batch
 
-Status: in_progress
+Status: complete_local_source
 Design workflow: enhancement
 UI impact: none (skill contracts and validators, not product UI).
 
@@ -50,6 +50,7 @@ Detailed check logs and review packets stay in the task's external evidence dire
 | 2026-10-18 runtime intervals | GTM committed as `8f017c28`. Added guarded `record-runtime-observation`, bound to RUN/reservation/attempt/worker and derived provider identity. | Ingestion 13 tests (one symlink capability skip), prior runtime observations nine, transitions 15 (one platform skip), launch CLI five, and Pyflakes passed. Initial review-node lookup failed; it was corrected to the existing verifier-node shape and rerun. Identical replay preserves RUN bytes; conflicting or stale input fails. |
 | 2026-10-18 source preflight | Runtime intervals committed as `642760bc`. Reused compiler animation classification for advisory `ui-design/3` source diagnostics before approval. | Source unit tests five, fresh CLI/integration tests six, showcase regressions 19 and Pyflakes passed. Static controls stay quiet; stale HiFi still fails; `/2` is unchanged. Missing helpers and registry-dependent checks remain explicit, without a new gate or provisional registry. |
 | 2026-10-18 independent review repair | Preflight committed as `42b38643`. Review found a P2 warning for static specimens beside unrelated conditional custom properties. | The new regression failed before repair. Static-only classification now ignores those variables without granting animation provenance. Seven source tests, six integration tests, 149 compiler tests (four Windows skips), and Pyflakes passed. Fresh candidate review remains required. |
+| 2026-10-18 final candidate | Repair committed as `f342b3b7`. Fresh independent correctness and security review passed all 28 changed paths with no exclusions. | Exact-candidate UI 380, compiler 149, runtime 22, and core contract 65 tests passed their suites. Windows platform skips passed on Linux; Linux-only skips passed on Windows. Source/standalone specifications, Pyflakes and documentation weight passed. Detailed logs remain in the linked result. |
 
 Runtime ingestion lives in a focused module. The existing transition entrypoint only dispatches it and preserves transaction guards.
 The new observation request does not add RUN fields, change the scheduler, or make timing evidence an acceptance gate.
@@ -58,4 +59,15 @@ The large UI checker only exposes a diagnostics collector and CLI output; existi
 
 ## Results And Remaining Work
 
-Source implementation is in progress. No release or installation is claimed.
+All three accepted source outcomes are complete at `f342b3b7e588daf139743fa6aa04f905e1bbf9f1`.
+The final bookkeeping commit changes only this Epic and the document index; the source review remains bound to that candidate.
+See the [local result and verification receipts](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/architecture-review/architecture-result.md).
+
+The handoff audit found shared instructions current by meaning against the installed `0.64.0` template.
+Its SHA-256 is `257C6DB1B429FCE7138F29BB6E8AC9ACB12EBAD3C1524B0A7A20180CF84D939C`; source-repository exceptions remain intentional.
+Document sync remains `review_required` for unknown loaded identity, first observation and unchanged README migration/history names.
+Those findings were inspected; no installed or loaded skill update is claimed.
+
+Runtime tests use synthetic fixtures. Real host adoption and measured time savings remain unverified.
+GTM integration supplies source skills and draft handoffs, not published campaigns or growth results.
+No push, formal release, installation, deployment or monitoring activation occurred. No temporary service remains from this task.

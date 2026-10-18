@@ -6,7 +6,7 @@ Observed `origin/main` includes PR #144 at tagged `v0.64.0` (`bf56ab27`). UI rev
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | Accepted; sequential local source implementation on `ui-review-thresholds` |
+| `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | Local source complete; `f342b3b7` verified and independently reviewed; not released or installed |
 | `docs/epics/EPIC-ui-review-efficiency.md` | Advisory HiFi overall score and bounded repair review with mandatory Impeccable | Local source complete; `bd53456b` verified and independently reviewed; not released or installed |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | Local source verified; owner-authorized 0.63.0 release/install follow-up in progress; exact outcome in linked receipts |
 | `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | PR #144 merge observed at tagged `bf56ab27`; historical release evidence remains in the Epic; PR #141 is superseded |
