@@ -37,6 +37,25 @@ class SourcePreflightTests(unittest.TestCase):
                 self.assertIn('index.html', findings[0])
                 self.assertIn('confirm its intended registry trigger', findings[0])
 
+    def test_static_specimens_ignore_unrelated_responsive_custom_properties(self):
+        for rule in ('@media(min-width:600px)', '@container(min-width:600px)', '@layer theme'):
+            with self.subTest(rule=rule):
+                css = '.sample{animation:none}' + rule + '{.layout{--ink:red;color:var(--ink)}}'
+                self.assertEqual([], showcase.source_preflight({'index.html': document(css)}))
+                tree = showcase.SourceTree(document(css))
+                node = next(item for item in tree.nodes if item['tag'] == 'button')
+                self.assertEqual('no_animation', provenance.source_status(css, node, tree.ancestors(node)))
+                self.assertFalse(provenance.source_backed(css, node, tree.ancestors(node)))
+
+    def test_conditional_animation_dependencies_remain_unresolved(self):
+        cases = ('.sample{animation:var(--motion) 1s}@media(min-width:600px){:root{--motion:pulse}}',
+                 '.sample{animation:none}@media(min-width:600px){.sample{animation:pulse 1s}}',
+                 '.sample{animation:pulse 1s}@media(min-width:600px){.layout{--ink:red}}')
+        for css in cases:
+            with self.subTest(css=css):
+                html = document('@keyframes pulse{to{opacity:0}}' + css)
+                self.assertTrue(showcase.source_preflight({'index.html': html}))
+
     def test_reviewer_chrome_is_excluded_and_inline_animation_is_inspected(self):
         chrome = '<button class="sample" data-specimen-variant="default" data-specimen-state="default" style="animation:missing 1s">Reviewer</button>'
         html = document('', outside=chrome)
