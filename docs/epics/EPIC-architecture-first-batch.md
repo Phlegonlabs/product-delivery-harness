@@ -47,6 +47,10 @@ Detailed check logs and review packets stay in the task's external evidence dire
 | --- | --- | --- |
 | 2026-10-18 entry | Baseline and source scopes verified; implementation interface review dispatched. | All three tasks and final review pending. |
 | 2026-10-18 GTM source | Added the eight skill files from `dad7a22a`, then linked optional product/operation/metric/MS references. Preserved standalone drafting and separate publication authority. | Skill specification, relative links, invocation metadata, 65 core contracts and diff checks passed. Core skill trees, installers and version remained unchanged at this checkpoint. Final independent review pending. |
+| 2026-10-18 runtime intervals | GTM committed as `8f017c28`. Added guarded `record-runtime-observation`, bound to RUN/reservation/attempt/worker and derived provider identity. | Ingestion 13 tests (one symlink capability skip), prior runtime observations nine, transitions 15 (one platform skip), launch CLI five, and Pyflakes passed. Initial review-node lookup failed; it was corrected to the existing verifier-node shape and rerun. Identical replay preserves RUN bytes; conflicting or stale input fails. |
+
+Runtime ingestion lives in a focused module. The existing transition entrypoint only dispatches it and preserves transaction guards.
+The new observation request does not add RUN fields, change the scheduler, or make timing evidence an acceptance gate.
 
 ## Results And Remaining Work
 

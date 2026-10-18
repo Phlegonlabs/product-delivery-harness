@@ -262,6 +262,10 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 </details>
 
+Runtime timing can retain parent-observed dispatch and backoff intervals through the guarded `record-runtime-observation` command.
+It uses existing reservations and metrics, rejects conflicting replay, and never advances execution or infers total delivery time.
+See [host interval recording](skills/delivery-harness/references/runtime-performance.md#parent-observed-host-intervals).
+
 ## Standalone skills
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments from the project's audience, positioning, voice and capacity.

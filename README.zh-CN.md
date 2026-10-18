@@ -262,6 +262,10 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 
 </details>
 
+耗时记录可通过受保护的 `record-runtime-observation` 保留 parent 实际观察到的派工与重试等待区间。
+它沿用已有 reservation 和 metrics，拒绝冲突重送，不推进任务，也不推算整体交付时间。
+操作方式见[host 区间记录](skills/delivery-harness/references/runtime-performance.md#parent-observed-host-intervals)。
+
 ## 独立 skills
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) 根据产品受众、定位、语气与执行能力选择渠道和实验。

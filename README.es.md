@@ -262,6 +262,10 @@ Tamaño significa scope de coordinación y blast radius, no un conteo bruto de a
 
 </details>
 
+El comando protegido `record-runtime-observation` conserva intervalos de despacho y espera entre reintentos observados por el parent.
+Reutiliza reservas y métricas, rechaza repeticiones contradictorias y no avanza tareas ni calcula el tiempo total de entrega.
+Consulta el [registro de intervalos](skills/delivery-harness/references/runtime-performance.md#parent-observed-host-intervals).
+
 ## Skills independientes
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos según la audiencia, el posicionamiento, la voz y la capacidad del proyecto.

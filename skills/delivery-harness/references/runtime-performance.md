@@ -101,6 +101,61 @@ Declare resources for shared caches, generated clients, databases, ports, browse
 
 RUN-v11 may include `runtime_metrics`. It is observational and never grants authorization or satisfies a gate.
 
+### Parent-Observed Host Intervals
+
+The first supported workflow uses the Codex parent's observed dispatch and terminal events.
+The shared ingestion command accepts the existing provider identities; it does not select or launch a runtime.
+Use it only when the loaded contract supports this command. Do not change an existing RUN's version pin to enable it.
+
+1. Capture UTC time and a monotonic start immediately before the authorized launch.
+2. Capture completion when the parent observes the terminal result. Record the elapsed interval, including observation delay.
+3. Record visible retry backoff as a separate sample. Keep unexposed provider queue time and token counts unknown.
+4. Hold the parent RUN lock and record the sample through the guarded transition below.
+
+```text
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <parent> record-runtime-observation --observation <retained-local-json>
+```
+
+The request is one local regular UTF-8 JSON file, at most 64 KiB, with exactly these fields:
+
+```json
+{
+  "schema": "runtime-observation/1",
+  "run_id": "RUN-example",
+  "assignment_kind": "mission",
+  "assignment_id": "lease-1",
+  "node_id": "N-M1",
+  "attempt_id": "attempt-1",
+  "worker_id": "worker-1",
+  "sample_id": "terminal-1",
+  "phase": "dispatch_to_terminal",
+  "status": "complete",
+  "started_at": "2026-10-18T10:00:00Z",
+  "completed_at": "2026-10-18T10:01:00Z",
+  "duration_ms": 60000,
+  "wait_ms": null,
+  "input_tokens": null,
+  "output_tokens": null,
+  "cached_input_tokens": null,
+  "context_bytes": null
+}
+```
+
+Replace example values with actual observations. `assignment_kind` is `mission` or `review`; a review's assignment ID is its node ID.
+Phases are `dispatch_to_terminal` and `retry_backoff`. Statuses are `complete`, `failed`, `blocked` and `cancelled`.
+Use one stable sample ID per observed interval. Identical replay changes no RUN bytes; a conflicting replay fails.
+The assignment must match a retained reservation, including completed attempts.
+A dispatch interval requires its parent-retained launch; its event provider comes from that launch's observed model provider.
+Backoff without a launch uses the reserved model provider. This does not prove provider execution or internal queue time.
+
+The parent may record observations while paused or cancelled. Closed RUNs remain immutable.
+Workers return observations to the parent and never edit RUN. No observation grants retry, approval or execution authority.
+Keep only identifiers, times and counts; exclude prompts, responses, credentials and customer data.
+An unavailable observation remains a telemetry gap. Do not rerun a worker to reconstruct missing timings.
+This command never sets total wall time, critical path, comparison baseline or reduction targets.
+
+### Existing Metric Semantics
+
 Record one append-only event for queue, context render, dispatch, wait, execute, review, verify, and integrate transitions when applicable. Each event records provider, node/attempt identity, phase, terminal status, timestamps, duration, wait time, input/output/cached tokens, and context bytes. Unknown values remain `null`; do not estimate them.
 
 A `transition_prepare:<command>` event measures only local RUN transition preparation from entry to just before final PLAN/RUN validation. It excludes final validation, later request or packet rendering, persistence, and projection. Do not treat these event durations as `run_wall_time_ms`.
