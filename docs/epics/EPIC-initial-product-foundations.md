@@ -58,7 +58,7 @@ No push, formal release, installation or external configuration occurred. All fi
 
 ## Accepted Follow-up: Startup And MultiAgent Collaboration
 
-Follow-up status: in_progress
+Follow-up status: verification
 Follow-up baseline: `f047a017a719a41875ecd1e9fccc3aac13b7b001`, clean `ui-review-thresholds`.
 The owner accepted the four-agent audit recommendations on 2026-10-18 and clarified that AI agent architecture means delivery collaboration.
 The prior audit covers this exact baseline; retain its findings rather than repeat the same exploration.
@@ -83,3 +83,5 @@ Publication and installed-skill updates remain outside this local task.
 | 2026-10-18 follow-up entry | Scope and collaboration meaning confirmed by the owner. Baseline and effective instruction hashes observed unchanged. | Sequential implementation, focused checks and normal final review pending. |
 | 2026-10-18 INIT-01 | Native writer committed `2387de98`: nine scoped source/README paths add prebuild prerequisites, host protection readback, trial feedback and earlier error/alert evidence. Parent observed clean ancestry and scope. | Specification, weight, Harness 65, Deployment 61, Activation 74 and full Product Definition 304 tests passed; all finite checks exited. Broader cross-skill tests exposed two pre-existing policy-wording assertions at the coordination baseline. Reconcile those assertions before INIT-02; retain the failed log. |
 | 2026-10-18 collaboration design | Both frozen-input explorers and independent architect completed. The parent accepts an explanatory overview in the existing delegation owner and derived workflow/README links. | Preserve detailed rule owners, optional role topology, exact result/source binding and normal review count; no new state or approval layer. |
+| 2026-10-18 CHECKS-01 | `d7867086` reconciles only stale cross-skill assertions with current scoring and fixed-build preparation rules. | Cross-skill 18 and changed-test lint passed. Original failures remain retained; no runtime or grading behavior changed. |
+| 2026-10-18 INIT-02 | `3cee7796` adds the existing-owner collaboration overview, role table, topology and derived workflow links. The architect proposes; the parent reconciles and freezes approved interfaces. | Role 14, adapter 11, worker-result 43, Harness 65 and cross-skill 18 passed. Specification, weight, 195-link check and whitespace passed. Two temporary link-checker defects were corrected; failed logs remain. All finite checks exited. Normal unified exact-candidate review remains pending. |
