@@ -264,6 +264,11 @@ Tamaño significa scope de coordinación y blast radius, no un conteo bruto de a
 
 ## Skills independientes
 
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos según la audiencia, el posicionamiento, la voz y la capacidad del proyecto.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepara textos por canal, briefs de recursos y calendarios propuestos para revisión del responsable.
+Ambos referencian páginas, métricas y fuentes de medición existentes cuando están disponibles. Su ausencia no impide preparar borradores.
+La aprobación del contenido, publicación, programación y configuración de medición mantienen autorizaciones separadas.
+
 [README Studio](standalone-skills/readme-studio/SKILL.md) ayuda a otros proyectos a escribir un README de GitHub con identidad de marca, demostraciones reales, un inicio rápido útil y comprobaciones para cada plataforma de presentación. Su [biblioteca de casos fechados](standalone-skills/readme-studio/references/case-library.md) incluye Starship, Bruno, Transformers, tldraw y Vite. El trabajo visual sigue la ruta frontend del proyecto y entrega evidencia antes/después.
 
 Las imágenes de un registry necesitan una URL que funcione en ese destino; incluirlas en el paquete no demuestra que se rendericen allí.

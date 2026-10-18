@@ -1,0 +1,53 @@
+# Architecture Improvements: First Batch
+
+Status: in_progress
+Design workflow: enhancement
+UI impact: none (skill contracts and validators, not product UI).
+
+## Problem And Baseline
+
+The architecture review identified incomplete runtime timing, late compiler checks, and optional GTM work outside the current source.
+The owner accepted the first three improvements in chat on 2026-10-18.
+Baseline: `cac3403e68e9503c812439b15fb92cd786af4004`, clean `ui-review-thresholds` in the `9e8f` checkout.
+The prior UI review changes remain part of this baseline.
+
+## Accepted Scope
+
+- Record parent-observed runtime intervals through existing guarded transitions and the current metrics format. Start with the observed Codex host.
+- Check source-computable HiFi/compiler compatibility before Visual Approval. Keep registry-dependent coverage in the compiler.
+- Reconcile the existing optional GTM source from `dad7a22aa67f0afde18459b6b6d51ba13c1a903f` and link existing product metrics when available.
+
+Use three sequential bounded direct tasks with one parent writer and atomic commits.
+There is no parallel write ownership, mission-head integration or consumer PLAN/RUN.
+The owner permitted parent research after the exploratory workers hit 429, with independent architecture checking retained.
+The architecture role reviews the implementation interfaces; the required independent reviewer checks the final source candidate.
+Local source edits and commits are authorized. Publication, installation and host configuration changes remain outside this task.
+
+## Acceptance And Dependencies
+
+| ID | Expected outcome | Focused verification |
+| --- | --- | --- |
+| ARCH-01 | Guarded observation ingestion preserves event identity, actual durations, failed attempts and unknown values. Replays are idempotent; conflicts fail. | Runtime transition and telemetry positive/negative tests |
+| ARCH-02 | Source-only limitations are visible before approval without a provisional registry or circular imports. Diagnostics do not imply compile readiness; existing hard checks and legacy behavior remain. | UI preflight, compiler showcase and dependency-import tests |
+| ARCH-03 | Both existing GTM skills are discoverable in source with optional product/metric references and unchanged publishing boundaries. | Standalone skill validation, contract checks and independent scenario review |
+
+All changes preserve Impeccable requirements, dimension thresholds, current evidence and action authorization.
+Binding-only refresh, rolling writers, general code generation and additional growth automation remain later proposals.
+
+## Document Impact
+
+Update each changed skill's owners and all four README descriptions in its atomic task.
+Preserve core versions, active pinned runs, installation destinations and historical source records.
+Use existing metrics and campaign records; add no local-only file class or Gitignore rule.
+Detailed check logs and review packets stay in the task's external evidence directory.
+
+## Change Log
+
+| Observation | Result | Remaining work |
+| --- | --- | --- |
+| 2026-10-18 entry | Baseline and source scopes verified; implementation interface review dispatched. | All three tasks and final review pending. |
+| 2026-10-18 GTM source | Added the eight skill files from `dad7a22a`, then linked optional product/operation/metric/MS references. Preserved standalone drafting and separate publication authority. | Skill specification, relative links, invocation metadata, 65 core contracts and diff checks passed. Core skill trees, installers and version remained unchanged at this checkpoint. Final independent review pending. |
+
+## Results And Remaining Work
+
+Source implementation is in progress. No release or installation is claimed.

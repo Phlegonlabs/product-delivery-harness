@@ -264,6 +264,11 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 
 ## 独立 skills
 
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 根据产品受众、定位、语气与执行能力选择渠道和实验。
+[GTM Content](standalone-skills/gtm-content/SKILL.md) 产出各渠道的完整文案、素材 brief 和建议日程，交 owner 审阅。
+已有产品页面、成功指标和测量来源时直接引用；缺少这些记录仍可准备草稿。
+内容批准、发布、排程和测量设置保留各自的授权。
+
 [README Studio](standalone-skills/readme-studio/SKILL.md) 帮助其他项目编写有品牌特色的 GitHub README，包含真实演示、可用的快速上手及各展示平台的检查。[附日期的案例库](standalone-skills/readme-studio/references/case-library.md) 参考 Starship、Bruno、Transformers、tldraw 和 Vite。视觉工作沿用目标项目的 frontend 路由，交付前后对照证据。
 
 Registry 图片需要可用的目标 URL；只把图片放进 package，不能证明它能在该平台展示。

@@ -264,6 +264,11 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 ## Standalone skills
 
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments from the project's audience, positioning, voice and capacity.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepares channel-specific copy, asset briefs and proposed calendars for owner review.
+Both reference existing product pages, success metrics and measurement sources when available. Missing records do not block drafting.
+Content approval, publication, scheduling and measurement setup remain separate actions.
+
 [README Studio](standalone-skills/readme-studio/SKILL.md) helps other projects write a distinctive, brand-first GitHub README with real demonstrations, a useful quickstart and renderer-specific checks. Its [dated case library](standalone-skills/readme-studio/references/case-library.md) draws on Starship, Bruno, Transformers, tldraw and Vite. Visual work follows the target project's frontend route and includes before/after evidence.
 
 Registry images need a working destination URL; including an image in a package alone does not prove that it renders there.
