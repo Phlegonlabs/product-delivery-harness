@@ -72,7 +72,7 @@ Managed 本機 build／test 預設使用專案工具鏈，不需要 Docker 或 P
 
 ### Zero-to-one 流程（從零開始）
 
-網站與 App 在 Product Definition 就規劃 AEO／公開搜尋入口、部署與 Google Analytics。第一個可執行版本完成後，先處理已授權的基礎設定，再做依賴它們的功能；正式發布時沿用設定並重新驗證。依 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) 執行，不增加批准關卡。
+網站與 App 在 Product Definition 就規劃 AEO／公開搜尋入口、部署、Google Analytics 與 build access。第一個可執行版本完成後，先處理已授權的基礎設定，再做依賴它們的功能；正式發布時沿用設定並重新驗證。啟動準備也涵蓋實際保護 readback、一條範圍明確的回饋管道，以及第一版最低錯誤／警報處理。依 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) 執行，不增加批准關卡。
 
 1. 安裝一個受支援的 host 與七個 skills。Installer 會鎖住目的地、備份 managed IDs、只複製 Git-tracked files，並逐 byte 驗證；完成後重啟 host。
 2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明確 recommendation choices、accepted 變更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 與人工 Product Definition Approval。入口保留 ownership 與 approvals；撰寫、自查、preflight 與 domain routing 走必要的 stage reads。

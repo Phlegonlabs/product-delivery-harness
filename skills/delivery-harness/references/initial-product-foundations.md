@@ -16,6 +16,7 @@ Keep approved alternatives and record explicit non-applicability; never omit a f
 | AEO and SEO | Public discovery surfaces, content owner, rendering, crawl/index policy, metadata and canonical URLs | Implemented public-page HTML, crawl controls and metadata match the approved contract |
 | Deployment | Provider, account/project owner, candidate and production targets, isolated resources, config placement and recovery | Exact initial build reaches its authorized isolated target; identity, bindings and smoke are read back |
 | Google Analytics | GA4 property/stream mapping, applicable Firebase app registration, event definitions, privacy and test-traffic policy | Implemented events reach the intended test destination with correct parameters and no duplicate collection |
+| Build access | Selected local/CI toolchain, device/emulator route, source-owned app or bundle IDs, and needed signing preparation | Observed toolchain, target route, owned IDs, and signing path before the first artifact |
 
 AEO means answer-engine discovery of public content. For apps, identify the approved public product or companion-web surface that supplies that content.
 Native screens alone cannot satisfy a required AEO outcome. Resolve missing public scope through the existing app-and-companion-web contract before implementation.
@@ -32,6 +33,9 @@ Record each product/environment mapping explicitly; never mix unrelated products
 Define key events, parameters, collection controls, personal-data exclusions, duplicate prevention and performance obligations before dependent feature implementation.
 Search Console property verification belongs to public discovery setup when applicable; indexing and production search results remain later observations.
 See [GA4 setup](https://support.google.com/analytics/answer/9304153) and [Firebase event validation](https://firebase.google.com/docs/analytics/debugview).
+
+Pre-build work is planning plus observed local facts. External provisioning needed to create the first artifact is a separately authorized operator/provider prerequisite outside Harness/RUN.
+That prerequisite does not become setup evidence and does not require paid distribution membership for every local experiment.
 
 ## Execute From A Fixed Initial Build
 
@@ -52,6 +56,9 @@ See [Workers Preview setup](https://developers.cloudflare.com/workers/previews/g
 Property creation is only configuration. Verify implemented hooks in the appropriate debug/realtime view and exercise the approved collection controls.
 Keep final feature events, production measurement and search availability pending until their implementation and release can be observed.
 Record setup progress in existing Activation tasks and deployment evidence; no second setup checklist or review wave is required.
+
+Before external trials, use one scoped support inbox, form, or named interview route and name its owner.
+Keep one test report joined to the tested build and context, with the product's privacy controls applied. No feedback vendor or new tracker is required.
 
 ## Preserve Incomplete Preparation
 

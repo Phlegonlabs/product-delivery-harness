@@ -20,6 +20,8 @@ Apply to every activation run:
 - Privacy and data: data inventory, purpose, identity rule, consent, PII prohibition, retention, access/export/delete path, processors, and regional decision owner.
 - Measurement: one canonical definition for every PRD metric and required `TEST-*` signal; environment/test-traffic policy; data-quality and duplicate-event checks.
 - Reliability: logs, errors or crashes, health signals, alerts, escalation, support/status communication, backup/restore where state exists, and cost/usage alerts.
+- First-build reliability: minimum error/crash retrieval bound to environment and build, with redaction and applicable symbol or source-map handling. Before unattended Preview or beta, prove that one useful health/error alert reaches its named response owner. Existing provider logs are sufficient when they cover these needs.
+- Trial intake: before external trials, one scoped support inbox, form, or named interview route reaches its owner. A test report joins the tested build and context under the product's privacy controls.
 - Evidence: exact target, route, timestamp, read-back, behavior check, and remaining caveats. Never record a secret value or raw customer export.
 
 ## Web

@@ -35,6 +35,9 @@ The reconciliation is name-only and read-only:
 4. In **External Console Setup**, record every non-code action with its exact system and environment: auth application or tenant creation, callback and logout URLs, allowed origins, webhook registration, domain/DNS attachment, role grants, payment mode, or another provider-side setting.
 5. When no rows apply, keep an explicit `none` / `n/a` row. Never omit either section, and never invent a key or callback URL that the product or implementation has not defined.
 
+Before external trials, add one scoped feedback route to External Console Setup: a support inbox, form, or named interview route, with its human owner and privacy controls.
+The route is enough to receive and join one test report to the build and context. It does not require a feedback vendor or a new tracker.
+
 A `pending` row is allowed in the record because it is an honest human handoff. It is also an availability gate: if the row is required for the target environment, that environment cannot be reported ready until the human finishes it and a behavior-level smoke check passes. The Harness reports the exact pending names and console tasks; it never fills, rotates, reveals, or guesses their values and never reconfigures the platform.
 
 ## Platform: cloudflare
@@ -77,6 +80,8 @@ A `pending` row is allowed in the record because it is an honest human handoff. 
 ## Release And Recovery Readiness
 
 Before an applicable release, record migration ordering and compatibility, backup/restore or forward-fix strategy, deploy command, health and user-flow probes, monitoring owner, alert destination, cost thresholds and rollback trigger in the existing deployment record. Use approved environments and exact action grants. A rollback of code is insufficient if data or an external side effect cannot roll back; name the safe forward-fix and decision owner. Exercise feasible recovery in the isolated candidate environment and retain its result. Record genuine non-applicability instead of generating empty plans for a small local-only project.
+At the first dynamic build, provide minimum error/crash retrieval bound to the environment and build, with redaction and applicable symbol or source-map handling.
+Before an unattended Preview or beta, prove that one useful health/error alert reaches its named response owner. Existing provider logs are sufficient when they cover those needs; no paid reporter or full monitoring stack is required.
 
 After release, read back the actual build/artifact and verify health and required smoke against it. Report implementation delivery, release availability, operational activation and measured product outcomes separately. Green CI, a started deployment or successful upload proves none of the later stages.
 

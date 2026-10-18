@@ -67,13 +67,16 @@ Retain trusted-host publication receipts and signed evidence; they never authori
 Promotion to main requires all these conditions:
 
 1. The fixed candidate passes every required local, security and applicable isolated Preview gate at its exact SHA.
-2. Preview evidence records the PR or branch, immutable deployment identity, observed URL, deployed SHA and acceptance result.
-3. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base.
-4. Separate action-time authorization names main, remote and exact candidate SHA. Preview or run-branch authority never covers production.
-5. Use the required PR or merge-queue mechanism. A direct authorized update must be a fast-forward to that exact SHA.
-6. Fetch and read back main. If the server creates SHA S, require its tree to equal the verified candidate tree.
-7. Run the complete required suite and fresh security review on any server-created exact SHA before promotion or release completion.
-8. Verify the production deployment and required smoke against the actual main SHA, independently of Preview acceptance.
+2. Before deployable push/CI connection or main promotion, observe actual protection for the exact repository and ref.
+   The non-secret readback names the host capability, ruleset/review policy, required checks, checked time, and evidence. The word `protected` in a source document is not setup proof.
+   Do not push, force, or delete a protected branch to test protection, and never claim that this source edit configured it.
+3. Preview evidence records the PR or branch, immutable deployment identity, observed URL, deployed SHA and acceptance result.
+4. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base.
+5. Separate action-time authorization names main, remote and exact candidate SHA. Preview or run-branch authority never covers production.
+6. Use the required PR or merge-queue mechanism. A direct authorized update must be a fast-forward to that exact SHA.
+7. Fetch and read back main. If the server creates SHA S, require its tree to equal the verified candidate tree.
+8. Run the complete required suite and fresh security review on any server-created exact SHA before promotion or release completion.
+9. Verify the production deployment and required smoke against the actual main SHA, independently of Preview acceptance.
 
 A moving branch Preview URL is not immutable evidence. Record the fixed deployment URL or identity alongside the Git SHA.
 A new candidate, merge, rebase, squash or conflict repair invalidates earlier exact-SHA evidence.
@@ -86,6 +89,9 @@ Separately authorized Activation preparation cannot claim release readiness.
 
 Main is the permanent protected production branch. New flow neither creates nor requires development.
 Existing development branches remain protected from RUN integration, publication and cleanup, including old or wildcard grants.
+Before a deployable remote connection or landing, prepare actual protection with the exact repository, protected ref, review requirements, required checks, and applicable host ruleset or policy.
+Read that configuration back without secrets and bind the evidence to its checked time. A written intention does not prove that the host enforces it.
+Never use a live push, force update, or delete as a protection test.
 Removing a policy requirement does not authorize deleting branches or their data.
 
 ## Outcome And Required Evidence

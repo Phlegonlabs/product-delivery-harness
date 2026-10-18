@@ -72,7 +72,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-For websites and apps, plan AEO/public discovery, deployment and Google Analytics during Product Definition. From the first usable build, complete authorized setup before dependent features; reuse it for final release verification. Follow [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) without adding another approval gate.
+For websites and apps, plan AEO/public discovery, deployment, Google Analytics and build access during Product Definition. From the first usable build, complete authorized setup before dependent features; reuse it for final release verification. Startup work also covers actual protection readback, one scoped feedback route and minimum first-build error/alert handling. Follow [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) without adding another approval gate.
 
 1. Install one supported host and all seven skills. The installer locks the destination, backs up managed IDs, copies only Git-tracked files, and verifies every byte. Restart the host.
 2. Start with `product-definition-builder`: research-first evidence, candidate drafting and reconciliation, explicit recommendation choices, accepted changes, coherent stack choices, typed release targets, tests, Stack Decision Checkpoint, and human Product Definition Approval. Its entry retains ownership and approvals; authoring, review, preflight and domain routing use its mandatory stage reads.
