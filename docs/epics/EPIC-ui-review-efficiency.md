@@ -102,3 +102,10 @@ The single independent review of `943f291a62bd641146391c0e3b32934df62548e9` foun
 URE85-1: the unconditional prohibition on raising the overall score conflicted with the new 85-point gate.
 The guide now stops score chasing only after all readiness checks pass. The reviewer found no other blocking correctness issue or security vulnerability.
 This documentation repair stays in the same assignment and repair batch; final exact-candidate verification is pending.
+
+Follow-up complete in local source: reviewer `/root/ure85_review` verified the repair and all 17 scoped paths at `6a7d62a50fc7fc4425329cf64db3707855f764c9`.
+Correctness and [security review](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/ui-threshold-85/security-result.json) passed with no unresolved findings or excluded scope.
+The 216 tests remain precommit execution evidence; executable and test bytes did not change in the documentation repair. No rerun is claimed.
+Mixed-score rounding across sums 760/761 has no dedicated regression case; the existing rounded-mean calculation is unchanged.
+Document sync remains `review_required`, and actual served reviewer model/effort and loaded skill identity remain unknown.
+Final bookkeeping changes only this Epic and its index. No publication, release, installation or external configuration change occurred.
