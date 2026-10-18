@@ -347,7 +347,8 @@ async function agent(_prompt, options) {
             "Required Secrets and Variables",
             "External Console Setup",
             "Record names and destinations only, never values",
-            "delivery-harness` to reconcile from the finished code",
+            "delivery-harness` to reconcile from the first usable build",
+            "before its separately authorized deployment",
         ):
             self.assertIn(phrase, skill)
         self.assertIn("Which secret and variable names go where", contract)

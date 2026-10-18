@@ -4,6 +4,12 @@ Select `core` plus only the profiles supported by the product contract and deliv
 
 Before executing a fast-moving provider setup, fetch its current official documentation. Record the provider, retrieval date, applicable account or plan constraint, and any unresolved difference from this catalog. A remembered dashboard path is not execution evidence.
 
+Plan these prerequisites during Product Definition and perform authorized setup from a fixed initial build.
+Web uses the selected GA4 Web stream; applicable iOS/Android apps use Firebase/native integration and their own registered app identities.
+Verify implemented events in debug/realtime evidence; creation of a property or stream alone is not collection proof.
+For public AEO, verify approved text, metadata, crawl controls and applicable structured data. Private/native screens and app-store optimization remain separate.
+Use [Initial Product Foundations](../../delivery-harness/references/initial-product-foundations.md) for scope, ordering and retained final-release obligations.
+
 ## Core
 
 Apply to every activation run:

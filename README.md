@@ -72,6 +72,8 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
+For websites and apps, plan AEO/public discovery, deployment and Google Analytics during Product Definition. From the first usable build, complete authorized setup before dependent features; reuse it for final release verification. Follow [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) without adding another approval gate.
+
 1. Install one supported host and all seven skills. The installer locks the destination, backs up managed IDs, copies only Git-tracked files, and verifies every byte. Restart the host.
 2. Start with `product-definition-builder`: research-first evidence, candidate drafting and reconciliation, explicit recommendation choices, accepted changes, coherent stack choices, typed release targets, tests, Stack Decision Checkpoint, and human Product Definition Approval. Its entry retains ownership and approvals; authoring, review, preflight and domain routing use its mandatory stage reads.
 3. For UI, run Product Definition preflight with `--ui-contract ui-design/3`, then intake, three rendered direction studies with author self-checks, owner selection and complete HiFi. Run HiFi completeness checks before Impeccable/H1–H9 and one human Visual Approval. Its entry retains ownership and approvals; authoring, self-review, preflight and domain routing use mandatory stage reads.
@@ -83,7 +85,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 9. Under separate action-time authorization, prepare A through its external anchor and immutable request/attempt/receipt. The trusted host reloads and validates them, performs the exact URL-only no-force publication, signs evidence, and recovery verifies that evidence and reads back A. Local agents never execute the emitted publication argv.
 10. Run the isolated non-production candidate gates against the exact read-back candidate. If they fail after A, create a fresh continuation PLAN/RUN from exact A, close C2, bind the prior publication state, and archive A2 under a new anchor.
 11. Under a separate exact-A authorization, fast-forward the unchanged candidate to `main`, read it back, and verify production.
-12. Run `product-activation` for exact approved external actions, independent read-back, behavior evidence, readiness, and verified measurement sources.
+12. Reconcile `product-activation` against the actual release: reuse existing setup, then verify exact approved actions, read-back, behavior, readiness and measurement sources.
 13. After every target-specific measurement window, run the strict append-only Outcome Review. Optionally run `seo-growth-review` for an exact public hosted-web production target.
 
 </details>
@@ -238,7 +240,7 @@ For a multi-mission delivery, state the intended local and remote outcome. Branc
 | `design-system-compiler` | Compiling an approved `ui-design.md` target into the frozen design-system pair after Visual Approval when required, plus its derived source-bound HTML specimen book; mandatory stage reads own compile, validation, publication and routing detail | `docs/design/design-system.md`, `docs/design/design-system.json`, `docs/design/design-system-preview.html` |
 | `delivery-harness` | Shared size gate, security-aware task gates, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one general capability contract mapped to observed native tools | Direct work or `PLAN.md` + `RUN.md` |
 | `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill; mandatory stage reads own inputs, workflow and handoff detail | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
-| `product-activation` | Post-delivery setup for every supported web, API/backend, iOS, Android, macOS, Windows, browser-extension, and hybrid release target, including capability routing, exact external-action authorization, read-back, measurement sources, and outcome-review handoff; mandatory stage reads own inputs, execution, status handoff and reporting detail | `docs/ACTIVATION.md` |
+| `product-activation` | Initial-build external setup and final release verification: exact authorization, capability routing, read-back, behavior evidence and measurement handoff | `docs/ACTIVATION.md` |
 | `seo-growth-review` | Read-only post-release technical SEO, measurement integrity, keyword research, organic-traffic diagnosis, and query-to-page opportunity prioritization; mandatory stage reads own inputs, review method and reporting detail | Inline review by default; optional dated report on explicit request |
 
 <details>
@@ -429,13 +431,14 @@ flowchart TB
         directhandoff --> directpush --> preview
     end
 
-    subgraph ACTIVATE["product-activation — post-delivery activation"]
+    subgraph ACTIVATE["product-activation — setup and release verification"]
         direction TB
         profiles["Select core + surface profiles<br/>docs/ACTIVATION.md"]
         capability["Probe connector / API / CLI<br/>Browser / Computer Use / manual"]
         actions["Exact ACT-* actions<br/>authorization + read-back"]
         ready["Per-target activation readiness<br/>verified MS-* sources"]
-        profiles --> capability --> actions --> ready
+        profiles --> capability --> actions
+        actions -->|"final release evidence"| ready
     end
 
     subgraph SEO["seo-growth-review — optional post-release review"]
@@ -467,6 +470,8 @@ flowchart TB
     target --> route
     DIRECT --> directhandoff
     gates2 --> handoff
+    direct_impl -.->|"parent-owned initial-build preparation"| profiles
+    workers -.->|"parent-owned initial-build preparation"| profiles
     status --> profiles
     ready --> outcome
     ready -.-> seo_sources
@@ -480,7 +485,7 @@ Product Definition and UI approval/handoff responses list every current document
 
 For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds typed `Surface class` and `Public discoverability` fields; Delivery Harness joins every development/production target to those fields, its exact provider/channel, endpoint or typed native disposition, expected/deployed SHA, artifact identity, availability evidence, and checked time. Production uses canonical `<product-slug>-<surface-suffix>` with no `-prod`; development adds `-dev`. The record lists secret and variable names plus external-console tasks, never secret values.
 
-After production deployment, `product-activation` creates or reconciles `docs/ACTIVATION.md`, derives profiles from typed release targets, and performs only exact authorized actions through the safest available route. Capabilities, read-back, behavior evidence, measurement sources, and readiness bind to the exact target, environment, SHA, artifact, provider/channel, and action digest. The later strict Outcome Review repeats the PRD metric or TEST definition, baseline, target, window, exact production release, and matching verified `MS-*` evidence.
+From a fixed initial build, `product-activation` prepares authorized prerequisites before dependent features. After production deployment, it reuses existing resources and re-verifies the actual release. Capabilities, action digests and behavior evidence remain bound to each exact target, environment, SHA and artifact. Final readiness, verified measurement sources and outcome review retain their release requirements.
 
 Activation is execution by default: inventory the real delta, continue ready authorized actions through mutation/read-back/behavior, and use the closeout checker at the end; documentation-only work requires an explicit owner request. `--require-closeout` rejects a required action left ready, configured, pending, uncertain, or stale. Only verified work or an explicit concrete blocker closes the action; either blocked state keeps the record blocked. A true no-op needs no synthetic action, but every target must have a concrete n/a disposition, while verified handoff still requires verified sources and target readiness.
 

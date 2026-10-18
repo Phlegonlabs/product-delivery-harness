@@ -72,6 +72,8 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
+Para sitios y apps, planifica AEO, descubrimiento público, despliegue y Google Analytics durante Product Definition. Desde el primer build utilizable, completa la configuración autorizada antes de las funciones dependientes. Reutilízala y verifícala al publicar. Sigue [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) sin otra aprobación.
+
 1. Instala un host soportado y los siete skills. El instalador bloquea el destino, respalda IDs gestionados, copia solo archivos tracked y verifica cada byte; reinicia el host.
 2. Empieza con `product-definition-builder`: evidencia research-first, drafting/reconciliación del candidate, decisiones explícitas de recommendations, cambios accepted, stack coherente, release targets tipados, tests, Stack Decision Checkpoint y Product Definition Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan sus lecturas obligatorias de stage.
 3. Para UI, ejecutar el preflight de Product Definition con `--ui-contract ui-design/3`, intake, tres estudios renderizados con autorrevisión del autor, selección del owner y HiFi completo. Comprobar HiFi antes de Impeccable/H1–H9 y una Visual Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan lecturas obligatorias de stage.
@@ -83,7 +85,7 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 9. Con autorización action-time separada, prepara A mediante anchor y request/attempt/receipt inmutables. El trusted host los recarga, valida, publica la URL exacta sin force y firma evidencia; recovery verifica y lee A. El agente local nunca ejecuta ese argv.
 10. Ejecuta gates aislados non-production contra el candidate exacto leído. Si falla tras A, crea un PLAN/RUN de continuación desde A, cierra C2, liga el estado previo y archiva A2 con anchor nuevo.
 11. Con otra autorización exact-A, fast-forwardea el candidate sin cambios a `main`, léelo de vuelta y verifica producción.
-12. Ejecuta `product-activation` con acciones exactas, read-back independiente, evidencia, readiness y measurement sources.
+12. Reconcilia `product-activation` con la publicación real: reutiliza la configuración y verifica acciones autorizadas, read-back, comportamiento, readiness y fuentes de medición.
 13. Tras cada ventana por target, ejecuta Outcome Review append-only; para hosted-web público, `seo-growth-review` es opcional.
 
 </details>
@@ -238,7 +240,7 @@ Para una entrega multi-mission, declara el resultado local y remoto previsto. La
 | `design-system-compiler` | Compilar el target aprobado de `ui-design.md` en el par design-system congelado tras Visual Approval cuando sea necesario, más su specimen book HTML ligado a la fuente; las lecturas obligatorias de stage poseen el detalle de compilación, validación, publicación y routing | `docs/design/design-system.md`, `docs/design/design-system.json`, `docs/design/design-system-preview.html` |
 | `delivery-harness` | Size gate compartido, security task gates, PLAN/RUN, autorización, verificación local e integración, más la referencia de adaptadores de runtime (`references/runtime-adapters.md`) que contiene un contrato general de capacidades que el agente asigna a las herramientas nativas observadas | Trabajo directo o `PLAN.md` + `RUN.md` |
 | `code-security-review` | Revisión de seguridad de solo lectura tras la implementación y la integración unificada, preferentemente en un agente sibling fresco; el penetration testing activo y la remediación quedan fuera de este skill; las lecturas obligatorias de stage poseen inputs, workflow y handoff detail | Decisión de SHA exacto, cobertura de trust boundaries, hallazgos validados y tests de remediación |
-| `product-activation` | Configuración post-entrega para todos los targets web, API/backend, iOS, Android, macOS, Windows, browser-extension e híbridos compatibles, incluyendo capability routing, autorización exacta de acciones externas, read-back, fuentes de medición y handoff del outcome review; las lecturas obligatorias de stage poseen inputs, execution, status handoff y reporting detail | `docs/ACTIVATION.md` |
+| `product-activation` | Configuración externa desde el primer build y verificación de la publicación: autorización exacta, capacidades, read-back, comportamiento y medición | `docs/ACTIVATION.md` |
 | `seo-growth-review` | SEO técnico post-release de solo lectura, integridad de medición, keyword research, diagnóstico de tráfico orgánico y priorización de oportunidades query-to-page; las lecturas obligatorias de stage poseen inputs, review method y reporting detail | Revisión inline por defecto; informe datado opcional con pedido explícito |
 
 <details>
@@ -429,13 +431,14 @@ flowchart TB
         directhandoff --> directpush --> preview
     end
 
-    subgraph ACTIVATE["product-activation — activación post-entrega"]
+    subgraph ACTIVATE["product-activation — configuración y verificación del release"]
         direction TB
         profiles["Seleccionar perfiles core + surface<br/>docs/ACTIVATION.md"]
         capability["Probar connector / API / CLI<br/>Browser / Computer Use / manual"]
         actions["Acciones ACT-* exactas<br/>autorización + read-back"]
         ready["Readiness de activación por target<br/>fuentes MS-* verificadas"]
-        profiles --> capability --> actions --> ready
+        profiles --> capability --> actions
+        actions -->|"evidencia del release final"| ready
     end
 
     subgraph SEO["seo-growth-review — revisión post-release opcional"]
@@ -467,6 +470,8 @@ flowchart TB
     target --> route
     DIRECT --> directhandoff
     gates2 --> handoff
+    direct_impl -.->|"preparación inicial coordinada por el parent"| profiles
+    workers -.->|"preparación inicial coordinada por el parent"| profiles
     status --> profiles
     ready --> outcome
     ready -.-> seo_sources
@@ -480,7 +485,7 @@ Las respuestas de aprobación y entrega de Product Definition y UI enumeran en e
 
 Para cada release desplegable, `docs/DEPLOYMENT.md` es el handoff del operador. Product Definition define `Surface class` y `Public discoverability`; Delivery Harness liga cada target development/production con provider/channel, endpoint o disposición nativa tipada, SHA esperado/desplegado, artifact, evidencia de disponibilidad y hora. Producción usa `<product-slug>-<surface-suffix>` sin `-prod`; desarrollo añade `-dev`. El registro guarda nombres de secretos/variables y tareas externas, nunca valores.
 
-Tras el deployment de producción, `product-activation` deriva perfiles de los release targets tipados y ejecuta solo acciones exactas autorizadas. Capability, read-back, evidencia de comportamiento, measurement sources y readiness se ligan a target, entorno, SHA, artifact, provider/channel y action digest. El Outcome Review posterior repite exactamente la métrica o TEST del PRD, baseline, target, ventana, release y fuentes `MS-*` verificadas.
+Desde un build inicial fijo, `product-activation` prepara los requisitos autorizados antes de las funciones dependientes. Después del despliegue, reutiliza los recursos y verifica el release real. Capacidades, digests y evidencia siguen ligados al target, entorno, SHA y artifact exactos. Readiness, fuentes verificadas y Outcome Review conservan sus requisitos de publicación.
 
 Activation ejecuta por defecto: inventaría el delta real, continúa las acciones ready autorizadas hasta mutation/read-back/behavior y usa el checker de closeout al final; solo un pedido explícito del owner permite un trabajo documentation-only. `--require-closeout` rechaza una acción requerida dejada en ready, configured, pending, uncertain o stale. Solo el trabajo verificado o un bloqueo concreto explícito cierra la acción; ese estado blocked mantiene el record en blocked. Un no-op real no necesita una acción sintética, pero cada target requiere una disposición n/a concreta; el handoff verificado sigue exigiendo fuentes y readiness verificadas.
 

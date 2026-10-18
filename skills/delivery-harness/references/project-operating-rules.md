@@ -11,7 +11,7 @@ Read only the section triggered by project AGENTS.md. These shared rules retain 
 
 ## Post-Delivery Activation
 
-- Use `product-activation` only after implementation has a fixed release SHA or exact artifact identity. It owns `docs/ACTIVATION.md` and never edits or extends a delivery PLAN/RUN.
+- Use `product-activation` preparation from a fixed usable initial build; verify final readiness against the actual release SHA and artifact. It owns `docs/ACTIVATION.md` and never edits or extends a delivery PLAN/RUN.
 - Product Definition may create the first Activation seed when the path is absent. Preserve an existing record; only `product-activation` reconciles its live action, source, evidence, and readiness state.
 - Probe purpose-built connector/API/CLI first, then Browser, Computer Use, and manual handoff. Capability never grants permission.
 - Bind every external write to the exact account or organization, project or property, environment, action, and current action digest. DNS, permissions, credentials, billing, production traffic, public submission, data sharing, and destructive changes require action-time confirmation.

@@ -59,7 +59,9 @@ Placement means the exact control surface a human opens. Examples: Cloudflare na
 
 Record every non-code task required in another system, especially auth setup: create the application or tenant, register preview and production callback/redirect URLs, set allowed origins and logout URLs, configure webhook endpoints, attach domains or DNS, and grant required roles. Put any credential name created by these steps in the inventory above, but never its value. If no external setup is required, keep one `none` / `n/a` row.
 
-After the delivery RUN closes, the sibling `product-activation` skill may convert applicable rows into exact `ACT-*` actions in `docs/ACTIVATION.md`. The row itself grants no external-write permission. Keep deployment placement here and detailed action, capability, authorization, and evidence state in the Activation record.
+From a fixed initial build, the sibling `product-activation` skill may convert applicable rows into exact `ACT-*` preparation actions.
+Complete authorized prerequisites before dependent feature work; keep final release verification pending in the same Activation record.
+The row itself grants no external-write permission. Keep deployment placement here and detailed action, capability, authorization and evidence state in Activation.
 
 | Service | Setting | Preview / non-production | Production | Owner | Status |
 | --- | --- | --- | --- | --- | --- |

@@ -20,6 +20,11 @@ An absent product package is a `contract_gap`. An absent release identity or amb
 
 ## Workflow
 
+Early website/app preparation follows [Initial Product Foundations](../../../delivery-harness/references/initial-product-foundations.md) at a fixed usable build.
+Complete ready authorized setup before its dependent features. Preserve the same staged record for later release reconciliation.
+Run closeout honestly: final-release obligations and unknown native artifacts may leave preparation blocked or structurally incomplete.
+Report verified setup actions separately; do not call that result activation-complete or replace missing future bindings with the initial build.
+
 Activation is execution by default. First inventory the exact external state and calculate the real delta from the product, implementation, Deployment, and existing Activation evidence. Reuse valid evidence only when its release identity and observed external state remain valid. Continue every ready, authorized required action through mutation, independent read-back, and applicable behavior check unless it is blocked by a concrete gap or the owner explicitly defers it. Do not stop after a seed, structural check, or checker pass, and do not replace an executable action with instructions to the owner. Only an explicit owner request for a documentation-only or planning pass may stop at preparation.
 
 1. Validate product, release, and deployment inputs. From the repository root, always run `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`. An absent package is a `contract_gap`. Run `delivery-harness/scripts/check_deployment.py` when applicable. The verified-source handoff command must include `--stack-decisions`, `--expected-repository`, and `--candidate-ref` when a candidate ref exists; it re-runs the full approved Product Definition and Deployment checks before accepting Activation evidence. Treat deployment checks as evidence, not activation proof.

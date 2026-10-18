@@ -72,6 +72,8 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
+网站与 App 在 Product Definition 就规划 AEO／公开搜索入口、部署与 Google Analytics。第一个可执行版本完成后，先处理已授权的基础设置，再做依赖它们的功能；正式发布时沿用设置并重新验证。按 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) 执行，不增加批准关卡。
+
 1. 安装一个受支持的宿主和七个 skills。Installer 会锁定目标目录、备份 managed IDs、只复制 Git-tracked files，并逐字节校验；完成后重启宿主。
 2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明确 recommendation choices、accepted 变更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 与人工 Product Definition Approval。入口保留 ownership 与 approvals；撰写、自查、preflight 与 domain routing 走必要的 stage reads。
 3. UI 先以 `--ui-contract ui-design/3` 跑 Product Definition 预检，再进行 intake、三个可渲染方向研究及作者自查、owner 选择及完整 HiFi。Impeccable／H1–H9 前先验 HiFi 完整性，最后一次人工 Visual Approval。入口保留 ownership 与 approvals；撰写、自查、preflight 与 domain routing 走必要的 stage reads。
@@ -83,7 +85,7 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 9. 另行取得 action-time authorization，以 external anchor 与 immutable request/attempt/receipt 准备 A。Trusted host 重新读取并验证后执行 exact URL-only no-force publication、签署 evidence；recovery 验证 evidence 并读回 A。本地 agent 不执行该 argv。
 10. 对 exact read-back candidate 执行隔离的 non-production gates。如果 A 后失败，从 exact A 创建新的 continuation PLAN/RUN，关闭 C2、绑定先前 publication state，并用新 anchor 收档 A2。
 11. 另行精确授权，把未变的 candidate fast-forward 到 `main`、读回并验证 production。
-12. 执行 `product-activation`：精确外部动作、独立 read-back、behavior evidence、readiness 与 verified measurement sources。
+12. 对实际发布版本重新核对 `product-activation`：沿用现有设置，再验证精确授权动作、read-back、behavior evidence、readiness 与 measurement sources。
 13. 每个 target 的 measurement window 结束后执行 append-only Outcome Review；public hosted-web production target 可再选用 `seo-growth-review`。
 
 </details>
@@ -238,7 +240,7 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 | `design-system-compiler` | Visual Approval 后按需把已批准 `ui-design.md` target 编译成冻结 design-system pair，并生成来源绑定的 HTML specimen book；必要的 stage reads 管编译、验证、发布与 routing 细节 | `docs/design/design-system.md`、`docs/design/design-system.json`、`docs/design/design-system-preview.html` |
 | `delivery-harness` | 共享的规模判定与 security task gate、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：所有宿主共用的能力契约，agent 按观察到的原生工具自动对应 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 实现与统一集成后的只读安全审查，优先由 fresh sibling agent 执行；主动渗透测试与修复不属于本技能；必要的 stage reads 管输入、工作流程与交接细节 | 精确 SHA 决策、trust-boundary 覆盖、验证后的发现与修复测试 |
-| `product-activation` | 所有支持的 Web、API/backend、iOS、Android、macOS、Windows、browser-extension 与 hybrid release target 的交付后设置，包括 capability routing、精确外部动作授权、read-back、量测来源与 outcome-review 交接；必要的 stage reads 管输入、执行、状态交接与报告细节 | `docs/ACTIVATION.md` |
+| `product-activation` | 初始版本的外部基础设置与正式发布验证：精确授权、capability routing、read-back、行为证据及测量交接 | `docs/ACTIVATION.md` |
 | `seo-growth-review` | 只读的 release 后技术 SEO、量测完整性、关键词研究、自然流量诊断与 query-to-page 机会排序；必要的 stage reads 管输入、review method 与报告细节 | 默认 inline review；明确要求时才保存日期化报告 |
 
 <details>
@@ -429,13 +431,14 @@ flowchart TB
         directhandoff --> directpush --> preview
     end
 
-    subgraph ACTIVATE["product-activation — 交付后启用"]
+    subgraph ACTIVATE["product-activation — 基础设置与发布验证"]
         direction TB
         profiles["选择 core + surface profiles<br/>docs/ACTIVATION.md"]
         capability["探测 connector / API / CLI<br/>Browser / Computer Use / manual"]
         actions["精确 ACT-* 动作<br/>授权 + read-back"]
         ready["逐 target activation readiness<br/>已验证 MS-* 来源"]
-        profiles --> capability --> actions --> ready
+        profiles --> capability --> actions
+        actions -->|"正式发布证据"| ready
     end
 
     subgraph SEO["seo-growth-review — 可选 release 后 review"]
@@ -467,6 +470,8 @@ flowchart TB
     target --> route
     DIRECT --> directhandoff
     gates2 --> handoff
+    direct_impl -.->|"parent 协调的初始版本 preparation"| profiles
+    workers -.->|"parent 协调的初始版本 preparation"| profiles
     status --> profiles
     ready --> outcome
     ready -.-> seo_sources
@@ -480,7 +485,7 @@ Product Definition 与 UI 的批准／交接回复，要在对话中逐份列出
 
 每个可部署版本都以 `docs/DEPLOYMENT.md` 作为操作交接文档。Product Definition 先定义 typed `Surface class` 与 `Public discoverability`；Delivery Harness 再把每个 development/production target 精确 join 到 provider/channel、endpoint 或 typed native disposition、Expected/Deployed SHA、artifact identity、availability evidence 与 checked time。Production 使用不带 `-prod` 的 `<product-slug>-<surface-suffix>`，development 加 `-dev`。文档只记录 secret/variable 名称与外部 console 任务，永远不保存 secret 值。
 
-Production deployment 之后，`product-activation` 从 typed release targets 派生 profiles，只通过最安全可用路线执行精确授权的动作。Capability、read-back、behavior evidence、measurement sources 与 readiness 都绑定 target、environment、SHA、artifact、provider/channel 和 action digest。后续 strict Outcome Review 会逐字重复 PRD metric 或 TEST definition、baseline、target、window、production release 与相符 verified `MS-*` evidence。
+从固定的初始版本开始，`product-activation` 先完成依赖功能所需的已授权设置。正式发布后沿用现有资源，再核对实际版本。Capability、action digest 与行为证据仍绑定精确 target、environment、SHA 和 artifact；最终 readiness、verified measurement sources 与 Outcome Review 保留各自的发布证据要求。
 
 Activation 默认进入执行：先盘点真实 delta，继续把 ready 且已授权的 action 做到 mutation/read-back/behavior，最后执行 closeout checker；只有 owner 明确要求时才是 documentation-only。`--require-closeout` 会拒绝停留在 ready、configured、pending、uncertain 或 stale 的 required action。只有 verified 工作或明确 concrete blocker 能关闭动作；blocked 状态让 record 保持 blocked。真正的 no-op 不需要合成 action，但每个 target 都必须有 concrete n/a disposition；verified handoff 仍要求 verified sources 与 target readiness。
 

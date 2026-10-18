@@ -1,6 +1,6 @@
 interface:
   display_name: "Product Activation"
-  short_description: "Configure and verify post-delivery product setup"
-  default_prompt: "Use $product-activation after delivery to reconcile the release, configure only exact authorized external targets through the safest available route, read back every result, and hand verified measurement sources to outcome review."
+  short_description: "Prepare initial setup and verify released products"
+  default_prompt: "Use $product-activation from a fixed initial build to prepare exact authorized prerequisites before dependent features. Reuse existing resources after release, read back the actual build and behavior, and hand only verified measurement sources to outcome review. Keep incomplete preparation explicit."
 policy:
   allow_implicit_invocation: true

@@ -1,6 +1,6 @@
 ---
 name: product-activation
-description: Run and verify post-delivery activation for deployed or distributable websites, web apps, APIs/backend services, iOS apps, Android apps, browser extensions, macOS apps, and Windows apps. Use after implementation when a product needs analytics, tracking, store, domain, security, email, payment, monitoring, or other external-console setup. Build a surface-specific activation record, probe connector/API/CLI/Browser/Computer Use routes, execute only exact authorized actions, read back every result, and hand verified measurement sources to a later outcome review. Do not use this skill to implement product code, manage PLAN/RUN, deploy without explicit authority, or wait for an adoption window.
+description: Prepare authorized external setup from a fixed initial build and verify post-delivery activation for websites, web apps, APIs/backend services, iOS apps, Android apps, browser extensions, macOS apps, and Windows apps. Use before dependent features need analytics, domain or other external services, then reconcile the actual release. Keep one surface-specific activation record, probe connector/API/CLI/Browser/Computer Use routes, execute exact authorized actions and read back results. Final readiness and verified measurement sources remain release-bound. Do not implement product code, manage PLAN/RUN, deploy without explicit authority or wait for an adoption window.
 ---
 
 # Product Activation
@@ -15,7 +15,9 @@ Operational readiness includes applicable health probes, monitoring ownership, c
 
 At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. Keep local/mock, isolated candidate, and production verification separate under `../delivery-harness/references/delivery-acceptance-contract.md`. Bind production smoke to the actual deployed build and configuration; never replay fixture creation, destructive cleanup, real payments, or synthetic messages against production under test authority. Follow `../delivery-harness/references/bounded-enhancement.md` for next-round code gaps without weakening external-action confirmation rules.
 
-Turn a delivered build into an operationally ready product. Work from the exact release identity and the product's existing contracts. Configure external systems only when the user has authorized the exact action and target, then verify the resulting state independently.
+Prepare external prerequisites from an exact initial build, then verify operational readiness against the actual release.
+Follow [Initial Product Foundations](../delivery-harness/references/initial-product-foundations.md) for early website/app setup.
+Configure external systems only under an exact action and target grant, then verify the resulting state independently.
 
 This skill owns `docs/ACTIVATION.md`. It does not own product requirements, implementation, PLAN/RUN state, deployment, or the later outcome verdict.
 
@@ -38,7 +40,9 @@ Read the owning section before its matching action. Activation is execution by d
 - Treat `configured` as distinct from `verified`. Keep the fixed SHA and artifact/build identity when one exists.
 - Do not wait for DNS, store review, delayed analytics, or an adoption window. Preserve evidence and report the honest blocker.
 
-- Start only after implementation has a fixed full Git SHA plus the exact signed artifact/build identity when one exists. Use `n/a` only when the target has no separate artifact. A not-yet-deployed product may enter `preparation`, but it cannot become activation-ready.
+- Start preparation when a usable initial implementation has a fixed full Git SHA and its actual artifact/build identity when one exists.
+  Use `n/a` only when the target has no separate artifact. Keep unavailable future platform identities pending; never borrow another target's build.
+  Early setup cannot claim final activation readiness or production measurement.
 - Never create, edit, reopen, or extend `docs/goal/PLAN.md`, `docs/goal/RUN.md`, or the generated part of `docs/tasks.md`. Activation findings that belong in the run's Update Log are reported to the delivery parent for recording; activation itself never writes them.
 - Never implement a missing product hook here. Record `code_gap` and return a scoped request to `delivery-harness` with the affected source IDs, release target, missing behavior, and expected verification signal.
 - Route a missing or contradictory product requirement, metric, `TEST-*`, or release target to `product-definition-builder` as `contract_gap`.

@@ -1,6 +1,6 @@
 # Product Activation
 
-The live post-delivery activation record. Keep it at `docs/ACTIVATION.md`. Record exact non-secret targets, actions, read-back, and behavior evidence; never record secret values.
+The live record for initial-build preparation and final release activation. Keep it at `docs/ACTIVATION.md`. Record exact non-secret targets, actions, read-back, and behavior evidence; never record secret values.
 
 ## Record
 

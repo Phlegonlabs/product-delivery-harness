@@ -77,6 +77,11 @@ Freeze only approved inputs needed by the graph: Product Definition revision, St
 
 Map active `platform-delivery/1` stages in architecture order. Use pass-only dependencies to completions and next stages. Shared foundations start first. Completion verifiers carry upstream platform TESTs. Marked contracts, including `not_required`, require fresh gates for planned features.
 
+For initial website/app work, read [Initial Product Foundations](../initial-product-foundations.md).
+Order approved discovery, deployment and measurement prerequisites before their dependent features using existing dependencies and TEST obligations.
+Keep code tasks separate from parent-coordinated, separately authorized external setup; neither workers nor RUN gain deployment or console-write authority.
+Use evidence for each prerequisite, not global Activation readiness, to unblock its dependent work. Preserve independent work during external blockers.
+
 ### 3. Pass Plan Readiness
 
 Apply the direct route's self-review handoff before managed readiness.
@@ -112,4 +117,5 @@ Host verifiers run fresh and serially per runner. Container `session_exact` reus
 
 Harness 0.38+ RUNs close `local_only` at C after all gates and security pass. `archive_run.py --anchor-out <external path>` moves coordination, writes `ARCHIVE_RECEIPT.json` plus its immutable external anchor, and rolls back failure; commit only bookkeeping as A and reverify it. A current RUN never pushes. Under a new instruction, `push_archived_candidate.py --archive-anchor <path>` keeps request, attempt, receipt, and trusted-host evidence external; binds the canonical URL, machine-policy ID/hash/principal, and OS-managed verifier digest; and returns a URL-only no-force argv without invoking `git push`. A trusted host reloads the sanitized request, revalidates and signs evidence, publishes, and recovery-verifies readback before closing. Candidate Preview gates and separately authorized exact-SHA `main` promotion follow.
 
-`product-activation` preparation requires a fixed SHA and separate authorization. Readiness, measurement handoff, outcome review, and SEO require promotion and production verification; no RUN grant authorizes them.
+`product-activation` preparation may start at a fixed initial build before dependent features, under separate authorization.
+Final readiness, measurement handoff, outcome review and live SEO review retain their applicable release and production verification; no RUN grant authorizes them.

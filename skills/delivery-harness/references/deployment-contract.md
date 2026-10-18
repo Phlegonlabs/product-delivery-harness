@@ -20,6 +20,11 @@ Any lowercase platform id is valid. Each section below names that platform's nat
 
 ## Human Configuration Handoff
 
+For initial website/app work, apply [Initial Product Foundations](initial-product-foundations.md) before dependent features need these services.
+Reconcile configuration from the first usable build, then invoke separately authorized setup and verify the isolated bootstrap deployment.
+Do not postpone all external-console work until RUN close. Harness still never deploys or reconfigures the platform.
+Keep action grants and operational evidence in Activation; this record owns deployment placement, isolation and observed availability.
+
 `docs/DEPLOYMENT.md` is both the deployment record and the operator handoff. `product-definition-builder` seeds it from the product and architecture decisions. Before every deployable push, `delivery-harness` reconciles it against the implementation whenever the change adds, removes, renames, or changes the use of configuration, auth, a binding, an integration, or a deploy workflow. After deployment, the parent records the observed environment result and leaves every external-console task truthfully `pending`, `configured`, `verified`, or `n/a`. A later `product-activation` run may consume those rows, but it receives no authorization from their presence or status.
 
 The reconciliation is name-only and read-only:

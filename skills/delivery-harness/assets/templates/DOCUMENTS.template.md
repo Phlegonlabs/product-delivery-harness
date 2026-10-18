@@ -19,7 +19,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `implementation-plan.md` | `docs/product/` | PRD (when requested) | product-definition-builder | sequenced implementation outline | |
 | `YYYY-MM-DD-<release-set>.md` | `docs/product/outcomes/` | post-release outcome (when requested) | product-definition-builder + owner | immutable outcome evidence and verdict | |
 | `docs/DEPLOYMENT.md` | `docs/` | PRD seed, implementation reconciliation, deployment check | product-definition-builder + delivery-harness + owner | name-only configuration handoff + deployment record | |
-| `docs/ACTIVATION.md` | `docs/` | create-once PRD seed, post-delivery activation | product-definition-builder seed + product-activation + owner | external action, measurement-source, and activation-readiness record | |
+| `docs/ACTIVATION.md` | `docs/` | create-once PRD seed, initial-build preparation and release verification | product-definition-builder seed + product-activation + owner | external action, measurement-source, and activation-readiness record | |
 | `docs/DOCUMENTS.md` | `docs/` | PRD seed, then owner | product-definition-builder + owner edits | this manifest | |
 | `document-sync.json` | `docs/` | invocation review, when retained | harness parent | byte inventory, not approval | |
 | `EPIC-<id>.md` | `docs/epics/` | complete enhancement; optional for small fixes | owner + harness parent | round outcome and current-PRD references, not a second PRD or RUN | |
