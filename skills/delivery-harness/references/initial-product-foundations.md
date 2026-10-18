@@ -35,7 +35,8 @@ Search Console property verification belongs to public discovery setup when appl
 See [GA4 setup](https://support.google.com/analytics/answer/9304153) and [Firebase event validation](https://firebase.google.com/docs/analytics/debugview).
 
 Pre-build work is planning plus observed local facts. External provisioning needed to create the first artifact is a separately authorized operator/provider prerequisite outside Harness/RUN.
-That prerequisite does not become setup evidence and does not require paid distribution membership for every local experiment.
+Keep authorized non-secret operator observations in the existing Deployment/operator evidence. They do not establish fixed-build Activation readiness or verified measurement; rebind and reverify them against the actual first build.
+The prerequisite does not require paid distribution membership for every local experiment.
 
 ## Execute From A Fixed Initial Build
 
