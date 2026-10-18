@@ -533,14 +533,11 @@ def diagnostic_wave_report(root, request):
     results = {evidence["result"] for _, _, evidence in observations}
     scores = next(output["assessment"]["scores"] for role, output, _ in observations
                   if role == "grading")
-    thresholds = (("H2", 90), ("H4", 90), ("H5", 80), ("H7", 80), ("H8", 90), ("H9", 80))
     defects = list(observed_defects)
     defects.extend(f"grading {name} score {scores[name]} is below the accepted threshold"
-                   for name, minimum in thresholds if scores[name] < minimum)
-    if round(sum(scores.values()) / 9) < 90:
-        defects.append("grading overall score is below 90")
-    if min(scores.values()) < 60:
-        defects.append("grading lowest score is below 60")
+                   for name in scores if scores[name] < 80)
+    if round(sum(scores.values()) / len(scores)) < 85:
+        defects.append("grading overall score is below 85")
     for role, output, _ in observations:
         if output["results"] and any(row["result"] == "FAIL" for row in output["results"]):
             defects.append(role + " observed FAIL")

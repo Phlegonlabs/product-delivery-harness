@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,6 +72,8 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
+For websites and apps, plan AEO/public discovery, deployment, Google Analytics and build access during Product Definition. From the first usable build, complete authorized setup before dependent features; reuse it for final release verification. Startup work also covers actual protection readback, one scoped feedback route and minimum first-build error/alert handling. Follow [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) without adding another approval gate. Delivery roles use the stage-selected [collaboration overview](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview); detailed owners still govern dispatch and evidence.
+
 1. Install one supported host and all seven skills. The installer locks the destination, backs up managed IDs, copies only Git-tracked files, and verifies every byte. Restart the host.
 2. Start with `product-definition-builder`: research-first evidence, candidate drafting and reconciliation, explicit recommendation choices, accepted changes, coherent stack choices, typed release targets, tests, Stack Decision Checkpoint, and human Product Definition Approval. Its entry retains ownership and approvals; authoring, review, preflight and domain routing use its mandatory stage reads.
 3. For UI, run Product Definition preflight with `--ui-contract ui-design/3`, then intake, three rendered direction studies with author self-checks, owner selection and complete HiFi. Run HiFi completeness checks before Impeccable/H1–H9 and one human Visual Approval. Its entry retains ownership and approvals; authoring, self-review, preflight and domain routing use mandatory stage reads.
@@ -83,7 +85,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 9. Under separate action-time authorization, prepare A through its external anchor and immutable request/attempt/receipt. The trusted host reloads and validates them, performs the exact URL-only no-force publication, signs evidence, and recovery verifies that evidence and reads back A. Local agents never execute the emitted publication argv.
 10. Run the isolated non-production candidate gates against the exact read-back candidate. If they fail after A, create a fresh continuation PLAN/RUN from exact A, close C2, bind the prior publication state, and archive A2 under a new anchor.
 11. Under a separate exact-A authorization, fast-forward the unchanged candidate to `main`, read it back, and verify production.
-12. Run `product-activation` for exact approved external actions, independent read-back, behavior evidence, readiness, and verified measurement sources.
+12. Reconcile `product-activation` against the actual release: reuse existing setup, then verify exact approved actions, read-back, behavior, readiness and measurement sources.
 13. After every target-specific measurement window, run the strict append-only Outcome Review. Optionally run `seo-growth-review` for an exact public hosted-web production target.
 
 </details>
@@ -238,7 +240,7 @@ For a multi-mission delivery, state the intended local and remote outcome. Branc
 | `design-system-compiler` | Compiling an approved `ui-design.md` target into the frozen design-system pair after Visual Approval when required, plus its derived source-bound HTML specimen book; mandatory stage reads own compile, validation, publication and routing detail | `docs/design/design-system.md`, `docs/design/design-system.json`, `docs/design/design-system-preview.html` |
 | `delivery-harness` | Shared size gate, security-aware task gates, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one general capability contract mapped to observed native tools | Direct work or `PLAN.md` + `RUN.md` |
 | `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill; mandatory stage reads own inputs, workflow and handoff detail | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
-| `product-activation` | Post-delivery setup for every supported web, API/backend, iOS, Android, macOS, Windows, browser-extension, and hybrid release target, including capability routing, exact external-action authorization, read-back, measurement sources, and outcome-review handoff; mandatory stage reads own inputs, execution, status handoff and reporting detail | `docs/ACTIVATION.md` |
+| `product-activation` | Initial-build external setup and final release verification: exact authorization, capability routing, read-back, behavior evidence and measurement handoff | `docs/ACTIVATION.md` |
 | `seo-growth-review` | Read-only post-release technical SEO, measurement integrity, keyword research, organic-traffic diagnosis, and query-to-page opportunity prioritization; mandatory stage reads own inputs, review method and reporting detail | Inline review by default; optional dated report on explicit request |
 
 <details>
@@ -262,7 +264,16 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 </details>
 
+Runtime timing can retain parent-observed dispatch and backoff intervals through the guarded `record-runtime-observation` command.
+It uses existing reservations and metrics, rejects conflicting replay, and never advances execution or infers total delivery time.
+See [host interval recording](skills/delivery-harness/references/runtime-performance.md#parent-observed-host-intervals).
+
 ## Standalone skills
+
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments from the project's audience, positioning, voice and capacity.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepares channel-specific copy, asset briefs and proposed calendars for owner review.
+Both reference existing product pages, success metrics and measurement sources when available. Missing records do not block drafting.
+Content approval, publication, scheduling and measurement setup remain separate actions.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) helps other projects write a distinctive, brand-first GitHub README with real demonstrations, a useful quickstart and renderer-specific checks. Its [dated case library](standalone-skills/readme-studio/references/case-library.md) draws on Starship, Bruno, Transformers, tldraw and Vite. Visual work follows the target project's frontend route and includes before/after evidence.
 
@@ -306,6 +317,10 @@ A retained `ui-design/2` package has no grayscale Wireframe or W1–W5 stage. La
 HiFi supplies the complete source-derived Design Tokens view. A `ui-design/3` package always compiles `design-system/4`: its `showcase` binds every primitive variant, component state and motion variant to an approved HiFi element, and `design-system-preview.html` renders them as a specimen book without inventing styles. For `ui-design/2`, when the Need Gate requires a formal pair, the compiler creates `design-system/3`. Both bind the approved PRD, architecture, stack, UI contract and HiFi package, without a Wireframe binding.
 
 HiFi copy provenance uses embedded `ui-hifi-copy/1` metadata and product DOM bindings. Static text, dynamic display contracts and paired languages remain checkable. Tokens show actual values, purposes and control variants; reviewer text cannot satisfy product coverage.
+
+Impeccable critique and audit remain mandatory. HiFi requires an overall score of at least 85 and every H1-H9 dimension at least 80. Blocking findings and required evidence checks still apply.
+The `ui-design/3` completeness CLI reports unresolved static animation provenance before approval. These advisory diagnostics create no registry or compile-readiness verdict.
+One complete diagnostic wave allows one repair batch and one re-review of original defects and affected consumers. Keep current receipts and required browser coverage; do not restart broad qualitative discovery.
 
 Token observations retain raw source/display values separately from browser-normalized source/applied values, so hex colors, rem dimensions and keyword weights compare correctly.
 
@@ -416,13 +431,14 @@ flowchart TB
         directhandoff --> directpush --> preview
     end
 
-    subgraph ACTIVATE["product-activation — post-delivery activation"]
+    subgraph ACTIVATE["product-activation — setup and release verification"]
         direction TB
         profiles["Select core + surface profiles<br/>docs/ACTIVATION.md"]
         capability["Probe connector / API / CLI<br/>Browser / Computer Use / manual"]
         actions["Exact ACT-* actions<br/>authorization + read-back"]
         ready["Per-target activation readiness<br/>verified MS-* sources"]
-        profiles --> capability --> actions --> ready
+        profiles --> capability --> actions
+        actions -->|"final release evidence"| ready
     end
 
     subgraph SEO["seo-growth-review — optional post-release review"]
@@ -454,6 +470,8 @@ flowchart TB
     target --> route
     DIRECT --> directhandoff
     gates2 --> handoff
+    direct_impl -.->|"parent-owned initial-build preparation"| profiles
+    workers -.->|"parent-owned initial-build preparation"| profiles
     status --> profiles
     ready --> outcome
     ready -.-> seo_sources
@@ -467,7 +485,7 @@ Product Definition and UI approval/handoff responses list every current document
 
 For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds typed `Surface class` and `Public discoverability` fields; Delivery Harness joins every development/production target to those fields, its exact provider/channel, endpoint or typed native disposition, expected/deployed SHA, artifact identity, availability evidence, and checked time. Production uses canonical `<product-slug>-<surface-suffix>` with no `-prod`; development adds `-dev`. The record lists secret and variable names plus external-console tasks, never secret values.
 
-After production deployment, `product-activation` creates or reconciles `docs/ACTIVATION.md`, derives profiles from typed release targets, and performs only exact authorized actions through the safest available route. Capabilities, read-back, behavior evidence, measurement sources, and readiness bind to the exact target, environment, SHA, artifact, provider/channel, and action digest. The later strict Outcome Review repeats the PRD metric or TEST definition, baseline, target, window, exact production release, and matching verified `MS-*` evidence.
+From a fixed initial build, `product-activation` prepares authorized prerequisites before dependent features. After production deployment, it reuses existing resources and re-verifies the actual release. Capabilities, action digests and behavior evidence remain bound to each exact target, environment, SHA and artifact. Final readiness, verified measurement sources and outcome review retain their release requirements.
 
 Activation is execution by default: inventory the real delta, continue ready authorized actions through mutation/read-back/behavior, and use the closeout checker at the end; documentation-only work requires an explicit owner request. `--require-closeout` rejects a required action left ready, configured, pending, uncertain, or stale. Only verified work or an explicit concrete blocker closes the action; either blocked state keeps the record blocked. A true no-op needs no synthetic action, but every target must have a concrete n/a disposition, while verified handoff still requires verified sources and target readiness.
 
@@ -534,7 +552,7 @@ Security exemptions also require a documentation-only product description and Pr
 - **Full UI packages ship a complete design system.** New initial and full-redesign packages select `UI contract: ui-design/3`: three rendered direction studies by default in `docs/design/directions/<round>/`, each self-checked by the same author, owner select/mix/modify, full HiFi checked at every approved target and each intermediate web width, and a required `design-system/4` Markdown/JSON/HTML package (`Package action: compile|update|reuse`). The HTML specimen book shows every token, range, registered component variant, state, responsive size and motion copied from the approved HiFi in sandboxed plates, with replay/stop and reduced motion. Every required state, including default, has an explicit treatment row. Animation evidence follows the specimen’s winning CSS declaration and named keyframes, including importance, specificity and resolved custom properties. Unsupported animation CSS, including escaped declarations and invalid shorthands, is a finding. Retained `ui-design/2` compiles `design-system/3` only when required; its `not_required` approvals keep their meaning. A single recommendation requires the owner's explicit intake choice, human Decision owner and Decided on; its studies must match that choice. Validated `none`/`style` maintenance retains historical design artifacts; it grants no fresh pair or preview approval. Without adjacent approved web widths, record the exact `Intermediate width check: not_applicable — no adjacent approved web viewport widths`; native size-class and ordinary HiFi evidence remain required.
 - **Retained design packages go directly from PRD to HiFi.** `UI contract: ui-design/2` explicitly selects the retained flow; new initial and full-redesign packages use `ui-design/3`. Product preflight validates operations, states, responsive targets and copy status; HiFi checks actual copy provenance and product-control coverage before Impeccable. Three directions are the default, followed by selection and one complete Visual Approval. Native HTML remains design evidence. Legacy schemas and pinned RUNs keep their original meanings; a missing Wireframe never selects a weaker check.
 - **HiFi pages must connect through product controls.** New or revised `ui-hifi/2` references use an `index.html` manifest with hash-bound sibling HTML pages and explicit control destinations. Current `ui-output/3` observations check click and keyboard outcomes at every responsive target; missing pages, stale hashes, dead controls, wrong destinations, and undeclared navigation block approval. Each page renders exactly its assigned surfaces. Publish and retain the complete package. Schema-1 references remain inspection-only; every current Visual Approval requires HiFi schema 2. Historical output/2 and evidence/2 retain their original meaning. A frozen Git revision must contain every listed child page with the same bytes.
-- **Visual quality has its own floor.** HiFi H5 (visual slop), H7 (creative distinction), and H9 (design consistency) each require 80; an overall 90 cannot average away a weak visual dimension. Reviews cite inspected screenshots and confirmed direction principles. Numeric validation does not prove beauty or human inspection.
+- **Visual quality has its own floor.** HiFi H5 (visual slop), H7 (creative distinction), and H9 (design consistency) each require 80; an overall 85 cannot average away a weak visual dimension. Reviews cite inspected screenshots and confirmed direction principles. Numeric validation does not prove beauty or human inspection.
 - **Select directions from rendered representative cases.** Each direction uses the same primary/stress cases and content across the applicable platforms. Keep captures and hashes. Bounded playable motion studies show normal/reduced motion; they are selection evidence, not final motion proof or provider authorization. Only the selected direction expands into the full connected HiFi.
 - **Platforms share a brand, not control defaults.** Platform rules cover each approved platform separately. iOS addresses system text styles, Dynamic Type, SF Symbols and native input/layout; Web libraries are not forced onto it. HTML remains a review projection. Native implementation proves the representative cases with platform tooling before expanding, then completes the final full matrix.
 - **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
@@ -831,6 +849,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.65.0** — Require HiFi overall 85 and every H1-H9 dimension 80, with mandatory Impeccable and bounded repair review. Move build access, repository-protection readback, AEO/search, deployment, analytics, feedback, errors and alerts into existing startup stages. Explain parent-owned MultiAgent collaboration. Add guarded runtime observations, advisory compiler-source diagnostics and optional GTM strategy/content handoffs. Current HiFi acceptance changes; historical approvals and evidence retain their meaning.
 
 - **0.64.0** — Match native reviewer browser identity to the host while keeping bridge checks. Assemble direction studies in the shared reviewer with per-case targets and widths. Join complete diagnostic waves to PRD, manifest, and evidence identities. Require release source provenance in strict Activation, SEO, and Outcome handoffs, including main-preview/1 packages. Write CLI output as UTF-8 so Chinese findings no longer crash on Windows. Clarify frontend-only authoring, version-3 navigation, worker recovery, measured widths, and honest partial research.
 

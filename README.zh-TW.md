@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,6 +72,8 @@ Managed 本機 build／test 預設使用專案工具鏈，不需要 Docker 或 P
 
 ### Zero-to-one 流程（從零開始）
 
+網站與 App 在 Product Definition 就規劃 AEO／公開搜尋入口、部署、Google Analytics 與 build access。第一個可執行版本完成後，先處理已授權的基礎設定，再做依賴它們的功能；正式發布時沿用設定並重新驗證。啟動準備也涵蓋實際保護 readback、一條範圍明確的回饋管道，以及第一版最低錯誤／警報處理。依 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) 執行，不增加批准關卡。交付角色採用依階段選擇的[協作總覽](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview)；詳細規則仍掌管派工與證據。
+
 1. 安裝一個受支援的 host 與七個 skills。Installer 會鎖住目的地、備份 managed IDs、只複製 Git-tracked files，並逐 byte 驗證；完成後重啟 host。
 2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明確 recommendation choices、accepted 變更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 與人工 Product Definition Approval。入口保留 ownership 與 approvals；撰寫、自查、preflight 與 domain routing 走必要的 stage reads。
 3. UI 先以 `--ui-contract ui-design/3` 跑 Product Definition 預檢，再進行 intake、三個可渲染方向研究及作者自查、owner 選擇及完整 HiFi。Impeccable／H1–H9 前先驗 HiFi 完整性，最後一次人工 Visual Approval。入口保留 ownership 與 approvals；撰寫、自查、preflight 與 domain routing 走必要的 stage reads。
@@ -83,7 +85,7 @@ Managed 本機 build／test 預設使用專案工具鏈，不需要 Docker 或 P
 9. 另行取得 action-time authorization，以 external anchor 與 immutable request/attempt/receipt 準備 A。Trusted host 重新讀取並驗證後執行 exact URL-only no-force publication、簽署 evidence；recovery 驗證 evidence 並讀回 A。本機 agent 不執行該 argv。
 10. 對 exact read-back candidate 執行隔離的 non-production gates。若 A 後失敗，從 exact A 建立新的 continuation PLAN/RUN，關閉 C2、綁定先前 publication state，並用新 anchor 收檔 A2。
 11. 另行精確授權，把未變的 candidate fast-forward 到 `main`、讀回並驗證 production。
-12. 執行 `product-activation`：精確外部動作、獨立 read-back、behavior evidence、readiness 與 verified measurement sources。
+12. 對實際發布版本重新核對 `product-activation`：沿用既有設定，再驗證精確授權動作、read-back、behavior evidence、readiness 與 measurement sources。
 13. 每個 target 的 measurement window 結束後執行 append-only Outcome Review；public hosted-web production target 可再選用 `seo-growth-review`。
 
 </details>
@@ -238,7 +240,7 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 | `design-system-compiler` | Visual Approval 後按需把已核准 `ui-design.md` target 編譯成凍結 design-system pair，並產生來源綁定的 HTML specimen book；必要的 stage reads 管編譯、驗證、發布與 routing 細節 | `docs/design/design-system.md`、`docs/design/design-system.json`、`docs/design/design-system-preview.html` |
 | `delivery-harness` | 共用的規模判定與 security task gate、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：由所有 host 共用的能力契約，agent 依觀察到的原生工具自動對應 | 直接動手，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 實作與統一整合後的唯讀安全審查，優先由 fresh sibling agent 執行；主動滲透測試與修復不屬於本技能；必要的 stage reads 管輸入、工作流程與交接細節 | 精確 SHA 決策、trust-boundary 覆蓋、驗證後的發現與修復測試 |
-| `product-activation` | 所有支援的 Web、API/backend、iOS、Android、macOS、Windows、browser-extension 與 hybrid release target 的交付後設定，包含 capability routing、精確外部動作授權、read-back、量測來源與 outcome-review 交接；必要的 stage reads 管輸入、執行、狀態交接與報告細節 | `docs/ACTIVATION.md` |
+| `product-activation` | 初始版本的外部基礎設定與正式發布驗證：精確授權、capability routing、read-back、行為證據及量測交接 | `docs/ACTIVATION.md` |
 | `seo-growth-review` | 唯讀的 release 後技術 SEO、量測完整性、關鍵詞研究、自然流量診斷與 query-to-page 機會排序；必要的 stage reads 管輸入、review method 與報告細節 | 預設 inline review；明確要求時才保存日期化報告 |
 
 <details>
@@ -262,7 +264,16 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 
 </details>
 
+耗時記錄可透過受保護的 `record-runtime-observation` 保留 parent 實際觀察到的派工與重試等待區間。
+它沿用既有 reservation 與 metrics，拒絕衝突重送，不推進任務，也不推算整體交付時間。
+操作方式見[host 區間記錄](skills/delivery-harness/references/runtime-performance.md#parent-observed-host-intervals)。
+
 ## 獨立 skills
+
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 依產品受眾、定位、語氣與執行能力選擇渠道及實驗。
+[GTM Content](standalone-skills/gtm-content/SKILL.md) 產出各渠道的完整文案、素材 brief 與建議日程，交 owner 審閱。
+已有產品頁面、成功指標及量測來源時直接引用；缺少這些紀錄仍可準備草稿。
+內容核准、發布、排程及量測設定保留各自的授權。
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) 協助其他專案撰寫有品牌特色的 GitHub README，包含真實示範、可用的快速上手及各呈現平台的檢查。[附日期的案例庫](standalone-skills/readme-studio/references/case-library.md) 參考 Starship、Bruno、Transformers、tldraw 與 Vite。視覺工作沿用目標專案的 frontend 路由，交付前後對照證據。
 
@@ -306,6 +317,10 @@ flowchart LR
 HiFi 提供完整、取自實際樣式的 Design Tokens 頁。`ui-design/3` 包一定編譯 `design-system/4`：`showcase` 把每個 primitive variant、元件狀態與動效綁到核准 HiFi 元素，`design-system-preview.html` 以 specimen book 呈現，不自行發明樣式。`ui-design/2` 在 Need Gate 要求正式 pair 時才產生 `design-system/3`。兩者都綁定已核准 PRD、architecture、stack、UI contract 與 HiFi 包，不再綁 Wireframe。
 
 HiFi 以內嵌 `ui-hifi-copy/1` 及產品 DOM 綁定保留文案來源。靜態文案、動態顯示契約及成對語言仍可檢查。Tokens 展示實際數值、用途及控件變體；審閱器文字不能代替產品覆蓋。
+
+Impeccable critique 與 audit 維持必跑。HiFi 總分至少 85，H1–H9 每項至少 80；阻擋缺陷與必要證據檢查仍須通過。
+`ui-design/3` 完整性 CLI 會在核准前提示無法解析的靜態動畫來源。這些提示不建立 registry，也不表示已通過編譯。
+一次完整初審後，最多一批修復與一次複查，聚焦原缺陷及受影響部分。保留當前候選的證據與必要瀏覽器覆蓋，不重新展開全面的美感探索。
 
 Token 觀察分別保留來源／顯示原值及瀏覽器正規化後的來源／套用值，讓十六進位色碼、rem 尺寸及關鍵字字重能正確比較。
 
@@ -416,13 +431,14 @@ flowchart TB
         directhandoff --> directpush --> preview
     end
 
-    subgraph ACTIVATE["product-activation — 交付後啟用"]
+    subgraph ACTIVATE["product-activation — 基礎設定與發布驗證"]
         direction TB
         profiles["選擇 core + surface profiles<br/>docs/ACTIVATION.md"]
         capability["探測 connector / API / CLI<br/>Browser / Computer Use / manual"]
         actions["精確 ACT-* 動作<br/>授權 + read-back"]
         ready["逐 target activation readiness<br/>已驗證 MS-* 來源"]
-        profiles --> capability --> actions --> ready
+        profiles --> capability --> actions
+        actions -->|"正式發布證據"| ready
     end
 
     subgraph SEO["seo-growth-review — 選用 release 後 review"]
@@ -454,6 +470,8 @@ flowchart TB
     target --> route
     DIRECT --> directhandoff
     gates2 --> handoff
+    direct_impl -.->|"parent 協調的初始版本 preparation"| profiles
+    workers -.->|"parent 協調的初始版本 preparation"| profiles
     status --> profiles
     ready --> outcome
     ready -.-> seo_sources
@@ -467,7 +485,7 @@ Product Definition 與 UI 的批准／交接回覆，要在對話中逐份列出
 
 每個可部署版本都以 `docs/DEPLOYMENT.md` 作為操作交接文件。Product Definition 先定義 typed `Surface class` 與 `Public discoverability`；Delivery Harness 再把每個 development/production target 精確 join 到 provider/channel、endpoint 或 typed native disposition、Expected/Deployed SHA、artifact identity、availability evidence 與 checked time。Production 使用不帶 `-prod` 的 `<product-slug>-<surface-suffix>`，development 加 `-dev`。文件只記 secret/variable 名稱與外部 console 任務，永遠不保存 secret 值。
 
-Production deployment 之後，`product-activation` 會從 typed release targets 衍生 profiles，只透過最安全可用路線執行精確授權的動作。Capability、read-back、behavior evidence、measurement sources 與 readiness 都綁定 target、environment、SHA、artifact、provider/channel 和 action digest。後續 strict Outcome Review 會逐字重複 PRD metric 或 TEST definition、baseline、target、window、production release 與相符的 verified `MS-*` evidence。
+從固定的初始版本開始，`product-activation` 先完成依賴功能所需的已授權設定。正式發布後沿用既有資源，再核對實際版本。Capability、action digest 與行為證據仍綁定精確 target、environment、SHA 和 artifact；最終 readiness、verified measurement sources 與 Outcome Review 保留各自的發布證據要求。
 
 Activation 預設進入執行：先盤點真實 delta，繼續把 ready 且已授權的 action 做到 mutation/read-back/behavior，最後執行 closeout checker；只有 owner 明確要求時才是 documentation-only。`--require-closeout` 會拒絕停留在 ready、configured、pending、uncertain 或 stale 的 required action。只有 verified 工作或明確 concrete blocker 能關閉動作；blocked 狀態讓 record 保持 blocked。真正的 no-op 不需要合成 action，但每個 target 都必須有 concrete n/a disposition；verified handoff 仍要求 verified sources 與 target readiness。
 
@@ -534,7 +552,7 @@ Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，�
 - **完整 UI 包一定附完整 Design System。** 新的初次與完整重設計使用 `UI contract: ui-design/3`：在 `docs/design/directions/<round>/` 預設做三個可渲染方向，每個由同一作者自查；owner 選擇、混合或修改；完整 HiFi 檢查全部核准尺寸及網頁中間寬度；並必須產出 `design-system/4` 的 Markdown／JSON／HTML（`Package action: compile|update|reuse`）。HTML specimen book 以沙盒 plate 展示核准 HiFi 的全部 token、區間、已登記元件 variants、狀態、響應式尺寸與動效，可重播、停止及 reduced motion。每個必要狀態都須有明確分類列，包含 default。動畫證據須綁定 specimen 勝出的 CSS 宣告與具名 keyframes，包含重要性、選擇器優先順序及已解析的自訂屬性。不支援的動畫 CSS、跳脫字元宣告及無效縮寫列為 finding。保留的 `ui-design/2` 只在 required 時編譯 `design-system/3`；其 `not_required` 核准保留原義。 單方向只在 owner 明示選擇、記錄人類 Decision owner 與 Decided on 時成立；研究數量必須符合該選擇。 經驗證的 `none`／`style` maintenance 保留歷史設計，不代表重新核准 pair 或 preview。 沒有相鄰核准網頁寬度時，記錄完整的 `Intermediate width check: not_applicable — no adjacent approved web viewport widths`；原生 size classes 與其他 HiFi 證據仍須完成。
 - **保留的設計包直接由 PRD 進入 HiFi。** `UI contract: ui-design/2` 明確選擇保留流程；新的初次與完整重設計使用 `ui-design/3`。PRD 預檢驗證 operations、states、responsive 與 copy status；HiFi 在 Impeccable 前驗證實際文案來源及產品操作覆蓋。預設三方向，選定後一次審閱完整 HiFi。原生 HTML 仍只是設計證據。舊 schema 與固定版本 RUN 保留原義；缺少 Wireframe 不會自動放寬檢查。
 - **HiFi 頁面必須由產品控制項連通。** 新增或修訂的 `ui-hifi/2` 以 `index.html` 清單綁定同目錄 HTML 頁面的雜湊與控制項目的地。現行 `ui-output/3` 觀察逐 responsive target 驗證點擊及鍵盤操作；缺頁、過期雜湊、無效控制項、錯誤目的地或未宣告跳轉均阻擋核准。每頁只能呈現分配給該頁的 surface。發布與保留須包含完整套件；schema-1 僅供讀取檢查，正式 Visual Approval 一律要求 HiFi schema 2。歷史 output/2 與 evidence/2 保留原意。指定 Git revision 凍結時，該 revision 必須包含所有子頁面且內容一致。
-- **視覺品質有獨立門檻。** HiFi 的 H5（避免模板感）、H7（創意辨識度）與 H9（設計一致性）各須達到 80；總分 90 不能抵銷視覺分項不足。審查須引用已檢視的截圖與已確認的方向原則；數字驗證不代表美感或人工檢視已獲證明。
+- **視覺品質有獨立門檻。** HiFi 的 H5（避免模板感）、H7（創意辨識度）與 H9（設計一致性）各須達到 80；總分 85 不能抵銷視覺分項不足。審查須引用已檢視的截圖與已確認的方向原則；數字驗證不代表美感或人工檢視已獲證明。
 - **以實際代表畫面選方向。** 各方向使用相同主要／壓力案例與內容，涵蓋適用平台並保存截圖及 hash。小型可播放動態展示 normal／reduced motion，只供選擇，不等於最終證據或 provider 授權。選定後才展開完整連通 HiFi。
 - **平台共享品牌，分別定義控制項。** Platform rules 逐核准平台記錄規則。iOS 明確評估 system text styles、Dynamic Type、SF Symbols 與原生操作／版面，不強制套用 Web 元件庫。HTML 僅供審稿；原生實作先以平台工具驗證代表案例，再擴展其他畫面，最後仍須完成全矩陣驗證。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
@@ -831,6 +849,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.65.0** — HiFi 總分至少 85，H1–H9 每項至少 80；保留必跑 Impeccable 與有界修復複查。把 build access、Repo 保護讀回、AEO／搜尋、部署、分析、回饋、錯誤與告警放進既有啟動階段。明確定義由主協調代理負責的 MultiAgent 分工，加入受控 runtime 觀測、編譯來源提示及選用 GTM 策略／內容交接。現行 HiFi 驗收門檻改變，歷史批准與證據保留原意。
 
 - **0.64.0** — 讓 native reviewer 的瀏覽器身分對應 host，同時保留 bridge 檢查。在共用 reviewer 中組裝方向研究，並提供每個案例的 targets 與寬度。把完整 diagnostic wave 連結 PRD、manifest 與 evidence 身分。在 strict Activation、SEO 與 Outcome 交接要求 release source provenance，包含 main-preview/1 套件。CLI 輸出改用 UTF-8，Windows 上含中文的 findings 不再 crash。釐清 frontend-only authoring、version-3 navigation、worker recovery、量測寬度與誠實的部分研究。
 

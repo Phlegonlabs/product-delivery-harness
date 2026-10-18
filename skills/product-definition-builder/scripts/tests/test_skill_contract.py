@@ -347,7 +347,8 @@ async function agent(_prompt, options) {
             "Required Secrets and Variables",
             "External Console Setup",
             "Record names and destinations only, never values",
-            "delivery-harness` to reconcile from the finished code",
+            "delivery-harness` to reconcile from the first usable build",
+            "before its separately authorized deployment",
         ):
             self.assertIn(phrase, skill)
         self.assertIn("Which secret and variable names go where", contract)
@@ -2801,12 +2802,11 @@ async function agent(_prompt, options) {
             "`80–100 — pass`",
             "`60–79 — advisory`",
             "`0–59 — block`",
-            "wireframe overall score",
-            "overall score is at least `90`",
-            "design-reference overall score",
-            "overall score is at least `90`",
-            "each score at least `90`",
-            "`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`",
+            "Legacy Wireframe thresholds stay unchanged: overall at least `80`",
+            "`W5` at least `80`, every dimension at least `60`, and no `block`",
+            "HiFi readiness requires an overall score of at least `85`",
+            "every `H1`–`H9` dimension at least `80`",
+            "The overall score and every dimension threshold must pass before Visual Approval",
             "Any such failure on required content is a `block`",
             "`W1 PRD conformance`",
             "`W5 Structural clarity and evidence`",
@@ -2839,7 +2839,8 @@ async function agent(_prompt, options) {
         self.assertIn("one consolidated repair batch", skill)
         self.assertIn("one re-review", skill)
         self.assertIn("one consolidated repair batch", wireframe)
-        self.assertIn("complete rubric once", guide)
+        self.assertIn("complete `H1`–`H9` scoring", guide)
+        self.assertIn("Repair Re-review Scope", guide)
 
     def test_motion_and_media_gate_separates_ui_motion_from_generated_assets(self) -> None:
         skill = self.read_ui("SKILL.md")

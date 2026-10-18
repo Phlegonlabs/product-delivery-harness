@@ -1696,7 +1696,7 @@ class UiDesignContractTests(unittest.TestCase):
         candidate = (
             contract()
             .replace("Wireframe score: 90", "Wireframe score: 79")
-            .replace("H4 score: 94", "H4 score: 89")
+            .replace("H4 score: 94", "H4 score: 79")
             .replace("HiFi blocks or disputes: none", "HiFi blocks or disputes: H7 disputed")
         )
         joined = "\n".join(
@@ -1707,8 +1707,37 @@ class UiDesignContractTests(unittest.TestCase):
             )
         )
         self.assertIn("Wireframe score must be an integer from 80 to 100", joined)
-        self.assertIn("H4 score must be an integer from 90 to 100", joined)
+        self.assertIn("H4 score must be an integer from 80 to 100", joined)
         self.assertIn("HiFi blocks or disputes must be none", joined)
+
+    def test_hifi_overall_score_requires_eighty_five(self):
+        for value in ("85", "88", "100"):
+            with self.subTest(value=value):
+                candidate = contract().replace("HiFi score: 94", f"HiFi score: {value}")
+                self.assertEqual([], checker.validate_text(candidate, require_visual_approved=True))
+        for value in ("84", "77", "-1", "101", "not scored", ""):
+            with self.subTest(value=value):
+                candidate = contract().replace("HiFi score: 94", f"HiFi score: {value}")
+                problems = checker.validate_text(candidate, require_visual_approved=True)
+                self.assertIn("HiFi score must be an integer from 85 to 100", "\n".join(problems))
+        candidate = contract().replace("HiFi score: 94\n", "")
+        self.assertIn("HiFi score", "\n".join(
+            checker.validate_text(candidate, require_visual_approved=True)))
+
+    def test_hifi_dimension_fields_and_minimum_require_eighty(self):
+        for field in ("H2 score", "H4 score", "H5 score", "H7 score",
+                      "H8 score", "H9 score", "HiFi lowest dimension"):
+            for score in (79, 80):
+                with self.subTest(field=field, score=score):
+                    candidate = re.sub(rf"(?m)^{re.escape(field)}: \d+$",
+                                       f"{field}: {score}", contract())
+                    self.assertNotEqual(candidate, contract())
+                    problems = checker.validate_text(candidate, require_visual_approved=True)
+                    if score == 80:
+                        self.assertEqual([], problems)
+                    else:
+                        self.assertIn(f"{field} must be an integer from 80 to 100",
+                                      "\n".join(problems))
 
     def test_w5_cannot_be_averaged_away_or_omitted(self):
         for value in ("79", "101", "not scored", ""):

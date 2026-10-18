@@ -60,5 +60,8 @@ Use `references/review-workflow.md` to classify this round. New initial design a
 - New machine observations use `ui-evidence/3` without a human owner or attestation. `ui-evidence/2` retains its historical human-attested semantics and is never fabricated or relabeled. Only the actual owner supplies direction and Visual Approval.
 - Keep copy source/completeness and PRD responsibilities valid. A changed product decision returns upstream; composition repairs inside accepted scope reuse authorization. Copy is reviewed with the full HiFi.
 - HiFi checks use one complete diagnostic wave, one consolidated repair batch, and one re-review after the cheap completeness gate. Another failure stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+- Repair re-review follows `references/ui-grading-rubric.md#repair-re-review-scope`: original defects and affected consumers, with mandatory Impeccable checks and complete current evidence.
 - Numeric scores summarize quality; they never override a PRD contradiction, broken browser matrix, inaccessible required flow, dead control, or missing human approval.
+- HiFi readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80. Keep actual-score consistency and required Impeccable verdicts.
+- The `ui-design/3` completeness CLI reports advisory compiler-source limitations before approval; registry-dependent coverage remains the compiler's responsibility.
 - A generated image or motion asset is optional unless the approved Motion and Media Intent record makes it required. Provider failure never authorizes a substitute treatment.

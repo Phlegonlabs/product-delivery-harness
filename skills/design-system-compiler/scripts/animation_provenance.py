@@ -11,6 +11,7 @@ import math
 IDENT = r"[A-Za-z_][\w-]*"
 COMPOUND = re.compile(rf"(?:[A-Za-z][\w-]*|\*)?(?:[.#]{IDENT})*")
 SENSITIVE = re.compile(r"(?:^|[;{])\s*(?:(?:-webkit-)?animation(?:-[\w-]+)?|all|--[\w-]+)\s*:", re.I)
+ANIMATION_ONLY = re.compile(r"(?:^|[;{])\s*(?:(?:-webkit-)?animation(?:-[\w-]+)?|all)\s*:", re.I)
 VAR_REF = re.compile(r"var\(\s*(--[\w-]+)")
 
 
@@ -34,8 +35,9 @@ def _split(value, separator):
     return parts + [value[start:].strip()]
 
 
-def _rules(css):
+def _rules(css, *, static_only=False):
     rules, keyframes, cursor = [], set(), 0
+    sensitive = ANIMATION_ONLY if static_only else SENSITIVE
     css = re.sub(r"/\*[\s\S]*?\*/", "", css)
     if "\\" in css:
         raise ValueError("escaped CSS")
@@ -57,9 +59,9 @@ def _rules(css):
         if keyframe:
             keyframes.add(keyframe.group(1))
         elif header.startswith("@"):
-            if SENSITIVE.search(body) or ";" in header:
+            if sensitive.search(body) or ";" in header:
                 raise ValueError("conditional or layered animation CSS")
-        elif SENSITIVE.search(body):
+        elif sensitive.search(body):
             if "{" in body or "}" in body:
                 raise ValueError("nested animation CSS")
             selectors = [item.strip() for item in header.split(",")]
@@ -234,8 +236,8 @@ def _names(value, shorthand):
     return names
 
 
-def source_backed(css, node, ancestors=()):
-    """Require resolved winning names and their unconditional source keyframes."""
+def source_status(css, node, ancestors=()):
+    """Classify animation provenance without treating static controls as failures."""
     try:
         rules, keyframes = _rules(css)
         variables = {}
@@ -243,10 +245,28 @@ def source_backed(css, node, ancestors=()):
             winners = _cascade(rules, ancestor)
             variables = _variables(winners, variables)
         winner = winners.get("animation-name")
-        if winner is None or winner[1] == "all":
-            return False
+        if winner is None:
+            return "no_animation"
+        if winner[1] == "all":
+            return "unresolved"
         value = _substitute(winner[2], variables.get)
         names = _names(value, winner[1] == "animation")
-        return bool(names) and names <= keyframes
+        if not names:
+            return "no_animation"
+        return "source_backed" if names <= keyframes else "unresolved"
     except (ValueError, RecursionError):
-        return False
+        # Custom properties cannot affect a literal absence of animation.
+        # This narrower inspection can prove only no_animation, never provenance.
+        try:
+            rules, _ = _rules(css, static_only=True)
+            winner = _cascade(rules, node).get("animation-name")
+            if winner is None or (winner[1] != "all" and not _names(winner[2], winner[1] == "animation")):
+                return "no_animation"
+        except (ValueError, RecursionError):
+            pass
+        return "unresolved"
+
+
+def source_backed(css, node, ancestors=()):
+    """Require resolved winning names and their unconditional source keyframes."""
+    return source_status(css, node, ancestors) == "source_backed"

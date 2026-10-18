@@ -59,7 +59,12 @@ Placement means the exact control surface a human opens. Examples: Cloudflare na
 
 Record every non-code task required in another system, especially auth setup: create the application or tenant, register preview and production callback/redirect URLs, set allowed origins and logout URLs, configure webhook endpoints, attach domains or DNS, and grant required roles. Put any credential name created by these steps in the inventory above, but never its value. If no external setup is required, keep one `none` / `n/a` row.
 
-After the delivery RUN closes, the sibling `product-activation` skill may convert applicable rows into exact `ACT-*` actions in `docs/ACTIVATION.md`. The row itself grants no external-write permission. Keep deployment placement here and detailed action, capability, authorization, and evidence state in the Activation record.
+Before external trials, include one scoped feedback intake route: a support inbox, form, or named interview route. Name its owner and applicable privacy controls.
+Keep one test report joined to the tested build and context. No feedback vendor or new tracker is required.
+
+From a fixed initial build, the sibling `product-activation` skill may convert applicable rows into exact `ACT-*` preparation actions.
+Complete authorized prerequisites before dependent feature work; keep final release verification pending in the same Activation record.
+The row itself grants no external-write permission. Keep deployment placement here and detailed action, capability, authorization and evidence state in Activation.
 
 | Service | Setting | Preview / non-production | Production | Owner | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -123,6 +128,11 @@ Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this rec
 
 These steps are performed by a person with platform access; the Harness never performs, triggers, or reconfigures them. Check them off as completed.
 
+### Protection and configuration readback (both modes)
+
+- [ ] Before repository connection, CI bootstrap, or workflow enablement, configure actual protection for the exact repository and ref; record non-secret readback for the host capability, ruleset/review policy, required checks, and checked time.
+- [ ] Use the owner's separate external grants. Never push, force-update, or delete a protected branch to test protection, and do not treat this checklist as proof that the host is configured.
+
 ### Git connection (git_connected mode)
 
 - [ ] Connect the repository to the platform (Cloudflare Pages/Workers, Vercel project, or AWS Amplify app).
@@ -146,6 +156,7 @@ These steps are performed by a person with platform access; the Harness never pe
 - [ ] Reconcile every required secret and variable name against the implemented code and tracked configuration; do not copy values into this document.
 - [ ] Complete or explicitly leave `pending` every Required Secrets and Variables row, with the exact preview and production placement named.
 - [ ] Complete the External Console Setup rows, including auth callback URLs, allowed origins, webhook endpoints, domains, and required roles when applicable.
+- [ ] Before external trials, verify one scoped feedback intake route reaches its named owner and record one build/context-joined test report under the product's privacy controls.
 - [ ] Create separate preview and production environments with separate variables and secrets.
 - [ ] Point preview at non-production databases, buckets, and auth providers; never bind a production resource to preview.
 - [ ] Fill the Resource Isolation table with both resource-ID sets and confirm no ID appears in both columns.

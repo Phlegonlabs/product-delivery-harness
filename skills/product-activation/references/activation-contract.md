@@ -17,6 +17,12 @@ Work in `docs/.activation-staging/<run-id>/ACTIVATION.md`:
 
 Existing repositories remain valid without this file. The first activation run bootstraps it from current product, architecture, deployment, and tracked configuration evidence. Historical prose or a legacy `verified` label is `configured` at most until fresh read-back proves it.
 
+Preparation can start from a fixed usable initial build before dependent feature work.
+Use [Initial Product Foundations](../../delivery-harness/references/initial-product-foundations.md); retain existing action digests, exact grants and evidence rules.
+Verified setup actions do not close unfinished production or feature obligations. Keep genuine final-release checks concretely blocked when their prerequisites are absent.
+Future platform identities remain pending, even when they prevent filled validation or closeout. Never fabricate artifacts or reduce required coverage to obtain a pass.
+Resume the same record at release, read back existing resources, and rebind/reverify the actual SHA and artifacts before final readiness.
+
 ## Required Document Shape
 
 Use the exact level-two headings and table headers in `ACTIVATION.template.md`:

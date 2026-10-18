@@ -55,6 +55,12 @@ python "<ui-design-builder-skill-root>/scripts/check_ui_design_contract.py" --ui
 
 This checks source identities, the approved Product package, manifest closure, UI IDs, routes, states, responsive sets, operation/control destinations and copy provenance against actual product DOM. Repair failures and rerun before expensive review. Keep the command result with existing task evidence; no extra approval or duplicated requirements table is needed. Structured coverage does not prove chart meaning, data integration, aesthetics or runtime behavior. The author and reviewer check those responsibilities against the PRD; browser evidence still verifies interactions.
 
+For `ui-design/3`, the CLI also reports advisory `compiler-source` diagnostics from the hash-checked HiFi package.
+Inspect unresolved animation provenance before owner review. The author can clarify intended triggers or repair approved-scope source limitations early.
+Static controls need no animation. A diagnostic never proves a design defect or a failed approval gate by itself.
+Registry trigger feasibility and variant/state coverage remain deferred until the compiler has the actual registry.
+The report creates no registry, changes no HiFi bytes and grants no compile-readiness PASS.
+
 ## Style Intake Gate
 
 The intake must already be complete before `frontend-design` proposes a theme or Design Read. If it is missing, read `ui-design-intake.md`, ask the human owner the product-specific questions, end the turn, and wait. Reuse supplied answers; wait only on missing decisions.
@@ -145,9 +151,12 @@ Before human visual approval:
 3. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects, so it needs that authorization, but it is required: Visual Approval and publication need both PASS records, and a declined authorization leaves the stage `blocked`. Its Nielsen, detector, accessibility, responsive, performance, theming, and implementation-integrity scores are diagnostic evidence; the record uses exact `PASS` verdicts after the human gate standard is met.
 4. Run `ui-grading-rubric.md`'s Technical Hard Gate and complete `H1`–`H9` scoring. These scores, not Impeccable's native totals, decide readiness.
 5. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
-6. Let `frontend-design` make one repair batch. Then re-run the authorized Impeccable critique and audit checks plus the complete rubric once on the new SHA-256.
+6. Let `frontend-design` make one repair batch. Re-review the new SHA-256 under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Recheck original defects and affected consumers. Keep mandatory Impeccable critique/audit, required browser coverage and a complete current H1–H9 assessment.
 
-The candidate is ready for the human gate only when overall `H1`–`H9` is at least 90, `H2`, `H4`, and `H8` are each at least 90, `H5`, `H7`, and `H9` are each at least 80, every dimension is at least 60, and no block or disputed dimension remains. Do not repair merely to chase 100. A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+Readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80.
+No block or disputed dimension may remain. Record the actual scores, even when they fail these thresholds.
+After all readiness checks pass, do not repair merely to raise the overall score.
+A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 
 ## Browser And Human Visual Approval
 

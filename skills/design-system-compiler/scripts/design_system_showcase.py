@@ -15,7 +15,7 @@ from html.parser import HTMLParser
 from pathlib import PurePosixPath
 from typing import Any, Callable
 
-from animation_provenance import source_backed
+from animation_provenance import source_status
 
 SHOWCASE_SCHEMA = "ds-showcase/1"
 SPECIMEN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
@@ -145,9 +145,36 @@ def reduced_motion_css(css: str) -> str:
 
 def animation_source_backed(css: str, node: dict[str, Any], ancestors=()) -> bool:
     """Resolve unconditional animation provenance outside reduced-motion rules."""
+    return animation_source_status(css, node, ancestors) == "source_backed"
+
+
+def animation_source_status(css: str, node: dict[str, Any], ancestors=()) -> str:
+    """Classify source only; registry triggers and coverage remain compiler-owned."""
     for start, end, _, _ in reversed(_reduced_motion_ranges(css)):
         css = css[:start] + css[end:]
-    return source_backed(css, node, ancestors)
+    return source_status(css, node, ancestors)
+
+
+def source_preflight(documents: dict[str, str]) -> list[str]:
+    """Report bounded source limitations without a registry or approval verdict."""
+    findings = []
+    animation_declaration = re.compile(r"(?:^|[;{])\s*(?:-webkit-)?animation(?:-[\w-]+)?\s*:", re.I)
+    for page, html in documents.items():
+        tree = SourceTree(product_html(html))
+        css = analysis_css(html)
+        specimens = [node for node in tree.nodes if tree.in_product(node)
+                     and "data-specimen-variant" in node["map"] and "data-specimen-state" in node["map"]]
+        if not animation_declaration.search(css) and not any(
+                animation_declaration.search(node["map"].get("style") or "") for node in specimens):
+            continue
+        for node in specimens:
+            if animation_source_status(css, node, tree.ancestors(node)) == "unresolved":
+                findings.append(f"{page}: static animation provenance is unresolved for an annotated specimen; "
+                                "confirm its intended registry trigger before compilation")
+                break
+    if len(findings) > 25:
+        return findings[:25] + [f"{len(findings) - 25} additional pages have source limitations"]
+    return findings
 
 
 def container_rules(css: str) -> list[str]:

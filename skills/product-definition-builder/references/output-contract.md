@@ -69,6 +69,9 @@ When a section runs past its share, the usual cause is detail that belongs in a 
 
 ## `PRD.md`
 
+Apply [Initial Product Foundations](../../delivery-harness/references/initial-product-foundations.md) to public discovery and early implementation order.
+Required app AEO names its approved public content surface; private native screens cannot supply crawlable web evidence.
+
 Use this structure:
 
 ```markdown
@@ -263,6 +266,9 @@ Use `monetization-and-partner-channel-guide.md` to select providers only after t
 ## Metrics
 | Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |
 | --- | --- | --- | --- | --- | --- | --- |
+
+Define the GA4/Firebase or approved alternative destination, canonical events and collection controls before dependent feature work.
+Trace initial event delivery, duplicate prevention and test-traffic isolation through TEST obligations; actual production measurement remains release-bound.
 
 ## Risks
 | Risk | Impact | Mitigation |
@@ -636,6 +642,9 @@ Describe in a few lines: service boundaries, API style, data access, and backgro
 ## Deployment and Operations
 [Hosting, environments, config, migrations, queues, cron, rollback.]
 
+Record initial deployment and measurement prerequisites, their owners, dependent work and evidence in the existing sections and `docs/DEPLOYMENT.md`.
+Use the fixed initial build for authorized setup; keep later release availability and unknown platform artifacts pending.
+
 For every deployable hosted web, API, or backend target, include this environment contract (Cloudflare Worker naming shown as the worked example; substitute the resolved platform's equivalent deployment unit). Do not use this two-row hosted-environment table for native mobile or desktop store/signed-installer distribution:
 
 | Target | Exact Release Source | Deployment Unit | Data / Bindings / Secrets | Auth Mode | Payment Mode | Migration Order | Deployed Verification | Rollback |
@@ -925,6 +934,8 @@ Use this structure:
 ## Dependency Order
 1. [Foundational dependency]
 2. [Next dependency]
+
+Order applicable AEO, deployment and measurement foundations before features that need them. Independent work may continue during external setup blockers.
 
 ## Engineering Tasks
 | Area | Task | Owner Type | Notes |

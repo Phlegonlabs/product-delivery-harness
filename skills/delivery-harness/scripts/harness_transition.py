@@ -5183,6 +5183,8 @@ def build_parser() -> argparse.ArgumentParser:
     launch_observation.add_argument("--launch-observation", required=True)
     launch_observation.add_argument("--host-observation", required=True)
     launch_observation.add_argument("--fallback-record", type=Path)
+    runtime_observation = subparsers.add_parser("record-runtime-observation")
+    runtime_observation.add_argument("--observation", type=Path, required=True)
     review = subparsers.add_parser("record-review-attempt")
     review.add_argument("--lineage", required=True)
     review.add_argument("--attempt-id", required=True)
@@ -5425,6 +5427,21 @@ def _transition_under_lock(
         receipt = _bind_review_task_thread(plan, run, args)
     elif args.command == "record-launch-observation":
         receipt = _record_launch_observation(plan, run, args)
+    elif args.command == "record-runtime-observation":
+        from runtime_observations import append_observation, load_observation
+
+        _require_held_run_lock(run, args)
+        if args.repo_root is None:
+            raise ManifestError("record-runtime-observation requires --repo-root")
+        receipt = append_observation(plan, run, load_observation(args.observation))
+        if not receipt["recorded"]:
+            errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
+            if errors:
+                raise ManifestError("runtime observation replay has an invalid RUN: " + "; ".join(errors))
+            _ensure_plan_unchanged(args.plan, expected_plan_text)
+            if args.run.read_text(encoding="utf-8") != original_text:
+                raise ManifestError("RUN changed during runtime observation replay")
+            return receipt, None, False
     elif args.command == "skip-integration-review":
         _skip_integration_review(plan, run, args)
     elif args.command == "record-observation":

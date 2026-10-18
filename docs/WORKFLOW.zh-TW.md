@@ -5,13 +5,14 @@
 ## 角色與分工
 
 角色名稱是職責，不是固定模型。Codex、Pi、Claude Code 或其他 host 都先依有效本機政策與實際工具完成綁定。
+整體派工與證據流向見 [Delivery Collaboration Overview](../skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview)；詳細分解、結果、runtime 與 receipt 規則仍以原有檔案為準。
 
 | 角色 | 何時使用 | 交付責任 |
 | --- | --- | --- |
 | Parent / integrator | 全程 | 範圍、依賴、權限、派工、結果核對、序列整合及 owner 溝通 |
 | Market researcher | 產品前後的獨立市場問題、UI 參考研究 | 有來源的事實、假設與未知；不決定產品 |
 | Code explorer | 現有程式、介面、影響範圍與測試路徑 | 唯讀定位；不以研究結果冒充驗證 |
-| Code architect | 跨模組、介面、資料或遷移方案 | 凍結依賴與接口；不替 owner 核准產品／技術選擇 |
+| Code architect | 跨模組、介面、資料或遷移方案 | 提出依賴與接口；parent 在既有核准決定內對帳並凍結；不替 owner 核准產品／技術選擇 |
 | Frontend writer | 方向、HiFi、HTML/CSS、元件、互動、前端及視覺修復 | 讀完整 frontend-design；依核准來源實作並自查 |
 | Backend writer | API、資料、權限、背景工作及服務行為 | 凍結接口內的實作、負面案例和資料安全 |
 | Integration / test writer | 指定的跨層接線或測試檔 | 不越權修改 frontend；有獨立檔案與資源 ownership |
@@ -52,7 +53,7 @@
 25. 對適用產品確認 data/trust、security、AI/automation、monetization 和 partner gates；不適用也給理由。新版 package 明確記錄 eval-policy/1 的 applicability；適用產品凍結 rubric、樣本分母、重跑次數、pass rate、critical cases 與 judge 輸入，不使用全項目共用門檻。
 26. 將 billing、entitlement、merchant-of-record、affiliate／reseller 等責任分開，不用單一供應商名稱取代設計。
 27. 收集已選 stack 與 unresolved layers，記錄 owner 如何選擇 coherent 技術方案；沒有偏好不等於核准。
-28. 需要時派 architect、frontend/backend 分析角色研究接口與技術選項；分析不直接建立 Approved 決定。
+28. 需要時派 architect、frontend/backend 分析角色研究接口與技術選項；architect 只提出方案，parent 在核准決定內對帳並凍結接口，分析不直接建立 Approved 決定。
 29. 在 staging 撰寫唯一英文 `PRD.md`、`architecture.md` 與 `stack-decisions.md`。
 30. 同步完整 `PRD.zh-TW.md` 與 `architecture.zh-TW.md`；中文供 owner 審閱，英文維持實作權威。
 31. 建立穩定需求、UI、operation、TEST 與 release-target ID，列出完整 journey、states、copy、responsive、accessibility 和 recovery。
@@ -92,8 +93,8 @@
 62. 檢查 menu、tabs、dialog、forms、keyboard、Escape、focus return；切 active class 不等於操作完成。
 63. 執行便宜的 HiFi completeness preflight；先修缺頁、漏字、漏 state、斷 operation 和非法資源。
 64. 原作者再自查完整 HiFi 畫面、copy、layout、responsive 與 interactions，記錄實際檢查與修復。
-65. 由適用獨立 review 執行 Impeccable critique／audit、browser matrix 與 H1–H9；核對該 reviewer 自身所需工具。
-66. 收斂同原因缺陷成一批，交原作者修復；依既有 retry budget 對新候選重查，不用換作者重設次數。
+65. 由適用獨立 review 執行 Impeccable critique／audit、browser matrix 與 H1–H9；總分至少 85、每項至少 80，且無阻擋缺陷或爭議。核對該 reviewer 自身所需工具。
+66. 收斂同原因缺陷成一批，交原作者修復；對新候選複查原缺陷及受影響部分，不另開全面的美感探索。Impeccable、必要瀏覽器覆蓋與當前候選完整評估仍須完成；保留原 retry budget。
 67. 所有 required findings、browser checks 和分數門檻通過，才呈現完整 HiFi entry、siblings 與 UI 記錄。
 68. 取得一次 Visual Approval，涵蓋文案、結構、menus、tabs、其他互動、視覺及 tokens，綁精確候選與 scope。
 

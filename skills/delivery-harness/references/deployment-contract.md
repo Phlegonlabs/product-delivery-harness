@@ -20,6 +20,11 @@ Any lowercase platform id is valid. Each section below names that platform's nat
 
 ## Human Configuration Handoff
 
+For initial website/app work, apply [Initial Product Foundations](initial-product-foundations.md) before dependent features need these services.
+Reconcile configuration from the first usable build, then invoke separately authorized setup and verify the isolated bootstrap deployment.
+Do not postpone all external-console work until RUN close. Harness still never deploys or reconfigures the platform.
+Keep action grants and operational evidence in Activation; this record owns deployment placement, isolation and observed availability.
+
 `docs/DEPLOYMENT.md` is both the deployment record and the operator handoff. `product-definition-builder` seeds it from the product and architecture decisions. Before every deployable push, `delivery-harness` reconciles it against the implementation whenever the change adds, removes, renames, or changes the use of configuration, auth, a binding, an integration, or a deploy workflow. After deployment, the parent records the observed environment result and leaves every external-console task truthfully `pending`, `configured`, `verified`, or `n/a`. A later `product-activation` run may consume those rows, but it receives no authorization from their presence or status.
 
 The reconciliation is name-only and read-only:
@@ -29,6 +34,9 @@ The reconciliation is name-only and read-only:
 3. In **Required Secrets and Variables**, record each exact key name, classify it as a secret or non-secret variable, name its consumer, identify the exact preview and production placement, name where the human obtains it, and record status. Include CI deploy credentials as well as application runtime configuration. Browser-exposed keys are variables even when their provider calls them keys.
 4. In **External Console Setup**, record every non-code action with its exact system and environment: auth application or tenant creation, callback and logout URLs, allowed origins, webhook registration, domain/DNS attachment, role grants, payment mode, or another provider-side setting.
 5. When no rows apply, keep an explicit `none` / `n/a` row. Never omit either section, and never invent a key or callback URL that the product or implementation has not defined.
+
+Before external trials, add one scoped feedback route to External Console Setup: a support inbox, form, or named interview route, with its human owner and privacy controls.
+The route is enough to receive and join one test report to the build and context. It does not require a feedback vendor or a new tracker.
 
 A `pending` row is allowed in the record because it is an honest human handoff. It is also an availability gate: if the row is required for the target environment, that environment cannot be reported ready until the human finishes it and a behavior-level smoke check passes. The Harness reports the exact pending names and console tasks; it never fills, rotates, reveals, or guesses their values and never reconfigures the platform.
 
@@ -72,6 +80,8 @@ A `pending` row is allowed in the record because it is an honest human handoff. 
 ## Release And Recovery Readiness
 
 Before an applicable release, record migration ordering and compatibility, backup/restore or forward-fix strategy, deploy command, health and user-flow probes, monitoring owner, alert destination, cost thresholds and rollback trigger in the existing deployment record. Use approved environments and exact action grants. A rollback of code is insufficient if data or an external side effect cannot roll back; name the safe forward-fix and decision owner. Exercise feasible recovery in the isolated candidate environment and retain its result. Record genuine non-applicability instead of generating empty plans for a small local-only project.
+At the first dynamic build, provide minimum error/crash retrieval bound to the environment and build, with redaction and applicable symbol or source-map handling.
+Before an unattended Preview or beta, prove that one useful health/error alert reaches its named response owner. Existing provider logs are sufficient when they cover those needs; no paid reporter or full monitoring stack is required.
 
 After release, read back the actual build/artifact and verify health and required smoke against it. Report implementation delivery, release availability, operational activation and measured product outcomes separately. Green CI, a started deployment or successful upload proves none of the later stages.
 

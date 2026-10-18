@@ -4,6 +4,12 @@ Select `core` plus only the profiles supported by the product contract and deliv
 
 Before executing a fast-moving provider setup, fetch its current official documentation. Record the provider, retrieval date, applicable account or plan constraint, and any unresolved difference from this catalog. A remembered dashboard path is not execution evidence.
 
+Plan these prerequisites during Product Definition and perform authorized setup from a fixed initial build.
+Web uses the selected GA4 Web stream; applicable iOS/Android apps use Firebase/native integration and their own registered app identities.
+Verify implemented events in debug/realtime evidence; creation of a property or stream alone is not collection proof.
+For public AEO, verify approved text, metadata, crawl controls and applicable structured data. Private/native screens and app-store optimization remain separate.
+Use [Initial Product Foundations](../../delivery-harness/references/initial-product-foundations.md) for scope, ordering and retained final-release obligations.
+
 ## Core
 
 Apply to every activation run:
@@ -14,6 +20,8 @@ Apply to every activation run:
 - Privacy and data: data inventory, purpose, identity rule, consent, PII prohibition, retention, access/export/delete path, processors, and regional decision owner.
 - Measurement: one canonical definition for every PRD metric and required `TEST-*` signal; environment/test-traffic policy; data-quality and duplicate-event checks.
 - Reliability: logs, errors or crashes, health signals, alerts, escalation, support/status communication, backup/restore where state exists, and cost/usage alerts.
+- First-build reliability: minimum error/crash retrieval bound to environment and build, with redaction and applicable symbol or source-map handling. Before unattended Preview or beta, prove that one useful health/error alert reaches its named response owner. Existing provider logs are sufficient when they cover these needs.
+- Trial intake: before external trials, one scoped support inbox, form, or named interview route reaches its owner. A test report joins the tested build and context under the product's privacy controls.
 - Evidence: exact target, route, timestamp, read-back, behavior check, and remaining caveats. Never record a secret value or raw customer export.
 
 ## Web

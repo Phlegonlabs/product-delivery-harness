@@ -2,12 +2,15 @@
 
 The four READMEs remain the documentation of record for the skill bundle.
 
-Current source focus: workflow repairs for 0.64.0 are in PR #144. Its review findings are repaired, and the merge waits for CI.
+Observed `origin/main` includes PR #144 at tagged `v0.64.0` (`bf56ab27`). The owner authorized releasing the workflow and 85/80 changes as 0.65.0 from `ui-review-thresholds`, then updating installed skills. Release verification is in progress in the UI review Epic.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
+| `docs/epics/EPIC-initial-product-foundations.md` | Initial setup and delivery collaboration | Follow-up complete at `bdfe52f2`; 590 tests and independent review passed; not released or installed |
+| `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | Local source complete; `f342b3b7` verified and independently reviewed; not released or installed |
+| `docs/epics/EPIC-ui-review-efficiency.md` | HiFi overall 85, every dimension 80, and bounded repair review with mandatory Impeccable | Local source complete; 85/80 candidate `6a7d62a5` independently reviewed, 216 focused tests passed; not released or installed |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | Local source verified; owner-authorized 0.63.0 release/install follow-up in progress; exact outcome in linked receipts |
-| `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | Rebased onto 0.63.1 as `workflow-repairs-0.64`; in PR #144 with its review findings repaired; PR #141 is superseded |
+| `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | PR #144 merge observed at tagged `bf56ab27`; historical release evidence remains in the Epic; PR #141 is superseded |
 | `docs/epics/EPIC-lightweight-entry.md` | Full dispatch-message budgets and stage-scoped lightweight entry | Accepted; LIGHT-01–04 implemented and locally committed; LIGHT-05 exact candidate/result is authoritative in [lightweight-result.md](C:/Users/mps19/.codex/visualizations/2026/10/06/01a11277-8783-7192-8c29-2f37de1cf543/lightweight-result.md) |
 | `docs/epics/EPIC-readme-refresh.md` | Four-language README reorganization and generated cover refresh | Source complete for 0.62.2; exact publication and verification outcome in its linked release receipt |
 | docs/epics/EPIC-gen-verify-platform-delivery.md | Bounded Generate/Verify/Correct, feature acceptance and approved platform order | Accepted; P1/H1 and G1 local source changes committed; final unified checks/review authority is [loop-engineering-result.md](C:/Users/mps19/.codex/visualizations/2026/10/04/01a106f3-1755-7b42-873e-dbd7ebc45feb/loop-engineering-result.md) |
@@ -47,7 +50,7 @@ Current source focus: workflow repairs for 0.64.0 are in PR #144. Its review fin
 | `docs/epics/EPIC-design-authoring-flow.md` | PRD-bound style and playable-motion authoring across skills | Released in v0.54.2 |
 | `docs/epics/EPIC-prd-continuous-completeness.md` | First-delivery UI/technical completeness and ongoing evidence-based PRD refinement | Released in v0.54.1 |
 | `docs/epics/EPIC-design-brief-reference-intake.md` | Explicit reference questions and a concise Design Brief in existing UI intake | Released in v0.54.1 |
-| `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior and release instructions | 0.64.0 candidate source; observed released main and installed skills remain 0.63.1 |
+| `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior and release instructions | Baseline and observed installed VERSION: 0.64.0; review-efficiency changes remain local to `ui-review-thresholds` |
 | `docs/epics/EPIC-runtime-and-verification-reliability.md` | Browser CI, lifecycle, runtime metrics, document review and same-RUN recovery | Released in v0.54.1 |
 | `docs/epics/EPIC-ui-reviewer-integration.md` | Unified Wireframe/HiFi review, evidence, and lifecycle integration | Released in v0.54.1 |
 | `docs/epics/EPIC-001-incremental-design-review.md` | Incremental UI authoring and interactive review repair | Work released through v0.50.0; Epic status still `in_progress` |

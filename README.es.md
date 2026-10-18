@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,6 +72,8 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
+Para sitios y apps, planifica AEO, descubrimiento público, despliegue, Google Analytics y build access durante Product Definition. Desde el primer build utilizable, completa la configuración autorizada antes de las funciones dependientes. Reutilízala y verifícala al publicar. La preparación inicial también cubre readback real de protección, una ruta de comentarios delimitada y manejo mínimo de errores/alertas del primer build. Sigue [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) sin otra aprobación. Los roles de entrega usan la [visión general de colaboración](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview) seleccionada por etapa; las reglas detalladas siguen controlando dispatch y evidencia.
+
 1. Instala un host soportado y los siete skills. El instalador bloquea el destino, respalda IDs gestionados, copia solo archivos tracked y verifica cada byte; reinicia el host.
 2. Empieza con `product-definition-builder`: evidencia research-first, drafting/reconciliación del candidate, decisiones explícitas de recommendations, cambios accepted, stack coherente, release targets tipados, tests, Stack Decision Checkpoint y Product Definition Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan sus lecturas obligatorias de stage.
 3. Para UI, ejecutar el preflight de Product Definition con `--ui-contract ui-design/3`, intake, tres estudios renderizados con autorrevisión del autor, selección del owner y HiFi completo. Comprobar HiFi antes de Impeccable/H1–H9 y una Visual Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan lecturas obligatorias de stage.
@@ -83,7 +85,7 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 9. Con autorización action-time separada, prepara A mediante anchor y request/attempt/receipt inmutables. El trusted host los recarga, valida, publica la URL exacta sin force y firma evidencia; recovery verifica y lee A. El agente local nunca ejecuta ese argv.
 10. Ejecuta gates aislados non-production contra el candidate exacto leído. Si falla tras A, crea un PLAN/RUN de continuación desde A, cierra C2, liga el estado previo y archiva A2 con anchor nuevo.
 11. Con otra autorización exact-A, fast-forwardea el candidate sin cambios a `main`, léelo de vuelta y verifica producción.
-12. Ejecuta `product-activation` con acciones exactas, read-back independiente, evidencia, readiness y measurement sources.
+12. Reconcilia `product-activation` con la publicación real: reutiliza la configuración y verifica acciones autorizadas, read-back, comportamiento, readiness y fuentes de medición.
 13. Tras cada ventana por target, ejecuta Outcome Review append-only; para hosted-web público, `seo-growth-review` es opcional.
 
 </details>
@@ -238,7 +240,7 @@ Para una entrega multi-mission, declara el resultado local y remoto previsto. La
 | `design-system-compiler` | Compilar el target aprobado de `ui-design.md` en el par design-system congelado tras Visual Approval cuando sea necesario, más su specimen book HTML ligado a la fuente; las lecturas obligatorias de stage poseen el detalle de compilación, validación, publicación y routing | `docs/design/design-system.md`, `docs/design/design-system.json`, `docs/design/design-system-preview.html` |
 | `delivery-harness` | Size gate compartido, security task gates, PLAN/RUN, autorización, verificación local e integración, más la referencia de adaptadores de runtime (`references/runtime-adapters.md`) que contiene un contrato general de capacidades que el agente asigna a las herramientas nativas observadas | Trabajo directo o `PLAN.md` + `RUN.md` |
 | `code-security-review` | Revisión de seguridad de solo lectura tras la implementación y la integración unificada, preferentemente en un agente sibling fresco; el penetration testing activo y la remediación quedan fuera de este skill; las lecturas obligatorias de stage poseen inputs, workflow y handoff detail | Decisión de SHA exacto, cobertura de trust boundaries, hallazgos validados y tests de remediación |
-| `product-activation` | Configuración post-entrega para todos los targets web, API/backend, iOS, Android, macOS, Windows, browser-extension e híbridos compatibles, incluyendo capability routing, autorización exacta de acciones externas, read-back, fuentes de medición y handoff del outcome review; las lecturas obligatorias de stage poseen inputs, execution, status handoff y reporting detail | `docs/ACTIVATION.md` |
+| `product-activation` | Configuración externa desde el primer build y verificación de la publicación: autorización exacta, capacidades, read-back, comportamiento y medición | `docs/ACTIVATION.md` |
 | `seo-growth-review` | SEO técnico post-release de solo lectura, integridad de medición, keyword research, diagnóstico de tráfico orgánico y priorización de oportunidades query-to-page; las lecturas obligatorias de stage poseen inputs, review method y reporting detail | Revisión inline por defecto; informe datado opcional con pedido explícito |
 
 <details>
@@ -262,7 +264,16 @@ Tamaño significa scope de coordinación y blast radius, no un conteo bruto de a
 
 </details>
 
+El comando protegido `record-runtime-observation` conserva intervalos de despacho y espera entre reintentos observados por el parent.
+Reutiliza reservas y métricas, rechaza repeticiones contradictorias y no avanza tareas ni calcula el tiempo total de entrega.
+Consulta el [registro de intervalos](skills/delivery-harness/references/runtime-performance.md#parent-observed-host-intervals).
+
 ## Skills independientes
+
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos según la audiencia, el posicionamiento, la voz y la capacidad del proyecto.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepara textos por canal, briefs de recursos y calendarios propuestos para revisión del responsable.
+Ambos referencian páginas, métricas y fuentes de medición existentes cuando están disponibles. Su ausencia no impide preparar borradores.
+La aprobación del contenido, publicación, programación y configuración de medición mantienen autorizaciones separadas.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) ayuda a otros proyectos a escribir un README de GitHub con identidad de marca, demostraciones reales, un inicio rápido útil y comprobaciones para cada plataforma de presentación. Su [biblioteca de casos fechados](standalone-skills/readme-studio/references/case-library.md) incluye Starship, Bruno, Transformers, tldraw y Vite. El trabajo visual sigue la ruta frontend del proyecto y entrega evidencia antes/después.
 
@@ -306,6 +317,10 @@ Un paquete retenido `ui-design/2` no crea Wireframes grises ni ejecuta una etapa
 HiFi incluye Design Tokens derivados de estilos reales. Un paquete `ui-design/3` siempre compila `design-system/4`: su `showcase` liga cada variante primitiva, estado de componente y motion a un elemento del HiFi aprobado, y `design-system-preview.html` los presenta como specimen book sin inventar estilos. Para `ui-design/2`, si el Need Gate requiere un par formal, el compilador produce `design-system/3`. Ambos quedan ligados al PRD, arquitectura, stack, contrato UI y paquete HiFi aprobados, sin binding Wireframe.
 
 HiFi conserva la procedencia del texto mediante `ui-hifi-copy/1` incrustado y bindings al DOM del producto. Se validan textos estáticos, contratos dinámicos e idiomas emparejados. Los tokens muestran valores, usos y variantes reales; el texto del visor no satisface la cobertura del producto.
+
+Impeccable critique y audit siguen siendo obligatorios. HiFi exige una puntuación global mínima de 85 y un mínimo de 80 en cada dimensión H1-H9. Se mantienen los defectos bloqueantes y las comprobaciones de evidencia.
+El CLI de completitud `ui-design/3` informa de procedencia estática de animación no resuelta antes de aprobar. Estos avisos no crean un registro ni prueban la compilación.
+Una ronda diagnóstica completa permite un lote de reparaciones y una revisión de los defectos originales y sus consumidores afectados. Se mantienen evidencia actual y cobertura obligatoria del navegador, sin reiniciar una búsqueda estética completa.
 
 Las observaciones conservan los valores originales y los valores normalizados por el navegador por separado, para comparar correctamente colores hexadecimales, dimensiones rem y pesos definidos por palabras clave.
 
@@ -416,13 +431,14 @@ flowchart TB
         directhandoff --> directpush --> preview
     end
 
-    subgraph ACTIVATE["product-activation — activación post-entrega"]
+    subgraph ACTIVATE["product-activation — configuración y verificación del release"]
         direction TB
         profiles["Seleccionar perfiles core + surface<br/>docs/ACTIVATION.md"]
         capability["Probar connector / API / CLI<br/>Browser / Computer Use / manual"]
         actions["Acciones ACT-* exactas<br/>autorización + read-back"]
         ready["Readiness de activación por target<br/>fuentes MS-* verificadas"]
-        profiles --> capability --> actions --> ready
+        profiles --> capability --> actions
+        actions -->|"evidencia del release final"| ready
     end
 
     subgraph SEO["seo-growth-review — revisión post-release opcional"]
@@ -454,6 +470,8 @@ flowchart TB
     target --> route
     DIRECT --> directhandoff
     gates2 --> handoff
+    direct_impl -.->|"preparación inicial coordinada por el parent"| profiles
+    workers -.->|"preparación inicial coordinada por el parent"| profiles
     status --> profiles
     ready --> outcome
     ready -.-> seo_sources
@@ -467,7 +485,7 @@ Las respuestas de aprobación y entrega de Product Definition y UI enumeran en e
 
 Para cada release desplegable, `docs/DEPLOYMENT.md` es el handoff del operador. Product Definition define `Surface class` y `Public discoverability`; Delivery Harness liga cada target development/production con provider/channel, endpoint o disposición nativa tipada, SHA esperado/desplegado, artifact, evidencia de disponibilidad y hora. Producción usa `<product-slug>-<surface-suffix>` sin `-prod`; desarrollo añade `-dev`. El registro guarda nombres de secretos/variables y tareas externas, nunca valores.
 
-Tras el deployment de producción, `product-activation` deriva perfiles de los release targets tipados y ejecuta solo acciones exactas autorizadas. Capability, read-back, evidencia de comportamiento, measurement sources y readiness se ligan a target, entorno, SHA, artifact, provider/channel y action digest. El Outcome Review posterior repite exactamente la métrica o TEST del PRD, baseline, target, ventana, release y fuentes `MS-*` verificadas.
+Desde un build inicial fijo, `product-activation` prepara los requisitos autorizados antes de las funciones dependientes. Después del despliegue, reutiliza los recursos y verifica el release real. Capacidades, digests y evidencia siguen ligados al target, entorno, SHA y artifact exactos. Readiness, fuentes verificadas y Outcome Review conservan sus requisitos de publicación.
 
 Activation ejecuta por defecto: inventaría el delta real, continúa las acciones ready autorizadas hasta mutation/read-back/behavior y usa el checker de closeout al final; solo un pedido explícito del owner permite un trabajo documentation-only. `--require-closeout` rechaza una acción requerida dejada en ready, configured, pending, uncertain o stale. Solo el trabajo verificado o un bloqueo concreto explícito cierra la acción; ese estado blocked mantiene el record en blocked. Un no-op real no necesita una acción sintética, pero cada target requiere una disposición n/a concreta; el handoff verificado sigue exigiendo fuentes y readiness verificadas.
 
@@ -534,7 +552,7 @@ La exención de seguridad requiere una descripción y un Product Archetype de do
 - **Los paquetes UI completos incluyen un design system completo.** Los diseños iniciales y los rediseños completos usan `UI contract: ui-design/3`: tres estudios de dirección renderizados por defecto en `docs/design/directions/<round>/`, cada uno autorrevisado por el mismo autor; el owner elige, mezcla o modifica; el HiFi completo se comprueba en todos los tamaños aprobados y en anchos web intermedios; y se exige el paquete Markdown/JSON/HTML `design-system/4` (`Package action: compile|update|reuse`). El specimen book HTML muestra en plates aislados todos los tokens, rangos, variantes de componentes registrados, estados, tamaños responsive y motion copiados del HiFi aprobado, con repetir, detener y reduced motion. Cada estado requerido, incluido default, tiene una fila explícita de tratamiento. La evidencia de animación sigue la declaración CSS ganadora del espécimen y sus keyframes nombrados, con importancia, especificidad y propiedades personalizadas resueltas. El CSS de animación no compatible, las declaraciones escapadas y los shorthands inválidos generan un hallazgo. El `ui-design/2` retenido compila `design-system/3` solo cuando se requiere; sus aprobaciones `not_required` conservan su significado. Una sola recomendación exige una elección explícita del owner en el intake, con Decision owner humano y Decided on; el número de estudios debe coincidir. El mantenimiento validado `none`/`style` conserva el diseño histórico; no concede una nueva aprobación del pair o preview. Sin anchos web aprobados adyacentes, registra exactamente `Intermediate width check: not_applicable — no adjacent approved web viewport widths`; siguen siendo obligatorias las pruebas de size classes nativas y el resto de HiFi.
 - **Los paquetes retenidos pasan del PRD a HiFi.** `UI contract: ui-design/2` selecciona el flujo retenido explícitamente; los diseños iniciales y los rediseños completos nuevos usan `ui-design/3`. El preflight valida operaciones, estados, responsive y copy status; HiFi comprueba procedencia del texto y controles antes de Impeccable. Tres direcciones por defecto, selección y una Visual Approval completa. HTML nativo sigue siendo evidencia de diseño. Schemas y RUNs históricos conservan su significado; la ausencia de Wireframe no reduce las comprobaciones.
 - **Las páginas HiFi se conectan mediante controles del producto.** Las referencias nuevas o revisadas usan `ui-hifi/2`: un manifiesto en `index.html` fija los hashes de las páginas HTML hermanas y los destinos de los controles. Las observaciones actuales `ui-output/3` verifican clic y teclado en cada tamaño; páginas ausentes, hashes obsoletos, controles inactivos, destinos incorrectos o navegación no declarada bloquean la aprobación. Cada página muestra solo sus surfaces asignadas. Se publica y conserva el paquete completo. Schema 1 solo admite inspección; toda Visual Approval actual exige schema 2 de HiFi. Output/2 y evidence/2 históricos conservan su significado. La revisión Git congelada debe contener todas las páginas hijas con los mismos bytes.
-- **La calidad visual tiene su propio mínimo.** H5 (apariencia genérica), H7 (distinción creativa) y H9 (consistencia) exigen 80 cada uno; una media de 90 no compensa una dimensión visual débil. El review cita capturas inspeccionadas y principios confirmados de la dirección. Validar números no demuestra belleza ni inspección humana.
+- **La calidad visual tiene su propio mínimo.** H5 (apariencia genérica), H7 (distinción creativa) y H9 (consistencia) exigen 80 cada uno; una media de 85 no compensa una dimensión visual débil. El review cita capturas inspeccionadas y principios confirmados de la dirección. Validar números no demuestra belleza ni inspección humana.
 - **Elegir direcciones con casos renderizados.** Cada dirección usa los mismos casos primarios/de estrés y contenido en las plataformas aplicables; conservar capturas y hashes. Los estudios de movimiento reproducibles muestran normal/reduced motion, pero no prueban el efecto final ni autorizan proveedores. Solo la dirección elegida se amplía al HiFi conectado completo.
 - **Las plataformas comparten marca, no controles por defecto.** Platform rules separa cada plataforma aprobada. iOS evalúa system text styles, Dynamic Type, SF Symbols e interacción/layout nativos sin imponer bibliotecas Web. HTML solo sirve de proyección de revisión. La implementación nativa verifica los casos representativos con herramientas de plataforma antes de ampliar, y completa después la matriz final.
 - **Los workers están aislados.** Las missions de escritura usan worktrees dedicados y scopes acotados. El parent valida cada commit y diff devueltos.
@@ -831,6 +849,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.65.0** — HiFi exige una media global mínima de 85 y 80 en cada dimensión H1-H9, con Impeccable obligatorio y reparaciones acotadas. Adelanta acceso de build, protección del repositorio, AEO/búsqueda, despliegue, analítica, feedback, errores y alertas a las etapas iniciales existentes. Explica la coordinación MultiAgent del parent. Añade observaciones controladas del runtime, diagnósticos del compilador y handoffs opcionales de estrategia/contenido GTM. Cambia la aceptación HiFi actual; las aprobaciones y evidencias históricas conservan su significado.
 
 - **0.64.0** — Coincide la identidad del navegador del reviewer nativo con el host y conserva las comprobaciones de bridge. Ensambla estudios de dirección en el reviewer compartido con targets y anchos por caso. Une las olas diagnósticas completas a PRD, manifest e identidades de evidencia. Exige release source provenance en los handoffs estrictos de Activation, SEO y Outcome, incluidos los paquetes main-preview/1. Escribe la salida de los CLI en UTF-8 para que los hallazgos en chino ya no fallen en Windows. Aclara authoring solo frontend, navegación versión 3, recuperación del worker, anchos medidos e investigación parcial honesta.
 

@@ -22,10 +22,17 @@ A missing or contradictory product obligation returns to `product-definition-bui
 Each dimension receives one integer score from `0` to `100` and a status:
 
 - `80–100 — pass`: meets the grading threshold and matches the frozen PRD without a blocking issue;
-- `60–79 — advisory`: records a qualitative weakness for the human decision owner but does not trigger repair unless the evidence also proves a PRD contradiction, Technical Hard Gate failure, critical-dimension failure, or other explicit block; or
+- `60–79 — advisory`: retained for legacy Wireframe only. For HiFi, any dimension below 80 blocks readiness; or
 - `0–59 — block`: a required screen, action, state, responsive behavior, readable layout, or other PRD obligation is missing or broken.
 
-The legacy wireframe overall score is the arithmetic mean of `W1` through `W5`; it was internally validated only when the overall score was at least `80`, `W5` was at least `80`, every dimension was at least `60`, and it had no `block`. The design-reference overall score is the arithmetic mean of `H1` through `H9`, rounded to the nearest integer; it is ready for its human visual gate only when the overall score is at least `90`, every dimension is at least `60`, `H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility` each score at least `90`, `H5 Visual slop`, `H7 Creative distinction`, and `H9 Design consistency` each score at least `80`, and it has no `block`. Scores never average away a `block` or a critical design-reference threshold. Once those conditions pass, do not repair or regrade merely to raise a score toward 100; carry any advisory to the human gate.
+Legacy Wireframe thresholds stay unchanged: overall at least `80`, `W5` at least `80`, every dimension at least `60`, and no `block`.
+HiFi readiness requires an overall score of at least `85` and every `H1`–`H9` dimension at least `80`.
+Any `block` or disputed dimension still prevents readiness.
+Record the rounded arithmetic mean of `H1` through `H9` as the overall score.
+The overall score and every dimension threshold must pass before Visual Approval.
+Keep the recorded values consistent with the actual assessment.
+Scores never average away a blocking finding or a failed dimension threshold.
+After required checks pass, carry remaining advisories to the human gate without another scoring round.
 
 ## Technical Hard Gate
 
@@ -128,10 +135,30 @@ For H5/H7/H9, compare the primary task and dense case against the selected direc
 
 - Each grader returns one row per dimension: integer score from 0 to 100, `pass` / `advisory` / `block`, page-target-state, element or region, PRD trace, and observed evidence. It also returns all blocking findings and advisories found within its assigned lens in the same report. For `H2` and `H4`, identify the exact element pair or boundary involved in every overlap, clipping, wrapping, spacing, or overflow finding.
 - With one grader, use its score directly. With multiple graders, the reconciled numeric value for each dimension is their median score. Any `block` remains a block regardless of the median. When the highest and lowest scores for one dimension differ by more than 20 points, mark it `disputed`, preserve the evidence rows, and reconcile that evidence inside the same diagnostic wave before repair; do not start another full grading wave merely to sample a different opinion.
-- The parent preserves every Impeccable finding, rubric `block`, and grader disagreement. A design-reference candidate is below threshold when its overall score is below 90, `H2`, `H4`, or `H8` is below 90, `H5`, `H7`, or `H9` is below 80, any dimension is below 60, any `block` remains, or any dimension is `disputed`.
+- Preserve every Impeccable finding, rubric `block`, and grader disagreement. Failed overall or dimension thresholds, blocks and disputes prevent readiness.
 - Before any edit, the parent reconciles the complete Impeccable critique/audit and grading wave into one consolidated defect ledger grouped by semantic root cause. Each family names all known variants, affected surfaces and states, the repair objective, and the acceptance-matrix cases that prove closure. Do not send separate reports to separate writers for the same HTML.
-- A below-threshold candidate gets one repair batch by `frontend-design`, the artifact's single owning writer, and one re-review on the new SHA-256. The HiFi re-review repeats Impeccable critique/audit, the Technical Hard Gate, browser matrix, every ledger acceptance case, and the full rubric once. It does not start a new open-ended diagnostic cycle. A partial re-score cannot clear the gate. Do not present a below-threshold candidate for human visual approval.
+- A below-threshold candidate gets one repair batch by `frontend-design` and one re-review on the new SHA-256. Apply Repair Re-review Scope below. Impeccable critique/audit, required coverage and a complete current assessment remain mandatory. Do not present a below-threshold candidate for Visual Approval.
 - If the re-review finds another variant of a family claimed closed, another block, or a disputed dimension, stop at `blocked`. Return a missing or contradictory obligation to the PRD flow. Otherwise propose one structural repair with a complete acceptance matrix. One exceptional successor re-review may be granted only once by an explicit owner decision that approves the changed strategy and acceptance matrix; a generic instruction to continue does not grant it.
 - A grader initialization, browser-access, interruption, or report-completion failure is an execution failure inside the current diagnostic wave, not a new grading or repair round. Replace the failed slot at most once when its lens is still required; otherwise record the capability gap. Never dispatch another same-scope review on an unchanged SHA.
 - Record the initial diagnostic wave and, when needed, the one repair batch and one re-review with their input and output HTML SHA-256 values, scores, consolidated root-cause families, acceptance cases, and outcome. An owner-requested product or design change after a pass starts a named new revision cycle; it does not extend the completed grading lineage.
-- The owning flow records one `UI grading:` line in the matching `ui-design.md` gate: grader count and lenses, rubric scope, frozen PRD and UI-design identities, current candidate HTML SHA-256, Impeccable evidence when HiFi applies, Technical Hard Gate and DOM geometry results, per-dimension grader scores, medians and statuses when applicable, overall score, advisories, disputed dimensions, the `H2`, `H4`, and `H8` safety-threshold results and `H5`, `H7`, and `H9` visual-quality-threshold results, consolidated defect ledger, repair/re-review outcome or blocked owner decision, and the location of the inline detail rows.
+- The owning flow records one `UI grading:` line in the matching `ui-design.md` gate: grader count and lenses, rubric scope, frozen PRD and UI-design identities, current candidate HTML SHA-256, Impeccable evidence when HiFi applies, Technical Hard Gate and DOM geometry results, per-dimension grader scores, medians and statuses when applicable, overall score, advisories, disputed dimensions, overall and H1-H9 threshold results, consolidated defect ledger, repair/re-review outcome or blocked owner decision, and the location of the inline detail rows.
+
+## Repair Re-review Scope
+
+The initial diagnostic wave covers the complete approved scope.
+Its repair re-review follows the same lineage and attempt budget; it does not open another broad qualitative search.
+
+1. Record changed sources, affected dimensions, surfaces, states, targets and shared consumers in the existing defect ledger.
+2. Give every requested repair its inspected capture, concrete defect, applicable requirement or dimension threshold, and observable completion criteria.
+3. Recheck each original defect and every affected consumer on the current candidate. Include shared styles, navigation and motion dependencies.
+4. Run Impeccable critique and audit again under their required workflow and existing authorization. Preserve their actual scope and required checks.
+5. Run the Technical Hard Gate and complete required browser matrix on the current candidate.
+6. Inspect changed dimensions and confirm unaffected dimensions against current evidence and the reviewed source diff.
+7. Return a complete current `H1`–`H9` assessment, including remaining advisories. Do not copy old scores into a new result without inspection.
+
+Retain every current-candidate receipt, capture and input identity required by `review-evidence.md`.
+Do not relabel old captures, refresh stale receipt hashes, or treat a partial inspection as complete coverage.
+Missing impact evidence requires broader inspection; unresolved coverage remains `blocked`.
+A new concrete blocker expands the affected scope within this attempt. It never grants another repair round.
+Preference-only suggestions remain advisories unless evidence proves an accepted requirement or dimension threshold fails.
+After required checks pass, present the candidate for Visual Approval without another same-scope review wave.

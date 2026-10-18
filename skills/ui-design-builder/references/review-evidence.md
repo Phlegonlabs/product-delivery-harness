@@ -56,6 +56,11 @@ Use actual repository paths and observed hashes. `manifest` equals the HiFi HTML
 Exit 0 means diagnostic completeness only. Complete observed FAIL, low scores, concrete scoreable design blocks, and fully observed focus, retention, visibility, wrong-destination or navigation defects may enter one existing consolidated repair batch only under the existing write grant. Missing outputs or detailed observations, unscorable `BLOCKED` or `MISSING`, an absent H dimension, malformed captures, or input drift blocks the dependent handoff regardless of aggregate FAIL. These findings still fail strict final acceptance. This is not a PASS, Visual Approval or new approval record.
 The existing attempt budget and same-author ownership remain binding.
 
+Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope).
+This narrows qualitative rediscovery, not the required matrix or receipt fields.
+Every result still binds current candidate bytes and actual observations. Do not rebind an earlier PASS to repaired bytes.
+Record impact reasoning and repair completion criteria in the existing defect ledger; no new evidence schema is introduced.
+
 ## Frontend Design Usage
 
 Under the direction/HiFi handoff, record:

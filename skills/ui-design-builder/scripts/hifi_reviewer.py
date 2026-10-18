@@ -710,6 +710,10 @@ def _diagnostic_observation_findings(
         if not candidates:
             structural.append(f"{label} observation is missing, extra or duplicate")
             continue
+        if section == "navigation":
+            same_destination = [index for index in candidates
+                                if expected_rows[index].get("to") == row.get("to")]
+            candidates = same_destination or candidates
         expected_index = min(candidates, key=lambda index: json.dumps(expected_rows[index], sort_keys=True))
         expected = expected_rows[expected_index]
         if set(row) != set(expected):
