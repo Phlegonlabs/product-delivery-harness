@@ -128,10 +128,14 @@ Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this rec
 
 These steps are performed by a person with platform access; the Harness never performs, triggers, or reconfigures them. Check them off as completed.
 
+### Protection and configuration readback (both modes)
+
+- [ ] Before repository connection, CI bootstrap, or workflow enablement, configure actual protection for the exact repository and ref; record non-secret readback for the host capability, ruleset/review policy, required checks, and checked time.
+- [ ] Use the owner's separate external grants. Never push, force-update, or delete a protected branch to test protection, and do not treat this checklist as proof that the host is configured.
+
 ### Git connection (git_connected mode)
 
 - [ ] Connect the repository to the platform (Cloudflare Pages/Workers, Vercel project, or AWS Amplify app).
-- [ ] Configure actual protection for the exact repository and ref; record non-secret readback for the host capability, ruleset/review policy, required checks, and checked time.
 - [ ] Map exact candidate run branches to isolated internal/non-production previews.
 - [ ] Map `main` to production.
 - [ ] Bind internal evidence to the exact candidate SHA; a preview from another branch or SHA is non-authoritative.
