@@ -71,3 +71,9 @@ Those findings were inspected; no installed or loaded skill update is claimed.
 Runtime tests use synthetic fixtures. Real host adoption and measured time savings remain unverified.
 GTM integration supplies source skills and draft handoffs, not published campaigns or growth results.
 No push, formal release, installation, deployment or monitoring activation occurred. No temporary service remains from this task.
+
+## Release And Installation Follow-up
+
+Published in [v0.65.0](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.0) through PR #151 at main `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+The seven-skill bundle was installed and all 439 files matched the release. Standalone GTM sources remain optional and uninstalled.
+See the [publication and installation result](EPIC-ui-review-efficiency.md#publication-and-installation-result) for exact CI, independent review, backup and source evidence.

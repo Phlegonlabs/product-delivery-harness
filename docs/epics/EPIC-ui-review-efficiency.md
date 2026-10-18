@@ -125,3 +125,25 @@ Verify all seven installed trees against the release. Do not install the optiona
 Source tag, PR, release, installation receipt and final state will be recorded in the [release evidence](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/release-0.65.0/result.json).
 Initial document sync remains `review_required` because loaded identity and a prior baseline are unobserved. Installed v0.64.0 bundle digest is `6336be90195397cea54de38313742217daf4b8f1475dabc6974e4bb2195e5a71`.
 Publication, verification, installation and host discovery are pending; this record does not claim their completion.
+
+### Publication And Installation Result
+
+[PR #151](https://github.com/Phlegonlabs/product-delivery-harness/pull/151) merged the fixed candidate `6b693f27693ad2ec2b6026016190c8199d45d0fa` into main at `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+Both commits have tree `46db1c84a65b7c814c15877a478f64e10f9c9bf7`.
+The [candidate CI](https://github.com/Phlegonlabs/product-delivery-harness/actions/runs/39136184985) and [fresh main CI](https://github.com/Phlegonlabs/product-delivery-harness/actions/runs/39137209402) each passed all 20 jobs, including `validate`.
+Fresh independent source/security reviews passed for both exact SHAs, covering all 64 changed paths without exclusions.
+The redundant local full Harness run was cancelled after complete candidate CI passed. Its partial log is retained and is not a local PASS.
+Other local suites passed: golden path, Product Definition, required-browser UI, compiler, Activation and SEO. Windows platform skips retain their labels; CI supplies their applicable platform coverage.
+
+[Release v0.65.0](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.0) is published, not a draft or prerelease.
+Remote annotated tag `ff811de1808439e1a845293e51c3326bf2be407a` resolves to exact main `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+The official PowerShell installer exited successfully after relevant reviews and local checks stopped. The only active related app chat was this release task.
+All seven installed skills and 439 files match the release. Source and installed bundle digest: `c65be87966a4f9d1c6ad0d3291a678462ddb265beaa328f2cd56145489b116d1`.
+The previous installation is preserved at `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261018-075348`, with its adjacent source receipt.
+The installer lock and staging directories are gone. Required external `frontend-design` and `impeccable` remain available.
+
+Post-install VERSION is 0.65.0. Template SHA-256 remains `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+A fresh semantic audit found shared AGENTS rules current, retaining intentional source-repository exceptions.
+Loaded runtime identity remains unknown. Start a fresh host session to discover the installed release; no active RUN was migrated.
+Final bookkeeping updates only the index and these three Epics. It remains a local receipt commit and is outside the tagged source.
+No branch/worktree deletion, external product setup or standalone GTM installation occurred. Detailed evidence is in the linked release result.

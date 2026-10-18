@@ -104,3 +104,9 @@ Shared instructions remain current by meaning against installed template `0.64.0
 Document sync retains unknown loaded identity, first observation and unchanged historical README references; it is not an approval PASS.
 All finite checks exited. No preview, watcher, remote setting, publication, deployment or installation occurred.
 Actual host protection, feedback delivery, alert receipt and provider readiness require later authorized product execution and readback.
+
+## Release And Installation Follow-up
+
+Published in [v0.65.0](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.0) through PR #151 at main `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+The seven-skill bundle was installed and all 439 files matched the release. No external product service was configured.
+See the [publication and installation result](EPIC-ui-review-efficiency.md#publication-and-installation-result) for exact CI, independent review, backup and source evidence.
