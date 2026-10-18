@@ -4,6 +4,7 @@ import sys
 import subprocess
 import json
 import os
+import re
 import shutil
 import unittest
 from pathlib import Path
@@ -25,6 +26,168 @@ def find_repo_root() -> Path:
         if (candidate / ".github/workflows/harness-ci.yml").is_file():
             return candidate
     raise AssertionError("source workflow is unavailable")
+
+
+GITHUB_TEMPLATE_PATTERN = re.compile(r"\$\{\{(.*?)\}\}")
+
+GITHUB_TOKEN_PATTERN = re.compile(
+    r"""
+    (?P<whitespace>\s+)
+    |(?P<string>'(?:[^']|'')*')
+    |(?P<name>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)
+    |(?P<operator>==|!=|&&|\|\||[(),])
+    """,
+    re.VERBOSE,
+)
+
+
+def _tokenize_github_expression(expression: str) -> list[tuple[str, str]]:
+    tokens: list[tuple[str, str]] = []
+    position = 0
+    while position < len(expression):
+        match = GITHUB_TOKEN_PATTERN.match(expression, position)
+        if match is None:
+            raise ValueError(
+                f"unsupported syntax at {position} in expression: {expression[position:]!r}"
+            )
+        position = match.end()
+        if match.lastgroup != "whitespace":
+            tokens.append((match.lastgroup, match.group()))
+    return tokens
+
+
+def _github_truthy(value: object) -> bool:
+    return value is not None and value is not False and value != ""
+
+
+def _stringify_github_value(value: object) -> str:
+    if value is None:
+        return ""
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    return str(value)
+
+
+class _GithubExpressionParser:
+    """Recursive-descent evaluator for the expression subset the gate uses."""
+
+    def __init__(self, expression: str, context: dict) -> None:
+        self.expression = expression
+        self.tokens = _tokenize_github_expression(expression)
+        self.position = 0
+        self.context = context
+
+    def parse(self) -> object:
+        value = self._parse_or()
+        if self.position != len(self.tokens):
+            raise ValueError(f"trailing tokens in expression: {self.expression!r}")
+        return value
+
+    def _parse_or(self) -> object:
+        value = self._parse_and()
+        while self._accept("||"):
+            right = self._parse_and()
+            value = value if _github_truthy(value) else right
+        return value
+
+    def _parse_and(self) -> object:
+        value = self._parse_equality()
+        while self._accept("&&"):
+            right = self._parse_equality()
+            value = right if _github_truthy(value) else value
+        return value
+
+    def _parse_equality(self) -> object:
+        value = self._parse_primary()
+        while self._peek() in ("==", "!="):
+            operator = self._next()[1]
+            right = self._parse_primary()
+            value = value == right if operator == "==" else value != right
+        return value
+
+    def _parse_primary(self) -> object:
+        kind, text = self._next()
+        if kind == "string":
+            return text[1:-1].replace("''", "'")
+        if kind == "name":
+            return self._parse_call(text) if self._accept("(") else self._lookup(text)
+        if text == "(":
+            value = self._parse_or()
+            if not self._accept(")"):
+                raise ValueError(f"missing ')' in expression: {self.expression!r}")
+            return value
+        raise ValueError(f"unsupported token {text!r} in expression: {self.expression!r}")
+
+    def _parse_call(self, name: str) -> object:
+        if name != "format":
+            raise ValueError(
+                f"unsupported function {name!r} in expression: {self.expression!r}"
+            )
+        arguments = []
+        if self._peek() != ")":
+            arguments.append(self._parse_or())
+            while self._accept(","):
+                arguments.append(self._parse_or())
+        if not self._accept(")"):
+            raise ValueError(f"missing ')' in expression: {self.expression!r}")
+        if not arguments or not isinstance(arguments[0], str):
+            raise ValueError(
+                f"format() needs a string pattern in expression: {self.expression!r}"
+            )
+        try:
+            return arguments[0].format(*arguments[1:])
+        except (IndexError, KeyError, ValueError) as error:
+            raise ValueError(f"unsupported format() usage: {error}") from error
+
+    def _lookup(self, name: str) -> object:
+        value: object = self.context
+        for part in name.split("."):
+            if not isinstance(value, dict) or part not in value:
+                return None
+            value = value[part]
+        return value
+
+    def _peek(self) -> str | None:
+        if self.position < len(self.tokens):
+            return self.tokens[self.position][1]
+        return None
+
+    def _accept(self, text: str) -> bool:
+        if self._peek() == text:
+            self.position += 1
+            return True
+        return False
+
+    def _next(self) -> tuple[str, str]:
+        if self.position >= len(self.tokens):
+            raise ValueError(f"unexpected end of expression: {self.expression!r}")
+        token = self.tokens[self.position]
+        self.position += 1
+        return token
+
+
+def evaluate_github_template(template: str, context: dict) -> object:
+    """Evaluate a GitHub Actions ``${{ }}`` template the way the runner would.
+
+    Literal text is kept and every ``${{ expression }}`` is replaced by the
+    string form of its value. A template that is exactly one expression
+    returns the raw value instead, because GitHub keeps the type there (so
+    ``cancel-in-progress`` stays a boolean). Only the syntax the concurrency
+    block uses is supported; any other token raises ValueError.
+    """
+    if template.count("${{") != template.count("}}"):
+        raise ValueError(f"unbalanced template delimiters: {template!r}")
+    pieces = GITHUB_TEMPLATE_PATTERN.split(template)
+    if len(pieces) == 3 and not pieces[0] and not pieces[2]:
+        return _GithubExpressionParser(pieces[1], context).parse()
+    return "".join(
+        piece
+        if index % 2 == 0
+        else _stringify_github_value(_GithubExpressionParser(piece, context).parse())
+        for index, piece in enumerate(pieces)
+    )
 
 
 class CICandidateGateTests(unittest.TestCase):
@@ -91,17 +254,83 @@ class CICandidateGateTests(unittest.TestCase):
         self.assertIn("^[0-9a-f]{40}$", self.workflow)
 
     def test_release_concurrency_is_frozen_by_candidate_sha(self) -> None:
-        concurrency = self.workflow.split("concurrency:", 1)[1].split("env:", 1)[0]
-        self.assertIn("inputs.candidate_sha", concurrency)
-        self.assertIn(
-            "format('pr-{0}-{1}', github.event.pull_request.number, "
-            "github.event.pull_request.draft && 'draft' || 'ready')",
-            concurrency,
+        document = yaml.safe_load(self.workflow)
+        concurrency = document["concurrency"]
+        group_template = concurrency["group"]
+        cancel_template = concurrency["cancel-in-progress"]
+
+        def context(
+            event_name: str,
+            *,
+            ref: str | None = None,
+            inputs: dict | None = None,
+            **event: object,
+        ) -> dict:
+            github: dict = {"workflow": document["name"], "event_name": event_name}
+            if ref is not None:
+                github["ref"] = ref
+            if event:
+                github["event"] = event
+            return {"github": github, "inputs": inputs or {}}
+
+        draft = context("pull_request", pull_request={"number": 145, "draft": True})
+        ready = context("pull_request", pull_request={"number": 145, "draft": False})
+        draft_group = evaluate_github_template(group_template, draft)
+        ready_group = evaluate_github_template(group_template, ready)
+        self.assertTrue(draft_group.endswith("pr-145-draft"), draft_group)
+        self.assertTrue(ready_group.endswith("pr-145-ready"), ready_group)
+        self.assertNotEqual(draft_group, ready_group)
+        self.assertTrue(evaluate_github_template(cancel_template, draft))
+        self.assertTrue(evaluate_github_template(cancel_template, ready))
+        # Two ready runs of one pull request share a group, so the newer cancels the older.
+        rerun = context("pull_request", pull_request={"number": 145, "draft": False})
+        self.assertEqual(ready_group, evaluate_github_template(group_template, rerun))
+        other_pull_request = context(
+            "pull_request", pull_request={"number": 146, "draft": False}
         )
-        self.assertIn("'draft'", concurrency)
-        self.assertIn("'ready'", concurrency)
-        self.assertIn("github.ref", concurrency)
-        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", concurrency)
+        self.assertNotEqual(
+            ready_group, evaluate_github_template(group_template, other_pull_request)
+        )
+
+        push = context("push", ref="refs/heads/main")
+        push_group = evaluate_github_template(group_template, push)
+        self.assertTrue(push_group.endswith("refs/heads/main"), push_group)
+        self.assertFalse(evaluate_github_template(cancel_template, push))
+
+        queue_ref = "refs/heads/gh-readonly-queue/main/pr-145-abc"
+        queue = context("merge_group", ref=queue_ref)
+        queue_group = evaluate_github_template(group_template, queue)
+        self.assertTrue(queue_group.endswith(queue_ref), queue_group)
+        self.assertFalse(evaluate_github_template(cancel_template, queue))
+
+        candidate_sha = "a1b2c3d4" * 5
+        release = context(
+            "workflow_dispatch",
+            ref="refs/heads/main",
+            inputs={"candidate_sha": candidate_sha},
+        )
+        release_group = evaluate_github_template(group_template, release)
+        self.assertTrue(release_group.endswith(candidate_sha), release_group)
+        self.assertFalse(evaluate_github_template(cancel_template, release))
+
+        # Mutation self-check: flipping the pull_request guard collapses the
+        # draft and ready pull request runs into one group, so the assertions
+        # above that separate them would fail for that change.
+        guard = "github.event_name == 'pull_request' && format"
+        self.assertEqual(1, group_template.count(guard), group_template)
+        mutated_template = group_template.replace(
+            guard, "github.event_name != 'pull_request' && format"
+        )
+        self.assertEqual(
+            evaluate_github_template(mutated_template, draft),
+            evaluate_github_template(mutated_template, ready),
+        )
+
+    def test_github_template_evaluator_rejects_unsupported_syntax(self) -> None:
+        with self.assertRaises(ValueError):
+            evaluate_github_template(
+                "${{ github.ref > 'a' }}", {"github": {"ref": "refs/heads/main"}}
+            )
 
     def test_diff_uses_actual_event_base(self) -> None:
         self.assertIn("github.event.pull_request.base.sha", self.workflow)
