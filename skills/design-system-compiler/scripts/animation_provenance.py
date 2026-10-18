@@ -234,8 +234,8 @@ def _names(value, shorthand):
     return names
 
 
-def source_backed(css, node, ancestors=()):
-    """Require resolved winning names and their unconditional source keyframes."""
+def source_status(css, node, ancestors=()):
+    """Classify animation provenance without treating static controls as failures."""
     try:
         rules, keyframes = _rules(css)
         variables = {}
@@ -243,10 +243,19 @@ def source_backed(css, node, ancestors=()):
             winners = _cascade(rules, ancestor)
             variables = _variables(winners, variables)
         winner = winners.get("animation-name")
-        if winner is None or winner[1] == "all":
-            return False
+        if winner is None:
+            return "no_animation"
+        if winner[1] == "all":
+            return "unresolved"
         value = _substitute(winner[2], variables.get)
         names = _names(value, winner[1] == "animation")
-        return bool(names) and names <= keyframes
+        if not names:
+            return "no_animation"
+        return "source_backed" if names <= keyframes else "unresolved"
     except (ValueError, RecursionError):
-        return False
+        return "unresolved"
+
+
+def source_backed(css, node, ancestors=()):
+    """Require resolved winning names and their unconditional source keyframes."""
+    return source_status(css, node, ancestors) == "source_backed"

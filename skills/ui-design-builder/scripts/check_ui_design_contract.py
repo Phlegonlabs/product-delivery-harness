@@ -44,6 +44,12 @@ DESIGN_SYSTEM_SCRIPTS = (
 if str(DESIGN_SYSTEM_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(DESIGN_SYSTEM_SCRIPTS))
 
+# Retain this independent helper before a caller restores its temporary path.
+try:
+    from design_system_showcase import source_preflight as _compiler_source_preflight
+except ImportError:
+    _compiler_source_preflight = None
+
 from markdown_contract import active_text  # noqa: E402
 from release_targets import parse_release_targets  # noqa: E402
 from prd_ui_contract import parse_prd_ui_contract  # noqa: E402
@@ -3213,6 +3219,7 @@ def _validate_impl(
     require_hifi_preflight: bool = False,
     require_current_hifi_evidence: bool = False,
     apply_current_hifi_cutover: bool = False,
+    compiler_diagnostics: list[str] | None = None,
 ) -> list[str]:
     try:
         text = ui_design_path.read_text(encoding="utf-8")
@@ -3425,6 +3432,13 @@ def _validate_impl(
                 if not isinstance(manifest, dict) or manifest.get("schema") != "ui-hifi/2":
                     raise ValueError("cheap preflight requires ui-hifi/2")
                 documents = _hifi_bundle_documents(checked_hifi, html, manifest)
+                if version == UI_CONTRACT_V3 and compiler_diagnostics is not None:
+                    if _compiler_source_preflight is not None:
+                        compiler_diagnostics.extend(
+                            f"WARN compiler-source: {item}" for item in _compiler_source_preflight(documents))
+                    else:
+                        compiler_diagnostics.append("WARN compiler-source: compiler helper unavailable; source inspection was not performed")
+                    compiler_diagnostics.append("INFO compiler-source: registry trigger and axis/state coverage remain deferred to compilation")
                 if checked_prd is not None:
                     prd_text = checked_prd.read_text(encoding="utf-8")
                     problems.extend(hifi_prd_findings(prd_text, manifest, documents))
@@ -3729,6 +3743,7 @@ def validate(
     require_hifi_preflight: bool = False,
     require_current_hifi_evidence: bool = False,
     apply_current_hifi_cutover: bool = False,
+    compiler_diagnostics: list[str] | None = None,
 ) -> list[str]:
     """Validate a UI contract for normal publication.
 
@@ -3759,6 +3774,7 @@ def validate(
         require_hifi_preflight=require_hifi_preflight,
         require_current_hifi_evidence=require_current_hifi_evidence,
         apply_current_hifi_cutover=apply_current_hifi_cutover,
+        compiler_diagnostics=compiler_diagnostics,
     )
 
 
@@ -3814,6 +3830,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
+    compiler_diagnostics: list[str] = []
     problems = validate(
         args.ui_design,
         repo_root=args.repo_root,
@@ -3827,7 +3844,10 @@ def main(argv: list[str] | None = None) -> int:
         require_structure_validated=args.require_structure_validated,
         require_visual_approved=args.require_visual_approved,
         require_hifi_preflight=args.require_hifi_preflight,
+        compiler_diagnostics=compiler_diagnostics,
     )
+    for diagnostic in compiler_diagnostics:
+        print(diagnostic)
     if problems:
         for problem in problems:
             print(f"FAIL {problem}", file=sys.stderr)

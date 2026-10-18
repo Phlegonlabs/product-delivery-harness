@@ -48,9 +48,12 @@ Detailed check logs and review packets stay in the task's external evidence dire
 | 2026-10-18 entry | Baseline and source scopes verified; implementation interface review dispatched. | All three tasks and final review pending. |
 | 2026-10-18 GTM source | Added the eight skill files from `dad7a22a`, then linked optional product/operation/metric/MS references. Preserved standalone drafting and separate publication authority. | Skill specification, relative links, invocation metadata, 65 core contracts and diff checks passed. Core skill trees, installers and version remained unchanged at this checkpoint. Final independent review pending. |
 | 2026-10-18 runtime intervals | GTM committed as `8f017c28`. Added guarded `record-runtime-observation`, bound to RUN/reservation/attempt/worker and derived provider identity. | Ingestion 13 tests (one symlink capability skip), prior runtime observations nine, transitions 15 (one platform skip), launch CLI five, and Pyflakes passed. Initial review-node lookup failed; it was corrected to the existing verifier-node shape and rerun. Identical replay preserves RUN bytes; conflicting or stale input fails. |
+| 2026-10-18 source preflight | Runtime intervals committed as `642760bc`. Reused compiler animation classification for advisory `ui-design/3` source diagnostics before approval. | Source unit tests five, fresh CLI/integration tests six, showcase regressions 19 and Pyflakes passed. Static controls stay quiet; stale HiFi still fails; `/2` is unchanged. Missing helpers and registry-dependent checks remain explicit, without a new gate or provisional registry. |
 
 Runtime ingestion lives in a focused module. The existing transition entrypoint only dispatches it and preserves transaction guards.
 The new observation request does not add RUN fields, change the scheduler, or make timing evidence an acceptance gate.
+Source preflight remains with the compiler's existing tree/CSS reader to avoid duplicate parsing or a circular import.
+The large UI checker only exposes a diagnostics collector and CLI output; existing strict results keep their original meaning.
 
 ## Results And Remaining Work
 

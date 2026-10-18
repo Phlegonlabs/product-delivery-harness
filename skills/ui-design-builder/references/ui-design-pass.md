@@ -55,6 +55,12 @@ python "<ui-design-builder-skill-root>/scripts/check_ui_design_contract.py" --ui
 
 This checks source identities, the approved Product package, manifest closure, UI IDs, routes, states, responsive sets, operation/control destinations and copy provenance against actual product DOM. Repair failures and rerun before expensive review. Keep the command result with existing task evidence; no extra approval or duplicated requirements table is needed. Structured coverage does not prove chart meaning, data integration, aesthetics or runtime behavior. The author and reviewer check those responsibilities against the PRD; browser evidence still verifies interactions.
 
+For `ui-design/3`, the CLI also reports advisory `compiler-source` diagnostics from the hash-checked HiFi package.
+Inspect unresolved animation provenance before owner review. The author can clarify intended triggers or repair approved-scope source limitations early.
+Static controls need no animation. A diagnostic never proves a design defect or a failed approval gate by itself.
+Registry trigger feasibility and variant/state coverage remain deferred until the compiler has the actual registry.
+The report creates no registry, changes no HiFi bytes and grants no compile-readiness PASS.
+
 ## Style Intake Gate
 
 The intake must already be complete before `frontend-design` proposes a theme or Design Read. If it is missing, read `ui-design-intake.md`, ask the human owner the product-specific questions, end the turn, and wait. Reuse supplied answers; wait only on missing decisions.
