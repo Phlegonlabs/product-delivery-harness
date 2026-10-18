@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.64.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -849,6 +849,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.65.0** — Require HiFi overall 85 and every H1-H9 dimension 80, with mandatory Impeccable and bounded repair review. Move build access, repository-protection readback, AEO/search, deployment, analytics, feedback, errors and alerts into existing startup stages. Explain parent-owned MultiAgent collaboration. Add guarded runtime observations, advisory compiler-source diagnostics and optional GTM strategy/content handoffs. Current HiFi acceptance changes; historical approvals and evidence retain their meaning.
 
 - **0.64.0** — Match native reviewer browser identity to the host while keeping bridge checks. Assemble direction studies in the shared reviewer with per-case targets and widths. Join complete diagnostic waves to PRD, manifest, and evidence identities. Require release source provenance in strict Activation, SEO, and Outcome handoffs, including main-preview/1 packages. Write CLI output as UTF-8 so Chinese findings no longer crash on Windows. Clarify frontend-only authoring, version-3 navigation, worker recovery, measured widths, and honest partial research.
 

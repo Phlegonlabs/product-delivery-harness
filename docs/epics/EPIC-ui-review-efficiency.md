@@ -109,3 +109,19 @@ The 216 tests remain precommit execution evidence; executable and test bytes did
 Mixed-score rounding across sums 760/761 has no dedicated regression case; the existing rounded-mean calculation is unchanged.
 Document sync remains `review_required`, and actual served reviewer model/effort and loaded skill identity remain unknown.
 Final bookkeeping changes only this Epic and its index. No publication, release, installation or external configuration change occurred.
+
+## Release 0.65.0
+
+The owner authorized publishing this branch's workflow changes and 85/80 thresholds, followed by updating the locally installed skills.
+Entry: clean `ui-review-thresholds` at `eaf48e336fedc9b82429e0ce5d3b04c021e90515`; freshly observed protected `origin/main` remains `bf56ab27744a4c1b95c08040eabfb4b021b2fbcc` (v0.64.0).
+Release scope is the existing 60-path delta, including the linked architecture and initial-foundation outcomes, plus consistent 0.65.0 release metadata.
+This is a minor release because current HiFi acceptance changes. Historical approvals and evidence keep their recorded meaning.
+The parent is the only writer. Use the existing direct source-maintenance route and independent reviewer role; do not create PLAN/RUN or a product review wave.
+
+Release acceptance requires the complete fixed-candidate verification matrix, independent correctness/security review, protected-main PR/CI, exact main tree readback and release tag.
+A provider-created main SHA requires fresh full verification and security review before tagging.
+Then compare installed and released bundle digests, quiesce relevant skill-using work, and run the official installer with recoverable backups.
+Verify all seven installed trees against the release. Do not install the optional standalone GTM skills or change external product services.
+Source tag, PR, release, installation receipt and final state will be recorded in the [release evidence](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/release-0.65.0/result.json).
+Initial document sync remains `review_required` because loaded identity and a prior baseline are unobserved. Installed v0.64.0 bundle digest is `6336be90195397cea54de38313742217daf4b8f1475dabc6974e4bb2195e5a71`.
+Publication, verification, installation and host discovery are pending; this record does not claim their completion.

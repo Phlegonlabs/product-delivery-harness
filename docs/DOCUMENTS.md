@@ -2,7 +2,7 @@
 
 The four READMEs remain the documentation of record for the skill bundle.
 
-Observed `origin/main` includes PR #144 at tagged `v0.64.0` (`bf56ab27`). UI review-efficiency changes are complete locally on `ui-review-thresholds`.
+Observed `origin/main` includes PR #144 at tagged `v0.64.0` (`bf56ab27`). The owner authorized releasing the workflow and 85/80 changes as 0.65.0 from `ui-review-thresholds`, then updating installed skills. Release verification is in progress in the UI review Epic.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
