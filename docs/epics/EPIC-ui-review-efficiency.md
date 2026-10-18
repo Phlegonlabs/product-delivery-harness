@@ -1,6 +1,6 @@
 # UI Review Efficiency
 
-Status: in_progress
+Status: complete (local source; release and installation are outside this task)
 Design workflow: enhancement
 UI impact: none (review contracts and validators; no product UI changes).
 
@@ -49,6 +49,8 @@ No local-only file class or Gitignore change is introduced.
 | 2026-10-18 navigation repair | Positive grading tests exposed order-dependent navigation pairing. Correct observations could manufacture defects and another repair wave. | Three dedicated tests reproduced red and then passed green. Pair matching prefers the observed destination; wrong, duplicate and missing observations still fail. The combined working-tree diagnostic suite passed 23 tests. Evidence: external `ui-review-efficiency` logs. Independent review remains pending. |
 | 2026-10-18 advisory score | Navigation repair committed as `b1b149c2`. Removed the overall threshold from diagnostic repair eligibility and strict HiFi readiness. | Working-tree checks passed: UI contract 58, diagnostic 23, UI skill contract 13, Pyflakes, source specification and documentation weight. A documentation phrase assertion failed once and passed after restoring its established phrase. All dimension, Impeccable, stale-input and legacy Wireframe failures remain covered. |
 | 2026-10-18 repair scope | Advisory-score change committed as `57daacad`. Added one shared repair-review scope and linked every current UI procedure to it. | All 14 UI skill-contract tests passed. Qualitative inspection follows original defects and affected consumers. Mandatory Impeccable workflow, complete current assessment and required browser coverage remain. Final candidate checks and independent review pending. |
+| 2026-10-18 fixed-candidate verification | Source candidate `bd53456ba189dbfe05da0f2a5ed82d255f9940f9` contains all three atomic changes. | UI 374 tests passed with two Windows POSIX-mode skips; compiler 142 passed with four platform skips; Harness UI evidence 50 and design joins two passed. Source specification, Pyflakes and diff checks passed. |
+| 2026-10-18 independent review | Fresh read-only reviewer `/root/ui_review_final` inspected all 20 changed paths at `bd53456b`. | No blocking correctness or security findings. The exact-SHA security result has complete coverage and no exclusions. Actual worker model/effort were not independently exposed. Final bookkeeping only updates this Epic and the document index. |
 
 The touched validators exceed 500 lines but retain their existing contract-entry responsibilities.
 This change removes two conditions and preserves their public interfaces; no module split is justified here.
@@ -56,4 +58,13 @@ Document sync remains `review_required` when the loaded skill identity and prior
 
 ## Results And Remaining Work
 
-No release, installation or product visual-quality result is claimed.
+URE-1 through URE-3 are complete in local source on `ui-review-thresholds`.
+The reviewed code candidate is `bd53456ba189dbfe05da0f2a5ed82d255f9940f9`; final bookkeeping does not change its code or skill contracts.
+See [security review](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/ui-review-efficiency/security-result.json) and [final receipt](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/ui-review-efficiency/final-result.json).
+The final receipt names the bookkeeping HEAD, exact test logs and process disposition.
+All finite checks exited; no preview or watcher was started.
+
+The installed template and VERSION are 0.64.0. Shared AGENTS rules agree by meaning, including the intentional source-repository exceptions.
+The loaded skill digest remains unknown. Document sync reports `review_required`; it is not a verification PASS.
+No consumer PRD, design package, PLAN/RUN or generated tasks view applies to this source change.
+No push, version promotion, release, installation or product visual-quality result is claimed.
