@@ -155,7 +155,7 @@ Before human visual approval:
 
 Readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80.
 No block or disputed dimension may remain. Record the actual scores, even when they fail these thresholds.
-Do not repair merely to raise the overall score.
+After all readiness checks pass, do not repair merely to raise the overall score.
 A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 
 ## Browser And Human Visual Approval

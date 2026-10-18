@@ -97,3 +97,8 @@ No preview or watcher was started; every finite check exited. Fixed-candidate in
 The observed installed template SHA-256 remains `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`, VERSION 0.64.0.
 The shared AGENTS rules are current by meaning, retaining the documented source-repository exceptions. Loaded skill identity remains unknown.
 The existing validator and test modules retain their contract-entry responsibilities; this threshold change does not justify splitting them.
+
+The single independent review of `943f291a62bd641146391c0e3b32934df62548e9` found one stale instruction in the HiFi pass guide.
+URE85-1: the unconditional prohibition on raising the overall score conflicted with the new 85-point gate.
+The guide now stops score chasing only after all readiness checks pass. The reviewer found no other blocking correctness issue or security vulnerability.
+This documentation repair stays in the same assignment and repair batch; final exact-candidate verification is pending.
