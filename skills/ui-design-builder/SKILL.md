@@ -61,4 +61,5 @@ Use `references/review-workflow.md` to classify this round. New initial design a
 - Keep copy source/completeness and PRD responsibilities valid. A changed product decision returns upstream; composition repairs inside accepted scope reuse authorization. Copy is reviewed with the full HiFi.
 - HiFi checks use one complete diagnostic wave, one consolidated repair batch, and one re-review after the cheap completeness gate. Another failure stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 - Numeric scores summarize quality; they never override a PRD contradiction, broken browser matrix, inaccessible required flow, dead control, or missing human approval.
+- The HiFi overall score is advisory. Keep every dimension threshold, actual-score consistency check and required Impeccable verdict.
 - A generated image or motion asset is optional unless the approved Motion and Media Intent record makes it required. Provider failure never authorizes a substitute treatment.

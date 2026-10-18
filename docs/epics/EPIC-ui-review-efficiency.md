@@ -47,6 +47,11 @@ No local-only file class or Gitignore change is introduced.
 | --- | --- | --- |
 | 2026-10-18 entry | Created the owner-approved branch from the observed baseline. Source inspection found two numeric enforcement sites and repeated qualitative-review rules. | Implementation, focused verification and exact-candidate independent review pending. |
 | 2026-10-18 navigation repair | Positive grading tests exposed order-dependent navigation pairing. Correct observations could manufacture defects and another repair wave. | Three dedicated tests reproduced red and then passed green. Pair matching prefers the observed destination; wrong, duplicate and missing observations still fail. The combined working-tree diagnostic suite passed 23 tests. Evidence: external `ui-review-efficiency` logs. Independent review remains pending. |
+| 2026-10-18 advisory score | Navigation repair committed as `b1b149c2`. Removed the overall threshold from diagnostic repair eligibility and strict HiFi readiness. | Working-tree checks passed: UI contract 58, diagnostic 23, UI skill contract 13, Pyflakes, source specification and documentation weight. A documentation phrase assertion failed once and passed after restoring its established phrase. All dimension, Impeccable, stale-input and legacy Wireframe failures remain covered. |
+
+The touched validators exceed 500 lines but retain their existing contract-entry responsibilities.
+This change removes two conditions and preserves their public interfaces; no module split is justified here.
+Document sync remains `review_required` when the loaded skill identity and prior snapshot are unobserved.
 
 ## Results And Remaining Work
 

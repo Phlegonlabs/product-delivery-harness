@@ -307,6 +307,8 @@ HiFi 提供完整、取自实际样式的 Design Tokens 页。`ui-design/3` 包�
 
 HiFi 以内嵌 `ui-hifi-copy/1` 及产品 DOM 绑定保留文案来源。静态文案、动态显示契约及成对语言仍可检查。Tokens 展示实际数值、用途及控件变体；审阅器文字不能代替产品覆盖。
 
+Impeccable critique 与 audit 仍然必跑。HiFi 总分改为参考，各单项门槛、阻挡缺陷与必要证据检查保持不变。
+
 Token 观察分别保留来源／显示原值及浏览器规范化后的来源／应用值，让十六进制色码、rem 尺寸及关键字字重能正确比较。
 
 从任何阶段继续前，先确认其前置条件仍有效。依[交付前自我 review 契约](skills/delivery-harness/references/pre-delivery-self-review.md)，PRD 草稿完成市场研究与已接受建议的回填后，由作者自查整套产品文件；选择方向前自查 UI 结构与方向；HiFi 完成后先自查，再进独立审查与 Visual Approval。版本、问题、修正及未解阻挡项记在既有任务记录。自查不代替必要的独立审查或人工批准。UI 产品的初次交付必须完成适用检查后才进 Harness 执行，不能用“延后 UI”绕过；headless 产品注明 UI 检查不适用，增强与维护则检查其已接受范围。这是 parent 的语义检查，验证器成功本身不证明已自查。

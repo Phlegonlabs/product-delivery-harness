@@ -307,6 +307,8 @@ HiFi incluye Design Tokens derivados de estilos reales. Un paquete `ui-design/3`
 
 HiFi conserva la procedencia del texto mediante `ui-hifi-copy/1` incrustado y bindings al DOM del producto. Se validan textos estáticos, contratos dinámicos e idiomas emparejados. Los tokens muestran valores, usos y variantes reales; el texto del visor no satisface la cobertura del producto.
 
+Impeccable critique y audit siguen siendo obligatorios. La puntuación global HiFi es orientativa. Se mantienen los umbrales por dimensión, los defectos bloqueantes y las comprobaciones de evidencia.
+
 Las observaciones conservan los valores originales y los valores normalizados por el navegador por separado, para comparar correctamente colores hexadecimales, dimensiones rem y pesos definidos por palabras clave.
 
 Retoma una etapa solo cuando sus requisitos previos sigan vigentes. El [contrato de autorrevisión antes de la entrega](skills/delivery-harness/references/pre-delivery-self-review.md) exige revisar el paquete PRD tras la investigación posterior al borrador y los cambios aceptados; revisar estructura y direcciones UI antes de seleccionarlas; y revisar el HiFi conectado antes de la revisión independiente y Visual Approval. Registra versiones, hallazgos, reparaciones y bloqueos en el registro de trabajo existente. La autorrevisión no sustituye la revisión independiente ni las decisiones humanas. Una entrega inicial con UI solo inicia Harness tras completar las comprobaciones aplicables; diferir la UI no permite saltarlas. Los productos headless justifican los controles UI no aplicables, y las mejoras y el mantenimiento revisan su alcance aceptado. Es una comprobación semántica del parent; un validador exitoso no demuestra la autorrevisión.

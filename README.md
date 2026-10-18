@@ -307,6 +307,8 @@ HiFi supplies the complete source-derived Design Tokens view. A `ui-design/3` pa
 
 HiFi copy provenance uses embedded `ui-hifi-copy/1` metadata and product DOM bindings. Static text, dynamic display contracts and paired languages remain checkable. Tokens show actual values, purposes and control variants; reviewer text cannot satisfy product coverage.
 
+Impeccable critique and audit remain mandatory. The HiFi overall score is advisory. Every dimension threshold, blocking finding and required evidence check still applies.
+
 Token observations retain raw source/display values separately from browser-normalized source/applied values, so hex colors, rem dimensions and keyword weights compare correctly.
 
 Resume at a stage only when its prerequisites remain current. Follow the [pre-delivery self-review contract](skills/delivery-harness/references/pre-delivery-self-review.md): after post-draft market reconciliation and accepted revisions, review the PRD package; review UI structure/directions before direction selection; review the connected HiFi before independent review and Visual Approval. Keep candidate identities, findings, repairs and unresolved blockers in the existing task record. Self-review does not replace required independent review or owner approval. UI-bearing initial delivery enters Harness execution only after the applicable checks pass; a deferred UI phase cannot bypass them. Headless products record UI checks as not applicable, and enhancements/maintenance review their accepted scope. These are parent semantic checks; validator success alone does not prove self-review.

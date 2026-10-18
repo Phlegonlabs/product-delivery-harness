@@ -1710,6 +1710,20 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertIn("H4 score must be an integer from 90 to 100", joined)
         self.assertIn("HiFi blocks or disputes must be none", joined)
 
+    def test_hifi_overall_score_is_advisory_but_still_required_and_numeric(self):
+        for value in ("88", "77"):
+            with self.subTest(value=value):
+                candidate = contract().replace("HiFi score: 94", f"HiFi score: {value}")
+                self.assertEqual([], checker.validate_text(candidate, require_visual_approved=True))
+        for value in ("-1", "101", "not scored", ""):
+            with self.subTest(value=value):
+                candidate = contract().replace("HiFi score: 94", f"HiFi score: {value}")
+                problems = checker.validate_text(candidate, require_visual_approved=True)
+                self.assertIn("HiFi score must be an integer from 0 to 100", "\n".join(problems))
+        candidate = contract().replace("HiFi score: 94\n", "")
+        self.assertIn("HiFi score", "\n".join(
+            checker.validate_text(candidate, require_visual_approved=True)))
+
     def test_w5_cannot_be_averaged_away_or_omitted(self):
         for value in ("79", "101", "not scored", ""):
             with self.subTest(value=value):

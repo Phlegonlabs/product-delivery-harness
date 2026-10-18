@@ -101,7 +101,8 @@ class DiagnosticWaveTests(unittest.TestCase):
         })
         return output
 
-    def build(self, *, browser_result: str = "PASS", h5: int = 90) -> dict:
+    def build(self, *, browser_result: str = "PASS", h5: int = 90,
+              scores: dict[str, int] | None = None) -> dict:
         evidence_dir = self.root / "docs/evidence"
         evidence_dir.mkdir(parents=True, exist_ok=True)
         observations: dict[str, dict[str, str]] = {}
@@ -110,7 +111,7 @@ class DiagnosticWaveTests(unittest.TestCase):
             output["check"] = check
             if role != "browser":
                 output["assessment"] = {
-                    "scores": dict(SCORES, H5=h5), "blocks": [],
+                    "scores": dict(SCORES, H5=h5) if scores is None else scores, "blocks": [],
                     "observations": [dict(CASE[0], finding="Concrete synthetic rendering observation.",
                                           evidence=[self.capture_binding])],
                 }
@@ -192,6 +193,38 @@ class DiagnosticWaveTests(unittest.TestCase):
         self.assertEqual("findings", report["status"])
         self.assertIn("browser observed FAIL", report["findings"])
         self.assertIn("grading H5 score 79 is below the accepted threshold", report["findings"])
+
+    def test_overall_score_is_advisory_when_all_dimensions_pass(self) -> None:
+        for remaining_score in (60, 90):
+            with self.subTest(remaining_score=remaining_score):
+                scores = dict(SCORES, H1=remaining_score, H3=remaining_score,
+                              H5=85, H6=remaining_score, H7=85, H9=85)
+                self.assertLess(round(sum(scores.values()) / 9), 90)
+                request = self.build(scores=scores)
+                report = evidence.diagnostic_wave_report(self.root, request)
+                self.assertTrue(report["complete"])
+                self.assertFalse(report["repairEligible"], report)
+                self.assertEqual([], report["findings"])
+                output = json.loads((self.root / "docs/evidence/grading-output.json").read_text(encoding="utf-8"))
+                recorded = {"HiFi score": round(sum(scores.values()) / 9),
+                            "HiFi lowest dimension": min(scores.values())}
+                recorded.update({name + " score": scores[name]
+                                 for name in ("H2", "H4", "H5", "H7", "H8", "H9")})
+                self.assertEqual([], evidence.score_findings(output, recorded))
+                recorded["HiFi score"] = 90
+                self.assertIn("recorded grades differ from the actual assessment scores",
+                              evidence.score_findings(output, recorded))
+
+    def test_every_dimension_floor_remains_blocking(self) -> None:
+        for dimension, minimum in (("H1", 60), ("H2", 90), ("H3", 60),
+                                   ("H4", 90), ("H5", 80), ("H6", 60),
+                                   ("H7", 80), ("H8", 90), ("H9", 80)):
+            with self.subTest(dimension=dimension):
+                request = self.build(scores=dict(SCORES, **{dimension: minimum - 1}))
+                report = evidence.diagnostic_wave_report(self.root, request)
+                self.assertTrue(report["complete"])
+                self.assertTrue(report["repairEligible"], report)
+                self.assertTrue(report["findings"])
 
     def test_complete_behavioral_failures_are_repair_eligible_findings(self) -> None:
         request = self.build(browser_result="FAIL")

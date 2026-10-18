@@ -3039,7 +3039,7 @@ def validate_text(
             if width_check != ui_design_v3.INTERMEDIATE_WIDTH_NOT_APPLICABLE:
                 _pass_evidence(width_check, "Intermediate width check", problems)
         for name, minimum in (
-            ("HiFi score", 90),
+            ("HiFi score", 0),
             ("H2 score", 90),
             ("H4 score", 90),
             ("H5 score", 80),

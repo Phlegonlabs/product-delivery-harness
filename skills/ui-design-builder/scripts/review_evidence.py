@@ -537,8 +537,6 @@ def diagnostic_wave_report(root, request):
     defects = list(observed_defects)
     defects.extend(f"grading {name} score {scores[name]} is below the accepted threshold"
                    for name, minimum in thresholds if scores[name] < minimum)
-    if round(sum(scores.values()) / 9) < 90:
-        defects.append("grading overall score is below 90")
     if min(scores.values()) < 60:
         defects.append("grading lowest score is below 60")
     for role, output, _ in observations:
