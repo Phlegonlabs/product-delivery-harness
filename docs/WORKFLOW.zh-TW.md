@@ -12,7 +12,7 @@
 | Parent / integrator | 全程 | 範圍、依賴、權限、派工、結果核對、序列整合及 owner 溝通 |
 | Market researcher | 產品前後的獨立市場問題、UI 參考研究 | 有來源的事實、假設與未知；不決定產品 |
 | Code explorer | 現有程式、介面、影響範圍與測試路徑 | 唯讀定位；不以研究結果冒充驗證 |
-| Code architect | 跨模組、介面、資料或遷移方案 | 凍結依賴與接口；不替 owner 核准產品／技術選擇 |
+| Code architect | 跨模組、介面、資料或遷移方案 | 提出依賴與接口；parent 在既有核准決定內對帳並凍結；不替 owner 核准產品／技術選擇 |
 | Frontend writer | 方向、HiFi、HTML/CSS、元件、互動、前端及視覺修復 | 讀完整 frontend-design；依核准來源實作並自查 |
 | Backend writer | API、資料、權限、背景工作及服務行為 | 凍結接口內的實作、負面案例和資料安全 |
 | Integration / test writer | 指定的跨層接線或測試檔 | 不越權修改 frontend；有獨立檔案與資源 ownership |
