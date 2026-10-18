@@ -153,8 +153,8 @@ Before human visual approval:
 5. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
 6. Let `frontend-design` make one repair batch. Re-review the new SHA-256 under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Recheck original defects and affected consumers. Keep mandatory Impeccable critique/audit, required browser coverage and a complete current H1–H9 assessment.
 
-Readiness requires `H2/H4/H8` each at least 90, `H5/H7/H9` each at least 80, and every dimension at least 60.
-No block or disputed dimension may remain. Record the actual overall score as advisory, including values below 90.
+Readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80.
+No block or disputed dimension may remain. Record the actual scores, even when they fail these thresholds.
 Do not repair merely to raise the overall score.
 A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 

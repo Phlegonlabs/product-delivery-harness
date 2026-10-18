@@ -318,7 +318,7 @@ HiFi 提供完整、取自實際樣式的 Design Tokens 頁。`ui-design/3` 包�
 
 HiFi 以內嵌 `ui-hifi-copy/1` 及產品 DOM 綁定保留文案來源。靜態文案、動態顯示契約及成對語言仍可檢查。Tokens 展示實際數值、用途及控件變體；審閱器文字不能代替產品覆蓋。
 
-Impeccable critique 與 audit 維持必跑。HiFi 總分改為參考，各單項門檻、阻擋缺陷與必要證據檢查維持不變。
+Impeccable critique 與 audit 維持必跑。HiFi 總分至少 85，H1–H9 每項至少 80；阻擋缺陷與必要證據檢查仍須通過。
 `ui-design/3` 完整性 CLI 會在核准前提示無法解析的靜態動畫來源。這些提示不建立 registry，也不表示已通過編譯。
 一次完整初審後，最多一批修復與一次複查，聚焦原缺陷及受影響部分。保留當前候選的證據與必要瀏覽器覆蓋，不重新展開全面的美感探索。
 
@@ -552,7 +552,7 @@ Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，�
 - **完整 UI 包一定附完整 Design System。** 新的初次與完整重設計使用 `UI contract: ui-design/3`：在 `docs/design/directions/<round>/` 預設做三個可渲染方向，每個由同一作者自查；owner 選擇、混合或修改；完整 HiFi 檢查全部核准尺寸及網頁中間寬度；並必須產出 `design-system/4` 的 Markdown／JSON／HTML（`Package action: compile|update|reuse`）。HTML specimen book 以沙盒 plate 展示核准 HiFi 的全部 token、區間、已登記元件 variants、狀態、響應式尺寸與動效，可重播、停止及 reduced motion。每個必要狀態都須有明確分類列，包含 default。動畫證據須綁定 specimen 勝出的 CSS 宣告與具名 keyframes，包含重要性、選擇器優先順序及已解析的自訂屬性。不支援的動畫 CSS、跳脫字元宣告及無效縮寫列為 finding。保留的 `ui-design/2` 只在 required 時編譯 `design-system/3`；其 `not_required` 核准保留原義。 單方向只在 owner 明示選擇、記錄人類 Decision owner 與 Decided on 時成立；研究數量必須符合該選擇。 經驗證的 `none`／`style` maintenance 保留歷史設計，不代表重新核准 pair 或 preview。 沒有相鄰核准網頁寬度時，記錄完整的 `Intermediate width check: not_applicable — no adjacent approved web viewport widths`；原生 size classes 與其他 HiFi 證據仍須完成。
 - **保留的設計包直接由 PRD 進入 HiFi。** `UI contract: ui-design/2` 明確選擇保留流程；新的初次與完整重設計使用 `ui-design/3`。PRD 預檢驗證 operations、states、responsive 與 copy status；HiFi 在 Impeccable 前驗證實際文案來源及產品操作覆蓋。預設三方向，選定後一次審閱完整 HiFi。原生 HTML 仍只是設計證據。舊 schema 與固定版本 RUN 保留原義；缺少 Wireframe 不會自動放寬檢查。
 - **HiFi 頁面必須由產品控制項連通。** 新增或修訂的 `ui-hifi/2` 以 `index.html` 清單綁定同目錄 HTML 頁面的雜湊與控制項目的地。現行 `ui-output/3` 觀察逐 responsive target 驗證點擊及鍵盤操作；缺頁、過期雜湊、無效控制項、錯誤目的地或未宣告跳轉均阻擋核准。每頁只能呈現分配給該頁的 surface。發布與保留須包含完整套件；schema-1 僅供讀取檢查，正式 Visual Approval 一律要求 HiFi schema 2。歷史 output/2 與 evidence/2 保留原意。指定 Git revision 凍結時，該 revision 必須包含所有子頁面且內容一致。
-- **視覺品質有獨立門檻。** HiFi 的 H5（避免模板感）、H7（創意辨識度）與 H9（設計一致性）各須達到 80；總分 90 不能抵銷視覺分項不足。審查須引用已檢視的截圖與已確認的方向原則；數字驗證不代表美感或人工檢視已獲證明。
+- **視覺品質有獨立門檻。** HiFi 的 H5（避免模板感）、H7（創意辨識度）與 H9（設計一致性）各須達到 80；總分 85 不能抵銷視覺分項不足。審查須引用已檢視的截圖與已確認的方向原則；數字驗證不代表美感或人工檢視已獲證明。
 - **以實際代表畫面選方向。** 各方向使用相同主要／壓力案例與內容，涵蓋適用平台並保存截圖及 hash。小型可播放動態展示 normal／reduced motion，只供選擇，不等於最終證據或 provider 授權。選定後才展開完整連通 HiFi。
 - **平台共享品牌，分別定義控制項。** Platform rules 逐核准平台記錄規則。iOS 明確評估 system text styles、Dynamic Type、SF Symbols 與原生操作／版面，不強制套用 Web 元件庫。HTML 僅供審稿；原生實作先以平台工具驗證代表案例，再擴展其他畫面，最後仍須完成全矩陣驗證。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。

@@ -93,7 +93,7 @@
 62. 檢查 menu、tabs、dialog、forms、keyboard、Escape、focus return；切 active class 不等於操作完成。
 63. 執行便宜的 HiFi completeness preflight；先修缺頁、漏字、漏 state、斷 operation 和非法資源。
 64. 原作者再自查完整 HiFi 畫面、copy、layout、responsive 與 interactions，記錄實際檢查與修復。
-65. 由適用獨立 review 執行 Impeccable critique／audit、browser matrix 與 H1–H9；核對該 reviewer 自身所需工具。
+65. 由適用獨立 review 執行 Impeccable critique／audit、browser matrix 與 H1–H9；總分至少 85、每項至少 80，且無阻擋缺陷或爭議。核對該 reviewer 自身所需工具。
 66. 收斂同原因缺陷成一批，交原作者修復；對新候選複查原缺陷及受影響部分，不另開全面的美感探索。Impeccable、必要瀏覽器覆蓋與當前候選完整評估仍須完成；保留原 retry budget。
 67. 所有 required findings、browser checks 和分數門檻通過，才呈現完整 HiFi entry、siblings 與 UI 記錄。
 68. 取得一次 Visual Approval，涵蓋文案、結構、menus、tabs、其他互動、視覺及 tokens，綁精確候選與 scope。

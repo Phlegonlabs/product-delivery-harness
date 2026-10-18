@@ -62,6 +62,6 @@ Use `references/review-workflow.md` to classify this round. New initial design a
 - HiFi checks use one complete diagnostic wave, one consolidated repair batch, and one re-review after the cheap completeness gate. Another failure stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 - Repair re-review follows `references/ui-grading-rubric.md#repair-re-review-scope`: original defects and affected consumers, with mandatory Impeccable checks and complete current evidence.
 - Numeric scores summarize quality; they never override a PRD contradiction, broken browser matrix, inaccessible required flow, dead control, or missing human approval.
-- The HiFi overall score is advisory. Keep every dimension threshold, actual-score consistency check and required Impeccable verdict.
+- HiFi readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80. Keep actual-score consistency and required Impeccable verdicts.
 - The `ui-design/3` completeness CLI reports advisory compiler-source limitations before approval; registry-dependent coverage remains the compiler's responsibility.
 - A generated image or motion asset is optional unless the approved Motion and Media Intent record makes it required. Provider failure never authorizes a substitute treatment.

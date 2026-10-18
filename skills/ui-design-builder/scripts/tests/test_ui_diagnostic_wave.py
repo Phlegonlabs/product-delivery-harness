@@ -194,17 +194,16 @@ class DiagnosticWaveTests(unittest.TestCase):
         self.assertIn("browser observed FAIL", report["findings"])
         self.assertIn("grading H5 score 79 is below the accepted threshold", report["findings"])
 
-    def test_overall_score_is_advisory_when_all_dimensions_pass(self) -> None:
-        for remaining_score in (60, 90):
-            with self.subTest(remaining_score=remaining_score):
-                scores = dict(SCORES, H1=remaining_score, H3=remaining_score,
-                              H5=85, H6=remaining_score, H7=85, H9=85)
-                self.assertLess(round(sum(scores.values()) / 9), 90)
+    def test_overall_score_requires_eighty_five_and_retains_actual_scores(self) -> None:
+        for overall, passes in ((84, False), (85, True), (89, True)):
+            with self.subTest(overall=overall):
+                scores = {name: overall for name in SCORES}
                 request = self.build(scores=scores)
                 report = evidence.diagnostic_wave_report(self.root, request)
                 self.assertTrue(report["complete"])
-                self.assertFalse(report["repairEligible"], report)
-                self.assertEqual([], report["findings"])
+                self.assertEqual(not passes, report["repairEligible"], report)
+                self.assertEqual([] if passes else ["grading overall score is below 85"],
+                                 report["findings"])
                 output = json.loads((self.root / "docs/evidence/grading-output.json").read_text(encoding="utf-8"))
                 recorded = {"HiFi score": round(sum(scores.values()) / 9),
                             "HiFi lowest dimension": min(scores.values())}
@@ -215,16 +214,19 @@ class DiagnosticWaveTests(unittest.TestCase):
                 self.assertIn("recorded grades differ from the actual assessment scores",
                               evidence.score_findings(output, recorded))
 
-    def test_every_dimension_floor_remains_blocking(self) -> None:
-        for dimension, minimum in (("H1", 60), ("H2", 90), ("H3", 60),
-                                   ("H4", 90), ("H5", 80), ("H6", 60),
-                                   ("H7", 80), ("H8", 90), ("H9", 80)):
-            with self.subTest(dimension=dimension):
-                request = self.build(scores=dict(SCORES, **{dimension: minimum - 1}))
-                report = evidence.diagnostic_wave_report(self.root, request)
-                self.assertTrue(report["complete"])
-                self.assertTrue(report["repairEligible"], report)
-                self.assertTrue(report["findings"])
+    def test_every_dimension_requires_eighty_even_when_overall_passes(self) -> None:
+        for dimension in SCORES:
+            for score in (79, 80):
+                with self.subTest(dimension=dimension, score=score):
+                    scores = dict(SCORES, **{dimension: score})
+                    self.assertGreaterEqual(round(sum(scores.values()) / 9), 85)
+                    request = self.build(scores=scores)
+                    report = evidence.diagnostic_wave_report(self.root, request)
+                    self.assertTrue(report["complete"])
+                    self.assertEqual(score < 80, report["repairEligible"], report)
+                    self.assertEqual([] if score == 80 else [
+                        f"grading {dimension} score 79 is below the accepted threshold"],
+                        report["findings"])
 
     def test_complete_behavioral_failures_are_repair_eligible_findings(self) -> None:
         request = self.build(browser_result="FAIL")

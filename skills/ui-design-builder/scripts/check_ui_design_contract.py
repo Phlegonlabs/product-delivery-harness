@@ -3045,14 +3045,14 @@ def validate_text(
             if width_check != ui_design_v3.INTERMEDIATE_WIDTH_NOT_APPLICABLE:
                 _pass_evidence(width_check, "Intermediate width check", problems)
         for name, minimum in (
-            ("HiFi score", 0),
-            ("H2 score", 90),
-            ("H4 score", 90),
+            ("HiFi score", 85),
+            ("H2 score", 80),
+            ("H4 score", 80),
             ("H5 score", 80),
             ("H7 score", 80),
-            ("H8 score", 90),
+            ("H8 score", 80),
             ("H9 score", 80),
-            ("HiFi lowest dimension", 60),
+            ("HiFi lowest dimension", 80),
         ):
             score = _score(review_values.get(name))
             if score is None or score < minimum:

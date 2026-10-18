@@ -75,3 +75,25 @@ On 2026-10-18, initial-foundation checks exposed a stale Product Definition cros
 Six expected phrases still required the superseded score policy, and one expected the replaced review-scope wording. UI sources were unchanged from that baseline.
 The assertion now checks advisory overall scoring, retained dimension floors, complete H1-H9 scoring and the bounded repair scope.
 No rubric or validator behavior changes. The focused grading-contract test passed; the foundation candidate receives the next independent review.
+
+## Score Threshold Follow-up
+
+The owner revised the score policy in chat on 2026-10-18: require an overall HiFi score of at least 85 and every H1-H9 dimension at least 80.
+This supersedes the advisory overall score and mixed dimension floors for current validation; earlier decisions and verification remain historical evidence.
+Impeccable critique/audit, concrete blocks, disputes, current evidence and the existing repair budget remain required.
+Legacy Wireframe thresholds stay unchanged. UI impact is none; no frontend artifact changes.
+
+Entry observation: branch `ui-review-thresholds`, clean working tree, HEAD `92be83ef8d017f97f0fb558edb7725eb4fb79d34`.
+The parent owns this coupled validator/documentation change. One existing independent reviewer will check the fixed candidate; no new review stage is added.
+Acceptance checks cover 85 overall and 80 per dimension, failures immediately below each boundary, actual-score consistency and retained blockers.
+Update the rubric, both validators, focused regressions, current workflow and four README descriptions together.
+Document sync reports `review_required` for unknown loaded identity and a missing prior baseline; neither finding is a PASS.
+Local edits and atomic commits remain authorized; push, release and installation are outside scope.
+
+The working-tree implementation passed 216 focused tests: UI contract 59, diagnostic 23, UI skill 14, Product Definition skill 102 and cross-skill pipeline 18.
+Pyflakes, skill specification, frontmatter validation, documentation weight and `git diff --check` passed.
+Logs and process-exit records are in [verification](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/ui-threshold-85/verification-1792323066437532600.json).
+No preview or watcher was started; every finite check exited. Fixed-candidate independent review remains pending.
+The observed installed template SHA-256 remains `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`, VERSION 0.64.0.
+The shared AGENTS rules are current by meaning, retaining the documented source-repository exceptions. Loaded skill identity remains unknown.
+The existing validator and test modules retain their contract-entry responsibilities; this threshold change does not justify splitting them.
