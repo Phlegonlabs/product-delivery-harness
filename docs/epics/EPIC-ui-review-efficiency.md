@@ -147,3 +147,24 @@ A fresh semantic audit found shared AGENTS rules current, retaining intentional 
 Loaded runtime identity remains unknown. Start a fresh host session to discover the installed release; no active RUN was migrated.
 Final bookkeeping updates only the index and these three Epics. It remains a local receipt commit and is outside the tagged source.
 No branch/worktree deletion, external product setup or standalone GTM installation occurred. Detailed evidence is in the linked release result.
+
+## README 0.65 Workflow Overview
+
+The owner requested a fresh overview of the released 0.65.0 workflow, including MultiAgent roles, foundation timing and review counts.
+Entry: clean `ui-review-thresholds` at `69d4b061e8b7b378e3c4cda8fcbc072515fc511b`; released source is `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+This is a documentation clarification of existing rules. UI impact and Gitignore impact are none.
+The parent owns all four README edits. Two read-only explorers separately inspect review limits and foundation/collaboration boundaries.
+Use the existing direct route and one final independent documentation review. No PLAN/RUN or product approval wave is added.
+Keep self-checks, independent reviews, machine verification and human decisions distinct. Do not invent universal managed-review counts.
+Preserve the 85/80 thresholds, mandatory Impeccable workflow, repair budgets, authority boundaries and historical package semantics.
+Verify source links, four-language agreement, existing README contracts and the exact documentation candidate.
+The requested update authorizes local documentation edits and atomic commits. It does not request another release or installed-skill update.
+Entry document sync is `review_required` for unknown loaded identity and a first baseline; neither is a PASS.
+Implementation, focused checks and final source review are pending.
+
+Both exploration assignments completed with source anchors and matching authority hashes. The review-count assignment resumed once after a parent dispatch interruption; no source work was lost.
+The four Zero-to-one sections now contain the lifecycle diagram, eight role rows, seven foundation-timing rows and eleven review-policy rows.
+They distinguish HiFi grading from implementation parity/page quality, cumulative managed lineage budgets and exact-main release checks.
+The focused 65-test README/skill-contract suite passed. Local links and anchors passed for all four sections; table structure, details/fences and unchanged outside sections were verified.
+`git diff --check` passed. Runtime, skill, package and release sources remain unchanged; no new wording-matching test was added.
+Test origin is the working-tree documentation candidate. Final exact-candidate independent documentation review remains pending.
