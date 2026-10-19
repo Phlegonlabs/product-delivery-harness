@@ -63,9 +63,9 @@
 35. 依 `DOCUMENTS.template.md` 建立或更新文件索引，區分候選、核准、發布及待完成。
 36. 草稿後進行市場對帳：重用有效研究，僅研究新缺口，列出有證據的優化建議。
 37. Owner 對建議選 accepted、revise、deferred 或 rejected；pending 與沉默都不是決定。
-38. 只把接受的變更合回同一 PRD、acceptance、architecture 與 stack；保留未接受建議和阻擋項。
+38. 只把接受的變更合回同一 PRD、acceptance、architecture 與 stack；保留未接受建議和阻擋項。完稿與研究對帳後，由原作者一次自查全套 PRD、architecture、stack 與中文副本：核心流程、需求、介面、狀態／權限、風險、可量測品質與 TEST 覆蓋；先修復缺陷，再交既有決策。
 39. 完成 Stack Decision Checkpoint；提出整套耦合層、成本假設、替代方案、維運 owner 與重訪條件。
-40. 由原作者自查完整 journey、跨文件、研究及 TEST coverage；修復後重新綁定候選 hash。
+40. Stack Decision 或修復改變內容時，由原作者重查受影響需求與共用依賴，重新綁定候選 hash；未變內容確認身分後保留原自查證據。計畫中的工程測試不能寫成實測通過，required blocker 未解就不送批准。沿用 Epic／任務紀錄，不另派自查者或新增 review wave。
 41. 將實際完整候選文件連結交 owner，取得 Product Definition Approval；未解決的 required gate 不得通過。
 42. 跑完整適用 Product package／雙語 checker，保留失敗与修復證據。
 43. 依 artifact lifecycle 核對正式路徑與要保留的舊版本；已有精確出版授權就完成，否則只詢問缺少的動作。

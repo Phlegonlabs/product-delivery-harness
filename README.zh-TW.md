@@ -72,7 +72,7 @@ Managed 本機 build／test 預設使用專案工具鏈，不需要 Docker 或 P
 
 ### Zero-to-one 流程（從零開始）
 
-這是 **v0.65.0** 新產品的預設流程。先依上方安裝方式備妥七個 skills，並開啟新的 host session。只接續 owner 已授權的階段；enhancement／maintenance 沿用已批准來源，只核對接受的變更。Headless 產品跳過 UI 階段。
+此原始碼流程以 **v0.65.0** 為基礎；下方 PRD 自查與工程補強尚未發布。先依上方安裝方式備妥七個 skills，並開啟新的 host session。只接續 owner 已授權的階段；enhancement／maintenance 沿用已批准來源，只核對接受的變更。Headless 產品跳過 UI 階段。
 
 ```mermaid
 flowchart TD
@@ -129,7 +129,7 @@ AEO／搜尋使用已批准的公開頁面；原生畫面本身不能滿足 AEO 
 
 | 階段 | 預設審查／驗證與上限 |
 | --- | --- |
-| 研究與 Product Definition | 適用的草稿前研究，再做草稿後缺口對帳；原作者在對帳後自查，Stack Decision 後再核對，再送 Product Definition Approval。這些檢查點不新增獨立品質 wave。 |
+| 研究與 Product Definition | 完稿及研究對帳後，原作者做 **一次全套文件自我 review**，一起核對 PRD、architecture、stack 與中文副本的流程、需求、介面、風險及 TEST 覆蓋。修復後，在 Stack Decision 後重查變動與共用依賴，再送 Product Definition Approval；未變內容保留已核對身分的自查證據。不新增獨立 wave。 |
 | 方向研究 | 預設三個可渲染方向，各由同一原作者自查，再交 owner 選擇；混合／拒絕須修訂完整組合並再作明確決定。單一建議方向須 owner 明示選擇。 |
 | 完整 HiFi | 先做便宜的完整性檢查及作者自查，再跑 **一次完整初審**；需要修復時，最多 **一批集中修復＋一次複查**。 |
 | 每次 HiFi 審查的內容 | 必跑 Impeccable `critique` **與** `audit`、完整必要瀏覽器覆蓋及當前 H1–H9。四捨五入的總平均 **至少 85**、每項 **至少 80**，且無 block／爭議，再取得 **一次 Visual Approval**。 |

@@ -72,7 +72,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-This is the **v0.65.0** default for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
+This source flow builds on **v0.65.0**. The PRD self-review and engineering clarifications below are unreleased source changes. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
 
 ```mermaid
 flowchart TD
@@ -129,7 +129,7 @@ An author self-check, independent review, machine check and human decision are d
 
 | Stage | Default review / verification and limit |
 | --- | --- |
-| Research and Product Definition | Applicable research before drafting, then post-draft gap reconciliation. The original author self-reviews after reconciliation, rechecks after Stack Decision, then presents Product Definition Approval. These checkpoints add no new independent quality wave. |
+| Research and Product Definition | After drafting and research reconciliation, the original author performs **one complete package self-review**. Review PRD, architecture, stack and Chinese copies together: journeys, requirements, interfaces, risks and TEST coverage. Repair findings, then recheck changes and shared consumers after Stack Decision before Product Definition Approval. Unchanged content retains its verified review identity. No new independent wave. |
 | Direction studies | Three rendered studies by default; the same author checks each. Owner selects the direction. A mix/rejection needs a revised complete set and another explicit decision. A single recommended direction needs an explicit owner choice. |
 | Complete HiFi | Cheap completeness check and author self-check first. Then **one complete diagnostic wave**; if needed, **one consolidated repair batch and one re-review**. |
 | HiFi checks within each pass | Required Impeccable `critique` **and** `audit`, complete required browser coverage and current H1-H9 assessment. Rounded overall mean **at least 85**, every dimension **at least 80**, no block or dispute; then **one Visual Approval**. |

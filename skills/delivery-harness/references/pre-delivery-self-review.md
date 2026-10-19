@@ -18,11 +18,15 @@ Review the actual current artifacts. A substantive revision invalidates the affe
 
 ## PRD Self-Review
 
-The Product Definition producing agent, not a separate self-checker, checks and repairs the complete candidate after post-draft market reconciliation and accepted recommendation changes. Bind each check to the exact candidate revision or SHA-256 and recheck after any repair, before presenting Product Definition Approval. Check it again after the Stack Decision Checkpoint, before presenting Product Definition Approval.
+After drafting and post-draft market reconciliation, the Product Definition producing agent performs one complete package self-review. Include accepted recommendation changes before this review. The same producing agent checks and repairs `PRD.md`, `architecture.md`, `stack-decisions.md` and the Chinese review copies together.
+
+Bind the result to the exact candidate revision or SHA-256. After repairs or the Stack Decision Checkpoint, recheck changed decisions, affected requirements and shared consumers before presenting Product Definition Approval. When the checkpoint leaves the reviewed content unchanged, confirm its identity and retain the complete self-review evidence. This is one overall author review with affected-scope rechecks, not another independent review wave.
 
 - Confirm that relevant `RA-*` and `MR-*` evidence agrees with the problem, audience, alternatives, differentiation, scope, metrics and risks. Keep facts, vendor claims and hypotheses distinct; include source dates and unresolved evidence gaps. Apply only owner-accepted product or stack changes.
 - Walk the first useful journey, feature joins, denial/error/recovery paths, data and permission boundaries, operational setup and release obligations. A headless product reviews caller/operator journeys.
 - Check that Must requirements and applicable NFRs have observable acceptance and `TEST-*` coverage; reconcile PRD, architecture, stack and Chinese review copies. Use the existing product-package, translation and output-contract checks at their applicable stages.
+- Confirm that architecture assigns component responsibilities, mutable-state ownership, interfaces, trust boundaries and applicable failure recovery for each required journey. Check that unresolved feasibility questions name an owner, bounded investigation and pass/fail criteria; required blockers remain blocked.
+- Connect applicable load, latency, cost, migration and recovery requirements to existing TEST obligations and responsible owners. Separate planned engineering checks from evidence already observed; a complete document does not prove implementation or operational readiness.
 - Record skipped or unavailable market research with its existing permitted reason and impact. A research limitation is not evidence of market validation. An unresolved required fact, product decision or dependency keeps this self-review blocked; a permitted research skip never skips PRD self-review.
 
 Use `../../product-definition-builder/references/prd-refinement.md` for findings and owner boundaries. Only a current passing self-review with no required unresolved gap is ready for the existing Product Definition Approval and downstream handoff.

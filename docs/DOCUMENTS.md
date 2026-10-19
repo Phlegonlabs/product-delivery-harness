@@ -2,11 +2,11 @@
 
 The four READMEs remain the documentation of record for the skill bundle.
 
-Published `v0.65.0` through PR #151 at `8847b027`. Both exact-candidate and exact-main CI passed, and the seven local skills were installed and verified. The UI review Epic links the release and installation receipts. Final receipt bookkeeping is local and does not change the tagged source.
+Published `v0.65.0` through PR #151 at `8847b027`. Both exact-candidate and exact-main CI passed, and the seven local skills were installed and verified. The UI review Epic links the release and installation receipts. Later local workflow changes are recorded below and are not part of that release.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-initial-product-foundations.md` | Initial setup and delivery collaboration | Published in v0.65.0 at `8847b027`; installed bundle verified; earlier checks retained |
+| `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.0 release retained; local full-engineering and PRD self-review clarification in progress |
 | `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | Published in v0.65.0 at `8847b027`; seven-skill bundle installed; standalone GTM skills remain optional |
 | `docs/epics/EPIC-ui-review-efficiency.md` | HiFi overall 85, every dimension 80, and bounded repair review with mandatory Impeccable | Released and installed v0.65.0; exact-candidate/main CI and independent reviews passed; 439 installed files verified |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | Local source verified; owner-authorized 0.63.0 release/install follow-up in progress; exact outcome in linked receipts |

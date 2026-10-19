@@ -72,7 +72,7 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
-Este es el flujo predeterminado de **v0.65.0** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
+Este flujo fuente parte de **v0.65.0**. Las aclaraciones de autorrevisión del PRD e ingeniería que siguen aún no están publicadas. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
 
 ```mermaid
 flowchart TD
@@ -129,7 +129,7 @@ Autorrevisión, revisión independiente, comprobación automática y decisión h
 
 | Etapa | Revisión / verificación predeterminada y límite |
 | --- | --- |
-| Investigación y Product Definition | Investigación aplicable antes del borrador y reconciliación de brechas después. El autor se revisa tras reconciliar, vuelve a comprobar tras Stack Decision y presenta Product Definition Approval. No se añade una ronda independiente de calidad. |
+| Investigación y Product Definition | Tras redactar y reconciliar la investigación, el autor original realiza **una autorrevisión del paquete completo**. Revisa juntos PRD, arquitectura, stack y copias chinas: recorridos, requisitos, interfaces, riesgos y cobertura TEST. Repara hallazgos y, tras Stack Decision, comprueba cambios y consumidores compartidos antes de Product Definition Approval. El contenido intacto conserva su evidencia con identidad verificada. Sin otra ronda independiente. |
 | Estudios de dirección | Tres estudios renderizados por defecto, cada uno revisado por su autor. El owner elige; una mezcla/rechazo exige un conjunto completo revisado y otra decisión explícita. Una sola dirección recomendada requiere elección explícita. |
 | HiFi completo | Primero completitud automática y autorrevisión. Después **una ronda diagnóstica completa**; si hace falta, **un lote consolidado de reparaciones y una revisión posterior**. |
 | Contenido de cada revisión HiFi | Impeccable `critique` **y** `audit` obligatorios, cobertura completa de navegador y evaluación H1-H9 actual. Media global redondeada **mínima de 85**, cada dimensión **mínima de 80**, sin bloqueos/disputas; después **una Visual Approval**. |
