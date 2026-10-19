@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
-Este flujo fuente parte de **v0.65.0**. Las aclaraciones de autorrevisión del PRD e ingeniería que siguen aún no están publicadas. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
+Este es el flujo predeterminado de **v0.65.1** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
 
 ```mermaid
 flowchart TD
@@ -356,7 +356,7 @@ Consulta el [registro de intervalos](skills/delivery-harness/references/runtime-
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos según la audiencia, el posicionamiento, la voz y la capacidad del proyecto.
 [GTM Content](standalone-skills/gtm-content/SKILL.md) prepara posts/hilos de X y textos para otros canales, briefs y calendarios propuestos para revisión del responsable.
 Ambos referencian páginas, métricas y fuentes de medición existentes cuando están disponibles. Su ausencia no impide preparar borradores.
-Las mejoras de X aún no publicadas cubren la [selección del canal](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) y el [playbook de contenido](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
+Las guías de X cubren la [selección del canal](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) y el [playbook de contenido](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
 Reutiliza demos verificadas y disponibilidad real en el paquete de campaña; después vincula IDs publicados con destinos y resultados del producto.
 Separa interacción pública, clics autorizados, sesiones y acciones verificadas; la falta de acceso a analítica sigue siendo una brecha explícita.
 Estos enlaces reutilizan registros y revisiones existentes, sin añadir otra ronda de revisión.
@@ -937,6 +937,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.65.1** — Aclara una autorrevisión completa del paquete PRD y comprobaciones del alcance afectado antes de aprobar. Ordena la prueba del recorrido principal y evidencia aplicable de carga, coste, migración y recuperación dentro de las tareas existentes. Añade selección de X, contenido y enlaces entre borradores y medición a los skills GTM opcionales. Explica roles, preparación y límites de revisión en los cuatro READMEs. Reutiliza registros y presupuestos; no añade schema ni ronda de revisión.
 
 - **0.65.0** — HiFi exige una media global mínima de 85 y 80 en cada dimensión H1-H9, con Impeccable obligatorio y reparaciones acotadas. Adelanta acceso de build, protección del repositorio, AEO/búsqueda, despliegue, analítica, feedback, errores y alertas a las etapas iniciales existentes. Explica la coordinación MultiAgent del parent. Añade observaciones controladas del runtime, diagnósticos del compilador y handoffs opcionales de estrategia/contenido GTM. Cambia la aceptación HiFi actual; las aprobaciones y evidencias históricas conservan su significado.
 

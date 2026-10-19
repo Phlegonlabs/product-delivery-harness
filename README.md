@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-This source flow builds on **v0.65.0**. The PRD self-review and engineering clarifications below are unreleased source changes. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
+This is the **v0.65.1** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
 
 ```mermaid
 flowchart TD
@@ -356,7 +356,7 @@ See [host interval recording](skills/delivery-harness/references/runtime-perform
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments from the project's audience, positioning, voice and capacity.
 [GTM Content](standalone-skills/gtm-content/SKILL.md) prepares X posts/threads and other channel-specific copy, asset briefs and proposed calendars for owner review.
 Both reference existing product pages, success metrics and measurement sources when available. Missing records do not block drafting.
-The unreleased X additions cover [channel fit](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) and a [content playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
+X guidance covers [channel fit](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) and a [content playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
 Reuse verified demos and availability claims in the existing campaign package, then join published post IDs to destinations and product outcomes.
 Keep public engagement, authorized clicks, destination sessions and verified actions separate; missing analytics access remains an explicit gap.
 These handoffs reuse existing records and review points without adding a review wave.
@@ -937,6 +937,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.65.1** — Clarify one complete PRD package author review and affected-scope rechecks before approval. Order core-journey proof and applicable load, cost, migration and recovery evidence within existing engineering tasks. Add X channel selection, content guidance and draft-to-measurement handoffs to the optional GTM skills. Explain roles, foundation timing and review limits in all four READMEs. Reuse existing records and review budgets; no new schema or review wave.
 
 - **0.65.0** — Require HiFi overall 85 and every H1-H9 dimension 80, with mandatory Impeccable and bounded repair review. Move build access, repository-protection readback, AEO/search, deployment, analytics, feedback, errors and alerts into existing startup stages. Explain parent-owned MultiAgent collaboration. Add guarded runtime observations, advisory compiler-source diagnostics and optional GTM strategy/content handoffs. Current HiFi acceptance changes; historical approvals and evidence retain their meaning.
 

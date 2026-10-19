@@ -128,3 +128,10 @@ Shared guidance remains current by meaning against the installed 0.65.0 template
 Document sync retains unknown loaded identity, first observation and unchanged historical README names; it is not an approval PASS.
 No new review wave, schema or campaign record type was added. No push, formal release, platform publication or analytics activation occurred.
 All finite checks exited; no preview or watcher was started. Live X execution and campaign outcomes remain unverified.
+
+## Formal Release Follow-up: v0.65.1
+
+The owner requested formal publication of this X/GTM source with full engineering and PRD self-review on 2026-10-19.
+Use the existing [foundation release record](EPIC-initial-product-foundations.md#formal-release-follow-up-v0651) for candidate, CI, review, main and installation evidence.
+The two locally installed GTM trees already match source `b0400508`; the seven-core-skill update must preserve them.
+Prior draft/installation reviews remain historical; the release uses fresh exact-candidate and exact-main proof under existing rules.

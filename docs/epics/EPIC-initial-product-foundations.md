@@ -154,3 +154,27 @@ Shared instructions are current by meaning against installed template 0.65.0, wi
 Template SHA-256 remains `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
 Document sync retains unknown loaded identity, first observation and unchanged historical README names; it is not an approval PASS.
 No push, release or installation occurred. Installed skills remain v0.65.0. All finite checks exited; no preview or watcher was started.
+
+## Formal Release Follow-up: v0.65.1
+
+On 2026-10-19, the owner requested one formal release of full engineering, PRD self-review and X/GTM changes, plus the seven-core-skill update.
+The instruction covers this existing work branch, its release metadata, reviewed PR/main landing, matching tag/GitHub release and official local installation.
+Baseline: clean `ui-review-thresholds` at `b0298b543f64051235b50700f27437d411b8eea2`.
+Observed remote main and published v0.65.0: `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+Remote work-branch head `6b693f27` and main are ancestors of the current source; publication can fast-forward without force.
+
+Use patch version 0.65.1 under the source default. This release clarifies existing workflow obligations and adds optional GTM guidance.
+No schema, parser, new approval gate or review budget change requires a breaking bundle version.
+Keep the existing Epic records and their historical reviews. The architecture Epic owns X/GTM details.
+
+Route: direct source release with one writer. No new research questions, consumer PLAN/RUN, product deployment or UI approval is required.
+Run focused metadata checks, then the complete existing exact-candidate CI matrix and one independent source/security review.
+Land through the required PR with `validate`; preserve atomic history with a merge commit.
+For a server-created main SHA, prove tree equality and require fresh complete main CI and security review before tagging.
+After formal release, use `install.ps1` at a quiescent boundary, preserve its backups and verify every installed file and bundle digest.
+The two standalone GTM installations are outside the seven-skill installer and must retain their verified bytes.
+
+| Observation | Result | Remaining work |
+| --- | --- | --- |
+| 2026-10-19 release entry | Scope, clean baseline, main protection rules and branch ancestry verified. Only this chat was active in the observed app inventory. Installed bundle is 0.65.0, digest `c65be87966a4f9d1c6ad0d3291a678462ddb265beaa328f2cd56145489b116d1`. | Fixed candidate, complete CI, normal review, PR landing, fresh main proof, tag/release and official installation pending. |
+| 2026-10-19 release preparation | Synchronized package/lock versions, copied-skill VERSION, RUNBOOK default and four README badges/history for 0.65.1. Removed current-flow unreleased wording. | Local 65 metadata contracts, core/standalone specifications, both GTM validators, Pyflakes, documentation weight and whitespace passed. Full exact-candidate CI and independent review remain required. |

@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
-此源码流程以 **v0.65.0** 为基础；下方 PRD 自查与工程补强尚未发布。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
+这是 **v0.65.1** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
 
 ```mermaid
 flowchart TD
@@ -356,7 +356,7 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 [Go To Market](standalone-skills/go-to-market/SKILL.md) 根据产品受众、定位、语气与执行能力选择渠道和实验。
 [GTM Content](standalone-skills/gtm-content/SKILL.md) 产出 X 单篇／串文及其他渠道的完整文案、素材 brief 和建议日程，交 owner 审阅。
 已有产品页面、成功指标和测量来源时直接引用；缺少这些记录仍可准备草稿。
-尚未发布的 X 补强涵盖[渠道适合度](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses)与[内容 playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter)。
+X 指引涵盖[渠道适合度](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses)与[内容 playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter)。
 在现有 campaign package 复用已验证 demo 与可用状态，之后将实际发布的 post ID 连接到目的地与产品成果。
 分开公开互动、已授权点击数据、站内 session 与已验证行为；没有 analytics 访问权限就明列缺口。
 这些衔接沿用现有记录与审阅点，不新增 review wave。
@@ -937,6 +937,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.65.1** — 明确规定 PRD 完稿后由原作者整体自查整套文件，批准前重查受影响部分。在现有工程任务安排核心流程验证，以及适用的负载、成本、迁移与恢复证据。为可选 GTM skills 补上 X 渠道选择、内容指引和草稿到测量的衔接。四语 README 整理分工、基础设置时点与 review 上限。沿用现有记录及修复预算，不新增 schema 或 review wave。
 
 - **0.65.0** — HiFi 总分至少 85，H1–H9 每项至少 80；保留必跑 Impeccable 与有界修复复查。把 build access、Repo 保护读回、AEO／搜索、部署、分析、反馈、错误与告警放进现有启动阶段。明确定义由主协调代理负责的 MultiAgent 分工，加入受控 runtime 观测、编译来源提示及可选 GTM 策略／内容交接。当前 HiFi 验收门槛改变，历史批准与证据保留原意。
 
