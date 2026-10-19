@@ -181,3 +181,73 @@ All four READMEs retain their original content outside the Zero-to-one section. 
 The post-change audit found shared instructions current by meaning against installed VERSION 0.65.0 and template SHA-256 `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
 The installed bundle still matches released source. Loaded identity remains unknown, and document-sync findings are not a PASS.
 Local documentation work is complete; no push, release, tag change or installation occurred. All finite checks exited; no preview or watcher was started.
+
+## README Overview Publication In v0.65.1
+
+The four-language overview, role table, foundation timing and review-count explanation were published through PR #152 in v0.65.1.
+Published main: `dd8a52d394c93c8fc8d065502e08853c5089e12a`.
+HiFi 85/80, mandatory Impeccable and existing repair budgets retain their earlier meaning.
+The [foundation release result](EPIC-initial-product-foundations.md#v0651-release-and-installation-result) owns the current CI, review and seven-core-skill installation receipts.
+
+## README v0.65.1 Complete Flowchart
+
+On 2026-10-19, the owner requested one complete lifecycle diagram in all four READMEs.
+The owner confirmed that Instagram and Threads are both active channels. Facebook Pages remains a candidate; X remains optional.
+This channel context belongs to the current owner. Other products still select channels by audience, access and capacity.
+
+Entry: clean `ui-review-thresholds` at `b94ed8500b1703d51d9d3005b93c6c5d6aa780c6`.
+The parent owns four README edits and this existing Epic/index update. One writer and one coherent verification sequence use the direct route.
+UI impact and Gitignore impact are none. No skill source, release version, installed skill or product approval changes.
+The diagrams show PRD self-review before either UI or headless execution, foundation timing, existing review counts and parallel GTM inputs.
+GTM drafts, content approval, separately authorized publication and actual measurement remain distinct.
+Facebook Pages evaluation checks Page identity/access, audience fit, content capacity and reply ownership before adoption.
+No Page or social account was connected, inspected or modified.
+
+Use the existing final independent documentation review; no product review wave, PLAN/RUN or new record is added.
+Focused checks cover real Mermaid rendering, four-language topology, retained README sections, links and existing README/skill contracts.
+Evidence is retained in [the flowchart task directory](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/readme-0651-flowchart/).
+Entry document sync is `review_required`: loaded identity and prior baseline are unobserved; historical legacy-name findings remain reference material.
+This task authorizes local documentation edits and atomic commits. Publication and installation are outside this follow-up.
+Final checks and exact-candidate independent review are pending.
+
+Working-tree checks passed: all 65 existing README/skill-contract tests, local overview links/anchors, table/fence structure and `git diff --check`.
+All four 23-node diagrams rendered with Mermaid 11.12.0 and Playwright Chromium. PNG/SVG evidence includes the earlier diagram for comparison.
+The task changes only the first diagram and its new explanatory caption in each README; all prior prose and other diagrams remain intact.
+Shared instructions are current by meaning against installed VERSION 0.65.1 and template SHA-256 `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+The audit retains the source repository's intentional reading, Git, stage-binding, deployment and activation exceptions.
+No public platform capability, account readiness or adoption result is inferred. Loaded runtime identity remains unknown.
+The browser closed after rendering. No preview server or watcher was started.
+
+The existing independent documentation review passed the complete six-path candidate `05f14d1c651a49af68d524fa3fc1c93226b8981a` with no findings or exclusions.
+See [review result](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/readme-0651-flowchart/review-result.md).
+`candidate-identity.json` joins all rendered sources to that commit and confirms equivalent four-language topology.
+The parent rendered with Mermaid 11.12.0; GitHub's hosted renderer was not exercised. Tests retain their working-tree origin and matching committed bytes.
+Local documentation is complete. The final bookkeeping child changes only this Epic and the index; the reviewed README bytes remain unchanged.
+No push, release, tag change, skill installation, social publication or new workflow review wave occurred.
+
+
+## Formal Flowchart Release: v0.65.2
+
+On 2026-10-19, the owner authorized formal publication of the four-language complete flowchart.
+Reuse this Epic, the accepted diagram review and the existing release checks. Add no product or design review wave.
+Entry: clean `ui-review-thresholds` at `d46f4cf75ad3448420d42b6a5eef4b3bde84f288`.
+Observed main and v0.65.1: `dd8a52d394c93c8fc8d065502e08853c5089e12a`; remote work branch: `cc4ba123975c97695f31b979027a11b5eee9f0c6`.
+The owner instruction covers the existing branch, patch release metadata, reviewed PR/main landing, matching tag and GitHub release.
+The source release policy requires local bundle synchronization after release when its digest changes.
+Use the official installer at a quiescent boundary with backup and file/digest verification; preserve unrelated local work and standalone GTM skills.
+
+Use patch 0.65.2. The diagrams retain their approved bytes; only the current-flow version label changes.
+No schema, implementation, review budget, product decision or platform account changes.
+Previously local v0.65.1 receipts remain historical records within the same branch history.
+Route: direct, one parent writer; no consumer PLAN/RUN or new research assignment.
+Run local metadata checks, full exact-candidate CI and the normal independent source/security review.
+After PR landing, prove tree equality and require fresh complete exact-main CI and source/security review before tagging.
+Entry sync remains review_required for unknown loaded identity, first baseline and historical names; it is not a PASS.
+UI and Gitignore impact are none. Candidate verification, publication and installation are pending.
+Evidence: [release-0652](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/release-0652/).
+
+Local release checks passed: 65 metadata contracts, core skill specification, Pyflakes, documentation weight and whitespace.
+All four Mermaid sources are byte-identical to the reviewed `05f14d1c` diagrams; rendering evidence remains tied to those unchanged bytes.
+The observed main ruleset requires PRs, resolved review threads and `validate`, and forbids branch deletion and non-fast-forward updates.
+The legacy branch-protection endpoint returned 404; the effective ruleset endpoint supplies the actual rules.
+Full candidate CI, fresh source/security review and later exact-main checks remain pending.

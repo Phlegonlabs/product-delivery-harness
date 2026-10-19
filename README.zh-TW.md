@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,19 +72,63 @@ Managed 本機 build／test 預設使用專案工具鏈，不需要 Docker 或 P
 
 ### Zero-to-one 流程（從零開始）
 
-這是 **v0.65.1** 新產品的預設流程。先依上方安裝方式備妥七個 skills，並開啟新的 host session。只接續 owner 已授權的階段；enhancement／maintenance 沿用已批准來源，只核對接受的變更。Headless 產品跳過 UI 階段。
+這是 **v0.65.2** 新產品的預設流程。先依上方安裝方式備妥七個 skills，並開啟新的 host session。只接續 owner 已授權的階段；enhancement／maintenance 沿用已批准來源，只核對接受的變更。Headless 產品跳過 UI 階段。
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+    nodeSpacing: 24
+    rankSpacing: 30
+---
 flowchart TD
-  P[研究與 Product Definition] --> U[方向選擇與完整 HiFi]
-  U --> D[設計系統編譯]
-  D --> B[第一個可執行版本]
-  P -. 無 UI 範圍 .-> B
-  B --> F[已授權的基礎設定]
-  F --> I[核心流程、其餘功能與驗證]
-  I --> R[候選 Preview 與正式發布]
-  R --> A[正式版 Activation 與成效回顧]
+  subgraph ENG["產品與工程"]
+    direction TB
+    P["研究代理＋產品作者＋按需架構師<br/>PRD、架構、技術選擇；整合研究<br/>規劃 AEO、部署、分析與權限"]
+    S["原作者：1 次完整 PRD 套件自查<br/>包含架構、技術選擇與中文副本<br/>修正後重查受影響範圍"]
+    A["Owner：Stack Decision → 受影響範圍重查<br/>→ Product Definition Approval"]
+    U["綁定的前端作者：預設 3 個已渲染方向<br/>作者逐一自查；owner 選定方向"]
+    H["完整 HiFi：完整性預檢＋作者自查<br/>1 次診斷＋最多 1 次集中修正／複查<br/>每次：Impeccable critique＋audit、瀏覽器、H1-H9<br/>總分 ≥85；每個維度 ≥80"]
+    V["Owner：Visual Approval → 設計系統編譯<br/>技術驗證＋已渲染 showcase 檢查<br/>新增審美 review wave：0 次"]
+    W["主代理：選 Direct 或凍結 managed PLAN/RUN<br/>確認角色、任務、TEST 與共用契約<br/>並行作者隔離 checkout；依序整合"]
+    T["Build 前：工具鏈、App ID、裝置／簽章<br/>Repo／CI 連接前：保護設定讀回驗證"]
+    B["第一個固定可用 build＋SHA／產物<br/>授權後隔離部署＋Activation 前置準備<br/>分析埋點；取得動態錯誤／crash"]
+    J["未證實的核心真實旅程先跑通，再擴展相依功能<br/>前後端小任務＋針對性檢查<br/>依風險驗證失敗、負載、成本、遷移／還原"]
+    N["按已選路線做獨立審查<br/>Direct：作者完整 diff 自查＋1 次精確 SHA 安全審查<br/>Managed：每個就緒 mission／適用面先審再整合<br/>之後在統一候選做新鮮的適用面＋安全審查"]
+    Q["適用 UI：parity loop，2 輪修正失敗即停<br/>之後 1 次唯讀頁面品質檢查；共用既有額度<br/>較嚴格的 lineage 限制優先 → 最終回歸"]
+    F["對外試用前：回饋入口實測送達 owner<br/>無人值守 Preview／beta 前：實收有效告警<br/>前置準備不授權試用或部署"]
+    C["隔離 candidate Preview：精確 build 驗收<br/>Managed：本地 C → 歸檔 A；Direct：固定候選<br/>Preview 若用遠端分支，另行授權發布／讀回"]
+    R["另行授權 main／production 發布<br/>驗證實際發布 SHA／產物<br/>伺服器產生 main：樹相等＋新鮮完整檢查／安全審查"]
+    ACT["Activation：重用設定，重新綁定實際版本<br/>配置＋獨立讀回＋行為證據<br/>驗證功能事件與量測來源"]
+    O["真實量測窗後：依 owner 要求做 Outcome Review<br/>逐目標檢查；適用時彙總<br/>交付不等待採用成效"]
+    Z["第二次 HiFi 審查失敗 → blocked<br/>例外後繼複查需 owner 明確決定<br/>改變策略＋驗收矩陣"]
+    P --> S --> A
+    A -->|"有 UI"| U
+    U --> H
+    H -->|"通過"| V
+    H -->|"第二次失敗"| Z
+    V --> W
+    A -->|"Headless"| W
+    W --> T --> B --> J --> N --> Q --> F --> C --> R --> ACT --> O
+  end
+  subgraph GTM["可選的 GTM 並行線"]
+    direction TB
+    G["PRD 階段：go-to-market：受眾、定位、渠道、成果<br/>目前 owner 情境：Instagram＋Threads 已在推動<br/>評估 Facebook Pages；X 可選"]
+    CD["gtm-content：已選渠道草稿、素材與 CTA<br/>可提早準備；標明缺少證據與可用狀態"]
+    CR["既有內容審查＋owner 核准精確版本<br/>如實標明規劃中／Preview／beta／已發布<br/>驗證公開連結安全與實際可用狀態"]
+    PUB["另行授權發布或排程<br/>讀回實際貼文 ID／URL 與可見狀態"]
+    M["既有活動量測<br/>分開記錄互動、點擊、session 與已驗證行為<br/>權限或來源缺失仍為未知"]
+    G --> CD --> CR --> PUB --> M
+  end
+  P -. "受眾與任務清楚" .-> G
+  J -. "已驗證 demo" .-> CD
+  R -. "實際可用狀態證據" .-> CR
+  ACT -. "已驗證來源" .-> M
+  M -. "適用訊號" .-> O
 ```
+
+實線表示階段依賴；虛線表示可選的 GTM 輸入與並行銜接。箭頭不授權任何動作，也不新增 review wave。主代理全程派發同層代理，每個 checkout 只有一位作者；相依並行工作開始前先凍結共用契約。下方 review 表保留完整限制：managed runtime review 在同一 lineage 累計最多初審 1 次＋修正複查 1 次；程式候選改變後要重新做安全審查。目前 owner 同時經營 Instagram 與 Threads，Facebook Pages 待評估，X 可選；各產品仍按受眾、帳號權限與產能選渠道。GTM 與 Outcome Review 不阻塞交付。增強與維護沿用各自範圍和已釘選規則。 選用 Facebook Pages 前，確認 Page 身分與權限、受眾契合度，以及內容和回覆產能。
 
 箭頭表示依賴，不授予操作權限。`product-definition-builder` 負責 PRD、架構與 stack 決策；`ui-design-builder` 負責方向、HiFi 與 Visual Approval。新版完整 UI 使用 `ui-design/3`，再由 `design-system-compiler` 產出 `design-system/4` Markdown／JSON／HTML。保留的舊 package 與 maintenance 依原版本規則處理。
 
@@ -937,6 +981,8 @@ HiFi 範例以固定 LF 換行維持跨平台位元組雜湊。Wireframe 的 Nod
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.65.2** — 發布四語完整交付流程圖，標明 PRD 自查、基礎設定時點、MultiAgent 分工、既有 review 次數與 GTM 並行接入。記錄目前 owner 同時推動 Instagram 與 Threads，Facebook Pages 待評估，X 可選。保留 85／80 門檻與既有審查額度。
 
 - **0.65.1** — 明確規定 PRD 完稿後由原作者整體自查全套文件，批准前重查受影響部分。在既有工程任務安排核心流程驗證，以及適用的負載、成本、遷移與恢復證據。為選用 GTM skills 補上 X 渠道選擇、內容指引和草稿到量測的銜接。四語 README 整理分工、基礎設定時點與 review 上限。沿用既有紀錄及修復預算，不新增 schema 或 review wave。
 

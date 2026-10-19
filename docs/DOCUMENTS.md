@@ -2,13 +2,13 @@
 
 The four READMEs remain the documentation of record for the skill bundle.
 
-Preparing `v0.65.1` to publish the existing engineering, PRD self-review and X/GTM changes. The foundation Epic records this release. Published `v0.65.0` remains at `8847b027`; its CI, installation and historical receipts are preserved.
+Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each passed all 20 jobs and fresh source/security reviews. The seven local core skills were updated and all 439 files verified. The foundation Epic links the receipts. Final bookkeeping is local and does not change the release tag; prior v0.65.0 history remains preserved.
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 formal release and seven-core-skill update in progress; prior source review at `525ac1f2` retained |
-| `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | X GTM source `b0400508` reviewed and installed locally; formal source publication included in v0.65.1 release follow-up |
-| `docs/epics/EPIC-ui-review-efficiency.md` | HiFi overall 85, every dimension 80, and bounded repair review with mandatory Impeccable | Released and installed v0.65.0; exact-candidate/main CI and independent reviews passed; 439 installed files verified |
+| `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 released at `dd8a52d3` and installed; 439 core files verified; exact candidate/main CI and reviews passed |
+| `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | X/GTM published in v0.65.1; seven-core-skill update verified; standalone GTM installations preserved |
+| `docs/epics/EPIC-ui-review-efficiency.md` | HiFi overall 85, every dimension 80, and bounded repair review with mandatory Impeccable | v0.65.1 flowchart verified at `05f14d1c`; owner-authorized v0.65.2 release and required local synchronization in progress; existing review budgets retained |
 | `docs/epics/EPIC-cloudflare-preview-flow.md` | Main-based candidate delivery and Cloudflare PR/branch previews | Local source verified; owner-authorized 0.63.0 release/install follow-up in progress; exact outcome in linked receipts |
 | `docs/epics/EPIC-workflow-repairs.md` | Workflow repairs and formal `v0.64.0` release | PR #144 merge observed at tagged `bf56ab27`; historical release evidence remains in the Epic; PR #141 is superseded |
 | `docs/epics/EPIC-lightweight-entry.md` | Full dispatch-message budgets and stage-scoped lightweight entry | Accepted; LIGHT-01–04 implemented and locally committed; LIGHT-05 exact candidate/result is authoritative in [lightweight-result.md](C:/Users/mps19/.codex/visualizations/2026/10/06/01a11277-8783-7192-8c29-2f37de1cf543/lightweight-result.md) |

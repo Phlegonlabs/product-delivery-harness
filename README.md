@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,19 +72,63 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-This is the **v0.65.1** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
+This is the **v0.65.2** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+    nodeSpacing: 24
+    rankSpacing: 30
+---
 flowchart TD
-  P[Research and Product Definition] --> U[Directions and complete HiFi]
-  U --> D[Design-system compilation]
-  D --> B[First usable implementation build]
-  P -. No UI scope .-> B
-  B --> F[Authorized foundation setup]
-  F --> I[Core journey, remaining features and verification]
-  I --> R[Candidate Preview and production release]
-  R --> A[Release-bound Activation and measured outcomes]
+  subgraph ENG["Product and engineering"]
+    direction TB
+    P["Researcher + product author + conditional architect<br/>PRD, architecture, stack; reconcile research<br/>Plan AEO, deployment, analytics and access"]
+    S["Original author: 1 complete PRD package self-review<br/>Include architecture, stack and Chinese copies<br/>Repair and recheck affected scope"]
+    A["Owner: Stack Decision → affected-scope recheck<br/>→ Product Definition Approval"]
+    U["Bound frontend author: 3 rendered directions by default<br/>Author checks each; owner selects direction"]
+    H["Complete HiFi: preflight + author self-check<br/>1 diagnostic + at most 1 repair/re-review<br/>Each pass: Impeccable critique + audit, browser, H1-H9<br/>Overall ≥85; every dimension ≥80"]
+    V["Owner: Visual Approval → design-system compiler<br/>Technical validation + rendered showcase<br/>0 added aesthetic review waves"]
+    W["Parent: choose Direct or freeze managed PLAN/RUN<br/>Resolve roles, tasks, TESTs and shared contracts<br/>Isolate parallel writers; integrate serially"]
+    T["Before build: toolchain, app IDs, devices/signing<br/>Before repo/CI connection: protection readback"]
+    B["First fixed usable build + SHA/artifact<br/>Authorized isolated deployment + Activation preparation<br/>Analytics hooks; retrieve dynamic errors/crashes"]
+    J["Prove untested real core journey before dependent expansion<br/>Scoped frontend/backend tasks + focused checks<br/>Risk-based failure, load, cost, migration/restore proof"]
+    N["Independent review under the chosen route<br/>Direct: author diff check + 1 exact-SHA security review<br/>Managed: each ready mission/surface before integration<br/>Then fresh unified applicable-surface + security reviews"]
+    Q["Applicable UI: parity loop, stop after 2 failed repair rounds<br/>Then 1 read-only page-quality pass; shared budget<br/>Stricter lineage limit wins → final regression"]
+    F["Before external trials: tested feedback route to owner<br/>Before unattended Preview/beta: useful alert received<br/>Preparation grants no trial or deployment action"]
+    C["Isolated candidate Preview: exact-build acceptance<br/>Managed: local C → archive A; Direct: fixed candidate<br/>Separate publication/readback if Preview uses remote branch"]
+    R["Separately authorized main/production release<br/>Verify actual released SHA/artifact<br/>Server-created main: tree equality + fresh full checks/security"]
+    ACT["Activation: reuse setup, rebind actual release<br/>Configuration + independent readback + behavior proof<br/>Verify feature events and measurement sources"]
+    O["After real measurement window: requested Outcome Review<br/>Per target; aggregate when applicable<br/>Delivery does not wait for adoption"]
+    Z["Second failed HiFi review → blocked<br/>Exceptional successor needs explicit owner decision<br/>Changed strategy + acceptance matrix"]
+    P --> S --> A
+    A -->|"UI scope"| U
+    U --> H
+    H -->|"Pass"| V
+    H -->|"Second failure"| Z
+    V --> W
+    A -->|"Headless"| W
+    W --> T --> B --> J --> N --> Q --> F --> C --> R --> ACT --> O
+  end
+  subgraph GTM["Optional parallel GTM"]
+    direction TB
+    G["During PRD: go-to-market: audience, positioning, channels, outcome<br/>Current owner context: Instagram + Threads active<br/>Evaluate Facebook Pages; X optional"]
+    CD["gtm-content: selected-channel drafts, assets and CTA<br/>Can start early; label missing proof and availability"]
+    CR["Existing content review + owner approval of exact revision<br/>Use truthful planned / Preview / beta / released claims<br/>Verify public-safe destination and actual availability"]
+    PUB["Separately authorized publication or scheduling<br/>Read back actual post ID/URL and visibility"]
+    M["Existing campaign measurement<br/>Separate engagement, clicks, sessions and verified actions<br/>Missing access or sources stays unknown"]
+    G --> CD --> CR --> PUB --> M
+  end
+  P -. "Audience and task clear" .-> G
+  J -. "Verified demo" .-> CD
+  R -. "Actual availability evidence" .-> CR
+  ACT -. "Verified sources" .-> M
+  M -. "Applicable signals" .-> O
 ```
+
+Solid arrows show stage dependencies; dashed arrows show optional GTM inputs and parallel handoffs. Neither grants actions or adds a review wave. The parent dispatches sibling roles throughout; each checkout has one writer. Freeze shared contracts before dependent parallel work. The review table below retains the full limits: managed runtime review allows one initial review and one repair re-review per cumulative lineage. Changed code needs fresh security review. The current owner uses Instagram and Threads; evaluate Facebook Pages and keep X optional. Each product still selects channels by audience, account access and capacity. GTM and Outcome Review do not block delivery. Enhancements and maintenance keep their scoped routes and pinned rules. For Facebook Pages, confirm Page identity and access, audience fit, and content and reply capacity before selecting it.
 
 The arrows show dependencies, not action grants. `product-definition-builder` owns PRD, architecture and stack decisions; `ui-design-builder` owns directions, HiFi and Visual Approval. New full UI uses `ui-design/3` followed by the `design-system/4` Markdown/JSON/HTML package from `design-system-compiler`. Retained packages and maintenance keep their versioned rules.
 
@@ -937,6 +981,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.65.2** — Publish the complete four-language delivery flowchart. Mark PRD self-review, foundation timing, MultiAgent handoffs, existing review counts and parallel GTM inputs. Record Instagram and Threads as the current owner context, evaluate Facebook Pages and keep X optional. Preserve 85/80 and existing review budgets.
 
 - **0.65.1** — Clarify one complete PRD package author review and affected-scope rechecks before approval. Order core-journey proof and applicable load, cost, migration and recovery evidence within existing engineering tasks. Add X channel selection, content guidance and draft-to-measurement handoffs to the optional GTM skills. Explain roles, foundation timing and review limits in all four READMEs. Reuse existing records and review budgets; no new schema or review wave.
 
