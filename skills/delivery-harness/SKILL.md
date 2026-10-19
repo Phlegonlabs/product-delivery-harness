@@ -105,6 +105,8 @@ For small work:
 For initial website/app implementation, read [Initial Product Foundations](references/initial-product-foundations.md) and order prerequisites before dependent features.
 Implement local hooks first; route fixed-build external setup to separately authorized Activation preparation and deployment operations.
 
+For unproven cross-layer dependencies, apply [Early Journey And Engineering Evidence](references/execution-task-decomposition.md#early-journey-and-engineering-evidence) within existing tasks and checks.
+
 1. Inspect the bounded component and relevant instructions.
 2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. UI work requires the host frontend worker; the parent retains coordination and acceptance.
 3. Run the smallest focused checks, including security tests, that prove the change.

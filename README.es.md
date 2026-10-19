@@ -81,7 +81,7 @@ flowchart TD
   D --> B[Primer build utilizable]
   P -. Sin alcance UI .-> B
   B --> F[Configuración inicial autorizada]
-  F --> I[Funciones restantes y verificación]
+  F --> I[Recorrido principal, funciones restantes y verificación]
   I --> R[Preview del candidato y publicación]
   R --> A[Activation del release y resultados medidos]
 ```
@@ -122,6 +122,16 @@ Reutiliza PRD/architecture/stack, `docs/DEPLOYMENT.md`, `docs/ACTIVATION.md`, fi
 AEO/búsqueda usa superficies públicas aprobadas; las pantallas nativas por sí solas no satisfacen un resultado AEO. El contenido privado sigue privado. Web usa su stream GA4 y un responsable de tags; iOS/Android aplicables usan Firebase/SDK nativo. Conserva alternativas aprobadas y decisiones de no recopilar datos. Search Console forma parte de la preparación pública aplicable; indexación, citas y ranking son observaciones posteriores, no garantías de configuración.
 
 Crear una propiedad es configuración. Verifica un evento implementado en el destino debug/realtime correcto antes de afirmar recopilación. Deployment/bootstrap conserva su autorización separada de operador/proveedor fuera de Harness/RUN. Los artefactos nativos no disponibles quedan pendientes; no toman prestado un build Web. Solo espera el trabajo dependiente. Consulta [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md).
+
+#### Evidencia de ingeniería en el trabajo existente
+
+El PRD define resultados y calidad medible. La arquitectura asigna responsabilidades, estado, interfaces y recuperación. Las tareas existentes definen responsables, dependencias y aceptación ejecutable.
+
+Ante una dependencia entre capas aún no probada, verifica primero un recorrido principal real antes de ampliar sus funciones dependientes. Conserva el orden de plataformas aprobado, tareas pequeñas por capa, contratos compartidos, autoría frontend y calidad visual. El trabajo independiente continúa; las fronteras intactas reutilizan evidencia solo según las reglas de vigencia existentes. Un scaffold utilizable no demuestra por sí solo el recorrido.
+
+Selecciona pruebas de carga, latencia, coste, migración, restauración y recuperación según los NFR y TEST aprobados aplicables. Registra responsable, carga, entorno, SHA/artefacto exactos y resultado observado en el checkpoint existente con los prerrequisitos necesarios. Conserva las obligaciones de sandbox real y los permisos externos separados. Reutiliza evidencia de tareas, Deployment y Activation; la prueba ausente sigue bloqueada. No impongas umbrales universales ni otra ronda de revisión. La prueba temprana no sustituye la verificación final del candidato o release.
+
+Consulta [evidencia de ingeniería](skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence) y [autorrevisión del PRD](skills/delivery-harness/references/pre-delivery-self-review.md#prd-self-review). HiFi conserva 85/80; cada check requerido de función, seguridad y corrección de datos debe pasar.
 
 #### Número de revisiones y límites
 

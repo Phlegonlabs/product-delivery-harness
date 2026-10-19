@@ -81,7 +81,7 @@ flowchart TD
   D --> B[第一个可执行版本]
   P -. 无 UI 范围 .-> B
   B --> F[已授权的基础设置]
-  F --> I[其余功能实现与验证]
+  F --> I[核心流程、其余功能与验证]
   I --> R[候选 Preview 与正式发布]
   R --> A[正式版 Activation 与成效回顾]
 ```
@@ -122,6 +122,16 @@ flowchart TD
 AEO／搜索使用已批准的公开页面；原生界面本身不能满足 AEO 成果，私人内容保持私人。Web 使用指定 GA4 stream 与一位 tag owner，适用 iOS／Android 使用 Firebase／native SDK；保留已批准替代方案与不收集数据的决定。Search Console 设置属于适用公开搜索准备；索引、引用与排名是后续观察，不是配置完成的保证。
 
 创建 property 只代表 configured；要在指定 debug／realtime 目的地看到实现事件，才可声称已收集。Deployment／bootstrap 仍走 Harness／RUN 外的独立 operator／provider 授权。尚无原生 artifact 就保留 pending，不能借用 Web build；只阻挡依赖该前置的工作。详见 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md)。
+
+#### 在现有工作中补齐工程证据
+
+PRD 定义成果与可测量质量；architecture 定义职责、状态、接口与恢复；现有任务定义负责人、依赖顺序与可执行验收。
+
+遇到尚未证明的跨层依赖，先走通一条真实核心流程，再扩展依赖它的功能。保留已批准的平台顺序、分层小任务、共享契约、frontend ownership 与视觉质量。独立工作继续；未变边界只按原有 freshness 规则复用证据。可用 scaffold 本身不代表核心流程已通过。
+
+按适用且已批准的 NFR／TEST 选择负载、延迟、成本、迁移、还原与失败恢复测试。在具备前置条件的现有检查点，记录负责人、工作负载、环境、精确 SHA／artifact 与实际结果。保留真实 sandbox 义务及独立外部操作授权；沿用任务、Deployment、Activation 证据，缺证据就保留 blocked。不设全产品共用数值，也不增加 review wave；早期证据不替代最终候选及发布验证。
+
+详见[工程证据](skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence)与 [PRD 作者自查](skills/delivery-harness/references/pre-delivery-self-review.md#prd-self-review)。HiFi 保留 85／80；功能、安全与数据正确性的必要验收仍须逐项通过。
 
 #### 各阶段 review 次数与停止条件
 

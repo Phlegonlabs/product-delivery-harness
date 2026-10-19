@@ -81,7 +81,7 @@ flowchart TD
   D --> B[第一個可執行版本]
   P -. 無 UI 範圍 .-> B
   B --> F[已授權的基礎設定]
-  F --> I[其餘功能實作與驗證]
+  F --> I[核心流程、其餘功能與驗證]
   I --> R[候選 Preview 與正式發布]
   R --> A[正式版 Activation 與成效回顧]
 ```
@@ -122,6 +122,16 @@ flowchart TD
 AEO／搜尋使用已批准的公開頁面；原生畫面本身不能滿足 AEO 成果，私人內容保持私人。Web 使用指定 GA4 stream 與一位 tag owner，適用 iOS／Android 使用 Firebase／native SDK；保留已批准替代方案與不收集資料的決定。Search Console 設定屬適用公開搜尋準備；索引、引用與排名是後續觀察，不是設定完成的保證。
 
 建立 property 只代表 configured；要在指定 debug／realtime 目的地看到實作事件，才可聲稱已收集。Deployment／bootstrap 仍走 Harness／RUN 外的獨立 operator／provider 授權。尚未有原生 artifact 就保留 pending，不能借用 Web build；只阻擋依賴該前置的工作。詳見 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md)。
+
+#### 在既有工作中補齊工程證據
+
+PRD 定義成果與可量測品質；architecture 定義責任、狀態、介面與恢復；既有任務定義負責人、依賴順序與可執行驗收。
+
+遇到尚未證明的跨層依賴，先走通一條真實核心流程，再擴充依賴它的功能。保留已批准的平台順序、分層小任務、共享契約、frontend ownership 與視覺品質。獨立工作繼續；未變邊界只按原有 freshness 規則重用證據。可用 scaffold 本身不代表核心流程已通過。
+
+按適用且已批准的 NFR／TEST 選擇負載、延遲、成本、遷移、還原與失敗恢復測試。在具備前置條件的既有檢查點，記錄負責人、工作負載、環境、精確 SHA／artifact 與實際結果。保留真實 sandbox 義務及獨立外部操作授權；沿用任務、Deployment、Activation 證據，缺證據就保留 blocked。不設全產品共用數值，也不增加 review wave；早期證據不取代最終候選及發布驗證。
+
+詳見[工程證據](skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence)與 [PRD 作者自查](skills/delivery-harness/references/pre-delivery-self-review.md#prd-self-review)。HiFi 保留 85／80；功能、安全與資料正確性的必要驗收仍須逐項通過。
 
 #### 各階段 review 次數與停止條件
 

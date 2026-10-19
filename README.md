@@ -81,7 +81,7 @@ flowchart TD
   D --> B[First usable implementation build]
   P -. No UI scope .-> B
   B --> F[Authorized foundation setup]
-  F --> I[Remaining features and verification]
+  F --> I[Core journey, remaining features and verification]
   I --> R[Candidate Preview and production release]
   R --> A[Release-bound Activation and measured outcomes]
 ```
@@ -122,6 +122,16 @@ Use the existing PRD/architecture/stack, `docs/DEPLOYMENT.md`, `docs/ACTIVATION.
 Public AEO/search work uses approved public surfaces; native screens alone cannot satisfy an AEO outcome. Preserve private surfaces. Web uses its intended GA4 stream and one tag owner; applicable iOS/Android builds use Firebase/native SDKs. Respect approved alternatives and no-collection decisions. Search Console setup is applicable public-discovery preparation; indexing, citations and rankings are later observations, never setup guarantees.
 
 Property creation is configuration. Verify an implemented event in the intended debug/realtime destination before claiming collection. Deployment/bootstrap stays on its separately authorized operator/provider route, outside Harness/RUN. Unavailable native artifacts remain pending; never borrow a web build. Only dependent work waits. See [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md).
+
+#### Engineering evidence within existing work
+
+PRD defines outcomes and measurable quality. Architecture assigns responsibilities, state, interfaces and recovery. Existing tasks define ownership, dependency order and executable acceptance.
+
+For an unproven cross-layer dependency, first verify one real core journey before expanding dependent features. Keep approved platform order, small layer tasks, shared contracts, frontend ownership and visual quality. Independent work continues; unchanged boundaries reuse evidence only under existing freshness rules. A usable scaffold alone does not prove the journey.
+
+Choose load, latency, cost, migration, restore and failure-recovery checks from applicable approved NFRs and TESTs. Record the owner, workload, environment, exact SHA/artifact and actual result at the existing checkpoint with the required prerequisites. Preserve real-sandbox obligations and separate external-action grants. Use existing task, Deployment and Activation evidence; missing proof remains blocked. Do not impose universal targets or another review wave. Early proof does not replace final candidate or release checks.
+
+See [engineering evidence](skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence) and [PRD author self-review](skills/delivery-harness/references/pre-delivery-self-review.md#prd-self-review). HiFi retains 85/80; required functional, security and data-correctness checks must each pass.
 
 #### Review counts and stopping rules
 

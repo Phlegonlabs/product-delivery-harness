@@ -132,6 +132,12 @@
 95. 觀察真正可用 slots、isolation、RAM 和 reviewer capacity；預設 1 不是硬性單 worker 上限。
 96. Managed selector 決定 dependency-ready 且 scope／resource 不衝突的 wave；選中的 siblings 全部啟動後才等。
 
+Full engineering 沿用上述任務與驗收紀錄。遇到未證明的跨層依賴，parent 在已批准的平台順序中選一條核心流程，以既有 PRD／ARCH／TEST 連接分層小任務。共享契約先整合，再讓相依 writer 開工；不把整條流程塞進跨層大任務。Direct 同樣使用既有任務，不因此建立 PLAN/RUN。
+
+在既有整合檢查證明真實介面、狀態變化，以及必要的成功、拒絕、重試和部分失敗恢復，再擴充依賴該邊界的功能。保留原有真實 sandbox 義務；可用 scaffold 或 mock 不取代必要的真實行為證據。只阻擋相依工作，獨立工作按既有 scheduler 繼續；未變邊界按 freshness 規則重用證據。
+
+按已批准 NFR／TEST 與實際風險選負載、延遲、成本、遷移、還原及事件恢復測試，安排在前置條件就緒的既有檢查點。保留 owner、工作負載、環境、SHA／artifact、預期與實測結果；外部設定與讀回仍需各自授權並留在 Deployment／Activation。缺證據不算通過，早期測試不取代最終驗收；不新增 review wave 或重設修復預算。詳見[工程證據規則](../skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence)。
+
 ## 實作、review 與整合
 
 97. Parent 保留每份 assignment／attempt／launch 身分，核對實際 role、model、工具與 result，不能只相信 worker 自述。
