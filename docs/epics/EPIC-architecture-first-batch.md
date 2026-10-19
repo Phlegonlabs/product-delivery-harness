@@ -109,3 +109,22 @@ Do not replace a destination that appears or differs; preserve partial results a
 | --- | --- | --- |
 | 2026-10-18 entry | Source branch/HEAD clean. Both GTM names absent in the shared and Codex skill roots. Destination repository has 502 pre-existing status entries, retained in external evidence. | Source checks, local commit, normal review and guarded installation pending. |
 | 2026-10-18 X-GTM-01 source | Added X channel fit, post/thread/demo guidance, availability proof and item-to-outcome measurement joins. Updated the existing campaign template and all READMEs. | Both skill validators, standalone specification, 65 core contracts, local links/metadata, documentation weight and whitespace passed. Normal fixed-candidate review and installation pending. |
+| 2026-10-18 X-GTM-01 review | Committed `b0400508`; the normal independent review accepted all 12 changed paths and the proposed installation wrapper. | Twenty repository hashes, six external hashes and all eight staged files matched. Six semantic scenarios passed with no actionable findings. Installation remained pending at review. |
+| 2026-10-18 X-GTM-02 | Installed both reviewed complete trees. Destination commit `5864181f` adds only their eight files. | All installed hashes and both validators passed. The destination's 502 existing status entries and unrelated index were preserved. Seven-skill bundle digest is unchanged. |
+
+### X GTM Follow-up Result
+
+Source and requested local installation are complete for candidate `b04005083b8eb5b054eea61409e17d8fbb0a49c7`.
+Installed locations: `C:/Users/mps19/.agents/skills/go-to-market` and `C:/Users/mps19/.agents/skills/gtm-content`.
+The destination's scoped local commit is `5864181fcbe18200927d331c545f213da52438e5`.
+See [source, review and installation receipts](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/x-gtm-followup/result.md).
+
+The bookkeeping child changes only this Epic and the index. Earlier release and installation records remain historical evidence.
+All eight installed files match the staged, reviewed source. No existing skill directory was replaced, moved or deleted.
+The seven-skill bundle remains 0.65.0; these two standalone skills use the explicitly requested local development source.
+No current-session loaded identity is claimed. The skills become available for discovery on the next turn.
+
+Shared guidance remains current by meaning against the installed 0.65.0 template and the documented source exceptions.
+Document sync retains unknown loaded identity, first observation and unchanged historical README names; it is not an approval PASS.
+No new review wave, schema or campaign record type was added. No push, formal release, platform publication or analytics activation occurred.
+All finite checks exited; no preview or watcher was started. Live X execution and campaign outcomes remain unverified.
