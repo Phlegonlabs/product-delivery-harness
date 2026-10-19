@@ -168,3 +168,9 @@ They distinguish HiFi grading from implementation parity/page quality, cumulativ
 The focused 65-test README/skill-contract suite passed. Local links and anchors passed for all four sections; table structure, details/fences and unchanged outside sections were verified.
 `git diff --check` passed. Runtime, skill, package and release sources remain unchanged; no new wording-matching test was added.
 Test origin is the working-tree documentation candidate. Final exact-candidate independent documentation review remains pending.
+
+The independent six-path review of `e702101532a2b6da0f398f95d8979528c673cdac` found one P2 wording error: README065-1.
+The handoff summary made trusted-host publication/readback unconditional, while the released promotion contract requires it only for remote-branch Preview builds.
+All four summaries now preserve that condition and use the approved candidate-verification route otherwise. No canonical policy changed.
+The complete review found no other actionable issue. The same review assignment retains the narrow correction recheck; no extra review wave is opened.
+The corrected working tree passed all 65 contract tests, four-language structure/link checks and `git diff --check`; logs retain the precommit origin.

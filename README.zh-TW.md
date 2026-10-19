@@ -155,7 +155,7 @@ Managed 的例外 successor generation 也須引述 owner 決定，記錄 decisi
 
 `delivery-harness` 讓一位 writer、一段連貫驗證足夠的工作維持 Direct。Managed 依[階段路由](skills/delivery-harness/references/stages/managed-delivery.md)、凍結來源 joins 與 `record-observation` 前檢啟動隔離 missions；review 與修復收斂後，跑原先規劃的跨層 broad regression。
 
-Managed 先在本機關閉候選 C，再以精確 main 證據及外部 immutable anchor 收檔為 A。另行授權的 trusted-host 發布／讀回之後才跑隔離候選 gates，另行授權的 main promotion 之後才驗正式環境。A 後失敗使用原有 continuation 路線。Direct 跳過 RUN 收檔並保留固定候選。依[發布](skills/delivery-harness/references/trusted-host-publication.md)與 [promotion](skills/delivery-harness/references/branch-promotion-contract.md)契約執行。
+Managed 先在本機關閉候選 C，再以精確 main 證據及外部 immutable anchor 收檔為 A。Preview 從遠端分支建置時，另行授權的 trusted-host 發布／讀回之後才跑其隔離候選 gates；其餘依核准的候選驗證路徑執行。另行授權的 main promotion 之後才驗正式環境。A 後失敗使用原有 continuation 路線。Direct 跳過 RUN 收檔並保留固定候選。依[發布](skills/delivery-harness/references/trusted-host-publication.md)與 [promotion](skills/delivery-harness/references/branch-promotion-contract.md)契約執行。
 
 `product-activation` 沿用早期設定，驗證實際正式版，之後 Outcome Review 才使用其 verified measurement sources。選用 `go-to-market`／`gtm-content` 可在適當階段平行準備產品相符的策略與可審稿件，不授予發布、排程或傳訊權限。
 
