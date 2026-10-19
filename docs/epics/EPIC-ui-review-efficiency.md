@@ -224,3 +224,30 @@ See [review result](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48
 The parent rendered with Mermaid 11.12.0; GitHub's hosted renderer was not exercised. Tests retain their working-tree origin and matching committed bytes.
 Local documentation is complete. The final bookkeeping child changes only this Epic and the index; the reviewed README bytes remain unchanged.
 No push, release, tag change, skill installation, social publication or new workflow review wave occurred.
+
+
+## Formal Flowchart Release: v0.65.2
+
+On 2026-10-19, the owner authorized formal publication of the four-language complete flowchart.
+Reuse this Epic, the accepted diagram review and the existing release checks. Add no product or design review wave.
+Entry: clean `ui-review-thresholds` at `d46f4cf75ad3448420d42b6a5eef4b3bde84f288`.
+Observed main and v0.65.1: `dd8a52d394c93c8fc8d065502e08853c5089e12a`; remote work branch: `cc4ba123975c97695f31b979027a11b5eee9f0c6`.
+The owner instruction covers the existing branch, patch release metadata, reviewed PR/main landing, matching tag and GitHub release.
+The source release policy requires local bundle synchronization after release when its digest changes.
+Use the official installer at a quiescent boundary with backup and file/digest verification; preserve unrelated local work and standalone GTM skills.
+
+Use patch 0.65.2. The diagrams retain their approved bytes; only the current-flow version label changes.
+No schema, implementation, review budget, product decision or platform account changes.
+Previously local v0.65.1 receipts remain historical records within the same branch history.
+Route: direct, one parent writer; no consumer PLAN/RUN or new research assignment.
+Run local metadata checks, full exact-candidate CI and the normal independent source/security review.
+After PR landing, prove tree equality and require fresh complete exact-main CI and source/security review before tagging.
+Entry sync remains review_required for unknown loaded identity, first baseline and historical names; it is not a PASS.
+UI and Gitignore impact are none. Candidate verification, publication and installation are pending.
+Evidence: [release-0652](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/release-0652/).
+
+Local release checks passed: 65 metadata contracts, core skill specification, Pyflakes, documentation weight and whitespace.
+All four Mermaid sources are byte-identical to the reviewed `05f14d1c` diagrams; rendering evidence remains tied to those unchanged bytes.
+The observed main ruleset requires PRs, resolved review threads and `validate`, and forbids branch deletion and non-fast-forward updates.
+The legacy branch-protection endpoint returned 404; the effective ruleset endpoint supplies the actual rules.
+Full candidate CI, fresh source/security review and later exact-main checks remain pending.

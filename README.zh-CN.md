@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
-这是 **v0.65.1** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
+这是 **v0.65.2** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
 
 ```mermaid
 ---
@@ -981,6 +981,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.65.2** — 发布四语完整交付流程图，标明 PRD 自查、基础设置时点、MultiAgent 分工、既有 review 次数与 GTM 并行接入。记录当前 owner 同时推广 Instagram 与 Threads，Facebook Pages 待评估，X 可选。保留 85／80 门槛与既有审查额度。
 
 - **0.65.1** — 明确规定 PRD 完稿后由原作者整体自查整套文件，批准前重查受影响部分。在现有工程任务安排核心流程验证，以及适用的负载、成本、迁移与恢复证据。为可选 GTM skills 补上 X 渠道选择、内容指引和草稿到测量的衔接。四语 README 整理分工、基础设置时点与 review 上限。沿用现有记录及修复预算，不新增 schema 或 review wave。
 
