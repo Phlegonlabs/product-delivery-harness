@@ -47,6 +47,10 @@ The prerequisite does not require paid distribution membership for every local e
 5. Perform deployment/bootstrap only through its separately authorized operator/provider route under [Deployment Contract](deployment-contract.md). Harness and RUN gain no deployment authority.
 6. Resume each dependent feature when its own required setup has verified evidence. Continue independent work during access, DNS or unavailable-platform blockers.
 
+A usable scaffold alone does not prove setup readiness or completion of a core user journey.
+For unproven cross-layer dependencies, apply [Early Journey And Engineering Evidence](execution-task-decomposition.md#early-journey-and-engineering-evidence) before expanding dependent features.
+Retain the approved platform and layer order. Keep early setup and journey results distinct in existing task and operational evidence.
+
 For approved Cloudflare projects, configure the existing Workers Preview or approved alternative before dependent features need deployment.
 Set up the repository/build path, non-production bindings, required variables/secrets and production placement plan using the existing platform procedure.
 Verify one authorized initial deployment and smoke. Keep production traffic, schema changes and main promotion separately authorized.

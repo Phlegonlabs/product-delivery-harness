@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,21 +72,104 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
-Para sitios y apps, planifica AEO, descubrimiento público, despliegue, Google Analytics y build access durante Product Definition. Desde el primer build utilizable, completa la configuración autorizada antes de las funciones dependientes. Reutilízala y verifícala al publicar. La preparación inicial también cubre readback real de protección, una ruta de comentarios delimitada y manejo mínimo de errores/alertas del primer build. Sigue [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) sin otra aprobación. Los roles de entrega usan la [visión general de colaboración](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview) seleccionada por etapa; las reglas detalladas siguen controlando dispatch y evidencia.
+Este es el flujo predeterminado de **v0.65.1** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
 
-1. Instala un host soportado y los siete skills. El instalador bloquea el destino, respalda IDs gestionados, copia solo archivos tracked y verifica cada byte; reinicia el host.
-2. Empieza con `product-definition-builder`: evidencia research-first, drafting/reconciliación del candidate, decisiones explícitas de recommendations, cambios accepted, stack coherente, release targets tipados, tests, Stack Decision Checkpoint y Product Definition Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan sus lecturas obligatorias de stage.
-3. Para UI, ejecutar el preflight de Product Definition con `--ui-contract ui-design/3`, intake, tres estudios renderizados con autorrevisión del autor, selección del owner y HiFi completo. Comprobar HiFi antes de Impeccable/H1–H9 y una Visual Approval humana. Su entrada conserva ownership y approvals; authoring, self-review, preflight y domain routing usan lecturas obligatorias de stage.
-4. Compilar el par Markdown/JSON `design-system/4` y su HTML derivado desde fuentes aprobadas y validar la UI final. Un RUN 0.59 retiene `ui-design/2` solo detrás de un frozen maintenance record validado; un enhancement compila el paquete actual. Un par retenido compila schema-3 solo si su gate es `required`; si es `not_required`, registrar la disposición del par existente y vincular el reemplazo HiFi aprobado.
-5. Invoca `delivery-harness`. Su size gate mantiene directo un único escritor acotado sin cargar el archivo de etapa gestionada; el trabajo grande sigue las [rutas de etapa obligatorias](skills/delivery-harness/references/stages/managed-delivery.md) y crea PLAN-v6/RUN-v11. Obtén autorización exacta antes de cada acción que cambie estado.
-6. Antes del launch gestionado, pasa los joins y ejecuta `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`; `--probe-sandboxes` es solo diagnóstico. Usa worktrees aislados y comandos host por defecto; los contenedores seleccionados explícitamente conservan la imagen fijada y sus controles.
-7. Completa reviews exact-head, security checks ordenados, un `code-security-review` nuevo, regresión amplia y evidencia UI por plataforma.
-8. Solo para managed, cierra RUN. Ejecuta dry-run/apply de `archive_run.py` con evidencia exacta de `main` y un `--anchor-out` externo absoluto; haz commit del move con journal y del receipt como A, y reverifica contra el anchor. Direct conserva su candidate fijo y omite el archivo RUN.
-9. Con autorización action-time separada, prepara A mediante anchor y request/attempt/receipt inmutables. El trusted host los recarga, valida, publica la URL exacta sin force y firma evidencia; recovery verifica y lee A. El agente local nunca ejecuta ese argv.
-10. Ejecuta gates aislados non-production contra el candidate exacto leído. Si falla tras A, crea un PLAN/RUN de continuación desde A, cierra C2, liga el estado previo y archiva A2 con anchor nuevo.
-11. Con otra autorización exact-A, fast-forwardea el candidate sin cambios a `main`, léelo de vuelta y verifica producción.
-12. Reconcilia `product-activation` con la publicación real: reutiliza la configuración y verifica acciones autorizadas, read-back, comportamiento, readiness y fuentes de medición.
-13. Tras cada ventana por target, ejecuta Outcome Review append-only; para hosted-web público, `seo-growth-review` es opcional.
+```mermaid
+flowchart TD
+  P[Investigación y Product Definition] --> U[Direcciones y HiFi completo]
+  U --> D[Compilación del design system]
+  D --> B[Primer build utilizable]
+  P -. Sin alcance UI .-> B
+  B --> F[Configuración inicial autorizada]
+  F --> I[Recorrido principal, funciones restantes y verificación]
+  I --> R[Preview del candidato y publicación]
+  R --> A[Activation del release y resultados medidos]
+```
+
+Las flechas muestran dependencias, no permisos. `product-definition-builder` posee PRD, arquitectura y decisiones del stack; `ui-design-builder` posee direcciones, HiFi y Visual Approval. La UI completa nueva usa `ui-design/3`, seguida del paquete Markdown/JSON/HTML `design-system/4` de `design-system-compiler`. Los paquetes retenidos y el mantenimiento conservan sus reglas versionadas.
+
+#### Responsabilidades MultiAgent
+
+Los roles son responsabilidades de entrega, no modelos fijos ni una plantilla de personal obligatoria para cada etapa. El host resuelve sus bindings reales.
+
+| Rol | Responsabilidad y entrega |
+| --- | --- |
+| Owner | Decisiones existentes de investigación, producto, stack, dirección, diseño y acciones. Los agentes no conceden esas aprobaciones. |
+| Parent / integrator | Alcance, dependencias, autorización, dispatch de siblings, reconciliación, integración secuencial y handoff. |
+| Researcher / explorer | Investigación con fuentes o evidencia de archivos/símbolos, de solo lectura, para preguntas independientes sin resolver. |
+| Arquitecto, cuando hace falta | Propone contratos de interfaces, estado, confianza o migración. El parent los reconcilia y congela dentro de las decisiones aprobadas. |
+| Autor de producto / frontend | Escribe los artefactos asignados. El autor frontend vinculado posee direcciones UI, HiFi, implementación frontend y reparaciones visuales. |
+| Autor backend / general | Implementa servicios o integraciones acotadas y pruebas enfocadas. No sustituye el binding frontend. |
+| Ejecutor de pruebas, cuando ayuda | Devuelve evidencia real de comandos, entorno y resultados. Las pruebas no conceden aprobación. |
+| Reviewer independiente | Hallazgos de solo lectura en los puntos existentes, vinculados al candidato exacto y con las herramientas requeridas. |
+
+Cada delegado es un sibling enviado por el parent. Con capacidad y autorización, dos preguntas sustantivas independientes requieren dos investigadores/exploradores distintos. Inicia juntos los trabajos con dependencias listas. Un escritor posee cada checkout; la escritura paralela necesita checkouts aislados y alcances compatibles tras congelar interfaces compartidas. Los workers no crean agentes hijos, aprueban decisiones ni integran sus resultados. Consulta el [contrato de colaboración](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview).
+
+#### Cuándo preparar los fundamentos
+
+Reutiliza PRD/architecture/stack, `docs/DEPLOYMENT.md`, `docs/ACTIVATION.md`, filas TEST y evidencia existente. Estos pasos no añaden aprobación ni ronda de revisión.
+
+| Momento | Trabajo y evidencia necesaria |
+| --- | --- |
+| Product Definition | Planifica AEO/descubrimiento público, destinos y aislamiento, analítica/eventos/privacidad, build access y responsables. Registra alternativas aprobadas o no aplicabilidad explícita. |
+| Antes del primer artefacto | Observa toolchain, ruta local/CI, IDs propios de app/bundle, dispositivo/emulador y acceso de firma necesario. El provisioning externo indispensable necesita autorización separada del operador/proveedor. |
+| Antes de conectar el repo, iniciar CI o habilitar workflows | Una persona con acceso autorizado al host configura y lee la protección real del repo/ref, capacidad, reglas, checks requeridos y hora. No la prueba con push/force/delete. |
+| Primer build utilizable fijo, antes de funciones dependientes | Implementa scaffold, metadata, configuración y hooks aprobados; vincula SHA y artefacto reales. Inicia preparación Activation autorizada. Si Cloudflare está aprobado, verifica Preview aislado y smoke mediante la ruta de despliegue separada. |
+| Primer build dinámico | Proporciona consulta mínima de errores/crashes por entorno/build, redacción y símbolos/source maps aplicables. Los logs existentes del proveedor pueden bastar. |
+| Antes de pruebas externas / Preview o beta desatendida | Antes de pruebas, verifica una entrada de feedback que llegue a su responsable y conserva un informe ligado al build/contexto. Antes de operar sin supervisión, demuestra que una alerta útil llega al responsable de respuesta. |
+| Release real | Lee los objetos existentes antes de crear otros. Reutiliza la configuración y vuelve a vincular/verificar SHA/artefacto publicados, eventos, privacidad y readiness. |
+
+AEO/búsqueda usa superficies públicas aprobadas; las pantallas nativas por sí solas no satisfacen un resultado AEO. El contenido privado sigue privado. Web usa su stream GA4 y un responsable de tags; iOS/Android aplicables usan Firebase/SDK nativo. Conserva alternativas aprobadas y decisiones de no recopilar datos. Search Console forma parte de la preparación pública aplicable; indexación, citas y ranking son observaciones posteriores, no garantías de configuración.
+
+Crear una propiedad es configuración. Verifica un evento implementado en el destino debug/realtime correcto antes de afirmar recopilación. Deployment/bootstrap conserva su autorización separada de operador/proveedor fuera de Harness/RUN. Los artefactos nativos no disponibles quedan pendientes; no toman prestado un build Web. Solo espera el trabajo dependiente. Consulta [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md).
+
+#### Evidencia de ingeniería en el trabajo existente
+
+El PRD define resultados y calidad medible. La arquitectura asigna responsabilidades, estado, interfaces y recuperación. Las tareas existentes definen responsables, dependencias y aceptación ejecutable.
+
+Ante una dependencia entre capas aún no probada, verifica primero un recorrido principal real antes de ampliar sus funciones dependientes. Conserva el orden de plataformas aprobado, tareas pequeñas por capa, contratos compartidos, autoría frontend y calidad visual. El trabajo independiente continúa; las fronteras intactas reutilizan evidencia solo según las reglas de vigencia existentes. Un scaffold utilizable no demuestra por sí solo el recorrido.
+
+Selecciona pruebas de carga, latencia, coste, migración, restauración y recuperación según los NFR y TEST aprobados aplicables. Registra responsable, carga, entorno, SHA/artefacto exactos y resultado observado en el checkpoint existente con los prerrequisitos necesarios. Conserva las obligaciones de sandbox real y los permisos externos separados. Reutiliza evidencia de tareas, Deployment y Activation; la prueba ausente sigue bloqueada. No impongas umbrales universales ni otra ronda de revisión. La prueba temprana no sustituye la verificación final del candidato o release.
+
+Consulta [evidencia de ingeniería](skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence) y [autorrevisión del PRD](skills/delivery-harness/references/pre-delivery-self-review.md#prd-self-review). HiFi conserva 85/80; cada check requerido de función, seguridad y corrección de datos debe pasar.
+
+#### Número de revisiones y límites
+
+Autorrevisión, revisión independiente, comprobación automática y decisión humana son eventos distintos. Tres estudios de dirección no son tres rondas independientes.
+
+| Etapa | Revisión / verificación predeterminada y límite |
+| --- | --- |
+| Investigación y Product Definition | Tras redactar y reconciliar la investigación, el autor original realiza **una autorrevisión del paquete completo**. Revisa juntos PRD, arquitectura, stack y copias chinas: recorridos, requisitos, interfaces, riesgos y cobertura TEST. Repara hallazgos y, tras Stack Decision, comprueba cambios y consumidores compartidos antes de Product Definition Approval. El contenido intacto conserva su evidencia con identidad verificada. Sin otra ronda independiente. |
+| Estudios de dirección | Tres estudios renderizados por defecto, cada uno revisado por su autor. El owner elige; una mezcla/rechazo exige un conjunto completo revisado y otra decisión explícita. Una sola dirección recomendada requiere elección explícita. |
+| HiFi completo | Primero completitud automática y autorrevisión. Después **una ronda diagnóstica completa**; si hace falta, **un lote consolidado de reparaciones y una revisión posterior**. |
+| Contenido de cada revisión HiFi | Impeccable `critique` **y** `audit` obligatorios, cobertura completa de navegador y evaluación H1-H9 actual. Media global redondeada **mínima de 85**, cada dimensión **mínima de 80**, sin bloqueos/disputas; después **una Visual Approval**. |
+| Compilación del design system | Una secuencia coherente de validación de fuente/par/cobertura/contraste/tipo/HTML e inspección del showcase. Las reparaciones técnicas se reverifican; no hay otra selección ni ronda estética. |
+| Entrega de código Direct | Un escritor, pruebas enfocadas, autorrevisión del diff completo y un `code-security-review` del candidato exacto. Cambiar código exige nueva revisión de seguridad. UI pequeña añade un ciclo critique/repair/recheck; se detiene tras dos intentos fallidos de reparación. |
+| Entrega de código Managed | Un reviewer por superficie aplicable en cada mission antes de integrar; después revisiones nuevas del head unificado, incluida seguridad unificada. PLAN congelado declara los nodos. Runtime permite revisión inicial y una revisión tras reparación; el presupuesto se acumula en el mismo lineage. |
+| Gates UI de implementación aplicables | Final Visual Parity Loop en la matriz requerida; se detiene tras **dos rondas fallidas de reparación** dentro del presupuesto existente. Después **una revisión final page-quality de solo lectura**; sus hallazgos comparten el presupuesto. Impeccable aquí requiere autorización separada y no es el nodo reviewer predeterminado. |
+| Candidato y producción | Verifica Preview aislado y build promovido real por separado. Preview no demuestra producción. Un SHA main creado por el servidor exige igualdad de árbol, verificación completa y revisión de seguridad nuevas. Son checks de release, no rondas estéticas HiFi. |
+| Activation | Por target/acción: evidencia de configuración o acción manual, readback independiente y prueba de comportamiento aplicable. Preparación temprana y release real se verifican por separado; el número depende de los targets requeridos. |
+| Resultados | Tras la ventana real, ejecuta Outcome Review por target cuando lo solicita el owner y el aggregate multitarget aplicable. El historial solo añade entradas. `seo-growth-review` aplicable es opcional; la entrega no espera adopción. |
+
+HiFi usa un lead grader por defecto; hasta dos specialists sibling requieren petición del owner o riesgo alto registrado. Terminan la misma ronda antes de reparar. La revisión posterior sigue los defectos originales y consumidores afectados, manteniendo alcance Impeccable, navegador completo y puntuaciones actuales. Un segundo fallo termina en `blocked`. Solo una aprobación explícita de estrategia cambiada y matriz de aceptación permite una revisión sucesora excepcional. Un simple «continúa» no la autoriza. Consulta la [rúbrica HiFi](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope).
+
+Los recuentos describen pases de etapa Harness. Impeccable conserva su workflow fijado y evaluaciones internas; sus totales nativos no sustituyen H1-H9.
+
+Detente al pasar; no persigas 100. No repitas el mismo alcance sobre un candidato sin cambios. Cambiar SHA/entradas exige evidencia nueva aplicable. PLAN y el lineage original controlan nodos y reparaciones; renombrar una ronda no crea presupuesto. Consulta los [gates de implementación](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop).
+
+Reutiliza evidencia solo con las reglas existentes de ejecución exacta o árbol idéntico admisible para revisión no-security. Seguridad nunca usa ese skip.
+
+La generación sucesora excepcional de Managed también exige citar la decisión del owner, su ID y referencia al turno, estrategia estructural cambiada y matriz de aceptación. Concede una revisión adicional, sin reiniciar intentos anteriores. Consulta el [lineage de revisión](skills/delivery-harness/references/graph-orchestration.md#root-cause-repair-escalation).
+
+#### Handoff de entrega y publicación
+
+`delivery-harness` mantiene Direct cuando basta un escritor acotado y una secuencia de verificación. Managed sigue sus [rutas](skills/delivery-harness/references/stages/managed-delivery.md), joins congelados y preflight `record-observation` antes de missions aisladas. La regresión transversal planificada corre después de converger revisión y reparaciones.
+
+Managed cierra C localmente y archiva A con evidencia main exacta y anchor externo inmutable. Cuando Preview se construye desde la rama remota, publicación/readback trusted-host con autorización separada precede sus gates aislados. En otro caso, sigue la ruta aprobada de verificación del candidato. La promoción main autorizada precede verificación de producción. Fallar después de A usa la continuación existente. Direct conserva su candidato fijo y omite el archivo RUN. Sigue los contratos de [publicación](skills/delivery-harness/references/trusted-host-publication.md) y [promoción](skills/delivery-harness/references/branch-promotion-contract.md).
+
+`product-activation` reutiliza preparación y verifica el release real; Outcome Review consume sus fuentes verificadas después. `go-to-market` y `gtm-content` opcionales preparan estrategia y borradores adecuados al proyecto junto a la etapa correspondiente. No conceden publicación, programación ni mensajería.
+
+**Excepción del repositorio de skills:** este repo usa PRs revisados directamente a main protegido. Si el proveedor crea otro SHA main, las [reglas de release](skills/delivery-harness/references/governance/source-maintenance.md#required-verification) exigen verificación completa y revisión de seguridad nuevas antes del tag. La igualdad del árbol no las sustituye. Es verificación del release exacto, no otra ronda UI del producto.
 
 </details>
 
@@ -271,9 +354,14 @@ Consulta el [registro de intervalos](skills/delivery-harness/references/runtime-
 ## Skills independientes
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos según la audiencia, el posicionamiento, la voz y la capacidad del proyecto.
-[GTM Content](standalone-skills/gtm-content/SKILL.md) prepara textos por canal, briefs de recursos y calendarios propuestos para revisión del responsable.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepara posts/hilos de X y textos para otros canales, briefs y calendarios propuestos para revisión del responsable.
 Ambos referencian páginas, métricas y fuentes de medición existentes cuando están disponibles. Su ausencia no impide preparar borradores.
+Las guías de X cubren la [selección del canal](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) y el [playbook de contenido](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
+Reutiliza demos verificadas y disponibilidad real en el paquete de campaña; después vincula IDs publicados con destinos y resultados del producto.
+Separa interacción pública, clics autorizados, sesiones y acciones verificadas; la falta de acceso a analítica sigue siendo una brecha explícita.
+Estos enlaces reutilizan registros y revisiones existentes, sin añadir otra ronda de revisión.
 La aprobación del contenido, publicación, programación y configuración de medición mantienen autorizaciones separadas.
+Tras registrar por separado ambos directorios completos, usa `$go-to-market` para estrategia y `$gtm-content` para borradores.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) ayuda a otros proyectos a escribir un README de GitHub con identidad de marca, demostraciones reales, un inicio rápido útil y comprobaciones para cada plataforma de presentación. Su [biblioteca de casos fechados](standalone-skills/readme-studio/references/case-library.md) incluye Starship, Bruno, Transformers, tldraw y Vite. El trabajo visual sigue la ruta frontend del proyecto y entrega evidencia antes/después.
 
@@ -849,6 +937,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.65.1** — Aclara una autorrevisión completa del paquete PRD y comprobaciones del alcance afectado antes de aprobar. Ordena la prueba del recorrido principal y evidencia aplicable de carga, coste, migración y recuperación dentro de las tareas existentes. Añade selección de X, contenido y enlaces entre borradores y medición a los skills GTM opcionales. Explica roles, preparación y límites de revisión en los cuatro READMEs. Reutiliza registros y presupuestos; no añade schema ni ronda de revisión.
 
 - **0.65.0** — HiFi exige una media global mínima de 85 y 80 en cada dimensión H1-H9, con Impeccable obligatorio y reparaciones acotadas. Adelanta acceso de build, protección del repositorio, AEO/búsqueda, despliegue, analítica, feedback, errores y alertas a las etapas iniciales existentes. Explica la coordinación MultiAgent del parent. Añade observaciones controladas del runtime, diagnósticos del compilador y handoffs opcionales de estrategia/contenido GTM. Cambia la aceptación HiFi actual; las aprobaciones y evidencias históricas conservan su significado.
 

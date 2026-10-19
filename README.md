@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,21 +72,104 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-For websites and apps, plan AEO/public discovery, deployment, Google Analytics and build access during Product Definition. From the first usable build, complete authorized setup before dependent features; reuse it for final release verification. Startup work also covers actual protection readback, one scoped feedback route and minimum first-build error/alert handling. Follow [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) without adding another approval gate. Delivery roles use the stage-selected [collaboration overview](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview); detailed owners still govern dispatch and evidence.
+This is the **v0.65.1** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
 
-1. Install one supported host and all seven skills. The installer locks the destination, backs up managed IDs, copies only Git-tracked files, and verifies every byte. Restart the host.
-2. Start with `product-definition-builder`: research-first evidence, candidate drafting and reconciliation, explicit recommendation choices, accepted changes, coherent stack choices, typed release targets, tests, Stack Decision Checkpoint, and human Product Definition Approval. Its entry retains ownership and approvals; authoring, review, preflight and domain routing use its mandatory stage reads.
-3. For UI, run Product Definition preflight with `--ui-contract ui-design/3`, then intake, three rendered direction studies with author self-checks, owner selection and complete HiFi. Run HiFi completeness checks before Impeccable/H1–H9 and one human Visual Approval. Its entry retains ownership and approvals; authoring, self-review, preflight and domain routing use mandatory stage reads.
-4. Compile the `design-system/4` Markdown/JSON pair and its derived HTML from approved sources and pass final UI validation. A 0.59 RUN retains `ui-design/2` only behind a validated frozen maintenance record; an enhancement compiles the current package. A retained pair compiles schema 3 only when its gate is `required`; if `not_required`, record existing-pair disposition and bind the approved HiFi replacement.
-5. Invoke `delivery-harness`. Its size gate keeps one bounded writer direct without loading the managed stage file; large work follows the [mandatory stage routes](skills/delivery-harness/references/stages/managed-delivery.md) and creates PLAN-v6/RUN-v11. Obtain exact authorization before every state-changing action.
-6. Before a managed launch, pass exact source joins and run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`; `--probe-sandboxes` is diagnostic only. Execute missions in isolated worktrees and candidate commands on the host by default; explicitly selected containers retain pinned sandbox execution.
-7. Run exact-head mission reviews, graph-ordered security checks, a fresh unified `code-security-review`, broad regression gates, and platform-correct UI evidence.
-8. For managed work only, close the RUN. Dry-run/apply `archive_run.py` with exact `main` evidence and an absolute external `--anchor-out`; commit the journaled move plus `ARCHIVE_RECEIPT.json` as A and reverify it against the anchor. Direct work keeps its already verified fixed candidate and skips RUN archival.
-9. Under separate action-time authorization, prepare A through its external anchor and immutable request/attempt/receipt. The trusted host reloads and validates them, performs the exact URL-only no-force publication, signs evidence, and recovery verifies that evidence and reads back A. Local agents never execute the emitted publication argv.
-10. Run the isolated non-production candidate gates against the exact read-back candidate. If they fail after A, create a fresh continuation PLAN/RUN from exact A, close C2, bind the prior publication state, and archive A2 under a new anchor.
-11. Under a separate exact-A authorization, fast-forward the unchanged candidate to `main`, read it back, and verify production.
-12. Reconcile `product-activation` against the actual release: reuse existing setup, then verify exact approved actions, read-back, behavior, readiness and measurement sources.
-13. After every target-specific measurement window, run the strict append-only Outcome Review. Optionally run `seo-growth-review` for an exact public hosted-web production target.
+```mermaid
+flowchart TD
+  P[Research and Product Definition] --> U[Directions and complete HiFi]
+  U --> D[Design-system compilation]
+  D --> B[First usable implementation build]
+  P -. No UI scope .-> B
+  B --> F[Authorized foundation setup]
+  F --> I[Core journey, remaining features and verification]
+  I --> R[Candidate Preview and production release]
+  R --> A[Release-bound Activation and measured outcomes]
+```
+
+The arrows show dependencies, not action grants. `product-definition-builder` owns PRD, architecture and stack decisions; `ui-design-builder` owns directions, HiFi and Visual Approval. New full UI uses `ui-design/3` followed by the `design-system/4` Markdown/JSON/HTML package from `design-system-compiler`. Retained packages and maintenance keep their versioned rules.
+
+#### MultiAgent responsibilities
+
+Roles are delivery responsibilities, not fixed models or mandatory staffing at every stage. The host resolves its actual bindings.
+
+| Role | Responsibility and handoff |
+| --- | --- |
+| Owner | Existing research, product, stack, direction, visual and action decisions. Agents never supply these approvals. |
+| Parent / integrator | Scope, dependencies, authorization, sibling dispatch, result reconciliation, serial integration and handoff. |
+| Researcher / explorer | Read-only sourced research or file/symbol evidence for distinct unanswered questions. |
+| Architect, when needed | Propose interface, state, trust or migration contracts. Parent reconciles and freezes them within approved decisions. |
+| Product / frontend author | Write assigned product artifacts. The bound frontend author owns UI directions, HiFi, frontend implementation and visual repairs. |
+| Backend / general author | Implement scoped service or integration work and focused tests. It cannot substitute for the frontend binding. |
+| Test executor, when useful | Return actual command, environment and outcome evidence. Testing does not grant approval. |
+| Independent reviewer | Read-only findings at existing review points, bound to the exact candidate and required tools. |
+
+Every delegate is a parent-dispatched sibling. With capability and authorization, two independent substantive research questions require two distinct researchers/explorers. Launch dependency-ready work together. One writer owns each checkout; parallel writers need isolated checkouts and nonconflicting scopes after shared interfaces are frozen. Workers never spawn children, approve decisions or integrate their own results. See the [collaboration contract](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview).
+
+#### When foundations happen
+
+Use the existing PRD/architecture/stack, `docs/DEPLOYMENT.md`, `docs/ACTIVATION.md`, TEST rows and task evidence. These steps add no approval gate or review wave.
+
+| Time | Work and required evidence |
+| --- | --- |
+| Product Definition | Plan AEO/public discovery, deployment targets and isolation, analytics/events/privacy, build access and named owners. Record approved alternatives or explicit non-applicability. |
+| Before the first artifact | Observe toolchain, local/CI build route, owned app/bundle IDs, device/emulator and needed signing access. Necessary external provisioning uses a separate operator/provider grant. |
+| Before repository connection, CI bootstrap or workflow enablement | A person with authorized host access configures and reads back actual repo/ref protection, host capability, review rules, required checks and checked time. No push/force/delete protection test. |
+| First fixed usable build, before dependent features | Implement the approved scaffold, metadata, config and measurement hooks; bind its SHA and actual artifact. Invoke authorized Activation preparation. For approved Cloudflare projects, verify an isolated Preview deployment and smoke through the separate deployment route. |
+| First dynamic build | Provide environment/build-bound error or crash retrieval with redaction and applicable symbols/source maps. Existing provider logs may suffice. |
+| Before external trials / unattended Preview or beta | Before trials, test one feedback route to its owner and retain a build/context-linked report. Before unattended operation, prove a useful health/error alert reaches its response owner. |
+| Actual release | Read existing objects before creating anything. Reuse setup, then rebind and reverify the actual released SHA/artifact, feature events, privacy controls and readiness. |
+
+Public AEO/search work uses approved public surfaces; native screens alone cannot satisfy an AEO outcome. Preserve private surfaces. Web uses its intended GA4 stream and one tag owner; applicable iOS/Android builds use Firebase/native SDKs. Respect approved alternatives and no-collection decisions. Search Console setup is applicable public-discovery preparation; indexing, citations and rankings are later observations, never setup guarantees.
+
+Property creation is configuration. Verify an implemented event in the intended debug/realtime destination before claiming collection. Deployment/bootstrap stays on its separately authorized operator/provider route, outside Harness/RUN. Unavailable native artifacts remain pending; never borrow a web build. Only dependent work waits. See [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md).
+
+#### Engineering evidence within existing work
+
+PRD defines outcomes and measurable quality. Architecture assigns responsibilities, state, interfaces and recovery. Existing tasks define ownership, dependency order and executable acceptance.
+
+For an unproven cross-layer dependency, first verify one real core journey before expanding dependent features. Keep approved platform order, small layer tasks, shared contracts, frontend ownership and visual quality. Independent work continues; unchanged boundaries reuse evidence only under existing freshness rules. A usable scaffold alone does not prove the journey.
+
+Choose load, latency, cost, migration, restore and failure-recovery checks from applicable approved NFRs and TESTs. Record the owner, workload, environment, exact SHA/artifact and actual result at the existing checkpoint with the required prerequisites. Preserve real-sandbox obligations and separate external-action grants. Use existing task, Deployment and Activation evidence; missing proof remains blocked. Do not impose universal targets or another review wave. Early proof does not replace final candidate or release checks.
+
+See [engineering evidence](skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence) and [PRD author self-review](skills/delivery-harness/references/pre-delivery-self-review.md#prd-self-review). HiFi retains 85/80; required functional, security and data-correctness checks must each pass.
+
+#### Review counts and stopping rules
+
+An author self-check, independent review, machine check and human decision are different events. Three direction studies are not three independent review waves.
+
+| Stage | Default review / verification and limit |
+| --- | --- |
+| Research and Product Definition | After drafting and research reconciliation, the original author performs **one complete package self-review**. Review PRD, architecture, stack and Chinese copies together: journeys, requirements, interfaces, risks and TEST coverage. Repair findings, then recheck changes and shared consumers after Stack Decision before Product Definition Approval. Unchanged content retains its verified review identity. No new independent wave. |
+| Direction studies | Three rendered studies by default; the same author checks each. Owner selects the direction. A mix/rejection needs a revised complete set and another explicit decision. A single recommended direction needs an explicit owner choice. |
+| Complete HiFi | Cheap completeness check and author self-check first. Then **one complete diagnostic wave**; if needed, **one consolidated repair batch and one re-review**. |
+| HiFi checks within each pass | Required Impeccable `critique` **and** `audit`, complete required browser coverage and current H1-H9 assessment. Rounded overall mean **at least 85**, every dimension **at least 80**, no block or dispute; then **one Visual Approval**. |
+| Design-system compilation | One coherent source/pair/coverage/contrast/type/HTML validation sequence and rendered showcase inspection. Recheck affected technical repairs; no new direction-selection or aesthetic grading wave. |
+| Direct code delivery | One writer, focused checks, author complete-diff check and one exact-candidate `code-security-review`. A changed code candidate needs fresh security review. Small UI adds one critique/repair/recheck cycle and stops after two failed repair attempts. |
+| Managed code delivery | One reviewer per applicable surface at each mission head before integration, then fresh applicable-surface reviews at the unified head, including unified security. The frozen PLAN declares the nodes. Runtime review permits an initial review and one repair re-review; budgets stay cumulative across the same lineage. |
+| Implementation UI gates, when applicable | Final Visual Parity Loop over the required matrix; stop after **two failed repair rounds** within the existing budget. Then **one final read-only page-quality pass**. Its findings share that budget. Impeccable here is separately authorized, not the default reviewer node. |
+| Candidate and production | Verify isolated candidate Preview, then the actual promoted production build separately. Earlier Preview evidence cannot prove production. A server-created main SHA needs tree equality, fresh full verification and security review. These are release checks, not HiFi taste waves. |
+| Activation | Per target/action: configuration or manual evidence, independent readback and applicable behavior proof. Verify early preparation and actual release separately; action count depends on required targets. |
+| Outcomes | After the real measurement window, perform the owner-requested per-target Outcome Review and the multi-target aggregate when applicable. History is append-only. Applicable `seo-growth-review` is optional; delivery does not wait for adoption. |
+
+HiFi uses one lead grader by default; up to two specialist siblings require an owner request or recorded high-impact risk. They finish the same wave before repair. Re-review follows original defects and affected consumers while retaining mandatory Impeccable scope, complete browser coverage and current scores. After a second failed review, stop at `blocked`. One exceptional successor re-review requires explicit owner approval of a changed strategy and acceptance matrix. A generic instruction to continue is insufficient. See the [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope).
+
+The counts describe Harness stage passes. Impeccable still follows its complete pinned workflow and internal assessments; its native totals do not replace H1-H9 grading.
+
+Stop on PASS; do not chase 100. Do not repeat same-scope review on an unchanged candidate. A changed SHA/input requires applicable fresh evidence. Managed node counts and repair allowances remain governed by the PLAN and original lineage; renaming a wave never creates another budget. See the [implementation verification gates](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop).
+
+Reuse only under existing exact-execution or qualifying non-security byte-identical rules. Security review never uses that skip.
+
+Managed's exceptional successor generation also needs the quoted owner decision, its decision ID and user-turn reference, changed structural strategy and acceptance matrix. It grants exactly one extra review, not a reset of earlier attempts. See [review lineage](skills/delivery-harness/references/graph-orchestration.md#root-cause-repair-escalation).
+
+#### Delivery and release handoff
+
+`delivery-harness` keeps one bounded writer and one verification sequence direct. Managed work follows its [stage routes](skills/delivery-harness/references/stages/managed-delivery.md), frozen source joins and `record-observation` preflight before isolated missions. Run the planned broad cross-cutting regression after reviews and repairs converge.
+
+Managed closeout keeps candidate C local, then archives A with exact main evidence and an external immutable anchor. When Preview builds from the remote branch, separately authorized trusted-host publication/readback precedes its isolated candidate gates. Otherwise follow the approved candidate-verification route. Separately authorized main promotion precedes production verification. A post-A failure uses the existing continuation route. Direct work skips RUN archival and retains its fixed candidate. Follow [publication](skills/delivery-harness/references/trusted-host-publication.md) and [promotion](skills/delivery-harness/references/branch-promotion-contract.md) contracts.
+
+`product-activation` reuses early setup and verifies the actual release; Outcome Review consumes its verified measurement sources later. Optional `go-to-market` and `gtm-content` prepare project-fit strategy and reviewable drafts alongside the appropriate stage. They grant no publication, scheduling or messaging authority.
+
+**Skill-source release exception:** this repository uses reviewed PRs directly to protected main. If the provider creates a new main SHA, [source release rules](skills/delivery-harness/references/governance/source-maintenance.md#required-verification) require fresh full verification and security review before tagging. Tree equality does not replace them. This is exact-release verification, not another product UI review wave.
 
 </details>
 
@@ -271,9 +354,14 @@ See [host interval recording](skills/delivery-harness/references/runtime-perform
 ## Standalone skills
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments from the project's audience, positioning, voice and capacity.
-[GTM Content](standalone-skills/gtm-content/SKILL.md) prepares channel-specific copy, asset briefs and proposed calendars for owner review.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepares X posts/threads and other channel-specific copy, asset briefs and proposed calendars for owner review.
 Both reference existing product pages, success metrics and measurement sources when available. Missing records do not block drafting.
+X guidance covers [channel fit](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) and a [content playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
+Reuse verified demos and availability claims in the existing campaign package, then join published post IDs to destinations and product outcomes.
+Keep public engagement, authorized clicks, destination sessions and verified actions separate; missing analytics access remains an explicit gap.
+These handoffs reuse existing records and review points without adding a review wave.
 Content approval, publication, scheduling and measurement setup remain separate actions.
+After separately registering both complete skill directories, invoke `$go-to-market` for strategy and `$gtm-content` for drafts.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) helps other projects write a distinctive, brand-first GitHub README with real demonstrations, a useful quickstart and renderer-specific checks. Its [dated case library](standalone-skills/readme-studio/references/case-library.md) draws on Starship, Bruno, Transformers, tldraw and Vite. Visual work follows the target project's frontend route and includes before/after evidence.
 
@@ -849,6 +937,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.65.1** — Clarify one complete PRD package author review and affected-scope rechecks before approval. Order core-journey proof and applicable load, cost, migration and recovery evidence within existing engineering tasks. Add X channel selection, content guidance and draft-to-measurement handoffs to the optional GTM skills. Explain roles, foundation timing and review limits in all four READMEs. Reuse existing records and review budgets; no new schema or review wave.
 
 - **0.65.0** — Require HiFi overall 85 and every H1-H9 dimension 80, with mandatory Impeccable and bounded repair review. Move build access, repository-protection readback, AEO/search, deployment, analytics, feedback, errors and alerts into existing startup stages. Explain parent-owned MultiAgent collaboration. Add guarded runtime observations, advisory compiler-source diagnostics and optional GTM strategy/content handoffs. Current HiFi acceptance changes; historical approvals and evidence retain their meaning.
 

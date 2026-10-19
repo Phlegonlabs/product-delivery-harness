@@ -125,3 +125,59 @@ Verify all seven installed trees against the release. Do not install the optiona
 Source tag, PR, release, installation receipt and final state will be recorded in the [release evidence](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/release-0.65.0/result.json).
 Initial document sync remains `review_required` because loaded identity and a prior baseline are unobserved. Installed v0.64.0 bundle digest is `6336be90195397cea54de38313742217daf4b8f1475dabc6974e4bb2195e5a71`.
 Publication, verification, installation and host discovery are pending; this record does not claim their completion.
+
+### Publication And Installation Result
+
+[PR #151](https://github.com/Phlegonlabs/product-delivery-harness/pull/151) merged the fixed candidate `6b693f27693ad2ec2b6026016190c8199d45d0fa` into main at `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+Both commits have tree `46db1c84a65b7c814c15877a478f64e10f9c9bf7`.
+The [candidate CI](https://github.com/Phlegonlabs/product-delivery-harness/actions/runs/39136184985) and [fresh main CI](https://github.com/Phlegonlabs/product-delivery-harness/actions/runs/39137209402) each passed all 20 jobs, including `validate`.
+Fresh independent source/security reviews passed for both exact SHAs, covering all 64 changed paths without exclusions.
+The redundant local full Harness run was cancelled after complete candidate CI passed. Its partial log is retained and is not a local PASS.
+Other local suites passed: golden path, Product Definition, required-browser UI, compiler, Activation and SEO. Windows platform skips retain their labels; CI supplies their applicable platform coverage.
+
+[Release v0.65.0](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.0) is published, not a draft or prerelease.
+Remote annotated tag `ff811de1808439e1a845293e51c3326bf2be407a` resolves to exact main `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+The official PowerShell installer exited successfully after relevant reviews and local checks stopped. The only active related app chat was this release task.
+All seven installed skills and 439 files match the release. Source and installed bundle digest: `c65be87966a4f9d1c6ad0d3291a678462ddb265beaa328f2cd56145489b116d1`.
+The previous installation is preserved at `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261018-075348`, with its adjacent source receipt.
+The installer lock and staging directories are gone. Required external `frontend-design` and `impeccable` remain available.
+
+Post-install VERSION is 0.65.0. Template SHA-256 remains `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+A fresh semantic audit found shared AGENTS rules current, retaining intentional source-repository exceptions.
+Loaded runtime identity remains unknown. Start a fresh host session to discover the installed release; no active RUN was migrated.
+Final bookkeeping updates only the index and these three Epics. It remains a local receipt commit and is outside the tagged source.
+No branch/worktree deletion, external product setup or standalone GTM installation occurred. Detailed evidence is in the linked release result.
+
+## README 0.65 Workflow Overview
+
+The owner requested a fresh overview of the released 0.65.0 workflow, including MultiAgent roles, foundation timing and review counts.
+Entry: clean `ui-review-thresholds` at `69d4b061e8b7b378e3c4cda8fcbc072515fc511b`; released source is `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+This is a documentation clarification of existing rules. UI impact and Gitignore impact are none.
+The parent owns all four README edits. Two read-only explorers separately inspect review limits and foundation/collaboration boundaries.
+Use the existing direct route and one final independent documentation review. No PLAN/RUN or product approval wave is added.
+Keep self-checks, independent reviews, machine verification and human decisions distinct. Do not invent universal managed-review counts.
+Preserve the 85/80 thresholds, mandatory Impeccable workflow, repair budgets, authority boundaries and historical package semantics.
+Verify source links, four-language agreement, existing README contracts and the exact documentation candidate.
+The requested update authorizes local documentation edits and atomic commits. It does not request another release or installed-skill update.
+Entry document sync is `review_required` for unknown loaded identity and a first baseline; neither is a PASS.
+Implementation, focused checks and final source review are pending.
+
+Both exploration assignments completed with source anchors and matching authority hashes. The review-count assignment resumed once after a parent dispatch interruption; no source work was lost.
+The four Zero-to-one sections now contain the lifecycle diagram, eight role rows, seven foundation-timing rows and eleven review-policy rows.
+They distinguish HiFi grading from implementation parity/page quality, cumulative managed lineage budgets and exact-main release checks.
+The focused 65-test README/skill-contract suite passed. Local links and anchors passed for all four sections; table structure, details/fences and unchanged outside sections were verified.
+`git diff --check` passed. Runtime, skill, package and release sources remain unchanged; no new wording-matching test was added.
+Test origin is the working-tree documentation candidate. Final exact-candidate independent documentation review remains pending.
+
+The independent six-path review of `e702101532a2b6da0f398f95d8979528c673cdac` found one P2 wording error: README065-1.
+The handoff summary made trusted-host publication/readback unconditional, while the released promotion contract requires it only for remote-branch Preview builds.
+All four summaries now preserve that condition and use the approved candidate-verification route otherwise. No canonical policy changed.
+The complete review found no other actionable issue. The same review assignment retains the narrow correction recheck; no extra review wave is opened.
+The corrected working tree passed all 65 contract tests, four-language structure/link checks and `git diff --check`; logs retain the precommit origin.
+
+The same independent assignment verified the narrow repair and passed the complete six-path documentation scope at `3155d016bf0f5079fc058cb2f0381ebf24917af3`.
+See [review result](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/readme-065-overview/review-result.md) and [final receipt](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/readme-065-overview/result.json).
+All four READMEs retain their original content outside the Zero-to-one section. The final receipt commit changes only this Epic and the index.
+The post-change audit found shared instructions current by meaning against installed VERSION 0.65.0 and template SHA-256 `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+The installed bundle still matches released source. Loaded identity remains unknown, and document-sync findings are not a PASS.
+Local documentation work is complete; no push, release, tag change or installation occurred. All finite checks exited; no preview or watcher was started.

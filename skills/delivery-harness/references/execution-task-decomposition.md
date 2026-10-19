@@ -1,6 +1,6 @@
 # Execution Task Decomposition
 
-Use this reference when a planned task proves too broad during implementation. Execution-time refinement is bounded repair of a plan, not permission to grow an unbounded ID tree.
+Use this reference when ordering implementation tasks or refining a task that proves too broad. Execution-time refinement is bounded repair of a plan, not permission to grow an unbounded ID tree.
 
 ## Identity Model
 
@@ -72,6 +72,41 @@ Apply the project's File Size Checkpoint when a touched module reaches 500 lines
 When a task touches a required security boundary, its `trace_ids` name the existing upstream `PRD-*` and its acceptance-matrix `test_id` names the existing required `TEST-*`. The row proves the control, denial, and absence of unauthorized side effects using the declared verifier and retained evidence.
 
 The parallel write unit is always a mission, and one independently testable goal maps to one mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker. Give the mission one explicit `write_scope` that is also the writer's file ownership. When missions share an API, schema, or type contract, freeze and integrate that contract before cutting dependent mission worktrees.
+
+## Early Journey And Engineering Evidence
+
+Apply this ordering during task planning. Direct work uses its existing task record; these checks do not require PLAN/RUN.
+
+When scope introduces an unproven cross-layer dependency, the parent selects one representative core journey before expanding features that depend on it.
+Link the journey to existing PRD, ARCH and TEST IDs within the approved platform order.
+Use actual client, service, data and integration boundaries where applicable; headless products use caller/operator journeys.
+For unchanged boundaries, reuse evidence only under existing freshness rules and record why another early journey check is unnecessary.
+
+Build the journey through small tasks in the existing layer order, with shared contracts integrated before dependent writers start.
+Keep mission cohesion, one writer per checkout, mandatory frontend ownership and approved visual quality.
+The journey is an integration outcome, not permission for one task to span layers or one mission to collect unrelated work.
+At its existing integration check, verify the real interfaces, state changes and required success, denial, retry and partial-failure recovery cases.
+Respect the existing mock versus real-sandbox obligations; a mock result cannot satisfy required real behavior.
+Only work depending on an unproven boundary waits. Continue independent work under the existing scheduler and resource rules.
+
+Select engineering checks from approved NFRs and TEST obligations, according to actual product risk:
+
+| Applicable risk | Required evidence from the existing acceptance criteria |
+| --- | --- |
+| Load, latency or paid external calls | Representative workload, measured latency, quotas, retry amplification and cost per successful operation as applicable |
+| Persistent state or migration | Applicable backup restoration, version compatibility, migration failure recovery, recovery time and data-loss bounds |
+| Jobs, events or external effects | Applicable duplicate/replay handling, interruption recovery and useful alert receipt by the response owner |
+
+Keep check owners, workloads, environments and exact SHA/artifact bindings in existing task acceptance and evidence.
+Record expected and observed results separately.
+Keep operational setup and readback in Deployment/Activation records under their separate grants.
+Plan checks before dependent work. Run them at the existing task, integration or operational checkpoint that provides their prerequisites.
+Missing prerequisites block the dependent claim; planned checks and configuration alone are not observed behavior.
+Use the product's accepted targets and explicit non-applicability; do not impose universal load, cost or recovery thresholds.
+An uncovered product decision returns to its existing owner rather than becoming a guessed requirement.
+
+These checks add no independent review wave, approval, schema or evidence register.
+Early proof does not replace final exact-candidate verification, release readback or existing review and repair limits.
 
 ## Runtime Slice Gate
 

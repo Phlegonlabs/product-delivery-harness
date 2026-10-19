@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,21 +72,104 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
-网站与 App 在 Product Definition 就规划 AEO／公开搜索入口、部署、Google Analytics 与 build access。第一个可执行版本完成后，先处理已授权的基础设置，再做依赖它们的功能；正式发布时沿用设置并重新验证。启动准备也覆盖实际保护 readback、一条范围明确的反馈通道，以及第一版最低错误／警报处理。按 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md) 执行，不增加批准关卡。交付角色采用按阶段选择的[协作总览](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview)；详细规则仍管理派工与证据。
+这是 **v0.65.1** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
 
-1. 安装一个受支持的宿主和七个 skills。Installer 会锁定目标目录、备份 managed IDs、只复制 Git-tracked files，并逐字节校验；完成后重启宿主。
-2. 先用 `product-definition-builder` 完成 research-first evidence、candidate drafting/reconciliation、明确 recommendation choices、accepted 变更、coherent stack、typed release targets、tests、Stack Decision Checkpoint 与人工 Product Definition Approval。入口保留 ownership 与 approvals；撰写、自查、preflight 与 domain routing 走必要的 stage reads。
-3. UI 先以 `--ui-contract ui-design/3` 跑 Product Definition 预检，再进行 intake、三个可渲染方向研究及作者自查、owner 选择及完整 HiFi。Impeccable／H1–H9 前先验 HiFi 完整性，最后一次人工 Visual Approval。入口保留 ownership 与 approvals；撰写、自查、preflight 与 domain routing 走必要的 stage reads。
-4. 从已批准来源编译 `design-system/4` Markdown／JSON pair 及其派生 HTML，再通过最终 UI 验证。0.59 RUN 只有在通过验证且冻结的 maintenance record 支持下才可保留 `ui-design/2`；enhancement 要编译现行包。保留的 pair 只在 Need Gate 为 `required` 时编译 schema-3；`not_required` 时记录既有 pair 处置并绑定 HiFi 替代契约。
-5. 再调用 `delivery-harness`。Size gate 让单一小改动保持 direct，且不加载 managed stage file；大型工作按 [mandatory stage routes](skills/delivery-harness/references/stages/managed-delivery.md) 建立 PLAN-v6/RUN-v11。每个状态变更动作都需要精确授权。
-6. Managed launch 前先通过 frozen source joins，并执行 `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`；`--probe-sandboxes` 只作诊断。Mission 使用隔离工作树；candidate commands 默认在本地执行，明确选用容器时保留固定镜像与隔离检查。
-7. 完成 exact-head mission reviews、graph-ordered security checks、全新 unified `code-security-review`、broad regression gates 与 platform-correct UI evidence。
-8. 只有 managed 工作需要关闭 RUN：用 exact `main` evidence 与绝对 external `--anchor-out` dry-run/apply `archive_run.py`，commit journaled move 与 `ARCHIVE_RECEIPT.json` 为 A，再按 anchor 重验。Direct 工作保留已有 fixed candidate，跳过 RUN archive。
-9. 另行取得 action-time authorization，以 external anchor 与 immutable request/attempt/receipt 准备 A。Trusted host 重新读取并验证后执行 exact URL-only no-force publication、签署 evidence；recovery 验证 evidence 并读回 A。本地 agent 不执行该 argv。
-10. 对 exact read-back candidate 执行隔离的 non-production gates。如果 A 后失败，从 exact A 创建新的 continuation PLAN/RUN，关闭 C2、绑定先前 publication state，并用新 anchor 收档 A2。
-11. 另行精确授权，把未变的 candidate fast-forward 到 `main`、读回并验证 production。
-12. 对实际发布版本重新核对 `product-activation`：沿用现有设置，再验证精确授权动作、read-back、behavior evidence、readiness 与 measurement sources。
-13. 每个 target 的 measurement window 结束后执行 append-only Outcome Review；public hosted-web production target 可再选用 `seo-growth-review`。
+```mermaid
+flowchart TD
+  P[研究与 Product Definition] --> U[方向选择与完整 HiFi]
+  U --> D[设计系统编译]
+  D --> B[第一个可执行版本]
+  P -. 无 UI 范围 .-> B
+  B --> F[已授权的基础设置]
+  F --> I[核心流程、其余功能与验证]
+  I --> R[候选 Preview 与正式发布]
+  R --> A[正式版 Activation 与成效回顾]
+```
+
+箭头表示依赖，不授予操作权限。`product-definition-builder` 负责 PRD、架构与 stack 决策；`ui-design-builder` 负责方向、HiFi 与 Visual Approval。新版完整 UI 使用 `ui-design/3`，再由 `design-system-compiler` 产出 `design-system/4` Markdown／JSON／HTML。保留的旧 package 与 maintenance 按原版本规则处理。
+
+#### MultiAgent 分工
+
+角色是交付责任，不是固定模型，也不是每阶段都要配齐所有人；由 host 解析实际绑定。
+
+| 角色 | 责任与交接 |
+| --- | --- |
+| Owner | 现有研究、产品、stack、方向、视觉与操作决定；agent 不能代替人工批准。 |
+| Parent／integrator | 范围、依赖、授权、sibling 派工、结果对账、顺序整合与交接。 |
+| Researcher／explorer | 对独立且未解决的问题，提供只读研究来源或文件／symbol 证据。 |
+| Architect（需要时） | 提出接口、状态、信任或迁移契约；parent 在已批准决定内对账并冻结。 |
+| Product／frontend author | 编写被指派的产品文档；绑定的 frontend author 负责方向、HiFi、前端实现与视觉修复。 |
+| Backend／general author | 负责指定服务或整合实现与聚焦测试，不能替代 frontend 绑定。 |
+| Test executor（有帮助时） | 提供实际命令、环境与结果证据；测试不授予批准权。 |
+| Independent reviewer | 在现有审查点只读核对精确候选，并具备该审查要求的工具。 |
+
+所有 delegate 都由 parent 派为 sibling。有能力与授权时，两个独立且实质的研究问题要派两个不同 researcher／explorer；依赖就绪的工作一起启动。每个 checkout 同时只有一位 writer；并行写入要先冻结共享接口，再使用隔离 checkout 与不冲突范围。Worker 不派子代理、不代替 owner 批准，也不整合自己的结果。详见[协作契约](skills/delivery-harness/references/delegation-contract.md#delivery-collaboration-overview)。
+
+#### 基础设置的时点
+
+沿用现有 PRD／architecture／stack、`docs/DEPLOYMENT.md`、`docs/ACTIVATION.md`、TEST 与任务证据，不新增批准关卡或 review wave。
+
+| 时点 | 工作与必要证据 |
+| --- | --- |
+| Product Definition | 规划 AEO／公开搜索、部署目标与隔离、分析事件／隐私、build access 及负责人；记录已批准替代方案或明确不适用理由。 |
+| 第一个 artifact 前 | 观察工具链、本地／CI build 路径、拥有的 app／bundle ID、设备／模拟器及必要签名能力。必需的外部 provisioning 走独立 operator／provider 授权。 |
+| Repo 连接、CI bootstrap 或启用 workflow 前 | 有 host 访问权的人员设置并读回精确 repo／ref 的实际保护、host 能力、review 规则、required checks 与检查时间；不以 push／force／delete 测试保护。 |
+| 第一个固定可执行版本后、依赖功能前 | 先实现批准的 scaffold、metadata、config 与测量 hooks，绑定实际 SHA／artifact，再进入已授权 Activation 准备。已选 Cloudflare 的项目，通过独立部署路径验证隔离 Preview 与 smoke。 |
+| 第一个动态 build | 准备绑定环境／build 的最低错误或 crash 查询、脱敏及适用 symbols／source maps；现有 provider logs 足够时即可使用。 |
+| 对外试用／无人值守 Preview 或 beta 前 | 试用前，测试一条能送达负责人的反馈入口，保留 build／情境相连的报告。无人值守前，证明一项有用的健康／错误告警能送达处理人。 |
+| 实际正式版发布 | 先读回现有对象再决定是否创建，沿用设置，重新绑定并验证实际发布 SHA／artifact、功能事件、隐私控制及 readiness。 |
+
+AEO／搜索使用已批准的公开页面；原生界面本身不能满足 AEO 成果，私人内容保持私人。Web 使用指定 GA4 stream 与一位 tag owner，适用 iOS／Android 使用 Firebase／native SDK；保留已批准替代方案与不收集数据的决定。Search Console 设置属于适用公开搜索准备；索引、引用与排名是后续观察，不是配置完成的保证。
+
+创建 property 只代表 configured；要在指定 debug／realtime 目的地看到实现事件，才可声称已收集。Deployment／bootstrap 仍走 Harness／RUN 外的独立 operator／provider 授权。尚无原生 artifact 就保留 pending，不能借用 Web build；只阻挡依赖该前置的工作。详见 [Initial Product Foundations](skills/delivery-harness/references/initial-product-foundations.md)。
+
+#### 在现有工作中补齐工程证据
+
+PRD 定义成果与可测量质量；architecture 定义职责、状态、接口与恢复；现有任务定义负责人、依赖顺序与可执行验收。
+
+遇到尚未证明的跨层依赖，先走通一条真实核心流程，再扩展依赖它的功能。保留已批准的平台顺序、分层小任务、共享契约、frontend ownership 与视觉质量。独立工作继续；未变边界只按原有 freshness 规则复用证据。可用 scaffold 本身不代表核心流程已通过。
+
+按适用且已批准的 NFR／TEST 选择负载、延迟、成本、迁移、还原与失败恢复测试。在具备前置条件的现有检查点，记录负责人、工作负载、环境、精确 SHA／artifact 与实际结果。保留真实 sandbox 义务及独立外部操作授权；沿用任务、Deployment、Activation 证据，缺证据就保留 blocked。不设全产品共用数值，也不增加 review wave；早期证据不替代最终候选及发布验证。
+
+详见[工程证据](skills/delivery-harness/references/execution-task-decomposition.md#early-journey-and-engineering-evidence)与 [PRD 作者自查](skills/delivery-harness/references/pre-delivery-self-review.md#prd-self-review)。HiFi 保留 85／80；功能、安全与数据正确性的必要验收仍须逐项通过。
+
+#### 各阶段 review 次数与停止条件
+
+作者自查、独立 review、机器检查与人工决定是不同事件；三个方向研究不等于三轮独立审查。
+
+| 阶段 | 默认审查／验证与上限 |
+| --- | --- |
+| 研究与 Product Definition | 完稿及研究对账后，原作者做 **一次整套文件自我 review**，一起核对 PRD、architecture、stack 与中文副本的流程、需求、接口、风险及 TEST 覆盖。修复后，在 Stack Decision 后重查变动与共享依赖，再提交 Product Definition Approval；未变内容保留已核对身份的自查证据。不新增独立 wave。 |
+| 方向研究 | 默认三个可渲染方向，各由同一原作者自查，再交 owner 选择；混合／拒绝须修订完整组合并再作明确决定。单一建议方向须 owner 明示选择。 |
+| 完整 HiFi | 先做低成本完整性检查及作者自查，再跑 **一次完整初审**；需要修复时，最多 **一批集中修复＋一次复查**。 |
+| 每次 HiFi 审查的内容 | 必跑 Impeccable `critique` **与** `audit`、完整必要浏览器覆盖及当前 H1–H9。四舍五入的总平均 **至少 85**、每项 **至少 80**，且无 block／争议，再取得 **一次 Visual Approval**。 |
+| 设计系统编译 | 一组连贯的 source／pair／coverage／contrast／type／HTML 验证与实际展示检查；技术修复后重验受影响部分，不新增方向批准或审美评分 wave。 |
+| Direct 代码交付 | 一位 writer、聚焦测试、作者完整 diff 自查及一次精确候选 `code-security-review`；代码候选改变就要新的安全审查。小型 UI 加一个 critique／repair／recheck cycle，两次修复失败就停止。 |
+| Managed 代码交付 | 每个 mission 在整合前，按适用 surface 各一位 reviewer；统一 head 再作全新适用 surface 审查，包含统一安全审查。节点由冻结 PLAN 声明；runtime review 允许初审及一次修复复查，原 lineage 预算持续累计。 |
+| 适用的实现 UI gates | 对必要矩阵跑 Final Visual Parity Loop，在现有预算内 **两次修复失败就停止**；之后 **一次最终只读 page-quality pass**，其缺陷共用原预算。这里的 Impeccable 要另行授权，不是默认 reviewer node。 |
+| 候选与正式环境 | 隔离候选 Preview 与实际 promoted production build 分开验证；Preview 证据不能证明正式环境。Server 产生新 main SHA 时，要 tree equality、全新完整验证与安全审查；这些是发布核对，不新增 HiFi 审美 wave。 |
+| Activation | 每个 target／action 要有设置或人工操作证据、独立读回及适用行为证明；早期准备与实际正式版分开验证，动作数依必要 targets 决定。 |
+| 成效回顾 | 真实测量期结束后，执行 owner 要求的各 target Outcome Review；多 target 时再产生 aggregate。历史只追加。适用 `seo-growth-review` 可选，交付不等待 adoption。 |
+
+HiFi 默认一位 lead grader；owner 要求或已记录高影响风险时，最多增加两位 specialist sibling，仍须在同一初审 wave 完成后才修复。复查聚焦原缺陷及受影响 consumer，同时保留 Impeccable 的必需范围、完整浏览器覆盖与当前分数。第二次 review 仍失败就停在 `blocked`；只有 owner 明确批准改变策略与完整验收矩阵，才可例外增加一次 successor re-review。一般“继续”不代表批准。详见 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。
+
+这里计算 Harness 阶段的 pass 次数；Impeccable 仍须完成 pinned workflow 与内部评估，其原生总分不能替代 H1–H9。
+
+通过即停止，不追 100 分；相同候选不重复同范围 review。SHA／输入改变时，更新适用证据。Managed 节点数与修复额度仍由 PLAN 和原 lineage 掌管，不能换 wave 名称重设预算。详见[实现验证规则](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop)。
+
+只按现有 exact-execution 或符合条件的 non-security byte-identical 规则复用证据；安全审查不能使用该 skip。
+
+Managed 的例外 successor generation 也须引用 owner 决定，记录 decision ID、user-turn reference、改变的结构策略与验收矩阵；只增加一次 review，不重设先前 attempts。详见 [review lineage](skills/delivery-harness/references/graph-orchestration.md#root-cause-repair-escalation)。
+
+#### 交付与发布交接
+
+`delivery-harness` 让一位 writer、一段连贯验证足够的工作保持 Direct。Managed 按[阶段路由](skills/delivery-harness/references/stages/managed-delivery.md)、冻结来源 joins 与 `record-observation` 预检启动隔离 missions；review 与修复收敛后，跑原先规划的跨层 broad regression。
+
+Managed 先在本地关闭候选 C，再以精确 main 证据及外部 immutable anchor 归档为 A。Preview 从远端分支构建时，另行授权的 trusted-host 发布／读回之后才跑其隔离候选 gates；其余按批准的候选验证路径执行。另行授权的 main promotion 之后才验证正式环境。A 后失败使用原有 continuation 路线。Direct 跳过 RUN 归档并保留固定候选。按[发布](skills/delivery-harness/references/trusted-host-publication.md)与 [promotion](skills/delivery-harness/references/branch-promotion-contract.md)契约执行。
+
+`product-activation` 沿用早期设置，验证实际正式版，之后 Outcome Review 才使用其 verified measurement sources。可选 `go-to-market`／`gtm-content` 可在适当阶段并行准备符合产品的策略与可审稿件，不授予发布、排程或传讯权限。
+
+**Skill 源码发布特例：** 此 repo 通过已审查 PR 直接进入受保护 main。Provider 产生新的 main SHA 时，[源码发布规则](skills/delivery-harness/references/governance/source-maintenance.md#required-verification)要求在 tag 前重跑完整验证与安全审查；tree 相同也不替代。这是精确发布版本验证，不新增产品 UI review wave。
 
 </details>
 
@@ -271,9 +354,14 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 ## 独立 skills
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) 根据产品受众、定位、语气与执行能力选择渠道和实验。
-[GTM Content](standalone-skills/gtm-content/SKILL.md) 产出各渠道的完整文案、素材 brief 和建议日程，交 owner 审阅。
+[GTM Content](standalone-skills/gtm-content/SKILL.md) 产出 X 单篇／串文及其他渠道的完整文案、素材 brief 和建议日程，交 owner 审阅。
 已有产品页面、成功指标和测量来源时直接引用；缺少这些记录仍可准备草稿。
+X 指引涵盖[渠道适合度](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses)与[内容 playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter)。
+在现有 campaign package 复用已验证 demo 与可用状态，之后将实际发布的 post ID 连接到目的地与产品成果。
+分开公开互动、已授权点击数据、站内 session 与已验证行为；没有 analytics 访问权限就明列缺口。
+这些衔接沿用现有记录与审阅点，不新增 review wave。
 内容批准、发布、排程和测量设置保留各自的授权。
+另行注册两个完整 skill 目录后，用 `$go-to-market` 规划策略、`$gtm-content` 准备草稿。
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) 帮助其他项目编写有品牌特色的 GitHub README，包含真实演示、可用的快速上手及各展示平台的检查。[附日期的案例库](standalone-skills/readme-studio/references/case-library.md) 参考 Starship、Bruno、Transformers、tldraw 和 Vite。视觉工作沿用目标项目的 frontend 路由，交付前后对照证据。
 
@@ -849,6 +937,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.65.1** — 明确规定 PRD 完稿后由原作者整体自查整套文件，批准前重查受影响部分。在现有工程任务安排核心流程验证，以及适用的负载、成本、迁移与恢复证据。为可选 GTM skills 补上 X 渠道选择、内容指引和草稿到测量的衔接。四语 README 整理分工、基础设置时点与 review 上限。沿用现有记录及修复预算，不新增 schema 或 review wave。
 
 - **0.65.0** — HiFi 总分至少 85，H1–H9 每项至少 80；保留必跑 Impeccable 与有界修复复查。把 build access、Repo 保护读回、AEO／搜索、部署、分析、反馈、错误与告警放进现有启动阶段。明确定义由主协调代理负责的 MultiAgent 分工，加入受控 runtime 观测、编译来源提示及可选 GTM 策略／内容交接。当前 HiFi 验收门槛改变，历史批准与证据保留原意。
 

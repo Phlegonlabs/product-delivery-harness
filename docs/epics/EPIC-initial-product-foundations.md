@@ -104,3 +104,77 @@ Shared instructions remain current by meaning against installed template `0.64.0
 Document sync retains unknown loaded identity, first observation and unchanged historical README references; it is not an approval PASS.
 All finite checks exited. No preview, watcher, remote setting, publication, deployment or installation occurred.
 Actual host protection, feedback delivery, alert receipt and provider readiness require later authorized product execution and readback.
+
+## Release And Installation Follow-up
+
+Published in [v0.65.0](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.0) through PR #151 at main `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+The seven-skill bundle was installed and all 439 files matched the release. No external product service was configured.
+See the [publication and installation result](EPIC-ui-review-efficiency.md#publication-and-installation-result) for exact CI, independent review, backup and source evidence.
+
+## Accepted Follow-up: Engineering Evidence And PRD Self-Review
+
+The owner requested this clarification in the existing flow and records, with README updates and no additional review wave.
+Baseline: clean `ui-review-thresholds` at `7c257272424416b2f702c9359a92670e7c882e25`.
+The prior read-only architecture consultation supplies the design; its two unfinished explorer assignments supply no accepted findings.
+Use this existing foundation Epic as explicitly requested. Preserve all prior release and installation results.
+
+Project size: small. Route: direct, one parent source writer and one coherent verification sequence per atomic task.
+No new research questions remain; the accepted architecture consultation bounds the implementation.
+UI impact and gitignore impact: none. No consumer package, PLAN/RUN, new record type or schema is needed.
+Local commits retain the owner's existing `ui-review-thresholds` authorization. Publication, release and installation are outside this follow-up.
+
+| Task | Accepted outcome | Verification |
+| --- | --- | --- |
+| FE-01 | Clarify one complete PRD package author review, followed by affected-scope rechecks before existing approval. | Existing self-review and skill contracts; specification, links, documentation weight and semantic scenario review |
+| FE-02 | Order representative journey proof and applicable load, cost and recovery checks within existing tasks and records. | Existing decomposition and cross-skill contracts; specification, links, documentation weight and semantic scenario review |
+
+Update the four READMEs and Chinese workflow alongside each owning rule. Keep required Impeccable, HiFi 85/80 and all existing review budgets.
+The normal final source reviewer checks the combined fixed candidate. This adds no review node to the consumer workflow.
+Checks use finite deadlines and checkout-external logs. No preview, watcher or external product operation is needed.
+
+| Observation | Result | Remaining work |
+| --- | --- | --- |
+| 2026-10-18 entry | Current branch, clean baseline and accepted scope verified. Document sync reports unknown loaded identity and first observation. | FE-01 and FE-02 focused checks, atomic commits and normal final source review pending. |
+| 2026-10-18 FE-01 | Clarified complete package author review and affected-scope rechecks; synchronized all READMEs and the Chinese workflow. | Working-tree self-review 4, Harness contracts 65 and Product contracts 102 passed. Specification, documentation weight and whitespace passed. FE-02 and final candidate review remain pending. |
+| 2026-10-18 FE-01 commit | `0443bdab` records the self-review clarification. The parent verified its scope and clean checkout. | FE-02 implementation and the normal combined candidate review remain pending. |
+| 2026-10-18 FE-02 | Added conditional early journey ordering and risk-based engineering evidence to existing task planning, foundation routing and four READMEs. | Working-tree self-review 4, Harness contracts 65, Product contracts 102 and cross-skill 18 passed. Specification, documentation weight, local links, README structure and whitespace passed. Normal fixed-candidate source review remains pending. |
+| 2026-10-18 final source review | `525ac1f2` completes FE-02. Fresh independent review accepted all 11 changed paths and six semantic scenarios without actionable findings. | Reviewer verified all 23 source hashes and the global instructions. No live product behavior is claimed. Final source and check receipts are linked below. |
+
+### Engineering Follow-up Result
+
+FE-01 and FE-02 are complete in local source at `525ac1f226263cbd0cc0818f9a65b58a6315a417`.
+The bookkeeping child changes only this Epic and the index; review evidence remains bound to that source candidate.
+See [result and verification receipts](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/full-engineering-followup/result.md).
+
+The final combined precommit suites passed 189 tests without skips. Final narrow wording rechecks and documentation links/structure passed.
+The independent reviewer accepted the exact candidate after semantic scenario review; no product execution or live-service verification occurred.
+No new review wave, schema, validator or evidence register was added. HiFi 85/80, Impeccable and existing repair limits remain binding.
+
+Shared instructions are current by meaning against installed template 0.65.0, with the existing source-repository exceptions.
+Template SHA-256 remains `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+Document sync retains unknown loaded identity, first observation and unchanged historical README names; it is not an approval PASS.
+No push, release or installation occurred. Installed skills remain v0.65.0. All finite checks exited; no preview or watcher was started.
+
+## Formal Release Follow-up: v0.65.1
+
+On 2026-10-19, the owner requested one formal release of full engineering, PRD self-review and X/GTM changes, plus the seven-core-skill update.
+The instruction covers this existing work branch, its release metadata, reviewed PR/main landing, matching tag/GitHub release and official local installation.
+Baseline: clean `ui-review-thresholds` at `b0298b543f64051235b50700f27437d411b8eea2`.
+Observed remote main and published v0.65.0: `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
+Remote work-branch head `6b693f27` and main are ancestors of the current source; publication can fast-forward without force.
+
+Use patch version 0.65.1 under the source default. This release clarifies existing workflow obligations and adds optional GTM guidance.
+No schema, parser, new approval gate or review budget change requires a breaking bundle version.
+Keep the existing Epic records and their historical reviews. The architecture Epic owns X/GTM details.
+
+Route: direct source release with one writer. No new research questions, consumer PLAN/RUN, product deployment or UI approval is required.
+Run focused metadata checks, then the complete existing exact-candidate CI matrix and one independent source/security review.
+Land through the required PR with `validate`; preserve atomic history with a merge commit.
+For a server-created main SHA, prove tree equality and require fresh complete main CI and security review before tagging.
+After formal release, use `install.ps1` at a quiescent boundary, preserve its backups and verify every installed file and bundle digest.
+The two standalone GTM installations are outside the seven-skill installer and must retain their verified bytes.
+
+| Observation | Result | Remaining work |
+| --- | --- | --- |
+| 2026-10-19 release entry | Scope, clean baseline, main protection rules and branch ancestry verified. Only this chat was active in the observed app inventory. Installed bundle is 0.65.0, digest `c65be87966a4f9d1c6ad0d3291a678462ddb265beaa328f2cd56145489b116d1`. | Fixed candidate, complete CI, normal review, PR landing, fresh main proof, tag/release and official installation pending. |
+| 2026-10-19 release preparation | Synchronized package/lock versions, copied-skill VERSION, RUNBOOK default and four README badges/history for 0.65.1. Removed current-flow unreleased wording. | Local 65 metadata contracts, core/standalone specifications, both GTM validators, Pyflakes, documentation weight and whitespace passed. Full exact-candidate CI and independent review remain required. |

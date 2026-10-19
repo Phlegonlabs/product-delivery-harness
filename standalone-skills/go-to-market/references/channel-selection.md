@@ -22,6 +22,7 @@ No evidence means a provisional experiment, not an inferred audience.
 
 | Candidate | Fit worth testing | Content direction | Reasons to defer |
 | --- | --- | --- | --- |
+| X (Twitter) | Intended users discuss the task in reachable accounts or conversations, in the project's market and language | Specific lessons, real demos, useful replies and truthful release updates | Weak audience evidence, unavailable account access or no reply/moderation capacity |
 | Threads | A reachable audience discusses the problem and the team can join conversations | Specific observations, tips, small demos and honest questions | No audience evidence or no reply owner |
 | Facebook Pages | A relevant Page audience or a credible acquisition path exists | Useful explanations, visual proof, updates and clear next steps | Empty Page without an acquisition path, missing access or weak audience fit |
 | LinkedIn | The task belongs to an identifiable professional role or workflow | Work problems, evidence, lessons and demonstrations | Professional context adds little or claims lack proof |
@@ -34,6 +35,12 @@ No evidence means a provisional experiment, not an inferred audience.
 A Facebook Page is not a Group. Check Group rules and identity before proposing Group distribution.
 Founder-led and brand posts need separate account and voice decisions.
 Paid media, partner outreach and direct messages require a separately scoped plan and authorization.
+
+For X, distinguish the founder account, brand account and participation in another person's conversation.
+Use relevant public posts as audience or content examples, with author, date, original URL and observed context.
+Label search snippets, mirrored text and truncated embeds; they do not establish full-thread or media inspection.
+Popularity and another maker's launch results do not prove demand for this product.
+Choose a bounded experiment with an available destination and response owner; use the existing experiment record.
 
 ## Primary Sources And Refresh
 
@@ -56,3 +63,8 @@ Do not cite unseen contents as verified instructions.
 Before execution, inspect current official guidance and the intended account through an available read-only route.
 Format limits, scheduling support, API permissions and regional availability remain unverified until checked.
 An account or API access gap does not prevent strategy and draft preparation.
+
+X sources checked on 2026-10-18: [post types](https://help.x.com/en/using-x/types-of-posts),
+[threads](https://help.x.com/en/using-x/create-a-thread) and [metrics](https://docs.x.com/x-api/fundamentals/metrics).
+These document formats and measurement access, not audience fit or guaranteed distribution.
+Refresh the selected account's app/API capabilities before execution; do not assume subscription features or analytics access.
