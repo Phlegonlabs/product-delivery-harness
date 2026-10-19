@@ -174,3 +174,10 @@ The handoff summary made trusted-host publication/readback unconditional, while 
 All four summaries now preserve that condition and use the approved candidate-verification route otherwise. No canonical policy changed.
 The complete review found no other actionable issue. The same review assignment retains the narrow correction recheck; no extra review wave is opened.
 The corrected working tree passed all 65 contract tests, four-language structure/link checks and `git diff --check`; logs retain the precommit origin.
+
+The same independent assignment verified the narrow repair and passed the complete six-path documentation scope at `3155d016bf0f5079fc058cb2f0381ebf24917af3`.
+See [review result](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/readme-065-overview/review-result.md) and [final receipt](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/readme-065-overview/result.json).
+All four READMEs retain their original content outside the Zero-to-one section. The final receipt commit changes only this Epic and the index.
+The post-change audit found shared instructions current by meaning against installed VERSION 0.65.0 and template SHA-256 `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+The installed bundle still matches released source. Loaded identity remains unknown, and document-sync findings are not a PASS.
+Local documentation work is complete; no push, release, tag change or installation occurred. All finite checks exited; no preview or watcher was started.
