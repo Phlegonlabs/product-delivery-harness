@@ -178,3 +178,25 @@ The two standalone GTM installations are outside the seven-skill installer and m
 | --- | --- | --- |
 | 2026-10-19 release entry | Scope, clean baseline, main protection rules and branch ancestry verified. Only this chat was active in the observed app inventory. Installed bundle is 0.65.0, digest `c65be87966a4f9d1c6ad0d3291a678462ddb265beaa328f2cd56145489b116d1`. | Fixed candidate, complete CI, normal review, PR landing, fresh main proof, tag/release and official installation pending. |
 | 2026-10-19 release preparation | Synchronized package/lock versions, copied-skill VERSION, RUNBOOK default and four README badges/history for 0.65.1. Removed current-flow unreleased wording. | Local 65 metadata contracts, core/standalone specifications, both GTM validators, Pyflakes, documentation weight and whitespace passed. Full exact-candidate CI and independent review remain required. |
+| 2026-10-19 verified candidate | `cc4ba123` passed all 20 jobs in CI run `39230800415`. Fresh source/security review passed all 23 changed paths without exclusions. | PR #152 merged through the required mechanism; main verification remained separate. |
+| 2026-10-19 verified main | PR #152 landed at `dd8a52d3`, tree-equal to the candidate. Fresh CI run `39232230083` passed all 20 jobs and a fresh main source/security review passed. | Matching tag/release and local update proceeded only after these gates. |
+| 2026-10-19 released and installed | Published v0.65.1 at `dd8a52d3`. The official installer backed up and updated all seven local core skills; all 439 files matched. Destination commit `b5ccb9d7` records only the core skills. | Both standalone GTM trees were preserved. No publication or installation obligation remains; loaded runtime identity stays unknown. |
+
+### v0.65.1 Release And Installation Result
+
+Published [v0.65.1](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.1) through [PR #152](https://github.com/Phlegonlabs/product-delivery-harness/pull/152).
+The release tag and GitHub target resolve to main `dd8a52d394c93c8fc8d065502e08853c5089e12a`.
+Candidate and main each passed the full 20-job CI matrix and a fresh independent source/security review.
+See [publication, CI, review and installation receipts](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/release-0651/result.md).
+
+All seven core skills are installed at 0.65.1. Their 439 file hashes match the released source.
+Bundle digest: `92d85f944f9f5342a53d1cf3ca30652467daf7e57fcd4044c43404b07446d2b8`.
+The official installer retained the prior copies under `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261019-025744`.
+The adjacent `.source` receipt names the exact main SHA and clean source state.
+The local skills-store commit is `b5ccb9d79b8667ef0994cb2f880a93da31c3392d`; unrelated index and status entries were preserved.
+Both standalone GTM skills retain their existing eight verified files.
+
+This final source bookkeeping child updates only existing records and is not pushed or included in the tag.
+Shared instructions are current by meaning against installed template 0.65.1, with the documented source exceptions.
+Loaded identity remains unknown; start a fresh host session to load the installed release.
+All finite checks and installer processes exited. No preview, watcher, product deployment, X post or analytics activation occurred.

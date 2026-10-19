@@ -135,3 +135,8 @@ The owner requested formal publication of this X/GTM source with full engineerin
 Use the existing [foundation release record](EPIC-initial-product-foundations.md#formal-release-follow-up-v0651) for candidate, CI, review, main and installation evidence.
 The two locally installed GTM trees already match source `b0400508`; the seven-core-skill update must preserve them.
 Prior draft/installation reviews remain historical; the release uses fresh exact-candidate and exact-main proof under existing rules.
+
+Published in [v0.65.1](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.1) at main `dd8a52d394c93c8fc8d065502e08853c5089e12a` through PR #152.
+Candidate and main CI each passed all 20 jobs; fresh source/security reviews passed both SHAs.
+All seven core skills were officially updated and 439 files verified. The standalone GTM trees remained byte-identical.
+The foundation Epic links the exact release, backup, installation and local-commit receipts. No X campaign or measurement source was activated.

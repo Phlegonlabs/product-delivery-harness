@@ -181,3 +181,10 @@ All four READMEs retain their original content outside the Zero-to-one section. 
 The post-change audit found shared instructions current by meaning against installed VERSION 0.65.0 and template SHA-256 `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
 The installed bundle still matches released source. Loaded identity remains unknown, and document-sync findings are not a PASS.
 Local documentation work is complete; no push, release, tag change or installation occurred. All finite checks exited; no preview or watcher was started.
+
+## README Overview Publication In v0.65.1
+
+The four-language overview, role table, foundation timing and review-count explanation were published through PR #152 in v0.65.1.
+Published main: `dd8a52d394c93c8fc8d065502e08853c5089e12a`.
+HiFi 85/80, mandatory Impeccable and existing repair budgets retain their earlier meaning.
+The [foundation release result](EPIC-initial-product-foundations.md#v0651-release-and-installation-result) owns the current CI, review and seven-core-skill installation receipts.
