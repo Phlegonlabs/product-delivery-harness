@@ -75,16 +75,60 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 这是 **v0.65.1** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+    nodeSpacing: 24
+    rankSpacing: 30
+---
 flowchart TD
-  P[研究与 Product Definition] --> U[方向选择与完整 HiFi]
-  U --> D[设计系统编译]
-  D --> B[第一个可执行版本]
-  P -. 无 UI 范围 .-> B
-  B --> F[已授权的基础设置]
-  F --> I[核心流程、其余功能与验证]
-  I --> R[候选 Preview 与正式发布]
-  R --> A[正式版 Activation 与成效回顾]
+  subgraph ENG["产品与工程"]
+    direction TB
+    P["研究代理＋产品作者＋按需架构师<br/>PRD、架构、技术选择；整合研究<br/>规划 AEO、部署、分析与权限"]
+    S["原作者：1 次完整 PRD 套件自查<br/>包含架构、技术选择与中文副本<br/>修正后重查受影响范围"]
+    A["Owner：Stack Decision → 受影响范围复查<br/>→ Product Definition Approval"]
+    U["绑定的前端作者：默认 3 个已渲染方向<br/>作者逐一自查；owner 选定方向"]
+    H["完整 HiFi：完整性预检＋作者自查<br/>1 次诊断＋最多 1 次集中修正／复查<br/>每次：Impeccable critique＋audit、浏览器、H1-H9<br/>总分 ≥85；每个维度 ≥80"]
+    V["Owner：Visual Approval → 设计系统编译<br/>技术验证＋已渲染 showcase 检查<br/>新增审美 review wave：0 次"]
+    W["主代理：选 Direct 或冻结 managed PLAN/RUN<br/>确认角色、任务、TEST 与共用契约<br/>并行作者隔离 checkout；依次整合"]
+    T["Build 前：工具链、App ID、设备／签名<br/>Repo／CI 连接前：保护设置读回验证"]
+    B["第一个固定可用 build＋SHA／产物<br/>授权后隔离部署＋Activation 前置准备<br/>分析埋点；获取动态错误／crash"]
+    J["未证实的核心真实旅程先跑通，再扩展依赖功能<br/>前后端小任务＋针对性检查<br/>按风险验证失败、负载、成本、迁移／还原"]
+    N["按已选路线做独立审查<br/>Direct：作者完整 diff 自查＋1 次精确 SHA 安全审查<br/>Managed：每个就绪 mission／适用面先审再整合<br/>之后在统一候选做新的适用面＋安全审查"]
+    Q["适用 UI：parity loop，2 轮修正失败即停<br/>之后 1 次只读页面质量检查；共用既有额度<br/>更严格的 lineage 限制优先 → 最终回归"]
+    F["对外试用前：反馈入口实测送达 owner<br/>无人值守 Preview／beta 前：实收有效告警<br/>前置准备不授权试用或部署"]
+    C["隔离 candidate Preview：精确 build 验收<br/>Managed：本地 C → 归档 A；Direct：固定候选<br/>Preview 若用远程分支，另行授权发布／读回"]
+    R["另行授权 main／production 发布<br/>验证实际发布 SHA／产物<br/>服务器生成 main：树相等＋新的完整检查／安全审查"]
+    ACT["Activation：复用设置，重新绑定实际版本<br/>配置＋独立读回＋行为证据<br/>验证功能事件与量测来源"]
+    O["真实量测窗口后：按 owner 要求做 Outcome Review<br/>逐目标检查；适用时汇总<br/>交付不等待采用成效"]
+    Z["第二次 HiFi 审查失败 → blocked<br/>例外后继复查需 owner 明确决定<br/>改变策略＋验收矩阵"]
+    P --> S --> A
+    A -->|"有 UI"| U
+    U --> H
+    H -->|"通过"| V
+    H -->|"第二次失败"| Z
+    V --> W
+    A -->|"Headless"| W
+    W --> T --> B --> J --> N --> Q --> F --> C --> R --> ACT --> O
+  end
+  subgraph GTM["可选的 GTM 并行线"]
+    direction TB
+    G["PRD 阶段：go-to-market：受众、定位、渠道、成果<br/>当前 owner 情境：Instagram＋Threads 已在推广<br/>评估 Facebook Pages；X 可选"]
+    CD["gtm-content：已选渠道草稿、素材与 CTA<br/>可提前准备；标明缺少证据与可用状态"]
+    CR["既有内容审查＋owner 核准精确版本<br/>如实标明规划中／Preview／beta／已发布<br/>验证公开链接安全与实际可用状态"]
+    PUB["另行授权发布或排程<br/>读回实际帖文 ID／URL 与可见状态"]
+    M["既有活动量测<br/>分开记录互动、点击、session 与已验证行为<br/>权限或来源缺失仍为未知"]
+    G --> CD --> CR --> PUB --> M
+  end
+  P -. "受众与任务清楚" .-> G
+  J -. "已验证 demo" .-> CD
+  R -. "实际可用状态证据" .-> CR
+  ACT -. "已验证来源" .-> M
+  M -. "适用信号" .-> O
 ```
+
+实线表示阶段依赖；虚线表示可选的 GTM 输入与并行衔接。箭头不授权任何动作，也不新增 review wave。主代理全程派发同层代理，每个 checkout 只有一位作者；依赖并行工作开始前先冻结共用契约。下方 review 表保留完整限制：managed runtime review 在同一 lineage 累计最多初审 1 次＋修正复查 1 次；代码候选改变后要重新做安全审查。当前 owner 同时经营 Instagram 与 Threads，Facebook Pages 待评估，X 可选；各产品仍按受众、账号权限与产能选渠道。GTM 与 Outcome Review 不阻塞交付。增强与维护沿用各自范围和已固定规则。 选用 Facebook Pages 前，确认 Page 身份与权限、受众契合度，以及内容和回复产能。
 
 箭头表示依赖，不授予操作权限。`product-definition-builder` 负责 PRD、架构与 stack 决策；`ui-design-builder` 负责方向、HiFi 与 Visual Approval。新版完整 UI 使用 `ui-design/3`，再由 `design-system-compiler` 产出 `design-system/4` Markdown／JSON／HTML。保留的旧 package 与 maintenance 按原版本规则处理。
 

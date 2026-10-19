@@ -75,16 +75,60 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 Este es el flujo predeterminado de **v0.65.1** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
 
 ```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+    nodeSpacing: 24
+    rankSpacing: 30
+---
 flowchart TD
-  P[Investigación y Product Definition] --> U[Direcciones y HiFi completo]
-  U --> D[Compilación del design system]
-  D --> B[Primer build utilizable]
-  P -. Sin alcance UI .-> B
-  B --> F[Configuración inicial autorizada]
-  F --> I[Recorrido principal, funciones restantes y verificación]
-  I --> R[Preview del candidato y publicación]
-  R --> A[Activation del release y resultados medidos]
+  subgraph ENG["Producto e ingeniería"]
+    direction TB
+    P["Investigación + autor de producto + arquitecto cuando proceda<br/>PRD, arquitectura, stack; conciliar investigación<br/>Planificar AEO, despliegue, analítica y acceso"]
+    S["Autor original: 1 autorrevisión del paquete PRD completo<br/>Incluir arquitectura, stack y copias en chino<br/>Corregir y revisar el alcance afectado"]
+    A["Propietario: Stack Decision → revisión del alcance afectado<br/>→ Product Definition Approval"]
+    U["Autor frontend vinculado: 3 direcciones renderizadas por defecto<br/>Autorrevisión de cada una; el propietario elige"]
+    H["HiFi completo: comprobación previa + autorrevisión<br/>1 diagnóstico + como máximo 1 corrección y nueva revisión<br/>Cada pase: Impeccable critique + audit, navegador, H1-H9<br/>Total ≥85; cada dimensión ≥80"]
+    V["Propietario: Visual Approval → compilador del sistema de diseño<br/>Validación técnica + inspección del showcase renderizado<br/>0 oleadas estéticas adicionales"]
+    W["Coordinador: elegir Direct o fijar PLAN/RUN gestionado<br/>Resolver roles, tareas, TEST y contratos compartidos<br/>Aislar autores paralelos; integrar en serie"]
+    T["Antes del build: herramientas, IDs, dispositivos/firma<br/>Antes de conectar repo/CI: verificar protecciones por lectura"]
+    B["Primer build utilizable fijo + SHA/artefacto<br/>Despliegue aislado autorizado + preparación de Activation<br/>Instrumentación analítica; recuperar errores/crashes dinámicos"]
+    J["Probar el recorrido real no demostrado antes de ampliar dependencias<br/>Tareas frontend/backend acotadas + pruebas específicas<br/>Evidencia según riesgo: fallos, carga, coste, migración/restauración"]
+    N["Revisión independiente según la ruta elegida<br/>Direct: revisión del diff por autor + 1 revisión de seguridad del SHA<br/>Gestionada: revisar cada misión/superficie lista antes de integrar<br/>Después: revisiones nuevas de superficies aplicables + seguridad unificada"]
+    Q["UI aplicable: paridad; parar tras 2 rondas de corrección fallidas<br/>Después 1 revisión de calidad de página de solo lectura; presupuesto compartido<br/>Prevalece el límite de linaje más estricto → regresión final"]
+    F["Antes de pruebas externas: feedback probado hasta su responsable<br/>Antes de Preview/beta sin supervisión: alerta útil recibida<br/>La preparación no autoriza pruebas ni despliegues"]
+    C["Preview candidato aislado: aceptación del build exacto<br/>Gestionada: C local → archivo A; Direct: candidato fijo<br/>Si Preview usa rama remota: publicación/lectura autorizadas aparte"]
+    R["Publicación main/producción autorizada por separado<br/>Verificar SHA/artefacto realmente publicado<br/>Main creado por servidor: árbol igual + pruebas completas/seguridad nuevas"]
+    ACT["Activation: reutilizar configuración y vincular versión real<br/>Configuración + lectura independiente + prueba de comportamiento<br/>Verificar eventos y fuentes de medición"]
+    O["Tras la ventana real: Outcome Review solicitado<br/>Por objetivo; agregado cuando proceda<br/>La entrega no espera a la adopción"]
+    Z["Segunda revisión HiFi fallida → blocked<br/>Sucesora excepcional: decisión explícita del propietario<br/>Estrategia distinta + matriz de aceptación"]
+    P --> S --> A
+    A -->|"Con UI"| U
+    U --> H
+    H -->|"Aprobado"| V
+    H -->|"Segundo fallo"| Z
+    V --> W
+    A -->|"Headless"| W
+    W --> T --> B --> J --> N --> Q --> F --> C --> R --> ACT --> O
+  end
+  subgraph GTM["GTM paralelo opcional"]
+    direction TB
+    G["Durante el PRD: go-to-market: público, posicionamiento, canales y resultado<br/>Contexto actual: Instagram + Threads activos<br/>Evaluar Facebook Pages; X opcional"]
+    CD["gtm-content: borradores, recursos y CTA de canales elegidos<br/>Pueden empezar pronto; indicar evidencia pendiente y disponibilidad"]
+    CR["Revisión de contenido existente + aprobación de la revisión exacta<br/>Declarar disponibilidad real: prevista / Preview / beta / publicada<br/>Verificar destino público seguro y disponibilidad real"]
+    PUB["Publicación o programación autorizada por separado<br/>Leer ID/URL reales del mensaje y su visibilidad"]
+    M["Medición de campaña existente<br/>Separar interacción, clics, sesiones y acciones verificadas<br/>Acceso o fuentes ausentes siguen desconocidos"]
+    G --> CD --> CR --> PUB --> M
+  end
+  P -. "Público y tarea claros" .-> G
+  J -. "Demo verificada" .-> CD
+  R -. "Evidencia de disponibilidad real" .-> CR
+  ACT -. "Fuentes verificadas" .-> M
+  M -. "Señales aplicables" .-> O
 ```
+
+Las flechas continuas indican dependencias; las discontinuas indican entradas opcionales y conexiones paralelas de GTM. No conceden acciones ni añaden oleadas de revisión. El coordinador asigna agentes hermanos; cada checkout tiene un autor. Fije contratos compartidos antes del trabajo paralelo dependiente. La tabla inferior conserva los límites: revisión gestionada inicial y una nueva revisión tras corrección, acumuladas por linaje. Los cambios de código requieren nueva revisión de seguridad. El propietario usa Instagram y Threads; Facebook Pages queda por evaluar y X es opcional. Cada producto elige canales según público, acceso y capacidad. GTM y Outcome Review no bloquean la entrega. Las mejoras y el mantenimiento conservan sus rutas acotadas y reglas fijadas. Antes de elegir Facebook Pages, confirme identidad y acceso a la página, público y capacidad de contenido y respuesta.
 
 Las flechas muestran dependencias, no permisos. `product-definition-builder` posee PRD, arquitectura y decisiones del stack; `ui-design-builder` posee direcciones, HiFi y Visual Approval. La UI completa nueva usa `ui-design/3`, seguida del paquete Markdown/JSON/HTML `design-system/4` de `design-system-compiler`. Los paquetes retenidos y el mantenimiento conservan sus reglas versionadas.
 

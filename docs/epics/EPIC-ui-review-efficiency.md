@@ -188,3 +188,32 @@ The four-language overview, role table, foundation timing and review-count expla
 Published main: `dd8a52d394c93c8fc8d065502e08853c5089e12a`.
 HiFi 85/80, mandatory Impeccable and existing repair budgets retain their earlier meaning.
 The [foundation release result](EPIC-initial-product-foundations.md#v0651-release-and-installation-result) owns the current CI, review and seven-core-skill installation receipts.
+
+## README v0.65.1 Complete Flowchart
+
+On 2026-10-19, the owner requested one complete lifecycle diagram in all four READMEs.
+The owner confirmed that Instagram and Threads are both active channels. Facebook Pages remains a candidate; X remains optional.
+This channel context belongs to the current owner. Other products still select channels by audience, access and capacity.
+
+Entry: clean `ui-review-thresholds` at `b94ed8500b1703d51d9d3005b93c6c5d6aa780c6`.
+The parent owns four README edits and this existing Epic/index update. One writer and one coherent verification sequence use the direct route.
+UI impact and Gitignore impact are none. No skill source, release version, installed skill or product approval changes.
+The diagrams show PRD self-review before either UI or headless execution, foundation timing, existing review counts and parallel GTM inputs.
+GTM drafts, content approval, separately authorized publication and actual measurement remain distinct.
+Facebook Pages evaluation checks Page identity/access, audience fit, content capacity and reply ownership before adoption.
+No Page or social account was connected, inspected or modified.
+
+Use the existing final independent documentation review; no product review wave, PLAN/RUN or new record is added.
+Focused checks cover real Mermaid rendering, four-language topology, retained README sections, links and existing README/skill contracts.
+Evidence is retained in [the flowchart task directory](C:/Users/mps19/.codex/visualizations/2026/10/18/01a14ddc-a48e-7f33-bbdc-912f5d10aa9b/readme-0651-flowchart/).
+Entry document sync is `review_required`: loaded identity and prior baseline are unobserved; historical legacy-name findings remain reference material.
+This task authorizes local documentation edits and atomic commits. Publication and installation are outside this follow-up.
+Final checks and exact-candidate independent review are pending.
+
+Working-tree checks passed: all 65 existing README/skill-contract tests, local overview links/anchors, table/fence structure and `git diff --check`.
+All four 23-node diagrams rendered with Mermaid 11.12.0 and Playwright Chromium. PNG/SVG evidence includes the earlier diagram for comparison.
+The task changes only the first diagram and its new explanatory caption in each README; all prior prose and other diagrams remain intact.
+Shared instructions are current by meaning against installed VERSION 0.65.1 and template SHA-256 `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+The audit retains the source repository's intentional reading, Git, stage-binding, deployment and activation exceptions.
+No public platform capability, account readiness or adoption result is inferred. Loaded runtime identity remains unknown.
+The browser closed after rendering. No preview server or watcher was started.
