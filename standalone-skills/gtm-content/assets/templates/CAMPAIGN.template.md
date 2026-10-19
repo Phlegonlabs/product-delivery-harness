@@ -34,6 +34,8 @@ Repeat per item with a stable ID and revision:
 - Destination and public links, including proposed tracking identifiers where appropriate.
 - Media files or briefs, visible copy, alt text, provenance/rights and production gaps.
 - Evidence for public facts, available release and claims needing review.
+- Availability claim: preview, beta, released or planned; link supporting build/release or demonstration evidence when applicable.
+- Selected post type and sequence/reply target when applicable; keep capability and link-preview checks separate from copy approval.
 - Proposed time/timezone, visibility, dependencies and responsible owner.
 - Review state: draft, changes requested or owner-approved, with the actual owner decision source when present.
 
@@ -48,6 +50,9 @@ Record missing sources and attribution limits. Tagged links do not prove collect
 Separate engagement, product use and retained use. Do not create monitoring from this proposal.
 When available, reference existing product page/operation IDs, exact PRD metric names and applicable Activation `MS-*` sources.
 Preserve their definitions, release scope and source status. Missing records do not block drafting; state the gaps.
+Join each item/revision and eventual post ID/URL to its destination and intended outcome here.
+For threads, retain individual post IDs and define aggregation without inventing unique viewers or missing click data.
+Distinguish public engagement, account-authorized clicks, destination sessions and verified product actions, with each source's available window.
 Keep campaign results here and link any separate release-bound product outcome record. Link accepted follow-up work to its existing Epic.
 
 ## Owner Review And Publishing Handoff

@@ -6,7 +6,7 @@ description: Plan a product's go-to-market strategy from its audience, positioni
 # Go To Market
 
 Turn the project's actual promise into a focused route to suitable users.
-Choose channels from audience evidence and operating capacity. Threads and Facebook Pages are candidates, not default requirements.
+Choose channels from audience evidence and operating capacity. X, Threads and Facebook Pages are candidates, not default requirements.
 
 ## Ground The Strategy
 
@@ -56,6 +56,8 @@ Reuse existing landing pages or store/signup routes. Send a missing destination 
 When product records exist, link the existing page or operation ID and exact success-metric name.
 For applicable public pages, connect supported search intent to that page's responsibility and next action.
 Keep unsupported intent claims as hypotheses; do not create a second page inventory.
+Use existing verified journey or release evidence for demonstrations. Keep preview, beta, released and planned availability explicit in each brief.
+Drafting can start before release; missing public access or proof remains a dependency, not a reason to expose a private environment.
 Prepare concrete briefs for the selected channels. Use `gtm-content` when available, or draft from those briefs directly.
 The companion skill is optional; neither route grants publication authority.
 

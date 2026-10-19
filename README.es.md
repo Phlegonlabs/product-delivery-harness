@@ -354,9 +354,14 @@ Consulta el [registro de intervalos](skills/delivery-harness/references/runtime-
 ## Skills independientes
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos según la audiencia, el posicionamiento, la voz y la capacidad del proyecto.
-[GTM Content](standalone-skills/gtm-content/SKILL.md) prepara textos por canal, briefs de recursos y calendarios propuestos para revisión del responsable.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepara posts/hilos de X y textos para otros canales, briefs y calendarios propuestos para revisión del responsable.
 Ambos referencian páginas, métricas y fuentes de medición existentes cuando están disponibles. Su ausencia no impide preparar borradores.
+Las mejoras de X aún no publicadas cubren la [selección del canal](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) y el [playbook de contenido](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
+Reutiliza demos verificadas y disponibilidad real en el paquete de campaña; después vincula IDs publicados con destinos y resultados del producto.
+Separa interacción pública, clics autorizados, sesiones y acciones verificadas; la falta de acceso a analítica sigue siendo una brecha explícita.
+Estos enlaces reutilizan registros y revisiones existentes, sin añadir otra ronda de revisión.
 La aprobación del contenido, publicación, programación y configuración de medición mantienen autorizaciones separadas.
+Tras registrar por separado ambos directorios completos, usa `$go-to-market` para estrategia y `$gtm-content` para borradores.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) ayuda a otros proyectos a escribir un README de GitHub con identidad de marca, demostraciones reales, un inicio rápido útil y comprobaciones para cada plataforma de presentación. Su [biblioteca de casos fechados](standalone-skills/readme-studio/references/case-library.md) incluye Starship, Bruno, Transformers, tldraw y Vite. El trabajo visual sigue la ruta frontend del proyecto y entrega evidencia antes/después.
 

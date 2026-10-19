@@ -354,9 +354,14 @@ See [host interval recording](skills/delivery-harness/references/runtime-perform
 ## Standalone skills
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments from the project's audience, positioning, voice and capacity.
-[GTM Content](standalone-skills/gtm-content/SKILL.md) prepares channel-specific copy, asset briefs and proposed calendars for owner review.
+[GTM Content](standalone-skills/gtm-content/SKILL.md) prepares X posts/threads and other channel-specific copy, asset briefs and proposed calendars for owner review.
 Both reference existing product pages, success metrics and measurement sources when available. Missing records do not block drafting.
+The unreleased X additions cover [channel fit](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses) and a [content playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter).
+Reuse verified demos and availability claims in the existing campaign package, then join published post IDs to destinations and product outcomes.
+Keep public engagement, authorized clicks, destination sessions and verified actions separate; missing analytics access remains an explicit gap.
+These handoffs reuse existing records and review points without adding a review wave.
 Content approval, publication, scheduling and measurement setup remain separate actions.
+After separately registering both complete skill directories, invoke `$go-to-market` for strategy and `$gtm-content` for drafts.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) helps other projects write a distinctive, brand-first GitHub README with real demonstrations, a useful quickstart and renderer-specific checks. Its [dated case library](standalone-skills/readme-studio/references/case-library.md) draws on Starship, Bruno, Transformers, tldraw and Vite. Visual work follows the target project's frontend route and includes before/after evidence.
 

@@ -3,6 +3,29 @@
 Read selected channels only. These approaches are not guaranteed reach or a universal tone.
 The project's audience, voice and evidence take precedence.
 
+## X (Twitter)
+
+Name the intended founder or brand account, audience and post type before preparing execution-ready copy.
+Use one post for a focused outcome or observation. Use a numbered thread when connected steps need more context.
+Show every item in the thread together for review, including its intended order and any reply or quote target.
+Read the original conversation before drafting a reply or quote. Another account's audience is not an owned distribution channel.
+
+Build from a concrete user task, supported result and appropriate next action, using the project's voice.
+For a release or demo, state what users can do, show real evidence and identify the available destination.
+Label preview, beta, released and planned states accurately. Keep unavailable features and private preview links out of public availability claims.
+Reuse approved screenshots or short demonstrations when useful; retain asset provenance, alt text and any missing production work.
+Choose a reply/moderation owner when discussion is intended. Do not require hashtags, a posting cadence or engagement tactics.
+
+For public website destinations, inspect their existing Open Graph/Twitter metadata, reachable image and observed link preview when available.
+Metadata alone does not prove X rendered the card. Record inaccessible previews as unverified; never expose private resources to obtain one.
+Preserve destination behavior and existing tracking conventions. Route implementation or measurement gaps to their existing owners.
+
+Checked 2026-10-18: [X post types](https://help.x.com/en/using-x/types-of-posts) and [thread guidance](https://help.x.com/en/using-x/create-a-thread).
+Longer posts depend on account capabilities; app and API limits must be checked for the actual publishing route.
+Keep current format, media and scheduling limits as execution checks, not guessed constants or prerequisites for drafting.
+The card-markup documentation route was inaccessible during this check; no current card dimensions or validator capability are asserted here.
+Use the existing package review and publishing handoff. Release completion alone grants no post, reply, schedule or message action.
+
 ## Threads
 
 Start with a specific observation, tip, small demonstration or question the intended audience can answer.

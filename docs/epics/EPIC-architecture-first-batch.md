@@ -77,3 +77,35 @@ No push, formal release, installation, deployment or monitoring activation occur
 Published in [v0.65.0](https://github.com/Phlegonlabs/product-delivery-harness/releases/tag/v0.65.0) through PR #151 at main `8847b027d73deb711ff33fb7b8a71c9a7363803c`.
 The seven-skill bundle was installed and all 439 files matched the release. Standalone GTM sources remain optional and uninstalled.
 See the [publication and installation result](EPIC-ui-review-efficiency.md#publication-and-installation-result) for exact CI, independent review, backup and source evidence.
+
+## Accepted Follow-up: X Content And Local GTM Installation
+
+On 2026-10-18, the owner requested X channel selection, a content playbook, draft/measurement handoffs and four-language README updates.
+The owner explicitly requested reuse of existing records, no new review wave, and installation of both GTM skills locally.
+Baseline: clean `ui-review-thresholds` at `85502fd4cb08f7fb5eed237d73fc70542f4d0f8c`.
+The preceding three-agent research supplies the accepted direction; original X posts are examples, not effectiveness evidence.
+Official X post-type, thread and metrics documentation was refreshed on 2026-10-18. The card-markup route was inaccessible.
+
+Route: small direct source task, one parent writer, normal final independent source review before installation.
+No unanswered research decomposition remains. UI impact and gitignore impact are none.
+Use this existing GTM Epic as requested; preserve all historical release and installation results.
+
+| Task | Accepted outcome | Verification |
+| --- | --- | --- |
+| X-GTM-01 | Add X fit, content and campaign measurement guidance in existing skills and READMEs. | Skill validation, links/metadata, focused contracts and normal independent scenario review |
+| X-GTM-02 | Install both complete reviewed GTM trees under `C:/Users/mps19/.agents/skills`. | Stage/hash comparison, absent-destination guard, exact eight-file readback and a scoped local installation commit |
+
+The source change preserves existing content approval and external action boundaries, optional dependencies and review budgets.
+No source push, formal release, platform publication, account access or analytics activation is authorized by this follow-up.
+The seven-skill bundle and its installers remain unchanged.
+
+The GitHub installer CLI only accepts remote refs; this local candidate is unpublished.
+Use its existing name/skill validation and no-overwrite copy helpers for this explicitly requested local source installation.
+Stage both complete trees outside the checkout, verify hashes, then register only the two absent skill directories.
+The destination's AGENTS rules were read. Existing changes in its Git repository must remain outside the installation commit.
+Do not replace a destination that appears or differs; preserve partial results and report a concrete conflict.
+
+| Observation | Result | Remaining work |
+| --- | --- | --- |
+| 2026-10-18 entry | Source branch/HEAD clean. Both GTM names absent in the shared and Codex skill roots. Destination repository has 502 pre-existing status entries, retained in external evidence. | Source checks, local commit, normal review and guarded installation pending. |
+| 2026-10-18 X-GTM-01 source | Added X channel fit, post/thread/demo guidance, availability proof and item-to-outcome measurement joins. Updated the existing campaign template and all READMEs. | Both skill validators, standalone specification, 65 core contracts, local links/metadata, documentation weight and whitespace passed. Normal fixed-candidate review and installation pending. |

@@ -354,9 +354,14 @@ Use delivery-harness on this host to execute this plan. Observe native capabilit
 ## 独立 skills
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) 根据产品受众、定位、语气与执行能力选择渠道和实验。
-[GTM Content](standalone-skills/gtm-content/SKILL.md) 产出各渠道的完整文案、素材 brief 和建议日程，交 owner 审阅。
+[GTM Content](standalone-skills/gtm-content/SKILL.md) 产出 X 单篇／串文及其他渠道的完整文案、素材 brief 和建议日程，交 owner 审阅。
 已有产品页面、成功指标和测量来源时直接引用；缺少这些记录仍可准备草稿。
+尚未发布的 X 补强涵盖[渠道适合度](standalone-skills/go-to-market/references/channel-selection.md#channel-hypotheses)与[内容 playbook](standalone-skills/gtm-content/references/channel-playbooks.md#x-twitter)。
+在现有 campaign package 复用已验证 demo 与可用状态，之后将实际发布的 post ID 连接到目的地与产品成果。
+分开公开互动、已授权点击数据、站内 session 与已验证行为；没有 analytics 访问权限就明列缺口。
+这些衔接沿用现有记录与审阅点，不新增 review wave。
 内容批准、发布、排程和测量设置保留各自的授权。
+另行注册两个完整 skill 目录后，用 `$go-to-market` 规划策略、`$gtm-content` 准备草稿。
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) 帮助其他项目编写有品牌特色的 GitHub README，包含真实演示、可用的快速上手及各展示平台的检查。[附日期的案例库](standalone-skills/readme-studio/references/case-library.md) 参考 Starship、Bruno、Transformers、tldraw 和 Vite。视觉工作沿用目标项目的 frontend 路由，交付前后对照证据。
 

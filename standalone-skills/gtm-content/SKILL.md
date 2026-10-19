@@ -1,6 +1,6 @@
 ---
 name: gtm-content
-description: Turn a project's positioning and channel choices into reviewable campaign content, including Threads posts, Facebook Page posts, supporting copy, asset briefs and a proposed calendar. Use for launch or ongoing content preparation; do not publish, schedule or send messages.
+description: Turn a project's positioning and channel choices into reviewable campaign content, including X posts and threads, Threads posts, Facebook Page posts, asset briefs and a proposed calendar. Use for launch or ongoing content preparation; do not publish, schedule or send messages.
 ---
 
 # GTM Content
@@ -54,6 +54,11 @@ Reuse tracking conventions or propose non-sensitive identifiers; state measureme
 Reference existing product page/operation IDs, exact success-metric names and applicable Activation `MS-*` sources when available.
 Preserve source status and scope. Missing records or unverified sources remain gaps, not prerequisites for preparing drafts.
 Check destination behavior. Tagged links do not prove conversion tracking.
+
+Reuse verified product demonstrations and existing campaign items for the draft-to-measurement handoff.
+Keep each item's revision, availability claim, supporting build/release, destination and intended product outcome together.
+Readiness and content approval do not authorize publication. Later publisher readback adds the actual post ID/URL to the same record.
+Review aggregate results through the existing experiment workflow when requested; no new review wave or automatic monitoring is added.
 
 Review facts, brand voice, native language, channel fit, CTA, media rights, accessibility and workload.
 Refresh official format limits and account capabilities before calling an item execution-ready.
