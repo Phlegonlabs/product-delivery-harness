@@ -120,6 +120,15 @@ CONSTRUCTED = {
                                                                          + "\n    return Promise.all(anims.map(a => a.finished)).then(() => {});"),
 }
 TAKEN_AFTER_END = rise("return Promise.all(anims.map(a => a.finished)).then(() => { " + DONE + " anims.forEach(a => { " + TAKE + "; }); });")
+# An independent plain Animation the runtime never captured runs beside the tracked reveal; that route is unsupported.
+NATIVE = ('%s.forEach(node => new Animation(new KeyframeEffect(node, [{transform: "translateX(0px)"}, {transform: "translateX(12px)"}], '
+          '{duration: 650%s}), document.timeline).play());')
+UNTRACKED = {
+    "finite plus constructed infinite": extra(NATIVE % ("marks", ", iterations: Infinity")),
+    # The finite one ends before the reveal does; its invalidity is sticky, so a later finish cannot lend a PASS.
+    "finite plus constructed finite": extra(NATIVE % ("marks", "")),
+}
+OUTSIDE = extra(NATIVE % ('document.querySelectorAll(".kiln-side")', ", iterations: Infinity"))
 # Product code retains its reveal; after Stop it tries to retarget, clear, replace and remove the paused effects.
 RETAINED = rise("window.kilnAnims = anims;" + END)
 STOP_SETTERS = base.HELPERS + r"""
@@ -280,6 +289,32 @@ class AcceptanceBrowserTests(unittest.TestCase):
         report, modes = self.accept("constructor-midflight", CONSTRUCTED["idle constructor takes effect midflight with end state"])
         self.assertEqual("FAIL", report["verdict"])
         self.assertEqual("invalid", modes["normal"]["first"], modes["normal"])
+
+    def test_untracked_native_animation_on_the_subject_fails(self):
+        self.require()
+        cases = {name: ("kiln-rise", script, CSS) for name, script in UNTRACKED.items()}
+        cases.update({"constructed outside the subject": ("kiln-rise", OUTSIDE, CSS),
+                      "control: ordinary finite reveal": ("kiln-rise", fixture.PRODUCT_SCRIPT, CSS),
+                      "control: playing constructor takes effect": ("kiln-rise", CONSTRUCTED["playing constructor takes effect midflight"], CSS),
+                      # The waapi step row shares its subject with running CSS stripes; those stay outside this check.
+                      "control: waapi steps beside css stripes": ("belt-step", fixture.PRODUCT_SCRIPT, CSS)})
+        out = self.phases(cases)
+        self.assert_invalid(out, list(UNTRACKED) + ["control: playing constructor takes effect"])
+        for name in UNTRACKED:
+            with self.subTest(name):
+                self.assertIn("untracked native Animation ran on span.kiln-mark", out[name]["status"])
+        for name in ("constructed outside the subject", "control: ordinary finite reveal", "control: waapi steps beside css stripes"):
+            with self.subTest(name):
+                self.assertEqual("settled", out[name]["seen"][-1], out[name])
+                self.assertEqual([], out[name]["errors"])
+        report, modes = self.accept("constructed-infinite", UNTRACKED["finite plus constructed infinite"])
+        self.assertEqual("FAIL", report["verdict"])
+        self.assertEqual("invalid", modes["normal"]["first"], modes["normal"])
+        report, modes = self.accept("constructed-finite", UNTRACKED["finite plus constructed finite"])
+        self.assertEqual("FAIL", report["verdict"])
+        self.assertEqual("invalid", modes["normal"]["first"], modes["normal"])
+        report, modes = self.accept("constructed-outside", OUTSIDE)
+        self.assertEqual("PASS", report["verdict"], json.dumps(report["results"])[:3000])
 
     def test_stopped_effect_and_target_assignments_cannot_move_owned_motion(self):
         self.require()

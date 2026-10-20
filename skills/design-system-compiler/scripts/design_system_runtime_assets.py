@@ -5,7 +5,8 @@ effective reduced-motion preference (system OR gallery request) visible to the
 product's own matchMedia calls, tracks timers, observers and Element.animate
 so Stop can halt them, gates Animation playback calls once stopped, and
 credits an effect only after a sampled visible, subject-owned rendered change.
-A row settles only when every bound effect is finite and reached its end.
+A row settles only when every bound effect is finite and reached its end; an
+untracked plain native Animation on a waapi subject makes the row invalid.
 RUNTIME_BOOT follows the copied markup and precedes the source script loader
 (source_script_order), which runs every product script from its source slot:
 it selects the requested target and state view so product code starts there.
@@ -55,7 +56,7 @@ RUNTIME_FRAME = r"""(() => {
       addListener: quiet, removeListener: quiet, addEventListener: quiet, removeEventListener: quiet, dispatchEvent: () => false};
   };
   let stopped = false, booted = false, subject = null, canvas = null, readyAt = null, seenAt = null, navigation = "", last = "";
-  let violation = "";
+  let violation = "", unsupported = "";
   const timers = new Set(), loops = new Set(), frames = new Set(), observers = new Set(), entries = [], errors = [];
   // A source cancel or detachment records whether its effect had already reached its end; a style cancel reports it via animationcancel.
   const end = entry => { if (entry && !stopped && entry.ended === null) entry.ended = entry.animation.playState === "finished"; };
@@ -246,6 +247,18 @@ RUNTIME_FRAME = r"""(() => {
       taken(entry);
       if (entry.animation.playState === "finished") entry.done = true;
     }
+    // A waapi row tracks only Element.animate effects. Any other plain native Animation on the subject, such as
+    // new Animation(new KeyframeEffect(...)), is an unsupported route: the row stays invalid even after it ends.
+    // An idle one renders nothing (such as cleanup that takes a finished effect). CSS animations and transitions are
+    // outside this proof family and this check.
+    if (config.mechanism === "waapi" && subject && !unsupported) for (const animation of document.getAnimations()) {
+      const effect = animation.effect;
+      if (animation.playState === "idle" || (typeof CSSAnimation === "function" && animation instanceof CSSAnimation) ||
+          (typeof CSSTransition === "function" && animation instanceof CSSTransition)) continue;
+      if (!effect || !within(effect.target) || entries.some(item => item.animation === animation)) continue;
+      unsupported = label(effect.target) + (effect.pseudoElement || "");
+      break;
+    }
     // Under reduced motion any running native animation (WAAPI, CSS animation or transition) on the subject is a violation.
     if (reduced && subject && !violation) for (const animation of document.getAnimations()) {
       const owner = animation.effect && animation.effect.target;
@@ -262,7 +275,7 @@ RUNTIME_FRAME = r"""(() => {
     if (stopped) return "stopped";
     if (errors.length) return "invalid";
     if (readyAt === null) return "pending";
-    if (!booted || !subject) return "invalid";
+    if (!booted || !subject || unsupported) return "invalid";
     const relevant = entries.filter(entry => entry.inside);
     if (reduced) return relevant.length || violation ? "invalid" : "reduced";
     if (config.activation === "viewport" && relevant.some(entry => seenAt === null || entry.at + 1 < seenAt)) return "invalid";
@@ -293,7 +306,7 @@ RUNTIME_FRAME = r"""(() => {
         duration: entry.duration, delay: entry.delay, iterations: Number.isFinite(entry.iterations) ? entry.iterations : -1,
         keyframes: entry.keyframes, properties: entry.properties, varying: entry.varying.join(","), shared: entry.blocked.join(","),
         at: entry.at, done: entry.done, cancelled: entry.cancelled, ended: entry.ended, visible: entry.visible, changed: entry.changed})),
-      error: errors.length ? errors[0] : "", booted, violation, navigation, height: measure(),
+      error: errors.length ? errors[0] : "", booted, violation, unsupported, navigation, height: measure(),
       timing: {ready: readyAt, seen: seenAt, first: relevant.length ? relevant[0].at : null}};
     const text = JSON.stringify(body);
     if (text === last) return;
@@ -423,6 +436,7 @@ RUNTIME_GALLERY = r"""(() => {
     if (data.phase === "stopped") return "Stopped" + at + ": timers, observers and animations are halted. Replay starts a fresh source frame.";
     return "Invalid" + at + ": " + (data.error ? "source script error: " + clip(data.error, 120)
       : data.violation ? "source motion ran under reduced motion on " + clip(data.violation, 80) + "."
+      : data.unsupported ? "an untracked native Animation ran on " + clip(data.unsupported, 80) + "; that motion route is unsupported."
       : "no valid source motion was observed on the bound subject.");
   }
   window.addEventListener("message", event => {
