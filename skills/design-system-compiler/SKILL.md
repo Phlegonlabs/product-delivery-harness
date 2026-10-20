@@ -40,3 +40,4 @@ Read the owning section before its matching action. Domain and direction guidanc
 - `PRD.md` owns product behavior; `ui-design-builder` owns `ui-design.md` and the approved HiFi target. The compiler owns the design-system pair and its derived HTML.
 - `frontend-design` is required without a fallback; compilation does not reopen direction. Product or stack changes return upstream.
 - Compilation derives approved consequences only. Validation includes mutating `--write` commands and does not auto-authorize publication.
+- Script- or state-driven motion uses `ds-showcase/2` source-runtime rows. A static join proves association only; browser acceptance on the exact preview closes compilation.

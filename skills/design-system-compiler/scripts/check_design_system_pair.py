@@ -46,6 +46,7 @@ if str(UI_BUILDER_SCRIPTS) not in sys.path:
 from markdown_contract import active_text, exact_marker_lines  # noqa: E402
 from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
 import design_system_showcase  # noqa: E402
+import showcase_runtime  # noqa: E402
 
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED DESIGN SYSTEM CONTRACT -->"
@@ -1444,13 +1445,26 @@ def load_showcase_sources(
     return documents, manifest, {"path": path, "sha256": hifi["sha256"]}, problems
 
 
+def read_repo_file(root: Path, relative: str) -> bytes | None:
+    """Read a repo-relative file through the same alias-free path guard."""
+
+    try:
+        candidate = _safe_repo_candidate(root, relative)
+        return candidate.read_bytes() if candidate is not None and candidate.is_file() else None
+    except OSError:
+        return None
+
+
 def showcase_source_findings(registry: dict[str, Any], root: Path) -> list[str]:
     """Every design-system/4 specimen must resolve to approved HiFi source."""
 
-    documents, _manifest, _binding, problems = load_showcase_sources(registry, root)
+    documents, manifest, _binding, problems = load_showcase_sources(registry, root)
     if problems:
         return problems
-    return design_system_showcase.resolve(registry, documents)[1]
+    found = design_system_showcase.resolve(registry, documents)[1]
+    if registry["showcase"].get("schema") == showcase_runtime.SCHEMA_V2:
+        found += showcase_runtime.resolve_runtime(registry, documents, manifest, lambda path: read_repo_file(root, path))[1]
+    return found
 
 
 def compare(

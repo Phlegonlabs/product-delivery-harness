@@ -11,9 +11,10 @@ from pathlib import Path
 import re
 import sys
 
-from check_design_system_pair import SHOWCASE_SCHEMA, compare, load_showcase_sources
+from check_design_system_pair import SHOWCASE_SCHEMA, compare, load_showcase_sources, read_repo_file
 import design_system_showcase
 from design_system_gallery import render_gallery
+import showcase_runtime
 
 
 STYLE = """
@@ -121,11 +122,14 @@ def render_view(registry_bytes: bytes, markdown_bytes: bytes, repo_root: Path) -
     registry = json.loads(registry_bytes.decode("utf-8"))
     if registry.get("schema") != SHOWCASE_SCHEMA:
         return render_preview(registry_bytes, markdown_bytes)
-    documents, manifest, binding, problems = load_showcase_sources(registry, Path(repo_root).resolve())
+    root = Path(repo_root).resolve()
+    documents, manifest, binding, problems = load_showcase_sources(registry, root)
     resolved, resolve_problems = design_system_showcase.resolve(registry, documents)
-    if problems or resolve_problems:
-        raise ValueError("\n".join(problems + resolve_problems))
-    return render_gallery(registry, registry_bytes, markdown_bytes, documents, manifest, resolved, binding)
+    runtime, runtime_problems = ({}, []) if problems else showcase_runtime.resolve_runtime(
+        registry, documents, manifest, lambda path: read_repo_file(root, path))
+    if problems or resolve_problems or runtime_problems:
+        raise ValueError("\n".join(problems + resolve_problems + runtime_problems))
+    return render_gallery(registry, registry_bytes, markdown_bytes, documents, manifest, resolved, binding, runtime=runtime)
 
 
 def main(argv: list[str] | None = None) -> int:

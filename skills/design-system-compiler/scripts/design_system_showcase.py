@@ -18,6 +18,8 @@ from typing import Any, Callable
 from animation_provenance import source_status
 
 SHOWCASE_SCHEMA = "ds-showcase/1"
+# ds-showcase/2 keeps every /1 rule and adds source-runtime motion (showcase_runtime).
+SHOWCASE_SCHEMAS = (SHOWCASE_SCHEMA, "ds-showcase/2")
 SPECIMEN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 SELECTOR_RE = re.compile(r"^(?:[A-Za-z][\w-]*|\.[A-Za-z][\w-]*|#[A-Za-z][\w-]*)$")
 PAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.html$")
@@ -246,9 +248,10 @@ def registry_findings(registry: dict[str, Any]) -> list[str]:
     """Closed shape and complete coverage against the registry itself."""
     showcase = registry.get("showcase")
     if not isinstance(showcase, dict) or set(showcase) != {"schema", "specimens", "states", "motion"} \
-            or showcase.get("schema") != SHOWCASE_SCHEMA:
-        return ["design-system.json design-system/4 showcase must be ds-showcase/1 with exactly "
+            or showcase.get("schema") not in SHOWCASE_SCHEMAS:
+        return ["design-system.json design-system/4 showcase must be ds-showcase/1 or ds-showcase/2 with exactly "
                 "schema, specimens, states and motion"]
+    v2 = showcase["schema"] == SHOWCASE_SCHEMAS[1]
     problems: list[str] = []
     primitives = registry.get("primitives") if isinstance(registry.get("primitives"), dict) else {}
     components = registry.get("productComponents") if isinstance(registry.get("productComponents"), dict) else {}
@@ -324,16 +327,25 @@ def registry_findings(registry: dict[str, Any]) -> list[str]:
     for kind, name, state in sorted(required_states - seen_states):
         problems.append(f"showcase is missing {kind} {name} state {state}")
     variants = registry.get("motionVariants") if isinstance(registry.get("motionVariants"), list) else []
-    motion_covered = set()
+    motion_covered, intents = set(), set()
+    kinds = MOTION_KINDS + (("source-runtime",) if v2 else ())
     for row in showcase.get("motion") if isinstance(showcase.get("motion"), list) else [None]:
         trigger = row.get("trigger") if isinstance(row, dict) else None
         if not isinstance(row, dict) or set(row) != {"variant", "specimen", "trigger"} or not isinstance(trigger, dict) \
-                or trigger.get("kind") not in MOTION_KINDS:
-            problems.append("showcase motion rows must contain variant, specimen and an attribute, class or animation trigger")
+                or trigger.get("kind") not in kinds:
+            problems.append("showcase motion rows must contain variant, specimen and an attribute, class or animation trigger"
+                            + (" or a source-runtime trigger" if v2 else ""))
             continue
-        expected = {"attribute": {"kind", "name", "from", "to"}, "class": {"kind", "name"}, "animation": {"kind"}}[trigger["kind"]]
-        if set(trigger) != expected or not all(isinstance(trigger[key], str) and trigger[key] for key in expected):
-            problems.append(f"showcase motion {row['variant']} {trigger['kind']} trigger must contain exactly " + ", ".join(sorted(expected)))
+        if trigger["kind"] == "source-runtime":
+            from showcase_runtime import trigger_findings
+            problems.extend(trigger_findings(row["variant"], trigger))
+            if str(trigger.get("intent")) in intents:
+                problems.append(f"showcase motion intent {trigger['intent']} is bound by more than one source-runtime row")
+            intents.add(str(trigger.get("intent")))
+        else:
+            expected = {"attribute": {"kind", "name", "from", "to"}, "class": {"kind", "name"}, "animation": {"kind"}}[trigger["kind"]]
+            if set(trigger) != expected or not all(isinstance(trigger[key], str) and trigger[key] for key in expected):
+                problems.append(f"showcase motion {row['variant']} {trigger['kind']} trigger must contain exactly " + ", ".join(sorted(expected)))
         if row["variant"] not in variants:
             problems.append(f"showcase motion names unregistered variant {row['variant']!r}")
         if row["specimen"] not in specimens:
@@ -352,6 +364,9 @@ def resolve(registry: dict[str, Any], documents: dict[str, str]) -> tuple[dict[s
     css = {page: analysis_css(html) for page, html in documents.items()}
     resolved: dict[str, dict[str, Any]] = {}
     showcase = registry.get("showcase", {})
+    v2 = showcase.get("schema") == SHOWCASE_SCHEMAS[1]
+    if v2:
+        from showcase_runtime import closed_open_claim, shared_pseudo_rule
     for row in showcase.get("specimens", []):
         source = row["source"]
         tree = trees.get(source["page"])
@@ -372,8 +387,13 @@ def resolve(registry: dict[str, Any], documents: dict[str, str]) -> tuple[dict[s
         if row["mode"] == "pseudo" and bound:
             selector = bound["row"]["source"]["selector"]
             pattern = re.escape(selector) + r"(?![\w-])[^\s{},>+~]*:" + re.escape(row["state"]) + r"(?![\w-])"
-            if re.search(pattern, css[bound["row"]["source"]["page"]]) is None:
+            page_css = css[bound["row"]["source"]["page"]]
+            if re.search(pattern, page_css) is None and not (
+                    v2 and shared_pseudo_rule(page_css, bound["tree"], bound["node"], row["state"])):
                 problems.append(f"showcase pseudo state {row['state']} has no {selector}:{row['state']} rule in approved CSS")
+        if v2 and row["mode"] == "rendered" and bound and row["state"] == "open" \
+                and closed_open_claim(bound["tree"], bound["node"]):
+            problems.append(f"showcase rendered state open on {row['specimen']} is a closed <details> source node")
     for row in showcase.get("motion", []):
         bound = resolved.get(row["specimen"])
         if not bound:
@@ -382,6 +402,8 @@ def resolve(registry: dict[str, Any], documents: dict[str, str]) -> tuple[dict[s
         trigger = row["trigger"]
         if not reduced_motion_css(page_css).strip():
             problems.append(f"showcase motion {row['variant']} page lacks an approved prefers-reduced-motion rule")
+        if trigger["kind"] == "source-runtime":
+            continue  # joined by showcase_runtime.resolve_runtime and proven in a browser
         if trigger["kind"] == "animation":
             ok = animation_source_backed(page_css, bound["node"], bound["tree"].ancestors(bound["node"]))
         elif trigger["kind"] == "class":

@@ -15,7 +15,10 @@ from html import escape
 from typing import Any
 
 import design_system_showcase as source
+import showcase_runtime
 from design_system_gallery_assets import FRAME_RUNTIME, GALLERY_CSS, GALLERY_RUNTIME
+from design_system_gallery_runtime import runtime_plate
+from design_system_runtime_assets import RUNTIME_CSS, RUNTIME_FRAME, RUNTIME_GALLERY
 
 LAYERS = ("layout", "surface", "typography", "control")
 NATIVE_CLASSES = {"ios", "android", "macos", "windows", "desktop"}
@@ -57,12 +60,18 @@ def _num(value: str) -> float | None:
 class Gallery:
     def __init__(self, registry: dict[str, Any], registry_bytes: bytes, markdown_bytes: bytes,
                  documents: dict[str, str], manifest: dict[str, Any], resolved: dict[str, dict[str, Any]],
-                 hifi_binding: dict[str, str]) -> None:
+                 hifi_binding: dict[str, str], runtime: dict[str, dict[str, Any]] | None = None) -> None:
         self.registry, self.documents, self.manifest, self.resolved = registry, documents, manifest, resolved
         self.registry_bytes, self.markdown_bytes, self.hifi = registry_bytes, markdown_bytes, hifi_binding
         self.trees = {page: source.SourceTree(html) for page, html in documents.items()}
         self.surfaces = [row for row in manifest.get("surfaces", []) if isinstance(row, dict)]
-        scripts = [GALLERY_RUNTIME, FRAME_RUNTIME]
+        self.v2 = registry["showcase"].get("schema") == showcase_runtime.SCHEMA_V2
+        self.runtime = runtime or {}
+        runtime_rows = [row for row in registry["showcase"]["motion"] if showcase_runtime.is_runtime(row)]
+        if any(row["variant"] not in self.runtime for row in runtime_rows):
+            raise ValueError("source-runtime motion rows need resolved runtime bindings before rendering")
+        scripts = [GALLERY_RUNTIME, FRAME_RUNTIME] + ([RUNTIME_FRAME, RUNTIME_GALLERY] if runtime_rows else [])
+        self.has_runtime = bool(runtime_rows)
         for page in sorted({row.get("page") for row in self.surfaces if row.get("page") in documents}):
             scripts.extend(source.product_scripts(documents[page], with_controls=True))
         self.csp = content_security_policy(scripts)
@@ -264,13 +273,25 @@ class Gallery:
             else:
                 link = f'<a href="#{frames.get(row["specimen"], "")}">plate {escape(row["specimen"])}</a>'
                 selector = self.registry_specimen(row["specimen"])["source"]["selector"]
+                rule = f"{selector}:{row['state']}"
+                if self.v2 and row["mode"] == "pseudo":
+                    rule = self.pseudo_rule(row) or rule
                 treatment = (f"Rendered from its own source element, {link}" if row["mode"] == "rendered" else
-                             f"Live on {link}: {escape(row['state'])} applies the approved <code>{escape(selector)}:{escape(row['state'])}</code> rule")
+                             f"Live on {link}: {escape(row['state'])} applies the approved <code>{escape(rule)}</code> rule")
             rows.append(f'<tr><th scope="row">{escape(row["state"])}</th><td>{treatment}</td></tr>')
         if not rows:
             return ""
         return ('<h4>States</h4><div class="table-scroll"><table><thead><tr><th scope="col">State</th>'
                 '<th scope="col">Treatment</th></tr></thead><tbody>' + "".join(rows) + "</tbody></table></div>")
+
+    def pseudo_rule(self, row: dict[str, Any]) -> str | None:
+        """Name the shared ancestor-scoped rule when no direct selector rule backs a pseudo state."""
+        bound = self.resolved[row["specimen"]]
+        page_css = source.analysis_css(self.documents[bound["row"]["source"]["page"]])
+        selector = re.escape(bound["row"]["source"]["selector"])
+        if re.search(selector + r"(?![\w-])[^\s{},>+~]*:" + re.escape(row["state"]) + r"(?![\w-])", page_css):
+            return None
+        return showcase_runtime.shared_pseudo_rule(page_css, bound["tree"], bound["node"], row["state"])
 
     def registry_specimen(self, specimen_id: str) -> dict[str, Any]:
         return next(row for row in self.registry["showcase"]["specimens"] if row["id"] == specimen_id)
@@ -331,9 +352,17 @@ class Gallery:
                  "<p>Replay each approved motion on its source element or stop it mid-flight. Reduced motion applies the page's own "
                  "<code>prefers-reduced-motion</code> rules; your system preference sets its initial state.</p>",
                  '<div class="toolbar controls"><button type="button" data-ds-reduced-toggle aria-pressed="false">Reduced motion</button></div>']
+        if self.has_runtime:
+            parts.insert(3, "<p>Source-runtime plates run the approved surface and its hash-bound product script in a fresh "
+                         "frame. Their status reports only what the browser observes on the bound subject. This page is a "
+                         "render candidate; compilation closes only with a separate browser acceptance receipt for these exact bytes.</p>")
         if not rows:
             parts.append("<p>No motion variants are registered for this product.</p>")
         for row in rows:
+            if showcase_runtime.is_runtime(row):
+                parts.append(f'<h3 id="m-{_slug(row["variant"])}">{escape(row["variant"])}</h3>'
+                             + runtime_plate(self, row, self.runtime[row["variant"]]))
+                continue
             bound = self.resolved[row["specimen"]]
             src = bound["row"]["source"]
             trigger = row["trigger"]
@@ -401,7 +430,8 @@ class Gallery:
         return ("<!doctype html>\n" + '<html lang="en"><head><meta charset="utf-8">'
                 f'<meta http-equiv="Content-Security-Policy" content="{escape(self.csp, quote=True)}">'
                 '<meta name="viewport" content="width=device-width,initial-scale=1">'
-                f"<title>{product}: design system</title><style>{GALLERY_CSS}</style></head><body>"
+                f"<title>{product}: design system</title><style>{GALLERY_CSS}</style>"
+                + (f"<style>{RUNTIME_CSS}</style>" if self.has_runtime else "") + "</head><body>"
                 '<a class="skip" href="#main">Skip to the specimens</a>'
                 f'<header class="masthead"><div><h1>{product}</h1><p class="lede">Design system specimen book, derived from the approved HiFi. '
                 f"Markdown and JSON remain the contract; this page is regenerated from them and cannot approve anything.</p></div>"
@@ -409,9 +439,11 @@ class Gallery:
                 f'<dt>Approved HiFi</dt><dd><code>{escape(str(self.hifi.get("path")))}</code></dd><dt>HiFi sha256</dt><dd class="hash">{escape(str(self.hifi.get("sha256")))[:16]}</dd></dl></header>'
                 f'<div class="book"><nav class="index" aria-label="Specimen book contents"><ol>{index}</ol></nav>'
                 f'<main id="main" tabindex="-1">{self.foundations()}{components}{surfaces}{motion}{self.traceability()}</main></div>'
-                f"<script>{GALLERY_RUNTIME}</script></body></html>\n")
+                f"<script>{GALLERY_RUNTIME}</script>"
+                + (f"<script>{RUNTIME_GALLERY}</script>" if self.has_runtime else "") + "</body></html>\n")
 
 
 def render_gallery(registry: dict[str, Any], registry_bytes: bytes, markdown_bytes: bytes, documents: dict[str, str],
-                   manifest: dict[str, Any], resolved: dict[str, dict[str, Any]], hifi_binding: dict[str, str]) -> str:
-    return Gallery(registry, registry_bytes, markdown_bytes, documents, manifest, resolved, hifi_binding).render()
+                   manifest: dict[str, Any], resolved: dict[str, dict[str, Any]], hifi_binding: dict[str, str],
+                   runtime: dict[str, dict[str, Any]] | None = None) -> str:
+    return Gallery(registry, registry_bytes, markdown_bytes, documents, manifest, resolved, hifi_binding, runtime).render()
