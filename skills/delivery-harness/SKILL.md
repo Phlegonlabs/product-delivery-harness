@@ -115,7 +115,10 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 6. For code work, load `code-security-review` on that SHA; without one, report `UNVALIDATED`, not PASS.
 7. Perform only remaining authorized Git actions.
 
-For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates. Stop after two failed repair attempts and report the remaining gap.
+For small UI work, use one Final UI Acceptance for critique, parity and page quality, with one consolidated defect set.
+Use rendered evidence when required; a text-only markup/style review makes no visual PASS claim and cannot close a required visual gate.
+Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
+Recheck original defects and affected consumers after repair. Stop after two failed repair attempts and report the remaining gap.
 
 Optional `/feature-dev` exploration does not change authorization, ownership or verification.
 
@@ -147,7 +150,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
 - Initial/enhancement system-conformance uses current approved PRD, UI design, HiFi and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. Routine maintenance follows `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- After the Final Visual Parity Loop, one read-only page-quality pass (`references/verification-gates.md`) runs on the exact head. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
+- Final UI Acceptance combines the Final Visual Parity Loop and read-only page-quality pass on the exact head (`references/verification-gates.md`). One reviewer uses current shared evidence and returns one consolidated finding set. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
 - Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow

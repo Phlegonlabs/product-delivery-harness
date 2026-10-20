@@ -22,7 +22,7 @@ The generating owner repairs accepted-scope defects. A contract defect returns t
 `ui-design-builder`; a missing external action returns to `product-activation`.
 A repair that changes code or approved inputs creates a new candidate.
 
-Security, SEO, Activation, and final page-quality reviews stay read-only. They
+Security, SEO, Activation, and Final UI Acceptance reviews stay read-only. They
 never become the author, remediator, or external-target mutator. Return concrete
 findings to the owning flow above.
 

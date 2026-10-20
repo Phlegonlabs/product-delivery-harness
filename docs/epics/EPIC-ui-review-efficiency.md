@@ -251,3 +251,49 @@ All four Mermaid sources are byte-identical to the reviewed `05f14d1c` diagrams;
 The observed main ruleset requires PRs, resolved review threads and `validate`, and forbids branch deletion and non-fast-forward updates.
 The legacy branch-protection endpoint returned 404; the effective ruleset endpoint supplies the actual rules.
 Full candidate CI, fresh source/security review and later exact-main checks remain pending.
+
+## Consolidated UI Acceptance
+
+On 2026-10-20, the owner approved one implementation UI acceptance combining parity and page quality.
+The same decision requires one design diagnostic wave and targeted repair re-review.
+Keep HiFi overall 85, every H1-H9 dimension 80, required validation and existing repair budgets.
+
+Entry: clean detached HEAD `8db251b7f0999dd62a100ec70ea78b64455b2b6d` in source worktree `c38d`.
+Route: small direct source maintenance, one parent writer and one coherent verification sequence.
+UI impact and Gitignore impact are none. No product UI or new local-only file class changes.
+The owner confirmed branch `codex/ui-acceptance`; it was created from the observed released v0.65.2 base without changing existing edits.
+Publication, release, installation and active consumer RUN migration are outside this task.
+
+One bounded explorer checks whether executable scheduling or validation requires a change.
+One assignment suffices because the remaining question concerns that shared implementation contract.
+The prior source inspection already mapped the design and implementation review stages.
+The final independent reviewer checks the fixed candidate and all changed paths.
+
+| ID | Accepted result | Verification |
+| --- | --- | --- |
+| UCA-1 | One independent implementation UI acceptance covers parity and page quality on the same candidate. | Source contract checks and existing UI evidence regressions |
+| UCA-2 | One HiFi diagnostic wave shares current evidence and a consolidated defect ledger; repair review stays targeted. | Design contract checks and retained threshold regressions |
+| UCA-3 | Required matrices, motion/native proof, 85/80 thresholds, security and repair budgets remain binding. | Existing positive and negative checks plus fixed-candidate review |
+
+Update the owning skill references, affected templates, workflow guide and four README descriptions together.
+Keep existing schemas and frozen RUNs.
+The explorer found that parity is machine-validated evidence and page quality has no separate scheduler or result schema.
+The existing integration-stage `visual` node can carry both checks.
+Its generated packet now requests one combined assessment, current matrix evidence and targeted repair review.
+No new node type, schema field, scheduling path or attempt budget is introduced.
+Document sync reports `review_required` for unknown loaded identity and the first observed baseline.
+Implementation, focused checks and fixed-candidate independent review are pending.
+
+The working-tree candidate passed 323 focused tests: review packets 10, Harness contracts 65, UI contracts 14, Product Definition contracts 102,
+UI thresholds 59, diagnostic waves 23 and UI evidence 50.
+The new packet regression failed before the renderer change and passed afterward.
+Source specification, changed-Python Pyflakes and whitespace checks passed.
+The initial documentation-weight check measured 475 added words against v0.65.2; a later edit clarified review ordering.
+Evidence and finite process records are in the task's checkout-external [verification directory](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/).
+No browser, preview or watcher was started; every completed check process exited.
+The existing large test module keeps its single source-contract responsibility; this policy change does not justify a module split.
+
+Shared root instructions remain current by meaning against installed VERSION 0.65.2 and template SHA-256
+`257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+Retain the source repository's intentional instruction, stage-binding, Git, deployment and activation exceptions.
+Loaded identity remains unknown. Fixed-candidate review is pending; no release or installation is claimed.

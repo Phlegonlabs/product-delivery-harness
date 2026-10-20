@@ -14,6 +14,8 @@ A missing or contradictory product obligation returns to `product-definition-bui
 - If the required grading capability or explicit authorization is unavailable, the grading gate is blocked. Record the frozen PRD and artifact identities plus the missing capability; do not convert the result into a PASS or continue to human approval.
 - When the capability is available, require explicit delegation authorization for this grading stage or the matching current RUN `spawn_subagents` grant before dispatch. If authorization is missing, do not spawn; pause the grading stage for the owner rather than treating capability as permission.
 - Run one complete diagnostic wave before any repair. Default to one fresh lead grader that walks the complete in-scope `UI-* × responsive target × non-n/a state` matrix and must return every finding it can establish, not stop at the first block.
+- Browser checks, Impeccable critique/audit and H1-H9 use the same frozen candidate within that wave. The lead reconciles current evidence once.
+- Reuse covered browser observations for identical bytes and cases. Preserve each tool's required workflow, verdicts and receipts; do not run another grading wave merely to restate them.
 - Add at most two fresh specialist sibling graders only when the owner requests independent review or a recorded high-impact risk justifies separate accessibility, localization/state, or visual lenses. Give specialists non-overlapping lenses over the same frozen inputs. All dispatched graders finish the same diagnostic wave before the parent begins repair; they do not share notes or open later waves to look for more examples.
 - Graders return evidence only: they do not publish, mint trace IDs, contact the owner, or approve the artifact.
 
@@ -147,6 +149,8 @@ For H5/H7/H9, compare the primary task and dense case against the selected direc
 
 The initial diagnostic wave covers the complete approved scope.
 Its repair re-review follows the same lineage and attempt budget; it does not open another broad qualitative search.
+The repair packet contains the existing defect ledger, changed sources, affected consumers and observable closure cases.
+Use one consolidated response for Impeccable and rubric findings. Do not commission separate aesthetic or scoring reviews after that response.
 
 1. Record changed sources, affected dimensions, surfaces, states, targets and shared consumers in the existing defect ledger.
 2. Give every requested repair its inspected capture, concrete defect, applicable requirement or dimension threshold, and observable completion criteria.

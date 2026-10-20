@@ -259,6 +259,26 @@ def render_packet(
             "Classify tool and environment failures separately from design failures.",
             "Use existing review outcomes; do not reset repair budgets or approve new scope or stack decisions.",
         ]
+    if (
+        review["type"] == "visual"
+        and review.get("stage") == "integration"
+        and plan.get("ui_surfaces")
+    ):
+        packet_lines += [
+            "",
+            "## Final UI Acceptance",
+            "",
+            "Follow the governing pinned contract; do not migrate a frozen RUN through this packet.",
+            "For consolidated acceptance, inspect parity and page quality in this one review at the reviewed head.",
+            "Use current ui_evidence, target_comparison, layout_check, platform captures and source evidence.",
+            "Cover the full required UI matrix for the planned review scope, normal/reduced motion and required native proof.",
+            "Check heuristic UX, accessibility, responsive/device behavior and performance alongside parity.",
+            "Merge-seam source reading does not reduce required UI evidence coverage.",
+            "Return one consolidated finding set and verdict covering both components; do not reopen design direction.",
+            "For a repair re-review, check original defects and affected consumers with current evidence.",
+            "Use the existing lineage budget; do not add a page-quality-only reviewer or another scoring wave.",
+            "Missing required evidence blocks acceptance. Security and final regression obligations remain separate.",
+        ]
     if truncated:
         # The untruncated diff already carries every path. Keep an explicit
         # path list only when byte truncation could hide the tail.

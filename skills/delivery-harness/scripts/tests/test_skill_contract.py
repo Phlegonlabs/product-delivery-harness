@@ -893,16 +893,24 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("PRD_RESPONSIVE_RE", join)
         self.assertIn("differ from the wireframe responsive", join)
 
-    def test_final_page_quality_pass_is_documented(self) -> None:
+    def test_final_ui_acceptance_combines_parity_and_page_quality(self) -> None:
         skill = self.read("SKILL.md")
         gates = self.read("references/verification-gates.md")
         contract = self.read("references/ui-implementation-contract.md")
 
         for content in (skill, contract):
             self.assertIn("page-quality pass", content)
-        self.assertIn("### Final Page-Quality Pass", gates)
-        self.assertIn("follows the Final Visual Parity Loop", gates)
-        self.assertIn("read-only page-quality review", gates)
+            self.assertIn("Final UI Acceptance", content)
+        self.assertIn("### Final UI Acceptance", gates)
+        self.assertIn("#### Final Visual Parity Loop", gates)
+        self.assertIn("#### Final Page-Quality Pass", gates)
+        self.assertNotIn("follows the Final Visual Parity Loop", gates)
+        self.assertIn("one independent read-only acceptance for parity and page quality", gates)
+        self.assertIn("both must pass", gates)
+        self.assertIn("planned `visual` review on the same candidate", gates)
+        self.assertIn("Do not add another reviewer node or reset its lineage budget", gates)
+        self.assertIn("Retain required matrix coverage", gates)
+        self.assertIn("Frozen RUNs retain their pinned contracts", gates)
         self.assertIn("Impeccable is not the default", gates)
         self.assertIn("adds no review attempts of its own", gates)
         self.assertIn("Neither authorizes a local change", gates)

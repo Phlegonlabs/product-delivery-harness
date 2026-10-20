@@ -163,7 +163,7 @@ Full engineering 沿用上述任務與驗收紀錄。遇到未證明的跨層依
 
 115. 完成真實 acceptance scenarios，結果寫入分離 register，記錄精確平台、帳戶種類、環境、build 與證據。AI eval 保留 quality 與另一乾淨 checkout 的完整 handoff 報告，交付 runner、grader、lockfile 與 runbook；必要功能 TEST 仍全部 PASS。
 116. 保留 H1 情境執行與 results/evidence-only H2 的來源關係；H2 不混產品修復，產品變更要新候選。
-117. Frontend 完成 Final Visual Parity Loop，依適用平台跑實際 UI／native 驗證，不用 HTML 投影替代裝置證據。
+117. 作者備妥當前候選的 UI／native 證據；同一位獨立 reviewer 在一次 Final UI Acceptance 中完成 parity 與 page-quality 檢查，集中記錄缺陷，修復後定向複查。不用 HTML 投影替代裝置證據。
 118. 固定乾淨的統一候選 SHA，派獨立 code-security reviewer，讀適用安全需求和完整 declared scope。
 119. Reviewer 追 entry point 到 sensitive sink，核對 auth、資料隔離、injection、path/command、secrets、供應链與競態等適用風險。
 120. 安全工具或人工 source review 必須有實際執行結果；全部 skipped 不得 PASS，不為速度隱藏 coverage。

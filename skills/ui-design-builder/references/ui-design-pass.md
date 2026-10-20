@@ -144,6 +144,10 @@ After the connected package passes the cheap completeness check, apply `../../de
 
 ## Impeccable Quality Review And PRD-Bound Grading
 
+Browser, Impeccable and rubric checks below form one diagnostic wave on the same frozen candidate.
+The lead uses current shared evidence and returns one consolidated assessment, not sequential independent review waves.
+Keep Impeccable's required internal workflow and both PASS records; its native totals never replace H1-H9.
+
 Before human visual approval:
 
 1. Freeze the PRD, `ui-design.md`, and HiFi candidate paths and SHA-256 values.

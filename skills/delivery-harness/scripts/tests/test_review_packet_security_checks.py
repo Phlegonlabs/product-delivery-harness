@@ -159,6 +159,32 @@ class SecurityPacketCheckTests(unittest.TestCase):
         self.assertIn("For unchanged boundaries, reuse the accepted design", packets["backend_code"])
         self.assertIn("do not reset repair budgets", packets["frontend_code"])
 
+    def test_ui_acceptance_combines_parity_and_quality_only_for_final_visual_review(self) -> None:
+        node = next(n for n in self.plan["graph"]["nodes"] if n["id"] == "N-REVIEW-M1")
+        self.plan["ui_surfaces"] = [{"id": "dashboard"}]
+        for review_type in ("visual", "frontend_code", "backend_code", "security"):
+            for stage in ("preintegration", "integration"):
+                with self.subTest(review_type=review_type, stage=stage):
+                    node["review"].update(type=review_type, stage=stage)
+                    packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+                    expected = review_type == "visual" and stage == "integration"
+                    self.assertEqual(expected, "## Final UI Acceptance" in packet)
+                    if expected:
+                        self.assertIn("parity and page quality in this one review", packet)
+                        self.assertIn("target_comparison", packet)
+                        self.assertIn("layout_check", packet)
+                        self.assertIn("full required UI matrix", packet)
+                        self.assertIn("original defects and affected consumers", packet)
+                        self.assertIn("existing lineage budget", packet)
+                        self.assertIn("pinned contract", packet)
+                        contract = _contract(packet)
+                        self.assertEqual("visual", contract["review_type"])
+                        self.assertEqual([], contract["required_checks"])
+        node["review"].update(type="visual", stage="integration")
+        self.plan["ui_surfaces"] = []
+        packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+        self.assertNotIn("## Final UI Acceptance", packet)
+
     def test_truncated_packet_retains_complete_external_binary_diff(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             (self.root / "file.txt").write_text("large tail\n" * 10000, encoding="utf-8")

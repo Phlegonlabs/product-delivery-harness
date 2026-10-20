@@ -25,7 +25,10 @@ Product/stack and PRD preflight with `--ui-contract ui-design/3` → unresolved 
 
 Use [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope) after the single repair batch.
 Browser, critique, audit and grading are checks within one diagnostic wave; they do not each start another grading wave.
+The lead uses their current shared evidence and returns one consolidated assessment before the author repairs the candidate.
+Do not add a separate scoring review merely to restate Impeccable findings.
 Repair review follows original defects and affected consumers while retaining required coverage and current receipts.
+Send the existing defect ledger, changed scope and closure cases together; do not request another broad aesthetic search.
 Managed mission, integration and security reviews follow their separate Harness contracts.
 
 Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two checks by the same producing agent and their evidence. PRD self-review belongs to Product Definition after market reconciliation and before its approval. In the existing Epic/task record, record the producing agent identity, equal self-check agent identity, final candidate hash, actual checks, findings and repairs, and link the current candidate and review evidence. Complete repair and recheck before owner choice or approval; stale hashes do not count. An unresolved required finding blocks the next dependent stage; a structural checker PASS or the producing agent's own score does not replace independent review or human approval.

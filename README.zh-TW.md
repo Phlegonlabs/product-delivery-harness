@@ -96,7 +96,7 @@ flowchart TD
     B["第一個固定可用 build＋SHA／產物<br/>授權後隔離部署＋Activation 前置準備<br/>分析埋點；取得動態錯誤／crash"]
     J["未證實的核心真實旅程先跑通，再擴展相依功能<br/>前後端小任務＋針對性檢查<br/>依風險驗證失敗、負載、成本、遷移／還原"]
     N["按已選路線做獨立審查<br/>Direct：作者完整 diff 自查＋1 次精確 SHA 安全審查<br/>Managed：每個就緒 mission／適用面先審再整合<br/>之後在統一候選做新鮮的適用面＋安全審查"]
-    Q["適用 UI：parity loop，2 輪修正失敗即停<br/>之後 1 次唯讀頁面品質檢查；共用既有額度<br/>較嚴格的 lineage 限制優先 → 最終回歸"]
+    Q["適用 UI：1 次唯讀 Final UI Acceptance<br/>parity＋頁面品質；集中缺陷、定向複查<br/>2 次修復失敗即停；較嚴格 lineage 優先 → 最終回歸"]
     F["對外試用前：回饋入口實測送達 owner<br/>無人值守 Preview／beta 前：實收有效告警<br/>前置準備不授權試用或部署"]
     C["隔離 candidate Preview：精確 build 驗收<br/>Managed：本地 C → 歸檔 A；Direct：固定候選<br/>Preview 若用遠端分支，另行授權發布／讀回"]
     R["另行授權 main／production 發布<br/>驗證實際發布 SHA／產物<br/>伺服器產生 main：樹相等＋新鮮完整檢查／安全審查"]
@@ -188,14 +188,14 @@ PRD 定義成果與可量測品質；architecture 定義責任、狀態、介面
 | 完整 HiFi | 先做便宜的完整性檢查及作者自查，再跑 **一次完整初審**；需要修復時，最多 **一批集中修復＋一次複查**。 |
 | 每次 HiFi 審查的內容 | 必跑 Impeccable `critique` **與** `audit`、完整必要瀏覽器覆蓋及當前 H1–H9。四捨五入的總平均 **至少 85**、每項 **至少 80**，且無 block／爭議，再取得 **一次 Visual Approval**。 |
 | 設計系統編譯 | 一組連貫的 source／pair／coverage／contrast／type／HTML 驗證與實際展示檢視；技術修復後重驗受影響部分，不新增方向核准或審美評分 wave。 |
-| Direct 程式交付 | 一位 writer、聚焦測試、作者完整 diff 自查及一次精確候選 `code-security-review`；程式候選改變就要新的安全審查。小型 UI 加一個 critique／repair／recheck cycle，兩次修復失敗就停止。 |
+| Direct 程式交付 | 一位 writer、聚焦測試、作者完整 diff 自查及一次精確候選 `code-security-review`；程式候選改變就要新的安全審查。小型 UI 使用下列合併驗收，兩次修復失敗就停止。 |
 | Managed 程式交付 | 每個 mission 在整合前，按適用 surface 各一位 reviewer；統一 head 再作全新適用 surface 審查，包含統一安全審查。節點由凍結 PLAN 宣告；runtime review 允許初審及一次修復複查，原 lineage 預算持續累計。 |
-| 適用的實作 UI gates | 對必要矩陣跑 Final Visual Parity Loop，在既有預算內 **兩次修復失敗就停止**；之後 **一次最終唯讀 page-quality pass**，其缺陷共用原預算。這裡的 Impeccable 要另行授權，不是預設 reviewer node。 |
+| 適用的實作 UI 驗收 | **一次獨立唯讀 Final UI Acceptance**，在精確候選上合併 Final Visual Parity Loop 與 page-quality 檢查。同一位 reviewer 共用當前證據、集中缺陷，修復後複查原缺陷及受影響部分。保留必要矩陣，**兩次修復失敗即停**，較嚴格的既有 lineage 預算優先。Impeccable 要另行授權，不能取代 reviewer。 |
 | 候選與正式環境 | 隔離候選 Preview 與實際 promoted production build 分開驗證；Preview 證據不能證明正式環境。Server 產生新 main SHA 時，要 tree equality、全新完整驗證與安全審查；這些是發布核對，不新增 HiFi 美感 wave。 |
 | Activation | 每個 target／action 要有設定或人工操作證據、獨立讀回及適用行為證明；早期準備與實際正式版分開驗證，動作數依必要 targets 決定。 |
 | 成效回顧 | 真實量測期結束後，執行 owner 要求的各 target Outcome Review；多 target 時再產生 aggregate。歷史只追加。適用 `seo-growth-review` 可選，交付不等待 adoption。 |
 
-HiFi 預設一位 lead grader；owner 要求或已記錄高影響風險時，最多增加兩位 specialist sibling，仍須在同一初審 wave 完成後才修復。複查聚焦原缺陷及受影響 consumer，同時保留 Impeccable 的必需範圍、完整瀏覽器覆蓋與當前分數。第二次 review 仍失敗就停在 `blocked`；只有 owner 明確批准改變策略與完整驗收矩陣，才可例外增加一次 successor re-review。一般「繼續」不代表批准。詳見 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。
+HiFi 預設一位 lead grader；owner 要求或已記錄高影響風險時，最多增加兩位 specialist sibling。瀏覽器、Impeccable 與 H1-H9 使用同一候選，在同一診斷 wave 完成；lead 集中回報後才修復，不再另開審美或評分 wave。複查聚焦原缺陷及受影響 consumer，同時保留 Impeccable 的必需範圍、完整瀏覽器覆蓋與當前分數。第二次 review 仍失敗就停在 `blocked`；只有 owner 明確批准改變策略與完整驗收矩陣，才可例外增加一次 successor re-review。一般「繼續」不代表批准。詳見 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。
 
 這裡計算 Harness 階段的 pass 次數；Impeccable 仍須完成 pinned workflow 與內部評估，其原生總分不能替代 H1–H9。
 
