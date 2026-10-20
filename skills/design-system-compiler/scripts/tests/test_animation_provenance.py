@@ -54,6 +54,46 @@ class AnimationProvenanceTests(unittest.TestCase):
                 self.assertEqual("unresolved",
                                  provenance.source_status(base + css_by_case[case], node))
 
+    def test_resolved_alias_chains_keep_their_raw_dependencies(self):
+        node = {"tag": "div", "map": {"class": "busy"}, "parent": None}
+        css_by_case = {
+            "name": (".busy{--base:pulse;--alias:var(--base);animation:var(--alias) 1s}@keyframes pulse{to{opacity:1}}"
+                     "@media(min-width:1px){.busy{--base:missing}}"),
+            "keyframe value": (".busy{--base:1px;--alias:var(--base);animation:pulse 1s}"
+                               "@keyframes pulse{to{transform:translateX(var(--alias))}}"
+                               "@media(min-width:1px){.busy{--base:999px}}"),
+            "registered": (".busy{--base:1s;--alias:var(--base);animation:pulse var(--alias)}@keyframes pulse{to{opacity:1}}"
+                           '@property --base{syntax:"<time>";inherits:true;initial-value:1s}'),
+            "fallback": (".busy{--base:pulse;--alias:var(--absent,var(--base));animation:var(--alias) 1s}"
+                         "@keyframes pulse{to{opacity:1}}@media(min-width:1px){.busy{--base:missing}}"),
+            "three links": (".busy{--base:pulse;--middle:var(--base);--alias:var(--middle);animation:var(--alias) 1s}"
+                            "@keyframes pulse{to{opacity:1}}@media(min-width:1px){.busy{--base:missing}}"),
+        }
+        for case, css in css_by_case.items():
+            with self.subTest(case=case):
+                self.assertEqual("unresolved", provenance.source_status(css, node))
+        # Removing the conditional override or registration restores provenance for the same chain.
+        self.assertEqual("source_backed", provenance.source_status(css_by_case["name"].split("@media")[0], node))
+        self.assertEqual("source_backed", provenance.source_status(css_by_case["registered"].split("@property")[0], node))
+
+    def test_inherited_alias_dependencies_follow_the_defining_ancestor(self):
+        root = {"tag": "section", "map": {"class": "stage"}, "parent": None}
+        node = {"tag": "div", "map": {"class": "busy"}, "parent": root}
+        chain = (".stage{--base:pulse;--alias:var(--base)}.busy{animation:var(--alias) 1s}"
+                 "@keyframes pulse{to{opacity:1}}")
+        self.assertEqual("source_backed", provenance.source_status(chain, node, (root,)))
+        self.assertEqual("unresolved", provenance.source_status(
+            chain + "@media(min-width:1px){.stage{--base:missing}}", node, (root,)))
+        # A node-level redefinition without references drops the inherited chain.
+        redefined = chain.replace(".busy{", ".busy{--alias:pulse;") + "@media(min-width:1px){.stage{--base:missing}}"
+        self.assertEqual("source_backed", provenance.source_status(redefined, node, (root,)))
+
+    def test_unrelated_dark_color_variables_still_pass(self):
+        node = {"tag": "div", "map": {"class": "busy"}, "parent": None}
+        css = (":root{--paper:#fff;--ink:var(--paper)}.busy{--name:pulse;color:var(--ink);animation:var(--name) 1s}"
+               "@keyframes pulse{to{opacity:1}}@media(prefers-color-scheme:dark){:root{--paper:#111;--ink:#eee}}")
+        self.assertEqual("source_backed", provenance.source_status(css, node))
+
     def test_conditional_animation_and_existing_failure_modes_stay_unresolved(self):
         node = {"tag": "div", "map": {"class": "busy"}, "parent": None}
         base = "@keyframes pulse{to{opacity:1}}"

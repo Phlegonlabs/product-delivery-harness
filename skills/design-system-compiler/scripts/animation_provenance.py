@@ -180,6 +180,29 @@ def _variables(winners, inherited):
     return computed
 
 
+def _dependencies(levels, names):
+    """Closure of raw custom-property dependencies, walked before substitution.
+
+    ``levels`` holds the winning raw definitions from the outermost ancestor to
+    the animated node. A name read at a level uses that level's raw value, or
+    the nearest ancestor's when undefined, inherit or unset; the references in
+    that raw value, fallbacks included, are read at the defining level.
+    """
+    relevant, visited = set(), set()
+    queue = [(name, len(levels) - 1) for name in names]
+    while queue:
+        name, level = queue.pop()
+        if (name, level) in visited:
+            continue
+        visited.add((name, level))
+        relevant.add(name)
+        while level >= 0 and levels[level].get(name, "inherit") in {"inherit", "unset"}:
+            level -= 1
+        if level >= 0:
+            queue.extend((dependency, level) for dependency in VAR_REF.findall(levels[level][name]))
+    return relevant
+
+
 def _timing_function(token):
     match = re.fullmatch(r"(cubic-bezier|steps)\(([^()]+)\)", token)
     if match is None:
@@ -247,9 +270,10 @@ def source_status(css, node, ancestors=()):
     """Classify animation provenance without treating static controls as failures."""
     try:
         rules, keyframes, conditional, registrations = _rules(css)
-        variables = {}
+        variables, levels = {}, []
         for ancestor in (*ancestors, node):
             winners = _cascade(rules, ancestor)
+            levels.append({name: row[2] for name, row in winners.items() if name.startswith("--")})
             variables = _variables(winners, variables)
         winner = winners.get("animation-name")
         if winner is None:
@@ -260,18 +284,11 @@ def source_status(css, node, ancestors=()):
         names = _names(value, winner[1] == "animation")
         if not names:
             return "no_animation"
-        relevant = set(VAR_REF.findall(winner[2]))
+        direct = VAR_REF.findall(winner[2])
         for name, body in keyframes.items():
             if name in names:
-                relevant.update(VAR_REF.findall(body))
-        queue = set(relevant)
-        while queue:
-            name = queue.pop()
-            value = variables.get(name) or ""
-            if name in variables:
-                fallbacks = set(VAR_REF.findall(value))
-                relevant.update(fallbacks)
-                queue.update(fallbacks.difference(relevant))
+                direct.extend(VAR_REF.findall(body))
+        relevant = _dependencies(levels, direct)
         if (set(registrations) & relevant
                 or any(set(CONDITIONAL_VAR.findall(body)) & relevant
                        for body in conditional)):
