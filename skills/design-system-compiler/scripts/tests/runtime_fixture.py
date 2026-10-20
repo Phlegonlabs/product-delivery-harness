@@ -61,6 +61,9 @@ KILN_PLAY = """function rise(stage) {
   }"""
 
 BELT_STEP = 'if (!reduced()) bars[step].animate([{transform: "scaleX(.2)"}, {transform: "none"}], {duration: 300, easing: "ease-out"});'
+# The spent cleanup waits until the stripes have run to their end; removing them earlier is a pre-end cancel.
+BELT_SPEND = ('setTimeout(function spend() { if (belt.getAnimations({subtree: true}).some(item => item.playState === "running")) '
+              'run.still = setTimeout(spend, 100); else belt.setAttribute("data-belt-spent", ""); }, 2400)')
 
 PRODUCT_SCRIPT = """(function () {
   "use strict";
@@ -89,7 +92,7 @@ PRODUCT_SCRIPT = """(function () {
     const count = belt.querySelector(".belt-count");
     const bars = Array.from(belt.querySelectorAll(".belt-bar"));
     let step = 0;
-    run = {still: setTimeout(() => belt.setAttribute("data-belt-spent", ""), 2400), tick: setInterval(() => {
+    run = {still: %SPEND%, tick: setInterval(() => {
       count.textContent = String(Number(count.textContent) + 1);
       if (step < bars.length - 1 && performance.now() < ends - 200) { step += 1; bars[step].setAttribute("data-step", "current"); %STEP% }
     }, 600)};
@@ -100,7 +103,7 @@ PRODUCT_SCRIPT = """(function () {
   }
   if (typeof MutationObserver === "function") new MutationObserver(watch).observe(surface, {subtree: true, attributes: true, attributeFilter: ["hidden"]});
   document.addEventListener("DOMContentLoaded", () => { setTimeout(arm, 0); watch(); });
-})();""".replace("%KILN%", KILN_PLAY).replace("%STEP%", BELT_STEP)
+})();""".replace("%KILN%", KILN_PLAY).replace("%STEP%", BELT_STEP).replace("%SPEND%", BELT_SPEND)
 
 # The genuine canonical reviewer runtime and shell, exactly as the UI builder assembles a ui-hifi/2 page.
 REVIEWER_RUNTIME = reviewer_shell.runtime_block()

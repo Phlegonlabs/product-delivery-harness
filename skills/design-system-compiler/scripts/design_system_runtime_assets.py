@@ -5,6 +5,7 @@ effective reduced-motion preference (system OR gallery request) visible to the
 product's own matchMedia calls, tracks timers, observers and Element.animate
 so Stop can halt them, gates Animation playback calls once stopped, and
 credits an effect only after a sampled visible, subject-owned rendered change.
+A row settles only when every bound effect is finite and reached its end.
 RUNTIME_BOOT follows the copied markup and precedes the source script loader
 (source_script_order), which runs every product script from its source slot:
 it selects the requested target and state view so product code starts there.
@@ -56,6 +57,29 @@ RUNTIME_FRAME = r"""(() => {
   let stopped = false, booted = false, subject = null, canvas = null, readyAt = null, seenAt = null, navigation = "", last = "";
   let violation = "";
   const timers = new Set(), loops = new Set(), frames = new Set(), observers = new Set(), entries = [], errors = [];
+  // A source cancel or detachment records whether its effect had already reached its end; a style cancel reports it via animationcancel.
+  const end = entry => { if (entry && !stopped && entry.ended === null) entry.ended = entry.animation.playState === "finished"; };
+  const cancelNative = native.cancel;
+  if (typeof cancelNative === "function") Animation.prototype.cancel = function (...args) {
+    end(entries.find(item => item.animation === this));
+    return cancelNative.apply(this, args);
+  };
+  // Clearing or replacing Animation.effect, or clearing or retargeting a KeyframeEffect, detaches the tracked effect.
+  // The browser then reports it finished without a cancel. Assigning the current value detaches nothing. Stop gates both setters.
+  const detach = (owner, key, tracked) => {
+    const field = owner && Object.getOwnPropertyDescriptor(owner.prototype, key);
+    if (field && field.set) Object.defineProperty(owner.prototype, key, {configurable: true, enumerable: field.enumerable,
+      get: field.get, set(value) {
+        if (stopped) return;
+        if (value !== field.get.call(this)) entries.filter(item => tracked(item, this, value)).forEach(end);
+        field.set.call(this, value);
+      }});
+  };
+  detach(window.Animation, "effect", (item, animation, effect) => item.animation === animation || (effect && item.effect === effect));
+  for (const key of ["target", "pseudoElement"]) detach(window.KeyframeEffect, key, (item, effect) => item.effect === effect);
+  // Another route, such as new Animation(effect), takes the captured effect without a setter. Unless its end was already
+  // observed, that unsupported route is a detachment before the end; a finish cannot then prove completion.
+  const taken = entry => { if (!stopped && !entry.done && entry.ended === null && entry.animation.effect !== entry.effect) entry.ended = false; };
   // Stop gates the native playback lifecycle of every Animation (retained, returned or constructed) in this realm.
   const gate = (owner, key) => {
     const method = owner && owner.prototype && owner.prototype[key];
@@ -149,14 +173,20 @@ RUNTIME_FRAME = r"""(() => {
     }
     return entry.implicit.filter(property => others.some(list => list.indexOf(property) >= 0));
   }
-  function renderable(entry) {
+  // Paint state of the effect target: 0 hidden, 1 shown except its own opacity is zero, 2 painted.
+  // Every flat-tree ancestor, the owner and a pseudo-element must be visible and not fully transparent.
+  const up = node => node.assignedSlot || node.parentElement || (node.parentNode && node.parentNode.host) || null;
+  function painted(entry) {
     const node = entry.owner;
-    if (!node || !node.isConnected || !node.getClientRects || !node.getClientRects().length) return false;
-    if (typeof node.checkVisibility === "function" && !node.checkVisibility({visibilityProperty: true})) return false;
-    if (native.style(node).visibility !== "visible") return false;
-    if (!entry.pseudo) return true;
+    if (!node || !node.isConnected || !node.getClientRects || !node.getClientRects().length) return 0;
+    if (typeof node.checkVisibility !== "function" || !node.checkVisibility({visibilityProperty: true})) return 0;
+    if (native.style(node).visibility !== "visible") return 0;
+    for (let item = up(node); item; item = up(item)) if (!(Number(native.style(item).opacity) > 0)) return 0;
+    if (!entry.pseudo) return Number(native.style(node).opacity) > 0 ? 2 : 1;
+    if (!(Number(native.style(node).opacity) > 0)) return 0;
     const style = native.style(node, entry.pseudo);
-    return style.display !== "none" && style.content !== "none" && style.content !== "normal";
+    if (style.display === "none" || style.content === "none" || style.content === "normal" || style.visibility !== "visible") return 0;
+    return Number(style.opacity) > 0 ? 2 : 1;
   }
   function capture(animation, owner, css) {
     const effect = animation.effect;
@@ -165,35 +195,37 @@ RUNTIME_FRAME = r"""(() => {
     const properties = new Set();
     for (const frame of keyframes) for (const key of Object.keys(frame))
       if (SKIP.indexOf(key) < 0) properties.add(key);
-    const entry = {animation, owner, css, inside: false, pseudo: (effect && effect.pseudoElement) || "",
+    const entry = {animation, effect, owner, css, inside: false, pseudo: (effect && effect.pseudoElement) || "",
       name: css ? String(animation.animationName || "") : "", duration: Number(timing.duration), delay: Number(timing.delay) || 0,
       iterations: Number(timing.iterations), active: Number(timing.activeDuration), keyframes: keyframes.length,
       properties: Array.from(properties).sort().join(","), varying: varying(keyframes), implicit: implicit(keyframes), blocked: [],
-      at: now(), done: false, cancelled: false, baseline: null, visible: false, changed: false};
+      at: now(), done: false, cancelled: false, cancelAt: null, ended: null, baseline: null, visible: false, changed: false};
     // The finish microtask runs before product continuations, so a filled end state finished early is still sampled.
-    animation.finished.then(() => { entry.done = true; observe(entry); }, () => { entry.cancelled = true; });
+    animation.finished.then(() => { taken(entry); entry.done = true; observe(entry); }, () => { entry.cancelled = true; entry.cancelAt = now(); });
     entries.push(entry);
     observe(entry);
     return entry;
   }
-  // Credit needs a sample where the effect is in effect, live-owned by the subject, renderable and visibly different.
+  // Credit needs a sample where the effect is in effect, live-owned by the subject, painted and visibly different.
   function observe(entry) {
     if (!subject || !within(entry.owner)) return;
     entry.inside = true;
     const timing = entry.animation.effect ? entry.animation.effect.getComputedTiming() : {};
-    if (timing.progress === null || timing.progress === undefined || !entry.varying.length || !renderable(entry)) return;
+    const paint = painted(entry);
+    if (timing.progress === null || timing.progress === undefined || !entry.varying.length || !paint) return;
     const lent = shared(entry).filter(property => entry.blocked.indexOf(property) < 0);
     // A newly shared property revokes any credit it may have lent and restarts sampling on the remaining properties.
     if (lent.length) { entry.blocked = entry.blocked.concat(lent); entry.baseline = null; entry.changed = false; }
     const own = entry.varying.filter(property => entry.blocked.indexOf(property) < 0);
-    if (!own.length) return;
+    // A zero own opacity is only a baseline, and only while this effect animates opacity (a reveal from zero).
+    if (!own.length || (paint === 1 && own.indexOf("opacity") < 0)) return;
     const style = native.style(entry.owner, entry.pseudo || null);
     const values = own.map(property => style.getPropertyValue(property)).filter(value => value !== "");
     if (!values.length) return;
     const mark = own.map(property => canonical(property, style.getPropertyValue(property))).join("|");
-    entry.visible = true;
+    if (paint === 2) entry.visible = true;
     if (entry.baseline === null) entry.baseline = mark;
-    else if (mark !== entry.baseline) entry.changed = true;
+    else if (mark !== entry.baseline && paint === 2) entry.changed = true;
   }
   Element.prototype.animate = function (keyframes, options) {
     const animation = native.animate.call(this, keyframes, options);
@@ -211,6 +243,7 @@ RUNTIME_FRAME = r"""(() => {
     }
     for (const entry of entries) {
       observe(entry);
+      taken(entry);
       if (entry.animation.playState === "finished") entry.done = true;
     }
     // Under reduced motion any running native animation (WAAPI, CSS animation or transition) on the subject is a violation.
@@ -233,14 +266,19 @@ RUNTIME_FRAME = r"""(() => {
     const relevant = entries.filter(entry => entry.inside);
     if (reduced) return relevant.length || violation ? "invalid" : "reduced";
     if (config.activation === "viewport" && relevant.some(entry => seenAt === null || entry.at + 1 < seenAt)) return "invalid";
-    const valid = relevant.filter(structural);
+    // Every bound effect needs finite structural proof; an infinite or unsupported effect is never set aside.
+    if (relevant.some(entry => !structural(entry))) return "invalid";
     const start = config.activation === "viewport" ? seenAt : readyAt;
-    if (!valid.length) return start !== null && now() - start > LIMIT ? "invalid" : "pending";
-    const credited = valid.filter(entry => entry.changed).length;
-    if (valid.some(entry => !entry.done && !entry.cancelled))
+    if (!relevant.length) return start !== null && now() - start > LIMIT ? "invalid" : "pending";
+    // A cancel or detachment before the effect reached its end is not a finish, even when the browser then reports it finished.
+    // An unreported style cancel fails after LIMIT.
+    if (relevant.some(entry => entry.ended === false ||
+        (!entry.done && entry.cancelled && entry.ended === null && now() - entry.cancelAt > LIMIT))) return "invalid";
+    const credited = relevant.filter(entry => entry.changed).length;
+    if (relevant.some(entry => !entry.done && !(entry.cancelled && entry.ended)))
       return credited ? "playing" : start !== null && now() - start > LIMIT ? "invalid" : "pending";
     // Every finished effect needs its own visible rendered change; constant, hidden or detached effects fail.
-    return credited === valid.length ? "settled" : "invalid";
+    return credited === relevant.length ? "settled" : "invalid";
   }
   function measure() {
     const box = canvas || document.body;
@@ -254,7 +292,7 @@ RUNTIME_FRAME = r"""(() => {
       evidence: relevant.slice(0, 40).map(entry => ({owner: label(entry.owner), pseudo: entry.pseudo, name: entry.name,
         duration: entry.duration, delay: entry.delay, iterations: Number.isFinite(entry.iterations) ? entry.iterations : -1,
         keyframes: entry.keyframes, properties: entry.properties, varying: entry.varying.join(","), shared: entry.blocked.join(","),
-        at: entry.at, done: entry.done, visible: entry.visible, changed: entry.changed})),
+        at: entry.at, done: entry.done, cancelled: entry.cancelled, ended: entry.ended, visible: entry.visible, changed: entry.changed})),
       error: errors.length ? errors[0] : "", booted, violation, navigation, height: measure(),
       timing: {ready: readyAt, seen: seenAt, first: relevant.length ? relevant[0].at : null}};
     const text = JSON.stringify(body);
@@ -293,6 +331,14 @@ RUNTIME_FRAME = r"""(() => {
   }, true);
   document.addEventListener("submit", event => event.preventDefault(), true);
   document.addEventListener("animationstart", () => { if (stopped) for (const animation of document.getAnimations()) animation.pause(); }, true);
+  // A CSS animation removed by style is idle; its event's elapsed time says whether the full active duration ran.
+  // Only a browser-dispatched event reports it: a script-constructed event cannot lend completion.
+  document.addEventListener("animationcancel", event => {
+    if (!event.isTrusted) return;
+    const entry = entries.find(item => item.css && !item.done && item.ended === null && item.animation.playState === "idle" &&
+      item.owner === event.target && item.pseudo === (event.pseudoElement || "") && item.name === event.animationName);
+    if (entry) entry.ended = Math.round(event.elapsedTime * 1000) >= Math.round(entry.active);
+  }, true);
   window.addEventListener("message", event => {
     const data = event.data;
     if (event.source !== parent || !data || typeof data !== "object" || data.type !== "ds-runtime-stop") return;
