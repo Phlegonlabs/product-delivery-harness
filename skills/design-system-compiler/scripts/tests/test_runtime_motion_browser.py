@@ -73,7 +73,7 @@ POSITIVE = HELPERS + r"""
   await page.waitForTimeout(1200);
   r.offscreen = await page.$eval(fig("kiln-rise"), item => item.getBoundingClientRect().top > innerHeight);
   r.waiting = [await phase("kiln-rise"), await status("kiln-rise"), await inFrame("kiln-rise", () => [document.documentElement.dataset.kilnArm || null, document.getAnimations().length])];
-  r.mounts = await inFrame("kiln-rise", () => [document.documentElement.dataset.reviewer || null, document.documentElement.dataset.controls || null]);
+  r.mounts = await inFrame("kiln-rise", () => [Boolean(document.__hifiReviewerRuntime), Boolean(document.__hifiProductControls)]);
   await page.$eval(fig("kiln-rise"), item => item.scrollIntoView({block: "center"}));
   r.entered = await wait("kiln-rise", ["settled", "invalid"], 8000);
   r.enteredStatus = await status("kiln-rise");
@@ -278,7 +278,7 @@ class RuntimeBrowserTests(unittest.TestCase):
         self.assertEqual("pending", r["waiting"][0])
         self.assertIn("has not entered the viewport", r["waiting"][1])
         self.assertEqual(["1", 0], r["waiting"][2], "armed with no motion before entry")
-        self.assertEqual([None, "1"], r["mounts"], "product controls connect; the reviewer shell never mounts")
+        self.assertEqual([False, True], r["mounts"], "product controls connect; the reviewer runtime never connects")
         self.assertEqual("settled", r["entered"][-1], r["entered"])
         self.assertIn("playing", r["entered"])
         self.assertIn("3 source animations on span.kiln-mark (opacity,transform) finished", r["enteredStatus"])

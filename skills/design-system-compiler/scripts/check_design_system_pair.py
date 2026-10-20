@@ -47,6 +47,7 @@ from markdown_contract import active_text, exact_marker_lines  # noqa: E402
 from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
 import design_system_showcase  # noqa: E402
 import showcase_runtime  # noqa: E402
+import surface_adapter  # noqa: E402
 
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED DESIGN SYSTEM CONTRACT -->"
@@ -1464,6 +1465,8 @@ def showcase_source_findings(registry: dict[str, Any], root: Path) -> list[str]:
     found = design_system_showcase.resolve(registry, documents)[1]
     if registry["showcase"].get("schema") == showcase_runtime.SCHEMA_V2:
         found += showcase_runtime.resolve_runtime(registry, documents, manifest, lambda path: read_repo_file(root, path))[1]
+        trees = {page: design_system_showcase.SourceTree(html) for page, html in documents.items()}
+        found += surface_adapter.resolve_surfaces(trees, manifest)[1]
     return found
 
 

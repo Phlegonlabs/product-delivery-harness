@@ -446,7 +446,7 @@ flowchart LR
 
 保留的 `ui-design/2` 套件不再製作灰階 Wireframe 或執行 W1–W5 階段。直接用代表視覺研究探索版面、字體、層級與 responsive，再於 HiFi 驗證。舊 Wireframe 工具只供歷史產物唯讀檢視與驗證。
 
-HiFi 提供完整、取自實際樣式的 Design Tokens 頁。`ui-design/3` 包一定編譯 `design-system/4`：`showcase` 把每個 primitive variant、元件狀態與動效綁到核准 HiFi 元素，`design-system-preview.html` 以 specimen book 呈現，不自行發明樣式。`ui-design/2` 在 Need Gate 要求正式 pair 時才產生 `design-system/3`。兩者都綁定已核准 PRD、architecture、stack、UI contract 與 HiFi 包，不再綁 Wireframe。由產品腳本或狀態驅動的已核准動效使用 `ds-showcase/2`：每列綁定已核准 intent 與證據、一段以雜湊識別的產品腳本，以及精確的 surface、state 與 target 副本。specimen book 在全新的沙箱 frame 中重播，並提供 Stop；減少動態偏好在產品程式執行前生效。編譯須在精確 preview 上另行通過瀏覽器驗證才算完成。
+HiFi 提供完整、取自實際樣式的 Design Tokens 頁。`ui-design/3` 包一定編譯 `design-system/4`：`showcase` 把每個 primitive variant、元件狀態與動效綁到核准 HiFi 元素，`design-system-preview.html` 以 specimen book 呈現，不自行發明樣式。`ui-design/2` 在 Need Gate 要求正式 pair 時才產生 `design-system/3`。兩者都綁定已核准 PRD、architecture、stack、UI contract 與 HiFi 包，不再綁 Wireframe。由產品腳本或狀態驅動的已核准動效使用 `ds-showcase/2`：每列綁定已核准 intent 與證據、一段以雜湊識別的產品腳本，以及精確的 surface、state 與 target 副本。specimen book 在全新的沙箱 frame 中重播，並提供 Stop；減少動態偏好在產品程式執行前生效。其 Surface 樣板透過隱藏的已核准 state 與 target 控制項副本執行頁面自身的 reviewer runtime，讓 gallery 指令與產品操作共用同一個來源狀態；缺少或不支援的 reviewer 基礎設施會讓渲染失敗。編譯須在精確 preview 上另行通過瀏覽器驗證才算完成。
 
 HiFi 以內嵌 `ui-hifi-copy/1` 及產品 DOM 綁定保留文案來源。靜態文案、動態顯示契約及成對語言仍可檢查。Tokens 展示實際數值、用途及控件變體；審閱器文字不能代替產品覆蓋。
 

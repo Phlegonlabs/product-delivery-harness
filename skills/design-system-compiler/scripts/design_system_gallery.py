@@ -16,6 +16,7 @@ from typing import Any
 
 import design_system_showcase as source
 import showcase_runtime
+import surface_adapter
 from design_system_gallery_assets import FRAME_RUNTIME, GALLERY_CSS, GALLERY_RUNTIME
 from design_system_gallery_runtime import runtime_plate
 from design_system_runtime_assets import RUNTIME_BOOT, RUNTIME_CSS, RUNTIME_FRAME, RUNTIME_GALLERY
@@ -74,6 +75,15 @@ class Gallery:
         self.has_runtime = bool(runtime_rows)
         for page in sorted({row.get("page") for row in self.surfaces if row.get("page") in documents}):
             scripts.extend(source.product_scripts(documents[page], with_controls=True))
+        # ds-showcase/2 Surface plates run the page's own reviewer infrastructure (surface_adapter).
+        self.surface_bindings: dict[str, dict[str, Any]] = {}
+        if self.v2:
+            self.surface_bindings, problems = surface_adapter.resolve_surfaces(self.trees, manifest)
+            if problems:
+                raise ValueError("\n".join(problems))
+            if self.surface_bindings:
+                scripts += [surface_adapter.SURFACE_FOCUS_GUARD, surface_adapter.SURFACE_FRAME, surface_adapter.SURFACE_GALLERY]
+                scripts += [binding["connect"] for binding in self.surface_bindings.values()]
         self.csp = content_security_policy(scripts)
         self.frame_count = 0
         self.specimen_frames: dict[str, str] = {}
@@ -93,19 +103,25 @@ class Gallery:
         html_start, body_start, content = source.fragment(tree, node, marker=frame_id)
         css = source.product_css(html)
         reduced = source.reduced_motion_css(css)
-        scripts = source.product_scripts(html, with_controls=kind == "surface")
+        surface = self.surface_bindings.get(str(config.get("surface"))) if self.v2 and kind == "surface" else None
+        if self.v2 and kind == "surface" and surface is None:
+            raise ValueError(f"Surface plate {config.get('surface')} has no validated reviewer infrastructure")
+        scripts = surface["scripts"] if surface else source.product_scripts(html, with_controls=kind == "surface")
         payload = json.dumps(dict(config, id=frame_id, kind=kind), sort_keys=True, ensure_ascii=False).replace("</", "<\\/")
         document = ("<!doctype html>" + html_start + '<head><meta charset="utf-8">'
                     + f'<meta http-equiv="Content-Security-Policy" content="{escape(self.csp, quote=True)}">'
                     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
                     + "<style>html,body{margin:0}</style>" + f"<style>{css}</style>"
                     + (f'<style data-ds-reduced media="not all">{reduced}</style>' if reduced.strip() else "")
-                    + f'<script type="application/json" id="ds-frame-config">{payload}</script></head>'
-                    + body_start + content + "".join(f"<script>{item}</script>" for item in scripts)
-                    + f"<script>{FRAME_RUNTIME}</script></body></html>")
+                    + f'<script type="application/json" id="ds-frame-config">{payload}</script>'
+                    + (f"<script>{surface_adapter.SURFACE_FOCUS_GUARD}</script>" if surface else "") + "</head>"
+                    + body_start + content + (surface["infrastructure"] if surface else "")
+                    + "".join(f"<script>{item}</script>" for item in scripts)
+                    + f"<script>{surface_adapter.SURFACE_FRAME if surface else FRAME_RUNTIME}</script></body></html>")
         widths = source.canvas_widths(tree)
         width = widths.get(source.specimen_target(tree, node) or "", 0.0) or 360.0
-        iframe = (f'<iframe data-ds-frame="{frame_id}" title="{escape(title, quote=True)}" sandbox="allow-scripts" '
+        marker = " data-ds-surface-frame" if surface else ""
+        iframe = (f'<iframe data-ds-frame="{frame_id}"{marker} title="{escape(title, quote=True)}" sandbox="allow-scripts" '
                   f'referrerpolicy="no-referrer" style="width:{width:g}px" srcdoc="{escape(document, quote=True)}"></iframe>')
         return frame_id, iframe, width
 
@@ -331,8 +347,9 @@ class Gallery:
                         + "</div>")
             caption = (f"<b>{escape(str(surface_id))}</b> <code>{escape(str(surface.get('route', '')))}</code> "
                        f"from <code>{escape(str(page))}</code>")
+            config = {"surface": str(surface_id)} if self.v2 else {"state": states[0] if states else None}
             _, html = self.plate(page, node, kind="surface", title=f"{surface_id} live surface", caption=caption,
-                                 config={"state": states[0] if states else None}, controls=controls)
+                                 config=config, controls=controls)
             parts.append(f'<h3 id="s-{_slug(str(surface_id))}">{escape(str(surface_id))}</h3>{html}')
             rows = [row for row in interactions if isinstance(row.get("source"), dict) and row["source"].get("surface") == surface_id]
             if rows:
@@ -440,7 +457,8 @@ class Gallery:
                 f'<div class="book"><nav class="index" aria-label="Specimen book contents"><ol>{index}</ol></nav>'
                 f'<main id="main" tabindex="-1">{self.foundations()}{components}{surfaces}{motion}{self.traceability()}</main></div>'
                 f"<script>{GALLERY_RUNTIME}</script>"
-                + (f"<script>{RUNTIME_GALLERY}</script>" if self.has_runtime else "") + "</body></html>\n")
+                + (f"<script>{RUNTIME_GALLERY}</script>" if self.has_runtime else "")
+                + (f"<script>{surface_adapter.SURFACE_GALLERY}</script>" if self.surface_bindings else "") + "</body></html>\n")
 
 
 def render_gallery(registry: dict[str, Any], registry_bytes: bytes, markdown_bytes: bytes, documents: dict[str, str],

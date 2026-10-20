@@ -18,6 +18,11 @@ from typing import Callable
 SCRIPTS = Path(__file__).resolve().parents[1]
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
+UI_SCRIPTS = SCRIPTS.parents[1] / "ui-design-builder" / "scripts"
+if str(UI_SCRIPTS) not in sys.path:
+    sys.path.append(str(UI_SCRIPTS))
+
+import reviewer_shell  # noqa: E402  canonical UI-builder reviewer bytes
 
 HIFI = "docs/design/ui-references/kiln/index.html"
 UI = "docs/design/ui-design.md"
@@ -97,9 +102,8 @@ PRODUCT_SCRIPT = """(function () {
   document.addEventListener("DOMContentLoaded", () => { setTimeout(arm, 0); watch(); });
 })();""".replace("%KILN%", KILN_PLAY).replace("%STEP%", BELT_STEP)
 
-REVIEWER_RUNTIME = ("<!-- hifi-reviewer:runtime:start --><script>window.connectHifiReviewer = function () { "
-                    "document.documentElement.dataset.reviewer = \"mounted\"; }; window.connectProductControls = function (root) { "
-                    "root.documentElement.dataset.controls = \"1\"; };</script><!-- hifi-reviewer:runtime:end -->")
+# The genuine canonical reviewer runtime and shell, exactly as the UI builder assembles a ui-hifi/2 page.
+REVIEWER_RUNTIME = reviewer_shell.runtime_block()
 INTENTS = (("MM-001", "UI-001 / kiln demonstration", "Plays once when the kiln first enters the viewport"),
            ("MM-002", "UI-001 / belt steps", "Step changes while running"),
            ("MM-003", "UI-001 / belt stripes", "Stripes move while running"))
@@ -124,8 +128,9 @@ def pages(script: str = PRODUCT_SCRIPT, *, css: str = PRODUCT_CSS, views: str | 
         {"id": "UI-001", "page": "index.html", "route": "/kiln", "states": ["ready", "running", "not_found:n/a"],
          "responsive": {"kind": "viewports", "targets": [390, 768]}, "navigation": [], "controls": ["batch"]}]}
     views = views if views is not None else "".join(_view(state, target) for state in ("ready", "running") for target in ("390", "768"))
+    shell = "<!-- reviewer:start -->\n" + reviewer_shell.build_shell(manifest, "index.html") + "\n<!-- reviewer:end -->"
     html = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Kiln timer</title>'
-            f"<style>{css}</style></head><body>"
+            f"<style>{css}</style></head><body>{shell}"
             '<main><div data-hifi-canvas data-hifi-targets="390 768" data-hifi-target="390">'
             f'<section class="shell" data-ui-surface="UI-001" data-ui-route="/kiln">{views}</section></div></main>'
             f"<script>{script}</script>{scripts_after}{REVIEWER_RUNTIME}"

@@ -108,7 +108,7 @@ class IntentEvidenceTests(unittest.TestCase):
 
 class ScriptAndScopeTests(unittest.TestCase):
     def test_script_hash_binds_one_preserved_product_script(self):
-        reviewer_body = re.search(r"<script>([\s\S]*?)</script>", REVIEWER_RUNTIME).group(1)
+        reviewer_body = re.search(r"<script[^>]*>([\s\S]*?)</script>", REVIEWER_RUNTIME).group(1)
         cases = {
             "unknown": ("0" * 64, None, "matches no executable inline product script"),
             "reviewer runtime": (sha(reviewer_body), None, "names a reviewer script"),
