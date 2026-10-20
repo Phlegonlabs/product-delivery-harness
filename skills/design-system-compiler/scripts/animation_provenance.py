@@ -1,4 +1,4 @@
-"""Static animation-name provenance for a closed, unconditional CSS subset.
+"""Static animation-name provenance for a closed CSS subset.
 
 This is not a browser CSS engine. Unsupported animation/custom-property rules
 fail closed rather than supplying evidence for an approved specimen.
@@ -13,6 +13,8 @@ COMPOUND = re.compile(rf"(?:[A-Za-z][\w-]*|\*)?(?:[.#]{IDENT})*")
 SENSITIVE = re.compile(r"(?:^|[;{])\s*(?:(?:-webkit-)?animation(?:-[\w-]+)?|all|--[\w-]+)\s*:", re.I)
 ANIMATION_ONLY = re.compile(r"(?:^|[;{])\s*(?:(?:-webkit-)?animation(?:-[\w-]+)?|all)\s*:", re.I)
 VAR_REF = re.compile(r"var\(\s*(--[\w-]+)")
+CONDITIONAL_VAR = re.compile(r"(--[\w-]+)\s*:")
+PROPERTY_NAME = re.compile(rf"@(?:-webkit-)?property\s+(--{IDENT})", re.I)
 
 
 def _split(value, separator):
@@ -36,7 +38,8 @@ def _split(value, separator):
 
 
 def _rules(css, *, static_only=False):
-    rules, keyframes, cursor = [], set(), 0
+    rules, keyframes, conditional, registrations = [], {}, [], []
+    cursor = 0
     sensitive = ANIMATION_ONLY if static_only else SENSITIVE
     css = re.sub(r"/\*[\s\S]*?\*/", "", css)
     if "\\" in css:
@@ -57,10 +60,14 @@ def _rules(css, *, static_only=False):
         body, cursor = css[start + 1:end - 1], end
         keyframe = re.fullmatch(rf"@(?:-webkit-)?keyframes\s+({IDENT})", header, re.I)
         if keyframe:
-            keyframes.add(keyframe.group(1))
+            keyframes[keyframe.group(1)] = body
         elif header.startswith("@"):
-            if sensitive.search(body) or ";" in header:
+            if ANIMATION_ONLY.search(body) or ";" in header:
                 raise ValueError("conditional or layered animation CSS")
+            if (property_name := PROPERTY_NAME.fullmatch(header)) is not None:
+                registrations.append(property_name.group(1))
+            if CONDITIONAL_VAR.search(body):
+                conditional.append(body)
         elif sensitive.search(body):
             if "{" in body or "}" in body:
                 raise ValueError("nested animation CSS")
@@ -68,7 +75,7 @@ def _rules(css, *, static_only=False):
             if not all(item == ":root" or (item and COMPOUND.fullmatch(item)) for item in selectors):
                 raise ValueError("unsupported animation selector")
             rules.append((selectors, body))
-    return rules, keyframes
+    return rules, keyframes, conditional, registrations
 
 
 def _specificity(node, selector):
@@ -239,7 +246,7 @@ def _names(value, shorthand):
 def source_status(css, node, ancestors=()):
     """Classify animation provenance without treating static controls as failures."""
     try:
-        rules, keyframes = _rules(css)
+        rules, keyframes, conditional, registrations = _rules(css)
         variables = {}
         for ancestor in (*ancestors, node):
             winners = _cascade(rules, ancestor)
@@ -253,12 +260,28 @@ def source_status(css, node, ancestors=()):
         names = _names(value, winner[1] == "animation")
         if not names:
             return "no_animation"
-        return "source_backed" if names <= keyframes else "unresolved"
+        relevant = set(VAR_REF.findall(winner[2]))
+        for name, body in keyframes.items():
+            if name in names:
+                relevant.update(VAR_REF.findall(body))
+        queue = set(relevant)
+        while queue:
+            name = queue.pop()
+            value = variables.get(name) or ""
+            if name in variables:
+                fallbacks = set(VAR_REF.findall(value))
+                relevant.update(fallbacks)
+                queue.update(fallbacks.difference(relevant))
+        if (set(registrations) & relevant
+                or any(set(CONDITIONAL_VAR.findall(body)) & relevant
+                       for body in conditional)):
+            return "unresolved"
+        return "source_backed" if names <= set(keyframes) else "unresolved"
     except (ValueError, RecursionError):
         # Custom properties cannot affect a literal absence of animation.
         # This narrower inspection can prove only no_animation, never provenance.
         try:
-            rules, _ = _rules(css, static_only=True)
+            rules, _, _, _ = _rules(css, static_only=True)
             winner = _cascade(rules, node).get("animation-name")
             if winner is None or (winner[1] != "all" and not _names(winner[2], winner[1] == "animation")):
                 return "no_animation"
