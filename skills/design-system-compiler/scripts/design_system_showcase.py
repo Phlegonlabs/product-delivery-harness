@@ -394,6 +394,11 @@ def resolve(registry: dict[str, Any], documents: dict[str, str]) -> tuple[dict[s
         if v2 and row["mode"] == "rendered" and bound and row["state"] == "open" \
                 and closed_open_claim(bound["tree"], bound["node"]):
             problems.append(f"showcase rendered state open on {row['specimen']} is a closed <details> source node")
+    if v2:
+        for specimen_id, bound in resolved.items():
+            problem = disclosure_context(bound["tree"], bound["node"])[1]
+            if problem:
+                problems.append(f"showcase specimen {specimen_id} {problem}")
     for row in showcase.get("motion", []):
         bound = resolved.get(row["specimen"])
         if not bound:
@@ -443,15 +448,39 @@ def specimen_target(tree: SourceTree, node: dict[str, Any]) -> str | None:
     return canvas["map"].get("data-hifi-target")
 
 
-def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str, around: dict[int, tuple[str, str]] | None = None) -> tuple[str, str, str]:
+def disclosure_context(tree: SourceTree, node: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    """ds-showcase/2 component context: the outermost native <details> around a specimen.
+
+    Every disclosure on the path must keep its one real controlling summary;
+    otherwise the plate would show browser Details chrome, so it is a finding.
+    """
+    ancestors = tree.ancestors(node)
+    path = [item for item in ancestors if item["tag"] == "details"]
+    if not path:
+        return None, None
+    for details in path:
+        summaries = [item for item in tree.nodes if item["parent"] == details["index"] and item["tag"] == "summary"]
+        if len(summaries) != 1 or details["end"] <= details["inner_end"]:
+            return None, "native <details> context needs one direct <summary> per disclosure and a source end tag"
+    if any("data-hifi-state-view" in item["map"] for item in ancestors[ancestors.index(path[0]):]):
+        return None, "native <details> context cannot contain a reviewer state view"
+    context = path[0]
+    if any(item["tag"] == "script" and context["start"] <= item["start"] < context["end"] for item in tree.nodes):
+        return None, "native <details> context contains unsupported script descendant"
+    return path[0], None
+
+
+def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str, around: dict[int, tuple[str, str]] | None = None,
+             context: dict[str, Any] | None = None) -> tuple[str, str, str]:
     """Return (html start tag, body start tag, body content) copied from source.
 
     Ancestors keep their source attributes so descendant selectors, custom
     properties and container queries apply. Only ``hidden`` on a reviewer
     state view is dropped and the canvas selects that view's target, exactly
     as the reviewer runtime shows a state at a size. ``around`` adds ds-showcase/2 script slots first/last inside a retained ancestor.
+    ``context`` (see disclosure_context) copies that original subtree verbatim around the subject; only the subject gains the marker.
     """
-    around, chain = around or {}, tree.ancestors(node)
+    around, chain = around or {}, tree.ancestors(context or node)
     html_node = next((item for item in chain if item["tag"] == "html"), None)
     body_node = next((item for item in chain if item["tag"] == "body"), None)
     target = specimen_target(tree, node)
@@ -465,7 +494,9 @@ def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str, around: dic
         closing.insert(0, around.get(item["index"], ("", ""))[1] + f"</{item['tag']}>")
     drop = {"hidden"} if "data-hifi-state-view" in node["map"] else set()
     element = serialize_start(node["tag"], node["attrs"], drop=drop, extra={"data-ds-subject": marker})
-    if node["tag"] not in VOID and node["end"] > node["start_end"]:
+    if context is not None:
+        element = tree.html[context["start"]:node["start"]] + element + tree.html[node["start_end"]:context["end"]]
+    elif node["tag"] not in VOID and node["end"] > node["start_end"]:
         element += tree.html[node["start_end"]:node["inner_end"]] + f"</{node['tag']}>"
     html_start = serialize_start("html", html_node["attrs"]) if html_node else "<html>"
     body_start = serialize_start("body", body_node["attrs"], drop={"data-hifi-default-surface"}) if body_node else "<body>"

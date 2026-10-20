@@ -18,7 +18,7 @@ import design_system_showcase as source
 import showcase_runtime
 import source_script_order as script_order
 import surface_adapter
-from design_system_gallery_assets import FRAME_RUNTIME, GALLERY_CSS, GALLERY_RUNTIME
+from design_system_gallery_assets import FRAME_RUNTIME, FRAME_RUNTIME_DISCLOSURE, GALLERY_CSS, GALLERY_RUNTIME
 from design_system_gallery_runtime import runtime_plate
 from design_system_runtime_assets import RUNTIME_BOOT, RUNTIME_CSS, RUNTIME_FRAME, RUNTIME_GALLERY
 
@@ -74,6 +74,16 @@ class Gallery:
             raise ValueError("source-runtime motion rows need resolved runtime bindings before rendering")
         scripts = [GALLERY_RUNTIME, FRAME_RUNTIME] + ([RUNTIME_FRAME, RUNTIME_BOOT, RUNTIME_GALLERY] if runtime_rows else [])
         self.has_runtime = bool(runtime_rows)
+        # ds-showcase/2 component plates keep a specimen's native <details> context (design_system_showcase.disclosure_context).
+        self.disclosures: dict[str, dict[str, Any]] = {}
+        for specimen_id, bound in resolved.items() if self.v2 else ():
+            context, problem = source.disclosure_context(bound["tree"], bound["node"])
+            if problem:
+                raise ValueError(f"showcase specimen {specimen_id} {problem}")
+            if context is not None:
+                self.disclosures[specimen_id] = context
+        if self.disclosures:
+            scripts.append(FRAME_RUNTIME_DISCLOSURE)
         for page in sorted({row.get("page") for row in self.surfaces if row.get("page") in documents}):
             scripts.extend(source.product_scripts(documents[page], with_controls=True))
         # ds-showcase/2 Surface plates run the page's own reviewer infrastructure (surface_adapter).
@@ -104,7 +114,8 @@ class Gallery:
             return any(isinstance(contracts.get(item), dict) and contracts[item].get("surfaceClass") in NATIVE_CLASSES for item in ids)
         return self.registry.get("platform") not in (None, "web")
 
-    def frame(self, page: str, node: dict[str, Any], *, kind: str, title: str, config: dict[str, Any]) -> tuple[str, str, float]:
+    def frame(self, page: str, node: dict[str, Any], *, kind: str, title: str, config: dict[str, Any],
+              context: dict[str, Any] | None = None) -> tuple[str, str, float]:
         self.frame_count += 1
         frame_id = f"plate-{self.frame_count:03d}"
         tree, html = self.trees[page], self.documents[page]
@@ -114,7 +125,7 @@ class Gallery:
         if self.v2 and kind == "surface" and surface is None:
             raise ValueError(f"Surface plate {config.get('surface')} has no validated reviewer infrastructure")
         html_start, body_start, content = (script_order.plate_markup(tree, node, surface["order"], frame_marker=frame_id)
-                                           if surface else source.fragment(tree, node, marker=frame_id))
+                                           if surface else source.fragment(tree, node, marker=frame_id, context=context))
         scripts = surface["scripts"] if surface else source.product_scripts(html, with_controls=kind == "surface")
         payload = json.dumps(dict(config, id=frame_id, kind=kind), sort_keys=True, ensure_ascii=False).replace("</", "<\\/")
         document = ("<!doctype html>" + html_start + '<head><meta charset="utf-8">'
@@ -127,7 +138,7 @@ class Gallery:
                        + f"<script>{surface_adapter.SURFACE_CLIPBOARD_GUARD}</script>" if surface else "") + "</head>"
                     + body_start + content + (surface["infrastructure"] if surface else "")
                     + "".join(f"<script>{item}</script>" for item in scripts)
-                    + f"<script>{surface_adapter.SURFACE_FRAME if surface else FRAME_RUNTIME}</script>"
+                    + f"<script>{surface_adapter.SURFACE_FRAME if surface else FRAME_RUNTIME_DISCLOSURE if context else FRAME_RUNTIME}</script>"
                     + (f"<script>{script_order.LOADER}</script>" if surface else "") + "</body></html>")
         widths = source.canvas_widths(tree)
         width = widths.get(source.specimen_target(tree, node) or "", 0.0) or 360.0
@@ -137,8 +148,8 @@ class Gallery:
         return frame_id, iframe, width
 
     def plate(self, page: str, node: dict[str, Any], *, kind: str, title: str, caption: str,
-              config: dict[str, Any] | None = None, controls: str = "") -> tuple[str, str]:
-        frame_id, iframe, _ = self.frame(page, node, kind=kind, title=title, config=config or {})
+              config: dict[str, Any] | None = None, controls: str = "", context: dict[str, Any] | None = None) -> tuple[str, str]:
+        frame_id, iframe, _ = self.frame(page, node, kind=kind, title=title, config=config or {}, context=context)
         badge = ('<p class="native">HTML demonstration of an approved native design. Not native evidence.</p>'
                  if self.native(page) else "")
         return frame_id, (f'<figure class="plate" id="{frame_id}"><div class="plate-stage">{iframe}</div>'
@@ -261,7 +272,8 @@ class Gallery:
                 caption = (f"<b>{escape(axes)}</b>, state {escape(src['state'])}<br>"
                            f"Source <code>{escape(src['page'])}</code> <code>{escape(src['selector'])}</code> "
                            f"variant <code>{escape(src['variant'])}</code>")
-                frame_id, html = self.plate(src["page"], bound["node"], kind="specimen", title=f"{name} {axes} {src['state']}", caption=caption)
+                frame_id, html = self.plate(src["page"], bound["node"], kind="specimen", title=f"{name} {axes} {src['state']}",
+                                            caption=caption, context=self.disclosures.get(row["id"]))
                 self.specimen_frames[row["id"]] = frame_id
                 plates.append(html)
             parts.append('<div class="plates">' + "".join(plates) + "</div>")
