@@ -163,7 +163,8 @@ class PlateTests(unittest.TestCase):
         for attrs, frame in self.plates:
             executable = set(re.findall(r"<script>([\s\S]*?)</script>", frame)) - {"window.__template = 1;"}
             if "data-ds-surface-frame" in attrs:
-                expected = {surface_adapter.SURFACE_FOCUS_GUARD, surface_adapter.SURFACE_FRAME, script_order.LOADER, definitions,
+                expected = {surface_adapter.SURFACE_FOCUS_GUARD, surface_adapter.SURFACE_CLIPBOARD_GUARD,
+                            surface_adapter.SURFACE_FRAME, script_order.LOADER, definitions,
                             'connectHifiReviewer({"packageId": "ui-hifi/2:kiln", "page": "index.html", "storage": null})'}
                 self.assertLess(frame.index(surface_adapter.SURFACE_FRAME), frame.index(script_order.LOADER),
                                 "source-control selection precedes product activation")

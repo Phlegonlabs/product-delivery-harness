@@ -17,6 +17,14 @@ scripts run from their source slots (source_script_order). SURFACE_GALLERY
 reflects that snapshot into the gallery controls. Legacy ds-showcase/1 Surface
 plates, component plates and source-runtime motion plates do not use this
 module.
+
+The plate denies the clipboard. SURFACE_CLIPBOARD_GUARD runs in the head
+before any other script and replaces `navigator.clipboard` with one frozen
+object whose methods reject with `NotAllowedError`. It never calls the native
+API, so the sandbox never logs a permissions-policy error. This is a denied
+environment, not a copy success: the product handles the rejection and owns
+its feedback. SURFACE_FRAME checks the denial; without it the plate is
+unavailable and the loader runs no product script.
 """
 
 from __future__ import annotations
@@ -182,6 +190,15 @@ SURFACE_FOCUS_GUARD = r"""(() => {
   }
 })();"""
 
+# Runs in the Surface plate head before any other script. The opaque sandbox has no clipboard permission, so every
+# clipboard method rejects here without calling the native API. The product's own rejection path decides the feedback.
+SURFACE_CLIPBOARD_GUARD = r"""(() => {
+  "use strict";
+  const deny = Object.freeze(() => Promise.reject(new DOMException("The design-system Surface plate denies clipboard access.", "NotAllowedError")));
+  const clipboard = Object.freeze({read: deny, readText: deny, write: deny, writeText: deny});
+  Object.defineProperty(Navigator.prototype, "clipboard", {configurable: false, enumerable: true, get: Object.freeze(() => clipboard)});
+})();"""
+
 SURFACE_FRAME = r"""(() => {
   "use strict";
   const config = JSON.parse(document.getElementById("ds-frame-config").textContent);
@@ -190,7 +207,15 @@ SURFACE_FRAME = r"""(() => {
   const boxes = document.querySelectorAll("[data-ds-reviewer-infrastructure]");
   const box = boxes.length === 1 ? boxes[0] : null;
   const runtime = document.__hifiReviewerRuntime;
-  let error = !box ? "the hidden reviewer controls are missing"
+  // The head guard must hold the clipboard denial: a fixed, frozen, non-native capability that nothing can replace.
+  const held = Object.getOwnPropertyDescriptor(Navigator.prototype, "clipboard");
+  const denied = Boolean(held && !held.configurable && !held.set && typeof held.get === "function"
+    && !Object.prototype.hasOwnProperty.call(navigator, "clipboard") && Object.isFrozen(navigator.clipboard)
+    && !(typeof Clipboard === "function" && navigator.clipboard instanceof Clipboard));
+  // Without it, withdraw the source inventory: the loader then refuses to run any product script.
+  if (!denied) { const order = document.getElementById("ds-source-order"); if (order) order.remove(); }
+  let error = !denied ? "the clipboard denial is not established"
+    : !box ? "the hidden reviewer controls are missing"
     : !runtime || typeof runtime.snapshot !== "function" ? "the public reviewer connect did not initialize" : "";
   const measured = () => canvas || document.body;
   let last = "";

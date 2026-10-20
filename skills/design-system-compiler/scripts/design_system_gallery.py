@@ -83,7 +83,8 @@ class Gallery:
             if problems:
                 raise ValueError("\n".join(problems))
             if self.surface_bindings:
-                scripts += [surface_adapter.SURFACE_FOCUS_GUARD, surface_adapter.SURFACE_FRAME, surface_adapter.SURFACE_GALLERY]
+                scripts += [surface_adapter.SURFACE_FOCUS_GUARD, surface_adapter.SURFACE_CLIPBOARD_GUARD,
+                            surface_adapter.SURFACE_FRAME, surface_adapter.SURFACE_GALLERY]
                 scripts += [binding["connect"] for binding in self.surface_bindings.values()]
             # Surface and source-runtime plates run every source script occurrence from its slot through one pinned loader.
             if self.surface_bindings or runtime_rows:
@@ -123,7 +124,7 @@ class Gallery:
                     + (f'<style data-ds-reduced media="not all">{reduced}</style>' if reduced.strip() else "")
                     + f'<script type="application/json" id="ds-frame-config">{payload}</script>'
                     + (script_order.inventory_json(surface["order"]) + f"<script>{surface_adapter.SURFACE_FOCUS_GUARD}</script>"
-                       if surface else "") + "</head>"
+                       + f"<script>{surface_adapter.SURFACE_CLIPBOARD_GUARD}</script>" if surface else "") + "</head>"
                     + body_start + content + (surface["infrastructure"] if surface else "")
                     + "".join(f"<script>{item}</script>" for item in scripts)
                     + f"<script>{surface_adapter.SURFACE_FRAME if surface else FRAME_RUNTIME}</script>"
