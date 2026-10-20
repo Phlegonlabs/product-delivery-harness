@@ -114,7 +114,7 @@ RUNTIME_FRAME = r"""(() => {
     return text;
   }
   // Supported evidence: standard properties whose keyframe values differ, or that fill an implicit end from the underlying value.
-  function varying(keyframes) {
+  function profile(keyframes) {
     const values = new Map();
     for (const frame of keyframes) {
       const offset = Number(frame.computedOffset !== undefined ? frame.computedOffset : frame.offset);
@@ -127,7 +127,26 @@ RUNTIME_FRAME = r"""(() => {
         if (offset === 0 || offset === 1) values.get(property).ends.add(offset);
       }
     }
-    return Array.from(values).filter(([, item]) => item.ends.size < 2 || item.seen.size > 1).map(([property]) => property);
+    return values;
+  }
+  function varying(keyframes) {
+    return Array.from(profile(keyframes)).filter(([, item]) => item.ends.size < 2 || item.seen.size > 1).map(([property]) => property);
+  }
+  function implicit(keyframes) {
+    return Array.from(profile(keyframes)).filter(([, item]) => item.ends.size < 2).map(([property]) => property);
+  }
+  // An implicit end renders the underlying value, so another effect on the same owner and property could lend it a change.
+  // That property never earns credit; this is bounded fail-closed evidence, not a composite-order engine.
+  function shared(entry) {
+    if (!entry.implicit.length) return [];
+    const others = entries.filter(item => item !== entry && item.owner === entry.owner && item.pseudo === entry.pseudo).map(item => item.varying);
+    const live = entry.owner.getAnimations ? entry.owner.getAnimations({subtree: true}) : [];
+    for (const animation of live) {
+      const effect = animation.effect;
+      if (animation === entry.animation || !effect || effect.target !== entry.owner || (effect.pseudoElement || "") !== entry.pseudo) continue;
+      others.push(Array.from(profile(effect.getKeyframes ? effect.getKeyframes() : []).keys()));
+    }
+    return entry.implicit.filter(property => others.some(list => list.indexOf(property) >= 0));
   }
   function renderable(entry) {
     const node = entry.owner;
@@ -148,8 +167,8 @@ RUNTIME_FRAME = r"""(() => {
     const entry = {animation, owner, css, inside: false, pseudo: (effect && effect.pseudoElement) || "",
       name: css ? String(animation.animationName || "") : "", duration: Number(timing.duration), delay: Number(timing.delay) || 0,
       iterations: Number(timing.iterations), active: Number(timing.activeDuration), keyframes: keyframes.length,
-      properties: Array.from(properties).sort().join(","), varying: varying(keyframes), at: now(), done: false, cancelled: false,
-      baseline: null, visible: false, changed: false};
+      properties: Array.from(properties).sort().join(","), varying: varying(keyframes), implicit: implicit(keyframes), blocked: [],
+      at: now(), done: false, cancelled: false, baseline: null, visible: false, changed: false};
     // The finish microtask runs before product continuations, so a filled end state finished early is still sampled.
     animation.finished.then(() => { entry.done = true; observe(entry); }, () => { entry.cancelled = true; });
     entries.push(entry);
@@ -162,10 +181,15 @@ RUNTIME_FRAME = r"""(() => {
     entry.inside = true;
     const timing = entry.animation.effect ? entry.animation.effect.getComputedTiming() : {};
     if (timing.progress === null || timing.progress === undefined || !entry.varying.length || !renderable(entry)) return;
+    const lent = shared(entry).filter(property => entry.blocked.indexOf(property) < 0);
+    // A newly shared property revokes any credit it may have lent and restarts sampling on the remaining properties.
+    if (lent.length) { entry.blocked = entry.blocked.concat(lent); entry.baseline = null; entry.changed = false; }
+    const own = entry.varying.filter(property => entry.blocked.indexOf(property) < 0);
+    if (!own.length) return;
     const style = native.style(entry.owner, entry.pseudo || null);
-    const values = entry.varying.map(property => style.getPropertyValue(property)).filter(value => value !== "");
+    const values = own.map(property => style.getPropertyValue(property)).filter(value => value !== "");
     if (!values.length) return;
-    const mark = entry.varying.map(property => canonical(property, style.getPropertyValue(property))).join("|");
+    const mark = own.map(property => canonical(property, style.getPropertyValue(property))).join("|");
     entry.visible = true;
     if (entry.baseline === null) entry.baseline = mark;
     else if (mark !== entry.baseline) entry.changed = true;
@@ -228,8 +252,8 @@ RUNTIME_FRAME = r"""(() => {
       mechanism: config.mechanism, activation: config.activation, inView: seenAt !== null, ignored: entries.length - relevant.length,
       evidence: relevant.slice(0, 40).map(entry => ({owner: label(entry.owner), pseudo: entry.pseudo, name: entry.name,
         duration: entry.duration, delay: entry.delay, iterations: Number.isFinite(entry.iterations) ? entry.iterations : -1,
-        keyframes: entry.keyframes, properties: entry.properties, varying: entry.varying.join(","), at: entry.at, done: entry.done,
-        visible: entry.visible, changed: entry.changed})),
+        keyframes: entry.keyframes, properties: entry.properties, varying: entry.varying.join(","), shared: entry.blocked.join(","),
+        at: entry.at, done: entry.done, visible: entry.visible, changed: entry.changed})),
       error: errors.length ? errors[0] : "", booted, violation, navigation, height: measure(),
       timing: {ready: readyAt, seen: seenAt, first: relevant.length ? relevant[0].at : null}};
     const text = JSON.stringify(body);
