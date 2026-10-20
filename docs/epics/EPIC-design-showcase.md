@@ -66,3 +66,19 @@ Versioning: `ui-design/3` pairs with `design-system/4`. `ui-design/2` → `desig
 
 
 - 2026-10-03 DS4-ANIMATION-SUBSET, baseline `faeb9af64b52a347467fe09e6f51f77863365989`, same work branch: the independent reviewer ran 20 actual Chromium counterchecks. Eighteen matched the closed subset, but escaped animation property names and a competing none/forwards fill-mode still supplied false evidence. Reject CSS escapes before sensitivity filtering, including inline declarations; account for none's fill-mode role in the shorthand grammar. Keep a valid pulse/none positive and add both helper and full-source negatives. Update the existing output contract and four README descriptions in place. Full working-tree Design System suite passed 139 tests with required Chromium and four POSIX-only Windows skips; README structure5, scoped Pyflakes and whitespace passed. Evidence is `animation-closed-subset-final-green.log`, `animation-closed-subset-readme.log` and the reviewer `review-skills-faeb-css-subset-20261003-01.log` in the external consolidation directory. Earlier faeb review remains changes-required; no verdict or result is relabelled. UI impact none; source CSS, generated gallery and motion runtime remain byte-identical. Fresh fixed-candidate CI and bounded independent confirmation are required. No added artifact class, provider launch or security scan.
+
+## AgentKiosk motion provenance repair (2026-10-19)
+
+The owner authorized compiler fixes, shared development installation and AgentKiosk pin updates before completing its design-system compile.
+Observed source main: origin/main at released 8db251b7f0999dd62a100ec70ea78b64455b2b6d; the local main ref is stale and is preserved.
+Correction branch: codex/agentkiosk-motion-compiler, isolated from that released source. UI impact: none intended for product design.
+The consumer already approves IntersectionObserver/WAAPI motion. The current showcase schema cannot replay it truthfully.
+A pure parser reproduction also shows an unrelated dark-color custom property changing unconditional animation provenance from source_backed to unresolved.
+Retain fail-closed behavior for actual conditional animation changes and relevant direct or transitive custom properties.
+Acceptance: truthful hash-bound script motion replay, Stop and reduced motion; no dummy animation or product/theme rewrite; negative provenance and sandbox regressions.
+Use one scoped source writer after read-only architecture. Review the fixed source candidate independently before the official installer runs.
+This is a local development installation, not a formal version release or permission to push, merge main, tag or publish.
+All seven installed copies and prior backups must be preserved through the canonical installer and verified at a relevant-session quiescent boundary.
+Follow with fresh AgentKiosk source evidence, conditional renewed approval and exact pair/preview validation.
+Gitignore impact: none. Existing synthetic fixtures remain tracked; task logs and process records stay outside the repository.
+Entry: source checkout clean; loaded session identity unknown. Scope and source changes remain pending verification.
