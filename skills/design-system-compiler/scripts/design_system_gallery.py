@@ -18,7 +18,7 @@ import design_system_showcase as source
 import showcase_runtime
 from design_system_gallery_assets import FRAME_RUNTIME, GALLERY_CSS, GALLERY_RUNTIME
 from design_system_gallery_runtime import runtime_plate
-from design_system_runtime_assets import RUNTIME_CSS, RUNTIME_FRAME, RUNTIME_GALLERY
+from design_system_runtime_assets import RUNTIME_BOOT, RUNTIME_CSS, RUNTIME_FRAME, RUNTIME_GALLERY
 
 LAYERS = ("layout", "surface", "typography", "control")
 NATIVE_CLASSES = {"ios", "android", "macos", "windows", "desktop"}
@@ -70,7 +70,7 @@ class Gallery:
         runtime_rows = [row for row in registry["showcase"]["motion"] if showcase_runtime.is_runtime(row)]
         if any(row["variant"] not in self.runtime for row in runtime_rows):
             raise ValueError("source-runtime motion rows need resolved runtime bindings before rendering")
-        scripts = [GALLERY_RUNTIME, FRAME_RUNTIME] + ([RUNTIME_FRAME, RUNTIME_GALLERY] if runtime_rows else [])
+        scripts = [GALLERY_RUNTIME, FRAME_RUNTIME] + ([RUNTIME_FRAME, RUNTIME_BOOT, RUNTIME_GALLERY] if runtime_rows else [])
         self.has_runtime = bool(runtime_rows)
         for page in sorted({row.get("page") for row in self.surfaces if row.get("page") in documents}):
             scripts.extend(source.product_scripts(documents[page], with_controls=True))

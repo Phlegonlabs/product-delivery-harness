@@ -352,10 +352,12 @@ class RuntimeBrowserTests(unittest.TestCase):
         self.assertEqual([["390", "768"]] * 3, [row["targets"] for row in plan])
         report = verify_runtime_motion.run_acceptance(self.gallery("closeout"), plan)
         self.assertEqual("PASS", report["verdict"], json.dumps(report["results"], indent=1)[:3000])
-        self.assertEqual(6, len(report["results"]))
+        self.assertEqual(12, len(report["results"]), "every target runs a normal and a system-reduced case")
+        self.assertTrue(report["processes"] and all(item["exited"] for item in report["processes"]), report["processes"])
+        self.assertTrue(report["startedAt"] < report["finishedAt"])
         failing = verify_runtime_motion.run_acceptance(self.gallery("closeout-noop", "void 0;"), plan[:1])
         self.assertEqual("FAIL", failing["verdict"])
-        self.assertTrue(all(item["first"] == "invalid" for item in failing["results"]))
+        self.assertTrue(all(item["first"] == "invalid" for item in failing["results"] if item["mode"] == "normal"))
 
 
 if __name__ == "__main__":

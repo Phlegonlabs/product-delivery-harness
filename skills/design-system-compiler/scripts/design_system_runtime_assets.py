@@ -3,8 +3,11 @@
 RUNTIME_FRAME runs in the plate head before any product script. It makes the
 effective reduced-motion preference (system OR gallery request) visible to the
 product's own matchMedia calls, tracks timers, observers and Element.animate
-so Stop can halt them, and observes native evidence on the bound subject.
-It never calls product functions, fabricates observer entries or animates.
+so Stop can halt them, gates Animation playback calls once stopped, and
+credits an effect only after a sampled visible, subject-owned rendered change.
+RUNTIME_BOOT follows the copied markup and precedes the first product script:
+it selects the requested target and state view so product code starts there.
+They never call product functions, fabricate observer entries or animate.
 RUNTIME_GALLERY remounts a plate as a fresh srcdoc realm for Replay, size and
 reduced-motion changes and accepts only current-generation plate messages.
 Legacy ds-showcase/1 constants in design_system_gallery_assets stay unchanged.
@@ -33,7 +36,8 @@ RUNTIME_FRAME = r"""(() => {
     match: window.matchMedia.bind(window), set: window.setTimeout.bind(window), clear: window.clearTimeout.bind(window),
     every: window.setInterval.bind(window), stopEvery: window.clearInterval.bind(window),
     frame: window.requestAnimationFrame.bind(window), cancelFrame: window.cancelAnimationFrame.bind(window),
-    animate: Element.prototype.animate, IO: window.IntersectionObserver, RO: window.ResizeObserver
+    animate: Element.prototype.animate, IO: window.IntersectionObserver, RO: window.ResizeObserver,
+    style: window.getComputedStyle.bind(window), cancel: window.Animation && Animation.prototype.cancel
   };
   const now = () => Math.round(performance.now());
   const systemReduced = native.match("(prefers-reduced-motion: reduce)").matches;
@@ -48,8 +52,22 @@ RUNTIME_FRAME = r"""(() => {
     return {media: String(query), matches: (match[1].toLowerCase() === "reduce") === reduced, onchange: null,
       addListener: quiet, removeListener: quiet, addEventListener: quiet, removeEventListener: quiet, dispatchEvent: () => false};
   };
-  let stopped = false, subject = null, canvas = null, readyAt = null, seenAt = null, navigation = "", last = "";
+  let stopped = false, booted = false, subject = null, canvas = null, readyAt = null, seenAt = null, navigation = "", last = "";
+  let violation = "";
   const timers = new Set(), loops = new Set(), frames = new Set(), observers = new Set(), entries = [], errors = [];
+  // Stop gates the native playback lifecycle of every Animation (retained, returned or constructed) in this realm.
+  const gate = (owner, key) => {
+    const method = owner && owner.prototype && owner.prototype[key];
+    if (typeof method === "function") owner.prototype[key] = function (...args) { if (!stopped) return method.apply(this, args); };
+  };
+  for (const key of ["play", "reverse", "finish", "cancel", "updatePlaybackRate"]) gate(window.Animation, key);
+  gate(window.AnimationEffect, "updateTiming");
+  gate(window.KeyframeEffect, "setKeyframes");
+  for (const key of ["currentTime", "startTime", "playbackRate"]) {
+    const field = window.Animation && Object.getOwnPropertyDescriptor(Animation.prototype, key);
+    if (field && field.set) Object.defineProperty(Animation.prototype, key, {configurable: true, enumerable: field.enumerable,
+      get: field.get, set(value) { if (!stopped) field.set.call(this, value); }});
+  }
   window.setTimeout = (callback, delay, ...args) => {
     const id = native.set(() => { timers.delete(id); if (!stopped && typeof callback === "function") callback(...args); }, delay);
     timers.add(id);
@@ -82,24 +100,80 @@ RUNTIME_FRAME = r"""(() => {
   const label = node => !node || !node.tagName ? "detached" :
     node.tagName.toLowerCase() + Array.from(node.classList || []).slice(0, 2).map(item => "." + item).join("");
   const within = node => Boolean(subject && node && node.isConnected && (node === subject || subject.contains(node)));
+  // Rendered values are compared canonically so equal computed values (none vs translateX(0)) cannot fake change.
+  const SKIP = ["offset", "computedOffset", "easing", "composite"];
+  const round = list => Array.from(list, number => Math.round(number * 1000) / 1000).join(",");
+  const MATRIX = {transform: text => text, translate: text => (text.split(" ").length > 2 ? "translate3d(" : "translate(") + text.split(" ").join(",") + ")",
+    scale: text => (text.split(" ").length > 2 ? "scale3d(" : "scale(") + text.split(" ").join(",") + ")", rotate: text => "rotate(" + text + ")"};
+  function canonical(property, value) {
+    const text = String(value === undefined || value === null ? "" : value).trim().replace(/\s+/g, " ");
+    if (property === "opacity" && text !== "" && Number.isFinite(Number(text))) return String(Math.round(Number(text) * 1000) / 1000);
+    if (MATRIX[property] && typeof DOMMatrixReadOnly === "function") {
+      try { return round(new DOMMatrixReadOnly(text === "none" ? undefined : MATRIX[property](text)).toFloat64Array()); } catch (_) { return text; }
+    }
+    return text;
+  }
+  // Supported evidence: standard properties whose keyframe values differ, or that fill an implicit end from the underlying value.
+  function varying(keyframes) {
+    const values = new Map();
+    for (const frame of keyframes) {
+      const offset = Number(frame.computedOffset !== undefined ? frame.computedOffset : frame.offset);
+      for (const key of Object.keys(frame)) {
+        if (SKIP.indexOf(key) >= 0) continue;
+        const property = key === "cssFloat" ? "float" : key.replace(/[A-Z]/g, letter => "-" + letter.toLowerCase());
+        if (property.startsWith("--")) continue;
+        if (!values.has(property)) values.set(property, {seen: new Set(), ends: new Set()});
+        values.get(property).seen.add(canonical(property, frame[key]));
+        if (offset === 0 || offset === 1) values.get(property).ends.add(offset);
+      }
+    }
+    return Array.from(values).filter(([, item]) => item.ends.size < 2 || item.seen.size > 1).map(([property]) => property);
+  }
+  function renderable(entry) {
+    const node = entry.owner;
+    if (!node || !node.isConnected || !node.getClientRects || !node.getClientRects().length) return false;
+    if (typeof node.checkVisibility === "function" && !node.checkVisibility({visibilityProperty: true})) return false;
+    if (native.style(node).visibility !== "visible") return false;
+    if (!entry.pseudo) return true;
+    const style = native.style(node, entry.pseudo);
+    return style.display !== "none" && style.content !== "none" && style.content !== "normal";
+  }
   function capture(animation, owner, css) {
     const effect = animation.effect;
     const timing = effect && effect.getComputedTiming ? effect.getComputedTiming() : {};
     const keyframes = effect && effect.getKeyframes ? effect.getKeyframes() : [];
     const properties = new Set();
     for (const frame of keyframes) for (const key of Object.keys(frame))
-      if (["offset", "computedOffset", "easing", "composite"].indexOf(key) < 0) properties.add(key);
-    const entry = {animation, owner, css, inside: undefined, pseudo: (effect && effect.pseudoElement) || "",
+      if (SKIP.indexOf(key) < 0) properties.add(key);
+    const entry = {animation, owner, css, inside: false, pseudo: (effect && effect.pseudoElement) || "",
       name: css ? String(animation.animationName || "") : "", duration: Number(timing.duration), delay: Number(timing.delay) || 0,
       iterations: Number(timing.iterations), active: Number(timing.activeDuration), keyframes: keyframes.length,
-      properties: Array.from(properties).sort().join(","), at: now(), done: false, cancelled: false, progress: null, progressed: false};
-    animation.finished.then(() => { entry.done = true; }, () => { entry.cancelled = true; });
+      properties: Array.from(properties).sort().join(","), varying: varying(keyframes), at: now(), done: false, cancelled: false,
+      baseline: null, visible: false, changed: false};
+    // The finish microtask runs before product continuations, so a filled end state finished early is still sampled.
+    animation.finished.then(() => { entry.done = true; observe(entry); }, () => { entry.cancelled = true; });
     entries.push(entry);
+    observe(entry);
     return entry;
+  }
+  // Credit needs a sample where the effect is in effect, live-owned by the subject, renderable and visibly different.
+  function observe(entry) {
+    if (!subject || !within(entry.owner)) return;
+    entry.inside = true;
+    const timing = entry.animation.effect ? entry.animation.effect.getComputedTiming() : {};
+    if (timing.progress === null || timing.progress === undefined || !entry.varying.length || !renderable(entry)) return;
+    const style = native.style(entry.owner, entry.pseudo || null);
+    const values = entry.varying.map(property => style.getPropertyValue(property)).filter(value => value !== "");
+    if (!values.length) return;
+    const mark = entry.varying.map(property => canonical(property, style.getPropertyValue(property))).join("|");
+    entry.visible = true;
+    if (entry.baseline === null) entry.baseline = mark;
+    else if (mark !== entry.baseline) entry.changed = true;
   }
   Element.prototype.animate = function (keyframes, options) {
     const animation = native.animate.call(this, keyframes, options);
-    if (stopped) animation.pause();
+    // An effect created after Stop never renders a frame: it is cancelled through the ungated native method.
+    if (stopped) native.cancel.call(animation);
     else if (config.mechanism === "waapi") capture(animation, this, false);
     return animation;
   };
@@ -111,12 +185,16 @@ RUNTIME_FRAME = r"""(() => {
       }
     }
     for (const entry of entries) {
-      if (entry.inside === undefined && subject) entry.inside = within(entry.owner);
-      const timing = entry.animation.effect ? entry.animation.effect.getComputedTiming() : {};
-      const mark = timing.progress === null || timing.progress === undefined ? null : (timing.currentIteration || 0) + timing.progress;
-      if (entry.progress !== null && mark !== null && mark !== entry.progress) entry.progressed = true;
-      if (mark !== null) entry.progress = mark;
+      observe(entry);
       if (entry.animation.playState === "finished") entry.done = true;
+    }
+    // Under reduced motion any running native animation (WAAPI, CSS animation or transition) on the subject is a violation.
+    if (reduced && subject && !violation) for (const animation of document.getAnimations()) {
+      const owner = animation.effect && animation.effect.target;
+      if (animation.playState === "running" && within(owner)) {
+        violation = label(owner) + ((animation.effect && animation.effect.pseudoElement) || "") + " " + String(animation.animationName || animation.transitionProperty || "animation");
+        break;
+      }
     }
   }
   const structural = entry => Number.isFinite(entry.active) && entry.active > 0 && entry.keyframes > 0 &&
@@ -126,15 +204,18 @@ RUNTIME_FRAME = r"""(() => {
     if (stopped) return "stopped";
     if (errors.length) return "invalid";
     if (readyAt === null) return "pending";
-    if (!subject) return "invalid";
+    if (!booted || !subject) return "invalid";
     const relevant = entries.filter(entry => entry.inside);
-    if (reduced) return relevant.length ? "invalid" : "reduced";
+    if (reduced) return relevant.length || violation ? "invalid" : "reduced";
     if (config.activation === "viewport" && relevant.some(entry => seenAt === null || entry.at + 1 < seenAt)) return "invalid";
     const valid = relevant.filter(structural);
     const start = config.activation === "viewport" ? seenAt : readyAt;
     if (!valid.length) return start !== null && now() - start > LIMIT ? "invalid" : "pending";
-    if (valid.some(entry => !entry.done && !entry.cancelled)) return "playing";
-    return valid.every(entry => entry.done || entry.progressed) ? "settled" : "invalid";
+    const credited = valid.filter(entry => entry.changed).length;
+    if (valid.some(entry => !entry.done && !entry.cancelled))
+      return credited ? "playing" : start !== null && now() - start > LIMIT ? "invalid" : "pending";
+    // Every finished effect needs its own visible rendered change; constant, hidden or detached effects fail.
+    return credited === valid.length ? "settled" : "invalid";
   }
   function measure() {
     const box = canvas || document.body;
@@ -147,8 +228,9 @@ RUNTIME_FRAME = r"""(() => {
       mechanism: config.mechanism, activation: config.activation, inView: seenAt !== null, ignored: entries.length - relevant.length,
       evidence: relevant.slice(0, 40).map(entry => ({owner: label(entry.owner), pseudo: entry.pseudo, name: entry.name,
         duration: entry.duration, delay: entry.delay, iterations: Number.isFinite(entry.iterations) ? entry.iterations : -1,
-        keyframes: entry.keyframes, properties: entry.properties, at: entry.at, done: entry.done, progressed: entry.progressed})),
-      error: errors.length ? errors[0] : "", navigation, height: measure(),
+        keyframes: entry.keyframes, properties: entry.properties, varying: entry.varying.join(","), at: entry.at, done: entry.done,
+        visible: entry.visible, changed: entry.changed})),
+      error: errors.length ? errors[0] : "", booted, violation, navigation, height: measure(),
       timing: {ready: readyAt, seen: seenAt, first: relevant.length ? relevant[0].at : null}};
     const text = JSON.stringify(body);
     if (text === last) return;
@@ -164,6 +246,9 @@ RUNTIME_FRAME = r"""(() => {
     timers.clear(); loops.clear(); frames.clear();
     observers.forEach(observer => observer.disconnect());
     for (const animation of document.getAnimations()) animation.pause();
+    // New CSS animations start paused and new transitions are instant; Animation playback calls are gated above.
+    const frozen = document.querySelector("style[data-ds-stopped]");
+    if (frozen) frozen.media = "all";
     if (document.body) document.body.inert = true;
     report();
   }
@@ -186,24 +271,40 @@ RUNTIME_FRAME = r"""(() => {
     if (event.source !== parent || !data || typeof data !== "object" || data.type !== "ds-runtime-stop") return;
     if (data.id === config.id && data.generation === generation) halt();
   });
-  document.addEventListener("DOMContentLoaded", () => {
+  // RUNTIME_BOOT selects the target and state view after the copied markup and before the first product script.
+  document.addEventListener("ds-runtime-boot", () => {
+    if (booted) return;
+    booted = true;
     canvas = document.querySelector("[data-hifi-canvas]");
-    if (canvas) canvas.setAttribute("data-hifi-target", target);
-    for (const view of document.querySelectorAll("[data-hifi-state-view]")) {
-      const only = view.getAttribute("data-responsive-target");
-      view.hidden = view.getAttribute("data-hifi-state-view") !== config.state || (only !== null && only !== target);
-    }
     for (const node of document.querySelectorAll("[data-ds-motion-subject]"))
       if (node.getAttribute("data-ds-motion-subject").split(" ").indexOf(target) >= 0) subject = node;
     // entry.time is when the browser computed the intersection, before any observer callback ran.
     if (subject && typeof native.IO === "function")
       new native.IO(items => { for (const item of items) if (item.isIntersecting && seenAt === null) seenAt = Math.floor(item.time); }).observe(subject);
+  }, {once: true});
+  document.addEventListener("DOMContentLoaded", () => {
     if (typeof window.connectProductControls === "function") { try { window.connectProductControls(document); } catch (_) {} }
     readyAt = now();
     if (typeof native.RO === "function") new native.RO(report).observe(canvas || document.body);
     tick();
   }, {once: true});
 })();"""
+
+RUNTIME_BOOT = r"""(() => {
+  "use strict";
+  const read = id => JSON.parse(document.getElementById(id).textContent);
+  const config = read("ds-frame-config"), mount = read("ds-mount");
+  const target = typeof mount.target === "string" && config.targets.indexOf(mount.target) >= 0 ? mount.target : config.target;
+  const canvas = document.querySelector("[data-hifi-canvas]");
+  if (canvas) canvas.setAttribute("data-hifi-target", target);
+  for (const view of document.querySelectorAll("[data-hifi-state-view]")) {
+    const only = view.getAttribute("data-responsive-target");
+    view.hidden = view.getAttribute("data-hifi-state-view") !== config.state || (only !== null && only !== target);
+  }
+  document.dispatchEvent(new CustomEvent("ds-runtime-boot"));
+})();"""
+
+STOPPED_CSS = "*,*::before,*::after{animation-play-state:paused!important;transition-duration:0s!important;transition-delay:0s!important}"
 
 RUNTIME_GALLERY = r"""(() => {
   "use strict";
@@ -247,7 +348,9 @@ RUNTIME_GALLERY = r"""(() => {
     if (data.phase === "reduced") return "Reduced motion" + at + (data.systemReduced ? " (system preference)" : " (gallery request)") +
       ": no source motion ran; the source reduced-motion state is shown." + link;
     if (data.phase === "stopped") return "Stopped" + at + ": timers, observers and animations are halted. Replay starts a fresh source frame.";
-    return "Invalid" + at + ": " + (data.error ? "source script error: " + clip(data.error, 120) : "no valid source motion was observed on the bound subject.");
+    return "Invalid" + at + ": " + (data.error ? "source script error: " + clip(data.error, 120)
+      : data.violation ? "source motion ran under reduced motion on " + clip(data.violation, 80) + "."
+      : "no valid source motion was observed on the bound subject.");
   }
   window.addEventListener("message", event => {
     const data = event.data;

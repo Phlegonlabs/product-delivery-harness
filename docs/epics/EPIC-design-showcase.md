@@ -113,3 +113,24 @@ Entry: source checkout clean; loaded session identity unknown. Scope and source 
   - The worker's optional `ui-design-builder/references/ui-design-pass.md` guidance edit was denied by permissions and was not made.
   - Module checkpoint: new modules are 90–362 lines. `design_system_showcase.py` is 499 lines and keeps its source-resolution role. The oversized pair checker gained one 14-line read helper and hook; no refactor was attempted.
   - No commit, install, compile, approval, push or release occurred.
+- 2026-10-20 independent fixed-candidate review of `2440afe3`: FIX REQUIRED (`source-review-001/report.md`, sha256 `5ba23d2f…203c`). The six findings were source/logic-validated, not fresh Chromium reproductions:
+  1. Transitive CSS alias dependencies were lost before conditional/registration rejection.
+  2. Constant or empty effects could reach playing/settled.
+  3. Acceptance remounted the reduced realm before delayed violations ran.
+  4. Hidden or later-detached owners kept playback credit.
+  5. Target/state was applied after synchronous product scripts.
+  6. Stop paused animations once but retained ones could play again.
+  - Standalone acceptance cleanup on failure was recorded as an unproven gap, not a finding.
+- 2026-10-20 AK-COMPILER-REPAIR-001 attempt001, uncommitted on `codex/agentkiosk-motion-compiler` at HEAD `2440afe3`; all 23 frozen inputs matched first.
+  - CSS: `animation_provenance._dependencies` walks raw winning custom-property definitions per cascade/inheritance level before substitution, fallbacks included, with correct visited ordering.
+  - Credit: an effect counts only after a sampled, canonically different rendered value of an animated property while its owner is live in the subject and renderable. The finish microtask samples a filled end state before product continuations. Constant, empty, no-op transform, hidden and detached effects stay pending/invalid.
+  - Reduced: any running animation on the subject is a violation. The CLI holds each reduced realm for 3.2 s and adds a system-reduced context per target, checked again after the toggle.
+  - Order: `RUNTIME_BOOT` (CSP-pinned) follows the copied markup and precedes the first product script. An executable inline script inside the copied surface fails rendering.
+  - Stop: `Animation` play/reverse/finish/cancel/updatePlaybackRate and timing setters, `updateTiming` and `setKeyframes` are gated. Effects created after Stop are cancelled. A stopped stylesheet pauses new CSS animations and makes new transitions instant. Replay alone remounts.
+  - Cleanup: the CLI runs `node <probe>` through the unchanged `host_process` tree and records node and Chromium PIDs with start times. Every recorded process must exit; forced timeout and exception paths are tested. It has a finally browser close and an in-tree backstop of at most 30 min. Receipts add observation times, environment and processes, and refuse inputs that change during playback.
+  - Legacy schema1 constants, the committed demo and DS3 output are unchanged. The `ui-design-builder` guidance edit stays omitted. No AgentKiosk write, commit, install, compile, approval or release occurred.
+- AK-COMPILER-REPAIR-001 verification, through the parent-supplied Windows Job helper with Chromium required and Playwright 1.62.1 matching the primary lock:
+  - CSS 8/8. Runtime 22/22 including 9 new real-Chromium regressions and exact-CLI negatives (`runtime-1792475267919227400.log`). Full compiler 179 with 4 existing skips. UI 381 with 2 skips. Joins 9/9. README 5/5. Spec, scoped Pyflakes, docs weight (+618 words, compiler only) and `git diff --check` passed.
+  - The first runtime run failed 5 (`runtime-1792475168885701900.log`). Causes: the probe redeclared CommonJS `module`; one reduced fixture lacked a reduced rule; a resize `finish()` lost credit before the finish sample. All three were fixed.
+  - Logs are under `C:/Users/mps19/AppData/Local/Temp/agentkiosk-specimen-repair-20261019-01/compiler-repair-001/work/`.
+  - Not done in this attempt: before/after gallery screenshots and a Replay/Stop/reduced clip on the repaired runtime; AgentKiosk real-source replay. Fresh independent review of the final SHA is required before installation.

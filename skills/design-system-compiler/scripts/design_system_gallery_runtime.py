@@ -4,8 +4,9 @@ A plate is the full approved surface (ancestors, product CSS, product and
 control scripts) copied verbatim into a sandboxed srcdoc frame; the reviewer
 connect call is never run, so no reviewer shell or state store mounts. The only
 additions are the gallery marker attributes on the bound surface and its
-per-target subject copies, the frame configuration and the pinned head
-runtime that must run before product scripts.
+per-target subject copies, the frame configuration, the pinned head runtime,
+the inert stopped stylesheet and the pinned bootstrap that selects the target
+and state view after the copied markup and before the first product script.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from html import escape
 from typing import Any
 
 import design_system_showcase as source
-from design_system_runtime_assets import INITIAL_MOUNT, RUNTIME_FRAME
+from design_system_runtime_assets import INITIAL_MOUNT, RUNTIME_BOOT, RUNTIME_FRAME, STOPPED_CSS
 from showcase_runtime import plate_scripts
 
 MECHANISM_TEXT = {"waapi": "Web Animations created by the bound product script",
@@ -47,6 +48,8 @@ def runtime_plate(gallery: Any, row: dict[str, Any], binding: dict[str, Any]) ->
     html = gallery.documents[page]
     html_start, body_start, content = source.fragment(tree, binding["surface"], marker=frame_id)
     content = _mark_subjects(tree, binding["surface"], content, binding["subjects"])
+    if any(source._executable(attrs, body) for attrs, body in source.SCRIPT_RE.findall(content)):
+        raise ValueError("source-runtime surface contains an inline script that would run before the plate bootstrap")
     css = source.product_css(html)
     reduced = source.reduced_motion_css(css)
     scripts = plate_scripts(html)
@@ -60,9 +63,11 @@ def runtime_plate(gallery: Any, row: dict[str, Any], binding: dict[str, Any]) ->
                 + '<meta name="viewport" content="width=device-width,initial-scale=1">'
                 + "<style>html,body{margin:0}</style>" + f"<style>{css}</style>"
                 + (f'<style data-ds-reduced media="not all">{reduced}</style>' if reduced.strip() else "")
+                + f'<style data-ds-stopped media="not all">{STOPPED_CSS}</style>'
                 + f'<script type="application/json" id="ds-frame-config">{payload}</script>' + INITIAL_MOUNT
                 + f"<script>{RUNTIME_FRAME}</script></head>"
-                + body_start + content + "".join(f"<script>{item}</script>" for item in scripts) + "</body></html>")
+                + body_start + content + f"<script>{RUNTIME_BOOT}</script>"
+                + "".join(f"<script>{item}</script>" for item in scripts) + "</body></html>")
     widths = source.canvas_widths(tree)
     width = widths.get(trigger["target"], 0.0) or 360.0
     spec = binding["row"]["specimen"]
