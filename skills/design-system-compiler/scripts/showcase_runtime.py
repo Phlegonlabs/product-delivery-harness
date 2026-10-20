@@ -64,9 +64,14 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def plate_scripts(html: str) -> list[str]:
-    """Surface-plate scripts in source order, without the reviewer connect call."""
-    return [body for body in source.product_scripts(html, with_controls=True) if not REVIEWER_CONNECT_RE.match(body)]
+def reviewer_definitions(html: str) -> list[str]:
+    """Reviewer runtime definitions a motion plate runs as infrastructure; it never runs the connect call.
+
+    Product scripts are not listed here: they run from their source slots (source_script_order).
+    """
+    return [body for segment in source.RUNTIME_SEGMENT_RE.findall(html)
+            for attrs, body in source.SCRIPT_RE.findall(segment) if source._executable(attrs, body)
+            and not REVIEWER_CONNECT_RE.match(body)]
 
 
 def script_finding(html: str, digest: str) -> str | None:

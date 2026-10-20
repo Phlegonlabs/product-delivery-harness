@@ -195,7 +195,8 @@ class RenderTests(unittest.TestCase):
         for frame in frames:
             self.assertIn(INITIAL_MOUNT, frame)
             self.assertLess(frame.index(RUNTIME_FRAME), frame.index(PRODUCT_SCRIPT), "the head runtime precedes product source")
-            self.assertEqual(1, frame.count(f"<script>{PRODUCT_SCRIPT}</script>"))
+            self.assertEqual(1, frame.count(PRODUCT_SCRIPT))
+            self.assertEqual(0, frame.count(f"<script>{PRODUCT_SCRIPT}</script>"), "the product body runs only from its source slot")
             self.assertEqual(2, len(re.findall(r'data-ds-motion-subject="(?:390|768)"', frame)))
             self.assertIn('<div class="kiln-side" aria-hidden="true"></div>', frame)
             self.assertNotIn("connectHifiReviewer({", frame)

@@ -4,6 +4,7 @@ Synthetic Kiln Timer fixture only. Required when PDH_REQUIRE_BROWSER_TESTS=1:
 constant, hidden and detached effects never earn credit; delayed reduced-motion
 violations fail; the requested target/state exists before the first product
 script; Stop gates Animation playback; and acceptance cleans its owned tree.
+Inline scripts inside the surface run from source slots (test_script_order_*).
 """
 
 import base64
@@ -23,6 +24,7 @@ import runtime_fixture as fixture  # noqa: E402
 import verify_runtime_motion  # noqa: E402
 from design_system_runtime_assets import RUNTIME_BOOT, RUNTIME_FRAME, STOPPED_CSS  # noqa: E402
 from runtime_acceptance_process import AcceptanceRunError  # noqa: E402
+from source_script_order import LOADER  # noqa: E402
 import test_runtime_motion_browser as base  # noqa: E402
 from test_runtime_motion_browser import HELPERS, NEGATIVE  # noqa: E402
 
@@ -176,13 +178,11 @@ class RuntimeRepairStaticTests(unittest.TestCase):
             boot = frame.index(f"<script>{RUNTIME_BOOT}</script>")
             self.assertLess(frame.index(RUNTIME_FRAME), boot)
             self.assertLess(frame.rindex('data-ds-motion-subject="768"'), boot, "the bootstrap follows the copied markup")
-            self.assertLess(boot, frame.index(fixture.PRODUCT_SCRIPT), "and precedes the first product script")
+            # The product script keeps its source slot as an inert marker; only the loader after the bootstrap runs it.
+            self.assertEqual(1, frame.count(f'<script type="text/x-ds-source-slot" data-ds-source-slot="0">{fixture.PRODUCT_SCRIPT}</script>'))
+            self.assertEqual(1, frame.count(fixture.PRODUCT_SCRIPT))
+            self.assertLess(boot, frame.index(f"<script>{LOADER}</script>"), "the bootstrap precedes the source script loader")
             self.assertIn(f'<style data-ds-stopped media="not all">{STOPPED_CSS}</style>', frame)
-
-    def test_inline_script_inside_the_surface_fails_closed(self):
-        page = fixture.pages()["index.html"].replace('<span class="kiln-mark"></span>', '<span class="kiln-mark"></span><script>void 0;</script>', 1)
-        with self.assertRaisesRegex(ValueError, "inline script that would run before the plate bootstrap"):
-            fixture.render({"index.html": page})
 
 
 class RuntimeRepairBrowserTests(unittest.TestCase):

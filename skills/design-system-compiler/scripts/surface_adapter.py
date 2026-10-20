@@ -11,7 +11,9 @@ own connect call is filtered and replaced by exactly one public
 identity, the approved page and no storage.
 
 SURFACE_FRAME drives approved targets and states only by clicking those copied
-source controls, and reports the runtime's public snapshot. SURFACE_GALLERY
+source controls, and reports the runtime's public snapshot. It runs after the
+connect call and selects the initial target and state before the product
+scripts run from their source slots (source_script_order). SURFACE_GALLERY
 reflects that snapshot into the gallery controls. Legacy ds-showcase/1 Surface
 plates, component plates and source-runtime motion plates do not use this
 module.
@@ -25,6 +27,7 @@ import re
 from typing import Any
 
 import design_system_showcase as source
+import source_script_order as script_order
 
 # SHA-256 of the reviewed public reviewer runtime bodies whose connect contract this adapter uses.
 SUPPORTED_REVIEWER_RUNTIMES = frozenset({"854fc83eca20f90bbb976cd8555dba241018cf6adc891be6e7b604d011427597"})
@@ -140,17 +143,16 @@ def surface_binding(tree: source.SourceTree, page: str, row: dict[str, Any],
         markup = "".join(_outer(tree, node) for node in sorted(slices, key=lambda item: item["start"]))
         if UNSAFE_MARKUP_RE.search(markup):
             problems.append(f"{label} reviewer controls contain executable or document-level markup")
+    order, found = script_order.inventory(tree, surface, label)
+    problems.extend(found)
     if problems:
         return None, problems
     data = dict(options or {}, page=page, storage=None)
     connect = "connectHifiReviewer(" + json.dumps(data, sort_keys=True, ensure_ascii=True) + ")"
-    ordered = [body for offset, attrs, body in scripts if in_segment(offset, runtime_spans)]
-    for offset, body in product:
-        if surface["start"] <= offset < surface["end"]:
-            continue  # copied with the surface markup, so it already runs in place
-        ordered.append(connect if (offset, body) == calls[0] else body)
+    # Reviewer definitions and the pinned connect are infrastructure; product scripts run later from their source slots.
+    infrastructure = [body for offset, attrs, body in scripts if in_segment(offset, runtime_spans)] + [connect]
     return {"surface": surface_id, "infrastructure": INFRASTRUCTURE_OPEN + markup + "</div>",
-            "connect": connect, "scripts": ordered}, []
+            "connect": connect, "scripts": infrastructure, "order": order, "states": states, "targets": targets}, []
 
 
 def resolve_surfaces(trees: dict[str, source.SourceTree], manifest: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], list[str]]:
@@ -236,6 +238,14 @@ SURFACE_FRAME = r"""(() => {
   }
   if ("ResizeObserver" in window) new ResizeObserver(report).observe(measured());
   window.addEventListener("load", report);
+  // A missing or repeated source slot, a thrown source script or a refused script makes the plate unavailable.
+  document.addEventListener("ds-source-order", event => {
+    if (!error) error = String(event.detail && event.detail.error || "a source script failed").slice(0, 120);
+    report();
+  });
+  // This frame runs before the source script loader: select the initial approved target and state through the source controls.
+  if (typeof config.target === "string") press("data-hifi-target-control", config.target);
+  if (typeof config.state === "string") press("data-hifi-state-control", config.state);
   report();
 })();"""
 

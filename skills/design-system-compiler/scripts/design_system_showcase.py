@@ -443,15 +443,15 @@ def specimen_target(tree: SourceTree, node: dict[str, Any]) -> str | None:
     return canvas["map"].get("data-hifi-target")
 
 
-def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str) -> tuple[str, str, str]:
+def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str, around: dict[int, tuple[str, str]] | None = None) -> tuple[str, str, str]:
     """Return (html start tag, body start tag, body content) copied from source.
 
     Ancestors keep their source attributes so descendant selectors, custom
     properties and container queries apply. Only ``hidden`` on a reviewer
     state view is dropped and the canvas selects that view's target, exactly
-    as the reviewer runtime shows a state at a size.
+    as the reviewer runtime shows a state at a size. ``around`` adds ds-showcase/2 script slots first/last inside a retained ancestor.
     """
-    chain = tree.ancestors(node)
+    around, chain = around or {}, tree.ancestors(node)
     html_node = next((item for item in chain if item["tag"] == "html"), None)
     body_node = next((item for item in chain if item["tag"] == "body"), None)
     target = specimen_target(tree, node)
@@ -461,15 +461,16 @@ def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str) -> tuple[st
             continue
         drop = {"hidden"} if "data-hifi-state-view" in item["map"] else set()
         extra = {"data-hifi-target": target} if target and "data-hifi-canvas" in item["map"] else None
-        opening.append(serialize_start(item["tag"], item["attrs"], drop=drop, extra=extra))
-        closing.insert(0, f"</{item['tag']}>")
+        opening.append(serialize_start(item["tag"], item["attrs"], drop=drop, extra=extra) + around.get(item["index"], ("", ""))[0])
+        closing.insert(0, around.get(item["index"], ("", ""))[1] + f"</{item['tag']}>")
     drop = {"hidden"} if "data-hifi-state-view" in node["map"] else set()
     element = serialize_start(node["tag"], node["attrs"], drop=drop, extra={"data-ds-subject": marker})
     if node["tag"] not in VOID and node["end"] > node["start_end"]:
         element += tree.html[node["start_end"]:node["inner_end"]] + f"</{node['tag']}>"
     html_start = serialize_start("html", html_node["attrs"]) if html_node else "<html>"
     body_start = serialize_start("body", body_node["attrs"], drop={"data-hifi-default-surface"}) if body_node else "<body>"
-    return html_start, body_start, "".join(opening) + element + "".join(closing)
+    first, last = around.get(body_node["index"], ("", "")) if body_node else ("", "")
+    return html_start, body_start, first + "".join(opening) + element + "".join(closing) + last
 
 
 def surface_node(tree: SourceTree, surface_id: str) -> dict[str, Any] | None:

@@ -25,7 +25,8 @@ SCRIPTS = Path(__file__).resolve().parent
 RENDERER_MODULES = ("render_design_system_preview.py", "check_design_system_pair.py", "design_system_showcase.py",
                     "showcase_runtime.py", "design_system_gallery.py", "design_system_gallery_assets.py",
                     "design_system_gallery_runtime.py", "design_system_runtime_assets.py", "verify_runtime_motion.py",
-                    "runtime_acceptance_process.py", "animation_provenance.py", "surface_adapter.py")
+                    "runtime_acceptance_process.py", "animation_provenance.py", "surface_adapter.py",
+                    "source_script_order.py")
 
 PROBE = r"""
 const [,, url, playwrightModule, plan, limit] = process.argv;

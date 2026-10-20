@@ -42,3 +42,4 @@ Read the owning section before its matching action. Domain and direction guidanc
 - Compilation derives approved consequences only. Validation includes mutating `--write` commands and does not auto-authorize publication.
 - Script- or state-driven motion uses `ds-showcase/2` source-runtime rows. A static join proves association only; browser acceptance on the exact preview closes compilation.
 - `ds-showcase/2` Surface plates run the page's own reviewer runtime through hidden copies of its approved state and target controls. Missing or unsupported reviewer infrastructure fails rendering; see the output contract.
+- `ds-showcase/2` Surface and source-runtime plates keep every classic inline product script at its source position and run each one natively, once, in source order, after the plate bootstrap. Unsupported script shapes fail rendering.

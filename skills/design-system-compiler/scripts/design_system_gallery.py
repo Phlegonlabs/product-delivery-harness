@@ -16,6 +16,7 @@ from typing import Any
 
 import design_system_showcase as source
 import showcase_runtime
+import source_script_order as script_order
 import surface_adapter
 from design_system_gallery_assets import FRAME_RUNTIME, GALLERY_CSS, GALLERY_RUNTIME
 from design_system_gallery_runtime import runtime_plate
@@ -84,6 +85,12 @@ class Gallery:
             if self.surface_bindings:
                 scripts += [surface_adapter.SURFACE_FOCUS_GUARD, surface_adapter.SURFACE_FRAME, surface_adapter.SURFACE_GALLERY]
                 scripts += [binding["connect"] for binding in self.surface_bindings.values()]
+            # Surface and source-runtime plates run every source script occurrence from its slot through one pinned loader.
+            if self.surface_bindings or runtime_rows:
+                scripts += [script_order.LOADER, surface_adapter.SURFACE_FOCUS_GUARD]
+                scripts += [body for binding in self.surface_bindings.values() for body in script_order.bodies(binding["order"])]
+                scripts += [body for binding in self.runtime.values()
+                            for body in script_order.bodies(script_order.inventory(binding["tree"], binding["surface"], "")[0])]
         self.csp = content_security_policy(scripts)
         self.frame_count = 0
         self.specimen_frames: dict[str, str] = {}
@@ -100,12 +107,13 @@ class Gallery:
         self.frame_count += 1
         frame_id = f"plate-{self.frame_count:03d}"
         tree, html = self.trees[page], self.documents[page]
-        html_start, body_start, content = source.fragment(tree, node, marker=frame_id)
         css = source.product_css(html)
         reduced = source.reduced_motion_css(css)
         surface = self.surface_bindings.get(str(config.get("surface"))) if self.v2 and kind == "surface" else None
         if self.v2 and kind == "surface" and surface is None:
             raise ValueError(f"Surface plate {config.get('surface')} has no validated reviewer infrastructure")
+        html_start, body_start, content = (script_order.plate_markup(tree, node, surface["order"], frame_marker=frame_id)
+                                           if surface else source.fragment(tree, node, marker=frame_id))
         scripts = surface["scripts"] if surface else source.product_scripts(html, with_controls=kind == "surface")
         payload = json.dumps(dict(config, id=frame_id, kind=kind), sort_keys=True, ensure_ascii=False).replace("</", "<\\/")
         document = ("<!doctype html>" + html_start + '<head><meta charset="utf-8">'
@@ -114,10 +122,12 @@ class Gallery:
                     + "<style>html,body{margin:0}</style>" + f"<style>{css}</style>"
                     + (f'<style data-ds-reduced media="not all">{reduced}</style>' if reduced.strip() else "")
                     + f'<script type="application/json" id="ds-frame-config">{payload}</script>'
-                    + (f"<script>{surface_adapter.SURFACE_FOCUS_GUARD}</script>" if surface else "") + "</head>"
+                    + (script_order.inventory_json(surface["order"]) + f"<script>{surface_adapter.SURFACE_FOCUS_GUARD}</script>"
+                       if surface else "") + "</head>"
                     + body_start + content + (surface["infrastructure"] if surface else "")
                     + "".join(f"<script>{item}</script>" for item in scripts)
-                    + f"<script>{surface_adapter.SURFACE_FRAME if surface else FRAME_RUNTIME}</script></body></html>")
+                    + f"<script>{surface_adapter.SURFACE_FRAME if surface else FRAME_RUNTIME}</script>"
+                    + (f"<script>{script_order.LOADER}</script>" if surface else "") + "</body></html>")
         widths = source.canvas_widths(tree)
         width = widths.get(source.specimen_target(tree, node) or "", 0.0) or 360.0
         marker = " data-ds-surface-frame" if surface else ""
@@ -347,7 +357,8 @@ class Gallery:
                         + "</div>")
             caption = (f"<b>{escape(str(surface_id))}</b> <code>{escape(str(surface.get('route', '')))}</code> "
                        f"from <code>{escape(str(page))}</code>")
-            config = {"surface": str(surface_id)} if self.v2 else {"state": states[0] if states else None}
+            config = ({"surface": str(surface_id), "state": states[0] if states else None, "target": targets[0] if targets else None}
+                      if self.v2 else {"state": states[0] if states else None})
             _, html = self.plate(page, node, kind="surface", title=f"{surface_id} live surface", caption=caption,
                                  config=config, controls=controls)
             parts.append(f'<h3 id="s-{_slug(str(surface_id))}">{escape(str(surface_id))}</h3>{html}')

@@ -81,7 +81,7 @@ class SurfaceStaticTests(unittest.TestCase):
         self.assertLess(box.end(), frame.index(CONNECT), "connect runs after the required markup exists")
         self.assertLess(frame.index(CONNECT), frame.index(surface_adapter.SURFACE_FRAME))
         self.assertNotIn(FRAME_RUNTIME, frame, "no legacy direct showState or target writes")
-        self.assertIn('"kind": "surface", "surface": "UI-001"', frame)
+        self.assertIn('"kind": "surface", "state": "ready", "surface": "UI-001", "target": "390"', frame)
         policy = html_lib.unescape(re.search(r'Content-Security-Policy" content="([^"]+)"', document).group(1))
         for script in (surface_adapter.SURFACE_FRAME, surface_adapter.SURFACE_GALLERY, CONNECT, GO_SCRIPT):
             self.assertIn(digest(script), policy)

@@ -5,7 +5,8 @@ effective reduced-motion preference (system OR gallery request) visible to the
 product's own matchMedia calls, tracks timers, observers and Element.animate
 so Stop can halt them, gates Animation playback calls once stopped, and
 credits an effect only after a sampled visible, subject-owned rendered change.
-RUNTIME_BOOT follows the copied markup and precedes the first product script:
+RUNTIME_BOOT follows the copied markup and precedes the source script loader
+(source_script_order), which runs every product script from its source slot:
 it selects the requested target and state view so product code starts there.
 They never call product functions, fabricate observer entries or animate.
 RUNTIME_GALLERY remounts a plate as a fresh srcdoc realm for Replay, size and
@@ -281,6 +282,8 @@ RUNTIME_FRAME = r"""(() => {
     const reason = event.reason;
     errors.push(String(reason && reason.message ? reason.message : reason).slice(0, 160));
   });
+  // The source script loader reports missing or repeated slots, thrown source scripts and refused scripts.
+  document.addEventListener("ds-source-order", event => { errors.push(String(event.detail && event.detail.error || "source script order failed").slice(0, 160)); });
   for (const type of ["click", "pointerdown", "keydown", "input", "change", "submit"]) {
     document.addEventListener(type, event => { if (stopped) { event.stopImmediatePropagation(); event.preventDefault(); } }, true);
   }

@@ -5,8 +5,11 @@ control scripts) copied verbatim into a sandboxed srcdoc frame; the reviewer
 connect call is never run, so no reviewer shell or state store mounts. The only
 additions are the gallery marker attributes on the bound surface and its
 per-target subject copies, the frame configuration, the pinned head runtime,
-the inert stopped stylesheet and the pinned bootstrap that selects the target
-and state view after the copied markup and before the first product script.
+the inert stopped stylesheet, the pinned focus guard (a background plate never
+takes gallery focus), the pinned bootstrap that selects the target and state
+view after the copied markup, and the source script order: every product
+script occurrence stays at its source position as an inert slot that the pinned
+loader activates natively, in source order, after the bootstrap.
 """
 
 from __future__ import annotations
@@ -16,28 +19,24 @@ from html import escape
 from typing import Any
 
 import design_system_showcase as source
+import source_script_order as script_order
 from design_system_runtime_assets import INITIAL_MOUNT, RUNTIME_BOOT, RUNTIME_FRAME, STOPPED_CSS
-from showcase_runtime import plate_scripts
+from showcase_runtime import reviewer_definitions
+from surface_adapter import SURFACE_FOCUS_GUARD
 
 MECHANISM_TEXT = {"waapi": "Web Animations created by the bound product script",
                   "css-animation": "a CSS animation in the state the bound product script establishes"}
 ACTIVATION_TEXT = {"viewport": "when the bound subject enters the viewport", "state-entry": "when its state view appears"}
 
 
-def _mark_subjects(tree: source.SourceTree, surface: dict[str, Any], content: str, subjects: dict[str, dict[str, Any]]) -> str:
-    """Add data-ds-motion-subject="<targets>" to each bound copy; all other bytes stay verbatim."""
-    inner = tree.html[surface["start_end"]:surface["inner_end"]]
-    if not inner or content.count(inner) != 1:
-        raise ValueError("source-runtime surface is not uniquely addressable for its plate")
+def _subject_edits(subjects: dict[str, dict[str, Any]]) -> tuple[tuple[int, int, str], ...]:
+    """Add data-ds-motion-subject="<targets>" to each bound copy's start tag; all other bytes stay verbatim."""
     marks: dict[int, tuple[dict[str, Any], list[str]]] = {}
     for target, node in subjects.items():
         marks.setdefault(node["index"], (node, []))[1].append(target)
-    marked = inner
-    for node, targets in sorted(marks.values(), key=lambda item: item[0]["start"], reverse=True):
-        start, end = node["start"] - surface["start_end"], node["start_end"] - surface["start_end"]
-        tag = source.serialize_start(node["tag"], node["attrs"], extra={"data-ds-motion-subject": " ".join(targets)})
-        marked = marked[:start] + tag + marked[end:]
-    return content.replace(inner, marked, 1)
+    return tuple((node["start"], node["start_end"],
+                  source.serialize_start(node["tag"], node["attrs"], extra={"data-ds-motion-subject": " ".join(targets)}))
+                 for node, targets in marks.values())
 
 
 def runtime_plate(gallery: Any, row: dict[str, Any], binding: dict[str, Any]) -> str:
@@ -46,13 +45,14 @@ def runtime_plate(gallery: Any, row: dict[str, Any], binding: dict[str, Any]) ->
     gallery.frame_count += 1
     frame_id = f"plate-{gallery.frame_count:03d}"
     html = gallery.documents[page]
-    html_start, body_start, content = source.fragment(tree, binding["surface"], marker=frame_id)
-    content = _mark_subjects(tree, binding["surface"], content, binding["subjects"])
-    if any(source._executable(attrs, body) for attrs, body in source.SCRIPT_RE.findall(content)):
-        raise ValueError("source-runtime surface contains an inline script that would run before the plate bootstrap")
+    order, problems = script_order.inventory(tree, binding["surface"], f"Motion {row['variant']} surface {trigger['surface']}")
+    if problems:
+        raise ValueError("\n".join(problems))
+    html_start, body_start, content = script_order.plate_markup(tree, binding["surface"], order, frame_marker=frame_id,
+                                                                edits=_subject_edits(binding["subjects"]))
     css = source.product_css(html)
     reduced = source.reduced_motion_css(css)
-    scripts = plate_scripts(html)
+    scripts = reviewer_definitions(html) + [script_order.LOADER]
     targets = [target for target in binding["targets"] if target in binding["subjects"]]
     config = {"id": frame_id, "kind": "runtime", "variant": row["variant"], "mechanism": trigger["mechanism"],
               "activation": trigger["activation"]["kind"], "state": trigger["state"], "target": trigger["target"],
@@ -65,7 +65,7 @@ def runtime_plate(gallery: Any, row: dict[str, Any], binding: dict[str, Any]) ->
                 + (f'<style data-ds-reduced media="not all">{reduced}</style>' if reduced.strip() else "")
                 + f'<style data-ds-stopped media="not all">{STOPPED_CSS}</style>'
                 + f'<script type="application/json" id="ds-frame-config">{payload}</script>' + INITIAL_MOUNT
-                + f"<script>{RUNTIME_FRAME}</script></head>"
+                + script_order.inventory_json(order) + f"<script>{RUNTIME_FRAME}</script><script>{SURFACE_FOCUS_GUARD}</script></head>"
                 + body_start + content + f"<script>{RUNTIME_BOOT}</script>"
                 + "".join(f"<script>{item}</script>" for item in scripts) + "</body></html>")
     widths = source.canvas_widths(tree)
