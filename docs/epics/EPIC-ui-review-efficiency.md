@@ -297,3 +297,24 @@ Shared root instructions remain current by meaning against installed VERSION 0.6
 `257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
 Retain the source repository's intentional instruction, stage-binding, Git, deployment and activation exceptions.
 Loaded identity remains unknown. Fixed-candidate review is pending; no release or installation is claimed.
+
+The independent review of `ab1d125e0ebf4e380254d40756ebcc92e26d2606` returned one P2 correctness finding, UCA-REUSE-1.
+The older tree-identical skip checked review type and bytes, but not acceptance scope or both component evidence.
+Its separate bounded security review passed; that result does not close the correctness finding or apply to a repaired candidate.
+
+The repair uses `ui_acceptance` in the existing free-form `required_evidence` list, without changing a schema.
+Marked visual packets cover both components at either review stage.
+The transition and RUN validator require retained comparison and quality anchors before a marked PASS can satisfy acceptance.
+Reusing a prior PASS also requires its complete mission, semantic-scope, evidence and tool coverage.
+Unmarked legacy nodes keep their pinned behavior. No new node, attempt budget or scheduler is introduced.
+The existing graph validator and transition modules retain their current responsibilities; this shared guard does not justify splitting them.
+Focused repair regressions and a fresh fixed-candidate correctness/security review are pending.
+
+The repair passed 323 additional-suite checks: integration skip 19, graph orchestration 45, manifest 119,
+selector 65, contracts 65 and review packets 10. The combined distinct test count is 571, including retained earlier suites.
+The first manifest run exposed misplaced prose after the template's JSON heading; moving it before the heading restored all 119 tests.
+Required-marker, narrower-scope/mission, missing-tool and missing/blank-component evidence cases reject reuse.
+Complete same-tree coverage still reuses the prior PASS, and unmarked legacy skip cases remain green.
+Marked PASS recording and RUN validation both reject missing component anchors.
+Source specification, changed-Python Pyflakes and whitespace checks passed; all finite processes exited.
+The repaired candidate still needs a fresh exact-SHA review before completion.

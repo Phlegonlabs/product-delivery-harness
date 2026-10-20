@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_git import GitMetadataError, reject_object_substitution, run_git
+from harness_graph import ui_acceptance_review
 from harness_manifest import ManifestError, load_plan, load_run, validate_current_plan_run
 from check_launch_packet import (
     InvalidMessageBudgetError,
@@ -260,8 +261,7 @@ def render_packet(
             "Use existing review outcomes; do not reset repair budgets or approve new scope or stack decisions.",
         ]
     if (
-        review["type"] == "visual"
-        and review.get("stage") == "integration"
+        ui_acceptance_review(review)
         and plan.get("ui_surfaces")
     ):
         packet_lines += [
@@ -278,6 +278,7 @@ def render_packet(
             "For a repair re-review, check original defects and affected consumers with current evidence.",
             "Use the existing lineage budget; do not add a page-quality-only reviewer or another scoring wave.",
             "Missing required evidence blocks acceptance. Security and final regression obligations remain separate.",
+            "Return ui_parity:<retained comparison anchor> and ui_page_quality:<retained quality-report anchor> in review evidence.",
         ]
     if truncated:
         # The untruncated diff already carries every path. Keep an explicit

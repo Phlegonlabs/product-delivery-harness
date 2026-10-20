@@ -282,6 +282,13 @@ Record parity comparisons and page-quality findings separately within that accep
 Do not schedule a second page-quality review after parity or another parity review after page quality.
 
 For managed work, include this acceptance in the applicable planned `visual` review on the same candidate.
+New consolidated visual nodes include `ui_acceptance` in their existing `required_evidence` list.
+An earlier visual review may declare the same contract and receive the combined checklist before integration.
+Record `ui_parity:<comparison anchor>` and `ui_page_quality:<quality-report anchor>` in that attempt's evidence.
+The parent inspects both retained anchors; their presence alone does not prove the checks occurred.
+Tree-identical reuse also requires coverage of the target's missions, semantic scope, required evidence and tools.
+An unmarked or incomplete earlier PASS cannot replace a marked acceptance.
+Unmarked nodes retain their pinned legacy behavior; never add the marker to an already completed review.
 Do not add another reviewer node or reset its lineage budget.
 Required task, mission, integration, final regression and security gates retain their existing scopes and dependencies.
 A later relevant change invalidates affected acceptance evidence.

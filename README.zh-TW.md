@@ -197,6 +197,7 @@ PRD 定義成果與可量測品質；architecture 定義責任、狀態、介面
 
 HiFi 預設一位 lead grader；owner 要求或已記錄高影響風險時，最多增加兩位 specialist sibling。瀏覽器、Impeccable 與 H1-H9 使用同一候選，在同一診斷 wave 完成；lead 集中回報後才修復，不再另開審美或評分 wave。複查聚焦原缺陷及受影響 consumer，同時保留 Impeccable 的必需範圍、完整瀏覽器覆蓋與當前分數。第二次 review 仍失敗就停在 `blocked`；只有 owner 明確批准改變策略與完整驗收矩陣，才可例外增加一次 successor re-review。一般「繼續」不代表批准。詳見 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。
 
+重用較早的 visual PASS，須有兩項驗收證據並完整涵蓋當前範圍；程式樹相同本身不足以重用。
 這裡計算 Harness 階段的 pass 次數；Impeccable 仍須完成 pinned workflow 與內部評估，其原生總分不能替代 H1–H9。
 
 通過即停止，不追 100 分；相同候選不重做同範圍 review。SHA／輸入改變時，更新適用證據。Managed 節點數與修復額度仍由 PLAN 和原 lineage 掌管，不能換 wave 名稱重設預算。詳見[實作驗證規則](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop)。

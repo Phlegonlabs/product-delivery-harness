@@ -197,6 +197,7 @@ Autorrevisión, revisión independiente, comprobación automática y decisión h
 
 HiFi usa un lead grader por defecto; hasta dos specialists sibling requieren petición del owner o riesgo alto registrado. Navegador, Impeccable y H1-H9 comparten candidato y ronda diagnóstica. El lead consolida la evaluación antes de reparar; no añade otra ronda estética ni de puntuación. La revisión posterior sigue los defectos originales y consumidores afectados, manteniendo alcance Impeccable, navegador completo y puntuaciones actuales. Un segundo fallo termina en `blocked`. Solo una aprobación explícita de estrategia cambiada y matriz de aceptación permite una revisión sucesora excepcional. Un simple «continúa» no la autoriza. Consulta la [rúbrica HiFi](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope).
 
+Reutilizar un PASS visual anterior exige evidencia de ambos componentes y cobertura completa; la igualdad del árbol por sí sola no basta.
 Los recuentos describen pases de etapa Harness. Impeccable conserva su workflow fijado y evaluaciones internas; sus totales nativos no sustituyen H1-H9.
 
 Detente al pasar; no persigas 100. No repitas el mismo alcance sobre un candidato sin cambios. Cambiar SHA/entradas exige evidencia nueva aplicable. PLAN y el lineage original controlan nodos y reparaciones; renombrar una ronda no crea presupuesto. Consulta los [gates de implementación](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop).
