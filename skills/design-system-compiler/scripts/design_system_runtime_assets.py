@@ -67,9 +67,9 @@ RUNTIME_FRAME = r"""(() => {
   const proven = entry => entry.done || entry.ended === true;
   const end = entry => { if (entry && !stopped && !entry.done && entry.ended === null) entry.ended = entry.animation.playState === "finished"; };
   const lookup = item => entries.find(entry => entry.animation === item || entry.effect === item);
+  // The complete current native timing and resolved keyframes (values, offsets, easing, composite). A CSS animation resolves
+  // them from live style, so a custom property or stylesheet change reaches them without any wrapped call.
   const shape = effect => { try { return JSON.stringify([effect.getTiming(), effect.getKeyframes()]); } catch (_) { return "?"; } };
-  const form = effect => { try { const t = effect.getTiming(); return JSON.stringify([t.duration, t.iterations, t.delay, t.endDelay,
-    t.direction, t.iterationStart, effect.getKeyframes().length]); } catch (_) { return "?"; } };
   // Current facts, not capture-time values: changed timing or keyframes fail closed before or after the end. After the end,
   // a renewed pending, running or paused lifecycle on the same object is unsupported reuse; the entry stays invalid for this
   // generation, so a later finish or an old promise callback cannot restore it. New Element.animate objects are new entries.
@@ -79,7 +79,7 @@ RUNTIME_FRAME = r"""(() => {
     if (stopped || entry.invalid) return;
     const animation = entry.animation, effect = animation.effect, state = animation.playState;
     if (effect !== entry.effect) { if (!proven(entry) && entry.ended === null) entry.ended = false; return; }
-    if (effect && state !== "idle" && form(effect) !== entry.form) entry.invalid = "changed its timing or keyframes";
+    if (effect && state !== "idle" && shape(effect) !== entry.form) entry.invalid = "changed its timing or keyframes";
     else if (!proven(entry)) { if (state === "finished" && !animation.pending) entry.done = true; }
     else if (animation.pending || state === "running" || state === "paused") entry.invalid = "restarted after its end";
   }
@@ -255,7 +255,7 @@ RUNTIME_FRAME = r"""(() => {
       name: css ? String(animation.animationName || "") : "", duration: Number(timing.duration), delay: Number(timing.delay) || 0,
       iterations: Number(timing.iterations), active: Number(timing.activeDuration), keyframes: keyframes.length,
       properties: Array.from(properties).sort().join(","), varying: varying(keyframes), implicit: implicit(keyframes), blocked: [],
-      form: effect ? form(effect) : "", invalid: "",
+      form: effect ? shape(effect) : "", invalid: "",
       at: now(), done: false, cancelled: false, cancelAt: null, ended: null, baseline: null, visible: false, changed: false};
     // The finish microtask runs before product continuations, so a filled end state finished early is still sampled.
     // It is only a prompt: the current native facts decide whether this lifecycle reached its end.
@@ -415,7 +415,7 @@ RUNTIME_FRAME = r"""(() => {
     const entry = entries.find(item => item.css && !proven(item) && !item.invalid && item.ended === null && item.animation.playState === "idle" &&
       item.owner === event.target && item.pseudo === (event.pseudoElement || "") && item.name === event.animationName);
     // The elapsed time is compared with the current validated lifecycle, not a cached duration.
-    if (entry) entry.ended = form(entry.effect) === entry.form &&
+    if (entry) entry.ended = shape(entry.effect) === entry.form &&
       Math.round(event.elapsedTime * 1000) >= Math.round(Number(entry.effect.getComputedTiming().activeDuration));
   }, true);
   window.addEventListener("message", event => {

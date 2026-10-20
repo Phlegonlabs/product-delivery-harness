@@ -1,5 +1,6 @@
 """Terminal lifecycle regressions for source-review-003 finding 1 (same-object restart)
-and finding 2 (an effect captured outside the subject, then retargeted inside: the _scope cases).
+and finding 2 (an effect captured outside the subject, then retargeted inside: the _scope cases),
+plus source-review-004 F1 (style-driven native CSS frame or timing changes: the css_drift cases).
 
 SYNTHETIC Kiln Timer fixtures only, never an approved product. Browser cases are
 required when PDH_REQUIRE_BROWSER_TESTS=1 and drive the real run_acceptance probe.
@@ -156,6 +157,53 @@ STOP = HELPERS + r"""
 """
 
 
+# Source-review-004 F1: the source changes a custom property the captured CSS stripes resolve, 700 ms into their 2.4 s run.
+# The native object, frame count and counted timing fields stay the same; the resolved frames, easing or fill do not.
+CSS_DRIFT = acc.edit(fixture.PRODUCT_CSS, "@keyframes belt-move{to{transform:translateX(16px)}}",
+                     "@keyframes belt-move{from{transform:translateX(0px)}to{transform:translateX(var(--stride,16px))}}"
+                     ) + ".belt-bar::before{animation-timing-function:var(--belt-ease,linear);animation-fill-mode:var(--belt-fill,none)}"
+
+
+def drifted(name, value):
+    return acc.edit(fixture.PRODUCT_SCRIPT, "const ends = performance.now() + 2400;", "const ends = performance.now() + 2400; "
+                    f'setTimeout(() => {{ document.documentElement.style.setProperty("{name}", "{value}"); '
+                    'document.documentElement.dataset.cssDrift = "1"; }, 700);')
+
+
+CSS_DRIFTED = {"endpoint custom property": drifted("--stride", "0px"), "easing custom property": drifted("--belt-ease", "steps(2)"),
+               "fill custom property": drifted("--belt-fill", "forwards")}
+CSS_STEADY = {"control: static custom property": fixture.PRODUCT_SCRIPT, "control: same-value custom property": drifted("--stride", "16px")}
+# Native CSSAnimation facts before and after the source update, then the runtime phase over a fixed window.
+NATIVE_DRIFT = HELPERS + r"""
+(async () => {
+  const browser = await chromium.launch();
+  const out = {};
+  try {
+    for (const item of cases.items) {
+      const context = await browser.newContext({viewport: {width: 1280, height: 700}});
+      const page = await context.newPage();
+      const r = {};
+      watch(context, page, r);
+      await page.goto(item.url);
+      const {status, wait, inFrame, show} = tools(page);
+      const native = () => inFrame("belt-stripes", () => ({drift: document.documentElement.dataset.cssDrift || null,
+        items: document.getAnimations().filter(a => a instanceof CSSAnimation && a.playState !== "idle")
+          .map(a => ({state: a.playState, timing: a.effect.getTiming(), frames: a.effect.getKeyframes()}))}));
+      await show("belt-stripes");
+      await wait("belt-stripes", ["playing"], 3000);
+      r.before = await native();
+      await page.waitForTimeout(900);
+      r.after = await native();
+      r.seen = await wait("belt-stripes", ["invalid"], 6000);
+      r.status = await status("belt-stripes");
+      out[item.name] = r;
+      await context.close();
+    }
+  } finally { console.log(JSON.stringify(out)); await browser.close(); }
+})().catch(error => { console.error(error); process.exit(1); });
+"""
+
+
 def reduced_window(lifecycle):
     """The unchanged acceptance formula: max(3200, ceil(lifecycle + max(1600, lifecycle / 3)))."""
     return max(3200, math.ceil(lifecycle + max(1600, lifecycle / 3)))
@@ -293,6 +341,51 @@ class TerminalLifecycleTests(unittest.TestCase):
                 self.assertEqual("invalid", normal["first"], normal)
                 self.assertNotIn("settled", normal["firstSeen"], normal)
                 self.assertNotIn("lifecycleMs", normal)
+
+    def test_css_drift_of_native_frames_or_timing_invalidates_and_steady_values_settle(self):
+        self.require()
+        items = [{"name": name, "url": self.gallery("css-drift-" + name, script, CSS_DRIFT).resolve().as_uri()}
+                 for name, script in {**CSS_DRIFTED, **CSS_STEADY}.items()]
+        out = self.run_node(NATIVE_DRIFT, {"items": items})
+        for name in {**CSS_DRIFTED, **CSS_STEADY}:
+            with self.subTest(name):
+                before, after = out[name]["before"], out[name]["after"]
+                self.assertEqual([], out[name]["errors"])
+                # The same three native CSSAnimations are still running before their end in both observations.
+                self.assertEqual((3, 3), (len(before["items"]), len(after["items"])), out[name])
+                self.assertEqual(["running"] * 6, [item["state"] for item in before["items"] + after["items"]], out[name])
+                self.assertIsNone(before["drift"])
+        native = {name: (out[name]["before"]["items"][0], out[name]["after"]["items"][0]) for name in out}
+        endpoint, easing, fill = (native[name] for name in CSS_DRIFTED)
+        self.assertEqual(["translateX(16px)", "translateX(0px)"], [side["frames"][-1]["transform"] for side in endpoint])
+        self.assertEqual(endpoint[0]["timing"], endpoint[1]["timing"])
+        self.assertNotEqual(easing[0]["frames"], easing[1]["frames"])
+        self.assertEqual(["none", "forwards"], [side["timing"]["fill"] for side in fill])
+        for name in CSS_DRIFTED:
+            with self.subTest(name):
+                self.assertEqual("1", out[name]["after"]["drift"])
+                self.assertEqual("invalid", out[name]["seen"][-1], out[name])
+                self.assertRegex(out[name]["status"], r"div\.belt-bar::before changed its timing or keyframes; one Animation proves one finite run")
+        for name in CSS_STEADY:
+            with self.subTest(name):
+                self.assertEqual(native[name][0], native[name][1], "steady native frames and timing")
+                self.assertEqual(["settled", "timeout"], out[name]["seen"][-2:], out[name])
+                self.assertNotIn("invalid", out[name]["seen"])
+
+    def test_css_drift_fails_ordinary_acceptance_and_static_custom_property_passes(self):
+        self.require()
+        for name in CSS_DRIFTED:
+            with self.subTest(name):
+                report, modes = self.accept("css-drift-" + name.replace(" ", "-"), CSS_DRIFTED[name], CSS_DRIFT, acc.STRIPES)
+                normal = modes["normal"]
+                self.assertEqual("FAIL", report["verdict"], json.dumps(report["results"])[:3000])
+                self.assertEqual("invalid", normal["first"], normal)
+                self.assertNotIn("settled", normal["firstSeen"], normal)
+                self.assertNotIn("lifecycleMs", normal)
+        # Static custom-property resolution with the source's genuine end cleanup (the stripes are removed after their end).
+        report, modes = self.accept("css-drift-static", fixture.PRODUCT_SCRIPT, CSS_DRIFT, acc.STRIPES)
+        self.assertEqual("PASS", report["verdict"], json.dumps(report["results"])[:3000])
+        self.assertEqual(("settled", "settled"), (modes["normal"]["first"], modes["normal"]["replay"]), modes["normal"])
 
     def test_scope_outside_only_retarget_and_end_cleanup_pass_acceptance(self):
         self.require()
