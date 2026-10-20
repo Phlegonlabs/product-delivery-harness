@@ -333,3 +333,32 @@ Document sync remains `review_required` for unknown loaded identity, first basel
 No full release matrix, consumer UI execution, publication, tag, installation or loaded-runtime adoption is claimed.
 All finite checks exited. No preview, watcher or browser remains active from this task.
 Release and installed-skill updates require a separate owner instruction.
+
+## Development Installation
+
+On 2026-10-20, the owner explicitly requested updating the currently installed skills with this local outcome.
+The owner separately authorized coordination messages to the two active consumer chats.
+This is a development installation from clean `1169a58648ec5cec54b8c3247946af5b8f847606`, not a formal release.
+
+The HiFi-specimen chat confirmed that its author, verification and reviewers use an isolated DEV bundle.
+The Jolvex chat paused new shared-skill reads and dispatches, with only fixed-source review and local verification continuing.
+The parent retained those acknowledgments in [installation quiescence](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/install-quiescence.md).
+No worker or unrelated service was stopped.
+
+The official `install.ps1` completed against `C:/Users/mps19/.agents/skills` with its lock, staging, backup and rollback protections.
+All seven installed trees and all 439 tracked paths match the source bytes.
+The normalized bundle digest is `0e2d561494da11612a5772e4df4f9aad056310478006797e4bb6e73a40599bf9`.
+The installer source receipt names `1169a586` and confirms no uncommitted skill changes.
+
+The prior seven trees were preserved at `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261020-112719`.
+Their paths and bytes match the pre-install snapshot.
+Full-tree checks also confirm that frontend-design, Impeccable, go-to-market and gtm-content were unchanged.
+Legacy IDs, destination lock, staging directories and owner markers are absent.
+Installer and verification processes exited successfully.
+See [installed verification](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/install-after.json).
+
+Both chats were notified that the shared installation hold is released.
+They retain their existing isolated or frozen contracts; the notification grants no pin migration or product action.
+The installed version text remains 0.65.2. Actual loaded identity remains unknown, and new work requires a fresh host session.
+Shared root rules remain current by meaning against the newly installed template, retaining the source-repository exceptions.
+No push, formal release, tag, host restart or consumer-binding update occurred.
