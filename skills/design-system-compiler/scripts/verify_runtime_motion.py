@@ -81,9 +81,22 @@ async function open(context, row, target) {
   const figure = "#m-" + row.slug + " + figure";
   const phase = () => page.$eval(figure, item => item.getAttribute("data-ds-phase"));
   const press = selector => page.$eval(selector, item => item.click());
+  const ledger = () => page.$eval(figure, item => item.getAttribute("data-ds-ledger"));
   const realm = async () => (await (await page.$(figure + " iframe")).contentFrame())
     .evaluate(() => [document.getAnimations().filter(item => item.playState === "running").length,
       JSON.parse(document.getElementById("ds-mount").textContent).generation]);
+  // Native guard on the row's own proof family at the current bound subject: CSS effects beside a WAAPI row stay outside it.
+  const active = async () => (await (await page.$(figure + " iframe")).contentFrame()).evaluate(name => {
+    const mechanism = JSON.parse(document.getElementById("ds-frame-config").textContent).mechanism;
+    let subject = null;
+    for (const node of document.querySelectorAll("[data-ds-motion-subject]"))
+      if (node.getAttribute("data-ds-motion-subject").split(" ").indexOf(name) >= 0) subject = node;
+    const css = item => typeof CSSAnimation === "function" && item instanceof CSSAnimation;
+    const transition = item => typeof CSSTransition === "function" && item instanceof CSSTransition;
+    const count = subject ? subject.getAnimations({subtree: true}).filter(item => (mechanism === "css-animation" ? css(item) : !css(item) && !transition(item))
+      && (item.pending || item.playState === "running" || item.playState === "paused")).length : -1;
+    return [count, JSON.parse(document.getElementById("ds-mount").textContent).generation];
+  }, target);
   const running = async () => (await realm())[0];
   const until = async (wanted, wait) => {
     const end = Date.now() + wait, seen = [];
@@ -140,7 +153,7 @@ async function open(context, row, target) {
       return {top: Math.round(top), height: Math.round(box.height), ratio: box.height ? Math.round(Math.max(0, shown) / box.height * 1000) / 1000 : 0};
     }, box));
   };
-  return {page, errors, requests, popups, figure, phase, press, running, until, hold, reveal};
+  return {page, errors, requests, popups, figure, phase, ledger, active, press, running, until, hold, reveal};
 }
 
 async function systemCase(context, row, target, window) {
@@ -167,19 +180,30 @@ async function systemCase(context, row, target, window) {
 
 async function normalCase(context, row, target) {
   {
-    const {page, errors, requests, popups, figure, phase, press, until, hold, reveal} = await open(context, row, target);
+    const {page, errors, requests, popups, figure, phase, ledger, active, press, until, hold, reveal} = await open(context, row, target);
+    // Success needs one unbroken 1500 ms settled period with an unchanged complete ledger in one generation, closed by a
+    // native check that no effect of the row's family is still active on the bound subject. A new stage or proof restarts
+    // the period; a remount or the deadline fails, even when the last phase reads settled.
     const settle = async limit => {
       const end = Date.now() + limit, seen = [];
-      let since = null;
+      let since = null, mark = null, generation = null;
       while (Date.now() < end) {
-        const value = await phase();
+        const value = await phase(), current = await ledger();
         if (seen[seen.length - 1] !== value) seen.push(value);
-        if (value === "invalid") return {value, seen, since: null};
-        since = value === "settled" ? since || Date.now() : null;
-        if (since && Date.now() - since >= 1500) return {value, seen, since};
+        if (value === "invalid") return {value, seen, since: null, complete: false};
+        const owner = current === null ? null : Number(current.split(":")[0]);
+        if (owner !== null && generation === null) generation = owner;
+        if (owner !== null && owner !== generation) return {value, seen, since: null, complete: false, remounted: true};
+        if (value !== "settled" || current !== mark || since === null) { since = value === "settled" ? Date.now() : null; mark = current; }
+        else if (Date.now() - since >= 1500) {
+          const [count, mounted] = await active();
+          if (mounted !== generation) return {value, seen, since: null, complete: false, remounted: true};
+          if (count === 0) return {value, seen, since, complete: true};
+          since = Date.now();
+        }
         await page.waitForTimeout(40);
       }
-      return {value: await phase(), seen, since: null};
+      return {value: await phase(), seen, since: null, complete: false};
     };
     const result = {variant: row.variant, target, mode: "normal"};
     const offscreen = await page.$eval(figure, item => {
@@ -194,14 +218,17 @@ async function normalCase(context, row, target) {
     result.reveal = await reveal();
     const entered = Date.now();
     const first = await settle(20000);
-    Object.assign(result, {first: first.value, firstSeen: first.seen, firstStatus: await page.$eval(figure + " .status", item => item.textContent)});
-    if (first.value !== "settled") return Object.assign(result, {errors, requests, popups, pass: false});
+    Object.assign(result, {first: first.value, firstComplete: first.complete, firstRemounted: Boolean(first.remounted), firstSeen: first.seen,
+      firstStatus: await page.$eval(figure + " .status", item => item.textContent)});
+    if (!first.complete) return Object.assign(result, {errors, requests, popups, pass: false});
     const pressed = Date.now();
     await press(figure + ' button[data-ds-runtime="replay"]');
     const replay = await settle(20000);
-    Object.assign(result, {replay: replay.value, replaySeen: replay.seen});
-    // Lifecycle: from viewport entry or a fresh replay realm to the start of the final settled phase, activation delay included.
-    result.lifecycleMs = Math.max(first.since - entered, replay.since ? replay.since - pressed : 0);
+    Object.assign(result, {replay: replay.value, replayComplete: replay.complete, replayRemounted: Boolean(replay.remounted), replaySeen: replay.seen});
+    // No reduced window derives from an unproven normal lifecycle.
+    if (!replay.complete) return Object.assign(result, {errors, requests, popups, pass: false});
+    // Lifecycle: from viewport entry or a fresh replay realm to the start of the final stable settled period, activation delay included.
+    result.lifecycleMs = Math.max(first.since - entered, replay.since - pressed);
     result.reducedWindowMs = reducedWindow(result.lifecycleMs);
     if (result.reducedWindowMs > CEILING) return Object.assign(result, {errors, requests, popups, pass: false,
       windowError: "derived reduced window exceeds " + CEILING + " ms"});
@@ -221,7 +248,7 @@ async function normalCase(context, row, target) {
     await press("[data-ds-reduced-toggle]");
     Object.assign(result, {errors, requests, popups});
     result.pass = (row.activation !== "viewport" || !offscreen || result.beforeView === "pending")
-      && result.first === "settled" && result.replay === "settled" && result.playingBeforeStop === "playing"
+      && result.firstComplete && result.replayComplete && result.playingBeforeStop === "playing"
       && result.stop === "stopped" && result.stopHeld && result.stopRunning === 0
       && result.reducedFirst.value === "reduced" && result.reducedHeld && result.reducedRunning === 0
       && !errors.length && !requests.length && !popups.length;

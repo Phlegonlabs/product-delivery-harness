@@ -6,7 +6,9 @@ product's own matchMedia calls, tracks timers, observers and Element.animate
 so Stop can halt them, gates Animation playback calls once stopped, and
 credits an effect only after a sampled visible, subject-owned rendered change.
 A row settles only when every bound effect is finite and reached its end; an
-untracked plain native Animation on a waapi subject makes the row invalid.
+untracked plain native Animation on a waapi subject makes the row invalid, and
+so does reusing a tracked Animation after its end (one lifecycle per object).
+An effect stays relevant once it enters the subject; one retargeted in from outside is invalid.
 RUNTIME_BOOT follows the copied markup and precedes the source script loader
 (source_script_order), which runs every product script from its source slot:
 it selects the requested target and state view so product code starts there.
@@ -58,33 +60,70 @@ RUNTIME_FRAME = r"""(() => {
   let stopped = false, booted = false, subject = null, canvas = null, readyAt = null, seenAt = null, navigation = "", last = "";
   let violation = "", unsupported = "";
   const timers = new Set(), loops = new Set(), frames = new Set(), observers = new Set(), entries = [], errors = [];
-  // A source cancel or detachment records whether its effect had already reached its end; a style cancel reports it via animationcancel.
-  const end = entry => { if (entry && !stopped && entry.ended === null) entry.ended = entry.animation.playState === "finished"; };
+  // One supported native lifecycle per tracked Animation: captured, then end-proven (and optionally cleaned up), or invalid.
+  // End proof is a finished state observed while the captured effect is still attached; a fulfilled promise only prompts
+  // inspection. A source cancel or detachment records whether its effect had already reached its end; a style cancel
+  // reports it via animationcancel.
+  const proven = entry => entry.done || entry.ended === true;
+  const end = entry => { if (entry && !stopped && !entry.done && entry.ended === null) entry.ended = entry.animation.playState === "finished"; };
+  const lookup = item => entries.find(entry => entry.animation === item || entry.effect === item);
+  const shape = effect => { try { return JSON.stringify([effect.getTiming(), effect.getKeyframes()]); } catch (_) { return "?"; } };
+  const form = effect => { try { const t = effect.getTiming(); return JSON.stringify([t.duration, t.iterations, t.delay, t.endDelay,
+    t.direction, t.iterationStart, effect.getKeyframes().length]); } catch (_) { return "?"; } };
+  // Current facts, not capture-time values: changed timing or keyframes fail closed before or after the end. After the end,
+  // a renewed pending, running or paused lifecycle on the same object is unsupported reuse; the entry stays invalid for this
+  // generation, so a later finish or an old promise callback cannot restore it. New Element.animate objects are new entries.
+  // Another route, such as new Animation(effect), takes the captured effect without a setter. Unless its end was already
+  // observed, that unsupported route is a detachment before the end; a finish cannot then prove completion.
+  function inspect(entry) {
+    if (stopped || entry.invalid) return;
+    const animation = entry.animation, effect = animation.effect, state = animation.playState;
+    if (effect !== entry.effect) { if (!proven(entry) && entry.ended === null) entry.ended = false; return; }
+    if (effect && state !== "idle" && form(effect) !== entry.form) entry.invalid = "changed its timing or keyframes";
+    else if (!proven(entry)) { if (state === "finished" && !animation.pending) entry.done = true; }
+    else if (animation.pending || state === "running" || state === "paused") entry.invalid = "restarted after its end";
+  }
   const cancelNative = native.cancel;
   if (typeof cancelNative === "function") Animation.prototype.cancel = function (...args) {
     end(entries.find(item => item.animation === this));
     return cancelNative.apply(this, args);
   };
   // Clearing or replacing Animation.effect, or clearing or retargeting a KeyframeEffect, detaches the tracked effect.
-  // The browser then reports it finished without a cancel. Assigning the current value detaches nothing. Stop gates both setters.
+  // The browser then reports it finished without a cancel. Assigning the current value detaches nothing. Clearing is valid
+  // cleanup after the end; a new effect on the old Animation, or a new target for its effect, reuses it. Stop gates both setters.
+  // The old and the new native target both count, so a move in and back out within one task stays relevant.
   const detach = (owner, key, tracked) => {
     const field = owner && Object.getOwnPropertyDescriptor(owner.prototype, key);
     if (field && field.set) Object.defineProperty(owner.prototype, key, {configurable: true, enumerable: field.enumerable,
       get: field.get, set(value) {
         if (stopped) return;
-        if (value !== field.get.call(this)) entries.filter(item => tracked(item, this, value)).forEach(end);
+        const old = field.get.call(this);
+        if (value !== old) entries.filter(item => tracked(item, this, value)).forEach(item => {
+          locate(item, key === "effect" ? [old && old.target, value && value.target] : key === "target" ? [old, value] : []);
+          inspect(item);
+          end(item);
+          if (proven(item) && !item.invalid && value !== null && value !== undefined && (key !== "effect" || item.animation === this))
+            item.invalid = "was reattached after its end";
+        });
         field.set.call(this, value);
       }});
   };
   detach(window.Animation, "effect", (item, animation, effect) => item.animation === animation || (effect && item.effect === effect));
   for (const key of ["target", "pseudoElement"]) detach(window.KeyframeEffect, key, (item, effect) => item.effect === effect);
-  // Another route, such as new Animation(effect), takes the captured effect without a setter. Unless its end was already
-  // observed, that unsupported route is a detachment before the end; a finish cannot then prove completion.
-  const taken = entry => { if (!stopped && !entry.done && entry.ended === null && entry.animation.effect !== entry.effect) entry.ended = false; };
   // Stop gates the native playback lifecycle of every Animation (retained, returned or constructed) in this realm.
+  // Otherwise the unchanged native call runs between two inspections of its tracked lifecycle, so a restart that also
+  // finishes before the next sample is still seen; a timing or keyframe call that changes the effect fails closed.
   const gate = (owner, key) => {
     const method = owner && owner.prototype && owner.prototype[key];
-    if (typeof method === "function") owner.prototype[key] = function (...args) { if (!stopped) return method.apply(this, args); };
+    if (typeof method === "function") owner.prototype[key] = function (...args) {
+      if (stopped) return;
+      const entry = lookup(this), before = entry && this === entry.effect ? shape(this) : null;
+      if (entry) inspect(entry);
+      const result = method.apply(this, args);
+      if (entry && before !== null && !stopped && !entry.invalid && shape(this) !== before) entry.invalid = "changed its timing or keyframes";
+      if (entry) inspect(entry);
+      return result;
+    };
   };
   for (const key of ["play", "reverse", "finish", "cancel", "updatePlaybackRate"]) gate(window.Animation, key);
   gate(window.AnimationEffect, "updateTiming");
@@ -92,7 +131,13 @@ RUNTIME_FRAME = r"""(() => {
   for (const key of ["currentTime", "startTime", "playbackRate"]) {
     const field = window.Animation && Object.getOwnPropertyDescriptor(Animation.prototype, key);
     if (field && field.set) Object.defineProperty(Animation.prototype, key, {configurable: true, enumerable: field.enumerable,
-      get: field.get, set(value) { if (!stopped) field.set.call(this, value); }});
+      get: field.get, set(value) {
+        if (stopped) return;
+        const entry = lookup(this);
+        if (entry) inspect(entry);
+        field.set.call(this, value);
+        if (entry) inspect(entry);
+      }});
   }
   window.setTimeout = (callback, delay, ...args) => {
     const id = native.set(() => { timers.delete(id); if (!stopped && typeof callback === "function") callback(...args); }, delay);
@@ -126,6 +171,16 @@ RUNTIME_FRAME = r"""(() => {
   const label = node => !node || !node.tagName ? "detached" :
     node.tagName.toLowerCase() + Array.from(node.classList || []).slice(0, 2).map(item => "." + item).join("");
   const within = node => Boolean(subject && node && node.isConnected && (node === subject || subject.contains(node)));
+  // Relevance is sticky for this generation: an entry joins the relevant ledger once its original owner, its current native
+  // target or a target a setter is about to replace or assign is inside the subject, and never leaves it. The captured owner,
+  // effect and pseudo stay the immutable attribution of its evidence. An effect captured outside that first reaches the
+  // subject through another target is an unsupported ownership change: it is invalid, even if it later ends or leaves.
+  function locate(entry, nodes) {
+    const effect = entry.animation.effect, owned = within(entry.owner);
+    if (!owned && !nodes.concat(effect && effect.target).some(within)) return;
+    if (!entry.inside && !owned && !entry.invalid) entry.invalid = "was retargeted into the subject";
+    entry.inside = true;
+  }
   // Rendered values are compared canonically so equal computed values (none vs translateX(0)) cannot fake change.
   const SKIP = ["offset", "computedOffset", "easing", "composite"];
   const round = list => Array.from(list, number => Math.round(number * 1000) / 1000).join(",");
@@ -200,17 +255,19 @@ RUNTIME_FRAME = r"""(() => {
       name: css ? String(animation.animationName || "") : "", duration: Number(timing.duration), delay: Number(timing.delay) || 0,
       iterations: Number(timing.iterations), active: Number(timing.activeDuration), keyframes: keyframes.length,
       properties: Array.from(properties).sort().join(","), varying: varying(keyframes), implicit: implicit(keyframes), blocked: [],
+      form: effect ? form(effect) : "", invalid: "",
       at: now(), done: false, cancelled: false, cancelAt: null, ended: null, baseline: null, visible: false, changed: false};
     // The finish microtask runs before product continuations, so a filled end state finished early is still sampled.
-    animation.finished.then(() => { taken(entry); entry.done = true; observe(entry); }, () => { entry.cancelled = true; entry.cancelAt = now(); });
+    // It is only a prompt: the current native facts decide whether this lifecycle reached its end.
+    animation.finished.then(() => { inspect(entry); observe(entry); }, () => { entry.cancelled = true; entry.cancelAt = now(); });
     entries.push(entry);
     observe(entry);
     return entry;
   }
   // Credit needs a sample where the effect is in effect, live-owned by the subject, painted and visibly different.
   function observe(entry) {
+    locate(entry, []);
     if (!subject || !within(entry.owner)) return;
-    entry.inside = true;
     const timing = entry.animation.effect ? entry.animation.effect.getComputedTiming() : {};
     const paint = painted(entry);
     if (timing.progress === null || timing.progress === undefined || !entry.varying.length || !paint) return;
@@ -244,8 +301,7 @@ RUNTIME_FRAME = r"""(() => {
     }
     for (const entry of entries) {
       observe(entry);
-      taken(entry);
-      if (entry.animation.playState === "finished") entry.done = true;
+      inspect(entry);
     }
     // A waapi row tracks only Element.animate effects. Any other plain native Animation on the subject, such as
     // new Animation(new KeyframeEffect(...)), is an unsupported route: the row stays invalid even after it ends.
@@ -255,7 +311,10 @@ RUNTIME_FRAME = r"""(() => {
       const effect = animation.effect;
       if (animation.playState === "idle" || (typeof CSSAnimation === "function" && animation instanceof CSSAnimation) ||
           (typeof CSSTransition === "function" && animation instanceof CSSTransition)) continue;
-      if (!effect || !within(effect.target) || entries.some(item => item.animation === animation)) continue;
+      if (!effect || !within(effect.target)) continue;
+      // Being captured is not coverage: a captured Animation now inside reconciles its own entry from current facts.
+      const entry = entries.find(item => item.animation === animation);
+      if (entry) { locate(entry, []); continue; }
       unsupported = label(effect.target) + (effect.pseudoElement || "");
       break;
     }
@@ -280,15 +339,16 @@ RUNTIME_FRAME = r"""(() => {
     if (reduced) return relevant.length || violation ? "invalid" : "reduced";
     if (config.activation === "viewport" && relevant.some(entry => seenAt === null || entry.at + 1 < seenAt)) return "invalid";
     // Every bound effect needs finite structural proof; an infinite or unsupported effect is never set aside.
-    if (relevant.some(entry => !structural(entry))) return "invalid";
+    // A reused or mutated lifecycle is invalid for this generation, even if it later finishes again.
+    if (relevant.some(entry => !structural(entry) || entry.invalid)) return "invalid";
     const start = config.activation === "viewport" ? seenAt : readyAt;
     if (!relevant.length) return start !== null && now() - start > LIMIT ? "invalid" : "pending";
     // A cancel or detachment before the effect reached its end is not a finish, even when the browser then reports it finished.
     // An unreported style cancel fails after LIMIT.
     if (relevant.some(entry => entry.ended === false ||
-        (!entry.done && entry.cancelled && entry.ended === null && now() - entry.cancelAt > LIMIT))) return "invalid";
+        (!proven(entry) && entry.cancelled && entry.ended === null && now() - entry.cancelAt > LIMIT))) return "invalid";
     const credited = relevant.filter(entry => entry.changed).length;
-    if (relevant.some(entry => !entry.done && !(entry.cancelled && entry.ended)))
+    if (relevant.some(entry => !proven(entry)))
       return credited ? "playing" : start !== null && now() - start > LIMIT ? "invalid" : "pending";
     // Every finished effect needs its own visible rendered change; constant, hidden or detached effects fail.
     return credited === relevant.length ? "settled" : "invalid";
@@ -300,7 +360,11 @@ RUNTIME_FRAME = r"""(() => {
   function report() {
     sample();
     const relevant = entries.filter(entry => entry.inside);
-    const body = {type: "ds-runtime", id: config.id, generation, phase: evaluate(), target, reduced, systemReduced, requested,
+    const reused = relevant.find(entry => entry.invalid);
+    // The complete relevant ledger, not only the displayed evidence: a new stage or proof changes it even between polls.
+    const ledger = relevant.length + "." + relevant.filter(proven).length + "." + relevant.filter(entry => entry.changed).length;
+    const body = {type: "ds-runtime", id: config.id, generation, phase: evaluate(), target, reduced, systemReduced, requested, ledger,
+      reused: reused ? label(reused.owner) + reused.pseudo + " " + reused.invalid : "",
       mechanism: config.mechanism, activation: config.activation, inView: seenAt !== null, ignored: entries.length - relevant.length,
       evidence: relevant.slice(0, 40).map(entry => ({owner: label(entry.owner), pseudo: entry.pseudo, name: entry.name,
         duration: entry.duration, delay: entry.delay, iterations: Number.isFinite(entry.iterations) ? entry.iterations : -1,
@@ -348,9 +412,11 @@ RUNTIME_FRAME = r"""(() => {
   // Only a browser-dispatched event reports it: a script-constructed event cannot lend completion.
   document.addEventListener("animationcancel", event => {
     if (!event.isTrusted) return;
-    const entry = entries.find(item => item.css && !item.done && item.ended === null && item.animation.playState === "idle" &&
+    const entry = entries.find(item => item.css && !proven(item) && !item.invalid && item.ended === null && item.animation.playState === "idle" &&
       item.owner === event.target && item.pseudo === (event.pseudoElement || "") && item.name === event.animationName);
-    if (entry) entry.ended = Math.round(event.elapsedTime * 1000) >= Math.round(entry.active);
+    // The elapsed time is compared with the current validated lifecycle, not a cached duration.
+    if (entry) entry.ended = form(entry.effect) === entry.form &&
+      Math.round(event.elapsedTime * 1000) >= Math.round(Number(entry.effect.getComputedTiming().activeDuration));
   }, true);
   window.addEventListener("message", event => {
     const data = event.data;
@@ -415,6 +481,7 @@ RUNTIME_GALLERY = r"""(() => {
   }
   function mount(plate) {
     plate.generation += 1;
+    if (plate.figure) plate.figure.removeAttribute("data-ds-ledger");
     show(plate, "pending", "Pending at target " + clip(plate.target, 32) + ": loading a fresh source frame.");
     const requested = Boolean(toggle && toggle.getAttribute("aria-pressed") === "true");
     const state = JSON.stringify({generation: plate.generation, reduced: requested, target: plate.target});
@@ -437,6 +504,7 @@ RUNTIME_GALLERY = r"""(() => {
     return "Invalid" + at + ": " + (data.error ? "source script error: " + clip(data.error, 120)
       : data.violation ? "source motion ran under reduced motion on " + clip(data.violation, 80) + "."
       : data.unsupported ? "an untracked native Animation ran on " + clip(data.unsupported, 80) + "; that motion route is unsupported."
+      : data.reused ? "the animation on " + clip(data.reused, 120) + "; one Animation proves one finite run."
       : "no valid source motion was observed on the bound subject.");
   }
   window.addEventListener("message", event => {
@@ -445,6 +513,8 @@ RUNTIME_GALLERY = r"""(() => {
     const plate = plates.get(data.id);
     if (!plate || event.source !== plate.frame.contentWindow || data.generation !== plate.generation || PHASES.indexOf(data.phase) < 0) return;
     if (Number.isFinite(data.height)) plate.frame.style.height = Math.min(Math.max(Math.ceil(data.height), 40), 4000) + "px";
+    // Generation and complete ledger identity let acceptance restart its quiet period for any new stage or proof.
+    if (plate.figure) plate.figure.setAttribute("data-ds-ledger", data.generation + ":" + clip(data.ledger, 40));
     show(plate, data.phase, describe(data));
     if (plate.stopWanted === plate.generation && data.phase !== "stopped") halt(plate);
   });
