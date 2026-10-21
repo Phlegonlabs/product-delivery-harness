@@ -54,6 +54,8 @@ Before one consolidated HiFi repair handoff, verify the independent browser, cri
 Use actual repository paths and observed hashes. `manifest` equals the HiFi HTML subject because the manifest is embedded there; the checker joins child page hashes from that manifest and execution inputs. Before each write, the author rechecks the request and all frozen-input bytes in their own context. The checker changes no bytes, approval record or evidence schema.
 
 Exit 0 means diagnostic completeness only. Complete observed FAIL, low scores, concrete scoreable design blocks, and fully observed focus, retention, visibility, wrong-destination or navigation defects may enter one existing consolidated repair batch only under the existing write grant. Missing outputs or detailed observations, unscorable `BLOCKED` or `MISSING`, an absent H dimension, malformed captures, or input drift blocks the dependent handoff regardless of aggregate FAIL. These findings still fail strict final acceptance. This is not a PASS, Visual Approval or new approval record.
+
+Native CSP provenance must be complete, not merely plausible. Bind every consumed raw-event source in execution artifacts and retain every console occurrence at its recorded severity. Exact repeats form a multiset; do not deduplicate them. Missing raw events, wrong channel or source, normalized/native disagreement, stale source bytes, or a malformed provenance claim is structural incompleteness. A genuine console error or exception still blocks strict acceptance.
 The existing attempt budget and same-author ownership remain binding.
 
 Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope).

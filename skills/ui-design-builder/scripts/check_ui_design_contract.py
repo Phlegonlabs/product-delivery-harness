@@ -2090,6 +2090,8 @@ def _resolve_evidence(
                             offline = receipt.get("method") == HIFI_SURFACE_RECEIPT_METHOD
                             bundle = None
                             review_contract = None
+                            csp_context = None
+                            csp_context_error = None
                             if offline and expected_artifact:
                                 candidate = repo_root / expected_artifact
                                 try:
@@ -2099,6 +2101,17 @@ def _resolve_evidence(
                                     if isinstance(parsed_manifest, dict) and parsed_manifest.get("schema") == "ui-hifi/2":
                                         bundle = parsed_manifest
                                         documents = _hifi_bundle_documents(candidate, candidate.read_text(encoding="utf-8"), bundle)
+                                        if output_json.get("schema") == "ui-output/3":
+                                            try:
+                                                from native_csp_diagnostic import build_context
+                                                csp_context = build_context(
+                                                    repo_root, evidence.get("reviewedArtifact"), bundle,
+                                                    output_json.get("execution", {}).get("artifacts", []),
+                                                    documents,
+                                                )
+                                            except (OSError, ValueError, TypeError, KeyError, UnicodeError) as context_exc:
+                                                from native_csp_diagnostic import context_failure
+                                                csp_context_error = context_failure(context_exc)
                                         # Only a current shell contributes a reviewer receipt. Legacy
                                         # schema-2 shells keep their inspection-only output shape;
                                         # _validate_hifi_surface(require_connected=True) is the fresh gate.
@@ -2153,9 +2166,14 @@ def _resolve_evidence(
                             ):
                                 _add(problems, f"{label} output artifact does not exactly match its receipt")
                             elif offline:
-                                findings = _bundle_transcript_findings(output_json, bundle) if bundle is not None else _offline_transcript_findings(output_json)
+                                findings = (
+                                    _bundle_transcript_findings(output_json, bundle, context=csp_context)
+                                    if bundle is not None else _offline_transcript_findings(output_json)
+                                )
                                 for finding in findings:
                                     _add(problems, finding)
+                                if csp_context_error is not None:
+                                    _add(problems, f"{label}: {csp_context_error}")
                                 if review_contract is not None:
                                     for finding in reviewer_evidence_findings(output_json.get("reviewer"), review_contract):
                                         _add(problems, finding)
@@ -2287,7 +2305,8 @@ def _offline_transcript_shape_findings(output: dict[str, Any]) -> list[str]:
 
 
 def _bundle_diagnostic_findings(
-    output: dict[str, Any], manifest: dict[str, Any],
+    output: dict[str, Any], manifest: dict[str, Any], *,
+    context: Any = None, context_error: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return transcript coverage errors and fully observed browser defects."""
 
@@ -2349,7 +2368,15 @@ def _bundle_diagnostic_findings(
             defects.append("HiFi navigation observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
     if len(seen_navigation) != len(expected_navigation):
         structural.append("HiFi navigation transcript lacks a required local-page observation")
-    content_findings = _offline_transcript_findings(dict(output, navigation=[]))
+    if context_error is not None:
+        structural.append(context_error)
+    content_findings = _offline_transcript_findings(
+        dict(output, navigation=[]), context=context,
+    )
+    structural.extend(
+        finding for finding in content_findings
+        if "native CSP diagnostic" in finding or "omits a native console" in finding
+    )
     behavior_markers = (
         "contains a console error", "recorded a network request",
         "recorded a navigation or popup attempt", "recorded a popup attempt",
@@ -2360,10 +2387,13 @@ def _bundle_diagnostic_findings(
     return structural, defects
 
 
-def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
+def _bundle_transcript_findings(
+    output: dict[str, Any], manifest: dict[str, Any], *,
+    context: Any = None,
+) -> list[str]:
     """Check attested click/key outcomes against the hash-bound interaction map."""
     baseline = dict(output, navigation=[], sandbox={"network": "disabled", "topNavigation": "blocked", "popups": "blocked", "forms": "blocked"})
-    findings = _offline_transcript_findings(baseline)
+    findings = _offline_transcript_findings(baseline, context=context)
     expected_sandbox = dict(baseline["sandbox"], topNavigation="allowlisted-local-pages")
     if output.get("sandbox") != expected_sandbox:
         findings.append("HiFi bundle requires the allowlisted-local-pages offline sandbox")
@@ -2381,7 +2411,9 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
     return findings
 
 
-def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
+def _offline_transcript_findings(
+    output: dict[str, Any], *, context: Any = None,
+) -> list[str]:
     """Validate the retained sandbox transcript without claiming JS analysis."""
 
     findings: list[str] = []
@@ -2425,6 +2457,28 @@ def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
             "corresponding transcript lengths"
         )
     for event in console:
+        diagnostic_match = context.match(event) if context is not None else None
+        native_shape = (
+            context is not None and isinstance(event, dict)
+            and event.get("type") in {
+                "Log.entryAdded", "Runtime.consoleAPICalled", "Runtime.exceptionThrown"
+            }
+        )
+        if diagnostic_match is not None:
+            context.consume(diagnostic_match)
+            continue
+        observation_match = (
+            context.match_observation(event) if native_shape else None
+        )
+        if observation_match is not None:
+            context.consume(observation_match)
+        if observation_match is not None and context.native_error(observation_match):
+            findings.append("HiFi offline transcript contains a console error")
+        if native_shape and (
+            observation_match is None
+            or context.alias_mismatch(observation_match, event)
+        ):
+            findings.append("HiFi offline transcript native CSP diagnostic provenance is incomplete")
         if isinstance(event, dict):
             level = str(event.get("level", "")).casefold()
             message = str(event.get("message", ""))
@@ -2432,6 +2486,8 @@ def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
                 findings.append("HiFi offline transcript contains a console error")
         elif re.search(r"\b(?:error|exception|uncaught)\b", str(event), re.I):
             findings.append("HiFi offline transcript contains a console error")
+    if context is not None:
+        findings.extend(context.unmatched_findings())
     if network:
         findings.append("HiFi offline transcript recorded a network request")
     if navigation:
