@@ -64,3 +64,12 @@ The final bookkeeping changes only the two fix records and index; reviewed sourc
 Shared instructions are current by meaning against the observed installed 0.65.2 template, preserving intentional source exceptions.
 Unknown loaded identity, first-baseline and historical README-pointer findings remain explicit; document sync is not a PASS.
 This local source fix is complete. No install, push or release occurred; the prior installed development bundle remains unchanged.
+
+## Audit-Fix Installation
+
+On 2026-10-21, the owner requested the shared development installation from clean `92027b82`.
+The official installer and full-tree verification passed for all seven skills and 439 tracked files.
+The installed Activation suite passed all 75 tests, including the staged-command regression.
+The [installation record](EPIC-ui-review-efficiency.md#audit-fix-development-installation) names coordination, source, backup, digest and read-back evidence.
+The previous installation is recoverable. Consumer pins remain unchanged; loaded identity remains unknown until a fresh host session.
+No push or formal release occurred.

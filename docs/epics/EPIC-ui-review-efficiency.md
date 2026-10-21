@@ -403,3 +403,32 @@ Handoff document sync remains `review_required` for unknown loaded identity, fir
 Those pointers describe migration/history. They are not new invocation routes, and no document-sync PASS is claimed.
 All finite task checks exited; no preview or watcher was started.
 This follow-up has no push, formal release, installation or loaded-runtime adoption. The prior development installation remains separate.
+
+## Audit-Fix Development Installation
+
+On 2026-10-21, the owner explicitly requested installing this follow-up into the current shared skills.
+The owner also approved coordinating the two new active chats, alongside the two previously authorized chats.
+All four confirmed paused shared reads or fixed isolated sources before installation.
+See the [quiescence record](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/fix-install-quiescence.md).
+No existing worker or unrelated service was stopped, and no consumer pin was migrated.
+
+The official `install.ps1` installed clean `92027b82ecda4cdd4be8982c4077d72bc31ccfbd` into `C:/Users/mps19/.agents/skills`.
+The reviewed skill bytes remain those of `73bdfd34`; later commits contain only task records.
+All seven skill trees and all 439 tracked files match the source bytes.
+Only `ui-design-builder` and `product-activation` differ from the previous installation.
+The installed bundle digest is `f635763875e40ad30f112933c3f78efbf9cebb5501eb13ea57d4b5dabb8ce28b`.
+The [read-back record](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/fix-install-after.json) retains all manifests and the source receipt.
+
+The previous seven trees are preserved at `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261021-005755`.
+Backup paths and bytes match the pre-install snapshot. Existing backups remain preserved.
+Frontend Design, Impeccable, go-to-market and gtm-content remain unchanged.
+No legacy IDs, destination lock, staging directory or owner marker remains.
+Installed-location regressions passed: 27 diagnostic tests and 75 Activation tests.
+Logs: `fix-installed-ui-1792569561268393100.log` and `fix-installed-activation-1792569561268087600.log` in the linked evidence directory.
+Installer and checks exited successfully. All four chats received the verified completion and hold-release notification.
+
+This is a development installation; version text remains 0.65.2 and actual loaded identity remains unknown.
+A fresh host session must discover the changed bundle; existing tasks retain their original frozen contracts.
+The installed template and shared instructions remain current by meaning, preserving intentional source exceptions.
+Handoff document sync retains first-baseline, unknown-loaded-identity and historical-pointer review findings; no sync PASS is claimed.
+The final local commit records installation only. No push, formal release, tag or host restart occurred.
