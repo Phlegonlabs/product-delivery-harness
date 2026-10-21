@@ -65,6 +65,7 @@ from agent_failure_receipts import read_failure_receipt
 from agent_role_bindings import validate_execution_binding, validate_role_bindings
 from agent_role_contract import ROLE_CONTRACT_VERSION, binding_is_role_bound, role_contract_enabled, role_contract_gate_enabled, mandatory_worker_role
 from security_review_result import validate_security_review_result
+from harness_design_coverage import validate_design_coverage
 
 
 from harness_core import (
@@ -902,6 +903,7 @@ def _validate_plan_ui_surfaces(
                     "capture_mode",
                     "surface_class",
                     "release_surface",
+                    "design_coverage",
                 },
             ):
                 continue
@@ -946,6 +948,7 @@ def _validate_plan_ui_surfaces(
                 "desktop",
             }:
                 _add(errors, f"{path}.capture_mode", "has an unsupported value")
+            errors.extend(validate_design_coverage(surface, base_path=f"{path}.design_coverage"))
             for optional_name in ("surface_class", "release_surface"):
                 if optional_name in surface and not _nonempty_string(surface[optional_name]):
                     _add(errors, f"{path}.{optional_name}", "must be a non-empty string")
