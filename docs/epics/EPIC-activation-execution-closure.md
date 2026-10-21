@@ -55,4 +55,12 @@ All 75 Activation tests passed. Six Python script trees passed Pyflakes; source 
 Logs: `fix-activation-red-1792565311497198300.log`, `fix-activation-green-1792565353546688400.log` and `fix-activation-suite-1792565396900115000.log`.
 These logs are in `C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf`.
 Scoped document sync retains unknown loaded identity and first-observation review findings; no loaded-runtime adoption is claimed.
-Independent fixed-candidate review remains pending. No install, push or release is authorized by this fix request.
+The fix is committed as `73bdfd34` after the separate UI diagnostic repair `5a1cce1f`.
+On 2026-10-21, fresh independent correctness and security review passed for clean `73bdfd347518237b11cba3ec101175614544c8db`.
+The review covered the complete 13-file follow-up diff, with no findings, exclusions or gaps.
+The unchanged [security result](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/fix-security-result.json) passed the source result validator.
+The reviewer independently passed all 66 Activation checker tests; the parent passed all 75 Activation tests at that candidate.
+The final bookkeeping changes only the two fix records and index; reviewed source bytes remain unchanged.
+Shared instructions are current by meaning against the observed installed 0.65.2 template, preserving intentional source exceptions.
+Unknown loaded identity, first-baseline and historical README-pointer findings remain explicit; document sync is not a PASS.
+This local source fix is complete. No install, push or release occurred; the prior installed development bundle remains unchanged.

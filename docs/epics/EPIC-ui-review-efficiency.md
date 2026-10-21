@@ -373,7 +373,7 @@ The UI fix must reject caller-selected subsets of the frozen manifest's complete
 Keep 85/80 thresholds, current receipts, mandatory checks and the existing repair budget.
 Parent-owned validator work uses the direct route; UI impact and Gitignore impact are `none`.
 Prior read-only exploration is complete. No new architecture boundary requires another exploration wave.
-The existing oversized validator retains its single evidence-validation responsibility; a module split would widen this repair.
+The validator and diagnostic tests retain their evidence-validation responsibility; a module split would widen this repair.
 Acceptance requires missing-surface/state/target regressions, complete-matrix positives, focused contract checks and fixed-candidate independent review.
 The validator now derives the complete applicable matrix from the frozen manifest before joining role receipts.
 Matching partial waves fail without becoming complete or repair-eligible. Per-surface targets and documented `n/a` states retain their meaning.
@@ -385,4 +385,21 @@ The first fixture run exposed shared captures; distinct case captures corrected 
 A separate contract invocation selected the wrong test directory and ran zero tests; it supplies no verification evidence.
 The complete UI suite includes the applicable skill contracts.
 Entry document sync requires semantic review because loaded identity and a prior snapshot are unavailable; it grants no PASS.
-Independent review remains pending. The Activation finding receives a separate atomic fix and task record.
+The UI fix is committed as `5a1cce1f`; the separate Activation fix is `73bdfd34`.
+On 2026-10-21, a fresh native reviewer inspected clean `73bdfd347518237b11cba3ec101175614544c8db` against `b2afa074`.
+The measured dispatch packet was 5,083 UTF-8 bytes within its 12,000-byte task limit.
+Correctness and scoped security review passed across all 13 changed paths, without findings, exclusions or coverage gaps.
+The unchanged [security result](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/fix-security-result.json) passed the source result validator.
+Its SHA-256 is `97131aea7f10f674ac08cc4d817bef1bcba1651387d09c5b18802f324b05f290`.
+The reviewer independently passed 27 diagnostic tests and 66 Activation checker tests.
+The parent passed 27 diagnostic, 75 complete Activation and 65 Harness skill-contract tests at that exact clean candidate.
+Logs: `fix-candidate-ui-1792566031092922300.log`, `fix-candidate-activation-1792566031093827200.log` and `fix-candidate-source-contract-1792566160001006300.log`.
+
+Both P2 follow-ups are complete in local source. This final bookkeeping changes only the two Epic records and their index.
+The reviewed implementation, test and skill-contract bytes remain unchanged.
+Shared instructions remain current by meaning against installed 0.65.2 template `cae9e29e365c60809811f1cd83ffc75f44621244b9966339c9ded3a197ddf8e2`.
+The source-specific bindings, deployment, Activation, Git and reading exceptions remain intentional.
+Handoff document sync remains `review_required` for unknown loaded identity, first baseline and retained historical README pointers.
+Those pointers describe migration/history. They are not new invocation routes, and no document-sync PASS is claimed.
+All finite task checks exited; no preview or watcher was started.
+This follow-up has no push, formal release, installation or loaded-runtime adoption. The prior development installation remains separate.
