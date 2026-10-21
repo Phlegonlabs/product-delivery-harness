@@ -128,6 +128,14 @@ class NativeCspDiagnosticTests(unittest.TestCase):
             "level": "info", "message": "benign", "url": url,
         }
 
+    def collision_events(self, count: int) -> list[dict]:
+        events = []
+        for sequence in range(count):
+            event = self.native_event()
+            event["captureSequence"] = str(sequence)
+            events.append(event)
+        return events
+
     def write_raw(self, events: list[dict]) -> dict[str, str]:
         (self.root / RAW_CAPTURE).parent.mkdir(parents=True, exist_ok=True)
         return self.write(self.root / RAW_CAPTURE, {
@@ -291,6 +299,30 @@ class NativeCspDiagnosticTests(unittest.TestCase):
                     "HiFi offline transcript native CSP diagnostic provenance is incomplete",
                     findings,
                 )
+
+    def test_colliding_complete_identities_use_constant_counter_lookups(self) -> None:
+        for count in (512, 1024):
+            for reverse in (False, True):
+                with self.subTest(count=count, reverse=reverse):
+                    events = self.collision_events(count)
+                    if reverse:
+                        events.reverse()
+                    context = self.context(events)
+                    context.lookup_count = 0
+                    for expected_sequence, event in enumerate(events):
+                        record = self.console_record(event)
+                        identity = context.match(record)
+                        self.assertIsNotNone(identity)
+                        self.assertEqual(
+                            json.loads(identity)["captureSequence"],
+                            str(expected_sequence if not reverse else count - 1 - expected_sequence),
+                        )
+                        self.assertLessEqual(
+                            context.lookup_count - expected_sequence * 8, 8
+                        )
+                        self.assertLessEqual(context.lookup_count, (expected_sequence + 1) * 8)
+                        context.consume(identity)
+                    self.assertEqual([], context.unmatched_findings())
 
     def test_url_query_or_foreign_page_is_not_matched(self) -> None:
         cases = (

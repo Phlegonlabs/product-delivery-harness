@@ -22,6 +22,7 @@ sys.path.insert(0, str(UI_SCRIPTS))
 # sibling while the canonical bytes are available, so cleanup cannot strand it.
 import direction_review  # noqa: E402
 import check_wireframe_html
+import native_csp_diagnostic  # noqa: E402
 from motion_evidence import motion_findings
 from review_evidence import (
     HIFI_MANIFEST_RE,
@@ -2103,15 +2104,13 @@ def _resolve_evidence(
                                         documents = _hifi_bundle_documents(candidate, candidate.read_text(encoding="utf-8"), bundle)
                                         if output_json.get("schema") == "ui-output/3":
                                             try:
-                                                from native_csp_diagnostic import build_context
-                                                csp_context = build_context(
+                                                csp_context = native_csp_diagnostic.build_context(
                                                     repo_root, evidence.get("reviewedArtifact"), bundle,
                                                     output_json.get("execution", {}).get("artifacts", []),
                                                     documents,
                                                 )
                                             except (OSError, ValueError, TypeError, KeyError, UnicodeError) as context_exc:
-                                                from native_csp_diagnostic import context_failure
-                                                csp_context_error = context_failure(context_exc)
+                                                csp_context_error = native_csp_diagnostic.context_failure(context_exc)
                                         # Only a current shell contributes a reviewer receipt. Legacy
                                         # schema-2 shells keep their inspection-only output shape;
                                         # _validate_hifi_surface(require_connected=True) is the fresh gate.

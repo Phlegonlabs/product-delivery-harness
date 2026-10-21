@@ -12,6 +12,7 @@ NATIVE_EVENT_TYPES = {
     "Log.entryAdded", "Runtime.consoleAPICalled", "Runtime.exceptionThrown",
 }
 MANDATED_TEXT = "Unrecognized Content-Security-Policy directive 'navigate-to'."
+ALIAS_KEYS = ("level", "message", "url")
 
 
 def _identity(value: object) -> str:
@@ -51,14 +52,7 @@ class NativeCspContext:
         self.documents = documents
         self.page_paths = page_paths
         self.native_events = native_events
-        self.native_index: dict[str, list[str]] = {}
-        for identity in native_events:
-            native = json.loads(identity)
-            projection = _identity({
-                "at": native.get("at"), "params": native.get("params"),
-                "type": native.get("type"),
-            })
-            self.native_index.setdefault(projection, []).append(identity)
+        self.lookup_count = 0
 
     def _unused_native_identity(self, event: object) -> str | None:
         """Return one unused raw identity when the complete event agrees."""
@@ -74,14 +68,15 @@ class NativeCspContext:
         observed_url = entry.get("url") if isinstance(entry, dict) else event.get("url")
         if self._event_page(observed_url) is None:
             return None
-        projection = _identity({
-            "at": event.get("at"), "params": params, "type": event.get("type"),
-        })
-        for identity in self.native_index.get(projection, []):
-            if self.native_events[identity] > 0:
-                native = json.loads(identity)
-                if all(event.get(key) == value for key, value in native.items() if key in event):
-                    return identity
+        for mask in range(1 << len(ALIAS_KEYS)):
+            candidate = dict(event)
+            for index, key in enumerate(ALIAS_KEYS):
+                if mask & (1 << index):
+                    candidate.pop(key, None)
+            identity = _identity(candidate)
+            self.lookup_count += 1
+            if self.native_events.get(identity, 0) > 0:
+                return identity
         return None
 
     def alias_mismatch(self, identity: str, event: object) -> bool:
