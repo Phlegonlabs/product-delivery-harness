@@ -919,7 +919,7 @@ El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 
 <details>
 <summary><b>Verificación y medición: CI, suite de navegador, tiempos y evidencia de aceptación</b></summary>
 
-`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. Las filas FAIL completamente observadas siguen siendo complete y elegibles para reparación bajo la autoridad existente, mientras la strict final approval sigue fallando. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Direction `--overwrite` compara destinations con author sources y manifest por identidad de archivo y rechaza hardlinks, conservando las entradas. Los checkers de Outcome y SEO llevan el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
+`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. La solicitud y cada rol deben cubrir todas las superficies, estados aplicables y targets por superficie del manifest congelado. Las filas FAIL completamente observadas siguen siendo complete y elegibles para reparación bajo la autoridad existente, mientras la strict final approval sigue fallando. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Direction `--overwrite` compara destinations con author sources y manifest por identidad de archivo y rechaza hardlinks, conservando las entradas. Los checkers de Outcome y SEO llevan el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
 
 ## Verificación y medición de ejecución
 

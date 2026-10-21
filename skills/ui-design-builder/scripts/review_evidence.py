@@ -386,6 +386,38 @@ def _diagnostic_binding(value, label):
     return value
 
 
+def _diagnostic_manifest_cases(manifest):
+    """Derive complete observation scope from the frozen HiFi manifest."""
+    from hifi_reviewer import _is_na_state
+
+    surfaces = manifest.get("surfaces")
+    if not isinstance(surfaces, list) or not surfaces:
+        raise ValueError("diagnostic manifest requires nonempty surfaces")
+    cases = []
+    seen = set()
+    for surface in surfaces:
+        if (not isinstance(surface, dict) or not isinstance(surface.get("id"), str)
+                or not surface["id"].strip() or surface["id"] in seen):
+            raise ValueError("diagnostic manifest requires unique surface identities")
+        seen.add(surface["id"])
+        states = surface.get("states")
+        responsive = surface.get("responsive")
+        if (not isinstance(states, list) or not states
+                or any(not isinstance(state, str) or not state.strip() for state in states)
+                or not isinstance(responsive, dict)
+                or responsive.get("kind") not in {"viewports", "sizeClasses"}
+                or not isinstance(responsive.get("targets"), list) or not responsive["targets"]
+                or any(type(target) not in (int, str) or not str(target).strip()
+                       for target in responsive["targets"])):
+            raise ValueError("diagnostic manifest requires typed states and responsive targets")
+        cases.extend((surface["id"], state, str(target))
+                     for state in states if not _is_na_state(state)
+                     for target in responsive["targets"])
+    if not cases or len(set(cases)) != len(cases):
+        raise ValueError("diagnostic manifest requires nonempty unique observation cases")
+    return sorted(cases)
+
+
 def _diagnostic_wave_data(root, request):
     """Join a hash-bound request to current, self-consistent ui-evidence/3 receipts."""
 
@@ -418,6 +450,8 @@ def _diagnostic_wave_data(root, request):
     expected = sorted(_case_key(row) for row in request["requiredCases"])
     if len(set(expected)) != len(expected):
         raise ValueError("diagnostic request repeats an observation case")
+    if expected != _diagnostic_manifest_cases(parsed_manifest):
+        raise ValueError("diagnostic request cases must exactly cover the frozen HiFi manifest")
     observations = request["observations"]
     if not isinstance(observations, dict) or set(observations) != set(DIAGNOSTIC_CHECKS):
         raise ValueError("diagnostic request requires browser, critique, audit and grading receipts")

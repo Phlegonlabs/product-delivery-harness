@@ -919,7 +919,7 @@ CI also runs the end-to-end spine check. In a POSIX shell use `HARNESS_GOLDEN_PA
 <details>
 <summary><b>Verification and measured execution: CI, browser suite, timing and acceptance evidence</b></summary>
 
-`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. Fully observed FAIL rows remain complete and repair-eligible under existing authority, while strict final approval still fails. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Direction `--overwrite` rejects hardlinks after comparing destinations with author sources and the manifest, preserving inputs. Outcome and SEO checkers carry the required Product/Stack context into strict Activation checks.
+`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. Every request and role must cover the frozen manifest’s complete surface, non-n/a state and per-surface target matrix. Fully observed FAIL rows remain complete and repair-eligible under existing authority, while strict final approval still fails. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Direction `--overwrite` rejects hardlinks after comparing destinations with author sources and the manifest, preserving inputs. Outcome and SEO checkers carry the required Product/Stack context into strict Activation checks.
 
 ## Verification and measured execution
 

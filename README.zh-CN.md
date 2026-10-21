@@ -919,7 +919,7 @@ CI 也会运行端到端主干检查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 <details>
 <summary><b>验证与执行测量：CI、浏览器测试、计时与验收证据</b></summary>
 
-`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。完整观察到的 FAIL rows 仍是 complete 且可在既有授权下 repair-eligible，但 strict final approval 仍失败。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Direction `--overwrite` 会比较 destination、author sources 与 manifest 的文件身份并拒绝 hardlink，保留输入。Outcome 与 SEO checkers 把必要的 Product／Stack context 带进 strict Activation checks。
+`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。Request 与各角色必须覆盖 frozen manifest 的完整 surface、非 n/a state 与各 surface 的 target 矩阵。 完整观察到的 FAIL rows 仍是 complete 且可在既有授权下 repair-eligible，但 strict final approval 仍失败。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Direction `--overwrite` 会比较 destination、author sources 与 manifest 的文件身份并拒绝 hardlink，保留输入。Outcome 与 SEO checkers 把必要的 Product／Stack context 带进 strict Activation checks。
 
 ## 验证与执行测量
 

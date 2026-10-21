@@ -23,7 +23,8 @@ import hifi_review_fixture as fixture
 import review_evidence as evidence
 
 SCRIPT = Path(__file__).resolve().parents[1] / "check_ui_diagnostic_wave.py"
-CASE = [{"surface": "UI-001", "state": "ready", "target": "390"}]
+CASE = [{"surface": surface, "state": "ready", "target": "390"}
+        for surface in ("UI-001", "UI-002")]
 SCORES = {f"H{index}": 90 for index in range(1, 10)}
 
 
@@ -62,9 +63,11 @@ class DiagnosticWaveTests(unittest.TestCase):
         self.prd.write_text("# Frozen PRD", encoding="utf-8", newline="")
         self.prd_bytes = self.prd.read_bytes()
         self.prd_binding = self.binding(self.prd)
-        self.capture = self.root / "capture.json"
-        self.capture.write_text(json.dumps({"observed": "synthetic fixture"}), encoding="utf-8")
-        self.capture_binding = self.binding(self.capture)
+        self.captures = {}
+        for case in CASE:
+            path = self.root / (case["surface"] + "-capture.json")
+            self.captures[case["surface"]] = self.write(
+                path, dict(case, observed="synthetic fixture"))
 
     def sha(self, path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -80,7 +83,7 @@ class DiagnosticWaveTests(unittest.TestCase):
         output = {
             "schema": "ui-output/3", "check": "hifi-browser", "subject": self.subject,
             "matrix": {"cases": CASE},
-            "results": [dict(CASE[0], result=result)],
+            "results": [dict(case, result=result) for case in CASE],
             "execution": {
                 "startedAt": "2026-01-01T00:00:00Z", "finishedAt": "2026-01-01T00:00:01Z",
                 "tool": "playwright", "method": "browser-matrix",
@@ -112,8 +115,8 @@ class DiagnosticWaveTests(unittest.TestCase):
             if role != "browser":
                 output["assessment"] = {
                     "scores": dict(SCORES, H5=h5) if scores is None else scores, "blocks": [],
-                    "observations": [dict(CASE[0], finding="Concrete synthetic rendering observation.",
-                                          evidence=[self.capture_binding])],
+                    "observations": [dict(case, finding="Concrete synthetic rendering observation.",
+                                          evidence=[self.captures[case["surface"]]]) for case in CASE],
                 }
             output_path = evidence_dir / f"{role}-output.json"
             output_binding = self.write(output_path, output)
@@ -134,6 +137,66 @@ class DiagnosticWaveTests(unittest.TestCase):
     def load_browser_output(self) -> tuple[Path, dict]:
         path = self.root / "docs/evidence/browser-output.json"
         return path, json.loads(path.read_text(encoding="utf-8"))
+
+    def test_matching_partial_wave_cannot_omit_a_manifest_surface(self) -> None:
+        request = self.build(browser_result="FAIL")
+        request["requiredCases"] = CASE[:1]
+        for role in evidence.DIAGNOSTIC_CHECKS:
+            path = self.root / "docs/evidence" / f"{role}-output.json"
+            output = json.loads(path.read_text(encoding="utf-8"))
+            output["matrix"]["cases"] = CASE[:1]
+            output["results"] = output["results"][:1]
+            if role != "browser":
+                output["assessment"]["observations"] = output["assessment"]["observations"][:1]
+            self.write(path, output)
+            self.rebind(request, role)
+        path = self.root / "diagnostic-request.json"
+        self.write(path, request)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--repo-root", str(self.root), "--request", str(path),
+             "--request-sha256", self.sha(path)],
+            capture_output=True, text=True, encoding="utf-8", timeout=15)
+        self.assertEqual(2, result.returncode)
+        report = json.loads(result.stdout)
+        self.assertFalse(report["complete"])
+        self.assertFalse(report["repairEligible"])
+        self.assertIn("exactly cover the frozen HiFi manifest", " ".join(report["findings"]))
+
+    def test_manifest_state_and_target_cannot_be_omitted(self) -> None:
+        subject_path = self.root / self.subject["path"]
+        original = subject_path.read_text(encoding="utf-8")
+        for field, value in (("states", ["ready", "empty"]),
+                             ("responsive", {"kind": "viewports", "targets": [390, 768]})):
+            with self.subTest(field=field):
+                manifest = json.loads(json.dumps(self.manifest))
+                manifest["surfaces"][1][field] = value
+                changed = evidence.HIFI_MANIFEST_RE.sub(
+                    lambda _: '<script id="ui-hifi-manifest" type="application/json">'
+                    + json.dumps(manifest) + '</script>', original)
+                subject_path.write_text(changed, encoding="utf-8", newline="")
+                self.subject = self.binding(subject_path)
+                request = self.build(browser_result="FAIL")
+                with self.assertRaisesRegex(ValueError, "exactly cover the frozen HiFi manifest"):
+                    evidence.diagnostic_wave_report(self.root, request)
+
+    def test_manifest_cases_preserve_per_surface_targets_and_na_states(self) -> None:
+        manifest = {"surfaces": [
+            {"id": "UI-001", "states": ["ready", "empty", "failure:n/a"],
+             "responsive": {"kind": "viewports", "targets": [390, 768]}},
+            {"id": "UI-002", "states": ["ready", "n/a"],
+             "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]}},
+        ]}
+        self.assertEqual([
+            ("UI-001", "empty", "390"), ("UI-001", "empty", "768"),
+            ("UI-001", "ready", "390"), ("UI-001", "ready", "768"),
+            ("UI-002", "ready", "compact"), ("UI-002", "ready", "regular"),
+        ], evidence._diagnostic_manifest_cases(manifest))
+
+    def test_invalid_manifest_scope_cannot_make_coverage_vacuous(self) -> None:
+        for surfaces in ([], [{"id": "UI-001", "states": [], "responsive": {}}],
+                         [self.manifest["surfaces"][0]] * 2):
+            with self.subTest(surfaces=surfaces), self.assertRaises(ValueError):
+                evidence._diagnostic_manifest_cases({"surfaces": surfaces})
 
     def test_browser_uses_the_existing_offline_and_reviewer_contract(self) -> None:
         request = self.build()
@@ -166,7 +229,6 @@ class DiagnosticWaveTests(unittest.TestCase):
         request["requiredCases"] = [CASE[0], dict(CASE[0], surface="UI-002")]
         output_path = self.root / "docs/evidence/browser-output.json"
         output = json.loads(output_path.read_text(encoding="utf-8"))
-        output["matrix"]["cases"].append(dict(CASE[0], surface="UI-002"))
         output["results"] = [dict(CASE[0], result="FAIL"), dict(CASE[0], surface="UI-002", result="BLOCKED")]
         output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
         self.rebind(request, "browser")
@@ -321,8 +383,8 @@ class DiagnosticWaveTests(unittest.TestCase):
         self.assertEqual([], evidence.diagnostic_wave_findings(self.root, request))
 
         request["requiredCases"] = [dict(CASE[0], surface="UI-002")]
-        self.assertIn("browser case matrix", " ".join(
-            evidence.diagnostic_wave_findings(self.root, request)))
+        with self.assertRaisesRegex(ValueError, "exactly cover the frozen HiFi manifest"):
+            evidence.diagnostic_wave_findings(self.root, request)
         request = self.build()
         request["observations"].pop("audit")
         with self.assertRaises(ValueError):

@@ -53,6 +53,10 @@ Before one consolidated HiFi repair handoff, verify the independent browser, cri
 
 Use actual repository paths and observed hashes. `manifest` equals the HiFi HTML subject because the manifest is embedded there; the checker joins child page hashes from that manifest and execution inputs. Before each write, the author rechecks the request and all frozen-input bytes in their own context. The checker changes no bytes, approval record or evidence schema.
 
+`requiredCases` must exactly cover every manifest surface, non-`n/a` state and that surface's responsive targets.
+The example assumes one surface, one state and one target. Expand it to the complete frozen manifest.
+Matching partial requests and receipts still block the handoff.
+
 Exit 0 means diagnostic completeness only. Complete observed FAIL, low scores, concrete scoreable design blocks, and fully observed focus, retention, visibility, wrong-destination or navigation defects may enter one existing consolidated repair batch only under the existing write grant. Missing outputs or detailed observations, unscorable `BLOCKED` or `MISSING`, an absent H dimension, malformed captures, or input drift blocks the dependent handoff regardless of aggregate FAIL. These findings still fail strict final acceptance. This is not a PASS, Visual Approval or new approval record.
 The existing attempt budget and same-author ownership remain binding.
 

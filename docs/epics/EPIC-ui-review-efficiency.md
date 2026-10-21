@@ -362,3 +362,27 @@ They retain their existing isolated or frozen contracts; the notification grants
 The installed version text remains 0.65.2. Actual loaded identity remains unknown, and new work requires a fresh host session.
 Shared root rules remain current by meaning against the newly installed template, retaining the source-repository exceptions.
 No push, formal release, tag, host restart or consumer-binding update occurred.
+
+## Whole-Skill Review Follow-Up
+
+The owner requested fixes for the two confirmed P2 findings in the whole-skill review.
+Baseline: clean `b2afa074` on `codex/ui-acceptance`, observed 2026-10-20.
+The [review report](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/whole-skills-review.md) records both findings.
+
+The UI fix must reject caller-selected subsets of the frozen manifest's complete surface, applicable state and target matrix.
+Keep 85/80 thresholds, current receipts, mandatory checks and the existing repair budget.
+Parent-owned validator work uses the direct route; UI impact and Gitignore impact are `none`.
+Prior read-only exploration is complete. No new architecture boundary requires another exploration wave.
+The existing oversized validator retains its single evidence-validation responsibility; a module split would widen this repair.
+Acceptance requires missing-surface/state/target regressions, complete-matrix positives, focused contract checks and fixed-candidate independent review.
+The validator now derives the complete applicable matrix from the frozen manifest before joining role receipts.
+Matching partial waves fail without becoming complete or repair-eligible. Per-surface targets and documented `n/a` states retain their meaning.
+The fixture now observes both declared surfaces with distinct captures.
+Working-tree verification: all 385 UI tests completed with two platform skips; all 27 diagnostic tests passed.
+Source skill specification, scoped Pyflakes and `git diff --check` passed.
+Logs: `fix-ui-suite-1792565025153977500.log` and `fix-ui-diagnostic-green-1792564998419684500.log` in the linked review evidence directory.
+The first fixture run exposed shared captures; distinct case captures corrected it before the passing run.
+A separate contract invocation selected the wrong test directory and ran zero tests; it supplies no verification evidence.
+The complete UI suite includes the applicable skill contracts.
+Entry document sync requires semantic review because loaded identity and a prior snapshot are unavailable; it grants no PASS.
+Independent review remains pending. The Activation finding receives a separate atomic fix and task record.
