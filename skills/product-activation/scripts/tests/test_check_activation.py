@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import importlib.util
+import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -1636,6 +1638,50 @@ class ActivationCheckerTests(unittest.TestCase):
             )
             self.assertEqual(2, closeout_without_prd.returncode)
             self.assertIn("requires --prd", closeout_without_prd.stderr)
+
+    def test_documented_digest_commands_read_staging_with_or_without_live_record(self) -> None:
+        commands = []
+        for relative in ("references/stages/activation.md", "references/activation-contract.md"):
+            for line in (SKILL_ROOT / relative).read_text(encoding="utf-8").splitlines():
+                if "--show-action-digests" not in line:
+                    continue
+                match = re.search(
+                    r'python "<product-activation-skill-root>/scripts/check_activation.py"'
+                    r'[^`\n]*?--show-action-digests', line)
+                self.assertIsNotNone(match, line)
+                command = match.group().replace("<product-activation-skill-root>", SKILL_ROOT.as_posix())
+                command = command.replace("<run-id>", "regression run")
+                command_arguments = shlex.split(command)
+                command_arguments[0] = sys.executable
+                self.assertIn("--activation", command_arguments, line)
+                commands.append(command_arguments)
+        self.assertEqual(3, len(commands))
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            staged = root / "docs/.activation-staging/regression run/ACTIVATION.md"
+            staged.parent.mkdir(parents=True)
+            fields = task_fields()
+            fields["Desired state"] = "production web stream exists with revised settings"
+            staged_digest = current_digest("ACT-001", fields)
+            fields["Action digest"] = fields["Authorized digest"] = staged_digest
+            staged.write_text(valid_record(task_blocks=[task_block("ACT-001", fields)]), encoding="utf-8")
+            live = root / "docs/ACTIVATION.md"
+            live_digest = current_digest("ACT-001", task_fields())
+            self.assertNotEqual(staged_digest, live_digest)
+            for with_live in (False, True):
+                if with_live:
+                    live.write_text(valid_record(), encoding="utf-8")
+                before = {path: path.read_bytes() for path in (staged, live) if path.exists()}
+                for command_arguments in commands:
+                    with self.subTest(with_live=with_live, command=command_arguments):
+                        result = subprocess.run(
+                            command_arguments, cwd=root, text=True, encoding="utf-8",
+                            capture_output=True, check=False, timeout=15)
+                        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                        self.assertEqual(["ACT-001 " + staged_digest],
+                                         [line for line in result.stdout.splitlines() if line.startswith("ACT-")])
+                        self.assertEqual(with_live, live.exists())
+                        self.assertEqual(before, {path: path.read_bytes() for path in before})
 
     def test_documented_authority_commands_supply_expected_repository_and_candidate_ref(self) -> None:
         contract = (SKILL_ROOT / "references" / "activation-contract.md").read_text(

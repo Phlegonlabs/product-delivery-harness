@@ -620,7 +620,7 @@ Product Definition 與 UI 的批准／交接回覆，要在對話中逐份列出
 
 從固定的初始版本開始，`product-activation` 先完成依賴功能所需的已授權設定。正式發布後沿用既有資源，再核對實際版本。Capability、action digest 與行為證據仍綁定精確 target、environment、SHA 和 artifact；最終 readiness、verified measurement sources 與 Outcome Review 保留各自的發布證據要求。
 
-Activation 預設進入執行：先盤點真實 delta，繼續把 ready 且已授權的 action 做到 mutation/read-back/behavior，最後執行 closeout checker；只有 owner 明確要求時才是 documentation-only。`--require-closeout` 會拒絕停留在 ready、configured、pending、uncertain 或 stale 的 required action。只有 verified 工作或明確 concrete blocker 能關閉動作；blocked 狀態讓 record 保持 blocked。真正的 no-op 不需要合成 action，但每個 target 都必須有 concrete n/a disposition；verified handoff 仍要求 verified sources 與 target readiness。
+Activation 預設進入執行：先盤點真實 delta，繼續把 ready 且已授權的 action 做到 mutation/read-back/behavior，最後執行 closeout checker；只有 owner 明確要求時才是 documentation-only。`--require-closeout` 會拒絕停留在 ready、configured、pending、uncertain 或 stale 的 required action。只有 verified 工作或明確 concrete blocker 能關閉動作；blocked 狀態讓 record 保持 blocked。真正的 no-op 不需要合成 action，但每個 target 都必須有 concrete n/a disposition；verified handoff 仍要求 verified sources 與 target readiness。 取得授權前，摘要命令必須用 `--activation` 明確選取目前的 staged 檔案。
 
 Activation 之後，`seo-growth-review` 可對 typed public hosted-web production target 做獨立唯讀 review。Dated report 必須對齊 Review date、deployment hostname、exact release、Activation hash、verified source roles、data cutoff 與 PASS integrity checks；它不修改網站或外部帳戶。
 
