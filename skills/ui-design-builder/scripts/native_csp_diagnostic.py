@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 import json
+import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -175,12 +176,14 @@ def build_context(
         raise ValueError("native CSP diagnostic provenance requires ui-hifi/2")
     if not isinstance(subject, dict) or any(not isinstance(item, dict) for item in artifacts):
         raise ValueError("native CSP diagnostic provenance has invalid bindings")
-    seen: set[str] = set()
+    canonical_artifacts: list[dict[str, object]] = []
+    seen_paths: set[str] = set()
     for binding in artifacts:
-        path = str(binding.get("path", "")).casefold()
-        if path in seen:
+        canonical = os.path.normcase(str(safe_path(root, str(binding.get("path", ""))).resolve()))
+        if canonical in seen_paths:
             raise ValueError("native CSP diagnostic provenance repeats an input")
-        seen.add(path)
+        seen_paths.add(canonical)
+        canonical_artifacts.append(binding)
 
     subject_present = any(binding == subject for binding in artifacts)
     child_bindings = [
@@ -209,7 +212,7 @@ def build_context(
         page_paths[safe_path(root, package_relative).resolve(strict=True)] = name
 
     native_events: Counter[str] = Counter()
-    for binding in artifacts:
+    for binding in canonical_artifacts:
         relative = str(binding.get("path", ""))
         if relative.casefold().endswith((".html", ".md")):
             continue

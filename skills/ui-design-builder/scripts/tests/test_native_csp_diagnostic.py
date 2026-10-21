@@ -216,6 +216,29 @@ class NativeCspDiagnosticTests(unittest.TestCase):
         )
         self.assertIn("HiFi offline transcript contains a console error", forged)
 
+    def test_equivalent_raw_path_aliases_cannot_mint_occurrence_credit(self) -> None:
+        event = self.native_event()
+        raw = self.write_raw([event])
+        aliases = (
+            raw["path"].replace("/native", "//native"),
+            raw["path"] + "/",
+        )
+        for alias in aliases:
+            with self.subTest(alias=alias):
+                output = self.output([self.console_record(event)] * 2, raw)
+                output["execution"]["artifacts"].append(dict(raw, path=alias))
+                output_binding = self.write(self.root / "alias-output.json", output)
+                receipt = evidence.build_receipt(self.root, output_binding["path"])
+                receipt_binding = self.write(self.root / "alias-receipt.json", receipt)
+                problems: list[str] = []
+                ui_contract._resolve_evidence(
+                    f"PASS — evidence={receipt_binding['path']} @ sha256:{receipt_binding['sha256']}",
+                    repo_root=self.root, label="HiFi surface check", problems=problems,
+                    expected_artifact=self.subject["path"], expected_check="hifi-browser",
+                    expected_matrix=output["matrix"], require_machine=True,
+                )
+                self.assertIn("native CSP diagnostic context is incomplete", " ".join(problems))
+
     def test_wrong_provenance_message_or_channel_stays_blocking(self) -> None:
         native = self.native_event()
         raw = self.write_raw([native])
@@ -425,7 +448,8 @@ class NativeCspDiagnosticTests(unittest.TestCase):
     def test_diagnostic_wave_treats_missing_provenance_as_structural(self) -> None:
         scores = {f"H{index}": 90 for index in range(1, 10)}
         case = {"surface": "UI-001", "state": "ready", "target": "390"}
-        def wave(*, bind_raw: bool, event_url: str | None = None) -> list[str]:
+        def wave(*, bind_raw: bool, event_url: str | None = None,
+                 alias: str | None = None) -> list[str]:
             event = self.native_event(url=event_url)
             raw = self.write_raw([event])
             evidence_dir = self.root / "docs/evidence"
@@ -433,7 +457,10 @@ class NativeCspDiagnosticTests(unittest.TestCase):
             observations: dict[str, dict[str, str]] = {}
             for role, check in evidence.DIAGNOSTIC_CHECKS.items():
                 if role == "browser":
-                    output = self.output([self.console_record(event)], raw if bind_raw else None)
+                    records = [self.console_record(event)] * (2 if alias else 1)
+                    output = self.output(records, raw if bind_raw else None)
+                    if alias and bind_raw:
+                        output["execution"]["artifacts"].append(dict(raw, path=alias))
                 else:
                     output = {
                         "schema": "ui-output/3", "check": check, "subject": self.subject,
@@ -470,6 +497,13 @@ class NativeCspDiagnosticTests(unittest.TestCase):
         self.assertIn(
             "browser: HiFi offline transcript native CSP diagnostic provenance is incomplete",
             " ".join(wave(bind_raw=True, event_url=query_url)),
+        )
+        self.assertIn(
+            "browser: native CSP diagnostic context is incomplete",
+            " ".join(wave(
+                bind_raw=True,
+                alias="docs/evidence//native-events.json",
+            )),
         )
 
 if __name__ == "__main__":
