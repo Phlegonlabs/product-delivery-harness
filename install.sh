@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Install the seven Product Delivery Harness skills into a user skills directory.
+# Test suites (scripts/tests) are not installed; run them in the source checkout.
 # The source is staged and verified before mutation. Existing managed copies are
 # moved to one timestamped backup, and any failure restores that backup. The
 # source commit and uncommitted skills/ state are printed and saved beside it.
@@ -158,6 +159,7 @@ done
 is_cache_file() {
   case "$1" in
     *__pycache__/*|.pytest_cache/*|*/.pytest_cache/*|*.pyc|*.pyo) return 0 ;;
+    scripts/tests/*|*/scripts/tests/*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -256,12 +258,13 @@ copy_tracked_tree() {
   assert_no_reparse_components "$target" force
   mkdir "$target"
   # A single recursive copy avoids one Git-Bash process per tracked file. The
-  # tracked/untracked gate already ran above; remove only reproducible cache
-  # artifacts that the manifest deliberately excludes, then verify every byte
-  # against the manifest before any destination mutation.
+  # tracked/untracked gate already ran above; remove only the cache artifacts
+  # and test suites that the manifest deliberately excludes, then verify every
+  # byte against the manifest before any destination mutation.
   cp -a "$skills_src/$skill/." "$target/"
   find "$target" -type d \( -name __pycache__ -o -name .pytest_cache \) -prune -exec rm -rf -- {} +
   find "$target" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+  find "$target" -type d -path '*/scripts/tests' -prune -exec rm -rf -- {} +
   assert_no_reparse_tree "$target"
 }
 
