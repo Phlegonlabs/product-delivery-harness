@@ -363,6 +363,16 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
 
+    def test_direction_modification_is_one_revised_study(self):
+        pass_guide = self.read("references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+        self.assertIn("A mix or modification produces one revised study of the selected direction", pass_guide)
+        self.assertIn("A rejection starts a complete new set", pass_guide)
+        self.assertIn("adds one revised study of the selected direction to the same round folder", contract)
+        for document in (pass_guide, contract):
+            self.assertNotIn("complete revised direction set", document)
+            self.assertNotIn("renewed complete study set", document)
+
     def test_only_final_candidate_evidence_is_committed(self):
         evidence = self.read("references/review-evidence.md")
         self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
