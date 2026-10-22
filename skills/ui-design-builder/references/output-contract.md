@@ -55,7 +55,7 @@ When every page uses the version-3 shell, sidebar coverage is per-page integrati
 
 Assemble with `scripts/assemble_ui_review.py` and its documented CLI flags. The assembler derives `packageId` from the manifest and resolved output location. The version-3 reviewer stores each target, surface or state selection under `hifi-reviewer:<selection>:<packageId>:<platform>:<page>`, so equal manifests in different output directories do not share state. It rejects input/output aliases, links or junctions, duplicate or stale child hashes, and an embedded entry manifest that differs from the supplied manifest. `--overwrite` remains an explicit replacement boundary; assembly never grants publication or human approval.
 
-Record only observed results in `ui-output/3` and assemble `ui-evidence/3` as described in `review-evidence.md`. These machine records do not claim human attestation. Synthetic fixture rows test validators; they are never real browser, native, auth or service evidence. Retain the exact source hashes and renew evidence after changes. Static checks cannot prove actual visibility, aesthetics, selector validity or arbitrary JavaScript behavior; browser and semantic review must do so.
+Record only observed results in `ui-output/3` and assemble `ui-evidence/3` as described in `review-evidence.md`. These machine records do not claim human attestation. Synthetic fixture rows test validators; they are never real browser, native, auth or service evidence. Retain the exact source hashes and renew evidence after changes. After a repair, observe again every row that touches a changed page. A row that touches only pages whose bytes equal those under the last PASS receipt may carry forward into the new receipt with its original capture; `index.html` counts as unchanged when only its manifest page hashes changed. The defect ledger names each carried row's source receipt and page SHA-256. Static checks cannot prove actual visibility, aesthetics, selector validity or arbitrary JavaScript behavior; browser and semantic review must do so.
 
 ## Human Review Presentation
 
@@ -173,7 +173,7 @@ For `ui-design/3`, Style Integration adds:
 | VD-R1-01 | docs/design/directions/round-1/vd-01.html @ sha256:[hash] | [frontend author identity] | [same identity] | pass |
 ```
 
-Each compared direction has one distinct self-contained rendered HTML study with the HiFi CSP rules, all in one existing `docs/design/directions/<round>/` folder. The study rows match the compared directions exactly: three by default, one under the explicit owner choice. One frontend author produces every study and self-checks each; a different checker, a failed self-check or a stale hash blocks. The owner may select, mix or modify (`Direction decision: modified-and-approved`); a mix or modification gets a renewed complete study set. The studies are selection evidence in the existing design folder, not another approval database.
+Each compared direction has one distinct self-contained rendered HTML study with the HiFi CSP rules, all in one existing `docs/design/directions/<round>/` folder. The study rows match the compared directions exactly: three by default, one under the explicit owner choice. One frontend author produces every study and self-checks each; a different checker, a failed self-check or a stale hash blocks. The owner may select, mix or modify (`Direction decision: mixed-and-approved` or `modified-and-approved`). A mix or modification adds one revised study of the selected direction to the same round folder under a new `VD-R<round>-<number>` ID. It replaces the selected direction's rows in both tables, and its rationale names the base direction and the requested changes. Assemble it alone with a one-direction profile; the other studies keep their bytes and rows, and the earlier study file stays retained. A rejection starts a new round with a complete set. The studies are selection evidence in the existing design folder, not another approval database.
 
 #### Direction Review Assembly
 
@@ -191,7 +191,7 @@ New studies use the shared reviewer through `scripts/assemble_ui_review.py --mod
 }
 ```
 
-- The profile is closed. `directions` lists three studies, or one under the explicit owner choice. Each row names the direction ID, the actual study filename and the author source SHA-256.
+- The profile is closed. `directions` lists three studies, or one under the explicit owner choice or for a revised study. Each row names the direction ID, the actual study filename and the author source SHA-256.
 - Each case declares its own `surface`, `platform`, `targetFamily` and ordered `widths` map. A `viewports` target equals its integer pixel width. A `sizeClasses` target is a name with a finite positive pixel width.
 - `web` cases use `viewports`; `ios` and `android` cases use `sizeClasses`. One profile may mix web and native cases.
 - Each author source provides one `[data-hifi-canvas]` and one `[data-direction-case-view="<case id>"]` per case. It contains no reviewer chrome.

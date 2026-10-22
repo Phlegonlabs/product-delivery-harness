@@ -319,16 +319,75 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_repair_review_preserves_mandatory_checks_and_current_evidence(self):
         rubric = self.read("references/ui-grading-rubric.md")
         scope = rubric.split("## Repair Re-review Scope", 1)[1]
-        self.assertIn("initial diagnostic wave covers the complete approved scope", scope)
-        self.assertIn("Run Impeccable critique and audit again", scope)
+        self.assertIn("initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis", scope)
+        self.assertIn("Run Impeccable critique and audit again on the affected pages and states", scope)
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
-        self.assertIn("It never grants another repair round", scope)
+        self.assertIn("it never grants another repair round", scope)
         self.assertNotIn("and the full rubric once", rubric)
+        self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",
                        "references/review-evidence.md", UI_STAGE):
             with self.subTest(source=source):
                 self.assertIn("ui-grading-rubric.md#repair-re-review-scope", self.read(source))
+
+    def test_first_wave_axes_and_scoped_re_review(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        axes = rubric.split("## First-Wave Audit Axes", 1)[1].split("\n## ", 1)[0]
+        for axis in ("320 CSS px reflow", "each theme in scope", "200%", "`clamp()`", "forced colors",
+                     "keyboard-only use", "accessible names", "placeholders", "live regions", "reduced motion"):
+            with self.subTest(axis=axis):
+                self.assertIn(axis, axes)
+        self.assertIn("A re-review adds no axis", axes)
+        scope = rubric.split("## Repair Re-review Scope", 1)[1]
+        self.assertIn("A copy or metadata repair changes only", scope)
+        self.assertIn("Every other repair is a visual repair", scope)
+        self.assertIn("goes into the ledger as a next-round advisory", scope)
+        for block in ("a PRD contradiction", "a dead control", "an inaccessible required flow",
+                      "overlaps, clips or is unreachable"):
+            self.assertIn(block, scope)
+        self.assertIn("Impeccable severity alone does not decide readiness", rubric)
+        contract = self.read("references/output-contract.md")
+        self.assertIn("may carry forward into the new receipt with its original capture", contract)
+        self.assertIn("names each carried row's source receipt and page SHA-256", contract)
+        for source in ("SKILL.md", UI_STAGE):
+            self.assertIn("ui-grading-rubric.md#first-wave-audit-axes", self.read(source))
+
+    def test_default_review_staffing_and_grader_packet(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        self.assertIn("the wave has two fresh reviewers: a lead grader who also produces the browser receipt, "
+                      "and one Impeccable operator who runs critique and audit", rubric)
+        self.assertIn("Neither reviews its own work", rubric)
+        self.assertIn("Add one only on an owner request or a recorded high risk", rubric)
+        self.assertIn("A grader packet carries this rubric", rubric)
+        self.assertIn("the Impeccable operator produces the critique and audit receipts",
+                      self.read("references/review-evidence.md"))
+
+    def test_bindings_and_frontend_design_read_are_per_session(self):
+        stage = self.read(UI_STAGE)
+        self.assertIn("Before a repair, rerun it only when a bound skill's tree hash changed in this session", stage)
+        self.assertIn("document-sync-contract.md#same-session-source-reading-reuse", stage)
+        sync = (SKILL_ROOT.parent / "delivery-harness/references/document-sync-contract.md").read_text(encoding="utf-8")
+        self.assertIn("same-session-source-reading-reuse", self.stage_headings(sync))
+        for source in ("references/ui-design-pass.md", "references/review-workflow.md"):
+            with self.subTest(source=source):
+                self.assertIn("stages/ui-design.md#required-skills-and-inputs", self.read(source))
+                self.assertNotIn("or any repair, run", self.read(source))
+
+    def test_direction_modification_is_one_revised_study(self):
+        pass_guide = self.read("references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+        self.assertIn("A mix or modification produces one revised study of the selected direction", pass_guide)
+        self.assertIn("A rejection starts a complete new set", pass_guide)
+        self.assertIn("adds one revised study of the selected direction to the same round folder", contract)
+        for document in (pass_guide, contract):
+            self.assertNotIn("complete revised direction set", document)
+            self.assertNotIn("renewed complete study set", document)
+
+    def test_only_final_candidate_evidence_is_committed(self):
+        evidence = self.read("references/review-evidence.md")
+        self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
+        self.assertIn("Do not commit evidence of earlier attempts", evidence)
 
 
 if __name__ == "__main__":

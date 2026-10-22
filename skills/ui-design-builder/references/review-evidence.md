@@ -23,11 +23,11 @@ From the target repository root:
 
 The tool checks recorded input identities and emits ui-evidence/3 with schema, check, result, reviewedArtifact and receipt. The receipt retains tool, method, matrix, results, outputArtifact and executedAt; executedAt is the observed finish time. It does not run a browser or create approval. It rejects stale inputs, traversal, linked paths and overwrites unless --overwrite is explicit. Missing/failed/blocked observations cannot become PASS. Collect new observations after relevant candidate changes; do not rebind old results.
 
-Keep receipts, inspected captures and source artifacts tracked when they are required evidence. Temporary run logs/caches belong outside the product package or under a narrow existing ignore rule. Do not hide canonical HTML, manifests, token sources or evidence with a broad generated-file pattern.
+Keep receipts, inspected captures and source artifacts tracked when they are required evidence. Only the final candidate's receipts and the captures they cite, including carried rows, are required evidence. Do not commit evidence of earlier attempts; cite it by SHA-256 in the defect ledger. Temporary run logs/caches belong outside the product package or under a narrow existing ignore rule. Do not hide canonical HTML, manifests, token sources or evidence with a broad generated-file pattern.
 
 ## Diagnostic Wave Completeness
 
-Before one consolidated HiFi repair handoff, verify the independent browser, critique, audit and H1–H9 wave. Run the read-only CLI with installed-command resolution:
+Before one consolidated HiFi repair handoff, verify the independent browser, critique, audit and H1–H9 wave. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. Run the read-only CLI with installed-command resolution:
 
     python "<ui-design-builder-skill-root>/scripts/check_ui_diagnostic_wave.py" --repo-root . --request docs/evidence/diagnostic-request.json --request-sha256 <observed-request-digest>
 
@@ -63,8 +63,8 @@ Native CSP provenance must be complete, not merely plausible. Bind every consume
 The existing attempt budget and same-author ownership remain binding.
 
 Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope).
-This narrows qualitative rediscovery, not the required matrix or receipt fields.
-Every result still binds current candidate bytes and actual observations. Do not rebind an earlier PASS to repaired bytes.
+It narrows fresh observation to changed pages and direct consumers, not the required matrix or receipt fields.
+Every receipt still binds current candidate bytes. Rows for unchanged pages carry forward only under the output contract's carry-forward rule. Do not rebind an earlier PASS to repaired bytes.
 Record impact reasoning and repair completion criteria in the existing defect ledger; no new evidence schema is introduced.
 
 ## Frontend Design Usage

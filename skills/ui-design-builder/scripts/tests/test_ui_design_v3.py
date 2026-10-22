@@ -295,6 +295,43 @@ class UiDesignV3Tests(unittest.TestCase):
                     ui.write_text(text, encoding="utf-8")
                     self.assertIn(expected, "\n".join(preflight(ui, root, prd, hifi)))
 
+    def test_modified_direction_adds_one_revised_study_to_the_round(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            text = ui.read_text(encoding="utf-8")
+            directions = root / "docs/design/directions/round-1"
+
+            def identity(path):
+                return f"{path.relative_to(root).as_posix()} @ sha256:{digest(path)}"
+
+            for scenario, color in (("primary", "purple"), ("stress", "orange")):
+                capture = directions / f"vd-04-{scenario}.png"
+                capture.write_bytes(capture_fixture(color))
+                text = text.replace(identity(directions / f"vd-01-{scenario}.png"), identity(capture))
+            base_study = directions / "vd-01.html"
+            revised = directions / "vd-04.html"
+            revised.write_text(_study_html("Direction 1 revised"), encoding="utf-8")
+            text = text.replace(identity(base_study), identity(revised))
+            self.assertIn("Direction decision: approved", text)
+            text = (text.replace("| VD-R1-01 |", "| VD-R1-04 |")
+                    .replace("Selected direction: VD-R1-01", "Selected direction: VD-R1-04")
+                    .replace("Direction decision: approved", "Direction decision: modified-and-approved"))
+            ui.write_text(text, encoding="utf-8")
+            self.assertEqual([], preflight(ui, root, prd, hifi))
+            self.assertTrue(base_study.is_file())
+            ui.write_text(text.replace("Direction decision: modified-and-approved", "Direction decision: rejected"),
+                          encoding="utf-8")
+            self.assertIn("Direction decision is not approved", "\n".join(preflight(ui, root, prd, hifi)))
+
+            other_round = root / "docs/design/directions/round-2"
+            other_round.mkdir()
+            moved = other_round / "vd-04.html"
+            moved.write_bytes(revised.read_bytes())
+            ui.write_text(text.replace(identity(revised), identity(moved)), encoding="utf-8")
+            self.assertIn("must share one docs/design/directions/<round>/ folder",
+                          "\n".join(preflight(ui, root, prd, hifi)))
+
     def test_study_html_must_be_self_contained(self):
         findings = "\n".join(checker.ui_design_v3.study_html_findings(
             _study_html("x").replace("</head>", '<link rel="stylesheet" href="https://cdn.invalid/a.css"></head>'),
