@@ -68,3 +68,9 @@ The [recovery record](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5
 ### Sol Continuation
 
 The owner replaced all remaining executors with Sol 6.1 / high. The parent deleted the quota-reset heartbeat `harness-0-66` and resumed immediately. Four fresh native workers own the existing SA, SB, SD and DH-A checkouts. The parent retains serial integration and SC prerequisite work. This changes no global agent configuration or consumer RUN pin.
+
+SC is clean at `b1b95ff1`. New commits localize the host identity keys (`13bcc51b`), use one strict Product/UI join (`199f052e`), and remove container reuse and duplicate timing machinery (`b1b95ff1`). The join passes 23 focused tests, including missing-pin authority enforcement. The final runtime passes 18 focused tests, including retained command, cwd and executable tampering. Changed-file pyflakes and whitespace checks pass. Full host integration tests still need the actual merged SA/SB modules.
+
+DH-A is clean at `74ee543f`, with its earlier partials committed and 89 focused tests passing. A multi-mission final-review repair path remains an integration issue for SA/SB; the singleton template test does not prove it.
+
+The original consumer inventory was recovered from the prior session: ticketradar, hardwareprices, jolvex-platform, dilution-radar, agentcommercehq, agentic-commons-site and agentkiosk. AgentKiosk remains report-only. The [scope inventory](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/seven-consumer-scope.json) records the source and initial Git state. Preserve dirty work in ticketradar, agentcommercehq and agentkiosk. Instruction syncs wait for the verified release and installation.
