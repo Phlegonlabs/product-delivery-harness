@@ -130,18 +130,24 @@ try:
 
     case.root.mkdir(parents=True, exist_ok=True)
     scores = {{f"H{{index}}": 90 for index in range(1, 10)}}
-    observed_case = {{"surface": "UI-001", "state": "ready", "target": "390"}}
+    # The request must cover every frozen manifest case, each with its own capture.
+    observed_cases = [{{"surface": surface, "state": "ready", "target": "390"}} for surface in ("UI-001", "UI-002")]
+    second_capture = case.root / "docs/evidence/capture-ui-002.png"
+    second_capture.parent.mkdir(parents=True, exist_ok=True)
+    second_capture.write_bytes(b"second synthetic capture")
+    captures = {{"UI-001": case.capture_binding, "UI-002": case.binding(second_capture)}}
     observations = {{}}
     evidence_dir = case.root / "docs/evidence"
     evidence_dir.mkdir(parents=True, exist_ok=True)
     for role, check in evidence.DIAGNOSTIC_CHECKS.items():
         if role == "browser":
             output = case.output([case.console_record(native)], raw)
+            output.update(matrix={{"cases": observed_cases}}, results=[dict(row, result="PASS") for row in observed_cases])
         else:
             output = {{
                 "schema": "ui-output/3", "check": check, "subject": case.subject,
-                "matrix": {{"cases": [observed_case]}},
-                "results": [dict(observed_case, result="PASS")],
+                "matrix": {{"cases": observed_cases}},
+                "results": [dict(row, result="PASS") for row in observed_cases],
                 "execution": {{
                     "startedAt": "2026-01-01T00:00:00Z", "finishedAt": "2026-01-01T00:00:01Z",
                     "tool": "synthetic", "method": "browser-matrix",
@@ -150,7 +156,7 @@ try:
                 }},
                 "assessment": {{
                     "scores": scores, "blocks": [],
-                    "observations": [dict(observed_case, finding="Concrete synthetic rendering observation.", evidence=[case.capture_binding])],
+                    "observations": [dict(row, finding="Concrete synthetic rendering observation.", evidence=[captures[row["surface"]]]) for row in observed_cases],
                 }},
             }}
         output_path = evidence_dir / (role + "-output.json")
@@ -160,7 +166,7 @@ try:
     request = {{
         "schema": evidence.DIAGNOSTIC_REQUEST_SCHEMA, "subject": case.subject,
         "frozenInputs": {{"prd": case.binding(case.prd), "manifest": case.subject}},
-        "requiredCases": [observed_case], "observations": observations,
+        "requiredCases": observed_cases, "observations": observations,
     }}
     request_identity = case.write(case.root / "diagnostic-request.json", request)
 
