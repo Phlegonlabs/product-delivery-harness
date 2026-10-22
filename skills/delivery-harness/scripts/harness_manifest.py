@@ -3185,7 +3185,26 @@ def _validate_verifier_executions(
                         f"{path}.metrics",
                         "must record exactly one execution or exact cache reuse",
                     )
-        for issue in execution_retention_binding_errors(item):
+        # Only an explicit older pin permits optional historical host payloads.
+        pin = run_required_harness_version(run)
+        require_host = item.get("status") == "PASS" and not (
+            parse_harness_version(pin) is not None and not version_at_least(pin, (0, 66, 0))
+        )
+        if require_host and item.get("layer") in {"batch", "final"}:
+            retained_reservation = item.get("reservation")
+            reserved_attempt = next((attempt for attempt in attempt_items if isinstance(attempt, dict)
+                                     and isinstance(retained_reservation, dict)
+                                     and attempt.get("attempt_id") == retained_reservation.get("attempt_id")
+                                     and attempt.get("node_id") == retained_reservation.get("node_id")), None)
+            reserved_dispatch = (reserved_attempt or {}).get("verifier_dispatch")
+            reserved_request = reserved_dispatch.get("request") if isinstance(reserved_dispatch, dict) else None
+            retained_document = item.get("key_document")
+            if (not isinstance(reserved_request, dict)
+                or not isinstance(retained_document, dict)
+                or retained_document.get("host_preflight") != reserved_request.get("host_preflight")
+            ):
+                _add(errors, f"{path}.execution_binding", "current host preflight must match a persisted reserved request")
+        for issue in execution_retention_binding_errors(item, require_host_evidence=require_host):
             _add(errors, f"{path}.execution_binding", issue)
         for key in ("stdout_sha256", "stderr_sha256"):
             digest = item[key]

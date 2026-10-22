@@ -50,6 +50,12 @@ def dispatch_attestation(
     }
 
 
+def execute_reserved(request, root):
+    return run_verifier(request["verifier"], request["context"], checkout_root=root,
+                        host_preflight=request["host_preflight"], git_guard=request["git_guard"],
+                        reservation=request["reservation"], request_sha256=harness_transition._json_sha256(request))
+
+
 def fake_verifier_dispatch(
     node_id: str, attempt_id: str, head_sha: str = "a" * 40
 ) -> dict[str, object]:
@@ -381,15 +387,8 @@ class NodeTransitionTests(unittest.TestCase):
             digest = plan_digest(plan)
             run["plan"]["digest_sha256"] = digest
             run["execution_authorization_scope"]["plan_digest_sha256"] = digest
-            retained = mf.retained_gate_execution(
-                plan,
-                run,
-                plan["final_gates"][0],
-                layer="final",
-                execution_id="EXEC-FINAL-1",
-            )
-            retained["reservation"] = request["reservation"]
-            retained["dispatch_attestation"] = dispatch_attestation(request)
+            retained = execute_reserved(request, root)
+            self.assertEqual("PASS", retained["status"], retained)
             verifier_path = Path(evidence_dir) / "final.json"
             wrong_checkout = copy.deepcopy(retained)
             wrong_checkout["dispatch_attestation"]["checkout_root"] = str(
@@ -912,17 +911,19 @@ class NodeTransitionTests(unittest.TestCase):
         self.assertEqual("BLOCKED", run["final_gate_results"][0]["status"])
 
     def test_local_verifier_retry_retains_fail_then_pass_on_same_head(self) -> None:
+        repo_temp = tempfile.TemporaryDirectory()
+        evidence_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(repo_temp.cleanup)
+        self.addCleanup(evidence_temp.cleanup)
+        marker = Path(evidence_temp.name) / "first-attempt-finished"
         plan = mf.valid_plan()
-        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c",
+            f"from pathlib import Path; p=Path({str(marker)!r}); existed=p.exists(); p.touch(); raise SystemExit(0 if existed else 1)"]
         next(
             node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL"
         )["allowed_outcomes"].append("retryable_failure")
         run = mf.valid_run(plan)
         run.update({"status": "running", "plan_readiness": "ready"})
-        repo_temp = tempfile.TemporaryDirectory()
-        evidence_temp = tempfile.TemporaryDirectory()
-        self.addCleanup(repo_temp.cleanup)
-        self.addCleanup(evidence_temp.cleanup)
         root = Path(repo_temp.name)
         head = mf.init_repo(root, "README.md", default_branch="codex/test")
         run["integration"].update(
@@ -942,30 +943,10 @@ class NodeTransitionTests(unittest.TestCase):
             }
         )
         state = run["graph_state"]["node_states"]["N-FINAL"]
-        declaration = plan["final_gates"][0]
-        first = mf.retained_gate_execution(
-            plan,
-            run,
-            declaration,
-            layer="final",
-            execution_id="EXEC-FINAL-RETRY-1",
-        )
-        first.update({"status": "FAIL", "exit_code": 1})
-
         previous_execution = None
-        for attempt_id, outcome, execution in (
-            ("ATT-FINAL-FAIL", "retryable_failure", first),
-            (
-                "ATT-FINAL-PASS",
-                "pass",
-                mf.retained_gate_execution(
-                    plan,
-                    run,
-                    declaration,
-                    layer="final",
-                    execution_id="EXEC-FINAL-RETRY-2",
-                ),
-            ),
+        for attempt_id, outcome in (
+            ("ATT-FINAL-FAIL", "retryable_failure"),
+            ("ATT-FINAL-PASS", "pass"),
         ):
             request = harness_transition._local_verifier_request(
                 plan,
@@ -978,9 +959,8 @@ class NodeTransitionTests(unittest.TestCase):
                 attempt_id=attempt_id,
                 repo_root=root,
             )
-            execution = copy.deepcopy(execution)
-            execution["reservation"] = request["reservation"]
-            execution["dispatch_attestation"] = dispatch_attestation(request)
+            execution = execute_reserved(request, root)
+            self.assertEqual("PASS" if outcome == "pass" else "FAIL", execution["status"], execution)
             state.update(
                 {
                     "phase": "running",

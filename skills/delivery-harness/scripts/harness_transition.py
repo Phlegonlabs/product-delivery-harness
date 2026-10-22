@@ -1783,6 +1783,34 @@ def _record_node_result(
             raise ManifestError(
                 "protected coordination files changed during or after verifier execution"
             )
+        from verifier_runtime import (
+            _git_guard_snapshot, build_execution_key, execution_retention_binding_errors,
+        )
+
+        retained = retained_results[0]
+        if retained.get("status") == "PASS":
+            binding_errors = execution_retention_binding_errors(retained, require_host_evidence=True)
+            expected_key, expected_document = build_execution_key(
+                expected_request["verifier"], expected_request["context"],
+                checkout_root=resolved_root, host_preflight=expected_request["host_preflight"],
+            )
+            if (retained.get("key_document") != expected_document
+                    or retained.get("execution_key") != expected_key
+                    or retained.get("evidence_key") != expected_key):
+                binding_errors.append("host execution key/preflight does not match the reserved request")
+            git_attestation = retained.get("git_guard_attestation")
+            snapshot = _git_guard_snapshot(resolved_root, expected_request["git_guard"])
+            if not isinstance(git_attestation, dict) or any(
+                git_attestation.get(key) != value for key, value in {
+                    "checkout_root": expected_request["checkout_root"],
+                    "git_guard": expected_request["git_guard"],
+                    "source_head_sha": expected_request["head_sha"],
+                    **{key: snapshot[key] for key in ("tracked_files", "protected_path_sha256")},
+                }.items()
+            ):
+                binding_errors.append("host Git attestation does not match the reserved checkout")
+            if binding_errors:
+                raise ManifestError("; ".join(binding_errors))
     elif local_verifier and not isinstance(attempt.get("verifier_dispatch"), dict):
         raise ManifestError(
             "local verifier result has no durable reservation binding"

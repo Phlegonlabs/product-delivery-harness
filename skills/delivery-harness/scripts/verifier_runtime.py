@@ -896,15 +896,17 @@ def _host_cache_allowed(normalized_verifier: Mapping[str, Any]) -> bool:
     )
 
 
-def execution_retention_binding_errors(item: Mapping[str, Any]) -> list[str]:
-    """Check optional retained host identity without interpreting old container history."""
+def execution_retention_binding_errors(
+    item: Mapping[str, Any], *, require_host_evidence: bool = False,
+) -> list[str]:
+    """Check host identity; current PASS evidence requires both attestations."""
     errors: list[str] = []
     duration = item.get("duration_ms")
     if duration is not None and (not isinstance(duration, int) or isinstance(duration, bool) or duration < 0):
         errors.append("duration_ms must be a non-negative integer")
     attestation = item.get("host_execution_attestation")
     if attestation is None:
-        return errors
+        return errors + (["current host PASS requires host_execution_attestation"] if require_host_evidence else [])
     document = item.get("key_document")
     preflight = document.get("host_preflight") if isinstance(document, dict) else None
     try:
@@ -920,10 +922,23 @@ def execution_retention_binding_errors(item: Mapping[str, Any]) -> list[str]:
             errors.append(f"host attestation {name} differs from preflight")
     if attestation["executable"] != {"path": checked["executable"], "sha256": checked["executable_sha256"]}:
         errors.append("host attestation executable differs from preflight")
+    identity = document.get("executable_identity")
+    if require_host_evidence and (not isinstance(identity, dict)
+            or identity.get("path") != os.path.normcase(checked["executable"])):
+        errors.append("execution executable identity differs from host preflight")
     argv = document.get("argv")
     if not isinstance(argv, list) or not argv or argv[0] != checked["argv0"]:
         errors.append("host preflight argv0 differs from the declared command")
     guard = item.get("git_guard_attestation")
+    if require_host_evidence:
+        required = {"checkout_root", "git_guard", "isolation_mode", "source_head_sha", "tracked_files",
+                    "protected_path_sha256", "protected_path_stats", "host_execution_attestation"}
+        if not isinstance(guard, dict) or set(guard) != required:
+            errors.append("current host PASS requires complete git_guard_attestation")
+        elif guard["host_execution_attestation"] != attestation:
+            errors.append("nested host_execution_attestation differs from host execution")
+        elif guard["isolation_mode"] != "host":
+            errors.append("Git attestation isolation differs from host execution")
     root = guard.get("checkout_root") if isinstance(guard, dict) else None
     cwd = document.get("cwd")
     if isinstance(root, str) and isinstance(cwd, str):

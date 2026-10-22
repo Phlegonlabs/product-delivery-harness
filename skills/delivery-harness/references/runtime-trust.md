@@ -3,6 +3,10 @@
 Current verifier declarations use explicit `execution.isolation: "host"` only.
 Commands use the project's toolchain in the bound checkout with exact source/Git guards and execution-key evidence.
 Record command identity, host, cwd, exact SHA, exit status and logs.
+Current host PASS evidence requires complete matching host and Git attestations.
+Local batch/final admission binds the execution key and preflight to the fresh reserved request.
+Current retained PASS evidence preserves those bindings. Only explicitly older pins permit optional historical host payloads.
+Missing or malformed pins never select historical admission. A pre-invocation error grants no execution PASS.
 Host commands have current user permissions; a worktree and read-only declaration do not provide process confinement.
 A verifier needing a separate checkout uses its own authorized worktree.
 Historical container/runtime-image protocols run only from their [exact pinned bundle](legacy-pins.md#container-verifiers-before-066).
