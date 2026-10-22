@@ -2974,6 +2974,14 @@ new Function(scripts.at(-1)[1]);
             self.assertIn(phrase, refinement)
         self.assertIn("except for a design-time contract delta", skill)
 
+    def test_one_author_self_review_carries_both_journey_perspectives(self) -> None:
+        skill = self.read(STAGE)
+        refinement = self.read("references/prd-refinement.md")
+        self.assertIn("Do not review this candidate separately here", skill)
+        self.assertIn("This is the only author pass over the candidate", skill)
+        self.assertIn("No separate first-candidate review runs before it", refinement)
+        self.assertNotIn("review this first candidate", skill)
+
     def test_full_link_inventory_runs_only_at_the_two_owner_gates(self) -> None:
         presentation = " ".join(self.read("references/review-presentation.md").split())
         skill = self.read(STAGE)

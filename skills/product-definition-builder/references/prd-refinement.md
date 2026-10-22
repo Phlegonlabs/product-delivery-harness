@@ -6,7 +6,7 @@ English `PRD.md` remains product authority. Preserve unaffected decisions and st
 
 ## First Delivery: Review The Whole Journey
 
-Review the same candidate from two perspectives before its existing approval checkpoint:
+The one author self-review below checks the reconciled candidate from two perspectives. No separate first-candidate review runs before it.
 
 - **UI perspective:** the `requirements` role follows each intended user's entry and first use through an observable useful result. Check cross-screen handoffs, content responsibilities, empty/loading/error/permission states, cancellation and recovery, accessibility, locales and supported responsive targets. Product Definition reviews required behavior; it does not invoke `ui-design-builder`, create wireframes or choose visual style. A headless product reviews caller/operator journeys without inventing screens or login.
 - **Technical perspective:** `architecture`, with applicable `backend` and `frontend-platform` roles, follows those journeys through data ownership and lifecycle, permission boundaries, integration contracts, retries and duplicate effects, migrations, release availability, monitoring, recovery ownership and testability. Propose unresolved technology choices through the existing Stack Decision Checkpoint.
@@ -21,7 +21,7 @@ Reuse accepted boundaries for local repairs; reopen only a changed product or st
 
 ## Complete The Author Self-Review
 
-Apply `../../delivery-harness/references/pre-delivery-self-review.md#prd-self-review` to the reconciled candidate after post-draft market research. Use the perspectives above to check the complete package, then recheck any changes from the Stack Decision Checkpoint before Product Definition Approval. Record the reviewed revision, evidence, findings, repairs and remaining blockers in the existing Epic/task record. A passing structural checker or a research report alone does not complete this author review. Keep required unresolved findings blocking and preserve the owner's decisions.
+Apply `../../delivery-harness/references/pre-delivery-self-review.md#prd-self-review` to the reconciled candidate after post-draft market research. Use the perspectives above in that one pass, then recheck only changes from the Stack Decision Checkpoint before Product Definition Approval. Record the reviewed revision, evidence, findings, repairs and remaining blockers in the existing Epic/task record. A passing structural checker or a research report alone does not complete this author review. Keep required unresolved findings blocking and preserve the owner's decisions.
 
 ## Return New Evidence At Existing Checkpoints
 
