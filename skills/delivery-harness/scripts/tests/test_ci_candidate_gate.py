@@ -144,7 +144,16 @@ class CICandidateGateTests(unittest.TestCase):
         selected = {Path(name).name for name in candidate_files(
             "harness", "windows", discover_files(self.repo_root, "harness")
         )}
-        self.assertEqual(13, len(selected))
+        self.assertEqual({
+            "test_platform_delivery_contract.py", "test_skill_contract.py",
+            "test_host_verifier_runtime.py", "test_current_host_admission.py",
+            "test_document_write.py", "test_worktree_path_identity.py",
+            "test_verifier_runtime.py", "test_harness_git.py", "test_parity_capture.py",
+            "test_node_transitions.py", "test_configure_project_context.py",
+            "test_write_path_transitions.py", "test_conditional_review_journey.py",
+            "test_archive_run.py", "test_push_archived_candidate.py",
+            "test_harness_strict_authority.py", "test_install_script.py",
+        }, selected)
         for platform, count in (("windows", 4), ("macos", 1)):
             with self.subTest(platform=platform):
                 planned = [

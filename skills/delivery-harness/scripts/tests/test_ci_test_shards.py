@@ -50,12 +50,14 @@ class CITestShardTests(unittest.TestCase):
                 self.assertIn("test_push_archived_candidate.py", selected)
                 self.assertNotIn("test_trusted_host_publication.py", selected)
 
-    def test_native_discovery_keeps_the_real_host_repair_journey(self) -> None:
+    def test_native_discovery_keeps_current_safety_and_host_journeys(self) -> None:
         discovered = discover_files(SCRIPTS_DIR.parents[2], "harness")
         for platform in ("windows", "macos"):
             with self.subTest(platform=platform):
                 selected = [Path(name).name for name in candidate_files("harness", platform, discovered)]
-                self.assertEqual(1, selected.count("test_conditional_review_journey.py"))
+                for required in ("test_conditional_review_journey.py", "test_current_host_admission.py",
+                                 "test_document_write.py", "test_worktree_path_identity.py"):
+                    self.assertEqual(1, selected.count(required))
 
 
 if __name__ == "__main__":
