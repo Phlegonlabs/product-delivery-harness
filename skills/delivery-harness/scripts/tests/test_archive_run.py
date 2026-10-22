@@ -51,15 +51,8 @@ class ArchiveRunTests(unittest.TestCase):
         self.goal = self.root / "docs" / "goal"
         self.goal.mkdir(parents=True)
 
-        product = b"fixture product contract\n"
-        architecture = b"fixture architecture\n"
-        for relative, contents in (
-            ("docs/product/prd.md", product),
-            ("docs/product/architecture.md", architecture),
-        ):
-            path = self.root / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(contents)
+        self.plan = mf.valid_plan()
+        mf.materialize_plan_sources(self.root, self.plan)
 
         self.documents_original = (
             "# Documents\n\n| Path | Role | Owner |\n|---|---|---|\n"
@@ -72,17 +65,11 @@ class ArchiveRunTests(unittest.TestCase):
         mf.git(self.root, "init", "-q", "-b", "main")
         mf.git(self.root, "config", "user.email", "test@example.com")
         mf.git(self.root, "config", "user.name", "Harness Test")
+        mf.git(self.root, "config", "core.autocrlf", "false")
         mf.git(self.root, "add", "docs/product", "docs/DOCUMENTS.md")
         mf.git(self.root, "commit", "-qm", "freeze sources")
         self.expected_main = mf.git(self.root, "rev-parse", "HEAD")
 
-        self.plan = mf.valid_plan()
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            product
-        ).hexdigest()
-        self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
-            architecture
-        ).hexdigest()
         self.run = mf.valid_closeout_run(self.plan)
         self.run["run_id"] = "RUN-20260911-demo"
         self.run["observed"]["git"].update(
@@ -133,7 +120,7 @@ class ArchiveRunTests(unittest.TestCase):
             argv.extend(["--expected-main", self.expected_main])
         if "--apply" in argv and "--main-ref" not in argv:
             argv.extend(["--main-ref", "refs/heads/main"])
-        return subprocess.run(argv, capture_output=True, text=True)
+        return subprocess.run(argv, capture_output=True, text=True, timeout=45)
 
     def archived_dir(self) -> Path:
         archived = self.goal / "archived"
@@ -213,7 +200,7 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertFalse((self.goal / "archived").exists())
 
     def test_drifted_frozen_source_is_refused_before_dry_run(self) -> None:
-        (self.root / "docs/product/prd.md").write_bytes(b"changed\n")
+        (self.root / "docs/product/PRD.md").write_bytes(b"changed\n")
         result = self.archive()
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("does not match immutable bytes", result.stderr)
@@ -230,51 +217,63 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertFalse((self.goal / "archived").exists())
 
     def test_invalid_required_ui_evidence_is_refused(self) -> None:
+        from test_harness_strict_authority import StrictAuthorityJoinTests
+
+        with mf.eval_exempt_product_fixture():
+            self.plan, _, _ = StrictAuthorityJoinTests._ui_fixture(self.root, required=False)
+        for trace in self.plan["traces"]:
+            trace["source_ids"] = ["SRC-PRD"]
         buffer = io.BytesIO()
         Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
         image = buffer.getvalue()
         artifact = self.goal / "evidence" / "dashboard-desktop-loaded.png"
         artifact.write_bytes(image)
-        mf.git(self.root, "add", "docs/goal/evidence")
+        mf.git(self.root, "add", "docs/product", "docs/design", "docs/goal/evidence")
         mf.git(self.root, "commit", "-qm", "accept UI evidence")
         accepted_head = mf.git(self.root, "rev-parse", "HEAD")
 
-        self.plan["ui_surfaces"] = [
-            {
-                "id": "UI-001",
-                "trace_ids": ["REQ-001"],
-                "route": "/dashboard",
-                "breakpoints": ["desktop"],
-                "states": ["loaded"],
-                "evidence_gate": "required",
-            }
-        ]
         self.plan_md = mf.manifest_markdown(
             "## Harness Plan Manifest", "harness_plan", self.plan
         )
         self.rebuild_run_at_head(accepted_head)
+        target = next(source for source in self.plan["sources"] if source["kind"] == "approved ui target")
         self.run["ui_evidence"] = [
             {
                 "surface_id": "UI-001",
-                "route": "/dashboard",
-                "breakpoint": "desktop",
-                "state": "loaded",
-                "artifact_path": "docs/goal/evidence/missing.png",
+                "route": "/home",
+                "breakpoint": breakpoint,
+                "state": state,
+                "artifact_path": artifact.relative_to(self.root).as_posix(),
                 "artifact_sha256": hashlib.sha256(image).hexdigest(),
                 "head_sha": accepted_head,
                 "status": "PASS",
+                "layout_check": "pass",
                 "target_comparison": {
-                    "baseline": "design_system",
-                    "baseline_artifact": "check_ui_contract:clean-run",
+                    "baseline": "html_target",
+                    "authority_sources": [{"path": target["location"],
+                                           "sha256": hashlib.sha256((self.root / target["location"]).read_bytes()).hexdigest()}],
+                    "baseline_artifact": artifact.relative_to(self.root).as_posix(),
+                    "baseline_artifact_sha256": hashlib.sha256(image).hexdigest(),
                     "verdict": "pass",
+                    "differences": [],
                 },
             }
+            for breakpoint in self.plan["ui_surfaces"][0]["breakpoints"]
+            for state in self.plan["ui_surfaces"][0]["states"]
         ]
         self.run_md = mf.manifest_markdown(
             "## Harness Run State", "harness_run", self.run
         )
         self.write_manifests()
 
+        accepted = self.archive()
+        self.assertEqual(0, accepted.returncode, accepted.stdout + accepted.stderr)
+        self.run["ui_evidence"][0]["artifact_path"] = "docs/goal/evidence/missing.png"
+        (self.goal / "evidence" / "missing.png").write_bytes(image)
+        self.run_md = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        self.write_manifests()
         result = self.archive()
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("does not exist in accepted Git commit", result.stderr)
