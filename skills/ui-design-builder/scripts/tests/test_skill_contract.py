@@ -205,24 +205,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertLess(prompt.index("$frontend-design"), prompt.index("directions"))
         self.assertIn("actual design author for directions", prompt)
         self.assertIn("Before each authoring stage", prompt)
-        for document, authoring_marker in (
-            (stage, "produce direction studies"),
-            (wireframe, "## Wireframe Validation Gate (wireframes/5)"),
-            (hifi, "## Frontend Design Style Integration"),
-        ):
-            with self.subTest(authoring_marker=authoring_marker):
-                self.assertIn(binding, document)
-                self.assertLess(document.index(binding), document.index(authoring_marker))
+        self.assertIn(binding, stage)
+        self.assertLess(stage.index(binding), stage.index("produce direction studies"))
+        for document in (wireframe, hifi):
+            with self.subTest(document=document[:30]):
+                self.assertNotIn(binding, document)
+                self.assertIn("stages/ui-design.md#required-skills-and-inputs", document)
 
-        authoring_contract = "\n".join((stage, wireframe, hifi))
-        self.assertIn("actual writer", authoring_contract)
-        self.assertIn("parent read", authoring_contract.lower())
-        self.assertIn("silently replace the binding", authoring_contract)
-        self.assertIn("grants no spawn action", authoring_contract)
-        self.assertNotIn("parent may author", authoring_contract)
-        for document in (stage, wireframe, hifi):
-            self.assertIn("Agent configuration designates", document)
-        self.assertIn("shell construction and validation", authoring_contract)
+        self.assertIn("The resolved writer must load the full owner-pinned `frontend-design` skill in its own context", stage)
+        self.assertIn("parent read", stage.lower())
+        self.assertIn("silently replace the binding", stage)
+        self.assertIn("grants no spawn action", stage)
+        self.assertNotIn("parent may author", "\n".join((stage, wireframe, hifi)))
+        self.assertIn("Agent configuration designates", stage)
+        self.assertIn("Assemblers and reviewers build the shell or validate", stage)
 
     def test_motion_and_media_router_is_conditional(self):
         router = self.read("references/motion-and-media-routing.md")
@@ -284,8 +280,8 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("complete HiFi candidate", contract)
         for document in (stage, visual_pass):
             with self.subTest(document=document[:50]):
-                self.assertIn("final logical paths in the authorized publication checkout", document)
-                self.assertTrue("source checkout" in document or "canonical source paths" in document)
+                self.assertIn("at final repository paths on the task branch", document)
+                self.assertNotIn("publication checkout", document)
                 self.assertIn("Do not collect approval on `.ui-staging` paths", document)
                 self.assertNotIn("Use staging paths for an unapproved staged draft", document)
         self.assertIn("`stages/ui-design.md#workflow` step 7", contract)
@@ -358,10 +354,22 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("the wave has two fresh reviewers: a lead grader who also produces the browser receipt, "
                       "and one Impeccable operator who runs critique and audit", rubric)
         self.assertIn("Neither reviews its own work", rubric)
-        self.assertIn("Add one only on an owner request or a recorded high risk", rubric)
+        self.assertIn("Add a specialist grader only on an owner request or a recorded high risk", rubric)
         self.assertIn("A grader packet carries this rubric", rubric)
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
+
+    def test_legacy_wireframe_grading_lives_in_the_wireframe_guide(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        guide = self.read("references/wireframe-guide.md")
+        for marker in ("## Legacy Wireframe Grading", "### W5 Composition Criteria",
+                       "`W1 PRD conformance`", "`W5 Structural clarity and evidence`"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, guide)
+        self.assertIn("wireframe-guide.md#legacy-wireframe-grading", rubric)
+        self.assertNotIn("### W5 Composition Criteria", rubric)
+        self.assertIn("`60–79 — advisory`", rubric)
+        self.assertIn("HiFi readiness requires an overall score of at least `85` and every `H1`–`H9` dimension at least `80`.", rubric)
 
     def test_bindings_and_frontend_design_read_are_per_session(self):
         stage = self.read(UI_STAGE)
@@ -383,6 +391,15 @@ console.log("hybrid fallback and stale QA assertions completed");
         for document in (pass_guide, contract):
             self.assertNotIn("complete revised direction set", document)
             self.assertNotIn("renewed complete study set", document)
+
+    def test_hot_path_text_names_no_deleted_helper(self):
+        for source in ("SKILL.md", UI_STAGE, "references/ui-design-pass.md", "references/review-evidence.md",
+                       "references/ui-grading-rubric.md"):
+            text = self.read(source)
+            with self.subTest(source=source):
+                for deleted in ("check_ui_diagnostic_wave", "design-freshness", "check_ui_publication",
+                                "native_csp_diagnostic", "compiler-source"):
+                    self.assertNotIn(deleted, text)
 
     def test_only_final_candidate_evidence_is_committed(self):
         evidence = self.read("references/review-evidence.md")
