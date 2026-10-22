@@ -20,7 +20,7 @@ Host build/test commands do not consume Docker/Podman capacity. Serial host veri
 
 ## Inputs And Output
 
-The selector reads only canonical machine data. In RUN schema v6 and later, provider routing comes from `runtime_capabilities.runtime_adapter`:
+The selector reads only canonical machine data. For current RUN v11, provider routing comes from `runtime_capabilities.runtime_adapter`:
 
 - Static `harness_plan` JSON from `PLAN.md`.
 - Mutable `harness_run` JSON from `RUN.md`.
