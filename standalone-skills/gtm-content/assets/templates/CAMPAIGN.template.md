@@ -14,7 +14,7 @@ Link existing strategy and distinguish accepted decisions from proposals.
 | Channel / account or Page | Audience and selection reason | Theme / proof | Cadence and workload | Status / dependency |
 | --- | --- | --- | --- | --- |
 
-Name deferred channels and reasons. A proposed calendar is not an active scheduler.
+Name deferred channels and reasons.
 
 ## Calendar
 
@@ -22,7 +22,6 @@ Name deferred channels and reasons. A proposed calendar is not an active schedul
 | --- | --- | --- | --- | --- | --- | --- |
 
 Use timezone identifiers or UTC offsets. Unknown timing is unscheduled; experimental timing is proposed.
-Preserve an existing owner-selected cadence.
 
 ## Individual Drafts
 
@@ -46,27 +45,17 @@ Keep editorial notes outside public copy. Missing factual evidence or assets rem
 | Hypothesis | Primary product outcome | Supporting metric | Exact aggregate source / baseline | Proposed window | Decision rule / owner |
 | --- | --- | --- | --- | --- | --- |
 
-Record missing sources and attribution limits. Tagged links do not prove collection.
-Separate engagement, product use and retained use. Do not create monitoring from this proposal.
-When available, reference existing product page/operation IDs, exact PRD metric names and applicable Activation `MS-*` sources.
-Preserve their definitions, release scope and source status. Missing records do not block drafting; state the gaps.
-Join each item/revision and eventual post ID/URL to its destination and intended outcome here.
-For threads, retain individual post IDs and define aggregation without inventing unique viewers or missing click data.
-Distinguish public engagement, account-authorized clicks, destination sessions and verified product actions, with each source's available window.
-Keep campaign results here and link any separate release-bound product outcome record. Link accepted follow-up work to its existing Epic.
+Record missing sources and attribution limits. Tagged links do not prove collection. Do not create monitoring from this proposal.
+Join each item/revision and eventual post ID/URL (each thread post separately) to its destination and intended outcome here.
+Metric names, page/operation IDs and `MS-*` sources follow Connect Measurement in `go-to-market/references/experiment-review.md`.
+Keep campaign results here; link any release-bound product outcome record and accepted follow-up Epic.
 
 ## Owner Review And Publishing Handoff
 
-Bind each actual owner decision to item IDs and reviewed revision or exact content bytes.
-Separate content approval from permission to publish or schedule.
-Record changed items for renewed review and preserve previous decisions.
-
-For a later authorized publisher, include exact target, content/media/links, audience/visibility, time/timezone and action grant.
-List capability and readiness checks. A login, draft or strategy is not an action grant.
-The publisher records resulting ID/URL, scheduled or public status, actual timing and independent readback.
-After an uncertain write, inspect remote state before retrying. Never mark an unobserved result published.
+Bind each owner decision source to item IDs and reviewed revision or exact content bytes. Changed items need renewed review.
+A publication grant is separate from content approval. The publisher records target, bytes, visibility, time and timezone, grant, resulting ID or URL, status and readback time.
+Never mark an unobserved result published.
 
 ## Delivery State
 
-State which strategy, copy, calendar and assets were prepared, what the owner reviewed and what remains unresolved.
-Only later execution evidence can establish scheduled or published status.
+State what was prepared, what the owner reviewed and what remains unresolved. Only execution evidence establishes scheduled or published status.
