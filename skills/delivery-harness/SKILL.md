@@ -1,13 +1,13 @@
 ---
 name: delivery-harness
-description: "Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer and one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Resolve required delegates through observed native tools or explicitly bound external bridges."
+description: "Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer and one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Use agent-configured executors through observed tools or explicitly bound bridges."
 ---
 
 # Delivery Harness
 
 Commands: `references/installed-commands.md`.
 
-Before direct or managed routing, apply `references/delegation-contract.md`: distinct sibling assignments, required roles and actual execution identity. Delegation grants no actions and requires no managed run.
+Before direct or managed routing, apply `references/delegation-contract.md`: agent-owned worker policy, scoped assignments and actual execution identity. Delegation grants no actions and requires no managed run.
 
 Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
 
@@ -56,7 +56,7 @@ System Review And Route (parent-only, read-only)
   large -> planner -> PLAN v6 + RUN v11 -> readiness -> managed execution
 ```
 
-Small work creates no PLAN/RUN files. Resolve required delegates. If scope grows, preserve evidence and plan the remainder. The Sequential Parent Route in `execution-state-model.md` handles eligible generic work one mission at a time, never mandatory roles.
+Small work creates no PLAN/RUN files. Resolve executors from agent configuration. If scope grows, preserve evidence and plan the remainder. The Sequential Parent Route in `execution-state-model.md` represents one mission at a time under the pinned managed protocol. Preserve required independent reviews.
 
 ### System Review And Route
 
@@ -92,7 +92,7 @@ These rules apply to both routes:
 - Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Publishing A to the run branch and promoting A to `main` are separate post-RUN actions with separate authorization.
 - Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
-- The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers never delegate, edit PLAN/RUN, integrate, push, or clean up.
+- The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
 - Non-mission nodes reserve with `reserve-node-attempt`, execute outside the RUN lock, then record evidence with `record-node-result`; interrupted attempts become `blocked`.
 - A review PASS binds one exact SHA. Any repair invalidates it.
@@ -109,7 +109,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 
 1. Inspect the bounded component and relevant instructions.
    Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task, including direct work.
-2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. UI work requires the host frontend worker; the parent retains coordination and acceptance.
+2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance.
 3. Run the smallest focused checks, including security tests, that prove the change.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.

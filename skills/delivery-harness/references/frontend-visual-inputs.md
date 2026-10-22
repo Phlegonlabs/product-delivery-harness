@@ -3,7 +3,7 @@
 Before every direct or managed frontend dispatch, include one `Visual inputs` block in the actual task sent to the author.
 Use the existing task packet; do not create another design specification or approval record.
 The author does not inherit the parent's conversation, browser session or inspected images.
-Resolve the stage model from effective host policy and pass model and effort explicitly.
+Use the executor settings selected by effective agent configuration; this block supplies visual inputs, not execution policy.
 
 Generate the block from the current UI contract when this helper is available:
 

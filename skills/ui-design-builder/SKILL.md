@@ -42,7 +42,7 @@ Read the owning section before its matching action. Domain and direction guidanc
 ## Entry Boundary
 
 - A new round requires the approved Product Definition and Stack Decision Checkpoint, with the package's exact UI contract.
-- The host's actual `frontend_worker` is the single UI author. The actual writer loads the complete pinned `frontend-design` skill; a parent read does not author design.
+- Agent configuration designates the UI author; this skill does not choose its agent type or model. The actual writer loads the complete pinned `frontend-design` skill; a parent read does not author design.
 - Enhancements author only added or changed pages and necessary connecting flows. Routine maintenance does not rebuild historical HiFi or reopen frozen approvals.
 - Direction and HiFi authorship retain the required preflight, Impeccable critique/audit, browser evidence and H1-H9, then one human Visual Approval.
 

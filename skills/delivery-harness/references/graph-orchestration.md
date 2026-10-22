@@ -117,7 +117,7 @@ Review limits follow a stable mission + review surface + root-cause lineage, not
 
 ## Multi-Reviewer Fan-Out
 
-One review node per surface is the required planning default. Same-surface fan-out multiplies context and review cost, so add it only when the user explicitly requests independent reviewers or a recorded high-impact risk justifies them — security-sensitive code, destructive or irreversible migrations, or genuinely ambiguous visual judgment. Prefer one reviewer with the appropriate reasoning effort for routine work. Record the reason in the human plan view whenever fan-out is used.
+Agent configuration and AGENTS instructions select review staffing and fan-out. Preserve required review types, fresh context, exact-candidate coverage and the any-blocks rule below. Record the selected review responsibilities in the human plan view.
 
 Express it with the existing typed graph mechanism; no new PLAN or RUN schema field is required. Instead of one `kind: "verifier"` node for the surface, declare N verifier nodes that are identical in what they judge:
 
@@ -187,7 +187,7 @@ Select the current host only when it is allowed; otherwise defer with `runtime_u
 
 The parent uses `runtime-adapters.md` to map observed native tools to the selected generic driver. Read-only and write scopes remain separate. A tool-profile label or prompt is not permission-level tool removal; enforce the required boundary and validate actual scope and Git results. Native launch, result, retry and resume APIs belong to the host, not a bundled script. They never change graph readiness, authorization, result validation or integration rules.
 
-On 0.58.0+ RUNs, a runtime node may declare logical `runtime.worker_role`. Host policy maps writers and reviewers to a native or bridge binding and portable per-node axes. A mandatory UI writer resolves `frontend_worker`; an independent review resolves `reviewer`; an unrelated undeclared generic node keeps the legacy native path. A missing mandatory binding defers only its dependent node. External bridge actions require both external invocation and child-spawn grants. Each attempt's persisted binding and launch record are checked against the same resolver.
+On 0.58.0+ RUNs, a runtime node may declare logical `runtime.worker_role`. Host policy maps writers and reviewers to a native or bridge binding and portable per-node axes. The current serialized protocol labels UI authorship `frontend_worker` and independent review `reviewer`; these labels do not select the native agent identity; an unrelated undeclared generic node keeps the legacy native path. A missing mandatory binding defers only its dependent node. External bridge actions require both external invocation and child-spawn grants. Each attempt's persisted binding and launch record are checked against the same resolver.
 
 Models and roles configured by the user remain authoritative. Preserve their declared fallback policy and record the actual resolved role, model and effort; never change installed definitions or manually redispatch to another provider.
 

@@ -266,7 +266,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("do not dispatch another same-scope review", skill)
         self.assertIn("do not attach the full PLAN/RUN", skill)
         self.assertIn("one planned broad final validation suite", skill)
-        self.assertIn("Workers and reviewers never delegate", entry)
+        self.assertIn("Pinned managed protocols retain parent-owned PLAN/RUN", entry)
         self.assertIn("## No Nested Delegation", worker)
         self.assertIn(
             "delivery-harness/references/project-operating-rules.md"
@@ -1331,7 +1331,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Harness—not the external skill—owns", worker_goal)
         self.assertNotIn("a direct parent may author", worker_goal)
         self.assertIn(
-            "UI authoring uses the host-bound frontend author",
+            "agent policy selects the UI author",
             worker_goal,
         )
         self.assertIn("proposed design-input delta", design_updates)

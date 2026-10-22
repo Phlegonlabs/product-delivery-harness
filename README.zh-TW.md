@@ -195,7 +195,7 @@ PRD 定義成果與可量測品質；architecture 定義責任、狀態、介面
 | Activation | 每個 target／action 要有設定或人工操作證據、獨立讀回及適用行為證明；早期準備與實際正式版分開驗證，動作數依必要 targets 決定。 |
 | 成效回顧 | 真實量測期結束後，執行 owner 要求的各 target Outcome Review；多 target 時再產生 aggregate。歷史只追加。適用 `seo-growth-review` 可選，交付不等待 adoption。 |
 
-HiFi 預設一位 lead grader；owner 要求或已記錄高影響風險時，最多增加兩位 specialist sibling。瀏覽器、Impeccable 與 H1-H9 使用同一候選，在同一診斷 wave 完成；lead 集中回報後才修復，不再另開審美或評分 wave。複查聚焦原缺陷及受影響 consumer，同時保留 Impeccable 的必需範圍、完整瀏覽器覆蓋與當前分數。第二次 review 仍失敗就停在 `blocked`；只有 owner 明確批准改變策略與完整驗收矩陣，才可例外增加一次 successor re-review。一般「繼續」不代表批准。詳見 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。 前端派工會完整帶入方向研究 HTML、畫面、字體、素材與視覺特徵的來源及身分。方向探索允許截圖待補，已記錄的來源身分仍須驗證；作者須自行讀取並檢視後才編輯。
+HiFi grader 與彙總評估的 lead 由 agent 設定決定。瀏覽器、Impeccable 與 H1-H9 使用同一候選，在同一診斷 wave 完成；lead 集中回報後才修復，不再另開審美或評分 wave。複查聚焦原缺陷及受影響 consumer，同時保留 Impeccable 的必需範圍、完整瀏覽器覆蓋與當前分數。第二次 review 仍失敗就停在 `blocked`；只有 owner 明確批准改變策略與完整驗收矩陣，才可例外增加一次 successor re-review。一般「繼續」不代表批准。詳見 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。 前端派工會完整帶入方向研究 HTML、畫面、字體、素材與視覺特徵的來源及身分。方向探索允許截圖待補，已記錄的來源身分仍須驗證；作者須自行讀取並檢視後才編輯。
 
 重用較早的 visual PASS，須有兩項驗收證據並完整涵蓋當前範圍；程式樹相同本身不足以重用。
 這裡計算 Harness 階段的 pass 次數；Impeccable 仍須完成 pinned workflow 與內部評估，其原生總分不能替代 H1–H9。
@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>通用執行環境適配：host 能力、契約採用與 host 交接</b></summary>
 
-Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Host 專屬模型放在 host policy；共用 skills 保留設定角色與已授權 fallback。 前端依設計或實作階段，從有效的 host policy 取得 model 與明確的 effort，並分開記錄要求值與實際執行觀察。
+Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Agent 定義與有效 AGENTS 負責 worker 身分、模型、effort、fallback 和委派方式；skills 負責方法、視覺輸入、授權、證據和驗收。要求值與實際執行觀察分開記錄。
 
 ## 通用執行環境適配
 
