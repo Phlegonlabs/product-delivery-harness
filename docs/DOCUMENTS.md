@@ -6,8 +6,8 @@ Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each pa
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-agent-owned-worker-policy.md` | Agent-owned worker selection; skills retain methods and acceptance | Source/host complete; reviewed 05007338; 845 cases with two platform skips; core installation remains separate |
-| `docs/epics/EPIC-frontend-author-handoff.md` | Stage-owned Opus design / Sonnet implementation routing and complete visual-author inputs | Source/host complete; reviewed 82b79145, 506 cases with two platform skips; seven-core bundle installation remains separate |
+| `docs/epics/EPIC-agent-owned-worker-policy.md` | Agent-owned worker selection; skills retain methods and acceptance | Installed development source ada2b750; 442 files and prior backup verified; 31 installed-location tests passed; loaded identity unknown |
+| `docs/epics/EPIC-frontend-author-handoff.md` | Stage-owned Opus design / Sonnet implementation routing and complete visual-author inputs | Source/host complete; reviewed 82b79145; visual inputs installed with ada2b750; later staffing ownership follows the agent-policy Epic |
 | `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 released at `dd8a52d3` and installed; 439 core files verified; exact candidate/main CI and reviews passed |
 | `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | X/GTM published in v0.65.1; seven-core-skill update verified; standalone GTM installations preserved |
 | `docs/epics/EPIC-ui-review-efficiency.md` | HiFi 85/80, one design diagnostic wave and consolidated implementation UI acceptance | Reviewed fixes installed from `92027b82`; all 439 shared files and backups verified; installed-location 102 tests passed; development channel, loaded identity unknown |

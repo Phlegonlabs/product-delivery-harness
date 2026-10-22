@@ -174,3 +174,39 @@ Host wrapper instructions and the workflow helper are updated locally, with ever
 Native agent definitions, host AGENTS, launchers, active chats, credentials and existing runs were not changed.
 The canonical core-source changes are local commits. Installed core digest remains `f635763875e40ad30f112933c3f78efbf9cebb5501eb13ea57d4b5dabb8ce28b`.
 No core-bundle installation, reload, push, release or deployment occurred. Installation remains a separate action.
+
+## Shared Development Installation — 2026-10-21
+
+The owner separately requested installing this outcome into the shared skills, retaining backups and verifying the result.
+Installed source: `ada2b7505321e2903ae191f8324cd6f875d56ef3` on `codex/ui-acceptance`, with clean skill sources.
+Its skill tree matches the reviewed candidate `050073387a9b81ae01f777943ca00479bf5c9a57`; only the Epic and index changed afterward.
+
+The parent coordinated three relevant chats under the owner's earlier messaging authorization.
+Observed core reads used their existing project bundle or preserved backup roots; none required replacing an active frozen contract.
+The unrelated Wallet Shortcut task used host Mac tooling outside this seven-skill installation.
+The [consumer record](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/agent-policy-install-consumers.json) names those observed roots. Missing replies were not treated as consent.
+
+The official `install.ps1` installed all seven core skills into `C:/Users/mps19/.agents/skills` and exited successfully.
+The [backup](C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261021-215058) preserves every prior installed file, including caches.
+Its sibling `.source` receipt records the exact source commit and clean skill-source state. Earlier backups remain intact.
+
+The [final byte verification](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/agent-policy-install-verified.json) confirms all 442 installed paths match source bytes.
+It also confirms the backup matches all 467 prior files, both external design skill trees remain unchanged, and all 13 host inputs retain their hashes.
+The destination catalog is preserved. No retired skill, installer lock or staging directory remains.
+Installed bundle digest: `ea3f1959e69ad681a3e3972ffed11e87ddf2172cf5f07b0652541081f8e7aacd`.
+
+Fresh installed-location checks passed: 14 visual-input, ten read-only-assignment and seven graph-identity cases; 31 total, without skips.
+The installer dependency check found `frontend-design` and `impeccable`. Every check supervisor recorded exit0 and process termination.
+Producing logs use `agent-policy-install-` and `agent-policy-installed-` prefixes in the task evidence directory.
+The prior 845-case source result and independent review retain their original candidate identity; they were not rerun or relabeled.
+
+The parent sent verified-completion notices to the three coordinated chats, preserving existing RUN pins and isolated contracts.
+This is a development installation. Version text remains `0.65.2`; no release, push, deployment or host restart occurred.
+Loaded identity remains unknown. New work needs a fresh host session to discover the installed skills.
+
+Fresh handoff comparison classifies shared AGENTS rules as current, with the source-specific omissions and main-only flow retained.
+Installed template SHA-256: `d9d5b85e37283031068223317d85a2431fc3438b91dc502d61dadff4d50936a9`.
+VERSION SHA-256: `c41e3b5aff0ac9527c8d144b744969b5665b5435d69f9e0bbbc0339242f50f94`.
+The instruction chain preserves agent-owned selection, full pinned frontend reads, independent review, authorization and one writer per checkout.
+Document inventory still reports first-baseline review and unknown loaded identity; neither finding is an acceptance PASS.
+Only this dated follow-up and the document index change for the installation record. No source skill or host configuration changed.
