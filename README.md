@@ -189,7 +189,7 @@ Follow the [source Git flow](skills/delivery-harness/references/governance/sourc
 3. `required_harness_version` in `assets/templates/MISSION_RUNBOOK.template.md` under the delivery skill.
 4. Keep tests deriving versions from `VERSION`, not new hard-coded literals.
 
-A inherits C only after exact receipt-bound archive verification. Only receipt-listed coordination/evidence moves, optional generated `docs/tasks.md`, the `docs/DOCUMENTS.md` update and `ARCHIVE_RECEIPT.json` may differ. All other paths stay unchanged. A tree-equal server-created main SHA S inherits the candidate evidence with its original origin; equality alone requires no repeated suite or security review. A different tree needs new candidate verification.
+Archive-only A must be C's direct child and pass exact receipt-bound archive verification before inheriting C's evidence. Only receipt-listed coordination/evidence moves, optional generated `docs/tasks.md`, the `docs/DOCUMENTS.md` update and `ARCHIVE_RECEIPT.json` may differ. All other paths stay unchanged. Retain C's reviewed SHA and original result origins; inherited evidence is never a fresh execution at A. A tree-equal server-created main SHA S inherits the candidate evidence with its original origin; equality alone requires no repeated suite or security review. A different tree needs new candidate verification.
 
 Publication requires the exact owner-authorized SHA and branch, a no-force push and remote readback. A single release instruction may bind these grants together; stop on drift or failed gates. After a verified formal release, update a changed installed bundle through the official installer at a quiescent boundary, with backup and verification. A badge proves neither installation nor deployment.
 
