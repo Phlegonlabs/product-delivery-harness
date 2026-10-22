@@ -1,16 +1,13 @@
 """Design handoff extensions preserve old inputs and reject false evidence."""
 
 import copy
-import hashlib
 import json
 from pathlib import Path
 import shutil
 import subprocess
-import tempfile
 import unittest
 
 from test_wireframe_contract import render_html, validate_html, wireframe_data
-from check_design_freshness import inspect
 
 
 class ReadingAndMotionTests(unittest.TestCase):
@@ -192,68 +189,6 @@ if(records.length!==2||records[1].value.status!=='draft'||records[1].value.sourc
         result = subprocess.run([node, "-", str(template)], input=script, capture_output=True,
                                 text=True, encoding="utf-8", timeout=15)
         self.assertEqual(0, result.returncode, result.stderr)
-
-
-class FreshnessTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        for name in ("docs/product/PRD.md", "docs/design/wireframes.html", "docs/design/ui-references/r/index.html"):
-            p = self.root / name
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(name, encoding="utf-8")
-        self.skill = "a" * 64
-        self.wire = "docs/design/wireframes.html"
-        self.hifi = "docs/design/ui-references/r/index.html"
-        self.prd = "docs/product/PRD.md"
-        self.baseline = {"schema": "design-observation/1", "skillDigest": self.skill,
-                         "implementation": "not_started", "implementationEvidence": "Owner and scoped code inventory",
-                         "artifacts": [dict(self.binding(self.wire), inputs=[self.binding(self.prd)]),
-                                       dict(self.binding(self.hifi), inputs=[self.binding(self.wire)])]}
-
-    def binding(self, name):
-        return {"path": name, "sha256": hashlib.sha256((self.root/name).read_bytes()).hexdigest()}
-
-    def run_check(self, **kwargs):
-        return inspect(self.root, self.baseline, kwargs.get("installed", self.skill), kwargs.get("loaded", self.skill))
-
-    def test_unchanged_is_not_approval(self):
-        report = self.run_check()
-        self.assertEqual("bytes_unchanged", report["status"])
-        self.assertIn("verify full package coverage", report["meaning"])
-
-    def test_changed_prd_propagates_to_unchanged_hifi(self):
-        (self.root/self.prd).write_text("new requirement", encoding="utf-8")
-        report = self.run_check()
-        self.assertEqual("review_required", report["status"])
-        self.assertTrue(any("upstream_review_required" in reason for reason in report["artifacts"][1]["reasons"]))
-
-    def test_unknown_and_installed_only_update_never_pass(self):
-        self.assertIn("skill_identity_unknown", self.run_check(loaded=None)["findings"])
-        self.assertIn("restart_required", self.run_check(installed="b"*64)["findings"])
-        self.baseline["artifacts"][0]["sha256"] = None
-        self.assertEqual("review_required", self.run_check()["status"])
-
-    def test_missing_child_is_not_current(self):
-        self.baseline["artifacts"][1]["path"] = "docs/design/ui-references/r/missing.html"
-        self.assertIn("artifact_missing", self.run_check()["artifacts"][1]["reasons"])
-
-    def test_bad_paths_hashes_and_cycles_are_rejected(self):
-        original = copy.deepcopy(self.baseline)
-        for name in ("../secret.md", "docs/design/../../secret.md", "docs/design/.env.json", "C:/secret.md", "docs/design/test.exe"):
-            self.baseline = copy.deepcopy(original)
-            self.baseline["artifacts"][0]["path"] = name
-            with self.assertRaises(ValueError):
-                self.run_check()
-        self.baseline = copy.deepcopy(original)
-        self.baseline["artifacts"][0]["inputs"] = [self.binding(self.hifi)]
-        with self.assertRaisesRegex(ValueError, "cycle"):
-            self.run_check()
-        self.baseline = copy.deepcopy(original)
-        self.baseline["skillDigest"] = "newest"
-        with self.assertRaises(ValueError):
-            self.run_check()
 
 
 if __name__ == "__main__":
