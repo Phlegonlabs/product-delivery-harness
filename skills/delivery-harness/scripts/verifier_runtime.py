@@ -91,16 +91,6 @@ def copy_json(value: Any) -> Any:
     return json.loads(json.dumps(value, sort_keys=True, ensure_ascii=False))
 
 
-def sandbox_host_fingerprint() -> dict[str, str]:
-    """Return non-sensitive host identity used to invalidate stale probes."""
-
-    return {
-        "system": platform.system(),
-        "machine": platform.machine(),
-        "node_sha256": _sha256_bytes(platform.node().encode("utf-8")),
-    }
-
-
 def host_runtime_fingerprint() -> dict[str, str]:
     """Return the stable, non-secret host and OS runtime fingerprint."""
 
@@ -906,154 +896,40 @@ def _host_cache_allowed(normalized_verifier: Mapping[str, Any]) -> bool:
     )
 
 
-TIMING_FIELDS = {
-    "end_to_end_ms",
-    "setup_ms",
-    "git_guard_ms",
-    "cache_lookup_ms",
-    "snapshot_ms",
-    "command_ms",
-    "postcheck_ms",
-}
-REUSE_ORIGIN_FIELDS = {
-    "kind",
-    "execution_key",
-    "verifier_id",
-    "context_sha256",
-    "stdout_sha256",
-    "stderr_sha256",
-    "sandbox_attestation",
-}
-
-
-def _output_digest(item: Mapping[str, Any], name: str) -> Any:
-    value = item.get(name)
-    return _sha256_bytes(value.encode("utf-8")) if isinstance(value, str) else item.get(name + "_sha256")
-
-
 def execution_retention_binding_errors(item: Mapping[str, Any]) -> list[str]:
-    """Validate optional observational and same-runner reuse bindings."""
-
+    """Check optional retained host identity without interpreting old container history."""
     errors: list[str] = []
-    timings = item.get("timings")
-    if timings is not None:
-        if not isinstance(timings, dict) or set(timings) != TIMING_FIELDS:
-            errors.append("timings must contain the exact observational fields")
-        else:
-            for key, value in timings.items():
-                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-                    errors.append(f"timings.{key} must be a non-negative integer")
-    origin = item.get("container_reuse_origin")
-    container_reuse = item.get("cache_status") == "reused" and (
-        item.get("cache_reason") == "same_runner_container_pass"
-        or isinstance(item.get("sandbox_attestation"), dict)
-    )
-    if container_reuse and origin is None:
-        errors.append("container reuse requires an explicit origin")
-    if origin is not None:
-        if not container_reuse or item.get("status") != "PASS" or item.get("exit_code") != 0:
-            errors.append("container reuse origin requires a reused PASS")
-        verifier = item.get("verifier", {})
-        context = item.get("context", {})
-        cache = verifier.get("cache") if isinstance(verifier, dict) else None
-        if not isinstance(verifier, dict) or not isinstance(context, dict) or not (
-            isinstance(cache, dict)
-            and cache.get("mode") == "session_exact"
-            and cache.get("deterministic_local") is True
-            and verifier.get("read_only") is True
-            and verifier.get("pass_signal") == "exit 0"
-            and context.get("layer") in {"task", "worker"}
-            and context.get("cache_safe") is True
-            and context.get("checkout_dirty") is False
-        ):
-            errors.append("container reuse requires an opted-in read-only task/worker declaration")
-        if not isinstance(origin, dict) or set(origin) != REUSE_ORIGIN_FIELDS:
-            errors.append("container reuse origin has an incomplete binding")
-        else:
-            for key in (
-                "execution_key",
-                "context_sha256",
-                "stdout_sha256",
-                "stderr_sha256",
-            ):
-                digest = origin.get(key)
-                if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
-                    errors.append(
-                        f"container reuse origin.{key} must be a SHA-256 digest"
-                    )
-            if origin.get("kind") != "same_runner":
-                errors.append("container reuse origin kind must be same_runner")
-            if not isinstance(origin.get("verifier_id"), str) or not origin["verifier_id"]:
-                errors.append("container reuse origin.verifier_id must be non-empty")
-            if not isinstance(origin.get("sandbox_attestation"), dict):
-                errors.append("container reuse origin sandbox attestation is missing")
-            if isinstance(item.get("execution_key"), str) and origin.get(
-                "execution_key"
-            ) != item.get("execution_key"):
-                errors.append("container reuse origin execution key is rebound")
-            stdout_digest = _output_digest(item, "stdout")
-            if isinstance(stdout_digest, str) and origin.get("stdout_sha256") != stdout_digest:
-                errors.append("container reuse origin stdout is rebound")
-            stderr_digest = _output_digest(item, "stderr")
-            if isinstance(stderr_digest, str) and origin.get("stderr_sha256") != stderr_digest:
-                errors.append("container reuse origin stderr is rebound")
-            sandbox = item.get("sandbox_attestation")
-            if isinstance(sandbox, dict) and origin.get("sandbox_attestation") != sandbox:
-                errors.append("container reuse origin sandbox identity is rebound")
+    duration = item.get("duration_ms")
+    if duration is not None and (not isinstance(duration, int) or isinstance(duration, bool) or duration < 0):
+        errors.append("duration_ms must be a non-negative integer")
+    attestation = item.get("host_execution_attestation")
+    if attestation is None:
+        return errors
+    document = item.get("key_document")
+    preflight = document.get("host_preflight") if isinstance(document, dict) else None
+    try:
+        checked = _validated_host_preflight(preflight)
+    except VerifierRuntimeError as exc:
+        return errors + [str(exc)]
+    if not isinstance(attestation, dict) or set(attestation) != {"isolation", "cwd", "host", "runtime_version", "executable"}:
+        return errors + ["host execution must retain the complete host attestation"]
+    if attestation["isolation"] != "host":
+        errors.append("host attestation isolation differs from the declaration")
+    for name in ("host", "runtime_version"):
+        if attestation[name] != checked[name]:
+            errors.append(f"host attestation {name} differs from preflight")
+    if attestation["executable"] != {"path": checked["executable"], "sha256": checked["executable_sha256"]}:
+        errors.append("host attestation executable differs from preflight")
+    argv = document.get("argv")
+    if not isinstance(argv, list) or not argv or argv[0] != checked["argv0"]:
+        errors.append("host preflight argv0 differs from the declared command")
+    guard = item.get("git_guard_attestation")
+    root = guard.get("checkout_root") if isinstance(guard, dict) else None
+    cwd = document.get("cwd")
+    if isinstance(root, str) and isinstance(cwd, str):
+        if attestation["cwd"] != str((Path(root) / cwd).resolve()):
+            errors.append("host attestation cwd differs from the declared checkout cwd")
     return errors
-
-
-def container_reuse_origin_run_errors(
-    item: Mapping[str, Any], run: Mapping[str, Any]
-) -> list[str]:
-    """Bind a retained reuse result to one real origin execution in RUN."""
-
-    origin = item.get("container_reuse_origin")
-    if origin is None:
-        return []
-    if not isinstance(origin, dict):
-        return ["container reuse origin is malformed"]
-    executions = run.get("verifier_executions")
-    if not isinstance(executions, list):
-        return ["container reuse origin has no retained RUN executions"]
-    matches = set()
-    for candidate in executions:
-        if not isinstance(candidate, dict) or candidate is item:
-            continue
-        if (
-            candidate.get("execution_key") == origin.get("execution_key")
-            and candidate.get("verifier_id") == origin.get("verifier_id")
-            and candidate.get("status") == "PASS"
-            and candidate.get("exit_code") == 0
-            and isinstance(candidate.get("context"), dict)
-            and candidate["context"].get("layer") in {"task", "worker"}
-            and _sha256_bytes(_canonical_json(candidate["context"])) == origin.get("context_sha256")
-            and candidate.get("cache_status") == "bypassed"
-            and candidate.get("cache_reason") == "same_runner_container_origin"
-            and candidate.get("sandbox_attestation")
-            == origin.get("sandbox_attestation")
-            and candidate.get("container_reuse_origin") is None
-            and _output_digest(candidate, "stdout") == origin.get("stdout_sha256")
-            and _output_digest(candidate, "stderr") == origin.get("stderr_sha256")
-            and candidate.get("git_guard_attestation") == item.get("git_guard_attestation")
-        ):
-            matches.add((candidate["execution_key"], candidate["verifier_id"], origin["context_sha256"]))
-    if len(matches) != 1:
-        return ["container reuse origin must match exactly one retained same-runner PASS"]
-    return []
-
-
-def _timings(
-    start: float, current: float, **fields: int
-) -> dict[str, int]:
-    values = {
-        key: max(0, value) for key, value in fields.items()
-    }
-    values["end_to_end_ms"] = max(
-        0,
-        round((current - start) * 1000),
-    )
-    return values
 
 
 def run_verifier(
@@ -1069,12 +945,10 @@ def run_verifier(
     sandbox_preflight: dict[str, Any] | None = None,
     host_preflight: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    entry_started = time.perf_counter()
     if timeout_seconds <= 0:
         raise VerifierRuntimeError("timeout_seconds must be positive")
     _reject_sandbox_preflight(sandbox_preflight)
     effective_environment = dict(os.environ if environment is None else environment)
-    setup_started = time.perf_counter()
     cwd, argv, normalized_verifier, key_inputs = _validated_inputs(
         verifier,
         context,
@@ -1114,10 +988,7 @@ def run_verifier(
         raise VerifierRuntimeError(
             "a reserved verifier requires git_guard and the canonical request SHA-256"
         )
-    guard_started = time.perf_counter()
     guard_snapshot = _git_guard_snapshot(checkout_root.resolve(), git_guard)
-    guard_ms = max(0, round((time.perf_counter() - guard_started) * 1000))
-    setup_ms = max(0, round((guard_started - setup_started) * 1000))
     git_guard_attestation = {
         "checkout_root": str(checkout_root.resolve()),
         "git_guard": json.loads(json.dumps(git_guard)),
@@ -1177,8 +1048,6 @@ def run_verifier(
         exit_code = None
         stdout = ""
         stderr = str(exc)
-    command_ms = max(0, round((time.perf_counter() - started) * 1000))
-    postcheck_started = time.perf_counter()
     try:
         if _git_guard_snapshot(checkout_root.resolve(), git_guard) != guard_snapshot:
             raise VerifierRuntimeError(
@@ -1188,7 +1057,6 @@ def run_verifier(
         status = "ERROR"
         exit_code = None
         stderr = (stderr + "\n" if stderr else "") + str(exc)
-    postcheck_ms = max(0, round((time.perf_counter() - postcheck_started) * 1000))
     host_attestation = None
     try:
         executable, executable_sha256 = _verify_host_runtime_identity(
@@ -1222,16 +1090,6 @@ def run_verifier(
         "cache_reason": "host_cache_disabled",
         "duration_ms": duration_ms,
         "metrics": {"executed": 1, "reused": 0},
-        "timings": _timings(
-            entry_started,
-            time.perf_counter(),
-            setup_ms=setup_ms,
-            git_guard_ms=guard_ms,
-            cache_lookup_ms=0,
-            snapshot_ms=0,
-            command_ms=command_ms,
-            postcheck_ms=postcheck_ms,
-        ),
         **({"reservation": checked_reservation} if checked_reservation is not None else {}),
         **(
             {"dispatch_attestation": dispatch_attestation}

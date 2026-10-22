@@ -23,7 +23,6 @@ import manifest_fixtures as mf
 import verifier_runtime as vr
 import harness_transition as transition
 from harness_manifest import load_run, plan_digest, validate_run
-from harness_core import host_execution_binding_errors
 from test_verifier_runtime import context
 
 
@@ -73,8 +72,6 @@ class HostVerifierTests(unittest.TestCase):
         self.assertEqual(str((self.root / "app").resolve()), result["host_execution_attestation"]["cwd"])
         self.assertEqual(result["host_execution_attestation"], result["git_guard_attestation"]["host_execution_attestation"])
         self.assertEqual([], vr.execution_retention_binding_errors(result))
-        self.assertEqual([], host_execution_binding_errors(result["key_document"]["host_preflight"],
-                         result["host_execution_attestation"], result["key_document"], str(self.root)))
 
     def delayed_mutation_command(self, delay, *, timeout=False, inherit_output=False):
         path = self.root / "tracked.txt"
@@ -217,13 +214,13 @@ class HostVerifierTests(unittest.TestCase):
 
     def test_retained_wrong_cwd_and_command_are_rejected(self):
         result = self.execute(host_verifier())
-        attestation = copy.deepcopy(result["host_execution_attestation"])
-        attestation["cwd"] = str(self.root / "wrong")
-        issues = host_execution_binding_errors(result["key_document"]["host_preflight"], attestation, result["key_document"], str(self.root))
+        changed = copy.deepcopy(result)
+        changed["host_execution_attestation"]["cwd"] = str(self.root / "wrong")
+        issues = vr.execution_retention_binding_errors(changed)
         self.assertTrue(any("cwd differs" in item for item in issues))
-        document = copy.deepcopy(result["key_document"])
-        document["argv"][0] = "other"
-        issues = host_execution_binding_errors(document["host_preflight"], result["host_execution_attestation"], document, str(self.root))
+        changed = copy.deepcopy(result)
+        changed["key_document"]["argv"][0] = "other"
+        issues = vr.execution_retention_binding_errors(changed)
         self.assertTrue(any("argv0 differs" in item for item in issues))
 
     def test_host_cache_parallel_and_malformed_resources_refused(self):

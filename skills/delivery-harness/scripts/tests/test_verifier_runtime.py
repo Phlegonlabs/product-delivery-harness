@@ -324,33 +324,19 @@ class VerifierRuntimeTests(unittest.TestCase):
         resolved = key_document["executable_identity"]["path"]
         self.assertEqual(os.path.normcase(str((mission / "probe.sh").resolve())), resolved)
 
-    def test_retention_binding_rejects_rebound_reuse_evidence(self) -> None:
-        item = {
-            "status": "PASS", "exit_code": 0, "cache_status": "reused",
-            "cache_reason": "same_runner_container_pass",
-            "verifier": {"cache": {"mode": "session_exact", "deterministic_local": True},
-                         "read_only": True, "pass_signal": "exit 0"},
-            "context": {"layer": "worker", "cache_safe": True, "checkout_dirty": False},
-            "execution_key": "a" * 64,
-            "stdout_sha256": "b" * 64,
-            "stderr_sha256": "c" * 64,
-            "sandbox_attestation": {"image": "same"},
-            "timings": {"end_to_end_ms": 2, "setup_ms": 1, "git_guard_ms": 0, "cache_lookup_ms": 0,
-                        "snapshot_ms": 1, "command_ms": 1, "postcheck_ms": 0},
-            "container_reuse_origin": {
-                "kind": "same_runner", "execution_key": "a" * 64, "verifier_id": "origin",
-                "context_sha256": "d" * 64, "stdout_sha256": "b" * 64, "stderr_sha256": "c" * 64,
-                "sandbox_attestation": {"image": "same"},
-            },
-        }
-        self.assertEqual([], execution_retention_binding_errors(item))
-        item["container_reuse_origin"]["execution_key"] = "e" * 64
-        errors = execution_retention_binding_errors(item)
-        self.assertTrue(any("execution key is rebound" in error for error in errors))
-        self.assertEqual(
-            ["container reuse origin must match exactly one retained same-runner PASS"],
-            verifier_runtime.container_reuse_origin_run_errors(item, {"verifier_executions": []}),
-        )
+    def test_retained_host_evidence_rejects_rebound_command_and_identity(self) -> None:
+        result = self.run_host(verifier(), self.ctx())
+        self.assertEqual([], execution_retention_binding_errors(result))
+        for field, value in (("argv", ["different"]), ("cwd", "wrong")):
+            changed = json.loads(json.dumps(result))
+            changed["key_document"][field] = value
+            self.assertTrue(execution_retention_binding_errors(changed))
+        result["host_execution_attestation"]["executable"]["sha256"] = "e" * 64
+        self.assertTrue(execution_retention_binding_errors(result))
+
+    def test_historical_container_metadata_is_opaque(self) -> None:
+        self.assertEqual([], execution_retention_binding_errors({"container_reuse_origin": {"retained": "history"}}))
+        self.assertTrue(execution_retention_binding_errors({"duration_ms": -1}))
 
     def test_batch_runs_jobs_one_at_a_time_in_job_id_order(self) -> None:
         lock = threading.Lock()
