@@ -27,7 +27,7 @@ Reference valid action grants in the existing task or RUN; this file grants none
 
 ## Change Log
 
-At repository checkpoints, retain observation time, repository/branch, baseline and observed HEAD, and scoped change evidence or its fingerprint. Include external commits and staged/unstaged/untracked changes; label uncommitted work `working-tree` and state its actual verification separately. Unknown intent or missing history remains an explicit gap. Add an entry only for a new meaningful change, verification result or unresolved state. Exclude record-only updates from recursive logging. This record grants no authority and requires no PLAN/RUN.
+Record each entry as `delivery-harness/references/governance/task-and-handoff.md#repository-change-checkpoints` describes. Add an entry only for a new meaningful change, verification result or unresolved state. A Harness bundle adoption is one row with the adopted digest. This record grants no authority and requires no PLAN/RUN.
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |

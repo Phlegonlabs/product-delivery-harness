@@ -37,7 +37,7 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 
 | Trigger | Complete rule owner |
 | --- | --- |
-| First work in a session or every skill invocation | `delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work` |
+| First work in a session | `delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work` |
 | Task start; significant edit, commit, merge, branch switch, or observed external change | `delivery-harness/references/governance/task-and-handoff.md#repository-change-checkpoints` |
 | Completion or handoff | `delivery-harness/references/governance/task-and-handoff.md#handoff-documentation-audit` and `delivery-harness/references/governance/task-and-handoff.md#consumer-completion` |
 | Local deletion, overwrite, or move | `delivery-harness/references/governance/development-rules.md#protect-local-data` |
@@ -59,7 +59,7 @@ The Epic and index record observed work; neither record grants product approval,
 - Resolve this section from the live project before finishing bootstrap; keep it only when the repository deploys, per the Product Delivery Harness `deployment-contract.md`.
 - Platform and mode: the deploy platform id (for example `cloudflare`, `vercel`, `aws`) and `git_connected`, `ci_connected`, or `manual`.
 - Non-production deploys from the exact candidate run branch or immutable candidate SHA; production deploys from `main`. Candidate and production environments remain separate, and a candidate PASS never proves production.
-- Hosted-browser production uses `parity_capture.py` at the production URL. Browser-extension, native, and desktop targets use their platform automation or labeled manual captures and never substitute URL parity. Bind every result to the exact production SHA and artifact.
+- Hosted-browser production verifies the deployed SHA and smoke; parity capture is optional. Browser-extension, native, and desktop targets use their platform automation or labeled manual captures and never substitute URL parity. Bind every result to the exact production SHA and artifact.
 - Production and preview bind fully separate D1/KV/R2/Durable-Object resources: the preview environment declares its complete binding set, never references a production resource ID, and the deployment record's Resource Isolation table carries both ID sets.
 - Before a deployable push, reconcile `docs/DEPLOYMENT.md` against tracked environment declarations, platform config, CI workflows, and auth/integration code. List exact secret and variable names, preview/production placement, source owner, and external-console tasks; never read or record secret values. After deployment, update only from read-only evidence and report every pending human action.
 - Preview mechanism or URL pattern: <fill>

@@ -129,6 +129,8 @@ class EnhancementEntryContractTests(unittest.TestCase):
             with self.subTest(reference="document-sync", phrase=phrase):
                 self.assertIn(phrase, sync)
         for phrase in (
+            "A later invocation reuses it while HEAD and the instruction bytes match",
+            "one Change Log row with the adopted digest in the current Epic, never a new Epic",
             "Reuse a semantic template audit",
             "recorded SHA-256 values",
             "newly applicable, missing, or changed input invalidates reuse",

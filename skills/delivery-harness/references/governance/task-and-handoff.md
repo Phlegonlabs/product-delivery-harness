@@ -4,7 +4,7 @@ These procedures are the rule owners for task entry, repository checkpoints, han
 
 ## Project Entry And Current Work
 
-This is the entry checklist. Run it at the first work in a session and at every skill invocation. Read each linked contract in full only when its trigger fires.
+This is the entry checklist. Run it at the first work in a session. A later invocation reuses it while HEAD and the instruction bytes match; rerun it when either changed or at handoff. Read each linked contract in full only when its trigger fires.
 
 1. Read the effective repository instructions, `docs/DOCUMENTS.md` when present, current product/design sources and relevant unfinished work. Resolve every `delivery-harness/` reference against the observed installed delivery-harness skill root, not a presumed target-local `skills/` directory. In this skill-source repository, it resolves as `skills/delivery-harness/references/`.
 2. Run the document-sync inventory with the Repository Change Checkpoint below. Pass `--loaded-digest` when the host exposes it, otherwise this session's `--session-marker`; unknown means unknown, not the current disk version. The parent runs the full global inventory at first entry and after a source, instruction, scope, skill identity, cross-stage dependency or handoff change.
@@ -14,7 +14,7 @@ This is the entry checklist. Run it at the first work in a session and at every 
    ```
 
    Read [document-sync-contract](../document-sync-contract.md) when the report needs review or input is invalid, when no baseline exists, and before a child inventory. Design consumers then apply [design-freshness](../../../ui-design-builder/references/design-freshness.md).
-3. Select the record before implementation. A new accepted outcome gets `docs/epics/EPIC-<id>.md`, indexed in `docs/DOCUMENTS.md`. Small fixes append to the matching Epic. Keep one current PRD. [Epic Selection](../bounded-enhancement.md#epic-selection-and-change-history) owns the details.
+3. Select the record before implementation. A new accepted outcome gets `docs/epics/EPIC-<id>.md`, indexed in `docs/DOCUMENTS.md`. Small fixes append to the matching Epic. A Harness bundle adoption is one Change Log row with the adopted digest in the current Epic, never a new Epic. Keep one current PRD. [Epic Selection](../bounded-enhancement.md#epic-selection-and-change-history) owns the details.
 4. Record the goal, write scope, design source, dependencies and acceptance checks in the existing task record or PLAN/RUN. Preserve valid decisions and authorizations; ask only about a concrete missing dependency.
 5. Read these contracts on their trigger:
    - [bounded-enhancement](../bounded-enhancement.md): the owner accepts an enhancement scope, or a repair, module replacement or next-round handoff starts.
