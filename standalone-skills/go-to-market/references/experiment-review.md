@@ -36,14 +36,8 @@ For each metric, retain the exact project/property/account, source, range, timez
 Use bounded aggregate data. Exclude credentials, customer identifiers and sensitive audience details from reports and URLs.
 Unavailable access needs a bounded export or an unavailable-source label, not a tracking installation under strategy authority.
 
-For X, keep each approved item/revision and eventual post URL/ID joined to its existing campaign destination and outcome definition.
-For a thread, retain the individual post IDs and define which observations belong to the experiment before aggregating.
-Separate public engagement, owned-post clicks, destination sessions and verified product actions. Do not manufacture missing stages or unique-user totals.
-Use the account's authorized readout or a bounded owner export. Publicly visible metrics do not imply unauthenticated API access.
-[X metrics](https://docs.x.com/x-api/fundamentals/metrics), checked 2026-10-18, distinguishes public metrics from owned-content metrics requiring user authentication.
-It limits non-public, organic and promoted metrics to posts created within the preceding 30 days; refresh this limit before planning collection.
-Align the observation window with actual source availability. Preserve unknown clicks and attribution gaps rather than inferring conversions from engagement.
-Missing analytics access permits a draft with an explicit measurement gap; it never grants account access or tracking setup.
+Join each post ID or URL to its approved item and revision, destination and outcome; keep thread post IDs individual.
+Owned metrics need the account's authorized readout. Do not infer conversions from engagement or manufacture unique-user totals.
 
 ## Review Results
 
@@ -57,4 +51,4 @@ Keep ordinary campaign results in the campaign review. Link deployed product out
 An existing Epic may link the accepted decision and next action; it does not replace the outcome record.
 Preserve failed observations and the original hypothesis.
 If the window has not elapsed, end the review and name the next useful observation date.
-A suggested follow-up is not monitoring or an automation; create one only after an explicit owner request.
+A follow-up is not monitoring.
