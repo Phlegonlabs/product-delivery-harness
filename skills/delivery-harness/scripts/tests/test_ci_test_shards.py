@@ -50,6 +50,13 @@ class CITestShardTests(unittest.TestCase):
                 self.assertIn("test_push_archived_candidate.py", selected)
                 self.assertNotIn("test_trusted_host_publication.py", selected)
 
+    def test_native_discovery_keeps_the_real_host_repair_journey(self) -> None:
+        discovered = discover_files(SCRIPTS_DIR.parents[2], "harness")
+        for platform in ("windows", "macos"):
+            with self.subTest(platform=platform):
+                selected = [Path(name).name for name in candidate_files("harness", platform, discovered)]
+                self.assertEqual(1, selected.count("test_conditional_review_journey.py"))
+
 
 if __name__ == "__main__":
     unittest.main()
