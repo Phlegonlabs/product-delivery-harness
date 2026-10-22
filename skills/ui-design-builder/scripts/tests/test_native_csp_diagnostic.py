@@ -447,7 +447,12 @@ class NativeCspDiagnosticTests(unittest.TestCase):
 
     def test_diagnostic_wave_treats_missing_provenance_as_structural(self) -> None:
         scores = {f"H{index}": 90 for index in range(1, 10)}
-        case = {"surface": "UI-001", "state": "ready", "target": "390"}
+        # The request must cover every frozen manifest case (UI-001 and UI-002).
+        cases = [{"surface": surface, "state": "ready", "target": "390"} for surface in ("UI-001", "UI-002")]
+        second_capture = self.root / "docs/evidence/capture-ui-002.png"
+        second_capture.parent.mkdir(parents=True, exist_ok=True)
+        second_capture.write_bytes(b"second synthetic capture")
+        captures = {"UI-001": self.capture_binding, "UI-002": self.binding(second_capture)}
         def wave(*, bind_raw: bool, event_url: str | None = None,
                  alias: str | None = None) -> list[str]:
             event = self.native_event(url=event_url)
@@ -461,10 +466,11 @@ class NativeCspDiagnosticTests(unittest.TestCase):
                     output = self.output(records, raw if bind_raw else None)
                     if alias and bind_raw:
                         output["execution"]["artifacts"].append(dict(raw, path=alias))
+                    output.update(matrix={"cases": cases}, results=[dict(case, result="PASS") for case in cases])
                 else:
                     output = {
                         "schema": "ui-output/3", "check": check, "subject": self.subject,
-                        "matrix": {"cases": [case]}, "results": [dict(case, result="PASS")],
+                        "matrix": {"cases": cases}, "results": [dict(case, result="PASS") for case in cases],
                         "execution": {
                             "startedAt": "2026-01-01T00:00:00Z", "finishedAt": "2026-01-01T00:00:01Z",
                             "tool": "synthetic", "method": "browser-matrix",
@@ -474,7 +480,7 @@ class NativeCspDiagnosticTests(unittest.TestCase):
                         "assessment": {
                             "scores": scores, "blocks": [],
                             "observations": [dict(case, finding="Concrete synthetic rendering observation.",
-                                                  evidence=[self.capture_binding])],
+                                                  evidence=[captures[case["surface"]]]) for case in cases],
                         },
                     }
                 output_binding = self.write(evidence_dir / f"{role}-output.json", output)
@@ -483,7 +489,7 @@ class NativeCspDiagnosticTests(unittest.TestCase):
             request = {
                 "schema": evidence.DIAGNOSTIC_REQUEST_SCHEMA, "subject": self.subject,
                 "frozenInputs": {"prd": self.binding(self.prd), "manifest": self.subject},
-                "requiredCases": [case], "observations": observations,
+                "requiredCases": cases, "observations": observations,
             }
             request_binding = self.write(self.root / "diagnostic-request.json", request)
             return evidence.diagnostic_wave_findings(
