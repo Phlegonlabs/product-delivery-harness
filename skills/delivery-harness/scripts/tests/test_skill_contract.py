@@ -264,6 +264,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Freeze shared APIs, schemas, and types", skill)
         self.assertIn("`git status --porcelain`", skill)
         self.assertIn("one planned parent-owned read-only reviewer", skill)
+        self.assertIn("union of lenses the mission's write scope needs", skill)
         self.assertIn("at most one repair-and-re-review cycle", skill)
         self.assertIn("do not dispatch another same-scope review", skill)
         self.assertIn("do not attach the full PLAN/RUN", skill)
