@@ -392,6 +392,15 @@ console.log("hybrid fallback and stale QA assertions completed");
             self.assertNotIn("complete revised direction set", document)
             self.assertNotIn("renewed complete study set", document)
 
+    def test_hot_path_text_names_no_deleted_helper(self):
+        for source in ("SKILL.md", UI_STAGE, "references/ui-design-pass.md", "references/review-evidence.md",
+                       "references/ui-grading-rubric.md"):
+            text = self.read(source)
+            with self.subTest(source=source):
+                for deleted in ("check_ui_diagnostic_wave", "design-freshness", "check_ui_publication",
+                                "native_csp_diagnostic", "compiler-source"):
+                    self.assertNotIn(deleted, text)
+
     def test_only_final_candidate_evidence_is_committed(self):
         evidence = self.read("references/review-evidence.md")
         self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
