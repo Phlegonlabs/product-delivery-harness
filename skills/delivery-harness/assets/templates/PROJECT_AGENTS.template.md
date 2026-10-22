@@ -37,7 +37,7 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 
 | Trigger | Complete rule owner |
 | --- | --- |
-| First work in a session or every skill invocation | `delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work` |
+| First work in a session | `delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work` |
 | Task start; significant edit, commit, merge, branch switch, or observed external change | `delivery-harness/references/governance/task-and-handoff.md#repository-change-checkpoints` |
 | Completion or handoff | `delivery-harness/references/governance/task-and-handoff.md#handoff-documentation-audit` and `delivery-harness/references/governance/task-and-handoff.md#consumer-completion` |
 | Local deletion, overwrite, or move | `delivery-harness/references/governance/development-rules.md#protect-local-data` |

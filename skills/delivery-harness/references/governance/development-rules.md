@@ -45,7 +45,7 @@ For work consuming a Product Definition package, apply `delivery-harness/referen
 
 ### Bounded Enhancement And Test Evidence
 
-- At every skill invocation, run the entry checklist in `delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work`.
+- Run the entry checklist per `delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work`.
 - Follow `delivery-harness/references/bounded-enhancement.md`: reuse the accepted scope and valid action grants for repairs, technical document synchronization, module replacement and retesting. Do not repeat approvals for unchanged decisions. Never infer external, destructive, publication or installation authority.
 - A module that fails accepted requirements may be replaced inside its write scope; preserve required interfaces, unaffected requirements, data and recoverable history. Reverify dependent behavior rather than preserving bad code through patches.
 - Use `delivery-harness/references/delivery-acceptance-contract.md` for isolated synthetic accounts, separate mock/real-auth tests and per-platform evidence. Never use production data or a test login bypass in production.
