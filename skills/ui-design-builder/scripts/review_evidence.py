@@ -13,6 +13,12 @@ from pathlib import Path, PurePosixPath
 import re
 import sys
 
+UI_SCRIPTS = Path(__file__).resolve().parent
+# A caller may remove the temporary copy containing this module after import.
+# Keep the CSP helper importable after that saved-path restoration.
+sys.path.insert(0, str(UI_SCRIPTS))
+import native_csp_diagnostic  # noqa: E402
+
 SHA = re.compile(r"^[0-9a-f]{64}$")
 IDENTITY = re.compile(r"^(?P<path>[A-Za-z0-9._/-]+) @ sha256:(?P<sha256>[0-9a-f]{64})$")
 MAX_BYTES = 32 * 1024 * 1024
@@ -528,7 +534,21 @@ def _diagnostic_wave_data(root, request):
 
                 subject_path = safe_path(root, subject["path"])
                 documents = _hifi_bundle_documents(subject_path, subject_data.decode("utf-8"), parsed_manifest)
-                coverage, observed_defects = _bundle_diagnostic_findings(output_json, parsed_manifest)
+                csp_context = None
+                csp_context_error = None
+                if output_json.get("schema") == "ui-output/3":
+                    try:
+                        csp_context = native_csp_diagnostic.build_context(
+                            root, subject, parsed_manifest,
+                            output_json.get("execution", {}).get("artifacts", []),
+                            documents,
+                        )
+                    except (OSError, ValueError, TypeError, KeyError, UnicodeError) as context_exc:
+                        csp_context_error = native_csp_diagnostic.context_failure(context_exc)
+                coverage, observed_defects = _bundle_diagnostic_findings(
+                    output_json, parsed_manifest, context=csp_context,
+                    context_error=csp_context_error,
+                )
                 findings.extend(f"{role}: {item}" for item in coverage)
                 defects.extend(f"{role}: {item}" for item in observed_defects)
                 if not has_current_reviewer_shell(documents):

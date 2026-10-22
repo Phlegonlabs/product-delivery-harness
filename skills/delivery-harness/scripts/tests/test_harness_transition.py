@@ -297,6 +297,7 @@ class HarnessTransitionTaskViewTests(unittest.TestCase):
             {
                 "accept-wave",
                 "record-worker-result",
+                "reconcile-worker-ingestion",
                 "reject-worker-result",
                 "record-integration",
                 "reconcile-candidate-head",

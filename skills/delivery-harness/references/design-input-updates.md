@@ -109,7 +109,7 @@ States to consider:
 - plan/entitlement blocked
 - responsive overflow
 
-When the product has a required design system, `design-system.json`'s `stateMatrix` is the authority for this list. In target-conformance mode, the PRD UI surface and approved target scope are the authority. Mark an inapplicable state `<state>:n/a` explicitly rather than omitting it.
+When the product has a required design system, `design-system.json`'s `stateMatrix` is the authority for this list. In target-conformance mode, the PRD UI surface and approved target scope are the authority. Keep PLAN `states` as product states. Use optional `design_coverage` to account for remaining global states with one condition or a reasoned exclusion. Legacy plans may mark an inapplicable state `<state>:n/a` explicitly rather than omitting it.
 
 ## New Build Flow
 

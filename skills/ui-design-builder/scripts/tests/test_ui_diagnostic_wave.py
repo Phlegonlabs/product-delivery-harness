@@ -47,17 +47,25 @@ class DiagnosticWaveTests(unittest.TestCase):
             "pages": [{"path": "child.html", "sha256": self.sha(self.child)}],
             "interactions": [],
         }
-        index_source = fixture.add_shell(fixture._source_html(index_surface, component_types=("button",), version=3),
-                                         self.manifest, component_types=("button",), version=3)
-        child_source = fixture.add_shell(fixture._source_html(child_surface, component_types=("button",), version=3),
-                                         self.manifest, page="child.html", component_types=("button",), version=3)
+        index_source = self.with_csp(fixture.add_shell(
+            fixture._source_html(index_surface, component_types=("button",), version=3),
+            self.manifest, component_types=("button",), version=3,
+        ))
+        child_source = self.with_csp(fixture.add_shell(
+            fixture._source_html(child_surface, component_types=("button",), version=3),
+            self.manifest, page="child.html", component_types=("button",), version=3,
+        ))
         self.child.write_text(child_source, encoding="utf-8", newline="")
         self.child_bytes = self.child.read_bytes()
         self.manifest["pages"] = [{"path": "child.html", "sha256": self.sha(self.child)}]
-        manifest_script = ('<script id="ui-hifi-manifest" type="application/json">'
-                           + json.dumps(self.manifest) + "</script>")
+        index_source = index_source.replace(
+            "</head>",
+            '<script id="ui-hifi-manifest" type="application/json">'
+            + json.dumps(self.manifest) + "</script></head>",
+            1,
+        )
         subject = self.root / "index.html"
-        subject.write_text(manifest_script + index_source, encoding="utf-8", newline="")
+        subject.write_text(index_source, encoding="utf-8", newline="")
         self.subject = self.binding(subject)
         self.prd = self.root / "PRD.md"
         self.prd.write_text("# Frozen PRD", encoding="utf-8", newline="")
@@ -74,6 +82,13 @@ class DiagnosticWaveTests(unittest.TestCase):
 
     def binding(self, path: Path) -> dict[str, str]:
         return {"path": path.relative_to(self.root).as_posix(), "sha256": self.sha(path)}
+
+    def with_csp(self, html: str) -> str:
+        policy = ui_contract.check_wireframe_html.REQUIRED_HIFI_CSP.replace(
+            "navigate-to 'none'", "navigate-to 'self'"
+        )
+        meta = f'<meta http-equiv="Content-Security-Policy" content="{policy}">'
+        return html.replace("<head>", "<head>" + meta, 1)
 
     def write(self, path: Path, payload: object) -> dict[str, str]:
         path.write_text(json.dumps(payload), encoding="utf-8", newline="")

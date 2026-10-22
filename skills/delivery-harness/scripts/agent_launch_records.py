@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 from agent_role_bindings import (
-    role_binding,
+    binding_for_runtime,
 )
+from agent_role_policy_updates import runtime_for_reservation
 from agent_role_contract import (
     COMPLETION_KINDS,
     LAUNCH_FALLBACK_KEYS,
@@ -240,9 +241,10 @@ def validate_launch_record(
         errors.append(f"{prefix}.reasoning_effort: does not match the explicit reserved request")
     original_role = record.get("fallback_from_role")
     if original_role is not None:
-        original_policy = role_binding(run, original_role)
+        policy_runtime = runtime_for_reservation(run, assignment_kind, reserved, node_id)
+        original_policy = binding_for_runtime(policy_runtime, original_role)
         resolved_role = record.get("resolved_role")
-        target_policy = role_binding(run, resolved_role)
+        target_policy = binding_for_runtime(policy_runtime, resolved_role)
         if original_policy is None or original_policy.get("fallback_role") != resolved_role:
             errors.append(f"{prefix}.resolved_role: is not the predecessor binding's configured fallback_role")
         if target_policy is None:

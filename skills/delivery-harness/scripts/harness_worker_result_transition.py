@@ -526,6 +526,19 @@ def _record_passing_result(
         )
         return
 
+    _project_passing_result(plan, run, node_result, worker_result, retained_results)
+
+
+def _project_passing_result(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    node_result: dict[str, Any],
+    worker_result: dict[str, Any],
+    retained_results: list[dict[str, Any]],
+    *,
+    preserve_failed_dispatch: bool = False,
+) -> None:
+    """Project a fully validated pass; recovery retains the rejected dispatch."""
     node = _mission_node(plan, node_result["node_id"])
     mission_id = node.get("ref")
     node_state = run["graph_state"]["node_states"][node["id"]]
@@ -621,7 +634,7 @@ def _record_passing_result(
         ),
         None,
     )
-    if isinstance(dispatch, dict):
+    if isinstance(dispatch, dict) and not preserve_failed_dispatch:
         dispatch["result"] = "worker_passed"
         evidence = dispatch.setdefault("evidence", [])
         _extend_unique(evidence, node_result.get("evidence_paths", []))

@@ -137,6 +137,8 @@ Allowed status/outcome pairs:
 
 ## Contract Adoption Check
 
+The narrow [rejected-ingestion recovery](agent-execution-receipts.md#rejected-ingestion-of-a-passing-result) validates an unchanged original result against its snapshot-bound adoption. It never changes ordinary current-adoption checks. A fresh reviewer must read and attest the current adopted contract.
+
 When the directive or review packet carries `contract_adoption`, the worker or reviewer recomputes the seven-skill contract digest itself, reads the fixed contract, and returns this object as `contract_adoption_check`:
 
 ```json

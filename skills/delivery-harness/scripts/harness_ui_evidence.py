@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_design_contract import validate_design_system_registry
+from harness_design_coverage import surface_capture_rows, validate_design_coverage
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_core import (
     _add,
@@ -630,7 +631,13 @@ def _validate_ui_evidence(
         else:
             surface_route = surface.get("route")
             surface_breakpoints = surface.get("breakpoints")
-            surface_states = surface.get("states")
+            if "design_coverage" in surface:
+                capture_rows, projection_errors = surface_capture_rows(surface)
+                errors.extend(projection_errors)
+                declared_state_names = {row["state"] for row in capture_rows}
+            else:
+                # Keep exact legacy membership, including its n/a spelling.
+                declared_state_names = surface.get("states") or []
             if not _nonempty_string(surface_route) or item["route"] != surface_route:
                 _add(errors, f"{path}.route", "does not match the PLAN UI surface")
             if (
@@ -638,7 +645,7 @@ def _validate_ui_evidence(
                 or item["breakpoint"] not in surface_breakpoints
             ):
                 _add(errors, f"{path}.breakpoint", "is not planned for this UI surface")
-            if not isinstance(surface_states, list) or item["state"] not in surface_states:
+            if not isinstance(declared_state_names, (list, set)) or item["state"] not in declared_state_names:
                 _add(errors, f"{path}.state", "is not planned for this UI surface")
         key = (
             item["surface_id"],
@@ -714,26 +721,28 @@ def _validate_ui_evidence(
         return
     required: set[tuple[str, str, str, str]] = set()
     for surface in surfaces.values():
-        route = surface.get("route")
-        breakpoints = surface.get("breakpoints")
-        states = surface.get("states")
         if (
             surface.get("evidence_gate") != "required"
-            or not _nonempty_string(route)
-            or not isinstance(breakpoints, list)
-            or not isinstance(states, list)
+            or not _nonempty_string(surface.get("route"))
         ):
             continue
-        # A state a surface genuinely cannot have is declared as `<state>:n/a`.
-        # It still counts as considered for design coverage, but there is no
-        # screenshot to capture for it, so it is not required evidence here.
-        required.update(
-            (surface["id"], route, breakpoint, state)
-            for breakpoint in breakpoints
-            if _nonempty_string(breakpoint)
-            for state in states
-            if _nonempty_string(state) and not _state_marker(state)[1]
-        )
+        if "design_coverage" in surface:
+            capture_rows, projection_errors = surface_capture_rows(surface)
+            errors.extend(projection_errors)
+            required.update(
+                (row["surface_id"], row["route"], row["breakpoint"], row["state"])
+                for row in capture_rows
+            )
+        else:
+            if not isinstance(surface.get("breakpoints"), list) or not isinstance(surface.get("states"), list):
+                continue
+            required.update(
+                (surface["id"], surface["route"], breakpoint, state)
+                for breakpoint in surface.get("breakpoints") or []
+                if _nonempty_string(breakpoint)
+                for state in surface.get("states") or []
+                if _nonempty_string(state) and not _state_marker(state)[1]
+            )
     for key in sorted(required - passed):
         _add(
             errors,
@@ -936,20 +945,13 @@ def validate_ui_surface_design_registry(
                         else list(values) if isinstance(values, list) else []
                     )
 
-        states = surface.get("states")
-        covered_states: set[str] = set()
-        if isinstance(states, list):
-            for state in states:
-                if _nonempty_string(state):
-                    covered_states.add(_state_marker(state)[0])
-        for state in sorted(required_states - covered_states):
-            _add(
-                errors,
-                plan_path,
-                f"surface {surface_label} route {route} omits state {state} required "
-                f"by the design system's stateMatrix; list it as {state}:n/a when the "
-                f"surface cannot have it",
+        errors.extend(
+            validate_design_coverage(
+                surface,
+                required_states,
+                base_path=f"{plan_path}.design_coverage",
             )
+        )
 
         breakpoints = surface.get("breakpoints")
         covered_breakpoints = (

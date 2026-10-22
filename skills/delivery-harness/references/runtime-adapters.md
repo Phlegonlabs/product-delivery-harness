@@ -30,6 +30,19 @@ Discover the effective instruction chain from repository root to the assigned ch
 
 If a selector directive carries `contract_adoption`, that object is an owner-authorized fixed-contract re-read in the parent session—not proof of what the host loaded at startup. Before any worker or reviewer action, the fresh child independently recomputes the seven-skill digest, compares it with the receipt, reads the fixed contract, and reports that reading evidence as `contract_adoption_check` (`worker-result-contract.md`). Stop on mismatch; never copy the parent receipt as child evidence.
 
+
+## Host Role-Policy Updates
+
+Use `harness_transition.py ... update-role-bindings` only after explicit owner direction changes host role choices. This is separate from contract adoption. It changes no PLAN, provider, grant, skill pin, attempt or outcome.
+
+The parent holds the durable RUN lock. The existing OS lock and final PLAN/RUN compare-and-swap still apply. The current pair must validate, and `run_complete` execution authority must survive. Complete or cancelled runs, active/proposed waves, live workers/reviewers, running nodes and reserved node attempts block the update.
+
+Pass an absolute, checkout-external JSON file with one replacement object per existing logical role. The file is limited to 1 MiB. Duplicate, unknown and malformed keys fail. Validate the complete proposed map and its required available capability probes. Evidence strings are data. Explicit incompatible PLAN model or effort choices remain blocking. Models remain host/owner data; this command supplies no shared model default.
+
+RUN optionally retains `role_binding_updates` schema 1. Each update records owner source, parent session/time, patch identity, before/after maps and canonical SHA-256 digests. It captures exact reservation boundaries, input/candidate identities, binding identities and launch digests. Reservations freeze at their first boundary. Historical lookup joins kind, assignment, node, worker and attempt together. A role or old model alone never selects history. New reservations resolve only the current map.
+
+Identical replay keeps canonical bytes unchanged. Conflicting update-ID reuse fails. The history chain must end at the current map. Runs without this extension keep their prior validation semantics. This is no legacy migration, retry grant, fallback grant, attempt reset or PASS. Mandatory frontend skills, ownership, independent reviews and receipt checks remain binding.
+
 ## Authorization And Dispatch
 
 The parent owns authorization, PLAN/RUN, dispatch, leases, integration and lifecycle actions. This adapter grants none of them and does not own shared state. Follow every `dispatchable_nodes[].required_actions` exactly. Never infer extra authorization. A review app task needs `create_user_owned_tasks`; a direct-subagent review needs `spawn_subagents`. A capability probe that launches a child needs the same applicable authorization.

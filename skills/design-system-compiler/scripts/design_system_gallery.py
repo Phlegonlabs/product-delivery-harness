@@ -15,7 +15,12 @@ from html import escape
 from typing import Any
 
 import design_system_showcase as source
-from design_system_gallery_assets import FRAME_RUNTIME, GALLERY_CSS, GALLERY_RUNTIME
+import showcase_runtime
+import source_script_order as script_order
+import surface_adapter
+from design_system_gallery_assets import FRAME_RUNTIME, FRAME_RUNTIME_DISCLOSURE, GALLERY_CSS, GALLERY_RUNTIME
+from design_system_gallery_runtime import runtime_plate
+from design_system_runtime_assets import RUNTIME_BOOT, RUNTIME_CSS, RUNTIME_FRAME, RUNTIME_GALLERY
 
 LAYERS = ("layout", "surface", "typography", "control")
 NATIVE_CLASSES = {"ios", "android", "macos", "windows", "desktop"}
@@ -57,14 +62,46 @@ def _num(value: str) -> float | None:
 class Gallery:
     def __init__(self, registry: dict[str, Any], registry_bytes: bytes, markdown_bytes: bytes,
                  documents: dict[str, str], manifest: dict[str, Any], resolved: dict[str, dict[str, Any]],
-                 hifi_binding: dict[str, str]) -> None:
+                 hifi_binding: dict[str, str], runtime: dict[str, dict[str, Any]] | None = None) -> None:
         self.registry, self.documents, self.manifest, self.resolved = registry, documents, manifest, resolved
         self.registry_bytes, self.markdown_bytes, self.hifi = registry_bytes, markdown_bytes, hifi_binding
         self.trees = {page: source.SourceTree(html) for page, html in documents.items()}
         self.surfaces = [row for row in manifest.get("surfaces", []) if isinstance(row, dict)]
-        scripts = [GALLERY_RUNTIME, FRAME_RUNTIME]
+        self.v2 = registry["showcase"].get("schema") == showcase_runtime.SCHEMA_V2
+        self.runtime = runtime or {}
+        runtime_rows = [row for row in registry["showcase"]["motion"] if showcase_runtime.is_runtime(row)]
+        if any(row["variant"] not in self.runtime for row in runtime_rows):
+            raise ValueError("source-runtime motion rows need resolved runtime bindings before rendering")
+        scripts = [GALLERY_RUNTIME, FRAME_RUNTIME] + ([RUNTIME_FRAME, RUNTIME_BOOT, RUNTIME_GALLERY] if runtime_rows else [])
+        self.has_runtime = bool(runtime_rows)
+        # ds-showcase/2 component plates keep a specimen's native <details> context (design_system_showcase.disclosure_context).
+        self.disclosures: dict[str, dict[str, Any]] = {}
+        for specimen_id, bound in resolved.items() if self.v2 else ():
+            context, problem = source.disclosure_context(bound["tree"], bound["node"])
+            if problem:
+                raise ValueError(f"showcase specimen {specimen_id} {problem}")
+            if context is not None:
+                self.disclosures[specimen_id] = context
+        if self.disclosures:
+            scripts.append(FRAME_RUNTIME_DISCLOSURE)
         for page in sorted({row.get("page") for row in self.surfaces if row.get("page") in documents}):
             scripts.extend(source.product_scripts(documents[page], with_controls=True))
+        # ds-showcase/2 Surface plates run the page's own reviewer infrastructure (surface_adapter).
+        self.surface_bindings: dict[str, dict[str, Any]] = {}
+        if self.v2:
+            self.surface_bindings, problems = surface_adapter.resolve_surfaces(self.trees, manifest)
+            if problems:
+                raise ValueError("\n".join(problems))
+            if self.surface_bindings:
+                scripts += [surface_adapter.SURFACE_FOCUS_GUARD, surface_adapter.SURFACE_CLIPBOARD_GUARD,
+                            surface_adapter.SURFACE_FRAME, surface_adapter.SURFACE_GALLERY]
+                scripts += [binding["connect"] for binding in self.surface_bindings.values()]
+            # Surface and source-runtime plates run every source script occurrence from its slot through one pinned loader.
+            if self.surface_bindings or runtime_rows:
+                scripts += [script_order.LOADER, surface_adapter.SURFACE_FOCUS_GUARD]
+                scripts += [body for binding in self.surface_bindings.values() for body in script_order.bodies(binding["order"])]
+                scripts += [body for binding in self.runtime.values()
+                            for body in script_order.bodies(script_order.inventory(binding["tree"], binding["surface"], "")[0])]
         self.csp = content_security_policy(scripts)
         self.frame_count = 0
         self.specimen_frames: dict[str, str] = {}
@@ -77,32 +114,42 @@ class Gallery:
             return any(isinstance(contracts.get(item), dict) and contracts[item].get("surfaceClass") in NATIVE_CLASSES for item in ids)
         return self.registry.get("platform") not in (None, "web")
 
-    def frame(self, page: str, node: dict[str, Any], *, kind: str, title: str, config: dict[str, Any]) -> tuple[str, str, float]:
+    def frame(self, page: str, node: dict[str, Any], *, kind: str, title: str, config: dict[str, Any],
+              context: dict[str, Any] | None = None) -> tuple[str, str, float]:
         self.frame_count += 1
         frame_id = f"plate-{self.frame_count:03d}"
         tree, html = self.trees[page], self.documents[page]
-        html_start, body_start, content = source.fragment(tree, node, marker=frame_id)
         css = source.product_css(html)
         reduced = source.reduced_motion_css(css)
-        scripts = source.product_scripts(html, with_controls=kind == "surface")
+        surface = self.surface_bindings.get(str(config.get("surface"))) if self.v2 and kind == "surface" else None
+        if self.v2 and kind == "surface" and surface is None:
+            raise ValueError(f"Surface plate {config.get('surface')} has no validated reviewer infrastructure")
+        html_start, body_start, content = (script_order.plate_markup(tree, node, surface["order"], frame_marker=frame_id)
+                                           if surface else source.fragment(tree, node, marker=frame_id, context=context))
+        scripts = surface["scripts"] if surface else source.product_scripts(html, with_controls=kind == "surface")
         payload = json.dumps(dict(config, id=frame_id, kind=kind), sort_keys=True, ensure_ascii=False).replace("</", "<\\/")
         document = ("<!doctype html>" + html_start + '<head><meta charset="utf-8">'
                     + f'<meta http-equiv="Content-Security-Policy" content="{escape(self.csp, quote=True)}">'
                     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
                     + "<style>html,body{margin:0}</style>" + f"<style>{css}</style>"
                     + (f'<style data-ds-reduced media="not all">{reduced}</style>' if reduced.strip() else "")
-                    + f'<script type="application/json" id="ds-frame-config">{payload}</script></head>'
-                    + body_start + content + "".join(f"<script>{item}</script>" for item in scripts)
-                    + f"<script>{FRAME_RUNTIME}</script></body></html>")
+                    + f'<script type="application/json" id="ds-frame-config">{payload}</script>'
+                    + (script_order.inventory_json(surface["order"]) + f"<script>{surface_adapter.SURFACE_FOCUS_GUARD}</script>"
+                       + f"<script>{surface_adapter.SURFACE_CLIPBOARD_GUARD}</script>" if surface else "") + "</head>"
+                    + body_start + content + (surface["infrastructure"] if surface else "")
+                    + "".join(f"<script>{item}</script>" for item in scripts)
+                    + f"<script>{surface_adapter.SURFACE_FRAME if surface else FRAME_RUNTIME_DISCLOSURE if context else FRAME_RUNTIME}</script>"
+                    + (f"<script>{script_order.LOADER}</script>" if surface else "") + "</body></html>")
         widths = source.canvas_widths(tree)
         width = widths.get(source.specimen_target(tree, node) or "", 0.0) or 360.0
-        iframe = (f'<iframe data-ds-frame="{frame_id}" title="{escape(title, quote=True)}" sandbox="allow-scripts" '
+        marker = " data-ds-surface-frame" if surface else ""
+        iframe = (f'<iframe data-ds-frame="{frame_id}"{marker} title="{escape(title, quote=True)}" sandbox="allow-scripts" '
                   f'referrerpolicy="no-referrer" style="width:{width:g}px" srcdoc="{escape(document, quote=True)}"></iframe>')
         return frame_id, iframe, width
 
     def plate(self, page: str, node: dict[str, Any], *, kind: str, title: str, caption: str,
-              config: dict[str, Any] | None = None, controls: str = "") -> tuple[str, str]:
-        frame_id, iframe, _ = self.frame(page, node, kind=kind, title=title, config=config or {})
+              config: dict[str, Any] | None = None, controls: str = "", context: dict[str, Any] | None = None) -> tuple[str, str]:
+        frame_id, iframe, _ = self.frame(page, node, kind=kind, title=title, config=config or {}, context=context)
         badge = ('<p class="native">HTML demonstration of an approved native design. Not native evidence.</p>'
                  if self.native(page) else "")
         return frame_id, (f'<figure class="plate" id="{frame_id}"><div class="plate-stage">{iframe}</div>'
@@ -225,7 +272,8 @@ class Gallery:
                 caption = (f"<b>{escape(axes)}</b>, state {escape(src['state'])}<br>"
                            f"Source <code>{escape(src['page'])}</code> <code>{escape(src['selector'])}</code> "
                            f"variant <code>{escape(src['variant'])}</code>")
-                frame_id, html = self.plate(src["page"], bound["node"], kind="specimen", title=f"{name} {axes} {src['state']}", caption=caption)
+                frame_id, html = self.plate(src["page"], bound["node"], kind="specimen", title=f"{name} {axes} {src['state']}",
+                                            caption=caption, context=self.disclosures.get(row["id"]))
                 self.specimen_frames[row["id"]] = frame_id
                 plates.append(html)
             parts.append('<div class="plates">' + "".join(plates) + "</div>")
@@ -264,13 +312,25 @@ class Gallery:
             else:
                 link = f'<a href="#{frames.get(row["specimen"], "")}">plate {escape(row["specimen"])}</a>'
                 selector = self.registry_specimen(row["specimen"])["source"]["selector"]
+                rule = f"{selector}:{row['state']}"
+                if self.v2 and row["mode"] == "pseudo":
+                    rule = self.pseudo_rule(row) or rule
                 treatment = (f"Rendered from its own source element, {link}" if row["mode"] == "rendered" else
-                             f"Live on {link}: {escape(row['state'])} applies the approved <code>{escape(selector)}:{escape(row['state'])}</code> rule")
+                             f"Live on {link}: {escape(row['state'])} applies the approved <code>{escape(rule)}</code> rule")
             rows.append(f'<tr><th scope="row">{escape(row["state"])}</th><td>{treatment}</td></tr>')
         if not rows:
             return ""
         return ('<h4>States</h4><div class="table-scroll"><table><thead><tr><th scope="col">State</th>'
                 '<th scope="col">Treatment</th></tr></thead><tbody>' + "".join(rows) + "</tbody></table></div>")
+
+    def pseudo_rule(self, row: dict[str, Any]) -> str | None:
+        """Name the shared ancestor-scoped rule when no direct selector rule backs a pseudo state."""
+        bound = self.resolved[row["specimen"]]
+        page_css = source.analysis_css(self.documents[bound["row"]["source"]["page"]])
+        selector = re.escape(bound["row"]["source"]["selector"])
+        if re.search(selector + r"(?![\w-])[^\s{},>+~]*:" + re.escape(row["state"]) + r"(?![\w-])", page_css):
+            return None
+        return showcase_runtime.shared_pseudo_rule(page_css, bound["tree"], bound["node"], row["state"])
 
     def registry_specimen(self, specimen_id: str) -> dict[str, Any]:
         return next(row for row in self.registry["showcase"]["specimens"] if row["id"] == specimen_id)
@@ -310,8 +370,10 @@ class Gallery:
                         + "</div>")
             caption = (f"<b>{escape(str(surface_id))}</b> <code>{escape(str(surface.get('route', '')))}</code> "
                        f"from <code>{escape(str(page))}</code>")
+            config = ({"surface": str(surface_id), "state": states[0] if states else None, "target": targets[0] if targets else None}
+                      if self.v2 else {"state": states[0] if states else None})
             _, html = self.plate(page, node, kind="surface", title=f"{surface_id} live surface", caption=caption,
-                                 config={"state": states[0] if states else None}, controls=controls)
+                                 config=config, controls=controls)
             parts.append(f'<h3 id="s-{_slug(str(surface_id))}">{escape(str(surface_id))}</h3>{html}')
             rows = [row for row in interactions if isinstance(row.get("source"), dict) and row["source"].get("surface") == surface_id]
             if rows:
@@ -331,9 +393,17 @@ class Gallery:
                  "<p>Replay each approved motion on its source element or stop it mid-flight. Reduced motion applies the page's own "
                  "<code>prefers-reduced-motion</code> rules; your system preference sets its initial state.</p>",
                  '<div class="toolbar controls"><button type="button" data-ds-reduced-toggle aria-pressed="false">Reduced motion</button></div>']
+        if self.has_runtime:
+            parts.insert(3, "<p>Source-runtime plates run the approved surface and its hash-bound product script in a fresh "
+                         "frame. Their status reports only what the browser observes on the bound subject. This page is a "
+                         "render candidate; compilation closes only with a separate browser acceptance receipt for these exact bytes.</p>")
         if not rows:
             parts.append("<p>No motion variants are registered for this product.</p>")
         for row in rows:
+            if showcase_runtime.is_runtime(row):
+                parts.append(f'<h3 id="m-{_slug(row["variant"])}">{escape(row["variant"])}</h3>'
+                             + runtime_plate(self, row, self.runtime[row["variant"]]))
+                continue
             bound = self.resolved[row["specimen"]]
             src = bound["row"]["source"]
             trigger = row["trigger"]
@@ -401,7 +471,8 @@ class Gallery:
         return ("<!doctype html>\n" + '<html lang="en"><head><meta charset="utf-8">'
                 f'<meta http-equiv="Content-Security-Policy" content="{escape(self.csp, quote=True)}">'
                 '<meta name="viewport" content="width=device-width,initial-scale=1">'
-                f"<title>{product}: design system</title><style>{GALLERY_CSS}</style></head><body>"
+                f"<title>{product}: design system</title><style>{GALLERY_CSS}</style>"
+                + (f"<style>{RUNTIME_CSS}</style>" if self.has_runtime else "") + "</head><body>"
                 '<a class="skip" href="#main">Skip to the specimens</a>'
                 f'<header class="masthead"><div><h1>{product}</h1><p class="lede">Design system specimen book, derived from the approved HiFi. '
                 f"Markdown and JSON remain the contract; this page is regenerated from them and cannot approve anything.</p></div>"
@@ -409,9 +480,12 @@ class Gallery:
                 f'<dt>Approved HiFi</dt><dd><code>{escape(str(self.hifi.get("path")))}</code></dd><dt>HiFi sha256</dt><dd class="hash">{escape(str(self.hifi.get("sha256")))[:16]}</dd></dl></header>'
                 f'<div class="book"><nav class="index" aria-label="Specimen book contents"><ol>{index}</ol></nav>'
                 f'<main id="main" tabindex="-1">{self.foundations()}{components}{surfaces}{motion}{self.traceability()}</main></div>'
-                f"<script>{GALLERY_RUNTIME}</script></body></html>\n")
+                f"<script>{GALLERY_RUNTIME}</script>"
+                + (f"<script>{RUNTIME_GALLERY}</script>" if self.has_runtime else "")
+                + (f"<script>{surface_adapter.SURFACE_GALLERY}</script>" if self.surface_bindings else "") + "</body></html>\n")
 
 
 def render_gallery(registry: dict[str, Any], registry_bytes: bytes, markdown_bytes: bytes, documents: dict[str, str],
-                   manifest: dict[str, Any], resolved: dict[str, dict[str, Any]], hifi_binding: dict[str, str]) -> str:
-    return Gallery(registry, registry_bytes, markdown_bytes, documents, manifest, resolved, hifi_binding).render()
+                   manifest: dict[str, Any], resolved: dict[str, dict[str, Any]], hifi_binding: dict[str, str],
+                   runtime: dict[str, dict[str, Any]] | None = None) -> str:
+    return Gallery(registry, registry_bytes, markdown_bytes, documents, manifest, resolved, hifi_binding, runtime).render()

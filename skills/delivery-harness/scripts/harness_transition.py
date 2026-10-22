@@ -312,10 +312,12 @@ DEFAULT_LOCK_STALE_MINUTES = 15
 # the calling session to already hold the run lock.
 DISPATCH_COMMANDS = {
     "adopt-runtime-contract",
+    "update-role-bindings",
     "accept-wave",
     "lease-worker",
     "record-launch-observation",
     "record-worker-result",
+    "reconcile-worker-ingestion",
     "reject-worker-result",
     "reserve-review-dispatch",
     "bind-review-task-thread",
@@ -329,6 +331,7 @@ DISPATCH_COMMANDS = {
 TASK_VIEW_CHECKPOINTS = {
     "accept-wave",
     "record-worker-result",
+    "reconcile-worker-ingestion",
     "reject-worker-result",
     "record-integration",
     "reconcile-candidate-head",
@@ -987,6 +990,47 @@ def _record_observation(
         })
 
 
+def _quiescent_integration_pending(
+    plan: dict[str, Any], run: dict[str, Any], node_id: str,
+) -> dict[str, str] | None:
+    """Identify only a passed, reviewed mission whose integration is pending."""
+    from harness_manifest import preintegration_review_errors
+
+    nodes = [node for node in plan.get("graph", {}).get("nodes", [])
+             if isinstance(node, dict) and node.get("id") == node_id and node.get("kind") == "mission"]
+    if len(nodes) != 1:
+        return None
+    mission_id = nodes[0].get("ref")
+    if not _nonempty_string(mission_id):
+        return None
+    if sum(node.get("kind") == "mission" and node.get("ref") == mission_id
+           for node in plan.get("graph", {}).get("nodes", []) if isinstance(node, dict)) != 1:
+        return None
+    state = run.get("graph_state", {}).get("node_states", {}).get(node_id, {})
+    mission_states = run.get("mission_states")
+    mission = mission_states.get(mission_id) if isinstance(mission_states, dict) else None
+    if not isinstance(mission, dict):
+        return None
+    if state.get("phase") != "running" or mission.get("phase") != "worker_passed":
+        return None
+    workers = [worker for worker in run.get("workers", []) if isinstance(worker, dict)
+               and worker.get("worker_id") == state.get("bound_worker_id")]
+    if len(workers) != 1:
+        return None
+    worker = workers[0]
+    head = mission.get("head_sha")
+    if (worker.get("phase") != "worker_passed" or worker.get("mission_id") != mission_id
+            or worker.get("worker_id") != mission.get("worker_id")
+            or not _nonempty_string(worker.get("lease_id"))
+            or worker.get("lease_id") != mission.get("lease_id")
+            or not _nonempty_string(worker.get("attempt_id"))
+            or worker.get("attempt_id") != state.get("last_attempt_id")
+            or not is_full_sha(head) or worker.get("worker_head_sha") != head
+            or preintegration_review_errors(plan, run, mission_id)):
+        return None
+    return {"mission_id": mission_id, "node_id": node_id, "head_sha": head}
+
+
 def _adopt_runtime_contract(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
 ) -> None:
@@ -1012,11 +1056,18 @@ def _adopt_runtime_contract(
         if isinstance(worker, dict)
         and worker.get("phase") in {"leased", "worker_running"}
     )
-    running_nodes = sorted(
+    integration_pending = []
+    running_nodes = []
+    for node_id in sorted(
         str(node_id)
         for node_id, state in run.get("graph_state", {}).get("node_states", {}).items()
         if isinstance(state, dict) and state.get("phase") == "running"
-    )
+    ):
+        proof = _quiescent_integration_pending(plan, run, node_id)
+        if proof is None:
+            running_nodes.append(node_id)
+        else:
+            integration_pending.append(proof)
     reserved_attempts = sorted(
         str(attempt.get("attempt_id"))
         for attempt in run.get("attempt_log", [])
@@ -1117,6 +1168,8 @@ def _adopt_runtime_contract(
                 f"owner_source={owner_source}",
                 f"installed_contract_digest={installed_digest}",
                 "loaded_contract_digest=null",
+                *(f"integration_pending mission={proof['mission_id']} node={proof['node_id']} head={proof['head_sha']}"
+                  for proof in integration_pending),
                 *reading_evidence,
             ],
         }
@@ -2605,6 +2658,7 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "lease_plan_digest_sha256": digest,
             "worker_id": args.worker_id,
             "base_sha": base_sha,
+            "head_sha": None,
             "blockers": [],
         }
     )
@@ -2740,6 +2794,9 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
             f"integration branch HEAD is {live_head}, not {args.integrated_sha}; "
             "integrate first, then record"
         )
+    from harness_integration_results import retain_integration_results
+
+    retain_integration_results(plan, run, args)
     previous_head = run.get("integration", {}).get("integration_head_sha")
     if is_full_sha(previous_head) and previous_head != args.integrated_sha:
         inactive_skips = _inactive_skipped_integration_reviews(plan, run)
@@ -3911,7 +3968,7 @@ def _open_windows_parent_chain(path: Path) -> list[tuple[Any, int]]:
 
 
 def _replace_run_document(
-    path: Path, run: dict[str, Any], expected_text: str | None = None
+    path: Path, run: dict[str, Any], expected_text: str | None = None, *, before_commit=None
 ) -> None:
     path = Path(path)
     _assert_non_reparse_path(path)
@@ -3926,7 +3983,8 @@ def _replace_run_document(
     body = json.dumps({"harness_run": run}, indent=2, ensure_ascii=False)
     updated = text[:body_start] + body + text[fence_end:]
     _replace_document_text(
-        path, updated, expected_text=text if expected_text is None else expected_text
+        path, updated, expected_text=text if expected_text is None else expected_text,
+        before_commit=before_commit,
     )
 
 
@@ -3986,7 +4044,7 @@ def _replace_document_text(
             )
         _run_replace_commit_boundary(path)
         if before_commit is not None:
-            before_commit()
+            before_commit(Path(temp_name))
         current_version = _run_document_version_token(
             path,
             parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
@@ -5226,6 +5284,11 @@ def build_parser() -> argparse.ArgumentParser:
     adoption_parser.add_argument("--owner-source", required=True)
     adoption_parser.add_argument("--reading-evidence", action="append", required=True)
     adoption_parser.add_argument("--expected-contract-digest", required=True)
+    role_policy = subparsers.add_parser("update-role-bindings")
+    role_policy.add_argument("--policy", type=Path, required=True)
+    role_policy.add_argument("--expected-role-bindings-sha256", required=True)
+    role_policy.add_argument("--update-id", required=True)
+    role_policy.add_argument("--owner-source", required=True)
     wave_command = subparsers.add_parser("accept-wave")
     wave_command.add_argument("--wave-id", required=True)
     wave_command.add_argument("--mission-id", action="append", required=True)
@@ -5278,6 +5341,15 @@ def build_parser() -> argparse.ArgumentParser:
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
     worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
+    ingestion = subparsers.add_parser("reconcile-worker-ingestion")
+    ingestion.add_argument("--node-result", required=True, type=Path)
+    ingestion.add_argument("--worker-result", required=True, type=Path)
+    ingestion.add_argument("--result-receipt", required=True, type=Path)
+    ingestion.add_argument("--original-run", required=True, type=Path)
+    ingestion.add_argument("--expected-original-run-sha256", required=True)
+    ingestion.add_argument("--verifier-result", action="append", required=True, type=Path)
+    ingestion.add_argument("--reconciliation-id", required=True)
+    ingestion.add_argument("--source", required=True)
     rejected = subparsers.add_parser("reject-worker-result")
     rejected.add_argument("--failure-receipt", type=Path)
     rejected.add_argument("--node-id", required=True)
@@ -5289,6 +5361,7 @@ def build_parser() -> argparse.ArgumentParser:
     integration = subparsers.add_parser("record-integration")
     integration.add_argument("--mission-id", required=True)
     integration.add_argument("--integrated-sha", required=True)
+    integration.add_argument("--verifier-result", type=Path, action="append", default=[])
     candidate = subparsers.add_parser("reconcile-candidate-head")
     candidate.add_argument("--candidate-sha", required=True)
     candidate.add_argument("--source", required=True)
@@ -5456,6 +5529,18 @@ def _transition_under_lock(
         _skip_integration_review(plan, run, args)
     elif args.command == "record-observation":
         _record_observation(plan, run, args)
+    elif args.command == "update-role-bindings":
+        from agent_role_policy_updates import update_role_bindings
+
+        errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
+        if errors:
+            raise ManifestError("role-policy update requires a valid current RUN: " + "; ".join(errors))
+        receipt = update_role_bindings(plan, run, args)
+        if not receipt["recorded"]:
+            _ensure_plan_unchanged(args.plan, expected_plan_text)
+            if args.run.read_text(encoding="utf-8") != original_text:
+                raise ManifestError("RUN changed during role-policy update replay")
+            return receipt, None, False
     elif args.command == "adopt-runtime-contract":
         _adopt_runtime_contract(plan, run, args)
     elif args.command == "accept-wave":
@@ -5470,6 +5555,10 @@ def _transition_under_lock(
         _lease_worker(plan, run, args)
     elif args.command == "record-worker-result":
         receipt = record_worker_result(plan, run, args)
+    elif args.command == "reconcile-worker-ingestion":
+        from harness_worker_ingestion_transition import reconcile_worker_ingestion
+
+        receipt = reconcile_worker_ingestion(plan, run, args)
     elif args.command == "reject-worker-result":
         receipt = reject_worker_result(plan, run, args)
     elif args.command == "record-integration":
@@ -5565,8 +5654,24 @@ def _transition_under_lock(
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
         verify_worker_observation(observation)
+    if args.command == "reconcile-worker-ingestion":
+        from harness_worker_ingestion_transition import verify_ingestion_before_commit
+
+        verify_ingestion_before_commit(plan, run, args)
+    before_commit = None
+    if args.command == "record-integration":
+        from harness_integration_results import verify_integration_observation
+
+        verify_integration_observation(args)
+
+        def recheck_integration(pending: Path) -> None:
+            # Recheck at the exchange boundary; only this writer's temporary RUN is new.
+            verify_integration_observation(args, pending)
+            _ensure_plan_unchanged(args.plan, expected_plan_text)
+
+        before_commit = recheck_integration
     _ensure_plan_unchanged(args.plan, expected_plan_text)
-    _replace_run_document(args.run, run, expected_text=original_text)
+    _replace_run_document(args.run, run, expected_text=original_text, before_commit=before_commit)
     if packet is not None:
         from render_review_packet import write_diff_artifact
 

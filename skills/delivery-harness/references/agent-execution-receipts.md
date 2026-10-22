@@ -32,6 +32,12 @@ Canonical payload JSON uses sorted keys, UTF-8, no ASCII escaping, compact comma
 
 All returned outcomes need provenance, not only PASS. A mismatch refuses the transition without changing RUN. The reservation stores `result_receipt`. Subsequent manifest validation rechecks its retained bytes, session and accepted head/outcome. Missing or changed evidence is not a PASS.
 
+## Rejected Ingestion Of A Passing Result
+
+`reconcile-worker-ingestion` covers only the sole inherited mission-head rejection of an original passing result. It requires the original RUN snapshot and SHA-256, original returned-result receipt, matching node and Markdown worker reports, and actual verifier files. The original wave must be closed. The current reservation, candidate, PLAN, failed dispatch and graph must remain unchanged, with surviving `run_complete` authorization.
+
+The command validates the candidate through ordinary admission against its proven original contract adoption. It preserves the current adoption, closed wave, failed dispatch and all attempt counts. A separate audit receipt binds original bytes, launch, adoption and verifier identities. Manifest validation rechecks those joins and retained source bytes. The mission returns to `worker_passed`; its graph node remains `running` until normal review and integration. This command launches no worker and grants no retry, fallback or acceptance waiver. Missing evidence, other failures, downstream effects and replay fail without mutation.
+
 ## Parent-Observed Failures
 
 Do not invent a successful launch when invocation failed before a session existed. Use `reject-worker-result --failure-receipt <json-path>` or a non-passing `record-review-attempt --failure-receipt <json-path>`. A failure receipt uses the same fields, with `kind: launch_failed` and null `session_id` before launch, or `kind: runtime_failed` and the exact recorded session after launch. Never supply both a returned-result receipt and a failure receipt for one response.
@@ -52,3 +58,8 @@ For 0.59+ role-bound delegated missions, `reconcile-interrupted --failure-receip
 For either `lease-worker` or `reserve-review-dispatch`, pass the existing `--fallback-record` evidence. It must name the configured primary-to-fallback mapping, exact stopped predecessor and a fresh attempt. Its error, termination and partial-work evidence must match the retained failure. The logical role remains unchanged; `resolved_role` records the fallback implementation. Recompute the fallback's capabilities, required tools, action grants, capacity and isolation before reserving it. The same review/mission retry budget still applies. Fallback cannot chain from a fallback.
 
 Record the fallback's actual launch with the same fallback evidence. A failed start has a failure receipt, not a fabricated predecessor launch. A runtime failure has both its original launch and failure receipt. Neither receipt grants an action or lets an ineligible UI/reviewer node become parent work.
+
+
+## Role-Policy Boundaries
+
+An owner-authorized [role-policy update](runtime-adapters.md#host-role-policy-updates) preserves each captured reservation, launch and receipt. Historical fallback provenance uses that reservation's exact archived policy view. A fresh fallback still resolves the current mapping and requires explicit availability failure, stopped predecessor and partial-work evidence. Updating policy grants no fallback or retry and changes no result admission rule.

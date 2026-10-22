@@ -189,7 +189,7 @@ class CloseWaveCliTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self._seed_sandbox_observation()
 
-    def _integrate_m1(self) -> None:
+    def _integrate_m1(self, *, record: bool = True, retain_integration: bool = True) -> None:
         result = self.cli(
             "--repo-root", str(self.gitroot),
             "accept-wave", "--wave-id", "W-1", "--mission-id", "M1",
@@ -233,13 +233,14 @@ class CloseWaveCliTests(unittest.TestCase):
                 attempt_id="A-M1-RESULT", lease_id="L-M1", head_sha=self.head,
                 checkout_role="worker",
             ),
-            mf.retained_gate_execution(
+        ]
+        if retain_integration:
+            live["verifier_executions"].append(mf.retained_gate_execution(
                 self.plan, live, self.plan["missions"][0]["integration_verifiers"][0],
                 layer="mission_integration", execution_id="EXEC-I-M1",
                 mission_id="M1", attempt_id=None, lease_id=None,
                 head_sha=self.head,
-            ),
-        ]
+            ))
         save_run_block(self.run_path, live)
 
         result = self.cli(
@@ -254,6 +255,8 @@ class CloseWaveCliTests(unittest.TestCase):
             "--mission-id", "M1", "--result", "pass", "--evidence", "reviewed",
         )
         self.assertEqual(0, result.returncode, result.stderr)
+        if not record:
+            return
         result = self.cli(
             "--repo-root", str(self.gitroot),
             "record-integration", "--mission-id", "M1",

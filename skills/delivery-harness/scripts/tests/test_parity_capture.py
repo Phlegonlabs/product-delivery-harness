@@ -35,7 +35,7 @@ if argv[:1] == ["screenshot"]:
         handle.write(b"\x89PNG\r\n\x1a\nstub")
     raise SystemExit(0)
 if argv[:1] == ["eval"]:
-    body = sys.stdin.read() if not sys.stdin.isatty() else ""
+    body = sys.stdin.read() if "--stdin" in argv else " ".join(argv)
     if "overflowX" in body:
         mode = os.environ.get("STUB_GEOMETRY_MODE", "pass")
         if mode == "exit":
@@ -47,6 +47,8 @@ if argv[:1] == ["eval"]:
             print('{"overflowX": 0, "scanned": 5, "overlaps": []}')
     elif "a[href=" in body:
         print(os.environ.get("STUB_PROBE_RESULT", "false"))
+    elif "prefers-reduced-motion" in body:
+        print("true")
     else:
         print("undefined")
     raise SystemExit(0)

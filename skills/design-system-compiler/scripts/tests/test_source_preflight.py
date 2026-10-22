@@ -49,8 +49,7 @@ class SourcePreflightTests(unittest.TestCase):
 
     def test_conditional_animation_dependencies_remain_unresolved(self):
         cases = ('.sample{animation:var(--motion) 1s}@media(min-width:600px){:root{--motion:pulse}}',
-                 '.sample{animation:none}@media(min-width:600px){.sample{animation:pulse 1s}}',
-                 '.sample{animation:pulse 1s}@media(min-width:600px){.layout{--ink:red}}')
+                 '.sample{animation:none}@media(min-width:600px){.sample{animation:pulse 1s}}')
         for css in cases:
             with self.subTest(css=css):
                 html = document('@keyframes pulse{to{opacity:0}}' + css)

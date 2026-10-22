@@ -447,7 +447,7 @@ flowchart LR
 
 保留的 `ui-design/2` 套件不再製作灰階 Wireframe 或執行 W1–W5 階段。直接用代表視覺研究探索版面、字體、層級與 responsive，再於 HiFi 驗證。舊 Wireframe 工具只供歷史產物唯讀檢視與驗證。
 
-HiFi 提供完整、取自實際樣式的 Design Tokens 頁。`ui-design/3` 包一定編譯 `design-system/4`：`showcase` 把每個 primitive variant、元件狀態與動效綁到核准 HiFi 元素，`design-system-preview.html` 以 specimen book 呈現，不自行發明樣式。`ui-design/2` 在 Need Gate 要求正式 pair 時才產生 `design-system/3`。兩者都綁定已核准 PRD、architecture、stack、UI contract 與 HiFi 包，不再綁 Wireframe。
+HiFi 提供完整、取自實際樣式的 Design Tokens 頁。`ui-design/3` 包一定編譯 `design-system/4`：`showcase` 把每個 primitive variant、元件狀態與動效綁到核准 HiFi 元素，`design-system-preview.html` 以 specimen book 呈現，不自行發明樣式。`ui-design/2` 在 Need Gate 要求正式 pair 時才產生 `design-system/3`。兩者都綁定已核准 PRD、architecture、stack、UI contract 與 HiFi 包，不再綁 Wireframe。由產品腳本或狀態驅動的已核准動效使用 `ds-showcase/2`：每列綁定已核准 intent 與證據、一段以雜湊識別的產品腳本，以及精確的 surface、state 與 target 副本。specimen book 在全新的沙箱 frame 中重播，並提供 Stop；減少動態偏好在產品程式執行前生效。其 Surface 樣板透過隱藏的已核准 state 與 target 控制項副本執行頁面自身的 reviewer runtime，讓 gallery 指令與產品操作共用同一個來源狀態；缺少或不支援的 reviewer 基礎設施會讓渲染失敗。Surface 樣板拒絕剪貼簿存取：固定的 guard 在產品程式執行前讓每個剪貼簿呼叫都被拒絕，由產品自己的失敗路徑決定回饋；這絕不呈現為複製成功。無法建立此拒絕時，樣板顯示為不可用，也不執行任何產品腳本。兩種樣板中，每段產品 inline 腳本都保留原始位置，並在樣板選定 state 與 target 後，依原始順序以原生方式只執行一次；不支援的腳本形式會讓渲染失敗。編譯須在精確 preview 上另行通過瀏覽器驗證才算完成。 `check_type_scale.py` 支援有邊界的 `calc`、`min`、`clamp` 字級，可用 `px`、`rem`、`em` 與 `cqi`。有邊界的 `calc` 只支援正數乘法和除法，不支援加法和減法。無單位或 `em` 行高會保留精確比值；響應式字級搭配絕對行高仍會失敗。 動畫證據只接受可見、有限且確實完成的效果；頁面自行建立的事件和完成前移除的效果都不能證明完成。減少動態檢查涵蓋實測週期並記錄觀察窗；播放後重新驗證批准文件與動畫證據。 WAAPI 列會拒絕取樣時仍存在、非閒置且未由 Element.animate 擷取的原生 Animation；這項檢查不新增建構子支援。 原生收合選單 specimen 保留原本關閉的開關與同層內容；擴充範圍內若含 script 就明確拒絕。展開時只增加 renderer 的16px顯示空間，保留已檢查來源的陰影。 每個已捕捉的 Animation 只證明一次生命週期，原生 timing 和 keyframes 必須維持不變；重啟它，或把外部效果移入 subject，都會讓該列失效。驗收要求完成紀錄保持穩定，且所選動畫類型沒有仍在活動的效果。
 
 HiFi 以內嵌 `ui-hifi-copy/1` 及產品 DOM 綁定保留文案來源。靜態文案、動態顯示契約及成對語言仍可檢查。Tokens 展示實際數值、用途及控件變體；審閱器文字不能代替產品覆蓋。
 
@@ -682,9 +682,9 @@ Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，�
 
 安全豁免還須有 documentation-only 產品描述與 Product Archetype，並明確記錄不存在的可執行架構介面。Required security TEST 訊號與 Harness criterion 使用 `denial: rejected (<signal>); no unauthorized side effects: unchanged (<state evidence>)`，兩項斷言皆須有具體觀測。
 - **建議不等於實作權威。** 每個適用領域先提供兩到三組 coherent stack。新選擇經核准後標記 `Approved`，既有選擇是 `Selected`，硬限制是 `Required`；`Recommended` 與 `Provisional` 會阻擋 delivery。Checkpoint 的封閉 area set 必須等於適用且已解決的 areas，核准 option 的 layer map 必須等於可執行 stack rows。`render_stack_option_map.py` 會從既有 rows 產生供 owner review 的候選 map；它不能核准或改寫套件。明確 option map 以 `||...||` 包裹；僅用逗號的 legacy map 仍可讀取，但 layer 名稱或 selection 含逗號時必須使用明確形式。Frontend 的 component foundation 可以是一個 headless React primitive 層（Base UI 或 Radix Primitives）加上自訂元件；每個產品只選一個。Radix Themes 屬於 packaged suite。HiFi 依該層的狀態與焦點行為繪製，不改變 stack。
-- **完整 UI 包一定附完整 Design System。** 新的初次與完整重設計使用 `UI contract: ui-design/3`：在 `docs/design/directions/<round>/` 預設做三個可渲染方向，每個由同一作者自查；owner 選擇、混合或修改；完整 HiFi 檢查全部核准尺寸及網頁中間寬度；並必須產出 `design-system/4` 的 Markdown／JSON／HTML（`Package action: compile|update|reuse`）。HTML specimen book 以沙盒 plate 展示核准 HiFi 的全部 token、區間、已登記元件 variants、狀態、響應式尺寸與動效，可重播、停止及 reduced motion。每個必要狀態都須有明確分類列，包含 default。動畫證據須綁定 specimen 勝出的 CSS 宣告與具名 keyframes，包含重要性、選擇器優先順序及已解析的自訂屬性。不支援的動畫 CSS、跳脫字元宣告及無效縮寫列為 finding。保留的 `ui-design/2` 只在 required 時編譯 `design-system/3`；其 `not_required` 核准保留原義。 單方向只在 owner 明示選擇、記錄人類 Decision owner 與 Decided on 時成立；研究數量必須符合該選擇。 經驗證的 `none`／`style` maintenance 保留歷史設計，不代表重新核准 pair 或 preview。 沒有相鄰核准網頁寬度時，記錄完整的 `Intermediate width check: not_applicable — no adjacent approved web viewport widths`；原生 size classes 與其他 HiFi 證據仍須完成。
+- **完整 UI 包一定附完整 Design System。** 新的初次與完整重設計使用 `UI contract: ui-design/3`：在 `docs/design/directions/<round>/` 預設做三個可渲染方向，每個由同一作者自查；owner 選擇、混合或修改；完整 HiFi 檢查全部核准尺寸及網頁中間寬度；並必須產出 `design-system/4` 的 Markdown／JSON／HTML（`Package action: compile|update|reuse`）。HTML specimen book 以沙盒 plate 展示核准 HiFi 的全部 token、區間、已登記元件 variants、狀態、響應式尺寸與動效，可重播、停止及 reduced motion。每個必要狀態都須有明確分類列，包含 default。動畫證據須綁定 specimen 勝出的 CSS 宣告與具名 keyframes，包含重要性、選擇器優先順序及直接、傳遞與 fallback 自訂屬性。條件式自訂屬性只有在相依性分析證明不影響證據時才可忽略；相關條件、屬性註冊及不支援動畫 CSS 列為 finding。保留的 `ui-design/2` 只在 required 時編譯 `design-system/3`；其 `not_required` 核准保留原義。 單方向只在 owner 明示選擇、記錄人類 Decision owner 與 Decided on 時成立；研究數量必須符合該選擇。 經驗證的 `none`／`style` maintenance 保留歷史設計，不代表重新核准 pair 或 preview。 沒有相鄰核准網頁寬度時，記錄完整的 `Intermediate width check: not_applicable — no adjacent approved web viewport widths`；原生 size classes 與其他 HiFi 證據仍須完成。
 - **保留的設計包直接由 PRD 進入 HiFi。** `UI contract: ui-design/2` 明確選擇保留流程；新的初次與完整重設計使用 `ui-design/3`。PRD 預檢驗證 operations、states、responsive 與 copy status；HiFi 在 Impeccable 前驗證實際文案來源及產品操作覆蓋。預設三方向，選定後一次審閱完整 HiFi。原生 HTML 仍只是設計證據。舊 schema 與固定版本 RUN 保留原義；缺少 Wireframe 不會自動放寬檢查。
-- **HiFi 頁面必須由產品控制項連通。** 新增或修訂的 `ui-hifi/2` 以 `index.html` 清單綁定同目錄 HTML 頁面的雜湊與控制項目的地。現行 `ui-output/3` 觀察逐 responsive target 驗證點擊及鍵盤操作；缺頁、過期雜湊、無效控制項、錯誤目的地或未宣告跳轉均阻擋核准。每頁只能呈現分配給該頁的 surface。發布與保留須包含完整套件；schema-1 僅供讀取檢查，正式 Visual Approval 一律要求 HiFi schema 2。歷史 output/2 與 evidence/2 保留原意。指定 Git revision 凍結時，該 revision 必須包含所有子頁面且內容一致。
+- **HiFi 頁面必須由產品控制項連通。** 新增或修訂的 `ui-hifi/2` 以 `index.html` 清單綁定同目錄 HTML 頁面的雜湊與控制項目的地。現行 `ui-output/3` 觀察逐 responsive target 驗證點擊及鍵盤操作；缺頁、過期雜湊、無效控制項、錯誤目的地或未宣告跳轉均阻擋核准。每頁只能呈現分配給該頁的 surface。發布與保留須包含完整套件；schema-1 僅供讀取檢查，正式 Visual Approval 一律要求 HiFi schema 2。歷史 output/2 與 evidence/2 保留原意。指定 Git revision 凍結時，該 revision 必須包含所有子頁面且內容一致。只有精確的 direct-CDP 來源可保留 Chrome 的 mandated-CSP 訊息；其他 console error 一律阻擋。
 - **視覺品質有獨立門檻。** HiFi 的 H5（避免模板感）、H7（創意辨識度）與 H9（設計一致性）各須達到 80；總分 85 不能抵銷視覺分項不足。審查須引用已檢視的截圖與已確認的方向原則；數字驗證不代表美感或人工檢視已獲證明。
 - **以實際代表畫面選方向。** 各方向使用相同主要／壓力案例與內容，涵蓋適用平台並保存截圖及 hash。小型可播放動態展示 normal／reduced motion，只供選擇，不等於最終證據或 provider 授權。選定後才展開完整連通 HiFi。
 - **平台共享品牌，分別定義控制項。** Platform rules 逐核准平台記錄規則。iOS 明確評估 system text styles、Dynamic Type、SF Symbols 與原生操作／版面，不強制套用 Web 元件庫。HTML 僅供審稿；原生實作先以平台工具驗證代表案例，再擴展其他畫面，最後仍須完成全矩陣驗證。
@@ -696,6 +696,7 @@ Product Definition 撰寫英文正式來源 `PRD.md`、`architecture.md` 時，�
 - **SEO growth 必須以證據為準。** Lifecycle SEO review 只接受精確、公開、可索引的 hosted-web production target；不同 mode 必須記錄 market、language、outcome、timezone、comparison windows 與 segmentation。逐 source 的 verified time 與共同 data-coverage boundary 分開，Search Console 與 GA4 仍分開解讀。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
 - **UI 佐證證明版面，而不只是像素。** 固定到 harness 0.34.0 及之後的 RUN 會在每條 route-breakpoint-state 佐證行記錄真實瀏覽器幾何掃描的 `layout_check`；每個 UI 任務在驗收前分類影響（`none`/`style`/`structure`/`both`），被接受的 parity 偏差連同引用記入 deviation ledger，上線 motion 必須追溯 `ui-design.md` 的 Motion and Media Intent。固定到 0.35.0 及之後的 RUN 還會機器校驗 `deviation_ledger` 與逐 mission 的 `ui_impact_summary`。
+- **產品狀態與視覺檢查分開。** PLAN 的 `states` 必須符合 PRD 與核准的 HiFi。選用的 `ui-design-coverage/1` 把長文字、減少動態和手機重排檢查對應到既有狀態，並逐項說明其他不適用的情況。截圖與證據檢查使用同一份清單，原有來源比對仍保持嚴格。
 - **完成的 managed run 會在晉升前收檔。** `archive_run.py` 會在 no-follow handle 下重驗 C、目前 `main`、完整 coordination inventory、evidence 與 move list，以 durable journal 執行 C→A，並在 recovery 時保留並行使用者資料。Archive-only A 先對 checkout 外部 immutable anchor 重驗；本機 agent 只準備綁定 machine policy、verifier 與 detached trusted-host evidence 的 handoff，永遠不執行 publication argv。Direct 工作保留固定 verified candidate，不虛構 PLAN/RUN archive。
 - **Parity 靠實拍，不靠記憶。** hosted-browser surface 逐 route×viewport×state capture；extension、native 與 desktop app 使用平台工具或明確的人工 capture，不能拿 hosted URL 代替。任何未支援的 required group 都讓結果成為 partial、不可作 gate。每列綁定 Git blob、authority hash、baseline、capture method、trusted launcher identity 與 layout result。 截圖檔名包含完整 surface/route/breakpoint/state tuple 的 SHA-256，避免名稱正規化或大小寫不敏感的路徑合併不同證據。
 - **讀規則是強制的。** 種子化的專案 `AGENTS.md` 要求：受管工作前必讀已安裝的 `delivery-harness` SKILL.md，影響產品的直接工作前必讀受影響的 PRD 段落；跳過即 blocking review finding。
@@ -861,9 +862,17 @@ Provider 身分只控制 PLAN 明確允許的 host。Driver 順序由觀察到�
 
 授權、PLAN/RUN、lease、隔離寫入、精確 SHA 驗證與循序整合仍由 parent 掌握。Reviewer 使用新 context，所需工具必須在它自己的 session 內驗證。原生完成、重試與快取不取代這些關卡。明確要求的獨立 app task 不能默默換成直接子代理。
 
+在 owner 授權的靜止邊界，`update-role-bindings` 先檢查目前 map digest 與已觀察能力，再替換指定的 host binding。RUN 保留精確 policy chain 與 reservation 身分。歷史 attempt 保留原模型、launch 與 receipt；新 reservation 只使用目前 map。PLAN、授權、次數與 skill adoption 不變。見 [role-policy 更新](skills/delivery-harness/references/runtime-adapters.md#host-role-policy-updates)。
+
 Product Definition 只在獲授權時執行有界的唯讀分析圖。`product_agent_graph.cjs` 驗證凍結輸入並產生交接資料，不啟動 agent。Parent 派發指定角色並保留既有決策與發布關卡。無法強制唯讀邊界時，阻擋受影響的 assignment；容量只有一個時循序派出不同 delegate，不改由 parent 代做。
 
 Managed 角色結果使用 [parent 保留的執行收據](skills/delivery-harness/references/agent-execution-receipts.md)，核對實際 host session、原始保留內容與接收的 payload。啟動失敗有獨立收據，可按設定處理明確的模型／provider 不可用錯誤，不捏造成功啟動。Hash 綁定證據內容，不是對不可信 parent adapter 的身分認證。
+
+`reconcile-worker-ingestion` 只恢復因沿用上次 mission head 而被錯拒的通過結果。它要求原始收據、RUN 快照、adoption、候選與實際 verifier 證據保持一致。原 wave 保持關閉，失敗歷史與嘗試次數完整保留，恢復另有可驗證的收據。Mission 仍須依目前契約接受新的精確 head 審查與整合。
+
+`record-integration --verifier-result <absolute-external-json>` 在同一次加鎖及驗證交易中接收實際執行的整合 verifier 結果並記錄整合。每份新結果各用一次旗標。候選、宣告、live Git 與受保護的 RUN/tasks 身分必須一致。不加旗標仍可使用有效的既存證據。此命令不授予執行或合併權限。
+
+契約 adoption 只在目前 worker 與所有必要的精確 head 審查終止並通過後，容許仍在等待整合的 running mission node。原 child check 與收據完整保留。其他活動工作仍會阻擋 adoption。Parent 必須確認 host 已終止，並在閱讀證據保留停止參照。Role-policy 更新仍拒絕 running mission node。
 
 舊原生 workflow driver、啟動模板與 `workflow_runs` 相容路徑已移除。歷史使用者檔案保持不動；使用舊 binding 的未完成工作，需要明確重新規劃並重驗能力與授權，不會自動遷移。
 
