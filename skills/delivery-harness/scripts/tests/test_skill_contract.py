@@ -1080,9 +1080,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Every fetch, branch creation, ref update, merge, push, external test, and branch deletion",
             "The archived RUN grants nothing",
             "request, pre-side-effect attempt, and receipt outside the checkout",
-            "forward-integration SHA T and read-back",
+            "legacy-pins.md#branch-protocols-before-063",
         ):
             self.assertIn(phrase, promotion)
+        self.assertIn("forward-integration SHA T and read-back", self.read("references/legacy-pins.md"))
         self.assertIn("initial-delivery and enhancement run branches", orchestration)
         self.assertIn("frozen remote `main` head for both ordinary work and hotfixes", orchestration)
         state = self.read("references/execution-state-model.md")

@@ -78,4 +78,4 @@ Use the Repository Context Contract, Serialized Same-Repository Host Handoff in 
 
 Use only the observed native capability contract above. Historical platform-specific launch templates and `dynamic_workflow`/`workflow_runs` files are not executable through it; preserve them as historical evidence. Resume unfinished work only after explicit replanning and fresh capability, identity and authorization checks. Do not relabel historical results or silently migrate a live RUN.
 
-There is no mechanism in the adapter layer to invoke another provider without a 0.58+ configured role binding and both required grants. Pre-0.58 pinned semantics keep native dispatch only. Do not stop after printing a non-empty app-task wave; consume every accepted dispatch entry.
+There is no mechanism in the adapter layer to invoke another provider without a 0.58+ configured role binding and both required grants. Do not stop after printing a non-empty app-task wave; consume every accepted dispatch entry.

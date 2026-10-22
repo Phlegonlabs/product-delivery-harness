@@ -9,7 +9,7 @@ These rules own consumer protected-branch routing, managed-run entry, review bou
 - `main` is the persistent protected production branch. New `main-preview/1` work needs no permanent development branch. Preserve historical pins and existing protected branches.
 - Resolve the complete non-default run-branch name from repository governance or the user's instruction. Freeze the matching observed remote head in PLAN `branch_policy`: `main` for both ordinary work and hotfixes. Cut both `initial_delivery` and `enhancement` run branches from that frozen head. If the kind or name is unresolved, ask; never add a fixed prefix or invent a name.
 - Harness 0.38+ RUNs close `local_only` and keep their push grant false. After archival, a separately authorized checkout-external request/attempt/receipt may publish exact archive candidate A to the run branch. It never authorizes `main` or `development`.
-- Follow `delivery-harness/references/branch-promotion-contract.md`: verify A and its applicable isolated PR/branch Preview. Then separately authorize exact-SHA promotion to protected `main` and verify production. Historical dual-branch RUNs retain their pinned landing rules. Never force-push; stop on drift or divergence.
+- Follow `delivery-harness/references/branch-promotion-contract.md`: verify A and its applicable isolated PR/branch Preview. Then separately authorize exact-SHA promotion to protected `main` and verify production. Never force-push; stop on drift or divergence.
 - Preserve unrelated dirty files, branches, and worktrees. Cleanup, worktree removal, task archival, and branch deletion require their own exact authorization.
 
 ## Managed Product Delivery Harness Runs

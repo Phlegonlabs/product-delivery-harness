@@ -20,16 +20,7 @@ Record unresolved earlier candidates; never substitute a stale local main ref fo
 
 Plan-only validation checks an explicit policy and matching active architecture marker before RUN creation.
 An absent RUN is not a historical version pin or execution authority.
-
-## Pinned Historical Delivery
-
-RUNs pinned from 0.59 through 0.62 retain `dual-branch/1` without migration.
-Ordinary work freezes remote `development`, lands verified A there, verifies landing SHA S, then separately promotes S to main.
-A hotfix freezes main, releases A there, then separately forward-integrates A into current development without losing unrelated work.
-Verify the resulting development SHA T and retain its read-back.
-Pre-0.59 pins retain their recorded candidate/main contract. Malformed pins never establish historical compatibility.
-Historical corrections retain their original runtime pin and frozen policy; a new correction source cannot authorize a protocol downgrade.
-Never delete existing main or development branches through a RUN cleanup grant.
+RUNs pinned before 0.63 follow [legacy pins](legacy-pins.md#branch-protocols-before-063).
 
 ## Managed RUN Archive Before Promotion
 
@@ -102,8 +93,7 @@ For a managed RUN, candidate A remains the archive-only child of C. Report:
 - delivery kind, temporary branch, protocol, frozen base and candidate SHA;
 - local checks, independent review and Preview deployment identity, URL, SHA and acceptance;
 - main pre-state, authorization, ancestry, landing SHA and read-back;
-- production build/SHA, smoke and any activation or outcome handoff;
-- for historical dual-branch flow, development landing S or forward-integration SHA T and read-back.
+- production build/SHA, smoke and any activation or outcome handoff.
 
 Unexpected remote movement, divergence, failed gates or mismatched deployments stop dependent operations.
 Preserve evidence and reconcile explicitly; never force-push or silently rewrite history.
