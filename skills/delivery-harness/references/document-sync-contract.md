@@ -31,7 +31,9 @@ That report names `baseline_review_required`; without an observed digest it also
 
 When the host cannot observe the loaded digest, omit `--loaded-digest`; do not invent one from disk. Review `loaded_identity_unobserved` once per host session and record it with the marker `<session-id>:<installed-digest>`. Pass that marker as `--session-marker` at later invocations in the same session. The report keeps the finding with its marker but no longer counts it as review. A new session, a restart, or changed installed bytes needs a fresh review and marker. Snapshot paths and hashes are checkout-relative, so the tracked snapshot works in another clone or worktree of the same project. The parent verifies that the baseline belongs to this project's history; a snapshot is not a repository identity credential. Explicitly scoped root or component Markdown, such as `SECURITY.md`, is allowed; credential and historical exclusions still apply.
 
-A RUN may separately record an `adopted` runtime-contract receipt after the owner authorizes a quiescent re-read. That disposition belongs in existing task/RUN evidence and must name its own owner source and reading evidence. It never quiets or removes `loaded_identity_unobserved`, changes `document-sync/1`, or becomes approval/capability proof.
+An `adopted` receipt in an explicitly pinned pre-0.66 RUN remains historical evidence only.
+It never quiets `loaded_identity_unobserved` or authorizes current dispatch.
+Current selection defers it with `pinned_bundle_or_restart_required`; follow `runtime-upgrades.md` without rewriting the old record.
 
 Retired-name findings have a narrow quiet exception. Bare names in an explicit retirement prose catalog are quiet, such as a note saying a release retires `full-harness`, `prd-builder`, and `product-design-builder`. Actual paths, commands, links, and uses inside fenced code still surface. Other standalone legacy names also surface. Unknown loaded identity is a separate finding and is never quieted by the catalog.
 
@@ -49,7 +51,7 @@ The snapshot is a tracked non-secret inventory, not a cache to hide in .gitignor
 
 ## UI Artifact Impact
 
-For design consumers, continue with `../../ui-design-builder/references/design-freshness.md` after the Markdown check. Wireframe/HiFi bytes, upstream identity and applicable skill-rule changes need separate inspection even when Markdown is unchanged. No snapshot update proves freshness or grants a redesign. Record the short affected/retained/recheck list in existing task evidence.
+For design consumers, continue with [Design Input Updates](design-input-updates.md) and the applicable handoff in `pre-delivery-self-review.md` after the Markdown check. Wireframe/HiFi bytes, upstream identity and applicable skill-rule changes need separate inspection even when Markdown is unchanged. No snapshot update proves freshness or grants a redesign. Record the short affected/retained/recheck list in existing task evidence.
 
 ## Impact Review
 

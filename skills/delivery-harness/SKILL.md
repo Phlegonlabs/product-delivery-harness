@@ -71,7 +71,7 @@ Classify each task's Gitignore impact with `references/gitignore-contract.md`; i
 
 When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker. For a PLAN, RUN or design package pinned to an earlier Harness version, schema or branch protocol, also read [Legacy Pins](references/legacy-pins.md).
 
-After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
+After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts using that RUN's exact pinned bundle. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
 
 ## Non-Negotiable Boundaries
 
