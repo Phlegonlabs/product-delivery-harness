@@ -149,7 +149,7 @@ Full engineering 沿用上述任務與驗收紀錄。遇到未證明的跨層依
 103. Worker 回傳 ordered task SHAs、實際 tests、write-scope 結果、未知與剩餘問題；沒有執行就不能填 PASS。
 104. Parent 用 terminal event／cursor wait 接收結果，避免反覆全量輪詢；沒有事件工具才用有界 polling。
 105. 一個 mission 完成即可派獨立 pre-integration reviewer，不必等最慢 sibling。
-106. Reviewer 對 exact head 和完整指定 scope 檢查接口、缺陷、測試與需求；具體 findings 交原 writer 修复。
+106. Reviewer 對 exact head 和完整指定 scope 檢查接口、缺陷、測試與需求；收齊該候選所有必要 review 後，按根因合併成一次修復交原 writer。複查只看原 findings、改到的程式碼和直接使用者；非阻擋建議進 backlog。
 107. Parent 驗證通過的 mission commits 後序列整合，每次最多一個 integration；其他隔離 writer 可繼續。
 108. 整合後跑必要 interface／integration checks；失敗按原範圍修復並產生新候選，舊 review 不冒充新 SHA 證據。
 109. Managed 按正式 transitions 記 result、integration、coordination checkpoint 和 wave close；tasks view 從 RUN 產生。

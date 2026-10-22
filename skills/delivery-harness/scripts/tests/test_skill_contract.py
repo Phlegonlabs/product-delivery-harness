@@ -358,6 +358,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("A replan does not grant a fresh review budget", plan)
         self.assertIn("Repair context (omit for an initial implementation)", worker)
         self.assertIn("fix the named root-cause family", worker)
+        gen_verify = self.read("references/gen-verify-correct.md")
+        self.assertIn("wait until every required review of that candidate has returned", graph)
+        self.assertIn("never make `fix_required`", graph)
+        self.assertIn("Collect every required review result for the same candidate", skill)
+        self.assertIn("it is not a fresh full review", skill)
+        self.assertIn("A failed re-review stops at `blocked` and returns to the owner", gen_verify)
 
     def test_scripted_transition_flag_surfaces_are_documented(self) -> None:
         state = self.read("references/execution-state-model.md")

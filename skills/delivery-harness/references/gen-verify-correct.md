@@ -38,13 +38,18 @@ findings to the owning flow above.
    evidence; then stop. Success does not require a minimum iteration count.
 6. On failure, record expected result, actual result, exit or observation,
    artifact or trace, and input identity. Do not hide the concrete difference.
-7. Consolidate one root-cause family and send it to the owning corrector.
+7. Wait for every required verifier and review result on the same candidate.
+   Group the findings by root-cause family and send them to the owning
+   corrector as one repair. Non-blocking suggestions go to the backlog.
 8. Repair only accepted scope. Rerun the affected verifier and every downstream
-   check invalidated by the new candidate.
+   check invalidated by the new candidate. A re-review checks the original
+   findings, the changed code and its direct consumers, not the whole scope again.
 9. Reuse exact unchanged-input evidence only when the existing contract permits
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, exhausted budget, missing required capability, or a contract
-    gap. Preserve history, candidate identity, and unresolved work.
+    gap. A failed re-review stops at `blocked` and returns to the owner; it never
+    starts another round on its own. Preserve history, candidate identity, and
+    unresolved work.
 
 Keep the record in the existing task report, Epic, PLAN acceptance row, or RUN
 gate. Direct work does not create PLAN/RUN state to host this loop. Managed work
