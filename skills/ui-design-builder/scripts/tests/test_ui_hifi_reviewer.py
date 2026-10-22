@@ -8,7 +8,8 @@ from pathlib import Path
 
 from test_ui_design_contract import bundle_output, checker, materialize_hifi_bundle
 from hifi_review_fixture import _source_html, add_shell, observations
-from hifi_reviewer import _host_media_reflow, _target_widths, reviewer_contract, reviewer_evidence_findings
+from hifi_reviewer import (_host_media_reflow, _target_widths, reviewer_contract,
+                           reviewer_diagnostic_coverage_findings, reviewer_evidence_findings)
 
 
 class HiFiReviewerTests(unittest.TestCase):
@@ -273,6 +274,43 @@ class HiFiReviewerTests(unittest.TestCase):
 
     def _expected_reviewer(self):
         return reviewer_contract(self.documents, self.manifest)[1]
+
+    def test_diagnostic_retention_uses_the_strict_value_rule(self):
+        expected = self._expected_reviewer()
+        typed = observations(self.manifest)
+        for row in typed["retention"]:
+            row.update(inputValueBefore="Typed by reviewer", inputValueAfter="Typed by reviewer",
+                       selectedValueBefore="other", selectedValueAfter="other")
+        self.assertNotEqual(expected["retention"][0]["inputValueBefore"], "Typed by reviewer")
+        self.assertEqual(([], []), reviewer_diagnostic_coverage_findings(typed, expected))
+        self.assertEqual([], reviewer_evidence_findings(typed, expected))
+
+        changed = observations(self.manifest)
+        changed["retention"][0].update(inputValueBefore="before", inputValueAfter="after")
+        structural, defects = reviewer_diagnostic_coverage_findings(changed, expected)
+        self.assertEqual([], structural)
+        self.assertEqual(1, len(defects))
+        self.assertTrue(defects[0].endswith(": inputValueAfter, inputValueBefore"), defects)
+        self.assertTrue(reviewer_evidence_findings(changed, expected))
+
+        for value in (None, "", "  "):
+            with self.subTest(value=value):
+                unobserved = observations(self.manifest)
+                unobserved["retention"][0].update(selectedValueBefore=value, selectedValueAfter=value)
+                structural, defects = reviewer_diagnostic_coverage_findings(unobserved, expected)
+                self.assertTrue(any("is incomplete" in item for item in structural), structural)
+                self.assertEqual([], defects)
+
+    def test_diagnostic_retention_value_is_null_when_not_applicable(self):
+        docs = {page: add_shell(_source_html(row, component_types=("button",)), self.manifest, page, ("button",))
+                for page, row in {item["page"]: item for item in self.manifest["surfaces"]}.items()}
+        expected = reviewer_contract(docs, self.manifest)[1]
+        actual = observations(self.manifest, component_types=("button",))
+        self.assertEqual(([], []), reviewer_diagnostic_coverage_findings(actual, expected))
+        actual["retention"][0].update(inputValueBefore="typed", inputValueAfter="typed")
+        structural, defects = reviewer_diagnostic_coverage_findings(actual, expected)
+        self.assertTrue(any("does not use" in item for item in structural), structural)
+        self.assertEqual([], defects)
 
     def test_component_specimens_must_be_real_elements_with_visible_markers(self):
         docs = dict(self.documents)

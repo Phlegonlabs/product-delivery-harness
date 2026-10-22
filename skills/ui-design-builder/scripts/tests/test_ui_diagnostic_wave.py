@@ -310,8 +310,7 @@ class DiagnosticWaveTests(unittest.TestCase):
         output_path, output = self.load_browser_output()
         reviewer = output["reviewer"]
         reviewer["views"][0].update(focusCorrect=False, visible=False, result="FAIL")
-        reviewer["retention"][0].update(
-            inputValueBefore="before", inputValueAfter="after", result="FAIL")
+        reviewer["retention"][0].update(productVisible=False, result="FAIL")
         reviewer["navigation"][0].update(to="unexpected.html", result="FAIL")
         output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
         self.rebind(request, "browser")
@@ -321,7 +320,7 @@ class DiagnosticWaveTests(unittest.TestCase):
         findings = "\n".join(report["findings"])
         self.assertIn("observed defect for", findings)
         self.assertIn("focusCorrect, result", findings)
-        self.assertIn("inputValueAfter, inputValueBefore, result", findings)
+        self.assertIn("productVisible, result", findings)
         self.assertIn("result, to", findings)
 
         from check_ui_design_contract import _hifi_bundle_documents
@@ -331,6 +330,19 @@ class DiagnosticWaveTests(unittest.TestCase):
             subject_data.decode("utf-8"), self.manifest)
         _, expected = hifi_reviewer.reviewer_contract(documents, self.manifest)
         self.assertTrue(hifi_reviewer.reviewer_evidence_findings(reviewer, expected))
+
+    def test_retention_value_for_an_absent_control_blocks_the_wave(self) -> None:
+        request = self.build(browser_result="FAIL")
+        output_path, output = self.load_browser_output()
+        row = output["reviewer"]["retention"][0]
+        self.assertFalse(row["inputApplicable"])
+        row.update(inputValueBefore="before", inputValueAfter="after", result="FAIL")
+        output_path.write_text(json.dumps(output), encoding="utf-8", newline="")
+        self.rebind(request, "browser")
+        report = evidence.diagnostic_wave_report(self.root, request)
+        self.assertFalse(report["complete"])
+        self.assertFalse(report["repairEligible"])
+        self.assertIn("records a product control that the page does not use", " ".join(report["findings"]))
 
     def test_complete_wrong_destination_is_a_defect_and_not_acceptance(self) -> None:
         output = self.browser_output(result="FAIL")
