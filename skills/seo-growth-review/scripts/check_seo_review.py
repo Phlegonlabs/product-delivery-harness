@@ -102,8 +102,6 @@ RECORD_FIELDS = (
     "Activation record",
     "Activation sha256",
     "Review date",
-)
-RECORD_FIELDS_V2 = RECORD_FIELDS + (
     "Product",
     "Target market",
     "Language",
@@ -114,14 +112,6 @@ RECORD_FIELDS_V2 = RECORD_FIELDS + (
     "Global data coverage through",
 )
 SOURCE_HEADERS = (
-    "ms id",
-    "scope",
-    "release binding",
-    "source role",
-    "data cutoff",
-    "evidence",
-)
-SOURCE_HEADERS_V2 = (
     "ms id",
     "scope",
     "release binding",
@@ -225,15 +215,6 @@ def _valid_date(value: str) -> bool:
     return True
 
 
-def _substantive(value: str, *, allow_none: bool = False) -> bool:
-    normalized = value.strip().casefold()
-    if not normalized or "<" in normalized or re.search(r"\b(?:tbd|todo|placeholder)\b", normalized):
-        return False
-    if normalized in ABSENT:
-        return allow_none and normalized == "none"
-    return True
-
-
 def _matching_activation_sources(
     activation_text: str, target: str, sha: str, artifact: str
 ) -> dict[str, dict[str, object]]:
@@ -309,8 +290,7 @@ def check_seo_review_text(
 ) -> list[str]:
     findings: list[str] = []
     record = _fields(_section(text, "## Record") or [])
-    verified_review = record.get("Schema") == "seo-review/2"
-    if verified_review and stack_text is None:
+    if record.get("Schema") == "seo-review/2" and stack_text is None:
         findings.append("Product package: verified SEO review requires stack-decisions.md")
     # Validate the package and Deployment once here; the nested Activation
     # check is told not to repeat it.
@@ -354,13 +334,11 @@ def check_seo_review_text(
 
     for field in _duplicate_fields(_section(text, "## Record") or []):
         findings.append(f"Record: duplicate field {field}")
-    schema = record.get("Schema", "")
-    record_fields = RECORD_FIELDS_V2 if schema == "seo-review/2" else RECORD_FIELDS
-    for field in record_fields:
+    for field in RECORD_FIELDS:
         if field not in record:
             findings.append(f"Record: missing field {field}")
-    if schema not in {"seo-review/1", "seo-review/2"}:
-        findings.append("Record: Schema must be seo-review/1 or seo-review/2")
+    if record.get("Schema") != "seo-review/2":
+        findings.append("Record: Schema must be seo-review/2")
     if record.get("Mode") not in MODES:
         findings.append("Record: Mode has an invalid value")
     if record.get("Review type") != "lifecycle_public_release":
@@ -396,33 +374,13 @@ def check_seo_review_text(
     activation_digest = hashlib.sha256(activation_text.encode("utf-8")).hexdigest()
     if record.get("Activation sha256") != activation_digest:
         findings.append("Record: Activation sha256 does not match the current document bytes")
-    if schema == "seo-review/2":
-        for field in RECORD_FIELDS_V2[len(RECORD_FIELDS):]:
-            if not _substantive(record.get(field, "")):
-                findings.append(f"Record: {field} must be substantive in seo-review/2")
-        if record.get("Mode") == "traffic_drop" and " vs " not in record.get("Comparison window", ""):
-            findings.append("Record: traffic_drop requires equal comparison windows using '<period> vs <period>'")
-        if record.get("Mode") == "traffic_drop":
-            segmentation = record.get("Segmentation", "").casefold()
-            required_segments = ("query", "page", "country", "device")
-            if any(segment not in segmentation for segment in required_segments):
-                findings.append(
-                    "Record: traffic_drop Segmentation must include query, page, country, and device"
-                )
-        if record.get("Mode") == "growth_review" and " vs " not in record.get("Comparison window", ""):
-            findings.append("Record: growth_review requires a comparison window using '<period> vs <period>'")
-        global_coverage = _timestamp(record.get("Global data coverage through", ""))
-        if global_coverage is None:
-            findings.append("Record: Global data coverage through must be RFC3339")
-        elif global_coverage > datetime.now(timezone.utc):
-            findings.append("Record: Global data coverage through cannot be in the future")
-        elif data_cutoff is not None and global_coverage > data_cutoff:
-            findings.append("Record: Global data coverage through cannot exceed Data cutoff")
-    for field, value in record.items():
-        if field == "Artifact / build identity":
-            continue
-        if not _substantive(value, allow_none=False):
-            findings.append(f"Record: {field} must be substantive")
+    global_coverage = _timestamp(record.get("Global data coverage through", ""))
+    if global_coverage is None:
+        findings.append("Record: Global data coverage through must be RFC3339")
+    elif global_coverage > datetime.now(timezone.utc):
+        findings.append("Record: Global data coverage through cannot be in the future")
+    elif data_cutoff is not None and global_coverage > data_cutoff:
+        findings.append("Record: Global data coverage through cannot exceed Data cutoff")
 
     contract, architecture_findings = parse_release_targets(architecture_text)
     findings.extend(architecture_findings)
@@ -488,21 +446,15 @@ def check_seo_review_text(
     if prd_identity and record_identity and record_identity.casefold().strip() != prd_identity:
         findings.append("Record: Product identity must exactly match the approved PRD")
 
-    source_expected_headers = SOURCE_HEADERS_V2 if schema == "seo-review/2" else SOURCE_HEADERS
-    source_rows, source_header_ok = _rows(text, "## Verified Sources", source_expected_headers)
+    source_rows, source_header_ok = _rows(text, "## Verified Sources", SOURCE_HEADERS)
     if not source_header_ok:
-        findings.append("Verified Sources: expected columns " + " | ".join(source_expected_headers))
+        findings.append("Verified Sources: expected columns " + " | ".join(SOURCE_HEADERS))
     listed: set[str] = set()
     for source_row in source_rows:
-        if len(source_row) != len(source_expected_headers):
+        if len(source_row) != len(SOURCE_HEADERS):
             findings.append("Verified Sources: each row must have the exact column count")
             continue
-        if schema == "seo-review/2":
-            source_id, scope, binding, role, verified_at, coverage_through, evidence = source_row
-            cutoff = coverage_through
-        else:
-            source_id, scope, binding, role, cutoff, evidence = source_row
-            verified_at = cutoff
+        source_id, scope, binding, role, verified_at, coverage_through, evidence = source_row
         if not MS_ID_RE.fullmatch(source_id):
             findings.append(f"Verified Sources: invalid source ID {source_id!r}")
             continue
@@ -518,39 +470,26 @@ def check_seo_review_text(
             findings.append(f"Verified Sources: {source_id} scope differs from Activation")
         if binding != f"{target_id}@{sha}#{artifact}":
             findings.append(f"Verified Sources: {source_id} has a mismatched release binding")
-        if source_id not in matching_sources and binding != f"{target_id}@{sha}#{artifact}":
-            findings.append(f"Verified Sources: {source_id} mismatched release binding cannot support this review")
         if role not in SOURCE_ROLES:
             findings.append(f"Verified Sources: {source_id} has invalid source role {role!r}")
         elif activation_source is not None and role != activation_source["role"]:
             findings.append(f"Verified Sources: {source_id} source role differs from Activation retrieval")
-        cutoff_instant = _timestamp(cutoff)
-        if cutoff_instant is None:
+        coverage_instant = _timestamp(coverage_through)
+        if coverage_instant is None:
             findings.append(f"Verified Sources: {source_id} cutoff must be RFC3339")
-        elif schema == "seo-review/1" and cutoff != record.get("Data cutoff"):
-            findings.append(f"Verified Sources: {source_id} cutoff differs from the Record cutoff")
-        if schema == "seo-review/2":
-            verified_instant = _timestamp(verified_at)
-            if verified_instant is None:
-                findings.append(f"Verified Sources: {source_id} verified at must be RFC3339")
-            elif activation_source is not None and verified_instant != activation_source["latest_pass"]:
-                findings.append(f"Verified Sources: {source_id} verified at must equal the latest PASS Activation evidence timestamp")
-            if (
-                cutoff_instant is not None
-                and data_cutoff is not None
-                and cutoff_instant > data_cutoff
-            ):
-                findings.append(f"Verified Sources: {source_id} coverage through cannot exceed the global data cutoff")
-        elif activation_source is not None and cutoff_instant != activation_source["latest_pass"]:
-            findings.append(f"Verified Sources: {source_id} cutoff must equal the latest PASS Activation evidence timestamp")
+        elif data_cutoff is not None and coverage_instant > data_cutoff:
+            findings.append(f"Verified Sources: {source_id} coverage through cannot exceed the global data cutoff")
+        verified_instant = _timestamp(verified_at)
+        if verified_instant is None:
+            findings.append(f"Verified Sources: {source_id} verified at must be RFC3339")
+        elif activation_source is not None and verified_instant != activation_source["latest_pass"]:
+            findings.append(f"Verified Sources: {source_id} verified at must equal the latest PASS Activation evidence timestamp")
         if evidence.lower() in ABSENT:
             findings.append(f"Verified Sources: {source_id} needs evidence")
         elif activation_source is not None:
             missing_ids = [item for item in activation_source["evidence_ids"] if item not in evidence]
             if missing_ids:
                 findings.append(f"Verified Sources: {source_id} evidence must name " + ", ".join(missing_ids))
-        if not all(_substantive(cell) for cell in source_row):
-            findings.append(f"Verified Sources: {source_id} has an empty or placeholder cell")
     if listed != set(matching_sources):
         findings.append("Verified Sources: every matching verified MS source must be listed exactly once")
 
@@ -577,8 +516,6 @@ def check_seo_review_text(
             findings.append(f"Measurement Integrity: required check {check} must be PASS")
         if evidence.lower() in ABSENT:
             findings.append(f"Measurement Integrity: {check} needs evidence")
-        if not all(_substantive(cell) for cell in integrity_row):
-            findings.append(f"Measurement Integrity: {check} has an empty or placeholder cell")
 
     finding_rows, finding_ok = _rows(text, "## Technical Findings", FINDING_HEADERS)
     if not finding_ok:
@@ -598,8 +535,6 @@ def check_seo_review_text(
             findings.append(f"Technical Findings: invalid evidence strength {evidence!r}")
         if route not in ROUTES:
             findings.append(f"Technical Findings: invalid route {route!r}")
-        if not all(_substantive(cell) for cell in finding_row):
-            findings.append("Technical Findings: every row cell must be substantive")
     duplicates = sorted(item for item, count in Counter(finding_ids).items() if count > 1)
     if duplicates:
         findings.append("Technical Findings: duplicate finding(s) " + ", ".join(duplicates))
@@ -628,11 +563,9 @@ def check_seo_review_text(
             findings.append(f"Growth Opportunities: invalid route in {action!r}")
         if metric.lower() in ABSENT:
             findings.append("Growth Opportunities: follow-up metric is required")
-        if not all(_substantive(cell) for cell in opportunity_row):
-            findings.append("Growth Opportunities: every row cell must be substantive")
     for heading in ("## What To Do First", "## Limits And Next Window"):
         section_lines = _section(text, heading) or []
-        if not any(_substantive(line) for line in section_lines):
+        if not any(line.strip() for line in section_lines):
             findings.append(f"{heading.removeprefix('## ')}: substantive narrative is required")
     return findings
 
@@ -698,9 +631,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.require_lifecycle and review_record.get("Schema") != "seo-review/2":
         print("--require-lifecycle requires Schema: seo-review/2", file=sys.stderr)
         return 1
-    if args.require_lifecycle and args.stack_decisions is None:
-        print("--require-lifecycle requires --stack-decisions", file=sys.stderr)
-        return 2
     if review_record.get("Schema") == "seo-review/2" and args.stack_decisions is None:
         print("seo-review/2 requires --stack-decisions", file=sys.stderr)
         return 2

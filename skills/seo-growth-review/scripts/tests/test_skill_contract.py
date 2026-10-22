@@ -92,6 +92,9 @@ class SeoGrowthReviewSkillContractTests(unittest.TestCase):
         template = self.read("assets/templates/SEO_REVIEW.template.md")
 
         self.assertIn("A standalone inline audit remains valid", skill)
+        self.assertIn("`seo-review/2` is the only format", skill)
+        self.assertNotIn("seo-review/1", skill)
+        self.assertIn("sections of [SEO Source Catalog]", skill)
         self.assertIn("docs/seo/reviews/YYYY-MM-DD-<slug>.md", stage)
         self.assertIn("check_seo_review.py --require-lifecycle", stage)
         self.assertIn("## Saved Lifecycle Public-Release Review", method)
