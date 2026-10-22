@@ -5680,6 +5680,171 @@ def _validate_contract_adoption(
     return valid
 
 
+def preintegration_review_errors(
+    plan: dict[str, Any], run: dict[str, Any], mission_id: str,
+) -> list[str]:
+    """Prove the existing exact-head review boundary without mutating state."""
+    errors: list[str] = []
+    schema_version = run.get("schema_version")
+    state = run.get("mission_states", {}).get(mission_id, {})
+    workers = run.get("workers")
+    workers_by_id = {worker.get("worker_id"): worker for worker in (workers if isinstance(workers, list) else [])
+                     if isinstance(worker, dict)}
+    review_workers = run.get("review_workers", [])
+    review_nodes = {node.get("id"): node for node in plan.get("graph", {}).get("nodes", [])
+                    if isinstance(node, dict) and node.get("kind") == "verifier"
+                    and node.get("executor") == "runtime_worker"}
+    mission_worker = workers_by_id.get(state.get("worker_id"), {})
+    if (
+        not mission_worker
+        or mission_worker.get("mission_id") != mission_id
+    ):
+        if schema_version in {10, 11}:
+            _add(
+                errors,
+                f"run.mission_states.{mission_id}.worker_id",
+                "transition to integrating requires a worker belonging to the same mission",
+            )
+        return errors
+    mission_worker_nested_policy = (
+        mission_worker.get("nested_subagent_policy")
+        if isinstance(mission_worker, dict)
+        else None
+    )
+    nested_policy_enabled = (
+        isinstance(mission_worker_nested_policy, dict)
+        and mission_worker_nested_policy.get("enabled") is True
+    )
+    mission_worker_nested_review_evidence = mission_worker.get(
+        "nested_review_evidence"
+    )
+    head_sha = state.get("head_sha")
+    if nested_policy_enabled:
+        has_task_local_review = (
+            is_full_sha(head_sha)
+            and mission_worker.get("worker_head_sha") == head_sha
+            and isinstance(mission_worker_nested_review_evidence, dict)
+            and mission_worker_nested_review_evidence.get("role") == "reviewer"
+            and mission_worker_nested_review_evidence.get("status") == "completed"
+            and is_full_sha(mission_worker_nested_review_evidence.get("reviewed_sha"))
+            and mission_worker_nested_review_evidence.get("reviewed_sha") == head_sha
+            and mission_worker_nested_review_evidence.get("decision") == "PASS"
+        )
+        if not has_task_local_review:
+            _add(
+                errors,
+                f"run.mission_states.{mission_id}.integration_gate",
+                "transition to integrating requires retained task-local exact-head PASS review evidence",
+            )
+    integrating_mission_node_ids = {
+        node.get("id")
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict)
+        and node.get("kind") == "mission"
+        and node.get("ref") == mission_id
+    }
+    preintegration_review_ids = {
+        edge.get("to")
+        for edge in plan.get("graph", {}).get("edges", [])
+        if isinstance(edge, dict)
+        and edge.get("kind") == "dependency"
+        and edge.get("from") in integrating_mission_node_ids
+        and edge.get("to") in review_nodes
+        and review_nodes[edge["to"]]
+        .get("review", {})
+        .get("stage", "preintegration")
+        == "preintegration"
+        and len(
+            review_nodes[edge["to"]]
+            .get("review", {})
+            .get("mission_ids", [])
+        )
+        == 1
+        and mission_id
+        in review_nodes[edge["to"]]
+        .get("review", {})
+        .get("mission_ids", [])
+    }
+    raw_graph_state = run.get("graph_state")
+    raw_node_states = (
+        raw_graph_state.get("node_states")
+        if isinstance(raw_graph_state, dict)
+        else None
+    )
+    node_states = (
+        raw_node_states if isinstance(raw_node_states, dict) else {}
+    )
+    review_node_states = {
+        node_id: node_state
+        for node_id, node_state in node_states.items()
+        if isinstance(node_state, dict)
+    }
+    current_review_workers = {
+        review_node_id: [
+            review_worker
+            for review_worker in (
+                review_workers if isinstance(review_workers, list) else []
+            )
+            if isinstance(review_worker, dict)
+            and review_worker.get("node_id") == review_node_id
+            and review_worker.get("worker_id")
+            == review_node_states.get(review_node_id, {}).get(
+                "bound_worker_id"
+            )
+            and review_worker.get("attempt_id")
+            == review_node_states.get(review_node_id, {}).get(
+                "last_attempt_id"
+            )
+            and review_worker.get("reviewed_sha") == head_sha
+            and review_worker.get("worker_runtime")
+            in {"parent", "subagent", "app_task"}
+            and review_worker.get("phase") == "worker_passed"
+            and review_worker.get("outcome") is not None
+        ]
+        for review_node_id in preintegration_review_ids
+    }
+    has_parent_review = (
+        bool(preintegration_review_ids)
+        and all(
+            review_node_states.get(review_node_id, {}).get("phase")
+            == "succeeded"
+            and review_node_states.get(review_node_id, {}).get(
+                "last_outcome"
+            )
+            == "pass"
+            and current_review_workers.get(review_node_id)
+            for review_node_id in preintegration_review_ids
+        )
+        and (
+            not nested_policy_enabled
+            or (
+                isinstance(mission_worker_nested_review_evidence, dict)
+                and any(
+                    review_worker.get("worker_id")
+                    == mission_worker_nested_review_evidence.get("agent_id")
+                    and review_worker.get("outcome") == "pass"
+                    for review_workers_for_node in current_review_workers.values()
+                    for review_worker in review_workers_for_node
+                )
+            )
+        )
+        and all(
+            all(
+                review_worker.get("outcome") == "pass"
+                for review_worker in current_review_workers[review_node_id]
+            )
+            for review_node_id in preintegration_review_ids
+        )
+    )
+    if not has_parent_review:
+        _add(
+            errors,
+            f"run.mission_states.{mission_id}.integration_gate",
+            "transition to integrating requires every planned pre-integration review node and current-head review worker to retain an exact-head PASS",
+        )
+    return errors
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -7681,174 +7846,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     f"run.review_workers.{review_node_id}.findings",
                     "current non-pass review result requires findings",
                 )
-        workers_by_id = (
-            {
-                worker.get("worker_id"): worker
-                for worker in workers
-                if isinstance(worker, dict)
-            }
-            if isinstance(workers, list)
-            else {}
-        )
         integrating_mission_state_items = (
             mission_states.items()
             if schema_version in {10, 11} and isinstance(mission_states, dict)
             else []
         )
         for mission_id, state in integrating_mission_state_items:
-            if not isinstance(state, dict) or state.get("phase") not in {
-                "integrating",
-                "integrated",
-            }:
-                continue
-            mission_worker = workers_by_id.get(state.get("worker_id"), {})
-            if (
-                not mission_worker
-                or mission_worker.get("mission_id") != mission_id
-            ):
-                if schema_version in {10, 11}:
-                    _add(
-                        errors,
-                        f"run.mission_states.{mission_id}.worker_id",
-                        "transition to integrating requires a worker belonging to the same mission",
-                    )
-                continue
-            mission_worker_nested_policy = (
-                mission_worker.get("nested_subagent_policy")
-                if isinstance(mission_worker, dict)
-                else None
-            )
-            nested_policy_enabled = (
-                isinstance(mission_worker_nested_policy, dict)
-                and mission_worker_nested_policy.get("enabled") is True
-            )
-            mission_worker_nested_review_evidence = mission_worker.get(
-                "nested_review_evidence"
-            )
-            head_sha = state.get("head_sha")
-            if nested_policy_enabled:
-                has_task_local_review = (
-                    is_full_sha(head_sha)
-                    and mission_worker.get("worker_head_sha") == head_sha
-                    and isinstance(mission_worker_nested_review_evidence, dict)
-                    and mission_worker_nested_review_evidence.get("role") == "reviewer"
-                    and mission_worker_nested_review_evidence.get("status") == "completed"
-                    and is_full_sha(mission_worker_nested_review_evidence.get("reviewed_sha"))
-                    and mission_worker_nested_review_evidence.get("reviewed_sha") == head_sha
-                    and mission_worker_nested_review_evidence.get("decision") == "PASS"
-                )
-                if not has_task_local_review:
-                    _add(
-                        errors,
-                        f"run.mission_states.{mission_id}.integration_gate",
-                        "transition to integrating requires retained task-local exact-head PASS review evidence",
-                    )
-            integrating_mission_node_ids = {
-                node.get("id")
-                for node in plan.get("graph", {}).get("nodes", [])
-                if isinstance(node, dict)
-                and node.get("kind") == "mission"
-                and node.get("ref") == mission_id
-            }
-            preintegration_review_ids = {
-                edge.get("to")
-                for edge in plan.get("graph", {}).get("edges", [])
-                if isinstance(edge, dict)
-                and edge.get("kind") == "dependency"
-                and edge.get("from") in integrating_mission_node_ids
-                and edge.get("to") in review_nodes
-                and review_nodes[edge["to"]]
-                .get("review", {})
-                .get("stage", "preintegration")
-                == "preintegration"
-                and len(
-                    review_nodes[edge["to"]]
-                    .get("review", {})
-                    .get("mission_ids", [])
-                )
-                == 1
-                and mission_id
-                in review_nodes[edge["to"]]
-                .get("review", {})
-                .get("mission_ids", [])
-            }
-            raw_graph_state = run.get("graph_state")
-            raw_node_states = (
-                raw_graph_state.get("node_states")
-                if isinstance(raw_graph_state, dict)
-                else None
-            )
-            node_states = (
-                raw_node_states if isinstance(raw_node_states, dict) else {}
-            )
-            review_node_states = {
-                node_id: node_state
-                for node_id, node_state in node_states.items()
-                if isinstance(node_state, dict)
-            }
-            current_review_workers = {
-                review_node_id: [
-                    review_worker
-                    for review_worker in (
-                        review_workers if isinstance(review_workers, list) else []
-                    )
-                    if isinstance(review_worker, dict)
-                    and review_worker.get("node_id") == review_node_id
-                    and review_worker.get("worker_id")
-                    == review_node_states.get(review_node_id, {}).get(
-                        "bound_worker_id"
-                    )
-                    and review_worker.get("attempt_id")
-                    == review_node_states.get(review_node_id, {}).get(
-                        "last_attempt_id"
-                    )
-                    and review_worker.get("reviewed_sha") == head_sha
-                    and review_worker.get("worker_runtime")
-                    in {"parent", "subagent", "app_task"}
-                    and review_worker.get("phase") == "worker_passed"
-                    and review_worker.get("outcome") is not None
-                ]
-                for review_node_id in preintegration_review_ids
-            }
-            has_parent_review = (
-                bool(preintegration_review_ids)
-                and all(
-                    review_node_states.get(review_node_id, {}).get("phase")
-                    == "succeeded"
-                    and review_node_states.get(review_node_id, {}).get(
-                        "last_outcome"
-                    )
-                    == "pass"
-                    and current_review_workers.get(review_node_id)
-                    for review_node_id in preintegration_review_ids
-                )
-                and (
-                    not nested_policy_enabled
-                    or (
-                        isinstance(mission_worker_nested_review_evidence, dict)
-                        and any(
-                            review_worker.get("worker_id")
-                            == mission_worker_nested_review_evidence.get("agent_id")
-                            and review_worker.get("outcome") == "pass"
-                            for review_workers_for_node in current_review_workers.values()
-                            for review_worker in review_workers_for_node
-                        )
-                    )
-                )
-                and all(
-                    all(
-                        review_worker.get("outcome") == "pass"
-                        for review_worker in current_review_workers[review_node_id]
-                    )
-                    for review_node_id in preintegration_review_ids
-                )
-            )
-            if not has_parent_review:
-                _add(
-                    errors,
-                    f"run.mission_states.{mission_id}.integration_gate",
-                    "transition to integrating requires every planned pre-integration review node and current-head review worker to retain an exact-head PASS",
-                )
+            if isinstance(state, dict) and state.get("phase") in {"integrating", "integrated"}:
+                errors.extend(preintegration_review_errors(plan, run, mission_id))
     _validate_run_attempt_log(errors, plan, run, schema_version, mission_ids, task_ids)
     _validate_lease_identity(errors, run)
     _validate_run_review_lineages(errors, plan, run, schema_version, mission_ids)

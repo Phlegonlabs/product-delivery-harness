@@ -985,6 +985,47 @@ def _record_observation(
         })
 
 
+def _quiescent_integration_pending(
+    plan: dict[str, Any], run: dict[str, Any], node_id: str,
+) -> dict[str, str] | None:
+    """Identify only a passed, reviewed mission whose integration is pending."""
+    from harness_manifest import preintegration_review_errors
+
+    nodes = [node for node in plan.get("graph", {}).get("nodes", [])
+             if isinstance(node, dict) and node.get("id") == node_id and node.get("kind") == "mission"]
+    if len(nodes) != 1:
+        return None
+    mission_id = nodes[0].get("ref")
+    if not _nonempty_string(mission_id):
+        return None
+    if sum(node.get("kind") == "mission" and node.get("ref") == mission_id
+           for node in plan.get("graph", {}).get("nodes", []) if isinstance(node, dict)) != 1:
+        return None
+    state = run.get("graph_state", {}).get("node_states", {}).get(node_id, {})
+    mission_states = run.get("mission_states")
+    mission = mission_states.get(mission_id) if isinstance(mission_states, dict) else None
+    if not isinstance(mission, dict):
+        return None
+    if state.get("phase") != "running" or mission.get("phase") != "worker_passed":
+        return None
+    workers = [worker for worker in run.get("workers", []) if isinstance(worker, dict)
+               and worker.get("worker_id") == state.get("bound_worker_id")]
+    if len(workers) != 1:
+        return None
+    worker = workers[0]
+    head = mission.get("head_sha")
+    if (worker.get("phase") != "worker_passed" or worker.get("mission_id") != mission_id
+            or worker.get("worker_id") != mission.get("worker_id")
+            or not _nonempty_string(worker.get("lease_id"))
+            or worker.get("lease_id") != mission.get("lease_id")
+            or not _nonempty_string(worker.get("attempt_id"))
+            or worker.get("attempt_id") != state.get("last_attempt_id")
+            or not is_full_sha(head) or worker.get("worker_head_sha") != head
+            or preintegration_review_errors(plan, run, mission_id)):
+        return None
+    return {"mission_id": mission_id, "node_id": node_id, "head_sha": head}
+
+
 def _adopt_runtime_contract(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
 ) -> None:
@@ -1010,11 +1051,18 @@ def _adopt_runtime_contract(
         if isinstance(worker, dict)
         and worker.get("phase") in {"leased", "worker_running"}
     )
-    running_nodes = sorted(
+    integration_pending = []
+    running_nodes = []
+    for node_id in sorted(
         str(node_id)
         for node_id, state in run.get("graph_state", {}).get("node_states", {}).items()
         if isinstance(state, dict) and state.get("phase") == "running"
-    )
+    ):
+        proof = _quiescent_integration_pending(plan, run, node_id)
+        if proof is None:
+            running_nodes.append(node_id)
+        else:
+            integration_pending.append(proof)
     reserved_attempts = sorted(
         str(attempt.get("attempt_id"))
         for attempt in run.get("attempt_log", [])
@@ -1115,6 +1163,8 @@ def _adopt_runtime_contract(
                 f"owner_source={owner_source}",
                 f"installed_contract_digest={installed_digest}",
                 "loaded_contract_digest=null",
+                *(f"integration_pending mission={proof['mission_id']} node={proof['node_id']} head={proof['head_sha']}"
+                  for proof in integration_pending),
                 *reading_evidence,
             ],
         }

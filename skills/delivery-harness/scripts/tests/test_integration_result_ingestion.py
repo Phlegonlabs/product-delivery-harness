@@ -168,7 +168,7 @@ class IntegrationResultIngestionTests(unittest.TestCase):
 
     def test_late_source_git_protected_and_plan_races_do_not_write_run(self):
         original_validation = ht.validate_current_plan_run
-        for kind in ("source", "protected", "tasks", "tracked", "plan", "run_cas"):
+        for kind in ("source", "protected", "tasks", "tracked", "plan", "run_cas", "branch", "head"):
             with self.subTest(race=kind):
                 baseline = self.fixture.run_path.read_bytes()
                 original_file = (self.fixture.gitroot / "file.txt").read_bytes()
@@ -186,6 +186,10 @@ class IntegrationResultIngestionTests(unittest.TestCase):
                         view.write_bytes(view.read_bytes())
                     elif kind == "plan":
                         self.fixture.plan_path.write_bytes(original_plan + b"\n")
+                    elif kind == "branch":
+                        mf.git(self.fixture.gitroot, "checkout", "-qb", "late-branch")
+                    elif kind == "head":
+                        mf.git(self.fixture.gitroot, "commit", "--allow-empty", "-qm", "late head")
                     else:
                         self.fixture.run_path.write_bytes(baseline + b"\n")
                     return errors
@@ -194,8 +198,11 @@ class IntegrationResultIngestionTests(unittest.TestCase):
                 self.assertEqual(baseline + (b"\n" if kind == "run_cas" else b""), self.fixture.run_path.read_bytes())
                 self.fixture.run_path.write_bytes(baseline)
                 self.fixture.plan_path.write_bytes(original_plan)
+                if kind == "branch":
+                    mf.git(self.fixture.gitroot, "checkout", "-q", "integration")
                 # Re-execute after restoring identities; no synthetic PASS replaces runner output.
-                self._refresh_results()
+                if kind != "head":
+                    self._refresh_results()
 
     def _refresh_results(self):
         run = cw.load_run_block(self.fixture.run_path)
@@ -209,6 +216,7 @@ class IntegrationResultIngestionTests(unittest.TestCase):
 
     def test_unsafe_result_files_and_dirty_or_wrong_branch_are_rejected(self):
         self.assert_rejected([Path("relative.json")])
+        self.assert_rejected([self.fixture.root])
         inside = self.fixture.gitroot / "input.json"
         inside.write_text(json.dumps(self.results[0]), encoding="utf-8")
         self.assert_rejected([inside])
@@ -252,5 +260,6 @@ class IntegrationResultIngestionTests(unittest.TestCase):
             with self.subTest(raw=raw):
                 self.sources[0].write_text(raw, encoding="utf-8")
                 self.assert_rejected()
+        self.sources[0].write_text('{"oversized": true}', encoding="utf-8")
         with mock.patch("harness_integration_results.MAX_RESULT_BYTES", 4):
             self.assert_rejected()

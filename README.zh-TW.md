@@ -871,6 +871,8 @@ Managed 角色結果使用 [parent 保留的執行收據](skills/delivery-harnes
 
 `record-integration --verifier-result <absolute-external-json>` 在同一次加鎖及驗證交易中接收實際執行的整合 verifier 結果並記錄整合。每份新結果各用一次旗標。候選、宣告、live Git 與受保護的 RUN/tasks 身分必須一致。不加旗標仍可使用有效的既存證據。此命令不授予執行或合併權限。
 
+契約 adoption 只在目前 worker 與所有必要的精確 head 審查終止並通過後，容許仍在等待整合的 running mission node。原 child check 與收據完整保留。其他活動工作仍會阻擋 adoption。Parent 必須確認 host 已終止，並在閱讀證據保留停止參照。Role-policy 更新仍拒絕 running mission node。
+
 舊原生 workflow driver、啟動模板與 `workflow_runs` 相容路徑已移除。歷史使用者檔案保持不動；使用舊 binding 的未完成工作，需要明確重新規劃並重驗能力與授權，不會自動遷移。
 
 Runtime 提速路徑只移除重複工作，不搬動 gate。`docs_weight.py` 用一次 `cat-file --batch` 讀取已解析 baseline 的 blobs；verifier 結果可記錄唯讀的 setup、guard、snapshot、command 與 postcheck 耗時；review packet 只移除 diff 內重複出現的材料；同一 batch 可重用 immutable archive bytes，但每個 verifier 仍有自己通過檢查的解壓目錄；verifier slot 會補入無衝突工作，不等整個 wave；只有同一 runner 產生的 deterministic opted-in PASS 可在重新檢查 guard 與 runtime/image trust 後重用 container 結果。container 結果不進入持久 cache。 新接受的重用必須在目前 parent 觀察到的 batch 中附帶原始執行；只有 RUN 歷史紀錄不足以授權。
