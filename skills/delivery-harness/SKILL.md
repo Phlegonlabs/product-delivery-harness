@@ -13,7 +13,7 @@ At every invocation, run the [entry checklist](references/governance/task-and-ha
 
 Before Product-package execution, apply `references/pre-delivery-self-review.md#harness-entry`: author reviews, catch-up rules, scoped routes and evidence. Missing/stale evidence blocks execution, not inspection/planning.
 
-Classify UI work with `ui-design-builder/references/review-workflow.md`. Initial design, enhancements and `structure`/`both` changes use the affected design gates. Routine maintenance (UI impact `none` or `style`) updates current product and requirements and keeps historical design artifacts. Product or stack decisions return upstream. Frozen RUNs keep pinned contracts until a task boundary.
+Classify UI work under [Product Contracts](references/governance/product-contracts.md#consumer-keep-product-contracts-current).
 
 Optional context: `references/reference-selection.md` (`references/option-library/`).
 
