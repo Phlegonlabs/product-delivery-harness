@@ -21,6 +21,12 @@ Use the statuses as follows:
 | `upgrade_required` | A required capability or minimum version is missing | Defer runtime-worker nodes with `runtime_upgrade_required` |
 | `restart_required` | An updater changed installed files, but this session still has the old runtime or skill loaded | Defer runtime-worker nodes with `runtime_restart_required` |
 
+## Run-Scoped Contract Pin
+
+Keep one RUN on one adopted Harness contract and one role/model policy from readiness to close. A newly installed release, private bundle, or policy change applies to the next RUN, not the active one. Tool improvements found during a run are separate source work.
+
+Only a defect that blocks the active RUN justifies adoption mid-run. Collect every known blocking fix into one candidate, review it once, and adopt it once through the sequence below under its existing owner authorization. An owner-directed model change applies to new assignments only and is recorded once; existing reservations keep their bindings.
+
 ## Safe Upgrade Sequence
 
 Never hot-upgrade a live worker or transfer its lease to a replacement process.

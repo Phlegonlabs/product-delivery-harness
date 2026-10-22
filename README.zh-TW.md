@@ -189,7 +189,7 @@ PRD 定義成果與可量測品質；architecture 定義責任、狀態、介面
 | 每次 HiFi 審查的內容 | 必跑 Impeccable `critique` **與** `audit`、完整必要瀏覽器覆蓋及當前 H1–H9。四捨五入的總平均 **至少 85**、每項 **至少 80**，且無 block／爭議，再取得 **一次 Visual Approval**。 |
 | 設計系統編譯 | 一組連貫的 source／pair／coverage／contrast／type／HTML 驗證與實際展示檢視；技術修復後重驗受影響部分，不新增方向核准或審美評分 wave。 |
 | Direct 程式交付 | 一位 writer、聚焦測試、作者完整 diff 自查及一次精確候選 `code-security-review`；程式候選改變就要新的安全審查。小型 UI 使用下列合併驗收，兩次修復失敗就停止。 |
-| Managed 程式交付 | 每個 mission 在整合前，按適用 surface 各一位 reviewer；統一 head 再作全新適用 surface 審查，包含統一安全審查。節點由凍結 PLAN 宣告；runtime review 允許初審及一次修復複查，原 lineage 預算持續累計。一個 mission 是一個功能批次，細 task 放在裡面，所以 review 數跟著功能走，不跟著步驟走。候選的所有必要 review 回來後才開始修；複查只看原 findings 和改到的程式碼。 |
+| Managed 程式交付 | 每個 mission 在整合前，按適用 surface 各一位 reviewer；統一 head 再作全新適用 surface 審查，包含統一安全審查。節點由凍結 PLAN 宣告；runtime review 允許初審及一次修復複查，原 lineage 預算持續累計。一個 mission 是一個功能批次，細 task 放在裡面，所以 review 數跟著功能走，不跟著步驟走。候選的所有必要 review 回來後才開始修；複查只看原 findings 和改到的程式碼。一個 RUN 固定一個已採用的 Harness 合約和模型政策。 |
 | 適用的實作 UI 驗收 | **一次獨立唯讀 Final UI Acceptance**，在精確候選上合併 Final Visual Parity Loop 與 page-quality 檢查。同一位 reviewer 共用當前證據、集中缺陷，修復後複查原缺陷及受影響部分。保留必要矩陣，**兩次修復失敗即停**，較嚴格的既有 lineage 預算優先。Impeccable 要另行授權，不能取代 reviewer。 |
 | 候選與正式環境 | 隔離候選 Preview 與實際 promoted production build 分開驗證；Preview 證據不能證明正式環境。Server 產生新 main SHA 時，要 tree equality、全新完整驗證與安全審查；這些是發布核對，不新增 HiFi 美感 wave。 |
 | Activation | 每個 target／action 要有設定或人工操作證據、獨立讀回及適用行為證明；早期準備與實際正式版分開驗證，動作數依必要 targets 決定。 |
