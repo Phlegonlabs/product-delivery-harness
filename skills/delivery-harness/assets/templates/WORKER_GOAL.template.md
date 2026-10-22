@@ -90,7 +90,7 @@ Read the supplied `references/worker-result-contract.md` only when preparing the
 - `REFINEMENT_REQUEST` when the current task cannot remain one independently verifiable unit; or
 - the graph node wrapper when the parent requests it.
 
-Report `worker_passed`, never integrated. The parent validates live Git, runs exact-head review, integrates, and updates RUN.
+Report `worker_passed`, never integrated. The parent validates live Git, runs its `review_policy` reviews, integrates, and updates RUN.
 
 ## No Nested Delegation
 

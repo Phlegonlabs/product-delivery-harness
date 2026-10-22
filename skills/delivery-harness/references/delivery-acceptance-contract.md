@@ -18,7 +18,7 @@ For managed work, freeze the contract as an additional PLAN source and declare `
 | --- | --- |
 | Atomic task | Focused positive, negative and security checks for the changed behavior. |
 | Mission integration | Exact-head diff review and affected cross-layer checks. |
-| Fixed release candidate | Complete declared acceptance matrix, fresh independent security review and required regression/UI checks. |
+| Fixed release candidate | Complete declared acceptance matrix, the one combined independent review with the security lens, and required regression/UI checks. |
 | Deployment | Actual build/configuration/account/environment read-back and authorized production-safe smoke. |
 
 Freeze coverage before execution. Share fixture setup only where ownership, isolation and cleanup remain explicit; retain a separate result for every required scenario. Collect result fields from actual runner output and review the underlying assertions. A generated register or a shared setup never replaces execution evidence.
