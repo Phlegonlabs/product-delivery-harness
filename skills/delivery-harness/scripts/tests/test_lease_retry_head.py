@@ -15,10 +15,16 @@ for entry in (str(TESTS_DIR), str(SCRIPTS_DIR)):
         sys.path.insert(0, entry)
 
 import harness_transition  # noqa: E402
-from test_write_path_transitions import WritePathTransitionTests  # noqa: E402
+import test_write_path_transitions as transition_fixtures  # noqa: E402
 
 
-class LeaseRetryHeadTests(WritePathTransitionTests):
+class LeaseRetryHeadTests(unittest.TestCase):
+    def setUp(self) -> None:
+        transition_fixtures.WritePathTransitionTests.setUp(self)
+
+    def tearDown(self) -> None:
+        transition_fixtures.WritePathTransitionTests.tearDown(self)
+
     def test_new_lease_clears_the_stale_mission_head(self) -> None:
         harness_transition._record_observation(
             self.plan, self.run, argparse.Namespace(repo_root=self.root)
