@@ -28,11 +28,11 @@ Choose one mode from the available evidence:
 
 ## Workflow
 
-1. Record the mode, production scope, target market and language, business outcome, comparison windows, data cutoff, and every source's freshness and access route.
-2. Read `references/source-catalog.md`. Fetch current official provider documentation before relying on a fast-moving API, report, field, quota, or console path.
+1. Record the mode, production scope, target market and language, business outcome, comparison windows, data cutoff, release identity when verifiable, and every source's scope, freshness and access route.
+2. Read the `references/source-catalog.md` sections for the sources you use. Fetch current official provider documentation before relying on a fast-moving API, report, field, quota, or console path.
 
     Consult `../delivery-harness/references/reference-selection.md` only for a public, discoverable surface and only when its adopted stack, security, deployment, or operations context is material to an SEO finding. Relevant catalog domains stay subordinate to the existing public-surface scope; this pointer creates no SEO work, gate, or change authority.
-3. Read `references/review-method.md`. Inventory available evidence before calling a source unavailable. Never infer authenticated access from a tool name, installed package, or signed-in page without proving the exact property or account scope.
+3. Read the `references/review-method.md` sections for the chosen mode. Inventory available evidence before calling a source unavailable. Never infer authenticated access from a tool name, installed package, or signed-in page without proving the exact property or account scope.
 4. Validate measurement integrity first. Confirm the production site, Search Console property, GA4 property and stream, canonical host, environment, and date coverage refer to the same scope. If `docs/ACTIVATION.md` exists, use its verified matching `MS-*` sources; a configured tag or dashboard alone is not verified data.
 5. Inspect the production site for technical discovery blockers: HTTP and redirect behavior, crawl and index directives, canonicals, sitemap reachability when applicable, rendered metadata, structured data eligibility, internal-link crawlability, mobile rendering, and material performance or page-experience failures. Distinguish a current observed failure from a recommendation.
 6. Gather keyword and page evidence from the highest-value available sources. Prefer actual Search Console queries and landing pages, then GA4 post-click value, then Trends and Keyword Planner estimates, then public SERP or competitor observations and first-party language supplied by the user.
@@ -41,12 +41,11 @@ Choose one mode from the available evidence:
 9. Prioritize with business fit, first-party demand, conversion or key-event evidence, page and intent fit, confidence, effort, and policy risk. Do not use a third-party authority score or one fixed keyword-volume threshold as the decision rule.
 10. Return the review in the shape defined by `references/review-method.md`. Give each proposed change one owner route and one measurable follow-up. A finding never authorizes the change.
 11. If the user asks to save the review, show the exact path first and preserve earlier reports. Default to an inline report; do not create a kanban board, standing dashboard, or canonical repository artifact without an explicit request.
-12. For a saved lifecycle public-release review, use `assets/templates/SEO_REVIEW.template.md`, save once under `docs/seo/reviews/YYYY-MM-DD-<slug>.md`, and run `scripts/check_seo_review.py --require-lifecycle` with the current PRD, architecture, stack-decisions, Deployment, Activation, repository root, expected repository, and concrete candidate ref when one exists. The checker re-runs the full approved Product Definition and Deployment validation when stack-decisions are supplied and rejects malformed UTF-8/OSError inputs as deterministic findings.
+12. For a saved lifecycle public-release review, use `assets/templates/SEO_REVIEW.template.md`, save once under `docs/seo/reviews/YYYY-MM-DD-<slug>.md`, and run `scripts/check_seo_review.py --require-lifecycle` with the arguments that `references/review-method.md` lists in its Saved Lifecycle section. The checker includes the Product Definition and Deployment validation.
 
 ## Reference Routing
 
-- Always read `references/source-catalog.md` for source roles, limitations, provider-access routes, and the connector/MCP boundary.
-- Always read `references/review-method.md` for technical checks, opportunity classification, prioritization, output, traffic-drop analysis, and gap routing.
+- `references/source-catalog.md` owns source roles, limitations and provider-access routes. `references/review-method.md` owns technical checks, opportunity classification, prioritization, output, traffic-drop analysis and gap routing.
 - Use `assets/templates/SEO_REVIEW.template.md` and `scripts/check_seo_review.py` only for a saved lifecycle public-release review; an inline standalone audit does not create or validate that artifact.
 - Use `product-activation` only when external configuration or verified measurement setup is requested.
 - Use `product-definition-builder` and `delivery-harness` only after the review identifies work in their owned scopes and the user requests that work.
@@ -60,5 +59,5 @@ Report:
 - observed technical blockers and non-blocking findings;
 - prioritized keyword, page, content, and internal-link opportunities with evidence strength;
 - which opportunities improve an existing page and which require a new or changed product contract;
-- the owner route for every follow-up: `product_activation`, `product_definition`, `delivery`, `connector`, `observe_later`, or `owner`; and
+- the owner route for every follow-up, from Gap Routing in `references/review-method.md`; and
 - the metric and next complete comparison window that can show whether an approved change worked.
