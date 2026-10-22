@@ -156,19 +156,4 @@ def observations(manifest, component_types=("button", "input", "select", "a"), v
     for row in observed["specimens"]:
         if row["kind"] == "token":
             row.update(sourceComputedValue="rgb(36, 52, 71)", specimenComputedValue="rgb(36, 52, 71)")
-    observed["retention"] = []
-    for row in expected["retention"]:
-        input_value = row["inputValueBefore"] if isinstance(row["inputValueBefore"], str) and row["inputValueBefore"].strip() else (
-            "Retained input" if row["inputApplicable"] else None
-        )
-        selected_value = row["selectedValueBefore"] if isinstance(row["selectedValueBefore"], str) and row["selectedValueBefore"].strip() else (
-            "ready" if row["selectedApplicable"] else None
-        )
-        observed["retention"].append(dict(
-            row,
-            inputValueBefore=input_value,
-            inputValueAfter=input_value,
-            selectedValueBefore=selected_value,
-            selectedValueAfter=selected_value,
-        ))
     return observed

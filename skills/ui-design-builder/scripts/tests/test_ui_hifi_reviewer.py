@@ -8,8 +8,7 @@ from pathlib import Path
 
 from test_ui_design_contract import bundle_output, checker, materialize_hifi_bundle
 from hifi_review_fixture import _source_html, add_shell, observations
-from hifi_reviewer import (_host_media_reflow, _target_widths, reviewer_contract,
-                           reviewer_diagnostic_coverage_findings, reviewer_evidence_findings)
+from hifi_reviewer import _host_media_reflow, _target_widths, reviewer_contract, reviewer_evidence_findings
 
 
 class HiFiReviewerTests(unittest.TestCase):
@@ -122,10 +121,8 @@ class HiFiReviewerTests(unittest.TestCase):
         docs["details.html"] = native
         errors, expected = reviewer_contract(docs, manifest)
         self.assertEqual([], errors)
-        self.assertEqual({"390", "768", "1200"}, {row["target"] for row in expected["views"] if row["from"] == "index.html"})
-        self.assertEqual({"compact", "regular"}, {row["target"] for row in expected["views"] if row["from"] == "details.html"})
-        destination_rows = [row for row in expected["navigation"] if row["from"] == "index.html" and row["to"] == "details.html"]
-        self.assertEqual({"compact"}, {row["destinationTarget"] for row in destination_rows if row["target"] == "390"})
+        self.assertEqual({"390", "768", "1200"}, {row["target"] for row in expected["viewport"] if row["page"] == "index.html"})
+        self.assertEqual({"compact", "regular"}, {row["target"] for row in expected["viewport"] if row["page"] == "details.html"})
 
     def test_named_width_map_rejects_nonfinite_and_oversized_values(self):
         for value in ("NaN", "Infinity", "1e1000", "1000001"):
@@ -166,7 +163,7 @@ class HiFiReviewerTests(unittest.TestCase):
     def test_malformed_reviewer_evidence_rows_are_rejected_without_crashing(self):
         _, expected = reviewer_contract(self.documents, self.manifest)
         actual = observations(self.manifest)
-        actual["retention"][0] = None
+        actual["viewport"][0] = None
         self.assertTrue(reviewer_evidence_findings(actual, expected))
         actual = observations(self.manifest)
         actual["specimens"][0] = {"sourcePage": "index.html"}
@@ -184,11 +181,17 @@ class HiFiReviewerTests(unittest.TestCase):
                 findings = reviewer_evidence_findings(actual, expected)
                 self.assertTrue(findings)
 
-    def test_retention_rows_have_a_closed_key_set(self):
+    def test_dropped_chrome_rows_are_optional_and_ignored(self):
         _, expected = reviewer_contract(self.documents, self.manifest)
+        self.assertEqual({"defaultSurface", "defaultVisible", "overviewInitiallyHidden", "overview", "viewport", "specimens"},
+                         set(expected))
         actual = observations(self.manifest)
-        actual["retention"][0]["extra"] = "accepted"
-        self.assertTrue(reviewer_evidence_findings(actual, expected))
+        self.assertEqual([], reviewer_evidence_findings(actual, expected))
+        legacy = dict(actual, views=[{"stale": True}], navigation=[], recovery=[None], retention=[{"stale": True}])
+        self.assertEqual([], reviewer_evidence_findings(legacy, expected))
+        partial = dict(actual, retention=[])
+        self.assertEqual([], reviewer_evidence_findings(partial, expected))
+        self.assertTrue(reviewer_evidence_findings(dict(actual, approval=True), expected))
 
     def test_invalid_shared_group_identity_does_not_reach_aggregation(self):
         _, expected = reviewer_contract(self.documents, self.manifest)
@@ -197,16 +200,6 @@ class HiFiReviewerTests(unittest.TestCase):
                 actual = observations(self.manifest)
                 actual["specimens"][0]["sharedGroup"] = invalid
                 self.assertTrue(reviewer_evidence_findings(actual, expected))
-
-    def test_text_input_cannot_impersonate_checked_selection(self):
-        for attributes in ('aria-checked="true"', 'aria-selected="true" role="option"', 'checked role="checkbox"'):
-            with self.subTest(attributes=attributes):
-                docs = {page: html.replace('data-retention-input', 'type="text" data-retention-input data-retention-selected ' + attributes)
-                        .replace('<select class="product-select" data-retention-selected', '<select class="product-select"')
-                        for page, html in self.documents.items()}
-                errors, expected = reviewer_contract(docs, self.manifest)
-                self.assertEqual([], errors)
-                self.assertTrue(all(row["selectedValueBefore"] == "ready" for row in expected["retention"]))
 
     def test_marked_product_anchor_requires_specimen_even_without_declared_anchor(self):
         component_types = ("button", "input", "select")
@@ -235,83 +228,6 @@ class HiFiReviewerTests(unittest.TestCase):
         checker._validate_hifi_surface(self.path, problems, self.scope, require_connected=True)
         self.assertTrue(any("specimen" in item.lower() or "source-bound" in item.lower() for item in problems), problems)
 
-    def test_retention_marker_on_text_input_cannot_override_real_select(self):
-        original = self.path.read_text(encoding="utf-8")
-        mutated = original.replace(
-            'data-retention-input data-specimen-variant="default"',
-            'data-retention-input data-retention-selected data-specimen-variant="default"',
-            1,
-        ).replace(
-            '<select class="product-select" data-retention-selected',
-            '<select class="product-select"',
-            1,
-        )
-        self.path.write_text(mutated, encoding="utf-8")
-        documents = checker._hifi_bundle_documents(self.path, mutated, self.manifest)
-        errors, expected = reviewer_contract(documents, self.manifest)
-        self.assertEqual([], errors)
-        self.assertTrue(expected["retention"][0]["selectedApplicable"])
-        self.assertEqual("ready", expected["retention"][0]["selectedValueBefore"])
-        problems = []
-        checker._validate_hifi_surface(self.path, problems, self.scope, require_connected=True)
-        self.assertEqual([], problems)
-
-    def test_retention_presence_is_distinct_from_an_absent_control(self):
-        actual = observations(self.manifest, component_types=("button",))
-        _, expected = reviewer_contract(
-            {page: add_shell(_source_html(row, component_types=("button",)), self.manifest, page, ("button",))
-             for page, row in {item["page"]: item for item in self.manifest["surfaces"]}.items()},
-            self.manifest,
-        )
-        self.assertFalse(expected["retention"][0]["inputApplicable"])
-        self.assertFalse(expected["retention"][0]["selectedApplicable"])
-        self.assertEqual([], reviewer_evidence_findings(actual, expected))
-
-        applicable = observations(self.manifest)
-        applicable["retention"][0]["inputValueBefore"] = None
-        applicable["retention"][0]["inputValueAfter"] = None
-        self.assertTrue(reviewer_evidence_findings(applicable, self._expected_reviewer()))
-
-    def _expected_reviewer(self):
-        return reviewer_contract(self.documents, self.manifest)[1]
-
-    def test_diagnostic_retention_uses_the_strict_value_rule(self):
-        expected = self._expected_reviewer()
-        typed = observations(self.manifest)
-        for row in typed["retention"]:
-            row.update(inputValueBefore="Typed by reviewer", inputValueAfter="Typed by reviewer",
-                       selectedValueBefore="other", selectedValueAfter="other")
-        self.assertNotEqual(expected["retention"][0]["inputValueBefore"], "Typed by reviewer")
-        self.assertEqual(([], []), reviewer_diagnostic_coverage_findings(typed, expected))
-        self.assertEqual([], reviewer_evidence_findings(typed, expected))
-
-        changed = observations(self.manifest)
-        changed["retention"][0].update(inputValueBefore="before", inputValueAfter="after")
-        structural, defects = reviewer_diagnostic_coverage_findings(changed, expected)
-        self.assertEqual([], structural)
-        self.assertEqual(1, len(defects))
-        self.assertTrue(defects[0].endswith(": inputValueAfter, inputValueBefore"), defects)
-        self.assertTrue(reviewer_evidence_findings(changed, expected))
-
-        for value in (None, "", "  "):
-            with self.subTest(value=value):
-                unobserved = observations(self.manifest)
-                unobserved["retention"][0].update(selectedValueBefore=value, selectedValueAfter=value)
-                structural, defects = reviewer_diagnostic_coverage_findings(unobserved, expected)
-                self.assertTrue(any("is incomplete" in item for item in structural), structural)
-                self.assertEqual([], defects)
-
-    def test_diagnostic_retention_value_is_null_when_not_applicable(self):
-        docs = {page: add_shell(_source_html(row, component_types=("button",)), self.manifest, page, ("button",))
-                for page, row in {item["page"]: item for item in self.manifest["surfaces"]}.items()}
-        expected = reviewer_contract(docs, self.manifest)[1]
-        actual = observations(self.manifest, component_types=("button",))
-        self.assertEqual(([], []), reviewer_diagnostic_coverage_findings(actual, expected))
-        actual["retention"][0].update(inputValueBefore="typed", inputValueAfter="typed")
-        structural, defects = reviewer_diagnostic_coverage_findings(actual, expected)
-        self.assertTrue(any("does not use" in item for item in structural), structural)
-        self.assertEqual([], defects)
-
     def test_component_specimens_must_be_real_elements_with_visible_markers(self):
         docs = dict(self.documents)
         docs["index.html"] = docs["index.html"].replace('data-specimen-element="button"', 'data-specimen-element="div"', 1)
@@ -333,23 +249,17 @@ class HiFiReviewerTests(unittest.TestCase):
         findings = reviewer_evidence_findings(actual, expected)
         self.assertTrue(any("specimen coverage is incomplete" in item for item in findings), findings)
 
-    def test_canvas_and_retention_observations_use_measured_values(self):
+    def test_canvas_observations_use_measured_values(self):
         _, expected = reviewer_contract(self.documents, self.manifest)
-        for change in ("width", "surface", "target", "input", "selected", "missing"):
+        for change in ("width", "surface", "missing"):
             with self.subTest(change=change):
                 actual = observations(self.manifest)
                 if change == "width":
                     actual["viewport"][0]["measuredProductWidth"] = 320
                 elif change == "surface":
                     actual["viewport"][0]["visibleSurfaces"] = ["unrelated"]
-                elif change == "target":
-                    actual["retention"][0]["selectedTargetAfter"] = "1200"
-                elif change == "input":
-                    actual["retention"][0]["inputValueAfter"] = "changed"
-                elif change == "selected":
-                    actual["retention"][0]["selectedValueAfter"] = "changed"
                 else:
-                    actual.pop("retention")
+                    actual.pop("viewport")
                 self.assertTrue(reviewer_evidence_findings(actual, expected))
 
     def test_evidence_parser_rejects_casing_bypass_and_empty_surfaces(self):
@@ -379,33 +289,14 @@ class HiFiReviewerTests(unittest.TestCase):
                                           repo_root=self.path.parent, label="HiFi surface check", problems=problems, expected_artifact="index.html", expected_matrix=matrix)
                 self.assertTrue(problems)
 
-    def test_child_values_and_originating_view_pages_are_required(self):
+    def test_child_values_are_required(self):
         _, expected = reviewer_contract(self.documents, self.manifest)
         actual = observations(self.manifest)
         child = next(row for row in actual["specimens"] if row["sourcePage"] == "details.html" and row["kind"] == "token")
         # Simulate the actual child measurement after a child style change.
         child["sourceValue"] = "#ff0000"
         self.assertTrue(reviewer_evidence_findings(actual, expected))
-        actual = observations(self.manifest)
-        actual["views"] = [row for row in actual["views"] if row["from"] == "index.html"]
-        self.assertTrue(reviewer_evidence_findings(actual, expected))
 
-    def test_missing_and_failed_recovery_observations_are_rejected(self):
-        _, expected = reviewer_contract(self.documents, self.manifest)
-        for case in ("unknown-hash", "back-from-overview", "back-from-design-tokens", "final-default-restoration"):
-            for failure in ("missing", "blank-product", "panel-visible", "wrong-surface"):
-                with self.subTest(case=case, failure=failure):
-                    actual = observations(self.manifest)
-                    row = next(row for row in actual["recovery"] if row["case"] == case)
-                    if failure == "missing":
-                        actual["recovery"].remove(row)
-                    elif failure == "blank-product":
-                        row["productVisible"] = False
-                    elif failure == "panel-visible":
-                        row["panelsHidden"] = False
-                    else:
-                        row["surfaces"] = ["unrelated"]
-                    self.assertTrue(reviewer_evidence_findings(actual, expected))
     def test_missing_shell_is_historical_inspection_only(self):
         import re
         for name, text in self.documents.items():
@@ -506,17 +397,13 @@ class HiFiReviewerTests(unittest.TestCase):
 
     def test_stale_computed_values_and_fake_observations_fail(self):
         _, expected = reviewer_contract(self.documents, self.manifest)
-        for change in ("value", "source", "keyboard", "navigation", "default", "extra"):
+        for change in ("value", "source", "default", "extra"):
             with self.subTest(change=change):
                 actual = copy.deepcopy(observations(self.manifest))
                 if change == "value":
                     actual["specimens"][0]["displayValue"] = "wrong"
                 elif change == "source":
                     actual["specimens"][0]["source"] = ".unrelated"
-                elif change == "keyboard":
-                    actual["views"] = [row for row in actual["views"] if row["trigger"] == "click"]
-                elif change == "navigation":
-                    actual["navigation"][0]["focusCorrect"] = False
                 elif change == "default":
                     actual["defaultVisible"] = False
                 else:
