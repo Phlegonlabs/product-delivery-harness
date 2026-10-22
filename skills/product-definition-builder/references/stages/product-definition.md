@@ -118,7 +118,7 @@ Apply `../delivery-harness/references/pre-delivery-self-review.md#prd-self-revie
 
 ## Current UI Preflight
 
-Before a `ui-design/3` direction round, validate the approved product package with `--ui-contract ui-design/3` alongside `--require-filled --require-approved --repo-root <root>`. A retained `ui-design/2` direction round instead uses `--ui-contract ui-design/2` and keeps its original rules. Each UI surface supplies copy status, operations, states and its exact responsive set. PRD owns data, chart meaning, agent behavior and integration responsibilities; design chooses composition. Read the PRD directly without creating a duplicate per-page specification. Omitting the flag retains legacy validation.
+Before a `ui-design/3` direction round, validate the approved product package with `--ui-contract ui-design/3` alongside `--require-filled --require-approved --repo-root <root>`. A retained `ui-design/2` direction round instead uses `--ui-contract ui-design/2` and keeps its original rules. Each UI surface supplies copy status, operations, states and its exact responsive set. `ui-design/3` also fails an unreachable surface or an opened state without an exit; see `references/output-contract.md#operations-for-new-design-rounds`. PRD owns data, chart meaning, agent behavior and integration responsibilities; design chooses composition. Read the PRD directly without creating a duplicate per-page specification. Omitting the flag retains legacy validation.
 
 ## Output Standards
 

@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import os
 import subprocess
 import re
@@ -1941,6 +1942,55 @@ Security scope: executable
         self.assertTrue(
             any("requires exactly one `copy` anchor" in item for item in self.validate(prd=missing_copy))
         )
+
+    def test_ui_design_v3_operations_reach_every_surface_and_leave_every_opened_state(self) -> None:
+        def op(identifier, source, surface, state, presentation="page"):
+            return {"id": identifier, "trigger": identifier, "control": identifier.lower(),
+                    "sourceState": source, "destination": {"surface": surface, "state": state},
+                    "presentation": presentation}
+
+        def findings(home_ops, detail_ops, contract="ui-design/3"):
+            base = ui_contract()
+            block = base[base.index("### UI-001"):base.index("<!-- ui-surface-contract:end -->")]
+            detail = (block.replace("### UI-001 — Home", "### UI-002 — Detail")
+                      .replace("/home", "/detail")
+                      .replace("- `states`: ready", "- `states`: ready, confirm, saved"))
+            values = [ops if isinstance(ops, str) else json.dumps(ops) for ops in (home_ops, detail_ops)]
+            contract_text = base.replace(
+                block, block + f"- `operations`: {values[0]}\n" + detail + f"- `operations`: {values[1]}\n"
+            )
+            prd = valid_prd().replace(
+                "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",
+                "UI design: pending explicit ui-design-builder request\nUI decision owner: Product owner",
+            ) + contract_text
+            problems = check_product_package.validate_texts(
+                prd, valid_architecture(), valid_stack(), ui_contract=contract
+            )
+            return [item for item in problems if "entry surface" in item or "exit operation" in item]
+
+        home = [op("OP-open", "ready", "UI-002", "ready")]
+        detail = [
+            op("OP-home", "ready", "UI-001", "ready"),
+            op("OP-delete", "ready", "UI-002", "confirm", "overlay"),
+            op("OP-cancel", "confirm", "UI-002", "ready", "state"),
+            op("OP-save", "ready", "UI-002", "saved", "feedback"),
+        ]
+        self.assertEqual([], findings(home, detail))
+
+        unreachable = findings([op("OP-refresh", "ready", "UI-001", "ready")], detail)
+        self.assertIn(
+            "prd: UI surface UI-002 is not reachable from entry surface UI-001 through operations",
+            unreachable,
+        )
+        # A self-loop does not leave its state.
+        self.assertIn("prd: UI surface UI-001 state ready has no exit operation", unreachable)
+        self.assertEqual([], findings([op("OP-refresh", "ready", "UI-001", "ready")], detail, "ui-design/2"))
+
+        trapped = findings(home, [row for row in detail if row["id"] != "OP-cancel"])
+        self.assertEqual(["prd: UI surface UI-002 state confirm has no exit operation"], trapped)
+
+        terminal = findings(home, "none — read-only receipt with no product controls")
+        self.assertEqual([], terminal)
 
     def test_wireframe_approval_advances_draft_copy_without_circular_prd_rewrite(self) -> None:
         data = {
