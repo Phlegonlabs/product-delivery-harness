@@ -51,7 +51,9 @@ Worker mission gate:
 - Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
-Current RUN-v11 task and worker verifiers use their explicit execution policy. New declarations select `host` for ordinary local build/lint/test; `container` remains available with its exact PLAN-bound runtime trust and image RepoDigest observation. Host-only readiness does not probe Docker or Podman. Execution and retained evidence must match the declared mode and exact candidate; a container failure never falls back to the host.
+Current task and worker verifiers declare explicit host execution.
+Commands run fresh in the bound checkout with exact candidate, command identity, logs, exit status and source/Git guards.
+No container runtime or image policy is part of current readiness or result evidence.
 
 Non-runtime node gate:
 
@@ -72,7 +74,7 @@ Mission integration gate:
 - Runs after reviewed work lands on the exact non-protected run integration branch resolved from repository governance or the user's instruction.
 - Runs that mission's declared `integration_verifiers` on the integrated head.
 - Admit actual protocol-v2 output through repeatable `record-integration --verifier-result <absolute-external-json>` flags. Require fresh execution, captured streams, exact PLAN/RUN context, and complete declared PASS coverage. Existing valid retained evidence remains usable without flags.
-- Bind host and container output to the live integration root, branch, candidate, tracked snapshots, and exact RUN/generated-tasks protected paths. Recheck source bytes and protected identities before the atomic RUN write. Reuse, duplicate input, retained-PASS replay, and another route's reservation are refused.
+- Bind host output to the live integration root, branch, candidate, tracked snapshots, and exact RUN/generated-tasks protected paths. Recheck source bytes and protected identities before the atomic RUN write. Reuse, duplicate input, retained-PASS replay, and another route's reservation are refused.
 - When missions meet at a security boundary, integration checks cover the seam — enforcement, cross-mission trust/data flow, and failure/no-side-effect behavior — rather than repeating only per-task unit checks.
 - Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
 
@@ -85,7 +87,7 @@ Platform handoff gate:
 Batch integration gate:
 
 - Runs the PLAN-level `batch_verifiers` after every selected wave has integrated serially.
-- Uses `scripts/verifier_runtime.py` batch mode. Only container verifiers with `parallel_safe: true` and nonconflicting resource claims may run together. Host verifiers require `parallel_safe: false` and run serially within that runner; independent workers may run host checks concurrently in separate worktrees. Task and worker gates use the same batch path.
+- Uses `scripts/verifier_runtime.py` batch mode. Host verifiers require `parallel_safe: false` and run serially within that runner; independent workers may run host checks concurrently in separate worktrees. Task and worker gates use the same batch path.
 - Contains only checks that need more than one integrated mission or shared contract. Do not repeat focused task suites here.
 - Proves cross-mission behavior did not regress and blocks the next wave on failure.
 
@@ -160,9 +162,9 @@ The parent supplies normalized, repository-relative observed paths to `select_ve
 
 Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v11 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
 
-Every applicable declared verifier requires an explicit execution mode. Host mode runs the declared argv in the bound checkout with the project toolchain and current user permissions. It retains command identity, cwd, exact SHA, logs, exit status, timeout and source/Git checks. It allows ignored build output but rejects changed tracked source or protected Git/coordination state; it does not automatically reset or clean up. Host verifiers execute serially within one runner and never reuse cached results. This is not a claim of network or filesystem confinement. Container mode retains the pinned image, trusted runtime, read-only Git archive, disabled network, read-only rootfs and resource limits. Missing, `live`, and `git_snapshot` modes remain invalid. Browser, external service, migration, and mutable-environment operations retain their separate routes and action authorization.
+Every applicable declared verifier requires an explicit execution mode. Host mode runs the declared argv in the bound checkout with the project toolchain and current user permissions. It retains command identity, cwd, exact SHA, logs, exit status, timeout and source/Git checks. It allows ignored build output but rejects changed tracked source or protected Git/coordination state; it does not automatically reset or clean up. Host verifiers execute serially within one runner and never reuse cached results. This is not a claim of network or filesystem confinement. Missing, container, `live`, and `git_snapshot` modes remain invalid in current tools. Browser, external service, migration, and mutable-environment operations retain their separate routes and action authorization.
 
-Before the final source/Git checks, host execution ends its owned process group or job after success, failure, or timeout. Process ownership setup or cleanup failure cannot produce PASS. Windows starts the command suspended, assigns it to a Job, then resumes it. POSIX uses a new process group; host commands must stay in that group and must not daemonize with `setsid` or `setpgid`. Commands that need to escape that lifetime need the container route or a separately managed service. This manages verifier lifetime; it does not grant filesystem or network confinement.
+Before the final source/Git checks, host execution ends its owned process group or job after success, failure, or timeout. Process ownership setup or cleanup failure cannot produce PASS. Windows starts the command suspended, assigns it to a Job, then resumes it. POSIX uses a new process group; host commands must stay in that group and must not daemonize with `setsid` or `setpgid`. Commands that need to escape that lifetime need a separately authorized managed service with its own finite lifetime. This manages verifier lifetime; it does not grant filesystem or network confinement.
 
 A parent-owned batch/final graph verifier also carries the reserved node/attempt nonce and Git guard emitted by `reserve-node-attempt`. The runtime verifies the exact branch, HEAD, clean tree, and tracked-file fingerprint before and after execution. RUN and its declared generated `docs/tasks.md` view are coordination exceptions to dirty status, not integrity checks: their bytes and file identities are snapshotted across execution, starting SHA-256 values are attested, and `record-node-result` rehashes both before accepting evidence. Hand-authored or undeclared views and product dirt still block dispatch. A different checkout, replayed nonce, retargeted request, checkout drift, protected coordination-file change, or request/result artifact inside the reviewed checkout is rejected.
 
@@ -172,47 +174,16 @@ New local verifier declarations use:
 {"execution":{"parallel_safe":false,"resources":[],"isolation":"host"}}
 ```
 
-Host declarations omit `sandbox`; an explicit mode prevents legacy plans from silently changing their execution boundary. They do not grant dependency installation, network side effects, or publication. Provision the declared project environment under its existing authorization before verification. On Windows, use native executables with argument arrays (for example Node plus a package-manager CLI script); do not wrap arbitrary commands in a shell.
+Host declarations grant no dependency installation, network side effect or publication authority.
+Provision the project environment under its existing authorization before verification.
+On Windows, use native executables with argument arrays; do not wrap arbitrary commands in a shell.
 
-Optional container verifier declarations include the full execution policy:
-
-```json
-{
-  "execution": {
-    "parallel_safe": true,
-    "resources": [],
-    "isolation": "container",
-    "sandbox": {
-      "runtime": "docker",
-      "image": "<observed-image>@sha256:<observed-repodigest>",
-      "network": "none",
-      "read_only_rootfs": true,
-      "no_new_privileges": true,
-      "cap_drop": ["ALL"],
-      "tmpfs": ["/tmp"],
-      "memory": "512m",
-      "cpus": "1",
-      "pids_limit": "256",
-      "user": "65532:65532",
-      "pull": "never"
-    }
-  },
-  "selection": {
-    "mode": "changed_files",
-    "scopes": ["apps/api/**"]
-  },
-  "cache": {
-    "mode": "session_exact",
-    "environment_keys": ["CI"]
-  }
-}
-```
-
-The runtime decides PASS from exit code 0 alone; `pass_signal` records that signal and is not a separate check. Write it as `exit 0`, and give any other condition its own verifier argv. `session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`.
-
-There is no disk verifier cache; a `cache_root` field in an older request is accepted and ignored. Keep verifier request and result artifacts repository-external. Within one batch, read-only task/worker declarations may opt into PASS reuse with `session_exact` and `deterministic_local: true`. Equivalent concurrent requests share one execution; each consumer freshly verifies its live guard and runtime/image identity and keeps its own reservation and attestations. The origin must arrive in the same parent-observed result batch, with matching context and output hashes; historical RUN rows cannot authorize new reuse. After acceptance, RUN retains both origin and consumer for later validation. The exact execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, pinned image policy, observed runtime executable/hash/version/RepoDigest, OS/architecture, pass signal, and selected environment-value digests. The in-memory cache also binds the canonical checkout and protected Git inputs; it cannot bypass the container boundary.
-
-Only PASS with exit code 0 is reusable. A changed input, dirty checkout, failure, or timeout runs the command fresh. A failed origin releases waiting consumers without caching its result. Logical attribution — verifier ID, layer, mission, task, attempt, and lease — is not in the execution key, so equivalent opted-in task and worker gates may cite one exact execution while each keeps its own PASS record, context, and evidence key. Never use this cache for runtime review, browser capture, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
+The runtime decides PASS from exit code 0 alone.
+Write `pass_signal` as `exit 0`; give any additional condition its own verifier argv.
+Keep request and result artifacts outside the reviewed checkout.
+Every execution key binds its immutable context, exact head, command, cwd, host executable identity and source/Git inputs.
+Current verifier commands always execute fresh. Historical container/cache protocols use their [exact pinned bundle](legacy-pins.md#container-verifiers-before-066).
+Retained evidence keeps its original SHA and origin; never relabel it as a fresh execution.
 
 ## Automated E2E And Smoke Reuse
 

@@ -1679,8 +1679,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn('selection.mode: "changed_files"', content)
             self.assertIn("parent-observed changed files", content)
         for content in (skill, verification, run):
-            self.assertIn("session_exact", content)
-            self.assertIn("repository-external", content)
+            self.assertNotIn("session_exact", content)
+            self.assertIn("run fresh", content)
+            self.assertIn("outside", content)
         self.assertIn('"isolation": "host"', plan)
         self.assertIn('"parallel_safe": false', plan)
         self.assertIn("real cross-mission", verification)
@@ -1713,7 +1714,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for content in (verification, worker):
             self.assertIn("host", content)
             self.assertIn("container", content)
-            self.assertIn("PLAN-bound", content)
+            self.assertIn("source/Git", content)
+            self.assertNotIn("RepoDigest", content)
         for content in (graph, verification, worker):
             self.assertNotIn("future separately implemented route", content)
             self.assertNotIn("route them through a planned external read-only verifier node", content)

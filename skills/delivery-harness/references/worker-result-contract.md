@@ -51,7 +51,10 @@ Record a failed start as `blocked` with the actual host error.
 ```
 For a worker-level verifier, use `"layer": "worker"` and `"task_id": null`. Use `"graph_revision": null` outside a graph run.
 
-In current RUN-v11, task and worker verifier commands use explicit `host` or `container` policies. Retained execution evidence must bind the declared mode, exact candidate, command, cwd, logs, exit status and live source/Git guards. Host results are fresh and do not claim sandbox confinement. Container results retain the machine-verifiable sandbox attestation and current PLAN-bound runtime/image RepoDigest observation. Missing or stale required evidence blocks dispatch or acceptance; changing modes never permits reuse of the prior mode's PASS.
+Current task and worker verifiers declare `execution.isolation: "host"`.
+Retain exact candidate, command, cwd, logs, exit status and source/Git checks.
+Commands run fresh; a host result never claims process confinement or container attestation.
+Missing or stale required evidence blocks acceptance.
 
 ## Worker Result
 

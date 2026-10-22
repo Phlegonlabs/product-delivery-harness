@@ -93,15 +93,18 @@ Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate
 
 Acceptance/eval gates: `references/delivery-acceptance-contract.md`, `references/eval-acceptance-contract.md`.
 
-After the version gate, run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It binds the host, PLAN revision, and digest, plus runtime and RepoDigest for explicitly selected containers; `--probe-sandboxes` is diagnostic only. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
+After the version gate, run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation`. Global flags precede the subcommand. It records live Git facts; capacity flags use independently observed host evidence. `lease-worker` copies selector bindings and materializes exact targets only from active wildcard grants. Record through guarded transitions, review exact heads, integrate serially, and close the wave.
 
 ### 5. Verify Local-First
 
-New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Containers remain optional with no fallback. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
+New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
 
 Follow the verification ladder and Review Topology in `references/verification-gates.md`. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
 
-Host verifiers run fresh and serially per runner. Container `session_exact` reuse requires `exit 0`, clean matching inputs, read-only task/worker declarations, and `cache.deterministic_local: true` within one runner batch. Every consumer rechecks guards and runtime/image identity and retains its reservation, evidence, and origin. Keep request/result artifacts repository-external; no disk cache is used. Integration, cross-mission, final, browser, migration, mutable-environment, and network checks execute fresh. UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the integration head.
+Host verifiers run fresh and serially per runner, with source/Git guards and exact execution evidence.
+Keep requests and results outside the reviewed checkout. There is no verifier result cache.
+Browser, migration, mutable-environment and network checks retain their separate routes and action authorization.
+UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the integration head.
 
 ### 6. Complete
 
