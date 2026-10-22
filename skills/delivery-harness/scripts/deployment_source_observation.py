@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import ctypes
-import ctypes.wintypes as wintypes
 import errno
 import hashlib
 import json
@@ -15,6 +13,8 @@ import re
 import stat
 import sys
 from typing import Any
+
+from harness_git import _path_has_reparse_or_link
 
 
 OBSERVATION_SCHEMA = "deployment-source-observation/1"
@@ -62,43 +62,10 @@ ROOT_CREDENTIAL_COMPONENTS = {
     "provider_config.json", "bridge.local.json", ".aws", ".ssh", ".gnupg",
     ".docker", ".kube", ".azure",
 }
-INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
 
 class _DuplicateKeyError(ValueError):
     pass
-
-
-if sys.platform == "win32":
-    class _BY_HANDLE_FILE_INFORMATION(ctypes.Structure):
-        _fields_ = [
-            ("file_attributes", ctypes.c_ulong),
-            ("_creation_time", wintypes.FILETIME),
-            ("_access_time", wintypes.FILETIME),
-            ("_write_time", wintypes.FILETIME),
-            ("volume_serial", ctypes.c_ulong),
-            ("size_high", ctypes.c_ulong),
-            ("size_low", ctypes.c_ulong),
-            ("number_of_links", ctypes.c_ulong),
-            ("index_high", ctypes.c_ulong),
-            ("index_low", ctypes.c_ulong),
-        ]
-
-        @property
-        def size(self) -> int:
-            return (self.size_high << 32) | self.size_low
-
-        @property
-        def index(self) -> int:
-            return (self.index_high << 32) | self.index_low
-
-        @property
-        def creation_time(self) -> int:
-            return (self._creation_time.dwHighDateTime << 32) | self._creation_time.dwLowDateTime
-
-        @property
-        def write_time(self) -> int:
-            return (self._write_time.dwHighDateTime << 32) | self._write_time.dwLowDateTime
 
 
 def _object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -183,7 +150,10 @@ def _is_reparse_metadata(metadata: os.stat_result) -> bool:
 
 
 def _identity_changed(before: os.stat_result, after: os.stat_result) -> bool:
-    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns")
+    # Windows can advance ctime when opening an unchanged file for reading.
+    if os.name != "nt":
+        fields += ("st_ctime_ns",)
     return any(getattr(before, field) != getattr(after, field) for field in fields)
 
 
@@ -304,175 +274,45 @@ def _posix_open_relative_directory(anchor_fd: int, parts: tuple[str, ...], flags
         raise
 
 
-def _valid_handle(handle: int | None) -> bool:
-    return handle is not None and handle != INVALID_HANDLE_VALUE
-
-
-def _windows_kernel():
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.CreateFileW.restype = ctypes.c_void_p
-    kernel.CreateFileW.argtypes = (
-        ctypes.c_wchar_p, ctypes.c_ulong, ctypes.c_ulong,
-        ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_void_p,
-    )
-    kernel.GetFileInformationByHandle.argtypes = (
-        ctypes.c_void_p, ctypes.POINTER(_BY_HANDLE_FILE_INFORMATION),
-    )
-    kernel.GetFileInformationByHandleEx.argtypes = (
-        ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong,
-    )
-    kernel.ReadFile.argtypes = (
-        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong,
-        ctypes.POINTER(ctypes.c_ulong), ctypes.c_void_p,
-    )
-    kernel.CloseHandle.argtypes = (ctypes.c_void_p,)
-    kernel.CloseHandle.restype = wintypes.BOOL
-    return kernel
-
-
-def _windows_info(kernel: ctypes.WinDLL, handle: int) -> _BY_HANDLE_FILE_INFORMATION | None:
-    info = _BY_HANDLE_FILE_INFORMATION()
-    if not kernel.GetFileInformationByHandle(handle, ctypes.byref(info)):
-        return None
-    return info
-
-
-def _windows_identity(info: _BY_HANDLE_FILE_INFORMATION) -> tuple:
-    return (
-        info.volume_serial, info.index, info.size,
-        info.creation_time, info.write_time, info.file_attributes,
-    )
-
-
-def _windows_open(
-    kernel: ctypes.WinDLL,
-    path: Path,
-    *,
-    directory: bool,
-    read: bool,
-    share: int = 7,
-):
-    desired = 0x80 if not read else 0x80000000
-    flags = 0x00200000
-    flags |= 0x02000000
-    if not directory and not read:
-        flags |= 0x80
-    return kernel.CreateFileW(
-        str(path), desired, share, None, 3, flags, None
-    )
-
-
 def _read_bounded_regular_windows(
     root: Path,
     parts: tuple[str, ...],
     label: str,
     _race_probe=None,
 ) -> tuple[bytes, str, list[str]]:
-    failure = [f"{label}: safe native descriptor binding is unavailable"]
-    open_failure = [f"{label}: retained evidence cannot be read safely"]
-    if sys.platform != "win32":
-        return b"", "", failure
-    handles: list[int] = []
-    kernel = None
+    """Read a bounded regular file using the shared link/reparse check."""
+
+    path = root.joinpath(*parts)
+    if _path_has_reparse_or_link(path):
+        return b"", "", [f"{label}: retained evidence path contains a link or reparse point"]
     try:
-        kernel = _windows_kernel()
-        root_path = Path(os.path.abspath(root))
-        if root_path.drive.startswith("\\\\"):
-            return b"", "", [f"{label}: UNC repository roots are not safe evidence roots"]
-        chain_paths = [root_path]
-        chain_paths.extend(
-            root_path.joinpath(*parts[:index])
-            for index in range(1, len(parts))
-        )
-        for chain_path in chain_paths:
-            handle = _windows_open(
-                kernel, chain_path, directory=True, read=False, share=3
-            )
-            if not _valid_handle(handle):
-                return b"", "", open_failure
-            handles.append(handle)
-            info = _windows_info(kernel, handle)
-            if info is None:
-                return b"", "", failure
-            if info.file_attributes & 0x400 or not info.file_attributes & 0x10:
-                return b"", "", [f"{label}: retained evidence root contains a link or reparse point"]
-        parent_before = _windows_info(kernel, handles[-1])
-        if parent_before is None:
-            return b"", "", failure
-
-        leaf_path = root_path.joinpath(*parts)
-        leaf_handle = _windows_open(kernel, leaf_path, directory=False, read=False)
-        if not _valid_handle(leaf_handle):
-            return b"", "", open_failure
-        handles.append(leaf_handle)
-        leaf_before = _windows_info(kernel, leaf_handle)
-        if leaf_before is None:
-            return b"", "", failure
-        if leaf_before.file_attributes & 0x400:
-            return b"", "", [f"{label}: retained evidence path contains a link or reparse point"]
-        if leaf_before.file_attributes & 0x10:
+        parent_before = path.parent.stat()
+        root_before = root.stat()
+        before = path.stat()
+        if not stat.S_ISREG(before.st_mode):
             return b"", "", [f"{label}: retained evidence is not a regular file"]
-        if leaf_before.size > MAX_OBSERVATION_BYTES:
+        if before.st_size > MAX_OBSERVATION_BYTES:
             return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
-        if _race_probe is not None:
-            _race_probe("after-open", leaf_path)
-        read_handle = _windows_open(kernel, leaf_path, directory=False, read=True)
-        if not _valid_handle(read_handle):
-            return b"", "", open_failure
-        handles.append(read_handle)
-        if _race_probe is not None:
-            _race_probe("after-open", leaf_path)
-
-        content = b""
-        remaining = MAX_OBSERVATION_BYTES + 1
-        while remaining:
-            request = min(65536, remaining)
-            buffer = ctypes.create_string_buffer(65536)
-            count = ctypes.c_ulong(0)
-            if not kernel.ReadFile(
-                read_handle, buffer, request, ctypes.byref(count), None
-            ):
-                return b"", "", open_failure
-            if not count.value:
-                break
-            content += buffer.raw[:count.value]
-            remaining -= count.value
-        leaf_after = _windows_info(kernel, leaf_handle)
-        if leaf_after is None or _windows_identity(leaf_before) != _windows_identity(leaf_after):
+        with path.open("rb") as handle:
+            opened = os.fstat(handle.fileno())
+            if _identity_changed(before, opened):
+                return b"", "", [f"{label}: retained evidence changed before it was read"]
+            if _race_probe is not None:
+                _race_probe("after-open", path)
+            content = handle.read(MAX_OBSERVATION_BYTES + 1)
+            after = os.fstat(handle.fileno())
+            if _identity_changed(opened, after):
+                return b"", "", [f"{label}: retained evidence changed while it was read"]
+            if _race_probe is not None:
+                _race_probe("after-read", path)
+            if _directory_identity(parent_before) != _directory_identity(path.parent.stat()):
+                return b"", "", [f"{label}: retained evidence parent changed while it was read"]
+            if _directory_identity(root_before) != _directory_identity(root.stat()):
+                return b"", "", [f"{label}: retained evidence root changed while it was read"]
+        if _path_has_reparse_or_link(path) or _identity_changed(after, path.stat()):
             return b"", "", [f"{label}: retained evidence changed while it was read"]
-        if _race_probe is not None:
-            _race_probe("after-read", leaf_path)
-
-        if parent_before is None:
-            return b"", "", failure
-        parent_handle = _windows_open(kernel, leaf_path.parent, directory=True, read=False)
-        if not _valid_handle(parent_handle):
-            return b"", "", open_failure
-        handles.append(parent_handle)
-        parent_after = _windows_info(kernel, parent_handle)
-        if parent_before is None or parent_after is None:
-            return b"", "", failure
-        if parent_before.volume_serial != parent_after.volume_serial or parent_before.index != parent_after.index:
-            return b"", "", [f"{label}: retained evidence parent changed while it was read"]
-        root_before = _windows_info(kernel, handles[0])
-        if root_before is None:
-            return b"", "", failure
-        root_handle = _windows_open(kernel, chain_paths[0], directory=True, read=False, share=3)
-        if not _valid_handle(root_handle):
-            return b"", "", open_failure
-        handles.append(root_handle)
-        root_after = _windows_info(kernel, root_handle)
-        if root_after is None:
-            return b"", "", failure
-        if root_before.volume_serial != root_after.volume_serial or root_before.index != root_after.index:
-            return b"", "", [f"{label}: retained evidence root changed while it was read"]
     except (OSError, ValueError):
-        return b"", "", failure
-    finally:
-        for handle in reversed(handles):
-            if kernel is not None and _valid_handle(handle):
-                kernel.CloseHandle(handle)
-
+        return b"", "", [f"{label}: retained evidence cannot be read safely"]
     if len(content) > MAX_OBSERVATION_BYTES:
         return b"", "", [f"{label}: retained evidence exceeds 1 MiB"]
     return content, hashlib.sha256(content).hexdigest(), []

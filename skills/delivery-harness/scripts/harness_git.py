@@ -121,10 +121,10 @@ def _path_has_reparse_or_link(path: Path) -> bool:
             if current.is_symlink():
                 return True
             if os.name == "nt" and current.exists():
-                # ``stat().st_file_attributes`` is available on modern
+                # ``lstat().st_file_attributes`` is available on modern
                 # Windows Python and exposes junctions without following
                 # them.  Keep the fallback conservative when unavailable.
-                attributes = getattr(current.stat(), "st_file_attributes", 0)
+                attributes = getattr(current.lstat(), "st_file_attributes", 0)
                 if attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400):
                     return True
         except OSError:
