@@ -183,19 +183,19 @@ PRD 定义成果与可测量质量；architecture 定义职责、状态、接口
 
 | 阶段 | 默认审查／验证与上限 |
 | --- | --- |
-| 研究与 Product Definition | 完稿及研究对账后，原作者做 **一次整套文件自我 review**，一起核对 PRD、architecture、stack 与中文副本的流程、需求、接口、风险及 TEST 覆盖。修复后，在 Stack Decision 后重查变动与共享依赖，再提交 Product Definition Approval；未变内容保留已核对身份的自查证据。不新增独立 wave。 |
-| 方向研究 | 默认三个可渲染方向，各由同一原作者自查，再交 owner 选择；混合／拒绝须修订完整组合并再作明确决定。单一建议方向须 owner 明示选择。 |
-| 完整 HiFi | 先做低成本完整性检查及作者自查，再跑 **一次完整初审**；需要修复时，最多 **一批集中修复＋一次复查**。 |
-| 每次 HiFi 审查的内容 | 必跑 Impeccable `critique` **与** `audit`、完整必要浏览器覆盖及当前 H1–H9。四舍五入的总平均 **至少 85**、每项 **至少 80**，且无 block／争议，再取得 **一次 Visual Approval**。 |
-| 设计系统编译 | 一组连贯的 source／pair／coverage／contrast／type／HTML 验证与实际展示检查；技术修复后重验受影响部分，不新增方向批准或审美评分 wave。 |
+| 研究与 Product Definition | 完稿及研究对账后，原作者做 **一次整套文件自我 review**，一起核对 PRD、architecture、stack 与中文副本的流程、需求、接口、风险及 TEST 覆盖。修复后，在 Stack Decision 后重查变动与共享依赖，再提交 Product Definition Approval；未变内容保留已核对身份的自查证据。不新增独立 wave。套件检查会直接拦下无法到达的页面和没有出口的状态，不必等到 HiFi。设计中发现的 UI 合约缺口走一次 owner 批准的小 delta，只改相关段落，不重开整套文件。 |
+| 方向研究 | 默认三个可渲染方向，各由同一原作者自查，再交 owner 选择；混合或修改只在原轮新增一份所选方向的修订研究并决定一次；拒绝才重做完整组合。单一建议方向须 owner 明示选择。 |
+| 完整 HiFi | 先做低成本完整性检查及作者自查，再跑 **一次完整初审**，默认一位 lead grader（同时产出浏览器收据）加一位 Impeccable operator；需要修复时，最多 **一批集中修复＋一次复查**。复查只看修复清单、改动来源和直接使用者，不重审整套。一个设计轮从 intake 到 Visual Approval 固定一个 `ui-design-builder` 版本。 |
+| 每次 HiFi 审查的内容 | 必跑 Impeccable `critique` **与** `audit`（初审一次覆盖所有 audit 维度；复查只在受影响页面和状态重跑）、完整必要浏览器覆盖及当前 H1–H9。上次 PASS 后未变的页面沿用原记录，最终收据仍是完整矩阵。四舍五入的总平均 **至少 85**、每项 **至少 80**，且无 block／争议，再取得 **一次 Visual Approval**。 |
+| 设计系统编译 | 一组连贯的 source／pair／coverage／contrast／type／HTML 验证；编译只读用到的来源段落，检查程序仍读完整文件。有动效、pseudo 状态或会执行产品 script 的 Surface plate 时才做浏览器检查；技术修复后重验受影响部分，不新增方向批准或审美评分 wave。 |
 | Direct 代码交付 | 一位 writer、聚焦测试、作者完整 diff 自查及一次精确候选 `code-security-review`；代码候选改变就要新的安全审查。小型 UI 使用下列合并验收，两次修复失败就停止。 |
-| Managed 代码交付 | 每个 mission 在整合前，按适用 surface 各一位 reviewer；统一 head 再作全新适用 surface 审查，包含统一安全审查。节点由冻结 PLAN 声明；runtime review 允许初审及一次修复复查，原 lineage 预算持续累计。一个 mission 是一个功能批次，细 task 放在里面，所以 review 数跟着功能走，不跟着步骤走。候选的所有必要 review 回来后才开始修；复查只看原 findings 和改到的代码。一个 RUN 固定一个已采用的 Harness 合约和模型政策。 |
-| 适用的实现 UI 验收 | **一次独立只读 Final UI Acceptance**，在精确候选上合并 Final Visual Parity Loop 与 page-quality 检查。同一位 reviewer 共用当前证据、集中缺陷，修复后复查原缺陷及受影响部分。保留必要矩阵，**两次修复失败即停**，更严格的既有 lineage 预算优先。Impeccable 要另行授权，不能替代 reviewer。 |
+| Managed 代码交付 | 每个 mission 在整合前由一位合并所需维度的 reviewer 审查；统一 head 再作全新适用 surface 审查，包含统一安全审查。整合 head 若是已审 head 的干净 merge chain 且 write scope 不重叠，非安全的代码整合审查可记录证明后跳过；视觉和安全审查从不跳过。节点由冻结 PLAN 声明；runtime review 允许初审及一次修复复查，原 lineage 预算持续累计。一个 mission 是一个功能批次，细 task 放在里面，所以 review 数跟着功能走，不跟着步骤走。候选的所有必要 review 回来后才开始修；复查只看原 findings 和改到的代码。一个 RUN 固定一个已采用的 Harness 合约和模型政策。 |
+| 适用的实现 UI 验收 | **一次独立只读 Final UI Acceptance**，在精确候选上合并 Final Visual Parity Loop 与 page-quality 检查。同一位 reviewer 共用当前证据、集中缺陷，修复后复查原缺陷及受影响部分。保留必要矩阵，**两次修复失败即停**，更严格的既有 lineage 预算优先。Parity 在容差内通过且 HiFi 证据仍有效时，page quality 只查实现才有的项目：性能、无 JavaScript 路径、console 与 network、渲染出的 focus 和名称。Impeccable 要另行授权，不能替代 reviewer。 |
 | 候选与正式环境 | 隔离候选 Preview 与实际 promoted production build 分开验证；Preview 证据不能证明正式环境。Server 产生新 main SHA 时，要 tree equality、全新完整验证与安全审查；这些是发布核对，不新增 HiFi 审美 wave。 |
-| Activation | 每个 target／action 要有设置或人工操作证据、独立读回及适用行为证明；早期准备与实际正式版分开验证，动作数依必要 targets 决定。 |
+| Activation | 只读用到的 PRD、architecture、stack 与 deployment 段落。每个 target／action 要有设置或人工操作证据、独立读回及适用行为证明；早期准备与实际正式版分开验证，动作数依必要 targets 决定。 |
 | 成效回顾 | 真实测量期结束后，执行 owner 要求的各 target Outcome Review；多 target 时再产生 aggregate。历史只追加。适用 `seo-growth-review` 可选，交付不等待 adoption。 |
 
-HiFi grader 与汇总评估的 lead 由 agent 设置决定。浏览器、Impeccable 与 H1-H9 使用同一候选，在同一诊断 wave 完成；lead 集中回报后才修复，不再另开审美或评分 wave。复查聚焦原缺陷及受影响 consumer，同时保留 Impeccable 的必需范围、完整浏览器覆盖与当前分数。第二次 review 仍失败就停在 `blocked`；只有 owner 明确批准改变策略与完整验收矩阵，才可例外增加一次 successor re-review。一般“继续”不代表批准。详见 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。 前端派工会完整带入方向研究 HTML、画面、字体、素材与视觉特征的来源及身份。方向探索允许截图待补，已记录的来源身份仍须验证；作者须自行读取并检视后才编辑。 维护派工传入已验证的 task record，使用当前 Product／Stack 来源并保留历史设计身份。 一般派工的衍生 preview 必须符合绑定 pair 与 HiFi；维护派工不把未验证的历史 preview 当成当前输入。
+HiFi grader 与汇总评估的 lead 由 agent 设置决定。浏览器、Impeccable 与 H1-H9 使用同一候选，在同一诊断 wave 完成；lead 集中回报后才修复，不再另开审美或评分 wave。复查只看修复清单、改动来源和直接使用者，在受影响页面和状态重跑 Impeccable，并以沿用记录维持完整矩阵收据；范围外的新发现除非构成 block，否则进 backlog。第二次 review 仍失败就停在 `blocked`；只有 owner 明确批准改变策略与完整验收矩阵，才可例外增加一次 successor re-review。一般“继续”不代表批准。详见 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。 前端派工会完整带入方向研究 HTML、画面、字体、素材与视觉特征的来源及身份。方向探索允许截图待补，已记录的来源身份仍须验证；作者须自行读取并检视后才编辑。 维护派工传入已验证的 task record，使用当前 Product／Stack 来源并保留历史设计身份。 一般派工的衍生 preview 必须符合绑定 pair 与 HiFi；维护派工不把未验证的历史 preview 当成当前输入。
 
 复用较早的 visual PASS，须有两项验收证据并完整覆盖当前范围；代码树相同本身不足以复用。
 这里计算 Harness 阶段的 pass 次数；Impeccable 仍须完成 pinned workflow 与内部评估，其原生总分不能替代 H1–H9。

@@ -67,7 +67,7 @@
 39. 完成 Stack Decision Checkpoint；提出整套耦合層、成本假設、替代方案、維運 owner 與重訪條件。
 40. Stack Decision 或修復改變內容時，由原作者重查受影響需求與共用依賴，重新綁定候選 hash；未變內容確認身分後保留原自查證據。計畫中的工程測試不能寫成實測通過，required blocker 未解就不送批准。沿用 Epic／任務紀錄，不另派自查者或新增 review wave。
 41. 將實際完整候選文件連結交 owner，取得 Product Definition Approval；未解決的 required gate 不得通過。
-42. 跑完整適用 Product package／雙語 checker，保留失敗与修復證據。
+42. 跑完整適用 Product package／雙語 checker，保留失敗与修復證據；checker 會擋下無法到達的畫面和沒有出口的狀態，修訂後的中文副本只比對有變動的段落。設計中發現的 UI 合約缺口走一次 owner 核准的小 delta，不重開整套文件。
 43. 依 artifact lifecycle 核對正式路徑與要保留的舊版本；已有精確出版授權就完成，否則只詢問缺少的動作。
 44. 發布產品 package 並更新索引、指令合併與適用 stage bindings；不要把未確認技能 pin 當作可用。
 45. 若本次只要求產品定義，交付後結束；若已要求完整交付，接續已授權 UI／implementation。Headless 不產虛構 UI 文件。
@@ -84,7 +84,7 @@
 53. 讓適用動效可播放；標出 reduced motion、效能與媒體來源限制，不用描述文字冒充動效實測。
 54. 各方向原作者檢查實際畫面、operations、主要／壓力內容和尺寸，修復後留同作者自查證據。
 55. Owner 選擇、混合、修改或拒絕方向；parent 記錄精確候選、選擇與範圍，不推定核准。
-56. 混合或修改由 frontend writer 落成一致方向；必要檢查與 owner 決定綁到修改後候選。
+56. 混合或修改由 frontend writer 在原輪新增一份所選方向的修訂研究，其他研究不變；必要檢查與一次 owner 決定綁到這份修訂研究。拒絕才重做完整組合。
 57. 依選定方向建立 `docs/design/ui-references/<run-id>/` 的完整 connected HiFi；enhancement 只動受影響頁及必要接線。
 58. 使用 `HIFI_REVIEWER.template.html`、共享 reviewer CSS 與正式 assembler；保留 reviewer／product 樣式隔離。
 59. 覆蓋每個 PRD surface、route、copy、state、product control 和 operation destination。
@@ -92,9 +92,9 @@
 61. 跑所有核准 viewports／size classes，另檢查相鄰核准網頁寬度間的中間尺寸與 layout 轉換。沒有相鄰網頁寬度時，`ui-design/3` 記錄完整的 `Intermediate width check: not_applicable — no adjacent approved web viewport widths`；原生尺寸與其他 HiFi 證據仍須完成。
 62. 檢查 menu、tabs、dialog、forms、keyboard、Escape、focus return；切 active class 不等於操作完成。
 63. 執行便宜的 HiFi completeness preflight；先修缺頁、漏字、漏 state、斷 operation 和非法資源。
-64. 原作者再自查完整 HiFi 畫面、copy、layout、responsive 與 interactions，記錄實際檢查與修復。
-65. 由適用獨立 review 執行 Impeccable critique／audit、browser matrix 與 H1–H9；總分至少 85、每項至少 80，且無阻擋缺陷或爭議。核對該 reviewer 自身所需工具。
-66. 收斂同原因缺陷成一批，交原作者修復；對新候選複查原缺陷及受影響部分，不另開全面的美感探索。Impeccable、必要瀏覽器覆蓋與當前候選完整評估仍須完成；保留原 retry budget。
+64. 原作者再自查完整 HiFi 畫面、copy、layout、responsive 與 interactions，記錄截圖 hash 與修復；完整矩陣收據由獨立瀏覽器 reviewer 每個候選做一次，只提交最終候選的證據。
+65. 預設由一位 lead grader（同時產出瀏覽器收據）和一位 Impeccable operator 執行 Impeccable critique／audit、browser matrix 與 H1–H9，初審一次涵蓋所有 audit 面向；總分至少 85、每項至少 80，且無阻擋缺陷或爭議。核對該 reviewer 自身所需工具。
+66. 收斂同原因缺陷成一批，交原作者修復；複查只看修復清單、改動來源和直接使用者，在受影響頁面和狀態重跑 Impeccable，不另開全面的美感探索。未變頁面沿用上次 PASS 的紀錄，最終收據仍是完整矩陣；範圍外新發現除非構成 block，否則進 backlog。保留原 retry budget。
 67. 所有 required findings、browser checks 和分數門檻通過，才呈現完整 HiFi entry、siblings 與 UI 記錄。
 68. 取得一次 Visual Approval，涵蓋文案、結構、menus、tabs、其他互動、視覺及 tokens，綁精確候選與 scope。
 
@@ -109,7 +109,7 @@
 75. 產生 `design-system-preview.html`，展示全部登記的色彩、字體、間距、尺寸區間、元件和適用狀態。
 76. 在展示中保留適用互動、responsive 切換、motion replay／stop／reduced motion 與 provenance；native HTML 樣本不冒充 native 實測。
 77. 執行 pair/source/coverage checker、contrast、type-scale 與 HTML exact-byte 檢查；stale 或缺 specimen 必須失敗。
-78. 在瀏覽器檢查生成 HTML 的可視覆蓋、鍵盤、尺寸與動效；checker PASS 本身不是視覺 PASS。
+78. Pair 有動效、pseudo 狀態或會執行產品 script 的 Surface plate 時，在瀏覽器檢查那些 plate 的可視覆蓋、鍵盤、尺寸與動效；checker PASS 本身不是視覺 PASS。
 79. 透過原 artifact lifecycle 將適用 UI 與完整 design package 一起發布，更新 source bindings 與索引。
 80. 完成 Harness design handoff：確認來源、作者自查、獨立審查、owner 核准和 frozen package 都對得上。
 
@@ -148,7 +148,7 @@ Full engineering 沿用上述任務與驗收紀錄。遇到未證明的跨層依
 102. Task 修復以新小 commit 記錄；不可把多個已完成 task 最後合成大 commit 或 squash 掉任務邊界。
 103. Worker 回傳 ordered task SHAs、實際 tests、write-scope 結果、未知與剩餘問題；沒有執行就不能填 PASS。
 104. Parent 用 terminal event／cursor wait 接收結果，避免反覆全量輪詢；沒有事件工具才用有界 polling。
-105. 一個 mission 完成即可派獨立 pre-integration reviewer，不必等最慢 sibling。
+105. 一個 mission 完成即可派一位合併所需面向的獨立 pre-integration reviewer，不必等最慢 sibling；UI 批次的 reviewer 要有瀏覽器工具。
 106. Reviewer 對 exact head 和完整指定 scope 檢查接口、缺陷、測試與需求；收齊該候選所有必要 review 後，按根因合併成一次修復交原 writer。複查只看原 findings、改到的程式碼和直接使用者；非阻擋建議進 backlog。
 107. Parent 驗證通過的 mission commits 後序列整合，每次最多一個 integration；其他隔離 writer 可繼續。
 108. 整合後跑必要 interface／integration checks；失敗按原範圍修復並產生新候選，舊 review 不冒充新 SHA 證據。
@@ -157,13 +157,13 @@ Full engineering 沿用上述任務與驗收紀錄。遇到未證明的跨層依
 111. 完成 wave 後重新對帳和選下一批，直到全部 required missions 完成或留下明確 blocker。
 112. 每個 task 使用 focused verification；固定統一候選才跑完整必要 suite，避免每小步都重複全產品測試。
 113. Host verifier 在同 runner 內序列；只有已隔離且契約允許的 container／workspace 才平行，維持資源與清理邊界。
-114. 對同一未變候選不重開相同 scope review；security、browser、live、migration 等 freshness 要求仍保留。
+114. 對同一未變候選不重開相同 scope review；security、browser、live、migration 等 freshness 要求仍保留。整合 head 若是已審 mission head 的乾淨 merge chain 且 write scope 不重疊，非安全的程式整合審查記錄證明後略過；視覺和安全審查照常執行。
 
 ## 統一安全、驗收與候選關閉
 
 115. 完成真實 acceptance scenarios，結果寫入分離 register，記錄精確平台、帳戶種類、環境、build 與證據。AI eval 保留 quality 與另一乾淨 checkout 的完整 handoff 報告，交付 runner、grader、lockfile 與 runbook；必要功能 TEST 仍全部 PASS。
 116. 保留 H1 情境執行與 results/evidence-only H2 的來源關係；H2 不混產品修復，產品變更要新候選。
-117. 作者備妥當前候選的 UI／native 證據；同一位獨立 reviewer 在一次 Final UI Acceptance 中完成 parity 與 page-quality 檢查，集中記錄缺陷，修復後定向複查。不用 HTML 投影替代裝置證據。
+117. 作者備妥當前候選的 UI／native 證據；同一位獨立 reviewer 在一次 Final UI Acceptance 中完成 parity 與 page-quality 檢查，集中記錄缺陷，修復後定向複查。Parity 在容差內通過且 HiFi 證據仍有效時，page quality 只查效能、無 JavaScript 路徑、console／network 和渲染出的 focus 與名稱。不用 HTML 投影替代裝置證據。
 118. 固定乾淨的統一候選 SHA，派獨立 code-security reviewer，讀適用安全需求和完整 declared scope。
 119. Reviewer 追 entry point 到 sensitive sink，核對 auth、資料隔離、injection、path/command、secrets、供應链與競態等適用風險。
 120. 安全工具或人工 source review 必須有實際執行結果；全部 skipped 不得 PASS，不為速度隱藏 coverage。
