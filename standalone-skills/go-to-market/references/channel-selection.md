@@ -36,35 +36,7 @@ A Facebook Page is not a Group. Check Group rules and identity before proposing 
 Founder-led and brand posts need separate account and voice decisions.
 Paid media, partner outreach and direct messages require a separately scoped plan and authorization.
 
-For X, distinguish the founder account, brand account and participation in another person's conversation.
-Use relevant public posts as audience or content examples, with author, date, original URL and observed context.
-Label search snippets, mirrored text and truncated embeds; they do not establish full-thread or media inspection.
-Popularity and another maker's launch results do not prove demand for this product.
-Choose a bounded experiment with an available destination and response owner; use the existing experiment record.
+## Primary Sources
 
-## Primary Sources And Refresh
-
-Observed 2026-10-15. Refresh material facts before use; these sources do not establish project-specific market fit.
-
-- [Meta's Threads guidance](https://about.fb.com/news/2024/10/find-your-community-with-new-threads-educational-insights/) emphasizes original content and conversations.
-  Its reported correlations do not establish a project's best cadence or sales outcome.
-- [LinkedIn's distribution guidance](https://www.linkedin.com/help/linkedin/answer/a516930/) describes professional relevance.
-  Validate the actual role and network rather than assuming every B2B product fits.
-- [Reddit's rules](https://support.reddithelp.com/hc/en-us/articles/360043503951-What-are-Reddit-s-rules) preserve community-specific rules.
-  [Its spam guidance](https://support.reddithelp.com/hc/en-us/articles/28012014962580-How-do-I-keep-spam-out-of-my-community) describes differing practices.
-  One community's promotional ratio is not a platform-wide entitlement.
-- [Product Hunt's launch guide](https://help.producthunt.com/en/articles/17350772-launch-guide) covers preparation and maker participation, and prohibits direct upvote requests.
-  A listing, vote count or launch-day visit is not retained usage.
-- [Google's campaign URL guidance](https://support.google.com/analytics/answer/10917952?hl=en) explains referral parameters.
-  A tagged link does not prove analytics or conversion measurement works.
-
-[Facebook Business help](https://www.facebook.com/business/help/942827662903020) and [Threads developer docs](https://developers.facebook.com/docs/threads/) were access-limited during research.
-Do not cite unseen contents as verified instructions.
-Before execution, inspect current official guidance and the intended account through an available read-only route.
-Format limits, scheduling support, API permissions and regional availability remain unverified until checked.
-An account or API access gap does not prevent strategy and draft preparation.
-
-X sources checked on 2026-10-18: [post types](https://help.x.com/en/using-x/types-of-posts),
-[threads](https://help.x.com/en/using-x/create-a-thread) and [metrics](https://docs.x.com/x-api/fundamentals/metrics).
-These document formats and measurement access, not audience fit or guaranteed distribution.
-Refresh the selected account's app/API capabilities before execution; do not assume subscription features or analytics access.
+Dated platform sources live in `gtm-content/references/channel-playbooks.md`. Do not cite unseen contents as verified instructions.
+Limits, API permissions and regional availability stay unverified until the execution-readiness check.

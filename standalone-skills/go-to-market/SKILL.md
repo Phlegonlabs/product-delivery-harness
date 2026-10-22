@@ -10,7 +10,7 @@ Choose channels from audience evidence and operating capacity. X, Threads and Fa
 
 ## Ground The Strategy
 
-Read effective project instructions and existing product, research, brand, release and growth records.
+Read effective project instructions, PRD `## Metrics` and surface or operation IDs, the latest release record and its availability state, the brand or voice source, `docs/ACTIVATION.md` `MS-*` rows when present, and the existing campaign record.
 A repository or Harness installation is not required. Preserve existing document conventions and accepted decisions.
 Ask only for consequential gaps that the available sources cannot answer.
 
@@ -32,8 +32,8 @@ New pricing, incentives, product promises and target audiences remain proposals 
 ## Choose Channels
 
 Read [channel selection](references/channel-selection.md) before comparing channels.
-Refresh material platform facts and audience evidence for this project's market and language.
-Use dated primary sources for capabilities and rules. Distinguish first-party observations, estimates and hypotheses.
+Platform rules are refreshed once per campaign at execution readiness; strategy uses the dated sources in `gtm-content`'s channel playbooks and labels them.
+Distinguish first-party observations, estimates and hypotheses.
 Competitor activity and platform-wide engagement do not prove this project's demand or conversion.
 
 Compare audience access, task intent, content fit, trust, production effort, reply workload and measurement.
@@ -53,13 +53,11 @@ Avoid a feature list disguised as a content strategy.
 Map discovery to the intended action and subsequent useful product behavior.
 Match the stage: learning conversations during validation, truthful demonstrations for launch, and adoption help afterward.
 Reuse existing landing pages or store/signup routes. Send a missing destination to its product or implementation owner.
-When product records exist, link the existing page or operation ID and exact success-metric name.
+Link existing page or operation IDs and exact metric names.
 For applicable public pages, connect supported search intent to that page's responsibility and next action.
 Keep unsupported intent claims as hypotheses; do not create a second page inventory.
-Use existing verified journey or release evidence for demonstrations. Keep preview, beta, released and planned availability explicit in each brief.
-Drafting can start before release; missing public access or proof remains a dependency, not a reason to expose a private environment.
+Use existing verified journey or release evidence for demonstrations. Keep preview, beta, released and planned explicit; never expose a private environment as proof.
 Prepare concrete briefs for the selected channels. Use `gtm-content` when available, or draft from those briefs directly.
-The companion skill is optional; neither route grants publication authority.
 
 ## Plan And Review Experiments
 
@@ -85,5 +83,4 @@ When available, use these owners:
 
 Otherwise name the equivalent owner and expected handoff; these skills are optional dependencies.
 
-This skill prepares strategy. It does not publish, schedule, message people, buy ads, create accounts or activate monitoring.
-Content approval does not grant those actions. Later publication needs the exact reviewed package and an authorized publishing workflow.
+This skill prepares strategy. It does not publish, schedule, message people, buy ads, create accounts or activate monitoring. Later publication needs the exact reviewed package and an authorized publishing workflow.
