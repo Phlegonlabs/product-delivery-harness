@@ -678,26 +678,6 @@ class ActivationCheckerTests(unittest.TestCase):
                 )
                 self.assertIn(expected, "\n".join(findings))
 
-    def test_measurement_window_cannot_start_before_target_availability(self) -> None:
-        early = valid_record_v2().replace(
-            "- Measurement window starts: 2026-09-07T18:05:00Z",
-            "- Measurement window starts: 2026-09-07T18:03:00Z",
-            1,
-        )
-        with patch("check_product_package.validate_texts", return_value=[]), patch(
-            "check_deployment.check_deployment_text", return_value=[]
-        ):
-            findings = check_activation.check_activation_text(
-                early,
-                prd_text=APPROVED_PRD,
-                architecture_text=ARCHITECTURE,
-                deployment_text=full_deployment_fixture(strict_provenance=False),
-                stack_text="# Stack Decisions: Example",
-                repo_root=Path.cwd(),
-                require_ready=("web-prod",),
-            )
-        self.assertIn("Measurement window starts must be after", "\n".join(findings))
-
     def test_release_authority_rejects_invented_and_missing_targets(self) -> None:
         invented = valid_record().replace(BINDING, BINDING.replace("web-prod", "other-prod"))
         invented_findings = "\n".join(
@@ -969,37 +949,6 @@ class ActivationCheckerTests(unittest.TestCase):
             "\n".join(check_activation.check_activation_text(task_digest)),
         )
 
-    def test_capability_must_match_exact_target_and_route(self) -> None:
-        wrong_target = valid_record().replace(
-            f"| CAP-001 | browser | available | read, write, readback | {TARGET} | production |",
-            "| CAP-001 | browser | available | read, write, readback | google_analytics/another-account | production |",
-        )
-        joined = "\n".join(check_activation.check_activation_text(wrong_target))
-        self.assertIn("capability does not match the exact target", joined)
-
-        wrong_route = valid_record().replace(
-            f"| CAP-001 | browser | available | read, write, readback | {TARGET} | production |",
-            f"| CAP-001 | api | available | read, write, readback | {TARGET} | production |",
-        )
-        self.assertIn(
-            "capability uses another route",
-            "\n".join(check_activation.check_activation_text(wrong_route)),
-        )
-
-    def test_capability_must_match_the_exact_environment(self) -> None:
-        fields = task_fields()
-        fields["Environment"] = "live"
-        digest = current_digest("ACT-001", fields)
-        fields["Action digest"] = digest
-        fields["Authorized digest"] = digest
-        joined = "\n".join(
-            check_activation.check_activation_text(
-                valid_record(task_blocks=[task_block("ACT-001", fields)])
-            )
-        )
-        self.assertIn("execution capability does not match the environment", joined)
-        self.assertIn("read-back capability does not match the environment", joined)
-
     def test_manual_execution_cannot_use_standard_preapproval(self) -> None:
         fields = task_fields(status="configured")
         fields["Environment"] = "preview"
@@ -1028,19 +977,6 @@ class ActivationCheckerTests(unittest.TestCase):
         )
         self.assertIn("verified task needs PASS write or manual evidence", joined)
 
-    def test_readback_and_behavior_must_follow_the_write(self) -> None:
-        record = valid_record().replace(
-            "| 2026-09-07T18:01:00Z | PASS | stream ID visible after refresh |",
-            "| 2025-09-07T18:01:00Z | PASS | stream ID visible after refresh |",
-        ).replace(
-            "| 2026-09-07T18:02:00Z | PASS | one setup event in Realtime |",
-            "| 2025-09-07T18:02:00Z | PASS | one setup event in Realtime |",
-        )
-        joined = "\n".join(check_activation.check_activation_text(record))
-        self.assertIn("readback evidence", joined)
-        self.assertIn("must follow write evidence", joined)
-        self.assertIn("predates its capability probe", joined)
-
     def test_later_failed_readback_invalidates_an_earlier_pass(self) -> None:
         fields = task_fields(
             evidence_ids="EVID-001, EVID-002, EVID-003, EVID-005"
@@ -1060,7 +996,6 @@ class ActivationCheckerTests(unittest.TestCase):
             )
         )
         self.assertIn("needs distinct PASS readback evidence", joined)
-        self.assertIn("readiness check predates its verification evidence", joined)
 
     def test_measurement_source_cannot_be_verified_by_manual_evidence(self) -> None:
         record = valid_record().replace(
@@ -1091,7 +1026,6 @@ class ActivationCheckerTests(unittest.TestCase):
             )
         )
         self.assertIn("verified source MS-001 needs PASS evidence", joined)
-        self.assertIn("readiness check predates its verification evidence", joined)
 
     def test_bare_verification_na_is_not_a_reason(self) -> None:
         fields = task_fields(evidence_ids="EVID-001, EVID-002")

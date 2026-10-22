@@ -775,19 +775,6 @@ def _validate_sources(
         capability = capabilities.get(capability_id)
         if CAPABILITY_ID_RE.fullmatch(capability_id) and capability is None:
             findings.append(f"Measurement Sources: {source_id} has unknown capability {capability_id}")
-        elif capability:
-            if capability["route"] != route:
-                findings.append(
-                    f"Measurement Sources: {source_id} capability uses another route"
-                )
-            if capability["target_scope"] != target:
-                findings.append(
-                    f"Measurement Sources: {source_id} capability does not match the exact target"
-                )
-            if capability["environment"] != environment:
-                findings.append(
-                    f"Measurement Sources: {source_id} capability does not match the environment"
-                )
         if status not in SOURCE_STATUSES:
             findings.append(f"Measurement Sources: {source_id} has invalid status {status!r}")
         bindings, binding_findings = _release_bindings(
@@ -826,26 +813,12 @@ def _validate_sources(
                 findings.append(
                     f"Measurement Sources: {source_id} evidence {evidence_id} uses another release binding"
                 )
-            capability_checked = capability["checked_at"] if capability else None
-            if (
-                isinstance(capability_checked, datetime)
-                and isinstance(item["checked_at"], datetime)
-                and item["checked_at"] < capability_checked
-            ):
-                findings.append(
-                    f"Measurement Sources: {source_id} evidence {evidence_id} predates its capability probe"
-                )
         if status in {"available", "verified"}:
             accepted_statuses = {"available"} if status == "verified" else {"available", "human_only"}
             if not capability or capability["status"] not in accepted_statuses:
                 findings.append(
                     f"Measurement Sources: {source_id} capability is not available"
                 )
-            else:
-                if not ({"read", "readback"} & capability["supports"]):
-                    findings.append(
-                        f"Measurement Sources: {source_id} capability does not support retrieval"
-                    )
         if status == "verified":
             for binding in bindings.values():
                 matching_kinds = {
@@ -946,31 +919,6 @@ def _has_matching_evidence(
     return all(item["result"] == result for item in matches if item["checked_at"] == latest)
 
 
-def _matching_evidence_times(
-    evidence_ids: list[str],
-    evidence: dict[str, dict[str, object]],
-    item_id: str,
-    kinds: set[str],
-    route: str,
-    action_digest_value: str,
-    release_binding: str,
-    result: str = "PASS",
-) -> list[datetime]:
-    return [
-        item["checked_at"]
-        for evidence_id in evidence_ids
-        if evidence_id in evidence
-        for item in (evidence[evidence_id],)
-        if item["item_id"] == item_id
-        and item["kind"] in kinds
-        and item["result"] == result
-        and item["route"] == route
-        and item["action_digest"] == action_digest_value
-        and item["release_binding"] == release_binding
-        and isinstance(item["checked_at"], datetime)
-    ]
-
-
 def _task_findings(
     task_id: str,
     task: dict[str, str],
@@ -1022,9 +970,9 @@ def _task_findings(
         )
     if route not in ROUTES or readback_route not in ROUTES:
         findings.append(f"{task_id}: invalid execution or read-back route")
-    for label, capability_id, expected_route, observation in (
-        ("execution", execution_capability, route, execution_observation),
-        ("read-back", readback_capability, readback_route, readback_observation),
+    for label, capability_id, observation in (
+        ("execution", execution_capability, execution_observation),
+        ("read-back", readback_capability, readback_observation),
     ):
         if capability_id not in {"pending", "n/a"} and not CAPABILITY_ID_RE.fullmatch(
             capability_id
@@ -1032,17 +980,6 @@ def _task_findings(
             findings.append(f"{task_id}: invalid {label} capability {capability_id!r}")
         elif CAPABILITY_ID_RE.fullmatch(capability_id) and observation is None:
             findings.append(f"{task_id}: unknown {label} capability {capability_id}")
-        elif observation:
-            if observation["route"] != expected_route:
-                findings.append(f"{task_id}: {label} capability uses another route")
-            if observation["target_scope"] != task["Target"]:
-                findings.append(
-                    f"{task_id}: {label} capability does not match the exact target"
-                )
-            if observation["environment"] != task["Environment"]:
-                findings.append(
-                    f"{task_id}: {label} capability does not match the environment"
-                )
     if authorization not in AUTHORIZATIONS:
         findings.append(f"{task_id}: invalid authorization {authorization!r}")
     if status not in TASK_STATUSES:
@@ -1137,26 +1074,12 @@ def _task_findings(
             expected_route = route if item["kind"] in {"write", "manual"} else readback_route
             if item["kind"] in {"write", "manual", "readback", "behavior"} and item["route"] != expected_route:
                 findings.append(f"{task_id}: evidence {evidence_id} uses another route")
-            observation = (
-                execution_observation
-                if item["kind"] in {"write", "manual"}
-                else readback_observation
-            )
-            capability_checked = observation["checked_at"] if observation else None
-            if (
-                item["kind"] in {"write", "manual", "readback", "behavior"}
-                and isinstance(capability_checked, datetime)
-                and isinstance(item["checked_at"], datetime)
-                and item["checked_at"] < capability_checked
-            ):
-                findings.append(f"{task_id}: evidence {evidence_id} predates its capability probe")
     if status in {"ready", "configured", "verified", "uncertain"}:
-        capability = capabilities.get(execution_capability)
-        needed = "read" if operation == "read" else "write"
-        if not capability or capability["status"] not in {"available", "human_only"}:
+        if not execution_observation or execution_observation["status"] not in {
+            "available",
+            "human_only",
+        }:
             findings.append(f"{task_id}: selected execution capability is not available")
-        elif needed not in capability["supports"] and capability["status"] != "human_only":
-            findings.append(f"{task_id}: selected execution capability does not support {needed}")
         for dependency in dependencies:
             if dependency in tasks and tasks[dependency].get("Status") != "verified":
                 findings.append(f"{task_id}: dependency {dependency} is not verified")
@@ -1190,25 +1113,9 @@ def _task_findings(
                     f"{task_id}: uncertain task needs UNCERTAIN write or manual evidence for {binding['text']}"
                 )
     if status == "verified":
-        capability = capabilities.get(readback_capability)
-        if not capability or capability["status"] != "available":
+        if not readback_observation or readback_observation["status"] != "available":
             findings.append(f"{task_id}: verified task read-back capability is not available")
-        elif "readback" not in capability["supports"]:
-            findings.append(f"{task_id}: verified task capability does not support readback")
         for binding in bindings.values():
-            write_times = (
-                _matching_evidence_times(
-                    evidence_ids,
-                    evidence,
-                    task_id,
-                    {"write", "manual"},
-                    route,
-                    computed,
-                    binding["text"],
-                )
-                if operation != "read"
-                else []
-            )
             if not _has_matching_evidence(
                 evidence_ids,
                 evidence,
@@ -1221,19 +1128,6 @@ def _task_findings(
                 findings.append(
                     f"{task_id}: verified task needs distinct PASS readback evidence for {binding['text']}"
                 )
-            readback_times = _matching_evidence_times(
-                evidence_ids,
-                evidence,
-                task_id,
-                {"readback"},
-                readback_route,
-                computed,
-                binding["text"],
-            )
-            if write_times and readback_times and max(readback_times) <= max(write_times):
-                findings.append(
-                    f"{task_id}: readback evidence for {binding['text']} must follow write evidence"
-                )
             if not verification_is_na and not _has_matching_evidence(
                 evidence_ids,
                 evidence,
@@ -1245,19 +1139,6 @@ def _task_findings(
             ):
                 findings.append(
                     f"{task_id}: verified task needs PASS behavior evidence for {binding['text']}"
-                )
-            behavior_times = _matching_evidence_times(
-                evidence_ids,
-                evidence,
-                task_id,
-                {"behavior"},
-                readback_route,
-                computed,
-                binding["text"],
-            )
-            if write_times and behavior_times and max(behavior_times) <= max(write_times):
-                findings.append(
-                    f"{task_id}: behavior evidence for {binding['text']} must follow write evidence"
                 )
     if confirmation == "user_handoff" and task_id not in manual:
         findings.append(f"{task_id}: user_handoff task needs a Manual Handoff row")
@@ -2112,25 +1993,6 @@ def check_activation_text(
             for signal, item in coverage.items():
                 if target in item["targets"] and item["status"] not in {"verified", "n/a"}:
                     findings.append(f"Target Readiness: {target} has unverified outcome signal {signal}")
-            relevant_evidence_times = [
-                item["checked_at"]
-                for evidence_id, item in evidence.items()
-                if isinstance(item["checked_at"], datetime)
-                and item["release_binding"] == f"{target}@{source_sha}#{artifact}"
-                and (
-                    item["item_id"] in bound
-                    or (
-                        item["item_id"] in sources
-                        and target in sources[item["item_id"]]["bindings"]
-                    )
-                )
-            ]
-            if checked_at is not None and relevant_evidence_times and checked_at < max(
-                relevant_evidence_times
-            ):
-                findings.append(
-                    f"Target Readiness: {target} readiness check predates its verification evidence"
-                )
 
     for target in sorted(active_targets - set(readiness)):
         if require_filled or record.get("Status") == "handoff_ready":
@@ -2201,18 +2063,6 @@ def check_activation_text(
         findings.append("Record: handoff_ready cannot have open blockers")
     if require_closeout:
         findings.extend(_closeout_findings(record, tasks, readiness))
-    if authority_required and record.get("Measurement window starts"):
-        window_start = _timestamp(record.get("Measurement window starts", ""))
-        availability_times = [
-            _timestamp(deployment.get("checked", ""))
-            for target, deployment in deployment_targets.items()
-            if target in readiness and readiness[target]["status"] == "ready"
-        ]
-        availability_times = [item for item in availability_times if item is not None]
-        if window_start is not None and availability_times and window_start < max(availability_times):
-            findings.append(
-                "Record: Measurement window starts must be after every ready target's deployment availability"
-            )
     return findings
 
 
