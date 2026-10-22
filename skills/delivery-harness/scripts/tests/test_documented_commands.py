@@ -18,6 +18,30 @@ import harness_transition  # noqa: E402
 
 
 class DocumentedCommandTests(unittest.TestCase):
+    def test_ui_research_uses_current_parent_owned_assignment_contract(self):
+        skills = SCRIPTS.parents[1]
+        stage_path = skills / "ui-design-builder/references/stages/ui-design.md"
+        source = stage_path.read_text(encoding="utf-8")
+        research = source.split("2. **Resolve UI research", 1)[1].split("\n3. ", 1)[0]
+        target = "../../../delivery-harness/references/delegation-contract.md"
+        self.assertIn(f"]({target})", research)
+        self.assertTrue((stage_path.parent / target).resolve().is_file())
+        for obligation in ("frozen assignment packets", "parent launches", "result reconciliation",
+                           "input identities", "separate launch records", "joined sourced findings",
+                           "Agent policy", "required research independence"):
+            self.assertIn(obligation, research)
+        self.assertNotIn("readonly_assignments.cjs", source)
+
+    def test_stack_option_map_retains_authorship_and_checker_without_generator(self):
+        source = (SCRIPTS.parents[1] / "product-definition-builder/references/output-contract.md").read_text(encoding="utf-8")
+        section = source.split("## `stack-decisions.md`", 1)[1].split("### Coherent Options Presented", 1)[0]
+        for obligation in ("Product Definition author derives", "owner's accepted checkpoint",
+                           "canonical digest binding", "Approved option map: None",
+                           "complete option evidence and exact map", "product-package checker",
+                           "repository authority"):
+            self.assertIn(obligation, section)
+        self.assertNotIn("render_stack_option_map.py", source)
+
     def commands(self, reference, script):
         text = (SCRIPTS.parent / "references" / reference).read_text(encoding="utf-8")
         examples = [shlex.split(value) for value in re.findall(r"`(python [^`]+)`", text)
