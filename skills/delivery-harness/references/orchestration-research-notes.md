@@ -2,7 +2,7 @@
 
 Research the currently exposed native interface only when a required capability is unclear. `runtime-adapters.md` is the single execution contract; there is no provider registry, fixed model catalog or bundled native workflow runner.
 
-A node is eligible on the current host exactly when its `allowed_providers` includes that host. `preferred_provider` is advisory ordering among allowed hosts and never blocks an otherwise allowed current host. Provider identity is not capability evidence or permission to bridge to another runtime.
+Provider eligibility follows `worktree-thread-orchestration.md#runtime-adapter-routing`. Provider identity is not capability evidence or permission to bridge to another runtime.
 
 Observe launch identity, fresh context, instructions, workspace binding, permission inheritance, terminal results, capacity, cancellation and resume behavior. Resolve deferred tools where available. A package or flag alone proves none of these. Record sources, actual interface and observed limits in existing RUN evidence rather than introducing another registry.
 

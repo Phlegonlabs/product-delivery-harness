@@ -3141,11 +3141,11 @@ class SelectReadyNodesTests(unittest.TestCase):
 
 
 class DeferralCodeDocumentationTests(unittest.TestCase):
-    """Bind the documented deferral-code list to what the selector emits.
+    """Bind the documented deferral codes to what the selector emits.
 
-    `parallel-mission-selection.md` claims the selector emits "exactly these
-    deferral codes"; this test keeps that word true. When a new code is added
-    to select_ready_nodes.py, its doc entry lands in the same change.
+    `parallel-mission-selection.md` documents only the codes whose remedy is
+    not obvious; the selector output is authoritative for the rest. This test
+    keeps every documented code real and every remedy code documented.
     """
 
     def test_documented_deferral_codes_match_emitted_codes(self) -> None:
@@ -3165,17 +3165,26 @@ class DeferralCodeDocumentationTests(unittest.TestCase):
         doc = (
             SCRIPTS_DIR.parent / "references" / "parallel-mission-selection.md"
         ).read_text(encoding="utf-8")
-        marker = "The selector emits exactly these deferral codes:"
+        marker = "These deferral codes need a remedy:"
         section = doc.split(marker, 1)[1]
         documented = {
             entry.split(":", 1)[0]
             for entry in re.findall(r"- `([a-z_]+(?::<tool>)?)`", section)
         }
-        self.assertEqual(
+        self.assertLessEqual(
             documented,
             emitted | prefixed,
-            "documented deferral codes and emitted codes must stay identical",
+            "every documented deferral code must be emitted by the selector",
         )
+        for code in (
+            "capability_unprobed",
+            "independent_reviewer_unavailable",
+            "review_result_dissent",
+            "reviewer_tool_unobserved",
+            "reviewer_tool_unavailable",
+            "authorization_head_stale",
+        ):
+            self.assertIn(code, documented)
 
 
 if __name__ == "__main__":
