@@ -23,10 +23,10 @@ Use this skill to turn a product idea into a decision-ready package, not an agen
 
 Read the owning section before its matching action. Domain guides stay conditional.
 
-- Before a definition or enhancement starts, read [Workflow](references/stages/product-definition.md#workflow), [Interview Rules](references/stages/product-definition.md#interview-rules), and [Output Standards](references/stages/product-definition.md#output-standards). Enhancement mode first uses its scoped delta branch and does not force an initial interview.
+- Before a definition or enhancement starts, read [Workflow](references/stages/product-definition.md#workflow) and [Interview Rules](references/stages/product-definition.md#interview-rules). Enhancement mode first uses its scoped delta branch and does not force an initial interview.
 - Before Product Definition Approval is requested, read [Self-Review Before Product Definition Approval](references/stages/product-definition.md#self-review-before-product-definition-approval).
 - Before a UI handoff is prepared, read [Current UI Preflight](references/stages/product-definition.md#current-ui-preflight).
-- Before applicable domain decisions are resolved, read [Reference Routing](references/stages/product-definition.md#reference-routing).
+- Before applicable domain decisions are resolved, read the guides that Workflow step 9 names.
 - Actual initial drafting follows the complete required procedure in [Workflow](references/stages/product-definition.md#workflow).
 
 ## Entry Boundary
@@ -35,4 +35,4 @@ Read the owning section before its matching action. Domain guides stay condition
 - Product Definition Approval and the Stack Decision Checkpoint are explicit owner gates.
 - Enhancement preserves the same current PRD and stable IDs.
 - No UI design, implementation, PLAN/RUN, or E2E evidence register starts here.
-- A completed package does not launch downstream work automatically. The full ownership boundary is in [Output Standards](references/stages/product-definition.md#output-standards).
+- A completed package does not launch downstream work automatically. The package creates no wireframe, design system, production component, or Harness mission map.

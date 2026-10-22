@@ -2,86 +2,14 @@ interface:
   display_name: "Product Definition Builder"
   short_description: "Create owner-approved product and stack decisions"
   default_prompt: >-
-    Use $product-definition-builder to create an owner-approved Product
-    Definition package. Run three bounded free-text turns: Product and users;
-    Workflows, data, and rules; then Delivery, success, and risk. Capture data
-    classification, residency, retention, deletion/export, consent and vendor
-    access, plus AI/automation permissions, human gates, evaluation,
-    cost/latency, fallback and shutoff when applicable. In enhancement mode,
-    first record impact across product behavior, UI, data/integrations,
-    architecture/stack, data trust/AI, commercial channels and
-    release/operations.
-
-    Run the research-first assessment with a public-safe query summary. Never
-    disclose secrets, personal data, private customer identities, internal
-    metrics, contract terms or unreleased product details to a web provider.
-    After the archetype is known, resolve target operating systems or browsers
-    before native/cross-platform and framework choices. Ask applicable
-    deployment, database, auth, monetization, partner-channel and Stack
-    Decision Mode questions with AskUserQuestion and an evidence-backed
-    recommendation route. Resolve database category separately from engine and
-    auth strategy separately from provider. Record service topology first:
-    monolith versus named services and monorepo versus polyrepo. Pricing does
-    not automatically select RevenueCat, and affiliate, referral and reseller
-    remain distinct.
-    For hosted targets, narrow current Cloudflare, Vercel, AWS, self-hosted or
-    other serious options from evidence; never silently default the platform.
-
-    Draft PRD.md, architecture.md and stack-decisions.md as candidates. Every
-    package keeps always-present measurable Non-Functional Requirements and
-    stable Test Obligations; every Must requirement and applicable NFR maps to
-    a required TEST row with an observable signal. Every
-    metric includes baseline, target or guardrail, window, source/method and
-    owner. Assumptions and open questions include owner, timing, status and
-    approval impact. Every package records Data and Trust and AI and Automation
-    gates, plus the Security Requirements Gate, Monetization Infrastructure
-    Gate and Partner Channel Gate, including explicit not_required reasons.
-    Run post-draft market
-    research before any owner approval.
-
-    For each unresolved frontend, backend/data, mobile/desktop, AI/automation
-    or commercial area, present two or three coherent technology bundles and
-    recommend one. Separate frontend runtime, rendering, language, package
-    manager, framework, UI library, component foundation such as shadcn/ui,
-    styling, build, routing/data and tests. Separate target operating systems
-    from client framework and toolchain. New proposals stay Recommended until
-    accepted; accepted choices are Approved, existing choices Selected, and
-    hard constraints Required. Recommended and Provisional are not executable.
-    Record the machine-anchored Stack Decision Checkpoint.
-
-    Present the reconciled package to the human owner and record the
-    machine-anchored Product Definition Approval. Approval requires an approved
-    stack checkpoint, no blocking open question, no blocked data/trust, AI,
-    security, monetization or partner gate and
-    explicit treatment of research findings and assumptions. Validate the core
-    files with check_product_package.py --require-filled --require-approved.
-
-    Product Definition includes the complete frontend and backend architecture,
-    data and auth boundaries, deployment model, and every applicable technology
-    layer. For UI products, finish the UI Surface Contract but do not create
-    wireframes, choose layout/style/motion/media, or compile tokens. Record the
-    later UI decision owner and stop after Product Definition Approval. A later
-    explicit request uses $ui-design-builder. Keep publication authorization
-    separate from content approval; never overwrite, move or archive existing
-    documents without exact permission.
-
-    For every deployable web, API, mobile, desktop, or browser-extension
-    surface, preserve provider-neutral development and production targets with
-    stable IDs, canonical <product-slug>-<surface-suffix> production names with
-    no -prod suffix, -dev development names,
-    exact source refs, artifacts, signing, channels, availability proof,
-    rollout and rollback or signed forward-fix. Upload is not availability.
-    Use one repository and one codebase under main-preview/1:
-    ordinary work and hotfixes freeze remote main, and isolated PR/branch
-    Preview acceptance uses the exact candidate branch/SHA before protected-main
-    promotion. Historical RUNs retain their original pins and source rules.
-    Production uses the same verified release SHA only after separately
-    authorized protected-branch promotion to main.
-    Seed docs/DEPLOYMENT.md with names and external-console work but no values.
-    For every release target with an activation scope, create
-    docs/ACTIVATION.md only when absent, map every metric and required TEST
-    signal, and leave later reconciliation to $product-activation.
-
-    UI design, wireframes, visual references, Impeccable review, UI scoring, and
-    the Design System Need Gate belong to $ui-design-builder and are never
-    invoked from this skill.
+    Use $product-definition-builder to create or refine an owner-approved
+    Product Definition package. Follow its SKILL.md and stage file: three
+    bounded free-text interview turns, then AskUserQuestion for the closed
+    decisions; a research-first assessment with a public-safe query summary;
+    PRD.md, architecture.md and stack-decisions.md in English with Chinese
+    review copies; post-draft market research; the Stack Decision Checkpoint;
+    and Product Definition Approval with the exact publish paths in the
+    request. Validate with check_product_package.py --require-filled
+    --require-approved. Never choose a stack or approve for the owner, and
+    write only the paths the owner approved. Stop after approval. UI design
+    belongs to $ui-design-builder and implementation to $delivery-harness.

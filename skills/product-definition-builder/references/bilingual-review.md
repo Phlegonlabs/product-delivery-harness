@@ -12,7 +12,7 @@ Each review copy has exactly one source marker, containing the SHA-256 of the En
 <!-- review-source: PRD.md sha256:<64 lowercase hex characters> -->
 ```
 
-Use `architecture.md` for the architecture marker. Custom filenames explicitly requested by the owner use their real source basenames and explicit review paths. Compute the hash after writing the corresponding English revision. Writing approval metadata does not change it. A stale-hash failure prints the current value. A changed hash means the review needs reconciliation, not permission to update only its marker.
+Use `architecture.md` for the architecture marker. Custom filenames explicitly requested by the owner use their real source basenames and explicit review paths. Compute the hash after writing the corresponding English revision. A stale-hash failure prints the current value. A changed hash means the review needs reconciliation, not permission to update only its marker.
 
 Before every owner review, semantically compare each pair for coverage and matching meaning, then run:
 

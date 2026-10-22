@@ -36,11 +36,8 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         skill = self.read(STAGE)
 
         self.assertIn("references/frontend-stack-selection.md", skill)
-        self.assertIn("produce coherent bundles rather than disconnected menus", skill)
-        self.assertIn(
-            "`Recommended` and `Provisional` are non-executable draft states", skill
-        )
-        self.assertIn("Cloudflare is a deployment/runtime platform", skill)
+        self.assertIn("present two or three coherent bundles with every coupled layer", skill)
+        self.assertIn("`Recommended` or `Provisional` blocks the checkpoint", skill)
 
     def test_product_definition_stops_before_ui_design_or_harness(self) -> None:
         skill = self.read(STAGE)
@@ -81,13 +78,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("PROJECT_CLAUDE.template.md` for `CLAUDE.md`", skill)
         self.assertIn("never copy one template to both files", skill)
         self.assertIn("--check --merge-agents", skill)
-        self.assertIn("semantically review its proposal", skill)
-        self.assertIn("reviewed merge plan with the observed original/template hashes", skill)
-        self.assertIn("additions remain proposals until semantic review", skill)
-        self.assertIn("reconcile same-heading conflicts by meaning in place", skill)
-        self.assertIn("without overwriting intentional stricter local rules", skill)
+        self.assertIn("then a reviewed merge plan", skill)
         self.assertIn(
-            "finish with `--check --require-resolved --stage product-definition`",
+            "then `--check --require-resolved --stage product-definition`",
             skill,
         )
         self.assertIn("not template byte equality", skill)
@@ -237,13 +230,13 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Exact PR/branch candidate", contract)
         self.assertIn("Verified main landing SHA", contract)
         self.assertIn("main-preview/1", contract)
-        self.assertIn("Both ordinary work and hotfixes freeze remote main", skill)
+        self.assertIn("Ordinary work and hotfixes both freeze remote main", self.read("references/interview-guide.md"))
         self.assertIn("candidate run branch/SHA", architecture)
         self.assertIn(
             "Source policy: [`stage=development; ref=run.integration.branch; ",
             contract,
         )
-        for content in (skill, architecture, frontend, contract):
+        for content in (architecture, frontend, contract):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
             self.assertIn("cloudflare", content.lower())
@@ -427,7 +420,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
 
         self.assertIn("Keep deployment and UI design preferences out of this call", skill)
         self.assertIn("depends on step 5's archetype answer", skill)
-        self.assertIn("see Workflow step 7, after the archetype is known", skill)
         self.assertIn("question tool's actual per-call question and option limits", interview)
         self.assertIn("There is no host-specific or cross-phase total-call cap", interview)
         self.assertIn(
@@ -472,7 +464,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
 
     def test_prd_contract_requires_measurable_nfrs_and_test_obligations(self) -> None:
         contract = self.read("references/output-contract.md")
-        skill = self.read(STAGE)
         interview = self.read("references/interview-guide.md")
 
         self.assertLess(
@@ -511,8 +502,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             contract,
         )
         self.assertIn("maps to at least one row whose `Required` value is `Yes`", contract)
-        self.assertIn("Keep `## Non-Functional Requirements` in every `PRD.md`", skill)
-        self.assertIn("Keep `## Test Obligations` in every `PRD.md`", skill)
         self.assertIn("The PRD assigns stable `TEST-*` IDs during synthesis", interview)
 
     def test_test_ids_are_reused_and_preserved_in_enhancements(self) -> None:
@@ -564,7 +553,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         contract = self.read("references/output-contract.md")
         backend = self.read("references/backend-stack-selection.md")
         architecture = self.read("references/architecture-playbook.md")
-        skill = self.read(STAGE)
 
         backend_section = contract[
             contract.index("## Backend and Data Technology Decision") :
@@ -585,14 +573,12 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn(
             "backend technology layers in this order: service topology", architecture
         )
-        self.assertIn("Record service topology first", skill)
-        for content in (contract, backend, architecture, skill):
+        for content in (contract, backend, architecture):
             self.assertIn("monolith", content.lower())
             self.assertIn("monorepo", content.lower())
             self.assertIn("polyrepo", content.lower())
 
     def test_release_discovery_is_provider_neutral_and_complete(self) -> None:
-        skill = self.read(STAGE)
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
@@ -622,9 +608,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             interview,
         )
         self.assertIn(
-            "For every deployable web, API, mobile, desktop, or browser-extension surface", skill
-        )
-        self.assertIn(
             "at least one `development` target and one `production` target", contract
         )
         self.assertIn("Expected deployable surfaces:", contract)
@@ -636,7 +619,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn(
             "one surface may use different providers by stage", contract
         )
-        for content in (skill, interview, architecture, contract):
+        for content in (interview, architecture, contract):
             self.assertIn("<product-slug>-<surface-suffix>", content)
             self.assertIn("-dev", content)
             self.assertIn("-prod", content)
@@ -644,7 +627,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("`ios`, `android`, `macos`, or `windows`", architecture)
         self.assertIn("Chrome, Firefox", architecture)
         self.assertIn("public listing title may differ", architecture.lower())
-        for content in (skill, interview, architecture, contract):
+        for content in (interview, architecture, contract):
             self.assertIn("release name", content.lower())
             self.assertIn("surface", content.lower())
         self.assertIn(
@@ -653,12 +636,11 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("stable release target IDs from the prior package", contract)
 
     def test_release_availability_and_native_recovery_are_explicit(self) -> None:
-        skill = self.read(STAGE)
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
 
-        for content in (skill, interview, architecture, contract):
+        for content in (interview, architecture, contract):
             self.assertIn("not availability", content.lower())
             self.assertIn("forward-fix", content.lower())
         self.assertIn(
@@ -928,7 +910,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         )
         self.assertIn("every retained `docs/product/outcomes/*.md` record in full", skill)
         self.assertIn("`docs/product/outcomes/` contains immutable post-deployment records", lifecycle)
-        self.assertIn("matching verified `MS-*` sources", skill)
         fence_open = False
         architecture_active = False
         for line in contract.splitlines():
@@ -1187,11 +1168,10 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("do not repeat its full inventory here", skill)
 
     def test_full_hifi_copy_review_does_not_require_a_circular_prd_rewrite(self) -> None:
-        skill = self.read(STAGE)
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
 
-        for content in (skill, contract, lifecycle):
+        for content in (contract, lifecycle):
             self.assertIn("full HiFi approval", content)
         self.assertIn(
             "A full HiFi approval may advance a PRD `draft` responsibility "
@@ -1204,8 +1184,8 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             lifecycle,
         )
         self.assertIn(
-            "PRD `revision_requested` or `blocked` copy stops UI work",
-            skill,
+            "`revision_requested` or `blocked` PRD copy stops active UI design work",
+            lifecycle,
         )
         self.assertNotIn(
             "any applicable Wireframe Approval, passing checkers",
