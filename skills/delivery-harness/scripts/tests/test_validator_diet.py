@@ -11,8 +11,8 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_manifest import load_plan, plan_digest, validate_plan, validate_run
 from harness_schema import AUTHORIZATION_KEYS
-from harness_graph import _validate_graph
-from manifest_fixtures import valid_plan, valid_run, container_execution
+from harness_graph import _validate_graph, unactivated_review_repairs
+from manifest_fixtures import valid_plan, valid_run, container_execution, conditional_final_candidate_plan
 
 
 class ValidatorDietTests(unittest.TestCase):
@@ -120,8 +120,37 @@ class ValidatorDietTests(unittest.TestCase):
                                 require_bounded_review_repair=True, require_review_lineage=True)
                 self.assertEqual(attempts == 2, not errors, errors)
 
+    def test_conditional_final_review_has_one_consolidated_repair(self) -> None:
+        plan = conditional_final_candidate_plan()
+        self.assertEqual([], validate_plan(plan))
+        run = valid_run(plan)
+        review = next(node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL-REVIEW")
+        self.assertEqual({"M4"}, unactivated_review_repairs(plan, review, run))
+        run["graph_state"]["edge_states"]["E-FINAL-REPAIR"].update(status="traversed", traversals=1)
+        self.assertEqual(set(), unactivated_review_repairs(plan, review, run))
 
+    def test_conditional_repair_cannot_hide_an_active_or_unbounded_mission(self) -> None:
+        for mutate in (
+            lambda plan, run: run["mission_states"]["M4"].update(phase="ready"),
+            lambda plan, run: run["graph_state"]["node_states"]["N-M4"].update(attempts=1),
+            lambda plan, run: plan["graph"]["edges"][-2].update(max_traversals=2),
+            lambda plan, run: plan.pop("review_policy"),
+        ):
+            plan = conditional_final_candidate_plan()
+            run = valid_run(plan)
+            mutate(plan, run)
+            review = next(node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL-REVIEW")
+            self.assertEqual(set(), unactivated_review_repairs(plan, review, run))
 
+    def test_final_candidate_rejects_an_extra_repair_or_review_attempt(self) -> None:
+        for attempts in (1, 3):
+            plan = conditional_final_candidate_plan()
+            review = next(node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL-REVIEW")
+            review["max_attempts"] = attempts
+            self.assertTrue(any("2 attempts" in error or "at most 2" in error for error in validate_plan(plan)))
+        plan = conditional_final_candidate_plan()
+        plan["graph"]["edges"][-2]["max_traversals"] = 2
+        self.assertTrue(any("one bounded repair" in error for error in validate_plan(plan)))
 
 
 if __name__ == "__main__":

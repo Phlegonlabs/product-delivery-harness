@@ -1385,6 +1385,27 @@ def _validate_plan_graph(
         require_bounded_review_repair=True,
         require_review_lineage=True,
     )
+    if review_policy(plan) == "final_candidate":
+        graph_nodes = {node.get("id"): node for node in plan["graph"].get("nodes", [])
+                       if isinstance(node, dict)}
+        for node in graph_nodes.values():
+            review = node.get("review")
+            if not isinstance(review, dict) or "fix_required" not in node.get("allowed_outcomes", []):
+                continue
+            if node.get("max_attempts") != 2:
+                _add(errors, f"plan.graph.nodes.{node.get('id')}.max_attempts",
+                     "final candidate review requires 2 attempts: initial review and one recheck")
+            repair_routes = [edge for edge in plan["graph"].get("edges", [])
+                             if isinstance(edge, dict) and edge.get("from") == node.get("id")
+                             and edge.get("kind") == "route"
+                             and "fix_required" in edge.get("on_outcomes", [])]
+            if repair_routes and (
+                len(repair_routes) != 1
+                or repair_routes[0].get("max_traversals") != 1
+                or graph_nodes.get(repair_routes[0].get("to"), {}).get("max_attempts") != 1
+            ):
+                _add(errors, f"plan.graph.nodes.{node.get('id')}",
+                     "final candidate review permits one bounded repair attempt")
     declared_reviews = {
         lens
         for node in plan["graph"].get("nodes", [])

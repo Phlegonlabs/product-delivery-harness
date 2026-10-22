@@ -40,7 +40,7 @@ from test_harness_manifest import (  # noqa: E402
     valid_run,
 )
 from validate_node_result import validate_node_result  # noqa: E402
-from manifest_fixtures import final_candidate_plan, record_review_spawn_receipts  # noqa: E402
+from manifest_fixtures import final_candidate_plan, conditional_final_candidate_plan, record_review_spawn_receipts  # noqa: E402
 
 
 def graph_node(
@@ -643,6 +643,26 @@ class FinalCandidatePolicyTests(unittest.TestCase):
             )
         )
 
+    def test_first_pass_closes_with_the_unused_consolidated_repair_dormant(self) -> None:
+        plan = conditional_final_candidate_plan()
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        node = next(item for item in plan["graph"]["nodes"] if item["id"] == "N-FINAL-REVIEW")
+        bind_security_pass(run, node)
+        pristine = valid_run(plan)
+        run["mission_states"]["M4"] = pristine["mission_states"]["M4"]
+        for task in plan["missions"][-1]["tasks"]:
+            run["task_states"][task["id"]] = pristine["task_states"][task["id"]]
+        run["graph_state"]["node_states"]["N-M4"] = pristine["graph_state"]["node_states"]["N-M4"]
+        for edge in ("E-FINAL-REPAIR", "E-REPAIR-RECHECK"):
+            run["graph_state"]["edge_states"][edge] = pristine["graph_state"]["edge_states"][edge]
+        run["workers"] = [worker for worker in run["workers"] if worker["mission_id"] != "M4"]
+        run["verifier_executions"] = [record for record in run["verifier_executions"] if record["mission_id"] != "M4"]
+        run["attempt_log"] = [attempt for attempt in run["attempt_log"] if attempt.get("mission_id") != "M4"]
+        self.assertEqual([], validate_run(plan, run))
+        self.assertEqual("queued", run["mission_states"]["M4"]["phase"])
+        run["graph_state"]["node_states"]["N-M4"]["phase"] = "ready"
+        self.assertTrue(validate_run(plan, run))
 
     def test_combined_review_without_security_lens_fails_required_security(self) -> None:
         plan = final_candidate_plan(lenses=("backend_code", "visual"))

@@ -739,6 +739,31 @@ def final_candidate_plan(
     return plan
 
 
+def conditional_final_candidate_plan() -> dict[str, object]:
+    """Three original missions and one one-shot consolidated repair mission."""
+    plan = final_candidate_plan(lenses=("backend_code", "security"))
+    repair = mission(
+        "M4", "REQ-001", "src/**",
+        [task("M4", 1, "REQ-001", "src/a/repair.py")],
+        priority=50, merge_rank=40,
+    )
+    plan["missions"].append(repair)
+    review = next(node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL-REVIEW")
+    review["allowed_outcomes"].append("fix_required")
+    review["review"]["mission_ids"].append("M4")
+    repair_node = graph_node(
+        "N-M4", "mission", "M4", "runtime_worker",
+        ["pass", "retryable_failure", "blocked", "contract_gap"],
+    )
+    repair_node["max_attempts"] = 1
+    plan["graph"]["nodes"].append(repair_node)
+    plan["graph"]["edges"].extend([
+        {"id": "E-FINAL-REPAIR", "kind": "route", "from": "N-FINAL-REVIEW",
+         "to": "N-M4", "on_outcomes": ["fix_required"], "max_traversals": 1},
+        {"id": "E-REPAIR-RECHECK", "kind": "route", "from": "N-M4",
+         "to": "N-FINAL-REVIEW", "on_outcomes": ["pass"], "max_traversals": 1},
+    ])
+    return plan
 
 
 def sandbox_observation(plan: dict[str, object]) -> dict[str, object]:

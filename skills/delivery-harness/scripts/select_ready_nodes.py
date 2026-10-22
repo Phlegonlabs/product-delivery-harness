@@ -37,6 +37,7 @@ from harness_schema import (
     run_required_harness_version,
     version_at_least,
 )
+from harness_graph import unactivated_review_repairs
 
 
 class GraphSelectionError(ValueError):
@@ -406,6 +407,7 @@ def _active_wave_allows_streaming_review(
 
 def _incoming_route_matched(
     node: dict[str, Any],
+    plan: dict[str, Any],
     run: dict[str, Any],
     dependencies: dict[str, list[dict[str, Any]]],
     routes: dict[str, list[dict[str, Any]]],
@@ -466,6 +468,8 @@ def _incoming_route_matched(
         for edge in dependencies[node_id]
     ):
         return True
+    if state["attempts"] == 0 and unactivated_review_repairs(plan, node, run):
+        return True
     return False
 
 
@@ -498,7 +502,7 @@ def _logical_reasons(
     node_states = run["graph_state"]["node_states"]
     review = node.get("review")
     route_matched = _incoming_route_matched(
-        node, run, dependencies, routes, node_states, context
+        node, plan, run, dependencies, routes, node_states, context
     )
     if _current_review_result_matches_worker(node, run, context) is False:
         reasons.add("review_result_dissent")
@@ -621,12 +625,14 @@ def _logical_reasons(
         and review.get("stage", "preintegration") == "integration"
     ):
         mission_states = run.get("mission_states", {})
+        pending_repairs = unactivated_review_repairs(plan, node, run)
         if (
             not isinstance(mission_states, dict)
             or any(
                 not isinstance(mission_states.get(mission_id), dict)
                 or mission_states[mission_id].get("phase") != "integrated"
                 for mission_id in review.get("mission_ids", [])
+                if mission_id not in pending_repairs
             )
             or not run.get("integration", {}).get("integration_head_sha")
         ):
