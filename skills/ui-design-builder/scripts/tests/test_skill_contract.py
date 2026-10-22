@@ -358,10 +358,22 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("the wave has two fresh reviewers: a lead grader who also produces the browser receipt, "
                       "and one Impeccable operator who runs critique and audit", rubric)
         self.assertIn("Neither reviews its own work", rubric)
-        self.assertIn("Add one only on an owner request or a recorded high risk", rubric)
+        self.assertIn("Add a specialist grader only on an owner request or a recorded high risk", rubric)
         self.assertIn("A grader packet carries this rubric", rubric)
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
+
+    def test_legacy_wireframe_grading_lives_in_the_wireframe_guide(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        guide = self.read("references/wireframe-guide.md")
+        for marker in ("## Legacy Wireframe Grading", "### W5 Composition Criteria",
+                       "`W1 PRD conformance`", "`W5 Structural clarity and evidence`"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, guide)
+        self.assertIn("wireframe-guide.md#legacy-wireframe-grading", rubric)
+        self.assertNotIn("### W5 Composition Criteria", rubric)
+        self.assertIn("`60–79 — advisory`", rubric)
+        self.assertIn("HiFi readiness requires an overall score of at least `85` and every `H1`–`H9` dimension at least `80`.", rubric)
 
     def test_bindings_and_frontend_design_read_are_per_session(self):
         stage = self.read(UI_STAGE)

@@ -97,7 +97,7 @@ Inline CSS and JavaScript implement the reviewer studio, page switching, working
 
 ## Composition Before Coverage
 
-Use the W5 composition criteria in `ui-grading-rubric.md` while authoring, before final structure validation. Start with a frequent task and a dense or alternate-state case at wide and compact targets; inspect their hierarchy, spacing, content form, and reflow before expanding the full surface matrix. This is an authoring checkpoint, not another human approval. Do not alter the approved product scope or wording to make a composition easier.
+Use the W5 Composition Criteria below while authoring, before final structure validation. Start with a frequent task and a dense or alternate-state case at wide and compact targets; inspect their hierarchy, spacing, content form, and reflow before expanding the full surface matrix. This is an authoring checkpoint, not another human approval. Do not alter the approved product scope or wording to make a composition easier.
 
 The formal wireframe opens with annotations visible over a composed neutral-grayscale interface. Hide annotations provides an optional clean view; it never substitutes for designing the page. Show each region's name, purpose, column allocation and measured width/padding, plus the canvas's measured insets and row/column gaps. Keep detailed notes outside product copy and provide a keyboard-accessible way to locate the corresponding region. Product actions, content and destinations remain unchanged when toggling notes. Do not use inherited brand color, identical card wrappers, or fixed empty region heights as a substitute for hierarchy.
 
@@ -206,3 +206,33 @@ A user-visible wording change is a copy delta and uses `structure` (or `both` wh
 - `ui-design.md` records the validated `UI-*` scope, source identities, primary locale, actual evidence, grading and unresolved items under Wireframe Validation. New product wording returns to Product Definition; routine maintenance keeps historical design records intact.
 
 If any check fails, keep the package staged and repair the PRD or HTML before approval.
+
+## Legacy Wireframe Grading
+
+A legacy grader receives the current filled structure and PRD-join result under its old schema. Schema 5 needs no human copy gate. Legacy graders also apply the rubric's Reading And Cross-Screen Cases to W3–W5. For a legacy wireframe, static copy, labels, feedback, alternate states and dynamic display contracts must be complete and sourced, and reviewer notes must not appear as product copy.
+
+- `W1 PRD conformance`: every `UI-*` screen, route, required content/control responsibility, action, flow, state, responsive target, and trace agrees with the frozen PRD; the wireframe's region grouping and order introduce no new product obligation.
+- `W2 Layout safety`: no reviewer-shell or canvas element is unintentionally overlapped, clipped, occluded, or forcing horizontal page scrolling. An intended overlay passes only when its PRD interaction rule names stacking, focus, and dismissal.
+- `W3 Interaction`: every visible region action works from the local file. It navigates to the PRD-recorded screen, opens the recorded overlay, or shows the recorded local feedback; the page switcher, all-pages overview, responsive-target control, state control, and runtime layout QA also work.
+- `W4 Responsive and state integrity`: every never-drop region stays visible with the declared order and spans, and every non-`n/a` state is selectable at every target.
+- `W5 Structural clarity and evidence`: the canvas makes product hierarchy, content density, and responsive composition legible without pretending to be final visual design; product copy is clearly separated from reviewer notes; the `WREF-*` decisions support rather than decorate the chosen structure; apply the structural items below against the PRD rather than grader taste.
+
+### W5 Composition Criteria
+
+Wireframe has no Tokens or Design System Draft view. W3 verifies actual product menus, tabs, navigation, input, validation and recovery. Reviewer controls cannot prove a product journey. Verify required Home, back and cancel actions against the PRD, then compare Wireframe and HiFi destinations. Unsupported required interactions block readiness.
+
+Before expanding the complete screen set, compose one frequent task and one dense or alternate-state case from the approved scope. A single-screen product may use two states of that screen; do not invent a second task. Inspect both at the applicable wide and compact targets. This authoring checkpoint adds no approval gate and never replaces the full final matrix.
+
+Evaluate all seven criteria against the approved task, content, and platform:
+
+| Criterion | Passing evidence |
+| --- | --- |
+| Task hierarchy | The primary task and action are easy to locate; supporting content does not compete for equal emphasis. |
+| Type hierarchy | Page title, section title, body, and supporting text have distinct, readable roles without labeling every paragraph. |
+| Spacing and grouping | Related items sit together; larger gaps separate groups; alignment and line length support reading. |
+| Content form | Navigation, forms, lists, and tables look and behave like their intended structures rather than identical cards. |
+| Composition and density | Region proportions reflect task importance; no arbitrary equal boxes or empty height spacers. |
+| Platform and reflow | Compact layouts reprioritize and reflow content; platform conventions remain distinct. |
+| Review separation and neutrality | The formal view opens with readable annotations, named destinations and measured spacing. Notes are distinct from product copy. The optional clean view preserves the product layout rules and working flows. |
+
+Record each criterion's observation, page-target-state, and inspected screenshot path/hash in the existing grading detail. Review representative cases with annotations on and also verify the clean view. Check that action descriptions match real page, dialog and local-result behavior, and, for HiFi, that token specimens apply the displayed values. Cite the relevant PRD/intake/reference decision for each weakness. W5 below 80 blocks readiness even when the overall score passes; merely removing color or passing geometry checks does not establish composition quality. Do not grade a preferred brand style or freeze final fonts, colors, or tokens here.
