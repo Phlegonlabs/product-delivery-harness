@@ -22,7 +22,7 @@ No layer of the run — task, repair, integration, wave close, or closeout — l
 - Split an oversized task through the parent-owned refinement protocol before committing when it contains independently useful outcomes. Never rewrite only `RUN.md` to invent accepted scope.
 - Stage explicit files, inspect the staged diff, and commit only after the task verifier passes and commits are authorized.
 - Do not commit failed work except an explicitly planned harness or test artifact whose purpose is to expose the failure.
-- Do not start a second task's implementation before the current task's verifier has run and, on pass, its commit is made. Checkpoint each task as you finish it, not in a batch at the end of a mission or session — an interruption before that checkpoint leaves unverified, unrecorded drift that a later resume has to reconstruct from the diff alone (see `execution-state-model.md`'s Resume Reconciliation Gate).
+- Do not start a second task's implementation before the current task's verifier has run and, on pass, its commit is made. Checkpoint each task as you finish it, not in a batch at the end of a mission or session; an interruption before it leaves drift (see `execution-state-model.md`'s Resume Reconciliation Gate).
 - A repair after review is a new atomic follow-up commit attributed to exactly one task. Multiple commits may belong to one task only to preserve explicit repair history; never reuse one commit for several task IDs or squash different task outcomes together.
 - When a task reads a new required environment variable, add its placeholder entry to `.env.example` in that same commit (see `platform-archetypes.md`'s Greenfield / Empty Repository section) — never land the code that reads it without the matching documented placeholder, and never commit the real `.env`/local secret file itself.
 
@@ -71,7 +71,7 @@ chore(deps): bump playwright to 1.49
 
 ## RUN.md Recording
 
-After the commit succeeds and its task verifier passes, the worker reports the task as `worker_passed`. `record-worker-result` observes the bound worktree, confirms the commit is represented in the accepted mission result, and records the task as `mission_recorded` in RUN. The task itself is never marked `integrated`; only its mission may become `integrated` after exact-head review, integration onto the current head, and the mission integration gate.
+After the commit succeeds and its task verifier passes, the worker reports the task as `worker_passed`. `record-worker-result` observes the bound worktree, confirms the commit is represented in the accepted mission result, and records the task as `mission_recorded` in RUN. The task itself is never marked `integrated`; only its mission may become `integrated` after integration onto the current head and the mission integration gate.
 
 ```text
 `a1b2c3d` — `feat(auth): implement password login` — PASS
@@ -86,9 +86,9 @@ Commits:
 
 Record the final hash after commit creation. Do not amend a task commit merely to place its own hash in `RUN.md`; land parent-owned `RUN.md` bookkeeping at the next authorized checkpoint or closeout, and do not require a checkpoint commit to self-reference.
 
-Commit `PLAN.md`/`RUN.md` themselves to git at every mission integration or wave close — do not let "the next authorized checkpoint" drift into several missions' or a full day's worth of code landing in git while the plan/run bookkeeping that explains those changes remains only a local uncommitted file. A crash, fresh clone, or reset before that commit permanently severs the integrated code from the record of why it was integrated, what it was reviewed against, and what revision authorized it.
+Commit `PLAN.md`/`RUN.md` themselves to git at every mission integration or wave close, so integrated code never lands without the record of why it was integrated and which revision authorized it.
 
-After creating that one ordinary direct bookkeeping child, run `record-observation`, then `reconcile-coordination-head --candidate-sha <bookkeeping SHA> --source <parent source>` before selecting later work. The transition changes no Git state. It accepts only exact declared coordination paths, keeps frozen product/design sources forbidden, proves every other path byte-identical, preserves the prior integration head and evidence, and re-arms current integration-review/final-gate projections for the new exact SHA. Isolated in-flight mission workers may continue; live integration reviewers and parent-owned running checks must be quiescent.
+After creating that one ordinary direct bookkeeping child, run `record-observation`, then `reconcile-coordination-head --candidate-sha <bookkeeping SHA> --source <parent source>` before selecting later work; `execution-state-model.md` owns the transition's guards.
 
 ## Integration Commits
 
