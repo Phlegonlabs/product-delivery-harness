@@ -16,6 +16,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import load_plan, load_run  # noqa: E402
+from harness_graph import _validate_graph  # noqa: E402
 
 
 class SchemaV6V11ContractTests(unittest.TestCase):
@@ -108,6 +109,34 @@ class SchemaV6V11ContractTests(unittest.TestCase):
         self.assertEqual("N-CLOSEOUT-GATE", edges["E-ACCEPTANCE-CLOSEOUT"]["to"])
         self.assertNotIn("execution_route", plan)
         self.assertTrue(missions["M1"]["tasks"][0]["acceptance_matrix"])
+
+    def test_template_final_review_accepts_only_the_bounded_repair_budget(self) -> None:
+        plan = self.canonical_manifest(
+            "assets/templates/HARNESS_PLAN.template.md", "harness_plan"
+        )
+        review = next(
+            node for node in plan["graph"]["nodes"]
+            if node["id"] == "N-SECURITY-REVIEW"
+        )
+        missions = {mission["id"]: mission for mission in plan["missions"]}
+        verifier_ids = {
+            verifier["id"]
+            for verifier in [*plan["final_gates"], *missions["M1"]["worker_verifiers"]]
+        }
+        self.assertIn("fix_required", review["allowed_outcomes"])
+        for attempts in (2, 1, 3):
+            with self.subTest(attempts=attempts):
+                review["max_attempts"] = attempts
+                errors: list[str] = []
+                _validate_graph(
+                    errors, plan["graph"], missions, verifier_ids,
+                    require_bounded_review_repair=True,
+                    require_review_lineage=True,
+                )
+                if attempts == 2:
+                    self.assertEqual([], errors)
+                else:
+                    self.assertTrue(errors)
 
 
 
