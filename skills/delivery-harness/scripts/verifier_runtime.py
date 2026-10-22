@@ -19,10 +19,6 @@ from typing import Any, Mapping
 
 from select_verifiers import VerifierSelectionError, normalize_changed_files
 import host_process
-from harness_core import (
-    HOST_FINGERPRINT_KEYS,
-    HOST_RUNTIME_VERSION_KEYS,
-)
 from harness_git import (
     GitMetadataError,
     reject_object_substitution,
@@ -32,6 +28,8 @@ from harness_git import (
 
 PROTOCOL = "harness-verifier-execution-v2"
 BATCH_PROTOCOL = "harness-verifier-batch-v1"
+HOST_FINGERPRINT_KEYS = {"system", "machine", "release", "node_sha256"}
+HOST_RUNTIME_VERSION_KEYS = {"system", "release", "machine"}
 CONTEXT_FIELDS = {
     "run_id",
     "plan_revision",
