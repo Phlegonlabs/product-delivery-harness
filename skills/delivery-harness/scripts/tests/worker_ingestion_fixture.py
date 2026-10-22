@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import os
@@ -21,7 +20,6 @@ for entry in (str(TESTS_DIR), str(SCRIPTS_DIR), str(PRODUCT_TESTS_DIR)):
     if entry not in sys.path:
         sys.path.insert(0, entry)
 
-import harness_transition  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 import contract_package_fixture  # noqa: E402
 import role_contract_fixtures as role_fixtures  # noqa: E402
@@ -457,3 +455,23 @@ def build_original_failure():
     fixture.original_run_sha256 = hashlib.sha256(original.read_bytes()).hexdigest()
     fixture.head = head
     return fixture
+
+
+def prepare_recovery(fixture):
+    _command(fixture, "close-wave", "--source", "synthetic stopped worker boundary")
+    fixture.active_script = fixture.skills_s4 / "delivery-harness/scripts/harness_transition.py"
+    result = adopt_contract(fixture.root, fixture.skills_s4, fixture.run_path,
+                            fixture.digest_s4, "parent-session")
+    if result.returncode:
+        raise AssertionError(result.stderr + result.stdout)
+    return load_run(fixture.run_path)
+
+
+def recovery_flags(fixture):
+    flags = ["--node-result", str(fixture.node_path), "--worker-result", str(fixture.report_path),
+             "--result-receipt", str(fixture.receipt_path), "--original-run", str(fixture.original_run_path),
+             "--expected-original-run-sha256", fixture.original_run_sha256,
+             "--reconciliation-id", "RECOVERY-M1-001", "--source", "synthetic owner accepted original candidate"]
+    for path in fixture.verifier_paths:
+        flags.extend(["--verifier-result", str(path)])
+    return flags

@@ -4,6 +4,8 @@ Resolve `<delivery-harness-skill-root>` to the absolute directory containing the
 
 In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed paths. Expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from the source repository.
 
+For a receipt-proven inherited-head rejection, `harness_transition.py ... reconcile-worker-ingestion` uses the [strict recovery flags](execution-state-model.md#scripted-transition-flag-surfaces). It preserves the failed dispatch and creates no author attempt. Ordinary failed results remain ineligible.
+
 Before each stage, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage <stage>`. The stage names are:
 
 - `product-definition`: future slots may be absent or `pending`/`pending`; no installed-stage PASS is claimed.

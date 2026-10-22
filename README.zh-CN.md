@@ -865,6 +865,8 @@ Product Definition 只在获授权时执行有界的只读分析图。`product_a
 
 Managed 角色结果使用 [parent 保留的执行收据](skills/delivery-harness/references/agent-execution-receipts.md)，核对实际 host session、原始保留内容与接收的 payload。启动失败有独立收据，可按配置处理明确的模型／provider 不可用错误，不捏造成功启动。Hash 绑定证据内容，不是对不可信 parent adapter 的身份认证。
 
+`reconcile-worker-ingestion` 只恢复因沿用上次 mission head 而被错拒的通过结果。它要求原始收据、RUN 快照、adoption、候选与实际 verifier 证据保持一致。原 wave 保持关闭，失败历史与尝试次数完整保留，恢复另有可验证的收据。Mission 仍须按当前契约接受新的精确 head 审查与集成。
+
 旧原生 workflow driver、启动模板与 `workflow_runs` 兼容路径已移除。历史用户文件保持不动；使用旧 binding 的未完成工作，需要明确重新规划并重验能力与授权，不会自动迁移。
 
 Runtime 提速路径只移除重复工作，不移动 gate。`docs_weight.py` 用一次 `cat-file --batch` 读取已解析 baseline 的 blobs；verifier 结果可记录只读的 setup、guard、snapshot、command 与 postcheck 耗时；review packet 只删除 diff 中重复出现的材料；同一 batch 可复用 immutable archive bytes，但每个 verifier 仍有各自通过检查的解压目录；verifier slot 会补入无冲突工作，而不是等待整波；只有同一 runner 产生的 deterministic opted-in PASS 可在重新检查 guard 与 runtime/image trust 后复用 container 结果。container 结果不会进入持久 cache。 新接受的复用必须在当前 parent 观察到的 batch 中附带原始执行；只有 RUN 历史记录不足以授权。

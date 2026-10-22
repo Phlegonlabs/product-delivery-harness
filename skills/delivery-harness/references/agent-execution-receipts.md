@@ -32,6 +32,12 @@ Canonical payload JSON uses sorted keys, UTF-8, no ASCII escaping, compact comma
 
 All returned outcomes need provenance, not only PASS. A mismatch refuses the transition without changing RUN. The reservation stores `result_receipt`. Subsequent manifest validation rechecks its retained bytes, session and accepted head/outcome. Missing or changed evidence is not a PASS.
 
+## Rejected Ingestion Of A Passing Result
+
+`reconcile-worker-ingestion` covers only the sole inherited mission-head rejection of an original passing result. It requires the original RUN snapshot and SHA-256, original returned-result receipt, matching node and Markdown worker reports, and actual verifier files. The original wave must be closed. The current reservation, candidate, PLAN, failed dispatch and graph must remain unchanged, with surviving `run_complete` authorization.
+
+The command validates the candidate through ordinary admission against its proven original contract adoption. It preserves the current adoption, closed wave, failed dispatch and all attempt counts. A separate audit receipt binds original bytes, launch, adoption and verifier identities. Manifest validation rechecks those joins and retained source bytes. The mission returns to `worker_passed`; its graph node remains `running` until normal review and integration. This command launches no worker and grants no retry, fallback or acceptance waiver. Missing evidence, other failures, downstream effects and replay fail without mutation.
+
 ## Parent-Observed Failures
 
 Do not invent a successful launch when invocation failed before a session existed. Use `reject-worker-result --failure-receipt <json-path>` or a non-passing `record-review-attempt --failure-receipt <json-path>`. A failure receipt uses the same fields, with `kind: launch_failed` and null `session_id` before launch, or `kind: runtime_failed` and the exact recorded session after launch. Never supply both a returned-result receipt and a failure receipt for one response.

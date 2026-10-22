@@ -39,6 +39,8 @@ The owner source and reading evidence are recorded attestations. They bind respo
 
 ## Re-Orchestrate Remaining Work Onto The New Runtime
 
+An original passing result rejected solely for an inherited mission head may use [rejected-ingestion recovery](agent-execution-receipts.md#rejected-ingestion-of-a-passing-result). Preserve its original RUN and adoption receipt. Complete any separately authorized quiet-boundary adoption before recovery returns the mission node to `running`. Ordinary fresh results and reviews still require the current adoption.
+
 An upgrade does not resume the old orchestration. Once the fresh session records `current`, it owns every remaining task in the run:
 
 1. Run the Resume Reconciliation Gate from `execution-state-model.md`: reconcile interrupted mission workers and review workers, re-observe canonical state against live Git heads and dirty worktrees, and only then select work. Start with `scripts/inspect_harness_run.py` to see how much of the run is already terminal — only the non-terminal remainder is re-orchestrated.

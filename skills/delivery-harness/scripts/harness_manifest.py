@@ -4121,12 +4121,21 @@ def _validate_run_attempt_log(
                     "node_dispatch",
                     "verifier_dispatch",
                     "push_receipt",
+                    "worker_ingestion_reconciliation",
                 }
                 if schema_version == 11
                 else set()
             )
             if not _keys(errors, path, attempt, attempt_keys, optional_attempt_keys):
                 continue
+            if schema_version == 11:
+                from harness_worker_ingestion_proof import KIND, validate_reconciliation
+
+                if (attempt.get("kind") == KIND) != (KIND in attempt):
+                    _add(errors, path, "worker ingestion receipt must match its audit kind")
+                elif attempt.get("kind") == KIND:
+                    for issue in validate_reconciliation(plan, run, attempt):
+                        _add(errors, path, issue)
             for key in ("attempt_id", "kind", "result"):
                 if not _nonempty_string(attempt[key]):
                     _add(errors, f"{path}.{key}", "must be a non-empty string")

@@ -1,6 +1,6 @@
 # Worker ingestion reconciliation
 
-Status: retry-head prevention verified locally; recovery remains incomplete.
+Status: recovery and local verification complete; fixed-candidate independent review and isolated adoption pending.
 
 ## Problem and scope
 
@@ -14,6 +14,10 @@ A new lease clears the mission's current-head projection while preserving previo
 
 ## Change log
 
+- Final recovery check passed in 95.847 seconds (`checks/ingestion-recovery-final-006-1792643448451322900.json`). The 230-case existing regression run had one expected-command-list failure and three platform skips; the unchanged list omitted the new tasks projection checkpoint. That assertion was updated and its complete module passed on rerun (`checks/ingestion-tasks-view-regression-006-1792643554060275000.json`). The skips cover one POSIX-only assertion and two unavailable Windows symlink operations. Full six-skill pyflakes, skill specification, documentation weight and diff checks passed. These are local development checks, not a formal release matrix or installation claim. Source review remains required.
+
+- Parent implemented the frozen Sol design in two focused modules. Ordinary worker/adoption acceptance stays unchanged; a shared success projection preserves the original rejected dispatch. Recovery records a strict receipt, rechecks source bytes and the worker branch at commit, and keeps the mission node running until integration. Two focused tests passed in 134.779 seconds, including closed-wave S3-to-S4 recovery, fifteen isolated negative cases, four transaction races, replay refusal, historical receipt retention and a fresh S4 review directive. The first two development runs reached recovery but exposed incorrect test API/node-name assumptions; those failures remain retained. A final focused rerun covers the last receipt-projection and bounded-input checks. Evidence: `checks/ingestion-recovery-core-006-003-1792643255631580400.json` under the external task root. The four READMEs and five affected references describe the command. No consumer state, new bundle or shared installation changed.
+
 - Parent completed the real CLI regression fixture after taking exclusive checkout ownership. Two real leases, task commits, host verifier executions and a retained result receipt reproduce only the inherited-head rejection. Discovery runs one test: PASS in 34.797 seconds. Evidence: `checks/ingestion-parent-real-fixture-005-002-1792642539718139600.json` under the external task root. Recovery remains unimplemented and the consumer remains unchanged. Architecture and independent review use native GPT-6.1 Sol/xhigh; the earlier Astra diagnostic was stopped and replaced.
 
 - 2026-10-22 UTC: native implementer configured as GLM Flash/max produced a recovery draft. Its first5-case fixture runs failed before proving acceptance. The parent identified missing sole-cause, receipt, role and Markdown guards. The author added some checks but did not complete recovery. Drafts and original failed logs remain under `agentkiosk-implementation-20261021-01/ingestion-repair-004/recovery-draft-20261022-0230/` in the system temporary directory. No consumer state or bundle was changed by that author.
@@ -23,4 +27,4 @@ A new lease clears the mission's current-head projection while preserving previo
 
 ## Remaining work
 
-Freeze the historical-adoption and closed-wave recovery design, complete actual CLI/receipt/verifier and negative-case fixtures, document the new command in the four READMEs and touched contracts, and run the related suites. A fresh GPT-6.1 Sol/xhigh code/security review must bind the complete fixed source candidate before any new bundle is proposed. M01 is not accepted, reviewed or integrated by these source changes.
+Bind a fresh GPT-6.1 Sol/xhigh code/security review to the complete fixed source candidate. A new isolated bundle still needs concrete adoption authority. M01 is not accepted, reviewed or integrated by these source changes.

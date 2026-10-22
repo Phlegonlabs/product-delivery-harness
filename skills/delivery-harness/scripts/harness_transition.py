@@ -311,6 +311,7 @@ DISPATCH_COMMANDS = {
     "lease-worker",
     "record-launch-observation",
     "record-worker-result",
+    "reconcile-worker-ingestion",
     "reject-worker-result",
     "reserve-review-dispatch",
     "bind-review-task-thread",
@@ -324,6 +325,7 @@ DISPATCH_COMMANDS = {
 TASK_VIEW_CHECKPOINTS = {
     "accept-wave",
     "record-worker-result",
+    "reconcile-worker-ingestion",
     "reject-worker-result",
     "record-integration",
     "reconcile-candidate-head",
@@ -5269,6 +5271,15 @@ def build_parser() -> argparse.ArgumentParser:
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
     worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
+    ingestion = subparsers.add_parser("reconcile-worker-ingestion")
+    ingestion.add_argument("--node-result", required=True, type=Path)
+    ingestion.add_argument("--worker-result", required=True, type=Path)
+    ingestion.add_argument("--result-receipt", required=True, type=Path)
+    ingestion.add_argument("--original-run", required=True, type=Path)
+    ingestion.add_argument("--expected-original-run-sha256", required=True)
+    ingestion.add_argument("--verifier-result", action="append", required=True, type=Path)
+    ingestion.add_argument("--reconciliation-id", required=True)
+    ingestion.add_argument("--source", required=True)
     rejected = subparsers.add_parser("reject-worker-result")
     rejected.add_argument("--failure-receipt", type=Path)
     rejected.add_argument("--node-id", required=True)
@@ -5461,6 +5472,10 @@ def _transition_under_lock(
         _lease_worker(plan, run, args)
     elif args.command == "record-worker-result":
         receipt = record_worker_result(plan, run, args)
+    elif args.command == "reconcile-worker-ingestion":
+        from harness_worker_ingestion_transition import reconcile_worker_ingestion
+
+        receipt = reconcile_worker_ingestion(plan, run, args)
     elif args.command == "reject-worker-result":
         receipt = reject_worker_result(plan, run, args)
     elif args.command == "record-integration":
@@ -5556,6 +5571,10 @@ def _transition_under_lock(
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
         verify_worker_observation(observation)
+    if args.command == "reconcile-worker-ingestion":
+        from harness_worker_ingestion_transition import verify_ingestion_before_commit
+
+        verify_ingestion_before_commit(plan, run, args)
     _ensure_plan_unchanged(args.plan, expected_plan_text)
     _replace_run_document(args.run, run, expected_text=original_text)
     if packet is not None:
