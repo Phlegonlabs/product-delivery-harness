@@ -18,15 +18,18 @@ Do not run Impeccable or another design pass merely to compile the pair. Their a
 
 ## Inputs And Ownership
 
-Read the current sources in full before drafting:
+Before drafting, read only these sections of the current sources. The Workflow and Validation checkers still join each complete source.
 
-- `PRD.md`, including Product Definition Approval and its UI Surface Contract;
-- `docs/design/ui-design.md`, including UI Design Intake, Motion and Media Intent, Style Integration, Impeccable HiFi review, H1-H9 grading, Visual Approval, and `Design System Need Gate: required`;
-- the approved complete `ui-hifi/2` package, including the entry, closed child-page manifest, matching `UI-*` surfaces, complete viewport or size-class set, states, product controls, reviewer shell, and inline assets;
+- `PRD.md`: `UI Surface Contract`, `UX Requirements`, and `Frontend Delivery Requirements`;
+- `docs/design/ui-design.md`: `UI Design Intake`, `Motion And Media Intent`, `Style Integration` without unselected directions' `Direction comparison` and `Direction studies` rows, the `HiFi Review` result and score lines, `Visual Approval`, and `Design System Need Gate`;
+- the approved complete `ui-hifi/2` package: the entry manifest and copy record, plus each page's product surface markup, CSS, and inline product scripts. Skip the reviewer shell and inline asset data; the pair checker validates and hashes them;
 - a legacy `wireframes.html` only when the named unmarked legacy UI package retains it under its original approval semantics;
-- `architecture.md` and `stack-decisions.md`, including the approved Stack Decision Checkpoint and its platform, rendering, component-foundation, styling, accessibility, and performance constraints;
-- existing `design-system.md` and `design-system.json` for an enhancement or delta; and
+- `architecture.md`: `Frontend Architecture` and `Release Targets`;
+- `stack-decisions.md`: `Stack Decision Checkpoint`, `Frontend Technology Decision`, and `Mobile/Desktop Technology Decision` for native or desktop surfaces;
+- existing `design-system.md` and `design-system.json` in full for an enhancement or delta; and
 - the immutable approved UI target and any confirmed `REF-*` / `RP-*` evidence named by `ui-design.md`.
+
+Read another section when a finding or an unresolved mapping needs it.
 
 Read `market-research.md` only when `ui-design.md` cites its `MR-*` evidence. Repository-discovered images remain non-canonical design inspiration unless the UI design contract promotes one to a scoped page-faithful target with its hash, route, state, responsive scope, and tolerance.
 
