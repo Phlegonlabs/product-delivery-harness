@@ -14,6 +14,8 @@ Baseline: `origin/main` `32893537` (v0.65.3).
 
 Owner requests in chat on 2026-10-22: review the whole skill set (Product, UI, delivery, go-to-market, social content) on Fable once; change it with multiple Opus agents; review once on Opus 5.5; push, release, and sync every repository that uses the skills. No GPT review. Include the Codex AgentKiosk branch with the commit-boundary fix.
 
+The owner later changed all remaining work to Sol 6.1 with high reasoning. This replaces the earlier Opus-only authoring and review choices. Fresh workers and the independent final reviewer use `gpt-6.1-sol` / `high`; historical execution evidence stays unchanged.
+
 Kept: owner decisions, exact-SHA security review, HiFi 85/80, mandatory Impeccable critique and audit, real-browser evidence, Visual Approval, authorization and data-safety rules.
 
 ## Work
@@ -38,7 +40,7 @@ Recorded with the release candidate below. Earlier evidence: `review-batch-bound
 
 ## Remaining Work
 
-Opus 5.5 review of the final candidate, PR and CI, main landing, tag, installation, and consumer syncs. AgentKiosk's active RUN adopts the release once at a quiescent boundary through its own parent.
+Sol 6.1 / high review of the final candidate, PR and CI, main landing, tag, installation, and consumer syncs. AgentKiosk's active RUN adopts the release once at a quiescent boundary through its own parent.
 
 ## Recovery On 2026-10-22
 
@@ -62,3 +64,7 @@ One fresh `claude-opus-5-5` / `xhigh` bridge attempt returned HTTP 429 before us
 The installed bundle remains `0.65.3`, digest `e17abe58a295bc7b53cf2c3cc654a4164136b61aaf0be0b194067cfcb2496e5a`. Loaded identity is unknown. The installed template is current by meaning for the source repository's retained local exceptions; no instruction file was replaced. Document sync reports first-observation review and unknown loaded identity, not PASS.
 
 The [recovery record](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/release-recovery.md) links exact dirty-diff fingerprints, retained patches, command logs, launch evidence and original briefs. No push, PR, tag, installation or consumer edit occurred in this recovery step. The original seven consumer targets still need confirmation from the earlier launch plan; a broad Harness-reference scan is not that target list.
+
+### Sol Continuation
+
+The owner replaced all remaining executors with Sol 6.1 / high. The parent deleted the quota-reset heartbeat `harness-0-66` and resumed immediately. Four fresh native workers own the existing SA, SB, SD and DH-A checkouts. The parent retains serial integration and SC prerequisite work. This changes no global agent configuration or consumer RUN pin.
