@@ -57,6 +57,13 @@ for candidate in (UI_TESTS_DIR, PDB_TESTS_DIR, DS_TESTS_DIR):
 
 
 class StrictAuthorityJoinTests(unittest.TestCase):
+    def test_missing_pin_cannot_bypass_product_authority(self) -> None:
+        plan = {"schema_version": 6, "sources": [], "ui_surfaces": [], "traces": []}
+        with tempfile.TemporaryDirectory() as directory:
+            issues = validate_frozen_contract_joins(plan, Path(directory))
+        for name in ("prd", "architecture", "stack"):
+            self.assertTrue(any(f"exactly one frozen {name} source" in item for item in issues), issues)
+
     def test_hifi_children_must_exist_at_the_frozen_entry_revision(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
