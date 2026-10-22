@@ -7,7 +7,7 @@ description: Prepare authorized external setup from a fixed initial build and ve
 
 ## Installed Commands
 
-Resolve `<product-activation-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+Resolve `<product-activation-skill-root>` and logical script paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states.
 
 Operational readiness includes applicable health probes, monitoring ownership, cost alerts, incident contacts and tested recovery. Reconcile these against the actual deployed build and `docs/DEPLOYMENT.md`; implementation delivery, release availability and product outcome measurement remain separate claims.
 
