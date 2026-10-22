@@ -1,6 +1,6 @@
 # Release 0.66.0: Fewer Review Rounds
 
-Status: in progress (local candidate; PR, CI, main, tag, installation and consumer syncs pending)
+Status: in_progress
 Design workflow: enhancement
 UI impact: none (skill contracts, validators and documentation; no product UI).
 

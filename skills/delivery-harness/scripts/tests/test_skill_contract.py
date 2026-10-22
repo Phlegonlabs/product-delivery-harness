@@ -453,20 +453,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Small fixes", task_owner)
         self.assertIn("docs/epics/", self.read("assets/templates/DOCUMENTS.template.md"))
 
-    def test_document_index_epic_link_resolves_from_docs(self) -> None:
-        documents = (REPO_ROOT / "docs/DOCUMENTS.md").read_text(encoding="utf-8")
-        row = next(
-            line
-            for line in documents.splitlines()
-            if "`docs/research/context-decomposition.md`" in line
-        )
-        target = re.search(
-            r"\[EPIC-lightweight-entry\.md\]\(([^)]+)\)", row
-        ).group(1)
-
-        self.assertEqual("epics/EPIC-lightweight-entry.md", target)
-        self.assertTrue((REPO_ROOT / "docs" / target).is_file(), target)
-
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 

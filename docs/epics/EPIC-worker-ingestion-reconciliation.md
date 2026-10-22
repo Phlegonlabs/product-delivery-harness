@@ -1,6 +1,6 @@
 # Worker ingestion reconciliation
 
-Status: runtime candidate `1dea7fd4` passed independent Sol review; isolated installation and adoption pending.
+Status: in_progress
 
 ## Problem and scope
 

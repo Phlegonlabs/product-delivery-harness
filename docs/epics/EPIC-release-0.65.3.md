@@ -1,6 +1,6 @@
 # Release 0.65.3
 
-Status: fixed-candidate publication; the linked receipt records the final result
+Status: in_progress
 Design workflow: maintenance
 UI impact: none (skill workflow and source release)
 

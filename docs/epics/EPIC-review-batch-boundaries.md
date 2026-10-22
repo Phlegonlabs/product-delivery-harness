@@ -1,6 +1,6 @@
 # Review Batch Boundaries
 
-Status: complete (local source; release and installation are outside this task)
+Status: complete
 Design workflow: enhancement
 UI impact: none (planning and review contracts; no product UI changes).
 
