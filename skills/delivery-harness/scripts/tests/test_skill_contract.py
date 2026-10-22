@@ -1787,6 +1787,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("general runtime adapter reference", project_claude)
         self.assertIn("Direct work follows `AGENTS.md`", project_claude)
         self.assertIn("parent retains authorization", project_claude)
+        self.assertIn("one fresh read-only reviewer on the unified head", project_claude)
+        self.assertIn("security lens", project_claude)
 
         if REPO_ROOT is not None:
             root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
