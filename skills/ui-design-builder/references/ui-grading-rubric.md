@@ -142,7 +142,7 @@ Apply these internal rules during authoring and the existing Technical Hard Gate
 3. Inspect full-canvas screenshots and close views of dense controls and open layers. Stress the approved longest content, required languages, text scaling, narrow layouts and fallback fonts. Check consistent baselines, spacing and control dimensions across sibling screens. A clean default screenshot or a scan with zero findings is insufficient without these observations.
 4. Retain findings in the existing ui-output/3 assessment and consolidated defect ledger. Each names candidate identity, surface/state/actual target, exact element pair or clipping ancestor, expected rule, observed geometry or hit-test result, inspected capture path/hash, root cause, repair and acceptance cases. Keep extra measurements inside referenced captures rather than adding fields to the fixed receipt schema. Missing browser access or uninspected cases remain MISSING/BLOCKED, never PASS.
 
-Required content that overlaps, collapses, clips or becomes unreachable blocks readiness under H2/H4 regardless of the overall score. Repair the shared cause, inspect all consumers, and rerun the affected cases plus the required final matrix on the changed candidate within the existing repair budget. Do not reuse earlier screenshots to clear a repaired layout.
+Required content that overlaps, collapses, clips or becomes unreachable blocks readiness under H2/H4 regardless of the overall score. Repair the shared cause, inspect its direct consumers and rerun the affected cases within the existing repair budget; the re-review's browser receipt covers the final matrix. Do not reuse earlier screenshots to clear a repaired layout.
 
 ### Product-Specific Visual Judgment
 

@@ -363,6 +363,11 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
 
+    def test_only_final_candidate_evidence_is_committed(self):
+        evidence = self.read("references/review-evidence.md")
+        self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
+        self.assertIn("Do not commit evidence of earlier attempts", evidence)
+
 
 if __name__ == "__main__":
     unittest.main()

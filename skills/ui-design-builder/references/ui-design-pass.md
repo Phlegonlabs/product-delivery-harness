@@ -140,7 +140,7 @@ The file calls no live backend, credential, identity provider, or unapproved gen
 
 ## HiFi Author Self-Review
 
-After the connected package passes the cheap completeness check, apply `../../delivery-harness/references/pre-delivery-self-review.md#hifi-self-review`. The same `frontend-design` author inspects actual renders and interactions under the Browser And Human Visual Approval restrictions below, checks the full contract and fixes in-scope defects before the independent review. Link existing browser, copy, motion and grading evidence rather than creating a second specification. Reuse only evidence for the same bytes and cases; changes require affected rechecks and the required final matrix. Missing visual evidence stays blocked or unvalidated. This self-review does not replace or reset the following independent diagnostic and repair budget.
+After the connected package passes the cheap completeness check, apply `../../delivery-harness/references/pre-delivery-self-review.md#hifi-self-review`. The same `frontend-design` author inspects actual renders and interactions under the Browser And Human Visual Approval restrictions below, checks the full contract and fixes in-scope defects before the independent review. Link existing browser, copy, motion and grading evidence rather than creating a second specification. Missing visual evidence stays blocked or unvalidated. This self-review does not replace or reset the following independent diagnostic and repair budget.
 
 ## Impeccable Quality Review And PRD-Bound Grading
 

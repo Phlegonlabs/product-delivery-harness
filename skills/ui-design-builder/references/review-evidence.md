@@ -23,7 +23,7 @@ From the target repository root:
 
 The tool checks recorded input identities and emits ui-evidence/3 with schema, check, result, reviewedArtifact and receipt. The receipt retains tool, method, matrix, results, outputArtifact and executedAt; executedAt is the observed finish time. It does not run a browser or create approval. It rejects stale inputs, traversal, linked paths and overwrites unless --overwrite is explicit. Missing/failed/blocked observations cannot become PASS. Collect new observations after relevant candidate changes; do not rebind old results.
 
-Keep receipts, inspected captures and source artifacts tracked when they are required evidence. Temporary run logs/caches belong outside the product package or under a narrow existing ignore rule. Do not hide canonical HTML, manifests, token sources or evidence with a broad generated-file pattern.
+Keep receipts, inspected captures and source artifacts tracked when they are required evidence. Only the final candidate's receipts and the captures they cite, including carried rows, are required evidence. Do not commit evidence of earlier attempts; cite it by SHA-256 in the defect ledger. Temporary run logs/caches belong outside the product package or under a narrow existing ignore rule. Do not hide canonical HTML, manifests, token sources or evidence with a broad generated-file pattern.
 
 ## Diagnostic Wave Completeness
 
