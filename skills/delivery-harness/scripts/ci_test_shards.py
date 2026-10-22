@@ -31,7 +31,7 @@ NATIVE_FILES = (
     "test_configure_project_context.py",
     "test_write_path_transitions.py",
     "test_archive_run.py",
-    "test_trusted_host_publication.py",
+    "test_push_archived_candidate.py",
     "test_harness_strict_authority.py",
     "test_install_script.py",
 )

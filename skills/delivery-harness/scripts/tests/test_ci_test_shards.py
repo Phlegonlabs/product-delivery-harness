@@ -36,6 +36,20 @@ class CITestShardTests(unittest.TestCase):
             with self.assertRaises(CommandError):
                 discover_files(Path(temporary), "harness")
 
+    def test_native_discovery_keeps_publication_coverage_after_helper_retirement(self) -> None:
+        discovered = [
+            name for name in discover_files(SCRIPTS_DIR.parents[2], "harness")
+            if Path(name).name != "test_trusted_host_publication.py"
+        ]
+        for platform in ("windows", "macos"):
+            with self.subTest(platform=platform):
+                selected = {
+                    Path(name).name
+                    for name in candidate_files("harness", platform, discovered)
+                }
+                self.assertIn("test_push_archived_candidate.py", selected)
+                self.assertNotIn("test_trusted_host_publication.py", selected)
+
 
 if __name__ == "__main__":
     unittest.main()
