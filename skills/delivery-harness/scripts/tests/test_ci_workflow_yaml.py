@@ -36,7 +36,8 @@ class CIWorkflowYAMLTests(unittest.TestCase):
                 self.assertIn('inputs.base_sha', base)
                 self.assertIn('github.event.pull_request.base.sha', base)
                 self.assertIn('github.event.merge_group.base_sha', base)
-                self.assertIn('github.event.before', base)
+                # The source workflow has no push trigger; the consumer template does.
+                self.assertEqual(path.name != 'harness-ci.yml', 'github.event.before' in base)
 
     def test_parser_rejects_the_original_unindented_expression_closures(self):
         malformed = (

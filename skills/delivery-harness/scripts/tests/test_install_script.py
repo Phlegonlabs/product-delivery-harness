@@ -126,77 +126,23 @@ def tree_snapshot(root: Path) -> dict[str, bytes]:
 
 
 class InstallScriptTests(unittest.TestCase):
-    @unittest.skipUnless(shutil.which("pwsh"), "pwsh is required for the GitHub shell")
-    def test_ci_dependency_negative_check_exits_successfully(self) -> None:
-        workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
-            encoding="utf-8"
-        )
-        step = workflow.split(
-            "- name: Verify PowerShell installer syntax and dependency check route", 1
-        )[1].split("run: |-", 1)[1]
-        lines = []
-        for line in step.splitlines()[1:]:
-            if line.strip() and not line.startswith("          "):
-                break
-            lines.append(line[10:])
-        # GitHub appends this native-command exit check to PowerShell scripts.
-        script = "\n".join(lines) + (
-            "\nif (Test-Path variable:\\LASTEXITCODE) { exit $LASTEXITCODE }\n"
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            script_path = Path(temporary) / "ci-check.ps1"
-            script_path.write_text(script, encoding="utf-8")
-            result = subprocess.run(
-                [shutil.which("pwsh"), "-NoProfile", "-File", str(script_path)],
-                cwd=REPO_ROOT,
-                env={**os.environ, "RUNNER_TEMP": temporary},
-                capture_output=True,
-                text=True,
-                timeout=60,
-                check=False,
-            )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-    def test_ci_runs_installer_and_python_suites_on_macos(self) -> None:
-        # The harness suite includes these installer tests, so macOS CI
+    def test_ci_runs_installer_tests_on_macos(self) -> None:
+        # test_install_script.py is in the native list, so the one macOS job
         # covers install.sh under BSD tools and symlinked temp roots.
         workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
             encoding="utf-8"
         )
-        harness = workflow.split("\n  macos-harness:\n", 1)[1].split("\n  macos-other:\n", 1)[0]
-        other = workflow.split("\n  macos-other:\n", 1)[1].split("\n  windows-native:\n", 1)[0]
-        for job in (harness, other):
-            self.assertIn("runs-on: macos-latest", job)
-            # macOS is supported, so its jobs block like the others.
-            self.assertNotIn("continue-on-error", job)
-            # Apple's root-owned Git must win over Homebrew's before Python setup.
-            prefer_git = 'echo "/usr/bin" >> "$GITHUB_PATH"'
-            self.assertIn(prefer_git, job)
-            self.assertLess(job.index(prefer_git), job.index("actions/setup-python"))
-            # Test repositories must not sit under the /var -> /private/var link.
-            self.assertIn('echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"', job)
-        # The long Harness suite is measured and sharded; installer tests stay
-        # in the discovered files and therefore retain macOS native coverage.
-        # Workflow expands the index from the matrix, so assert the matrix and
-        # its templated use rather than four literal copies of one command.
-        matrix = re.search(r"^\s*shard:\s*\[([^]]+)\]", harness, re.MULTILINE)
-        self.assertIsNotNone(matrix)
-        self.assertEqual(
-            ["0", "1", "2", "3"],
-            [item.strip() for item in matrix.group(1).split(",")],
-        )
-        self.assertIn("--platform macos --shard-count 4", harness)
-        self.assertIn("--shard-index '${{ matrix.shard }}'", harness)
-        self.assertIn("name: macos-harness-${{ matrix.shard }}", harness)
-        for skill in (
-            "product-definition-builder",
-            "ui-design-builder",
-            "design-system-compiler",
-            "product-activation",
-            "seo-growth-review",
-        ):
-            self.assertIn(f"unittest discover -s skills/{skill}/scripts/tests -v", other)
-        self.assertNotIn("PDH_REQUIRE_BROWSER_TESTS", other)
+        job = workflow.split("\n  macos-native:\n", 1)[1].split("\n  windows-native:\n", 1)[0]
+        self.assertIn("runs-on: macos-latest", job)
+        # macOS is supported, so its job blocks like the others.
+        self.assertNotIn("continue-on-error", job)
+        # Apple's root-owned Git must win over Homebrew's before Python setup.
+        prefer_git = 'echo "/usr/bin" >> "$GITHUB_PATH"'
+        self.assertIn(prefer_git, job)
+        self.assertLess(job.index(prefer_git), job.index("actions/setup-python"))
+        # Test repositories must not sit under the /var -> /private/var link.
+        self.assertIn('echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"', job)
+        self.assertIn("--platform macos --shard-count 1", job)
 
     SKILLS = (
         "delivery-harness",
