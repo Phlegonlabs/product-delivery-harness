@@ -3,11 +3,7 @@ name: project-ci
 on:
   pull_request:
   merge_group:
-  push:
-    branches:
-      # New main-preview/1 flow verifies protected main; PRs verify candidates.
-      # Do not add '**': a feature branch is verified once by its pull request.
-      - main
+  # PRs and the merge queue verify candidates once. A tree-equal main inherits that evidence.
   workflow_dispatch:
     inputs:
       release_sha:
@@ -44,7 +40,7 @@ jobs:
         github.event_name == 'workflow_dispatch' && inputs.base_sha ||
         github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
         github.event_name == 'merge_group' && github.event.merge_group.base_sha ||
-        github.event.before
+        ''
         }}
     steps:
       - name: Check out exact candidate
@@ -110,20 +106,6 @@ jobs:
                 echo "merge base is not a full commit SHA" >&2
                 exit 1
               }
-              ;;
-            push)
-              if [ -z "${DIFF_BASE_SHA:-}" ] ||
-                 printf '%s' "$DIFF_BASE_SHA" | grep -Eq '^0{40}$'; then
-                diff_base="$(git mktree </dev/null)" || exit 1
-                [ -n "$diff_base" ] || { echo "Git returned an empty tree value" >&2; exit 1; }
-              else
-                diff_base="$(require_commit "$DIFF_BASE_SHA" "push base")" || exit 1
-                [ "$diff_base" != "$actual_sha" ] || { echo "push base equals the candidate" >&2; exit 1; }
-                git merge-base --is-ancestor "$diff_base" "$actual_sha" || {
-                  echo "push base is not an ancestor of candidate_sha" >&2
-                  exit 1
-                }
-              fi
               ;;
             *)
               echo "unsupported event: $GITHUB_EVENT_NAME" >&2

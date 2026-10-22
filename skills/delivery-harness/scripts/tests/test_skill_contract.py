@@ -1763,7 +1763,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("(List protected files here", project_agents)
         self.assertNotIn("current v10", project_agents)
         self.assertIn(
-            "immutable external request/attempt/receipt",
+            "branch-promotion-contract.md#managed-run-archive-before-promotion",
             managed_route,
         )
         self.assertIn("@AGENTS.md", project_claude)
@@ -1873,7 +1873,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not own shared state", adapters)
         self.assertIn("ask before branch creation", skill.lower())
         self.assertNotIn("- '**'", ci)
-        self.assertIn("- main", ci)
+        self.assertNotIn("push:", ci)
         self.assertNotIn("- development", ci)
         self.assertNotIn("codex/**", ci)
 
