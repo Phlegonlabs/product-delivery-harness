@@ -2974,6 +2974,14 @@ new Function(scripts.at(-1)[1]);
             self.assertIn(phrase, refinement)
         self.assertIn("except for a design-time contract delta", skill)
 
+    def test_output_contract_templates_are_read_per_artifact(self) -> None:
+        skill = self.read(STAGE)
+        contract = self.read("references/output-contract.md")
+        self.assertIn("read each artifact's section of it when drafting that artifact", skill)
+        self.assertIn("Run the Quality Checklist section of `references/output-contract.md`, without rereading", skill)
+        for heading in ("## How To Read This Package", "## Quality Checklist"):
+            self.assertIn(heading, contract)
+
     def test_one_author_self_review_carries_both_journey_perspectives(self) -> None:
         skill = self.read(STAGE)
         refinement = self.read("references/prd-refinement.md")
