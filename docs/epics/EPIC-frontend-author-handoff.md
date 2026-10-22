@@ -1,6 +1,6 @@
 # Frontend Author And Visual Handoff
 
-Status: in progress
+Status: source and host maintenance complete; core installation separate
 Design workflow: maintenance
 UI impact: none (host policy and skill handoff; no product UI changes)
 
@@ -27,7 +27,7 @@ Gitignore impact: none. Task evidence and recoverable host-file backups stay out
 
 | ID | Required result | Verification |
 | --- | --- | --- |
-| FAH-1 | Host and worker instructions agree; explicit Opus/xhigh reaches command assembly without a silent downgrade | Installed CLI capability observation, policy consistency and bounded preparation checks |
+| FAH-1 | Host and worker instructions agree; both stage models and xhigh reach command assembly without silent substitution | Installed CLI capability observation, policy consistency and bounded preparation checks |
 | FAH-2 | Direction, HiFi, implementation and repair handoffs carry the applicable visual inputs with current identities and explicit gaps | Existing packet/stage checks, realistic handoff exercise and focused positive/negative tests when executable behavior changes |
 | FAH-3 | Quality and action boundaries remain intact | Applicable source contracts, independent fixed-candidate review and handoff audit |
 
@@ -63,7 +63,7 @@ Stage-split host files and both no-launch command tails are retained in [stage-p
 The pre-refinement files are retained in [stage-policy backup](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-host-before-stage-split/manifest.json).
 All 24 workflow tests pass, including Sonnet/xhigh default assignment and explicit Opus/xhigh design binding.
 All three changed host skills pass skill-creator validation; unrelated host policy and fallback settings remain unchanged.
-FAH-1 is locally verified under the latest stage split. Final independent review remains pending.
+FAH-1 was locally verified under the latest stage split. Final review was pending at that checkpoint.
 
 ## Visual Handoff Result
 
@@ -88,7 +88,7 @@ Logs: `frontend-visual-ui-suite-1792635383139711900.log`, `frontend-visual-cross
 
 Pre-review host inputs are retained in [host snapshot manifest](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-host-final/manifest.json).
 The manifest binds host files outside Git separately from the source candidate; Git SHA alone does not identify them.
-FAH-1 and FAH-2 are locally verified. Independent fixed-candidate review, final records and handoff audit remain pending.
+At the pre-review checkpoint, FAH-1 and FAH-2 were locally verified. The following records retain the repair and final review outcome.
 The seven-core-skill installation remains the prior verified bundle; this request did not authorize another core installation.
 
 ## Bounded FAH-2 Review Repair
@@ -110,4 +110,44 @@ An initial cross-skill command used the wrong filename and ran zero cases; the c
 The earlier repair probe used the wrong authority-view key; the final helper uses the existing `contract_version` field.
 The scoped document inventory remains `review_required`: loaded identity is unknown; first-baseline and retained migration references were inspected.
 The observed installed core digest remains `f635763875e40ad30f112933c3f78efbf9cebb5501eb13ea57d4b5dabb8ce28b`.
-Fresh fixed-candidate review remains pending. No stage, quality threshold or approval changed.
+The final fixed-candidate review below passed. No stage, quality threshold or approval changed.
+
+## Completion
+
+The repaired candidate is `82b79145222619927f46f49fc22aea712de0eb44` on `codex/ui-acceptance`.
+Atomic repair `0e529b48` fixes both FAH-2 findings; `82b79145` restores index line endings without changing normalized text.
+The earlier repair commit accidentally retained CRLF in the index; its whitespace check failed before that follow-up.
+The final base-to-candidate diff passes `git diff --check`.
+Fresh independent review covers all 20 source paths and seven separately hash-bound host inputs, with no exclusions or remaining findings.
+The immutable [PASS result](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-author-repair-security-result.json) passed the result validator unchanged.
+Result SHA-256: `88a8f4b4dfd157ea0623315d7b1b83b980f23d8389495552b985d1b01e884949`.
+Assignment `frontend-author-repair-review`, attempt 1, used a fresh native reviewer binding on GPT-6.1 Sol/xhigh.
+Its complete packet measured 5,470 UTF-8 bytes within the explicit 12,000-byte budget.
+The reviewer independently reran 14 focused cases and checked no-launch dispatch, path integrity and all host source/snapshot hashes.
+
+Fresh candidate checks ran 399 UI cases, 65 Harness contracts, 18 cross-skill contracts and 24 host workflow cases.
+This is 506 cases, including two Windows/POSIX permission skips; repeated focused executions are not added to that total.
+The UI suite includes expected negative-fixture diagnostic output; no product visual acceptance was performed.
+Six-tree Pyflakes and document weight passed on the candidate. Skill specifications and host skill validation retain their recorded producing origins.
+Producing logs in the evidence directory:
+
+- `frontend-fixed-candidate-ui-1792636914175215600.log`
+- `frontend-fixed-candidate-contracts-1792636914175478900.log`
+- `frontend-fixed-candidate-cross-1792636959104634100.log`
+- `frontend-fixed-candidate-host-1792636914175751700.log`
+- `frontend-fixed-candidate-static-1792636959104296900.log`
+- `frontend-fixed-candidate-weight-1792636959142354400.log`
+
+Handoff audit: shared instructions are current by meaning against observed installed Harness 0.65.2.
+Template SHA-256 is `cae9e29e365c60809811f1cd83ffc75f44621244b9966339c9ded3a197ddf8e2`; VERSION file SHA-256 is `c41e3b5aff0ac9527c8d144b744969b5665b5435d69f9e0bbbc0339242f50f94`.
+Repository AGENTS remains `965cacdcc98ce83b6a83a46cfc9abbfcf16842b3a232b0557f2ff086b3b60059`.
+Source-specific Git flow, required reading and omitted consumer bindings/deployment/activation remain intentional local choices.
+No consumer PRD, design approval, PLAN/RUN or generated tasks view applies to this maintenance task.
+The Epic and document index now describe the final source and host state.
+The scoped inventory still records unknown loaded identity and inspected first-baseline/migration-reference findings; it is not an approval PASS.
+
+Only this Epic and the document index change after the reviewed candidate; executable sources and host hashes remain separately guarded.
+All six candidate command supervisors recorded exit0 and process termination. No task-owned service remains.
+Host routing and the manual visual-input checklist are updated locally, with prior bytes preserved.
+Canonical core-source changes are locally committed; the installed seven-core bundle remains the prior verified development installation.
+A future core installation uses its existing installer and coordination contract. No push, release, host reload or live model execution occurred.
