@@ -363,6 +363,17 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
 
+    def test_bindings_and_frontend_design_read_are_per_session(self):
+        stage = self.read(UI_STAGE)
+        self.assertIn("Before a repair, rerun it only when a bound skill's tree hash changed in this session", stage)
+        self.assertIn("document-sync-contract.md#same-session-source-reading-reuse", stage)
+        sync = (SKILL_ROOT.parent / "delivery-harness/references/document-sync-contract.md").read_text(encoding="utf-8")
+        self.assertIn("same-session-source-reading-reuse", self.stage_headings(sync))
+        for source in ("references/ui-design-pass.md", "references/review-workflow.md"):
+            with self.subTest(source=source):
+                self.assertIn("stages/ui-design.md#required-skills-and-inputs", self.read(source))
+                self.assertNotIn("or any repair, run", self.read(source))
+
     def test_direction_modification_is_one_revised_study(self):
         pass_guide = self.read("references/ui-design-pass.md")
         contract = self.read("references/output-contract.md")
