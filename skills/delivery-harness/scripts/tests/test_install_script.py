@@ -335,7 +335,7 @@ class InstallScriptTests(unittest.TestCase):
         for skill, script in (
             ("delivery-harness", "check_skill_bindings.py"),
             ("product-definition-builder", "check_product_package.py"),
-            ("ui-design-builder", "check_ui_publication.py"),
+            ("ui-design-builder", "check_ui_design_contract.py"),
             ("design-system-compiler", "check_design_system_pair.py"),
             ("product-activation", "check_activation.py"),
             ("seo-growth-review", "check_seo_review.py"),
