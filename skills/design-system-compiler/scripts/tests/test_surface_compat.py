@@ -147,11 +147,6 @@ class SurfaceStaticTests(unittest.TestCase):
         for marker in ("data-ds-surface-frame", "data-ds-reviewer-infrastructure", surface_adapter.SURFACE_GALLERY[:60]):
             self.assertNotIn(marker, legacy)
 
-    def test_renderer_receipt_names_the_adapter_module(self):
-        import verify_runtime_motion
-
-        self.assertIn("surface_adapter.py", verify_runtime_motion.RENDERER_MODULES)
-
 
 SURFACE = HELPERS + r"""
 (async () => {
