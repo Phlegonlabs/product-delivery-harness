@@ -204,6 +204,36 @@ class IntegrationResultIngestionTests(unittest.TestCase):
                 if kind != "head":
                     self._refresh_results()
 
+    def test_commit_boundary_races_do_not_write_run(self):
+        # The temporary RUN is already written here; only the recheck can stop the exchange.
+        for kind in ("source", "tracked", "tasks", "plan", "branch", "head"):
+            with self.subTest(race=kind):
+                baseline = self.fixture.run_path.read_bytes()
+                original_file = (self.fixture.gitroot / "file.txt").read_bytes()
+                original_plan = self.fixture.plan_path.read_bytes()
+                def raced(path):
+                    if kind == "source":
+                        self.sources[0].write_text(json.dumps(self.results[0]) + " ", encoding="utf-8")
+                    elif kind == "tracked":
+                        (self.fixture.gitroot / "file.txt").write_bytes(original_file)
+                    elif kind == "tasks":
+                        view = self.fixture.gitroot / "docs/tasks.md"
+                        view.write_bytes(view.read_bytes())
+                    elif kind == "plan":
+                        self.fixture.plan_path.write_bytes(original_plan + b"\n")
+                    elif kind == "branch":
+                        mf.git(self.fixture.gitroot, "checkout", "-qb", "boundary-branch")
+                    else:
+                        mf.git(self.fixture.gitroot, "commit", "--allow-empty", "-qm", "boundary head")
+                with mock.patch.object(ht, "_run_replace_commit_boundary", side_effect=raced):
+                    self.assertEqual(2, ht.main(self.arguments()))
+                self.assertEqual(baseline, self.fixture.run_path.read_bytes())
+                self.fixture.plan_path.write_bytes(original_plan)
+                if kind == "branch":
+                    mf.git(self.fixture.gitroot, "checkout", "-q", "integration")
+                if kind != "head":
+                    self._refresh_results()
+
     def _refresh_results(self):
         run = cw.load_run_block(self.fixture.run_path)
         for index, declaration in enumerate(self.plan["missions"][0]["integration_verifiers"]):

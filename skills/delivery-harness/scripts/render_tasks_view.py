@@ -292,7 +292,8 @@ def refresh_view(
     _assert_non_reparse_path(out)
     if existing is not None:
         _replace_document_text(
-            out, updated, expected_text=existing, before_commit=check_sources
+            out, updated, expected_text=existing,
+            before_commit=None if check_sources is None else lambda _pending: check_sources(),
         )
     else:
         # Hold the ancestor chain and create exclusively. A raced user file

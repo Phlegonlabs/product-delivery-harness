@@ -3963,7 +3963,7 @@ def _open_windows_parent_chain(path: Path) -> list[tuple[Any, int]]:
 
 
 def _replace_run_document(
-    path: Path, run: dict[str, Any], expected_text: str | None = None
+    path: Path, run: dict[str, Any], expected_text: str | None = None, *, before_commit=None
 ) -> None:
     path = Path(path)
     _assert_non_reparse_path(path)
@@ -3978,7 +3978,8 @@ def _replace_run_document(
     body = json.dumps({"harness_run": run}, indent=2, ensure_ascii=False)
     updated = text[:body_start] + body + text[fence_end:]
     _replace_document_text(
-        path, updated, expected_text=text if expected_text is None else expected_text
+        path, updated, expected_text=text if expected_text is None else expected_text,
+        before_commit=before_commit,
     )
 
 
@@ -4038,7 +4039,7 @@ def _replace_document_text(
             )
         _run_replace_commit_boundary(path)
         if before_commit is not None:
-            before_commit()
+            before_commit(Path(temp_name))
         current_version = _run_document_version_token(
             path,
             parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
@@ -5647,12 +5648,20 @@ def _transition_under_lock(
         from harness_worker_ingestion_transition import verify_ingestion_before_commit
 
         verify_ingestion_before_commit(plan, run, args)
+    before_commit = None
     if args.command == "record-integration":
         from harness_integration_results import verify_integration_observation
 
         verify_integration_observation(args)
+
+        def recheck_integration(pending: Path) -> None:
+            # Recheck at the exchange boundary; only this writer's temporary RUN is new.
+            verify_integration_observation(args, pending)
+            _ensure_plan_unchanged(args.plan, expected_plan_text)
+
+        before_commit = recheck_integration
     _ensure_plan_unchanged(args.plan, expected_plan_text)
-    _replace_run_document(args.run, run, expected_text=original_text)
+    _replace_run_document(args.run, run, expected_text=original_text, before_commit=before_commit)
     if packet is not None:
         from render_review_packet import write_diff_artifact
 

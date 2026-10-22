@@ -196,7 +196,7 @@ def retain_integration_results(plan: dict[str, Any], run: dict[str, Any], args: 
     args.integration_observation = {"root": root, "guard": guard, "snapshot": snapshot, "sources": sources}
 
 
-def verify_integration_observation(args: Any) -> None:
+def verify_integration_observation(args: Any, pending: Path | None = None) -> None:
     observation = getattr(args, "integration_observation", None)
     if not isinstance(observation, dict):
         return
@@ -204,5 +204,19 @@ def verify_integration_observation(args: Any) -> None:
         raw, current_token = _read_source(Path(path), observation["root"])
         _require(current_token == token and hashlib.sha256(raw).hexdigest() == digest,
                  "result source changed before commit")
-    _require(_snapshot(observation["root"], observation["guard"]) == observation["snapshot"],
+    guard, relative = observation["guard"], None
+    if pending is not None:
+        # At the RUN exchange boundary the writer's own temporary file exists;
+        # exclude exactly that path, never a pattern.
+        try:
+            relative = pending.resolve().relative_to(Path(observation["root"]).resolve()).as_posix()
+        except ValueError:
+            relative = None
+    if relative is not None:
+        guard = {**guard, "ignored_paths": sorted({*guard["ignored_paths"], relative})}
+    snapshot = _snapshot(observation["root"], guard)
+    if relative is not None:
+        snapshot["protected_path_sha256"].pop(relative, None)
+        snapshot["protected_path_stats"].pop(relative, None)
+    _require(snapshot == observation["snapshot"],
              "live Git or protected input identity changed before commit")
