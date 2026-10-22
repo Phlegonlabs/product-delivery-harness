@@ -475,10 +475,7 @@ class PlanValidationTests(unittest.TestCase):
             "mode": "changed_files",
             "scopes": ["src/a/one.py"],
         }
-        task_verifier["cache"] = {
-            "mode": "session_exact",
-            "environment_keys": ["CI"],
-        }
+        task_verifier["cache"] = {"mode": "disabled", "environment_keys": []}
         worker_verifier = plan["missions"][0]["worker_verifiers"][0]
         worker_verifier["selection"] = {
             "mode": "changed_files",
@@ -503,6 +500,7 @@ class PlanValidationTests(unittest.TestCase):
         )
 
         cached_nonzero = copy.deepcopy(plan)
+        cached_nonzero["missions"][0]["tasks"][0]["verifiers"][0]["cache"] = {"mode": "session_exact", "environment_keys": []}
         cached_nonzero["missions"][0]["tasks"][0]["verifiers"][0][
             "pass_signal"
         ] = "custom success"
@@ -560,54 +558,12 @@ class PlanValidationTests(unittest.TestCase):
             plan, "must keep at least one always-run verifier"
         )
 
-    def test_deterministic_local_attestation_unlocks_banned_layers(self) -> None:
-        cache = {
-            "mode": "session_exact",
-            "environment_keys": [],
-            "deterministic_local": True,
-        }
 
-        batch_plan = valid_plan()
-        batch_plan["batch_verifiers"][0]["cache"] = cache
-        self.assertEqual([], validate_plan(batch_plan))
-
-        final_plan = valid_plan()
-        final_plan["final_gates"][0]["cache"] = cache
-        self.assertEqual([], validate_plan(final_plan))
-
-        integration_plan = valid_plan()
-        integration_plan["missions"][0]["integration_verifiers"][0]["cache"] = cache
-        self.assertEqual([], validate_plan(integration_plan))
-
-    def test_integration_batch_and_final_verifiers_need_explicit_attestation(self) -> None:
-        cache = {"mode": "session_exact", "environment_keys": []}
-
-        batch_plan = valid_plan()
-        batch_plan["batch_verifiers"][0]["cache"] = cache
-        self.assert_error_contains(
-            batch_plan, "session_exact at this layer requires cache.deterministic_local: true"
-        )
-
-        final_plan = valid_plan()
-        final_plan["final_gates"][0]["cache"] = cache
-        self.assert_error_contains(
-            final_plan, "session_exact at this layer requires cache.deterministic_local: true"
-        )
-
-        integration_plan = valid_plan()
-        integration_plan["missions"][0]["integration_verifiers"][0]["cache"] = cache
-        self.assert_error_contains(
-            integration_plan, "session_exact at this layer requires cache.deterministic_local: true"
-        )
-
-        worker_plan = valid_plan()
-        worker_plan["missions"][0]["worker_verifiers"][0]["cache"] = cache
-        self.assertEqual(validate_plan(worker_plan), [])
 
     def test_verifier_parallel_execution_metadata_is_resource_bounded(self) -> None:
         plan = valid_plan()
         verifier = plan["missions"][0]["worker_verifiers"][0]
-        verifier["execution"] = container_execution()
+        verifier["execution"] = {"parallel_safe": False, "resources": [], "isolation": "host"}
         verifier["execution"]["resources"] = [
             {"key": "database:test", "access": "shared_read"},
             {"key": "port:4173", "access": "exclusive"},
@@ -626,28 +582,15 @@ class PlanValidationTests(unittest.TestCase):
         ] = "write"
         self.assert_error_contains(invalid_access, "must be shared_read or exclusive")
 
-    def test_current_plan_requires_explicit_container_verifier_policy(self) -> None:
+    def test_current_plan_requires_explicit_host_verifier_policy(self) -> None:
         plan = valid_plan()
         plan["missions"][0]["tasks"][0]["verifiers"][0].pop("execution")
         self.assert_error_contains(plan, "missing keys: execution")
 
         plan = valid_plan()
         plan["final_gates"][0]["execution"]["isolation"] = "live"
-        self.assert_error_contains(plan, "must equal container or host")
+        self.assert_error_contains(plan, "must equal host")
 
-    def test_legacy_plan_without_execution_remains_readable(self) -> None:
-        plan = legacy_plan()
-        for verifier_group in ("batch_verifiers", "final_gates"):
-            for verifier in plan[verifier_group]:
-                verifier.pop("execution", None)
-        for mission in plan["missions"]:
-            for group in ("worker_verifiers", "integration_verifiers"):
-                for verifier in mission[group]:
-                    verifier.pop("execution", None)
-            for task_entry in mission["tasks"]:
-                for verifier in task_entry["verifiers"]:
-                    verifier.pop("execution", None)
-        self.assertEqual([], validate_plan(plan))
 
 
 
@@ -691,9 +634,6 @@ class PlanValidationTests(unittest.TestCase):
         plan["missions"][0]["tasks"][0]["depends_on"] = ["M1/T02"]
         self.assert_error_contains(plan, "dependency cycle includes M1/T01, M1/T02")
 
-        plan = legacy_plan()
-        plan["missions"][0]["depends_on"] = ["M2"]
-        self.assert_error_contains(plan, "dependency cycle includes M1, M2")
 
     def test_task_dependency_must_stay_in_mission(self) -> None:
         plan = valid_plan()
@@ -759,40 +699,6 @@ class PlanValidationTests(unittest.TestCase):
 
 
 class RunValidationTests(unittest.TestCase):
-    def test_reviewer_tool_capability_requires_a_fresh_provider_session(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["runtime_capabilities"]["reviewer_tools"] = {
-            "chrome_devtools": {
-                "status": "available",
-                "provider": "codex",
-                "driver": "sequential_parent",
-                "surface": "raw_cdp",
-                "probe_scope": "parent_session",
-                "session_id": None,
-                "evidence": "Parent can call CDP, reviewer was not probed",
-            }
-        }
-        errors = validate_run(plan, run)
-        self.assertTrue(
-            any("available capability requires a reviewer_session probe" in error for error in errors)
-        )
-        self.assertTrue(
-            any("available capability requires a reviewer session id" in error for error in errors)
-        )
-
-        capability = run["runtime_capabilities"]["reviewer_tools"]["chrome_devtools"]
-        capability["probe_scope"] = "reviewer_session"
-        capability["session_id"] = "reviewer-codex-1"
-        self.assertEqual([], validate_run(plan, run))
-
-        capability["driver"] = "subagents"
-        self.assertTrue(
-            any(
-                "available capability must match the selected runtime driver" in error
-                for error in validate_run(plan, run)
-            )
-        )
 
     def test_integration_stage_review_does_not_replace_preintegration_coverage(self) -> None:
         plan = valid_plan()
@@ -828,97 +734,14 @@ class RunValidationTests(unittest.TestCase):
 
     def test_v2_verifier_execution_omits_logical_gate_attribution(self) -> None:
         plan = valid_plan()
-        sandbox_policy = {
-            "runtime": "docker",
-            "image": "fixture@sha256:" + "1" * 64,
-            "network": "none",
-            "read_only_rootfs": True,
-            "no_new_privileges": True,
-            "cap_drop": ["ALL"],
-            "tmpfs": ["/tmp"],
-            "memory": "512m",
-            "cpus": "1",
-            "pids_limit": "256",
-            "user": "65532:65532",
-            "pull": "never",
-        }
-        plan["missions"][0]["tasks"][0]["verifiers"][0]["read_only"] = True
-        plan["missions"][0]["tasks"][0]["verifiers"][0]["execution"] = {
-            "parallel_safe": True,
-            "resources": [],
-            "isolation": "container",
-            "sandbox": sandbox_policy,
-        }
         run = valid_closeout_run(plan)
         mark_complete(plan, run)
         execution = run["verifier_executions"][0]
-        execution["protocol"] = "harness-verifier-execution-v2"
-        execution["verifier"]["read_only"] = True
-        execution["verifier"]["execution"] = {
-            "parallel_safe": True,
-            "resources": [],
-            "isolation": "container",
-            "sandbox": sandbox_policy,
-        }
-        key_document = execution["key_document"]
-        key_document["protocol"] = "harness-verifier-execution-v2"
-        key_document["read_only"] = True
-        key_document["execution"] = execution["verifier"]["execution"]
-        for key in (
-            "verifier_id",
-            "layer",
-            "mission_id",
-            "task_id",
-            "attempt_id",
-            "lease_id",
-        ):
-            key_document.pop(key)
-        execution_key = hashlib.sha256(
-            json.dumps(
-                key_document,
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=False,
-            ).encode("utf-8")
-        ).hexdigest()
-        execution["execution_key"] = execution_key
-        execution["evidence_key"] = execution_key
-        execution["git_guard_attestation"] = {
-            "checkout_root": "C:/repo/worktrees/M1",
-            "git_guard": {
-                "expected_branch": "codex/m1",
-                "expected_head_sha": execution["context"]["head_sha"],
-                "ignored_paths": [],
-            },
-            "isolation_mode": "container",
-            "source_head_sha": execution["context"]["head_sha"],
-            "sandbox_attestation": {
-                "runtime": "docker",
-                "runtime_probe": "fixture",
-                "image": sandbox_policy["image"],
-                "image_probe": sandbox_policy["image"],
-                "policy": sandbox_policy,
-                "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
-                "network": "none",
-            },
-            "tracked_files": {},
-            "protected_path_sha256": {},
-            "protected_path_stats": {},
-        }
-
-        self.assertEqual(validate_run(plan, run), [])
-        for field in ("policy", "mount", "network"):
-            tampered = copy.deepcopy(run)
-            attestation = tampered["verifier_executions"][0]["git_guard_attestation"]
-            if field == "policy":
-                attestation["sandbox_attestation"]["policy"]["image"] = "other@sha256:" + "f" * 64
-            elif field == "mount":
-                attestation["sandbox_attestation"]["mount"]["read_only"] = False
-            else:
-                attestation["sandbox_attestation"]["network"] = "host"
-            self.assertTrue(
-                any("sandbox_attestation" in error for error in validate_run(plan, tampered))
-            )
+        self.assertEqual([], validate_run(plan, run))
+        for key in ("verifier_id", "layer", "mission_id", "task_id", "attempt_id", "lease_id"):
+            self.assertNotIn(key, execution["key_document"])
+        execution["key_document"]["head_sha"] = SHA_D
+        self.assertTrue(any("must match key_document" in error for error in validate_run(plan, run)))
 
     def test_default_branch_observation_is_optional_without_a_schema_bump(self) -> None:
         plan = valid_plan()
@@ -931,113 +754,9 @@ class RunValidationTests(unittest.TestCase):
         run["observed"]["git"]["default_branch"] = 42
         self.assert_run_error_contains(plan, run, "default_branch")
 
-    def test_container_sandbox_policy_rejects_unsafe_fields(self) -> None:
-        plan = valid_plan()
-        verifier = plan["missions"][0]["tasks"][0]["verifiers"][0]
-        verifier["execution"] = {
-            "parallel_safe": True,
-            "resources": [],
-            "isolation": "container",
-            "sandbox": {
-                "runtime": "docker",
-                "image": "-bad@sha256:" + "0" * 64,
-                "network": "host",
-                "read_only_rootfs": False,
-                "no_new_privileges": False,
-                "cap_drop": [],
-                "tmpfs": ["relative"],
-                "memory": "secret",
-                "cpus": "all",
-                "pids_limit": "0",
-                "user": "0:0",
-                "pull": "always",
-            },
-        }
-        errors = validate_plan(plan)
-        self.assertTrue(any("sandbox" in error for error in errors))
 
-    def test_container_sandbox_rejects_unresolved_zero_digest(self) -> None:
-        plan = valid_plan()
-        verifier = plan["missions"][0]["tasks"][0]["verifiers"][0]
-        verifier["execution"]["sandbox"]["image"] = "fixture@sha256:" + "0" * 64
-        errors = validate_plan(plan)
-        self.assertTrue(any("observed non-zero RepoDigest" in error for error in errors))
 
-    def test_container_sandbox_policy_is_checked_once_and_strictly(self) -> None:
-        # normalize_sandbox_policy is the one policy check; an extra
-        # capability next to ALL or a missing key still fails, once.
-        plan = valid_plan()
-        sandbox = plan["missions"][0]["tasks"][0]["verifiers"][0]["execution"]["sandbox"]
-        sandbox["cap_drop"] = ["ALL", "NET_ADMIN"]
-        errors = validate_plan(plan)
-        cap_errors = [error for error in errors if "cap_drop" in error]
-        self.assertEqual(1, len(cap_errors), errors)
-        self.assertIn("sandbox cap_drop must equal ['ALL']", cap_errors[0])
 
-        plan = valid_plan()
-        sandbox = plan["missions"][0]["tasks"][0]["verifiers"][0]["execution"]["sandbox"]
-        del sandbox["pull"]
-        errors = validate_plan(plan)
-        self.assertTrue(
-            any("sandbox policy must contain the exact required keys" in error for error in errors),
-            errors,
-        )
-
-    def test_harness_038_execution_binds_observed_runtime_identity(self) -> None:
-        plan = valid_plan()
-        plan["security_review"] = {
-            "status": "not_applicable",
-            "skill_slot": "code_security_verification",
-            "reason": "sandbox identity fixture",
-        }
-        run = valid_closeout_run(plan)
-        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate["required_harness_version"] = "0.38.0"
-        gate["harness_version"] = "0.38.0"
-        mark_complete(plan, run)
-        self.assertEqual([], validate_run(plan, run))
-
-        missing = copy.deepcopy(run)
-        missing["verifier_executions"][0].pop("sandbox_attestation")
-        self.assertTrue(
-            any(
-                "sandbox_attestation" in error
-                for error in validate_run(plan, missing)
-            )
-        )
-
-        substituted = copy.deepcopy(run)
-        execution = substituted["verifier_executions"][0]
-        execution["sandbox_attestation"]["runtime_probe"][
-            "executable_sha256"
-        ] = "f" * 64
-        self.assertTrue(
-            any(
-                "runtime identity differs from preflight" in error
-                for error in validate_run(plan, substituted)
-            )
-        )
-
-        stale = copy.deepcopy(run)
-        execution = stale["verifier_executions"][0]
-        execution["key_document"]["sandbox_preflight"]["runtime_probe"][
-            "version_output_sha256"
-        ] = "e" * 64
-        execution["execution_key"] = hashlib.sha256(
-            json.dumps(
-                execution["key_document"],
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=False,
-            ).encode("utf-8")
-        ).hexdigest()
-        execution["evidence_key"] = execution["execution_key"]
-        self.assertTrue(
-            any(
-                "current PLAN-bound RUN sandbox observation" in error
-                for error in validate_run(plan, stale)
-            )
-        )
 
     def test_integration_branch_must_not_resolve_to_the_default_branch(self) -> None:
         plan = valid_plan()
@@ -1059,27 +778,6 @@ class RunValidationTests(unittest.TestCase):
             plan, run, "must not equal the observed repository default branch"
         )
 
-    def test_v10_push_authorization_requires_explicit_remote_intent(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["authorizations"]["push"] = {
-            "authorized": True,
-            "source": "user: implement the approved plan",
-            "authorized_head_sha": "a" * 40,
-            "scope": {
-                "run_id": run["run_id"],
-                "plan_revision": run["plan"]["revision"],
-                "plan_digest_sha256": run["plan"]["digest_sha256"],
-                "mission_ids": ["M1"],
-                "targets": ["branch:refs/heads/codex/test"],
-            },
-            "expires_when": "run_complete",
-        }
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "must explicitly request a remote push",
-        )
 
     def test_v11_run_push_authorization_rejects_development_target(self) -> None:
         plan = valid_plan()
@@ -1100,13 +798,13 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "cannot target retired development",
+            "must keep push authorization false",
         )
         run["status"] = "complete"
         self.assert_run_error_contains(
             plan,
             run,
-            "cannot target retired development",
+            "must keep push authorization false",
         )
 
     def test_archive_first_v11_forces_local_landing_and_no_push_grant(self) -> None:
@@ -1441,6 +1139,7 @@ class RunValidationTests(unittest.TestCase):
         )
 
         run["integration"]["prior_head_shas"] = [SHA_B]
+        run["landing"]["continuity"] = {"status": "planned", "branch_ref": run["integration"]["branch"], "head_sha": None, "reason": "retain candidate branch"}
         self.assertEqual([], validate_run(plan, run))
 
     def test_canonical_template_verifiers_declare_explicit_host_mode(self) -> None:
@@ -1509,9 +1208,9 @@ class RunValidationTests(unittest.TestCase):
         self.assertEqual(validate_run(plan, run), [])
 
 
-    def test_schema_v9_rejects_unhashable_gate_ids_without_crashing(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 9)
+    def test_current_rejects_unhashable_gate_ids_without_crashing(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
         run["batch_gate_results"][0]["id"] = []
 
         errors = validate_run(plan, run)
@@ -1519,23 +1218,23 @@ class RunValidationTests(unittest.TestCase):
         self.assertTrue(any("must be a non-empty string" in error for error in errors))
         self.assertTrue(any("IDs must exactly match" in error for error in errors))
 
-        run = legacy_run(plan, 9)
+        run = valid_run(plan)
         run["batch_gate_results"][0]["status"] = []
         errors = validate_run(plan, run)
         self.assertTrue(any(".status: has an unsupported gate value" in error for error in errors))
 
-    def test_schema_v9_rejects_malformed_plan_gate_lists_without_crashing(self) -> None:
+    def test_current_rejects_malformed_plan_gate_lists_without_crashing(self) -> None:
         for field in ("batch_verifiers", "final_gates"):
             with self.subTest(field=field):
-                plan = legacy_plan()
-                run = legacy_run(plan, 9)
+                plan = valid_plan()
+                run = valid_run(plan)
                 plan[field] = None
 
                 self.assertTrue(validate_plan(plan))
                 self.assertTrue(validate_run(plan, run))
 
-    def test_schema_v9_rejects_unhashable_ui_evidence_scalars_without_crashing(self) -> None:
-        plan = legacy_plan()
+    def test_current_rejects_unhashable_ui_evidence_scalars_without_crashing(self) -> None:
+        plan = valid_plan()
         plan["ui_surfaces"] = [
             {
                 "id": "dashboard",
@@ -1546,7 +1245,7 @@ class RunValidationTests(unittest.TestCase):
                 "evidence_gate": "required",
             }
         ]
-        run = legacy_run(plan, 9)
+        run = valid_run(plan)
         run["ui_evidence"] = [
             {
                 "surface_id": "dashboard",
@@ -1572,8 +1271,8 @@ class RunValidationTests(unittest.TestCase):
         errors = validate_run(plan, malformed)
         self.assertTrue(any("run.integration: must be an object" in error for error in errors))
 
-    def test_schema_v9_rejects_malformed_plan_ui_surfaces_without_crashing(self) -> None:
-        plan = legacy_plan()
+    def test_current_rejects_malformed_plan_ui_surfaces_without_crashing(self) -> None:
+        plan = valid_plan()
         plan["ui_surfaces"] = [
             {
                 "id": "dashboard",
@@ -1599,7 +1298,7 @@ class RunValidationTests(unittest.TestCase):
             with self.subTest(missing_field=missing_field):
                 malformed_plan = copy.deepcopy(plan)
                 del malformed_plan["ui_surfaces"][0][missing_field]
-                malformed_run = legacy_run(malformed_plan, 9)
+                malformed_run = valid_run(malformed_plan)
                 malformed_run["ui_evidence"] = [copy.deepcopy(evidence)]
                 self.assertTrue(validate_plan(malformed_plan))
                 self.assertTrue(validate_run(malformed_plan, malformed_run))
@@ -1870,7 +1569,7 @@ class RunValidationTests(unittest.TestCase):
             run["ui_evidence"][0]["head_sha"] = accepted_sha
             evidence = root / "docs" / "goal" / "evidence" / "dashboard-desktop-loaded.png"
             self.assertTrue(
-                any("accepted Git commit" in error for error in validate_ui_evidence_files(run, root))
+                any("accepted Git commit" in error for error in validate_ui_evidence_files(plan, run, root))
             )
             evidence.parent.mkdir(parents=True)
             evidence.write_bytes(contents)
@@ -1890,10 +1589,10 @@ class RunValidationTests(unittest.TestCase):
             ).stdout.strip()
             run["integration"]["integration_head_sha"] = accepted_sha
             run["ui_evidence"][0]["head_sha"] = accepted_sha
-            self.assertEqual(validate_ui_evidence_files(run, root), [])
+            self.assertEqual(validate_ui_evidence_files(plan, run, root), [])
             run["ui_evidence"][0]["artifact_sha256"] = "d" * 64
             self.assertTrue(
-                any("sha256 does not match" in error for error in validate_ui_evidence_files(run, root))
+                any("sha256 does not match" in error for error in validate_ui_evidence_files(plan, run, root))
             )
             invalid_contents = b"not an image"
             evidence.write_bytes(invalid_contents)
@@ -1903,7 +1602,7 @@ class RunValidationTests(unittest.TestCase):
             self.assertTrue(
                 any(
                     "sha256 does not match" in error
-                    for error in validate_ui_evidence_files(run, root)
+                    for error in validate_ui_evidence_files(plan, run, root)
                 )
             )
 
@@ -2005,14 +1704,10 @@ class RunValidationTests(unittest.TestCase):
 
 
 
-    def test_run_schema_v5_remains_compatible(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 5)
-        self.assertEqual(validate_run(plan, run), [])
 
-    def test_removed_workflow_driver_is_rejected_even_in_legacy_runs(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 6)
+    def test_removed_workflow_driver_is_rejected(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
         run["runtime_capabilities"]["runtime_adapter"].update(
             provider="claude_code", available_drivers=["dynamic_workflow", "sequential_parent"])
         self.assert_run_error_contains(plan, run, "unsupported drivers: dynamic_workflow")
@@ -2048,12 +1743,12 @@ class RunValidationTests(unittest.TestCase):
 
 
     def test_all_hosts_reject_incompatible_driver_axes(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 6)
+        plan = valid_plan()
+        run = valid_run(plan)
         adapter = run["runtime_capabilities"]["runtime_adapter"]
         for host in ("claude_code", "pi", "generic", "new_host"):
             adapter.update(provider=host, available_drivers=["app_threads", "sequential_parent"])
-            self.assert_run_error_contains(plan, run, "app_threads requires app_task/app_managed_worktree/thread_poll")
+            self.assert_run_error_contains(plan, run, "unsupported drivers: app_threads")
             adapter["available_drivers"] = ["subagents", "sequential_parent"]
             self.assert_run_error_contains(plan, run, "subagents requires a supported subagent workspace and result channel")
 
@@ -2091,49 +1786,6 @@ class RunValidationTests(unittest.TestCase):
             "sequential_parent requires parent/parent_managed_worktree/agent_result",
         )
 
-    def test_ready_parallel_codex_requires_complete_capability_probe(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        authorize_execution(run, ["M1", "M2"], status="ready")
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "subagent",
-                "workspace_mode": "parent_managed_worktree",
-                "completion_channel": "agent_result",
-                "max_parallel_workers": 2,
-                "runtime_adapter": {
-                    "provider": "codex",
-                    "available_drivers": ["subagents", "sequential_parent"],
-                    "detection_source": "observed",
-                },
-            }
-        )
-        run["observed"]["runtime"].update(
-            {"available_worker_slots": 2, "isolation_capacity": 2}
-        )
-
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "capability_snapshot_incomplete",
-        )
-
-        run["plan_readiness"] = "blocked"
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "capability_snapshot_incomplete",
-        )
-
-        run["plan_readiness"] = "ready"
-        run["runtime_capabilities"]["runtime_adapter"]["capability_probe"] = (
-            native_capability_probe(unobserved={"app_thread_create"})
-        )
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "capability_snapshot_incomplete",
-        )
 
     def test_ready_sequential_codex_does_not_require_parallel_probe_inventory(self) -> None:
         plan = valid_plan()
@@ -2159,84 +1811,13 @@ class RunValidationTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-    def test_observed_app_capability_does_not_force_app_task_topology(self) -> None:
+
+
+
+
+    def test_current_rejects_malformed_runtime_adapter_without_crashing(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
-        authorize_execution(run, ["M1", "M2"], status="ready")
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            available_drivers=["sequential_parent"], detection_source="observed",
-            capability_probe=native_capability_probe(app_threads=True))
-        self.assertEqual([], validate_run(plan, run))
-
-    def test_codex_probe_rejects_malformed_status_without_crashing(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        authorize_execution(run, ["M1", "M2"], status="ready")
-        probe = native_capability_probe()
-        probe["app_thread_create"]["status"] = []
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            detection_source="observed",
-            capability_probe=probe,
-        )
-
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "app_thread_create.status: has an unsupported value",
-        )
-
-    def test_codex_probe_prevents_claiming_unavailable_app_threads(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        authorize_execution(run, ["M1", "M2"], status="ready")
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-            }
-        )
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            available_drivers=["app_threads", "sequential_parent"],
-            detection_source="observed",
-            capability_probe=native_capability_probe(),
-        )
-
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "capability_snapshot_incomplete",
-        )
-
-    def test_complete_codex_probe_routes_app_threads_before_subagents(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        authorize_execution(run, ["M1", "M2"], status="ready")
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-            }
-        )
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            available_drivers=["app_threads", "subagents", "sequential_parent"],
-            detection_source="observed",
-            capability_probe=native_capability_probe(
-                app_threads=True,
-                subagents=True,
-            ),
-        )
-
-        self.assertEqual([], validate_run(plan, run))
-        self.assertEqual(
-            "app_threads",
-            route_runtime_driver(run["runtime_capabilities"]),
-        )
-
-    def test_schema_v6_rejects_malformed_runtime_adapter_without_crashing(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 6)
         run["runtime_capabilities"]["runtime_adapter"] = None
         self.assert_run_error_contains(
             plan,
@@ -2255,8 +1836,8 @@ class RunValidationTests(unittest.TestCase):
         self.assertEqual(route_runtime_driver(run["runtime_capabilities"]), "sequential_parent")
 
     def test_market_provider_ids_run_validate_with_generic_ladder(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 6)
+        plan = valid_plan()
+        run = valid_run(plan)
         adapter = {
             "provider": "gemini_cli",
             # The generic ladder must supply this fallback: an unknown
@@ -2301,69 +1882,7 @@ class RunValidationTests(unittest.TestCase):
             "run.runtime_capabilities.runtime_adapter: unknown keys: external_runtimes",
         )
 
-    def test_runtime_contract_adoption_is_distinct_from_loaded_current(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate.update(
-            {
-                "loaded_contract_digest": None,
-                "installed_contract_digest": "a" * 64,
-                "status": "adopted",
-                "contract_adoption": {
-                    "session_id": gate["session_id"],
-                    "adopted_at": "2026-09-27T00:00:00Z",
-                    "contract_digest_sha256": "a" * 64,
-                    "owner_source": "owner instruction in this task",
-                    "reading_evidence": ["read the fixed seven-skill contract"],
-                },
-                "contract_adoption_history": [],
-            }
-        )
 
-        self.assertEqual([], validate_run(plan, run))
-
-        loaded = copy.deepcopy(run)
-        loaded_gate = loaded["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        loaded_gate["loaded_contract_digest"] = "b" * 64
-        self.assert_run_error_contains(
-            plan,
-            loaded,
-            "adopted preserves an unknown loaded digest as null",
-        )
-
-        mismatched = copy.deepcopy(run)
-        mismatched["runtime_capabilities"]["runtime_adapter"]["version_gate"][
-            "installed_contract_digest"
-        ] = "b" * 64
-        self.assert_run_error_contains(
-            plan,
-            mismatched,
-            "adopted requires matching installed and adoption digests",
-        )
-
-        relabeled = copy.deepcopy(run)
-        relabeled["runtime_capabilities"]["runtime_adapter"]["version_gate"][
-            "status"
-        ] = "current"
-        self.assert_run_error_contains(
-            plan,
-            relabeled,
-            "contract_adoption is valid only with status adopted",
-        )
-
-    def test_runtime_contract_adoption_is_rejected_on_run_v10(self) -> None:
-        plan = valid_plan()
-        plan["schema_version"] = 5
-        run = valid_run(plan)
-        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate["status"] = "adopted"
-
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "adopted contract receipts require RUN schema v11",
-        )
 
     def test_runtime_version_gate_validates_status_and_evidence(self) -> None:
         plan = valid_plan()
@@ -2392,97 +1911,6 @@ class RunValidationTests(unittest.TestCase):
             "run.runtime_capabilities.runtime_adapter.version_gate.evidence: must be a non-empty string",
         )
 
-    def test_worker_runtime_binding_source_must_equal_host(self) -> None:
-        # A node's required provider must match whatever host actually runs
-        # it: there is no bridged/guarded external source anymore, so
-        # runtime_binding.source is exactly "host" or rejected.
-        plan = valid_plan()
-        run = valid_run(plan)
-        digest = plan_digest(plan)
-        authorize_execution(run, ["M1"])
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "subagent",
-                "workspace_mode": "parent_managed_worktree",
-                "runtime_adapter": {
-                    "capability_probe": native_capability_probe(subagents=True),
-                    "provider": "codex",
-                    "available_drivers": ["subagents", "sequential_parent"],
-                    "detection_source": "observed",
-                    "version_gate": current_version_gate(),
-                },
-            }
-        )
-        worker = {
-            "worker_id": "W-M1",
-            "mission_id": "M1",
-            "lease_id": "LEASE-M1",
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": digest,
-            "batch_base_sha": SHA_A,
-            "worker_runtime": "subagent",
-            "workspace_mode": "parent_managed_worktree",
-            "completion_channel": "agent_result",
-            "runtime_binding": {
-                "provider": "codex",
-                "driver": "subagents",
-                "source": "host",
-                "model": None,
-                "reasoning_effort": None,
-                "option_source": "provider_default",
-            },
-            "task_thread_id": None,
-            "worktree_path": "C:/repo/worktrees/m1",
-            "branch_ref": "refs/heads/codex/m1",
-            "report_path": None,
-            "phase": "leased",
-            "worker_head_sha": None,
-        }
-        run["workers"].append(worker)
-        run["observed"]["git"]["worktrees"].append(
-            {
-                "path": worker["worktree_path"],
-                "branch_ref": worker["branch_ref"],
-                "head_sha": SHA_A,
-                "managed_by": "parent",
-                "dirty": False,
-            }
-        )
-        authorize_action(
-            run,
-            "spawn_subagents",
-            ["M1"],
-            [f"worker:{worker['worker_id']}"],
-        )
-        authorize_action(
-            run,
-            "create_local_worktrees",
-            ["M1"],
-            [f"worktree:{worker['worktree_path']}"],
-        )
-        authorize_action(
-            run,
-            "create_local_branches",
-            ["M1"],
-            [f"branch:{worker['branch_ref']}"],
-        )
-        authorize_action(
-            run,
-            "create_local_commits",
-            ["M1"],
-            [f"branch:{worker['branch_ref']}"],
-        )
-        self.assertEqual([], validate_run(plan, run))
-
-        for stale_source in ("external_bridge", "external_agent", "guest", ""):
-            with self.subTest(source=stale_source):
-                invalid = copy.deepcopy(run)
-                invalid["workers"][0]["runtime_binding"]["source"] = stale_source
-                self.assert_run_error_contains(
-                    plan,
-                    invalid,
-                    "run.workers[0].runtime_binding.source: has an unsupported value",
-                )
 
 
 
@@ -2826,304 +2254,13 @@ class RunValidationTests(unittest.TestCase):
         run["runtime_capabilities"]["unexpected"] = True
         self.assert_run_error_contains(plan, run, "unknown keys: unexpected")
 
-    def test_runtime_metrics_accept_machine_events_and_reject_invalid_counts(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["runtime_metrics"] = {
-            "target_reduction_percent": {"minimum": 75, "stretch": 85},
-            "baseline_wall_time_ms": 1000,
-            "run_wall_time_ms": None,
-            "critical_path_ms": None,
-            "events": [
-                {
-                    "event_id": "E-001",
-                    "provider": "codex",
-                    "node_id": "N-M1",
-                    "attempt_id": "A-001",
-                    "phase": "dispatch",
-                    "status": "complete",
-                    "started_at": "2026-08-18T00:00:00Z",
-                    "completed_at": "2026-08-18T00:00:01Z",
-                    "duration_ms": 1000,
-                    "wait_ms": 0,
-                    "input_tokens": 100,
-                    "output_tokens": 20,
-                    "cached_input_tokens": 80,
-                    "context_bytes": 4096,
-                }
-            ],
-        }
-        self.assertEqual(validate_run(plan, run), [])
-
-        run["runtime_metrics"]["events"][0]["cached_input_tokens"] = 101
-        self.assert_run_error_contains(plan, run, "must not exceed input_tokens")
-
-    def test_non_graph_schema_v9_rejects_workflow_runs(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 9)
-        run["workflow_runs"] = []
-        self.assert_run_error_contains(plan, run, "unknown keys: workflow_runs")
-
-    def test_non_graph_schema_v8_is_rejected(self) -> None:
-        plan = legacy_plan()
-        run = legacy_run(plan, 8)
-        run["workflow_runs"] = []
-        errors = validate_run(plan, run)
-        self.assertTrue(
-            any("schema v8 requires a schema v4 graph PLAN" in error for error in errors)
-        )
-        self.assertTrue(any("unknown keys: workflow_runs" in error for error in errors))
 
 
 
-    def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["runtime_capabilities"]["permission_boundary"] = {
-            "selected_mode": "full_access",
-            "profile_name": None,
-            "approval_policy": "never",
-            "filesystem_scope": "unrestricted",
-            "network_scope": "open",
-            "local_binding": "allowed",
-            "worker_inheritance": "inherited",
-            "status": "ready",
-        }
-        self.assertEqual(validate_run(plan, run), [])
 
-        run["runtime_capabilities"]["permission_boundary"]["network_scope"] = "unknown"
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "cannot be ready while a boundary field is unknown",
-        )
 
-    def test_named_permission_profile_requires_profile_name(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["runtime_capabilities"]["permission_boundary"] = {
-            "selected_mode": "named_profile",
-            "profile_name": None,
-            "approval_policy": "on-request",
-            "filesystem_scope": "custom",
-            "network_scope": "filtered",
-            "local_binding": "allowed",
-            "worker_inheritance": "inherited",
-            "status": "ready",
-        }
-        self.assert_run_error_contains(plan, run, "is required for named_profile")
 
-    def test_v10_app_task_forbids_nested_delegation_but_legacy_remains_readable(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        digest = plan_digest(plan)
-        authorize_execution(run, ["M1"])
-        run["runtime_capabilities"] = {
-            "worker_runtime": "app_task",
-            "workspace_mode": "app_managed_worktree",
-            "completion_channel": "thread_poll",
-            "max_parallel_workers": 3,
-            "runtime_adapter": {
-                "provider": "codex",
-                "available_drivers": [
-                    "app_threads",
-                    "subagents",
-                    "sequential_parent",
-                ],
-                "detection_source": "observed",
-                "version_gate": current_version_gate(),
-                "capability_probe": native_capability_probe(
-                    app_threads=True,
-                    subagents=True,
-                ),
-            },
-            "nested_subagents": {
-                "available": True,
-                "max_depth": 1,
-                "max_children_per_worker": 3,
-                "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
-                "write_policy": "read_only",
-                "completion_channel": "agent_result",
-            },
-            "platform_lifecycle": {
-                "owner": "app",
-                "automatic_retention_cleanup_possible": True,
-                "durable_branch_required_before_unique_work": True,
-            },
-        }
-        run["authorizations"]["spawn_subagents"] = {
-            "authorized": True,
-            "source": "user: explicit nested-subagent request",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "mission_ids": ["M1"],
-                "targets": ["worker:W1"],
-            },
-            "expires_when": "run_complete",
-        }
-        run["mission_states"]["M1"].update(
-            {
-                "phase": "leased",
-                "lease_id": "LEASE1",
-                "lease_plan_revision": 1,
-                "lease_plan_digest_sha256": digest,
-                "worker_id": "W1",
-                "base_sha": SHA_A,
-            }
-        )
-        run["workers"] = [
-            {
-                "worker_id": "W1",
-                "mission_id": "M1",
-                "lease_id": "LEASE1",
-                "plan_revision": 1,
-                "plan_digest_sha256": digest,
-                "batch_base_sha": SHA_A,
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "runtime_binding": {
-                    "provider": "codex",
-                    "driver": "app_threads",
-                    "source": "host",
-                    "model": None,
-                    "reasoning_effort": None,
-                    "option_source": "provider_default",
-                },
-                "nested_subagent_policy": {
-                    "enabled": True,
-                    "max_children": 3,
-                    "allowed_roles": ["explorer", "reviewer", "tester"],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-                "task_thread_id": "THREAD1",
-                "worktree_path": "/tmp/app-m1",
-                "branch_ref": "refs/heads/codex/app-m1",
-                "report_path": None,
-                "phase": "leased",
-                "worker_head_sha": None,
-            }
-        ]
-        run["observed"]["git"]["worktrees"] = [
-            {
-                "path": "/tmp/app-m1",
-                "branch_ref": "refs/heads/codex/app-m1",
-                "head_sha": SHA_A,
-                "managed_by": "app",
-                "dirty": False,
-            }
-        ]
-        authorize_action(
-            run,
-            "create_app_managed_worktrees",
-            ["M1"],
-            ["worktree:/tmp/app-m1"],
-        )
-        authorize_action(
-            run,
-            "create_user_owned_tasks",
-            ["M1"],
-            ["task:THREAD1"],
-        )
-        authorize_action(
-            run,
-            "create_local_branches",
-            ["M1"],
-            ["branch:refs/heads/codex/app-m1"],
-        )
-        authorize_action(
-            run,
-            "create_local_commits",
-            ["M1"],
-            ["branch:refs/heads/codex/app-m1"],
-        )
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "must be false because RUN-v11 forbids worker-owned delegation",
-        )
 
-        legacy_app_plan = legacy_plan()
-        legacy_app_run = legacy_run(legacy_app_plan, 6)
-        legacy_digest = plan_digest(legacy_app_plan)
-        legacy_app_run["runtime_capabilities"] = copy.deepcopy(
-            run["runtime_capabilities"]
-        )
-        legacy_app_run["runtime_capabilities"]["runtime_adapter"].pop(
-            "capability_probe"
-        )
-        legacy_gate = legacy_app_run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        for key in ("session_id", "loaded_contract_digest", "installed_contract_digest"):
-            legacy_gate.pop(key)
-        legacy_app_run["authorizations"]["spawn_subagents"] = copy.deepcopy(
-            run["authorizations"]["spawn_subagents"]
-        )
-        legacy_scope = legacy_app_run["authorizations"]["spawn_subagents"]["scope"]
-        legacy_scope.pop("plan_revision")
-        legacy_scope.pop("plan_digest_sha256")
-        legacy_app_run["mission_states"]["M1"].update(
-            {
-                "phase": "leased",
-                "lease_id": "LEASE1",
-                "lease_plan_revision": legacy_app_plan["revision"],
-                "lease_plan_digest_sha256": legacy_digest,
-                "worker_id": "W1",
-                "base_sha": SHA_A,
-            }
-        )
-        legacy_worker = copy.deepcopy(run["workers"][0])
-        legacy_worker["plan_revision"] = legacy_app_plan["revision"]
-        legacy_worker["plan_digest_sha256"] = legacy_digest
-        legacy_worker["nested_subagent_policy"]["allowed_roles"] = [
-            "explorer",
-            "tester",
-        ]
-        legacy_app_run["workers"] = [legacy_worker]
-        self.assertEqual(
-            [],
-            validate_run(legacy_app_plan, legacy_app_run),
-            "legacy RUN v6 keeps its previously valid enabled-role policy",
-        )
-
-        legacy_scope["targets"] = ["*"]
-        self.assertEqual(
-            [],
-            validate_run(legacy_app_plan, legacy_app_run),
-            "legacy RUN v6 keeps wildcard nested spawn authorization compatibility",
-        )
-        legacy_scope["targets"] = ["worker:W1"]
-        del legacy_worker["nested_subagent_policy"]
-        self.assert_run_error_contains(
-            legacy_app_plan,
-            legacy_app_run,
-            "is required for app_task workers when runtime nested_subagents is recorded",
-        )
-
-        del run["workers"][0]["nested_subagent_policy"]
-        self.assertEqual(
-            [],
-            validate_run(plan, run),
-            "an omitted nested policy is the disabled app-task path",
-        )
-        run["workers"][0]["nested_subagent_policy"] = {
-            "enabled": False,
-            "max_children": 0,
-            "allowed_roles": [],
-            "write_policy": "read_only",
-            "completion_channel": "agent_result",
-        }
-        run["authorizations"]["spawn_subagents"] = {
-            "authorized": False,
-            "source": None,
-        }
-        self.assertEqual(
-            [],
-            validate_run(plan, run),
-            "an explicitly disabled nested policy needs no spawn grant",
-        )
 
 
 

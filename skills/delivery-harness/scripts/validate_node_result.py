@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from harness_contract import contract_adoption_check_errors
 from harness_manifest import (
     ManifestError,
     load_plan,
@@ -141,18 +140,11 @@ def validate_node_result(
             errors.append("node_result.worker_result: succeeded review requires a review result")
         else:
             required_review_keys = {"reviewed_sha", "findings", "evidence_summary"}
-            if set(review_result) - {"contract_adoption_check"} != required_review_keys:
+            if set(review_result) != required_review_keys:
                 errors.append(
                     "node_result.worker_result: review result must contain reviewed_sha, findings, and evidence_summary"
-                    " (plus contract_adoption_check under an adopted contract)"
                 )
             else:
-                errors.extend(
-                    f"node_result.worker_result.contract_adoption_check: {message}"
-                    for message in contract_adoption_check_errors(
-                        run, review_result.get("contract_adoption_check")
-                    )
-                )
                 review_workers = [
                     worker
                     for worker in run.get("review_workers", [])

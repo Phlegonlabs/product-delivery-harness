@@ -39,7 +39,6 @@ from harness_schema import (
     review_lenses,
     review_policy,
 )
-from agent_role_contract import is_worker_role_id
 
 
 def validate_cleanup_lifecycle_targets(errors: list[str], graph: Any) -> None:
@@ -433,13 +432,6 @@ def _validate_graph(
                             f"{runtime_path}.preferred_provider",
                             "must be null or one of allowed_providers",
                         )
-                    worker_role = runtime.get("worker_role")
-                    if worker_role is not None and not is_worker_role_id(worker_role):
-                        _add(
-                            errors,
-                            f"{runtime_path}.worker_role",
-                            "must be a lowercase host-safe logical role id",
-                        )
                     provider_options = runtime.get("provider_options", {})
                     if not isinstance(provider_options, dict):
                         _add(errors, f"{runtime_path}.provider_options", "must be an object")
@@ -726,6 +718,8 @@ def _validate_graph(
 def ui_acceptance_review(review: dict[str, Any]) -> bool:
     evidence = review.get("required_evidence")
     return "visual" in review_lenses(review) and isinstance(evidence, list) and "ui_acceptance" in evidence
+
+
 
 
 def ui_acceptance_evidence_present(evidence: list[str]) -> bool:

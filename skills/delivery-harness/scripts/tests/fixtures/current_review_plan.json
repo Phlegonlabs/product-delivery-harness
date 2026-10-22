@@ -1,6 +1,6 @@
 {
   "harness_plan": {
-    "schema_version": 5,
+    "schema_version": 6,
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
@@ -67,7 +67,12 @@
           "<runner>",
           "<batch-argument>"
         ],
-        "pass_signal": "<literal pass signal>"
+        "pass_signal": "<literal pass signal>",
+        "execution": {
+          "parallel_safe": false,
+          "resources": [],
+          "isolation": "host"
+        }
       }
     ],
     "final_gates": [
@@ -78,7 +83,12 @@
           "<runner>",
           "<e2e-argument>"
         ],
-        "pass_signal": "<literal pass signal>"
+        "pass_signal": "<literal pass signal>",
+        "execution": {
+          "parallel_safe": false,
+          "resources": [],
+          "isolation": "host"
+        }
       },
       {
         "id": "final-closeout",
@@ -87,7 +97,12 @@
           "<runner>",
           "<final-closeout-argument>"
         ],
-        "pass_signal": "<literal pass signal>"
+        "pass_signal": "<literal pass signal>",
+        "execution": {
+          "parallel_safe": false,
+          "resources": [],
+          "isolation": "host"
+        }
       }
     ],
     "graph": {
@@ -448,10 +463,13 @@
               ]
             },
             "cache": {
-              "mode": "session_exact",
-              "environment_keys": [
-                "CI"
-              ]
+              "mode": "disabled",
+              "environment_keys": []
+            },
+            "execution": {
+              "parallel_safe": false,
+              "resources": [],
+              "isolation": "host"
             }
           }
         ],
@@ -463,7 +481,12 @@
               "<runner>",
               "<integration-argument>"
             ],
-            "pass_signal": "<literal pass signal>"
+            "pass_signal": "<literal pass signal>",
+            "execution": {
+              "parallel_safe": false,
+              "resources": [],
+              "isolation": "host"
+            }
           }
         ],
         "tasks": [
@@ -508,10 +531,13 @@
                   ]
                 },
                 "cache": {
-                  "mode": "session_exact",
-                  "environment_keys": [
-                    "CI"
-                  ]
+                  "mode": "disabled",
+                  "environment_keys": []
+                },
+                "execution": {
+                  "parallel_safe": false,
+                  "resources": [],
+                  "isolation": "host"
                 }
               }
             ]
@@ -565,10 +591,13 @@
               ]
             },
             "cache": {
-              "mode": "session_exact",
-              "environment_keys": [
-                "CI"
-              ]
+              "mode": "disabled",
+              "environment_keys": []
+            },
+            "execution": {
+              "parallel_safe": false,
+              "resources": [],
+              "isolation": "host"
             }
           }
         ],
@@ -580,7 +609,12 @@
               "<runner>",
               "<visual-repair-integration-argument>"
             ],
-            "pass_signal": "<literal pass signal>"
+            "pass_signal": "<literal pass signal>",
+            "execution": {
+              "parallel_safe": false,
+              "resources": [],
+              "isolation": "host"
+            }
           }
         ],
         "tasks": [
@@ -627,10 +661,13 @@
                   ]
                 },
                 "cache": {
-                  "mode": "session_exact",
-                  "environment_keys": [
-                    "CI"
-                  ]
+                  "mode": "disabled",
+                  "environment_keys": []
+                },
+                "execution": {
+                  "parallel_safe": false,
+                  "resources": [],
+                  "isolation": "host"
                 }
               }
             ]

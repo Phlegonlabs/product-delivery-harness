@@ -202,7 +202,6 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
                 "provider": "generic",
                 "available_drivers": ["sequential_parent"],
                 "detection_source": "fallback",
-                "role_bindings": {},
                 "version_gate": {
                     "host_version": None,
                     "minimum_host_version": None,
@@ -214,27 +213,6 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
                     "status": "unobserved",
                     "evidence": "Runtime and Harness versions have not been observed yet",
                 },
-            },
-            "reviewer_tools": {
-                "chrome_devtools": {
-                    "status": "unobserved",
-                    "provider": "generic",
-                    "driver": "sequential_parent",
-                    "surface": "none",
-                    "probe_scope": "unobserved",
-                    "session_id": None,
-                    "evidence": "No fresh reviewer session has probed Chrome DevTools yet",
-                }
-            },
-            "permission_boundary": {
-                "selected_mode": "unknown",
-                "profile_name": None,
-                "approval_policy": "unknown",
-                "filesystem_scope": "unknown",
-                "network_scope": "unknown",
-                "local_binding": "unknown",
-                "worker_inheritance": "unknown",
-                "status": "unknown",
             },
         },
         "observed": {
@@ -251,15 +229,6 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
                 "available_worker_slots": 1,
                 "isolation_capacity": 1,
                 "completion_channel_available": True,
-            },
-            "sandbox": {
-                "status": "unobserved",
-                "plan_revision": None,
-                "plan_digest_sha256": None,
-                "captured_at": None,
-                "host": None,
-                "entries": [],
-                "errors": [],
             },
         },
         "integration": {
@@ -330,25 +299,7 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
         "closed_waves": [],
         "workers": [],
         "review_workers": [],
-        "review_lineages": {
-            node["review"]["lineage_id"]: {
-                "review_type": node["review"]["type"],
-                "mission_ids": node["review"]["mission_ids"],
-                "base_allowance": node["max_attempts"],
-                "additional_allowance": 0,
-                "consumed_attempts": 0,
-                "failure_families": [],
-                "owner_decisions": [],
-            }
-            for node in nodes
-            if isinstance(node, dict)
-            and node.get("kind") == "verifier"
-            and node.get("executor") == "runtime_worker"
-            and isinstance(node.get("review"), dict)
-            and isinstance(node["review"].get("lineage_id"), str)
-        },
         "verifier_executions": [],
-        "runtime_metrics": None,
         "attempt_log": [],
     }
 

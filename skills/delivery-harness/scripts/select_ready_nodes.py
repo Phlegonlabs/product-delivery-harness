@@ -5,14 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 from typing import Any
 
-from harness_contract import contract_digest
 from harness_core import _nonempty_string, _normalized_branch, classify_execution_route
 from harness_manifest import (
     EXACT_RECEIPT_REQUIRED_VERSION,
@@ -39,11 +37,6 @@ from harness_schema import (
     run_required_harness_version,
     version_at_least,
 )
-from agent_role_bindings import resolve_runtime_binding
-from agent_role_contract import mandatory_worker_role, role_contract_gate_enabled, worker_role
-from agent_role_recovery import resolve_fallback_reservation
-from agent_failure_receipts import interrupted_retry_issues
-from verifier_runtime import sandbox_host_fingerprint
 
 
 class GraphSelectionError(ValueError):
@@ -53,8 +46,6 @@ class GraphSelectionError(ValueError):
 def _requires_repo_root(plan: dict[str, Any]) -> bool:
     """Return whether a current PLAN carries real sources to bind."""
 
-    if plan.get("schema_version") != 6:
-        return False
     for source in plan.get("sources", []):
         if not isinstance(source, dict):
             continue
@@ -89,40 +80,6 @@ def _failure_outcome(node: dict[str, Any]) -> str:
     if "blocked" in outcomes:
         return "blocked"
     raise GraphSelectionError(f"runtime node {node['id']} has no workflow failure outcome")
-
-
-def _reviewer_tool_reasons(
-    node: dict[str, Any],
-    runtime: dict[str, Any],
-    binding: dict[str, Any] | None = None,
-) -> set[str]:
-    review = node.get("review")
-    if not isinstance(review, dict):
-        return set()
-    capabilities = runtime.get("reviewer_tools")
-    if not isinstance(capabilities, dict):
-        capabilities = {}
-    reasons: set[str] = set()
-    for tool_name in review.get("required_tools", []):
-        capability = capabilities.get(tool_name)
-        if not isinstance(capability, dict) or capability.get("status") == "unobserved":
-            reasons.add(f"reviewer_tool_unobserved:{tool_name}")
-        elif capability.get("status") != "available":
-            reasons.add(f"reviewer_tool_unavailable:{tool_name}")
-        elif binding is not None:
-            is_bridge = binding.get("driver") == "external_bridge"
-            expected_provider = (
-                binding.get("model_provider") if is_bridge else binding.get("provider")
-            )
-            expected_driver = binding.get("driver")
-            expected_session = binding.get("probe_session_id") if is_bridge else None
-            if (
-                capability.get("provider") != expected_provider
-                or capability.get("driver") != expected_driver
-                or (expected_session is not None and capability.get("session_id") != expected_session)
-            ):
-                reasons.add(f"reviewer_tool_unavailable:{tool_name}")
-    return reasons
 
 
 def _validation_error(kind: str, errors: list[str]) -> GraphSelectionError:
@@ -175,14 +132,6 @@ def _runtime_binding(
     host_provider = runtime.get("runtime_adapter", {}).get("provider")
     if host_provider not in allowed:
         return None
-    if role_contract_gate_enabled(runtime):
-        role = mandatory_worker_role(node, mission, ui_impact)
-        if role is not None:
-            if worker_role(node) != role:
-                return None
-            if role == "frontend_worker" and isinstance(mission, dict) and "frontend-design" not in mission.get("required_skills", []):
-                return None
-            return resolve_runtime_binding(node, runtime)
     options = resolve_runtime_options(policy, host_provider)
     return {
         "provider": host_provider,
@@ -249,8 +198,7 @@ def _preintegration_review_source_ready(
 ) -> bool:
     review = node.get("review")
     if (
-        run.get("schema_version") not in {10, 11}
-        or node.get("kind") != "verifier"
+        node.get("kind") != "verifier"
         or node.get("executor") != "runtime_worker"
         or not isinstance(review, dict)
         or review.get("stage", "preintegration") != "preintegration"
@@ -293,11 +241,7 @@ def _preintegration_review_source_ready(
         or matching_worker.get("worker_head_sha") != mission_state.get("head_sha")
     ):
         return False
-    nested_policy = matching_worker.get("nested_subagent_policy")
-    return not (
-        isinstance(nested_policy, dict)
-        and nested_policy.get("enabled") is True
-    )
+    return True
 
 
 def _preintegration_review_head_matches_current(
@@ -430,7 +374,6 @@ def _active_wave_allows_streaming_review(
     if (
         not isinstance(active_wave, dict)
         or active_wave.get("status") != "active"
-        or run.get("schema_version") not in {10, 11}
     ):
         return False
     kind = node.get("kind")
@@ -553,21 +496,10 @@ def _logical_reasons(
         and preintegration_head_matches is False
     )
     node_states = run["graph_state"]["node_states"]
+    review = node.get("review")
     route_matched = _incoming_route_matched(
         node, run, dependencies, routes, node_states, context
     )
-    review = node.get("review")
-    lineage_exhausted = False
-    uses_lineage_budget = (
-        run.get("schema_version") == 11
-        and node.get("kind") == "verifier"
-        and isinstance(review, dict)
-    )
-    if uses_lineage_budget:
-        lineage = run.get("review_lineages", {}).get(review.get("lineage_id"))
-        if isinstance(lineage, dict):
-            allowance = lineage.get("base_allowance", 0) + lineage.get("additional_allowance", 0)
-            lineage_exhausted = lineage.get("consumed_attempts", 0) >= allowance
     if _current_review_result_matches_worker(node, run, context) is False:
         reasons.add("review_result_dissent")
     # A post-integration review that returned fix_required parks in `failed`.
@@ -580,11 +512,7 @@ def _logical_reasons(
         and state["phase"] == "failed"
         and state.get("last_outcome") == "fix_required"
         and route_matched is True
-        and not lineage_exhausted
-        and (
-            run.get("schema_version") == 11
-            or state["attempts"] < node["max_attempts"]
-        )
+        and state["attempts"] < node["max_attempts"]
     )
     mission_state = (
         run.get("mission_states", {}).get(node.get("ref"))
@@ -613,8 +541,6 @@ def _logical_reasons(
         == "interrupted_worker_reconciliation"
         and latest_mission_attempt.get("result") == "blocked"
     )
-    if reconciled_interrupt and interrupted_retry_issues(run, latest_mission_attempt):
-        reconciled_interrupt = False
     retryable_mission = retryable_failure or reconciled_interrupt
     # Non-mission attempts have no worker-specific reconciliation record.  A
     # failed/blocked approval, external wait, lifecycle action, or deterministic
@@ -643,12 +569,11 @@ def _logical_reasons(
         and state.get("attempts", 0) < node.get("max_attempts", 0)
     )
     retryable_node = routed_retryable_node or safe_direct_retry
-    if run.get("schema_version") == 11:
-        desired_state = run.get("control", {}).get("desired_state")
-        if desired_state == "paused":
-            reasons.add("run_paused")
-        elif desired_state == "cancelled":
-            reasons.add("run_cancelled")
+    desired_state = run.get("control", {}).get("desired_state")
+    if desired_state == "paused":
+        reasons.add("run_paused")
+    elif desired_state == "cancelled":
+        reasons.add("run_cancelled")
     if run.get("plan_readiness") != "ready":
         reasons.add("plan_not_ready")
     if run.get("status") not in RUN_DISPATCH_STATUSES:
@@ -665,9 +590,7 @@ def _logical_reasons(
         reasons.add("node_phase_not_ready")
     if state["blockers"] and not retryable_mission and not retryable_node:
         reasons.add("blocker_present")
-    if lineage_exhausted:
-        reasons.add("review_lineage_exhausted")
-    elif not uses_lineage_budget and state["attempts"] >= node["max_attempts"]:
+    if state["attempts"] >= node["max_attempts"]:
         reasons.add("attempts_exhausted")
 
     for edge in dependencies[node_id]:
@@ -750,128 +673,7 @@ def _write_launch_reasons(plan: dict[str, Any], run: dict[str, Any]) -> set[str]
             reasons.add("batch_base_stale")
     if observed_git.get("parent_dirty") is not False:
         reasons.add("parent_state_unreconciled")
-    reasons.update(_sandbox_observation_reasons(plan, run))
     return reasons
-
-
-def _sandbox_observation_reasons(
-    plan: dict[str, Any], run: dict[str, Any]
-) -> set[str]:
-    """Require a current, successful PLAN-bound sandbox preflight."""
-
-    if plan.get("schema_version") != 6 or run.get("schema_version") != 11:
-        return set()
-    observed = run.get("observed")
-    sandbox = observed.get("sandbox") if isinstance(observed, dict) else None
-    if not isinstance(sandbox, dict):
-        return {"sandbox_preflight_missing"}
-    if sandbox.get("status") != "available":
-        return {"sandbox_preflight_unavailable"}
-    if sandbox.get("errors") != []:
-        return {"sandbox_preflight_unavailable"}
-    if sandbox.get("host") != sandbox_host_fingerprint():
-        return {"sandbox_preflight_stale"}
-    if sandbox.get("captured_at") != observed.get("captured_at"):
-        return {"sandbox_preflight_stale"}
-    if sandbox.get("plan_revision") != plan.get("revision"):
-        return {"sandbox_preflight_stale"}
-    if sandbox.get("plan_digest_sha256") != plan_digest(plan):
-        return {"sandbox_preflight_stale"}
-    expected: set[tuple[str, str]] = set()
-    expected_host: set[tuple[str, str]] = set()
-    declarations: list[dict[str, Any]] = []
-    for group in ("batch_verifiers", "final_gates"):
-        declarations.extend(item for item in plan.get(group, []) if isinstance(item, dict))
-    for mission in plan.get("missions", []):
-        if not isinstance(mission, dict):
-            continue
-        declarations.extend(
-            item
-            for group in ("worker_verifiers", "integration_verifiers")
-            for item in mission.get(group, [])
-            if isinstance(item, dict)
-        )
-        declarations.extend(
-            item
-            for task in mission.get("tasks", [])
-            if isinstance(task, dict)
-            for item in task.get("verifiers", [])
-            if isinstance(item, dict)
-        )
-    for declaration in declarations:
-        execution = declaration.get("execution")
-        if isinstance(execution, dict):
-            sandbox_policy = execution.get("sandbox")
-            if isinstance(sandbox_policy, dict):
-                expected.add((sandbox_policy.get("runtime"), sandbox_policy.get("image")))
-            if execution.get("isolation") == "host":
-                argv = declaration.get("argv")
-                if isinstance(argv, list) and argv and isinstance(argv[0], str):
-                    expected_host.add(("host", argv[0]))
-    entries = sandbox.get("entries")
-    observed_keys = {
-        (entry.get("runtime"), entry.get("image"))
-        for entry in entries
-        if isinstance(entry, dict)
-    } if isinstance(entries, list) else set()
-    if observed_keys != expected:
-        return {"sandbox_preflight_stale"}
-    for entry in entries if isinstance(entries, list) else []:
-        if not isinstance(entry, dict):
-            return {"sandbox_preflight_unavailable"}
-        runtime = entry.get("runtime")
-        image = entry.get("image")
-        repo_digest = entry.get("repo_digest")
-        if runtime not in {"docker", "podman"} or not isinstance(image, str) or re.fullmatch(
-            r"[A-Za-z0-9][A-Za-z0-9._:/-]*@sha256:[0-9a-f]{64}", image
-        ) is None or image.rsplit("@", 1)[-1] == "sha256:" + "0" * 64:
-            return {"sandbox_preflight_unavailable"}
-        if not isinstance(repo_digest, str) or re.fullmatch(r"[^\s@]+@sha256:[0-9a-f]{64}", repo_digest) is None:
-            return {"sandbox_preflight_unavailable"}
-        if not repo_digest.endswith("@" + image.rsplit("@", 1)[-1]):
-            return {"sandbox_preflight_stale"}
-        probe = entry.get("runtime_probe")
-        if not isinstance(probe, dict) or not {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(probe) or set(probe) - {"executable", "executable_sha256", "version_output_sha256", "trust"}:
-            return {"sandbox_preflight_unavailable"}
-        if not isinstance(probe.get("executable"), str) or not probe["executable"].strip():
-            return {"sandbox_preflight_unavailable"}
-        if any(
-            not isinstance(probe.get(key), str)
-            or re.fullmatch(r"[0-9a-f]{64}", probe[key]) is None
-            for key in ("executable_sha256", "version_output_sha256")
-        ):
-            return {"sandbox_preflight_unavailable"}
-    if expected_host:
-        host_observation = observed.get("host_runtime") if isinstance(observed, dict) else None
-        if not isinstance(host_observation, dict):
-            return {"host_runtime_preflight_missing"}
-        if host_observation.get("status") != "available" or host_observation.get("errors") != []:
-            return {"host_runtime_preflight_unavailable"}
-        if host_observation.get("captured_at") != observed.get("captured_at"):
-            return {"host_runtime_preflight_stale"}
-        if host_observation.get("plan_revision") != plan.get("revision") or host_observation.get(
-            "plan_digest_sha256"
-        ) != plan_digest(plan):
-            return {"host_runtime_preflight_stale"}
-        observed_host_keys = {
-            (entry.get("isolation"), entry.get("argv0"))
-            for entry in host_observation.get("entries", [])
-            if isinstance(entry, dict)
-        } if isinstance(host_observation.get("entries"), list) else set()
-        if observed_host_keys != expected_host:
-            return {"host_runtime_preflight_stale"}
-        for entry in host_observation.get("entries", []) if isinstance(host_observation.get("entries"), list) else []:
-            if not isinstance(entry, dict) or entry.get("isolation") != "host":
-                return {"host_runtime_preflight_unavailable"}
-            if not isinstance(entry.get("executable"), str) or not entry["executable"].strip():
-                return {"host_runtime_preflight_unavailable"}
-            if not isinstance(entry.get("executable_sha256"), str) or re.fullmatch(
-                r"[0-9a-f]{64}", entry["executable_sha256"]
-            ) is None:
-                return {"host_runtime_preflight_unavailable"}
-            if not isinstance(entry.get("host"), dict) or not isinstance(entry.get("runtime_version"), dict):
-                return {"host_runtime_preflight_unavailable"}
-    return set()
 
 
 def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
@@ -1012,7 +814,6 @@ def _required_actions(
     node: dict[str, Any],
     binding: dict[str, Any],
     runtime: dict[str, Any],
-    schema_version: int,
 ) -> list[str]:
     read_only_review = node["kind"] == "verifier"
     driver = binding["driver"]
@@ -1021,21 +822,6 @@ def _required_actions(
         actions.append("spawn_subagents")
     if driver == "external_bridge":
         actions.extend(["invoke_external_runtime", "spawn_subagents"])
-    elif driver == "app_threads":
-        actions.append("create_user_owned_tasks")
-        # RUN-v11 records nested capability separately from the worker's
-        # explicit nested policy.  Capability discovery alone must not grant
-        # or require a child-spawn action; an enabled policy is validated when
-        # its worker result is recorded.  Keep the legacy inference for
-        # pre-v10 runs so their historical action contract remains stable.
-        nested = runtime.get("nested_subagents")
-        if not read_only_review and schema_version not in {10, 11}:
-            nested_spawn_required = (
-                isinstance(nested, dict)
-                and nested.get("available") is True
-            )
-            if nested_spawn_required:
-                actions.append("spawn_subagents")
     if read_only_review:
         return actions
     workspace = binding.get("workspace_mode", runtime.get("workspace_mode"))
@@ -1048,34 +834,6 @@ def _required_actions(
             ["create_app_managed_worktrees", "create_local_branches", "create_local_commits"]
         )
     return actions
-
-
-def _contract_adoption_reasons(
-    run: dict[str, Any], *, live_digest: str | None
-) -> set[str]:
-    """Check an explicit lazy-read adoption against current installed bytes.
-
-    ``current`` keeps its stronger loaded-at-start proof. ``adopted`` is a
-    separate owner-authorized re-read epoch and rechecks the live bundle once.
-    """
-
-    version_gate = (
-        run.get("runtime_capabilities", {}).get("runtime_adapter", {}).get("version_gate")
-    )
-    if not isinstance(version_gate, dict) or version_gate.get("status") != "adopted":
-        return set()
-    adoption = version_gate.get("contract_adoption")
-    if not isinstance(adoption, dict) or live_digest is None:
-        return {"runtime_contract_unobserved"}
-    expected = adoption.get("contract_digest_sha256")
-    installed = version_gate.get("installed_contract_digest")
-    if expected != live_digest or installed != live_digest:
-        return {"runtime_contract_drift"}
-    if version_gate.get("loaded_contract_digest") is not None:
-        return {"runtime_contract_invalid"}
-    if adoption.get("session_id") != version_gate.get("session_id"):
-        return {"runtime_contract_invalid"}
-    return set()
 
 
 def _dispatch_reasons(
@@ -1093,15 +851,14 @@ def _dispatch_reasons(
         and not _active_wave_allows_streaming_review(node, run)
     ):
         reasons.add("blocker_present")
-    permission = runtime.get("permission_boundary")
-    if permission is not None and permission.get("status") != "ready":
-        reasons.add("permission_boundary_not_ready")
     if node["executor"] == "runtime_worker":
         version_gate = runtime.get("runtime_adapter", {}).get("version_gate")
-        if version_gate is None and run.get("schema_version") in {10, 11}:
+        if version_gate is None:
             reasons.add("runtime_version_unobserved")
         elif isinstance(version_gate, dict):
             version_status = version_gate.get("status")
+            if version_status == "adopted":
+                reasons.add("pinned_bundle_or_restart_required")
             if version_status == "unobserved":
                 reasons.add("runtime_version_unobserved")
             elif version_status == "upgrade_required":
@@ -1113,15 +870,12 @@ def _dispatch_reasons(
                 and run.get("active_wave", {}).get("status") != "active"
             ):
                 reasons.add("runtime_upgrade_pending")
-            if run.get("schema_version") == 11:
-                loaded = version_gate.get("loaded_contract_digest")
-                installed = version_gate.get("installed_contract_digest")
-                if version_status != "adopted" and (
-                    loaded is None or installed is None
-                ):
-                    reasons.add("runtime_contract_unobserved")
-                elif version_status != "adopted" and loaded != installed:
-                    reasons.add("runtime_restart_required")
+            loaded = version_gate.get("loaded_contract_digest")
+            installed = version_gate.get("installed_contract_digest")
+            if loaded is None or installed is None:
+                reasons.add("runtime_contract_unobserved")
+            elif loaded != installed:
+                reasons.add("runtime_restart_required")
         # Deferral reasons are not short-circuited elsewhere in this module (see
         # _logical_reasons), so a missing binding does not return early either:
         # doing so hid every other applicable reason (e.g. action_not_authorized)
@@ -1130,11 +884,6 @@ def _dispatch_reasons(
         # real binding already guard on `binding is not None`.
         if binding is None:
             reasons.add("runtime_unavailable")
-            if role_contract_gate_enabled(runtime) and (
-                mandatory_worker_role(node, missions.get(node.get("ref"))) is not None
-                or worker_role(node) is not None
-            ):
-                reasons.add("mandatory_role_binding_missing")
         else:
             if (
                 node["kind"] == "verifier"
@@ -1146,10 +895,6 @@ def _dispatch_reasons(
                 reasons.add("completion_channel_unavailable")
             if observed_runtime.get("available_worker_slots", 0) <= 0:
                 reasons.add("runtime_capacity_unavailable")
-            if node["kind"] == "verifier":
-                reasons.update(
-                    _reviewer_tool_reasons(node, runtime, binding)
-                )
     if node["kind"] in {"mission", "lifecycle"}:
         # mission nodes spawn workers/commits and lifecycle nodes push or
         # clean up: both mutate real state derived from the parent's current git
@@ -1191,12 +936,7 @@ def _dispatch_reasons(
         if any(not execution_covers(run, mission_id) for mission_id in authorization_missions):
             reasons.add("execution_not_authorized")
     if authorization_missions and binding is not None:
-        for action in _required_actions(
-            node,
-            binding,
-            run["runtime_capabilities"],
-            run["schema_version"],
-        ):
+        for action in _required_actions(node, binding, run["runtime_capabilities"]):
             target = "*"
             if any(
                 not authorization_covers(run, action, mission_id, target)
@@ -1216,8 +956,7 @@ def _dispatch_reasons(
                 action_scope.get("mission_ids") if isinstance(action_scope, dict) else None
             )
             if (
-                run["schema_version"] == 11
-                and isinstance(action_missions, list)
+                isinstance(action_missions, list)
                 and "*" in action_missions
                 and (
                     node["kind"] == "mission"
@@ -1255,8 +994,7 @@ def _dispatch_reasons(
         ):
             reasons.add("action_not_authorized")
         elif (
-            run.get("schema_version") in {10, 11}
-            and node["ref"] in HEAD_BOUND_AUTHORIZATION_ACTIONS
+            node["ref"] in HEAD_BOUND_AUTHORIZATION_ACTIONS
             and (
                 not isinstance(current_head, str)
                 or any(
@@ -1313,21 +1051,11 @@ def _directive(
         "runtime_binding": binding,
         "tool_profile": _tool_profile(node),
         "failure_outcome": _failure_outcome(node),
-        "required_actions": _required_actions(
-            node,
-            binding,
-            run["runtime_capabilities"],
-            run["schema_version"],
-        ),
+        "required_actions": _required_actions(node, binding, run["runtime_capabilities"]),
     }
     runtime = run["runtime_capabilities"]
     if node["kind"] == "verifier":
         directive["review"] = node["review"]
-        required_tools = node["review"].get("required_tools", [])
-        directive["reviewer_tool_capabilities"] = {
-            tool_name: runtime.get("reviewer_tools", {}).get(tool_name)
-            for tool_name in required_tools
-        }
     directive.update(
         {
             "worker_runtime": binding.get("worker_runtime", runtime["worker_runtime"]),
@@ -1335,15 +1063,6 @@ def _directive(
             "completion_channel": binding.get("completion_channel", runtime["completion_channel"]),
         }
     )
-    version_gate = (
-        run.get("runtime_capabilities", {}).get("runtime_adapter", {}).get("version_gate")
-    )
-    if (
-        node["executor"] == "runtime_worker"
-        and isinstance(version_gate, dict)
-        and version_gate.get("status") == "adopted"
-    ):
-        directive["contract_adoption"] = version_gate.get("contract_adoption")
     if node["kind"] == "mission" and isinstance(mission, dict):
         directive["required_skills"] = list(mission.get("required_skills", []))
     return directive
@@ -1366,7 +1085,6 @@ def select_ready_nodes(
     repo_root: str | Path | None = None,
     manifest_already_validated: bool = False,
     require_repo_root: bool = False,
-    fallback_requests: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     # Callers that just validated the identical on-disk pair (for example the
     # reserve transition, which validates once before selection and once after
@@ -1402,28 +1120,6 @@ def select_ready_nodes(
             node["id"],
         ),
     )
-    has_runtime_workers = any(
-        node.get("executor") == "runtime_worker" for node in nodes
-    )
-    live_contract_digest: str | None = None
-    if has_runtime_workers:
-        version_gate = (
-            run.get("runtime_capabilities", {})
-            .get("runtime_adapter", {})
-            .get("version_gate")
-        )
-        if isinstance(version_gate, dict) and version_gate.get("status") == "adopted":
-            try:
-                live_contract_digest = contract_digest()
-            except (OSError, ValueError) as exc:
-                raise GraphSelectionError(
-                    "adopted runtime contract could not be observed: "
-                    + type(exc).__name__
-                ) from exc
-    contract_adoption_reasons = _contract_adoption_reasons(
-        run, live_digest=live_contract_digest
-    )
-
     logical_ready: list[dict[str, Any]] = []
     deferred: list[dict[str, Any]] = []
     reconciliation_reasons = _resume_reconciliation_reasons(run)
@@ -1443,12 +1139,6 @@ def select_ready_nodes(
                       if isinstance(row, dict) and row.get("mission_id") == node.get("ref")), None),
             )
             logical_ready.append({"node": node, "binding": binding})
-            request = (fallback_requests or {}).get(node["id"])
-            if request is not None:
-                if binding is not None:
-                    binding, _ = resolve_fallback_reservation(
-                        node, run, request.get("evidence"), request.get("attempt_id"))
-                logical_ready[-1]["binding"] = binding
 
     dispatch_ready: list[dict[str, Any]] = []
     for item in logical_ready:
@@ -1459,8 +1149,6 @@ def select_ready_nodes(
             run,
             missions,
         )
-        if item["node"]["executor"] == "runtime_worker":
-            reasons = sorted(set(reasons) | contract_adoption_reasons)
         if reasons:
             deferred.append({"node_id": item["node"]["id"], "reason_codes": reasons})
         else:

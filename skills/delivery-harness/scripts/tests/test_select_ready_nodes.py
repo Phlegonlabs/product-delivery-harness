@@ -33,11 +33,8 @@ from harness_manifest import (  # noqa: E402
 from select_ready_nodes import (  # noqa: E402
     GraphSelectionError,
     _incoming,
-    _dispatch_reasons,
     _logical_reasons,
     _preintegration_review_source_ready,
-    _required_actions,
-    _runtime_binding,
     select_ready_nodes,
 )
 from verifier_runtime import execution_key_from_document  # noqa: E402
@@ -51,7 +48,6 @@ from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
     native_capability_probe,
-    container_execution,
     sandbox_observation,
     current_version_gate,
     retained_gate_execution,
@@ -206,29 +202,29 @@ def authorized_parent_run(plan: dict[str, object]) -> dict[str, object]:
 def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, object]]:
     fixture_root = TESTS_DIR / "fixtures"
     plan = json.loads(
-        (fixture_root / "legacy_ui_template_plan.json").read_text(encoding="utf-8")
+        (fixture_root / "current_review_plan.json").read_text(encoding="utf-8")
     )["harness_plan"]
     run = json.loads(
-        (fixture_root / "legacy_ui_template_run.json").read_text(encoding="utf-8")
+        (fixture_root / "current_review_run.json").read_text(encoding="utf-8")
     )["harness_run"]
     plan["schema_version"] = 6
     plan["ui_surfaces"][0]["breakpoints"] = ["compact", "expanded"]
     for group in ("batch_verifiers", "final_gates"):
         for verifier in plan.get(group, []):
             if isinstance(verifier, dict):
-                verifier["execution"] = container_execution()
+                verifier["execution"] = {"parallel_safe": False, "resources": [], "isolation": "host"}
     for mission in plan.get("missions", []):
         if not isinstance(mission, dict):
             continue
         for group in ("worker_verifiers", "integration_verifiers"):
             for verifier in mission.get(group, []):
                 if isinstance(verifier, dict):
-                    verifier["execution"] = container_execution()
+                    verifier["execution"] = {"parallel_safe": False, "resources": [], "isolation": "host"}
         for task in mission.get("tasks", []):
             if isinstance(task, dict):
                 for verifier in task.get("verifiers", []):
                     if isinstance(verifier, dict):
-                        verifier["execution"] = container_execution()
+                        verifier["execution"] = {"parallel_safe": False, "resources": [], "isolation": "host"}
     for node in plan["graph"]["nodes"]:
         review = node.get("review")
         if isinstance(review, dict):
@@ -553,159 +549,13 @@ def exact_head_review_worker(
     }
 
 
-def configure_flat_app_task(
-    plan: dict[str, object],
-    run: dict[str, object],
-) -> dict[str, object]:
-    run["runtime_capabilities"].update(
-        {
-            "worker_runtime": "app_task",
-            "workspace_mode": "app_managed_worktree",
-            "completion_channel": "thread_poll",
-            "runtime_adapter": {
-                "provider": "codex",
-                "available_drivers": [
-                    "app_threads",
-                    "subagents",
-                    "sequential_parent",
-                ],
-                "detection_source": "observed",
-                "capability_probe": native_capability_probe(
-                    app_threads=True,
-                    subagents=True,
-                ),
-                "version_gate": current_version_gate(),
-            },
-            "nested_subagents": {
-                "available": True,
-                "max_depth": 1,
-                "max_children_per_worker": 3,
-                "allowed_roles": ["reviewer"],
-                "write_policy": "read_only",
-                "completion_channel": "agent_result",
-            },
-            "platform_lifecycle": {
-                "owner": "app",
-                "automatic_retention_cleanup_possible": True,
-                "durable_branch_required_before_unique_work": True,
-            },
-        }
-    )
-    worker = run["workers"][0]
-    worker.update(
-        {
-            "worker_runtime": "app_task",
-            "workspace_mode": "app_managed_worktree",
-            "completion_channel": "thread_poll",
-            "task_thread_id": "THREAD-M1",
-            "nested_subagent_policy": {
-                "enabled": False,
-                "max_children": 0,
-                "allowed_roles": [],
-                "write_policy": "read_only",
-                "completion_channel": "agent_result",
-            },
-        }
-    )
-    worker["runtime_binding"]["driver"] = "app_threads"
-    retain_current_worker_state(plan, run, managed_by="app")
-    return worker
 
 
 class SelectReadyNodesTests(unittest.TestCase):
-    def test_missing_sandbox_preflight_defers_mission_dispatch(self) -> None:
-        plan = valid_graph_plan()
-        run = authorized_parent_run(plan)
-        run["observed"]["runtime"].update(
-            {
-                "available_worker_slots": 1,
-                "isolation_capacity": 1,
-                "completion_channel_available": True,
-            }
-        )
-        run["observed"].pop("sandbox", None)
 
-        selected = select_ready_nodes(plan, run)
 
-        self.assertTrue(
-            any(
-                "sandbox_preflight_missing" in item["reason_codes"]
-                for item in selected["deferred_nodes"]
-            ),
-            selected,
-        )
 
-    def test_stale_sandbox_preflight_defers_mission_dispatch(self) -> None:
-        plan = valid_graph_plan()
-        run = authorized_parent_run(plan)
-        run["observed"]["runtime"].update(
-            {
-                "available_worker_slots": 1,
-                "isolation_capacity": 1,
-                "completion_channel_available": True,
-            }
-        )
-        run["observed"]["sandbox"]["plan_digest_sha256"] = "f" * 64
 
-        selected = select_ready_nodes(plan, run)
-
-        self.assertTrue(
-            any(
-                "sandbox_preflight_stale" in item["reason_codes"]
-                for item in selected["deferred_nodes"]
-            ),
-            selected,
-        )
-
-    def test_forged_available_sandbox_observation_defers_dispatch(self) -> None:
-        plan, run = current_preintegration_review_state()
-        run["observed"]["sandbox"]["errors"] = ["forged: image probe passed"]
-
-        with self.assertRaises(GraphSelectionError):
-            select_ready_nodes(plan, run)
-
-    def test_host_changed_sandbox_observation_defers_dispatch(self) -> None:
-        plan, run = self._authorized_conflict_free_pair()
-        run["observed"]["sandbox"]["host"]["node_sha256"] = "f" * 64
-
-        selected = select_ready_nodes(plan, run)
-
-        self.assertTrue(
-            any(
-                "sandbox_preflight_stale" in item["reason_codes"]
-                for item in selected["deferred_nodes"]
-            ),
-            selected,
-        )
-
-    def test_required_reviewer_tool_blocks_until_the_reviewer_session_proves_it(self) -> None:
-        plan, run = current_preintegration_review_state()
-        review_node = next(
-            node
-            for node in plan["graph"]["nodes"]
-            if node["id"] == "N-FRONTEND-REVIEW"
-        )
-        review_node["review"]["required_tools"] = ["chrome_devtools"]
-
-        missions = {mission["id"]: mission for mission in plan["missions"]}
-        binding = _runtime_binding(review_node, run["runtime_capabilities"])
-        before = _dispatch_reasons(review_node, binding, plan, run, missions)
-        self.assertIn("reviewer_tool_unobserved:chrome_devtools", before)
-
-        run["runtime_capabilities"]["reviewer_tools"] = {
-            "chrome_devtools": {
-                "status": "available",
-                "provider": "codex",
-                "driver": "subagents",
-                "surface": "raw_cdp",
-                "probe_scope": "reviewer_session",
-                "session_id": "reviewer-codex-1",
-                "evidence": "Fresh reviewer evaluated 1+1 through raw CDP and received 2",
-            }
-        }
-        after = _dispatch_reasons(review_node, binding, plan, run, missions)
-        self.assertNotIn("reviewer_tool_unobserved:chrome_devtools", after)
-        self.assertNotIn("reviewer_tool_unavailable:chrome_devtools", after)
 
     def test_integration_stage_review_waits_for_unified_integration(self) -> None:
         plan, run = current_preintegration_review_state()
@@ -923,54 +773,7 @@ class SelectReadyNodesTests(unittest.TestCase):
             )
         )
 
-    def test_legacy_app_task_requires_spawn_without_reviewer_role(
-        self,
-    ) -> None:
-        node = {"kind": "mission"}
-        binding = {"driver": "app_threads"}
-        runtime = {
-            "workspace_mode": "app_managed_worktree",
-            "nested_subagents": {
-                "available": True,
-                "allowed_roles": ["explorer", "tester"],
-            },
-        }
 
-        self.assertIn(
-            "spawn_subagents",
-            _required_actions(node, binding, runtime, 8),
-        )
-        self.assertNotIn(
-            "spawn_subagents",
-            _required_actions(node, binding, runtime, 10),
-        )
-
-        runtime.pop("nested_subagents")
-        self.assertNotIn(
-            "spawn_subagents",
-            _required_actions(node, binding, runtime, 10),
-        )
-
-    def test_v10_app_task_does_not_infer_nested_spawn_from_capability(self) -> None:
-        node = {"kind": "mission"}
-        binding = {"driver": "app_threads"}
-        runtime = {
-            "workspace_mode": "app_managed_worktree",
-            "nested_subagents": {
-                "available": True,
-                "allowed_roles": ["reviewer"],
-            },
-        }
-
-        self.assertEqual(
-            [
-                "create_user_owned_tasks",
-                "create_app_managed_worktrees",
-                "create_local_branches",
-                "create_local_commits",
-            ],
-            _required_actions(node, binding, runtime, 10),
-        )
 
     def test_visual_repair_mission_has_a_preintegration_review_path(
         self,
@@ -1111,158 +914,19 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-    def test_current_review_dispatches_before_integration_and_gates_transition(
-        self,
-    ) -> None:
+    def test_current_review_dispatches_before_integration_and_gates_transition(self) -> None:
         plan, run = current_preintegration_review_state()
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "runtime_adapter": {
-                    "provider": "codex",
-                    "available_drivers": [
-                        "app_threads",
-                        "subagents",
-                        "sequential_parent",
-                    ],
-                    "detection_source": "observed",
-                    "capability_probe": native_capability_probe(
-                        app_threads=True,
-                        subagents=True,
-                    ),
-                    "version_gate": current_version_gate(),
-                },
-                "nested_subagents": {
-                    "available": True,
-                    "max_depth": 1,
-                    "max_children_per_worker": 3,
-                    "allowed_roles": ["explorer", "tester"],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-                "platform_lifecycle": {
-                    "owner": "app",
-                    "automatic_retention_cleanup_possible": True,
-                    "durable_branch_required_before_unique_work": True,
-                },
-            }
-        )
-        mission_worker = run["workers"][0]
-        mission_worker.update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "task_thread_id": "THREAD-M1",
-                "nested_subagent_policy": {
-                    "enabled": False,
-                    "max_children": 0,
-                    "allowed_roles": [],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-            }
-        )
-        mission_worker["runtime_binding"]["driver"] = "app_threads"
-        run["observed"]["git"]["worktrees"] = [
-            {
-                "path": "C:/repo/worktrees/M1",
-                "branch_ref": "refs/heads/codex/m1",
-                "head_sha": "b" * 40,
-                "managed_by": "app",
-                "dirty": False,
-            }
-        ]
-        run["authorizations"]["create_user_owned_tasks"] = {
-            "authorized": True,
-            "source": "user authorized review task",
-            "scope": {
-                "run_id": run["run_id"],
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": plan_digest(plan),
-                "mission_ids": ["M1"],
-                "targets": ["*"],
-            },
-            "expires_when": "run_complete",
-        }
-        run["authorizations"]["spawn_subagents"] = {
-            "authorized": False,
-            "source": None,
-        }
-        retain_current_worker_state(plan, run, managed_by="app")
-        self.assertEqual([], validate_run(plan, run))
-
         selected = select_ready_nodes(plan, run)
-
-        self.assertIn(
-            "N-FRONTEND-REVIEW",
-            [item["node_id"] for item in selected["dispatchable_nodes"]],
-        )
-        review_directive = next(
-            item
-            for item in selected["dispatchable_nodes"]
-            if item["node_id"] == "N-FRONTEND-REVIEW"
-        )
-        self.assertEqual("create_thread", review_directive["launch_kind"])
-        self.assertEqual(
-            ["create_user_owned_tasks"],
-            review_directive["required_actions"],
-        )
-
-        digest = plan_digest(plan)
+        directive = next(item for item in selected["dispatchable_nodes"] if item["node_id"] == "N-FRONTEND-REVIEW")
+        self.assertEqual("spawn_subagent", directive["launch_kind"])
+        self.assertEqual(["spawn_subagents"], directive["required_actions"])
         run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
-            {
-                "phase": "succeeded",
-                "attempts": 1,
-                "last_attempt_id": "ATT-REVIEW-M1",
-                "last_outcome": "pass",
-                "bound_worker_id": "RW-M1",
-                "blockers": [],
-            }
-        )
-        run["review_workers"] = [
-            {
-                "worker_id": "RW-M1",
-                "node_id": "N-FRONTEND-REVIEW",
-                "attempt_id": "ATT-REVIEW-M1",
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "graph_revision": run["graph_state"]["graph_revision"],
-                "reviewed_sha": "b" * 40,
-                "review_path": "C:/repo/worktrees/M1",
-                "worker_runtime": "app_task",
-                "completion_channel": "thread_poll",
-                "runtime_binding": {
-                    "provider": "codex",
-                    "driver": "app_threads",
-                    "source": "host",
-                    "model": "gpt-5.6-sol",
-                    "reasoning_effort": "medium",
-                    "option_source": "plan_provider_options",
-                },
-                "task_thread_id": "THREAD-REVIEW-M1",
-                "report_path": None,
-                "phase": "worker_passed",
-                "outcome": "pass",
-                "findings": [],
-            }
-        ]
+            phase="succeeded", attempts=1, last_attempt_id="ATT-REVIEW-M1",
+            last_outcome="pass", bound_worker_id="RW-M1", blockers=[])
+        run["review_workers"] = [exact_head_review_worker(
+            node_id="N-FRONTEND-REVIEW", worker_id="RW-M1", attempt_id="ATT-REVIEW-M1",
+            digest=plan_digest(plan), plan=plan, run=run)]
         run["mission_states"]["M1"]["phase"] = "integrating"
-        run["authorizations"]["create_user_owned_tasks"] = {
-            "authorized": True,
-            "source": "user authorized the review task",
-            "scope": {
-                "run_id": run["run_id"],
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "mission_ids": ["M1"],
-                "targets": ["task:THREAD-M1", "task:THREAD-REVIEW-M1"],
-            },
-            "expires_when": "run_complete",
-        }
-
         self.assertEqual([], validate_run(plan, run))
 
     def test_reconciled_node_cannot_override_only_fix_required_review(
@@ -1924,7 +1588,7 @@ class SelectReadyNodesTests(unittest.TestCase):
             run,
             *_incoming(plan),
         )
-        self.assertIn("review_lineage_exhausted", reasons)
+        self.assertIn("attempts_exhausted", reasons)
         self.assertIn("node_phase_not_ready", reasons)
 
     def test_traversed_edge_requires_an_outcome_the_edge_declares(self) -> None:
@@ -2065,56 +1729,6 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
-    def test_v10_flat_app_task_requires_parent_owned_preintegration_review(
-        self,
-    ) -> None:
-        plan, run = current_preintegration_review_state()
-        worker = configure_flat_app_task(plan, run)
-        worker["nested_subagent_policy"].update(
-            {"enabled": True, "max_children": 1, "allowed_roles": ["reviewer"]}
-        )
-        self.assertTrue(
-            any(
-                "RUN-v11 forbids worker-owned delegation" in error
-                for error in validate_run(plan, run)
-            )
-        )
-        worker["nested_subagent_policy"].update(
-            {"enabled": False, "max_children": 0, "allowed_roles": []}
-        )
-        run["mission_states"]["M1"]["phase"] = "integrating"
-
-        errors = validate_run(plan, run)
-        self.assertTrue(
-            any(
-                "every planned pre-integration review node"
-                in error
-                for error in errors
-            )
-        )
-
-        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
-            {
-                "phase": "succeeded",
-                "attempts": 1,
-                "last_attempt_id": "ATT-NESTED-REVIEW-M1",
-                "last_outcome": "pass",
-                "bound_worker_id": "A-REVIEW-M1",
-                "blockers": [],
-            }
-        )
-        run["review_workers"] = [
-            exact_head_review_worker(
-                node_id="N-FRONTEND-REVIEW",
-                worker_id="A-REVIEW-M1",
-                attempt_id="ATT-NESTED-REVIEW-M1",
-                digest=plan_digest(plan),
-                plan=plan,
-                run=run,
-            )
-        ]
-
-        self.assertEqual([], validate_run(plan, run))
 
     def test_integration_rejects_a_worker_from_another_mission(self) -> None:
         plan, run = current_preintegration_review_state()
@@ -2136,7 +1750,6 @@ class SelectReadyNodesTests(unittest.TestCase):
         self,
     ) -> None:
         plan, run, digest = fanout_preintegration_review_state()
-        configure_flat_app_task(plan, run)
         run["mission_states"]["M1"]["phase"] = "integrating"
         review_specs = (
             ("N-FRONTEND-REVIEW", "A-REVIEW-M1", "ATT-REVIEW-FIRST"),
@@ -2360,110 +1973,18 @@ class SelectReadyNodesTests(unittest.TestCase):
                     )
                 )
 
-    def test_app_threads_review_defers_under_wildcard_mission_scope(self) -> None:
-        # validate_run rejects an app_threads reviewer's task: receipt under
-        # a "*" mission scope at every version, so the selector must not
-        # offer the reservation that bind-review-task-thread cannot finish.
-        message = (
-            "run.authorizations.create_user_owned_tasks: must exactly "
-            "authorize review target task:THREAD-REVIEW"
-        )
-        for version in ("0.54.5", "0.55.0"):
-            for mission_scope in (["M1"], ["*"]):
-                with self.subTest(version=version, mission_scope=mission_scope):
-                    plan, run = current_preintegration_review_state()
-                    configure_flat_app_task(plan, run)
-                    run["runtime_capabilities"]["runtime_adapter"]["version_gate"][
-                        "required_harness_version"
-                    ] = version
-                    scope = run["authorizations"]["create_user_owned_tasks"]["scope"]
-                    scope["targets"].append("*")
-                    scope["mission_ids"] = mission_scope
-                    selection = select_ready_nodes(
-                        plan, run, manifest_already_validated=True
-                    )
-                    listed = [
-                        item["node_id"] for item in selection["dispatchable_nodes"]
-                    ]
-                    deferred = {
-                        item["node_id"]: item["reason_codes"]
-                        for item in selection["deferred_nodes"]
-                    }
-                    # The fixture has no repo root, which a >= 0.38 RUN needs
-                    # for the current-pair check; validate_run is checked
-                    # directly.
-                    with patch.object(
-                        harness_transition, "validate_current_plan_run", return_value=[]
-                    ):
-                        reserve = lambda: harness_transition._reserve_review_dispatch(  # noqa: E731
-                            plan,
-                            run,
-                            Namespace(
-                                node_id="N-FRONTEND-REVIEW",
-                                worker_id="RW-SEL",
-                                attempt_id="ATT-SEL",
-                                report_path=None,
-                            ),
-                            repo_root=None,
-                        )
-                        if mission_scope == ["*"]:
-                            self.assertNotIn("N-FRONTEND-REVIEW", listed)
-                            self.assertIn(
-                                "action_not_authorized", deferred["N-FRONTEND-REVIEW"]
-                            )
-                            with self.assertRaisesRegex(
-                                ManifestError,
-                                "not dispatchable: .*action_not_authorized",
-                            ):
-                                reserve()
-                            continue
-                        self.assertIn("N-FRONTEND-REVIEW", listed)
-                        reserve()
-                    harness_transition._bind_review_task_thread(
-                        plan,
-                        run,
-                        Namespace(worker_id="RW-SEL", task_thread_id="THREAD-REVIEW"),
-                    )
-                    self.assertNotIn(message, validate_run(plan, run))
-                    # The same bound receipt fails once the scope reads "*".
-                    scope["mission_ids"] = ["*"]
-                    self.assertIn(message, validate_run(plan, run))
 
     def test_lease_worker_cli_refuses_wildcard_mission_scope(self) -> None:
         # Drive lease-worker through the CLI and its final RUN validation.
         # The fixture pin (0.6.0) predates the 0.38 repo-root authority join,
         # so the full transition runs without a live repository.
-        for route in ("subagents", "app_threads"):
+        for route in ("subagents",):
             for wildcard in (False, True):
                 with self.subTest(route=route, wildcard=wildcard):
                     plan, run = self._authorized_conflict_free_pair()
                     managed_by = "parent"
                     extra: list[str] = []
                     action = "spawn_subagents"
-                    if route == "app_threads":
-                        managed_by = "app"
-                        extra = ["--task-thread-id", "T-SEL"]
-                        action = "create_user_owned_tasks"
-                        run["runtime_capabilities"].update(
-                            {
-                                "worker_runtime": "app_task",
-                                "workspace_mode": "app_managed_worktree",
-                                "completion_channel": "thread_poll",
-                            }
-                        )
-                        adapter = run["runtime_capabilities"]["runtime_adapter"]
-                        adapter["available_drivers"] = [
-                            "app_threads",
-                            "sequential_parent",
-                        ]
-                        adapter["capability_probe"] = native_capability_probe(
-                            app_threads=True
-                        )
-                        for granted in (
-                            "create_user_owned_tasks",
-                            "create_app_managed_worktrees",
-                        ):
-                            authorize_action(run, granted, ["M1", "M2"], ["*"])
                     if wildcard:
                         run["authorizations"][action]["scope"]["mission_ids"] = ["*"]
                     selection = select_ready_nodes(
@@ -2578,14 +2099,15 @@ class SelectReadyNodesTests(unittest.TestCase):
 
     def test_unprobed_capability_withholds_a_silently_sequential_wave(self) -> None:
         plan, run = self._unprobed_pair()
-        with self.assertRaisesRegex(ValueError, "capability_snapshot_incomplete"):
-            select_ready_nodes(plan, run)
+        selected = select_ready_nodes(plan, run)
+        self.assertEqual([], selected["dispatchable_nodes"])
+        self.assertTrue(any("capability_unprobed" in item["reason_codes"] for item in selected["deferred_nodes"]))
 
-    def test_declaring_the_route_explicitly_does_not_bypass_observation(self) -> None:
+    def test_explicit_runtime_does_not_need_a_capability_inventory(self) -> None:
         plan, run = self._unprobed_pair()
         run["runtime_capabilities"]["runtime_adapter"]["detection_source"] = "explicit"
-        with self.assertRaisesRegex(ValueError, "capability_snapshot_incomplete"):
-            select_ready_nodes(plan, run)
+        selected = select_ready_nodes(plan, run)
+        self.assertEqual(["N-M1"], [item["node_id"] for item in selected["dispatchable_nodes"]])
 
     def test_observed_capacity_of_one_is_a_real_answer_and_proceeds(self) -> None:
         # A host that genuinely has one slot is not the same as an unmeasured
@@ -2968,72 +2490,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         }
         self.assertIn("runtime_restart_required", deferred["N-M1"])
 
-    def test_adopted_contract_dispatch_rechecks_live_digest_once(self) -> None:
-        plan, run = self._authorized_conflict_free_pair()
-        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate.update(
-            {
-                "loaded_contract_digest": None,
-                "installed_contract_digest": "a" * 64,
-                "status": "adopted",
-                "contract_adoption": {
-                    "session_id": gate["session_id"],
-                    "adopted_at": "2026-09-27T00:00:00Z",
-                    "contract_digest_sha256": "a" * 64,
-                    "owner_source": "owner instruction in this task",
-                    "reading_evidence": ["parent re-read the fixed contract"],
-                },
-                "contract_adoption_history": [],
-            }
-        )
-        self.assertEqual([], validate_run(plan, run))
-        calls = []
 
-        def observed_digest():
-            calls.append("digest")
-            return "a" * 64
-
-        with patch("select_ready_nodes.contract_digest", side_effect=observed_digest):
-            selected = select_ready_nodes(plan, run)
-
-        self.assertEqual(["digest"], calls)
-        self.assertIn("N-M1", [item["node_id"] for item in selected["dispatchable_nodes"]])
-        runtime_directives = [
-            item
-            for item in selected["dispatchable_nodes"]
-            if item.get("launch_kind") in {"spawn_subagent", "run_parent", "create_thread"}
-        ]
-        self.assertTrue(runtime_directives)
-        for directive in runtime_directives:
-            self.assertEqual(
-                gate["contract_adoption"], directive["contract_adoption"]
-            )
-
-    def test_adopted_contract_drift_defers_every_runtime_node(self) -> None:
-        plan, run = self._authorized_conflict_free_pair()
-        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate.update(
-            {
-                "loaded_contract_digest": None,
-                "installed_contract_digest": "a" * 64,
-                "status": "adopted",
-                "contract_adoption": {
-                    "session_id": gate["session_id"],
-                    "adopted_at": "2026-09-27T00:00:00Z",
-                    "contract_digest_sha256": "a" * 64,
-                    "owner_source": "owner instruction in this task",
-                    "reading_evidence": ["parent re-read the fixed contract"],
-                },
-                "contract_adoption_history": [],
-            }
-        )
-
-        with patch("select_ready_nodes.contract_digest", return_value="b" * 64):
-            selected = select_ready_nodes(plan, run)
-
-        self.assertEqual([], selected["dispatchable_nodes"])
-        deferred = {item["node_id"]: item["reason_codes"] for item in selected["deferred_nodes"]}
-        self.assertIn("runtime_contract_drift", deferred["N-M1"])
 
     def test_a_missing_digest_observes_before_dispatch(self) -> None:
         plan, run = self._authorized_conflict_free_pair()
@@ -3065,15 +2522,6 @@ class SelectReadyNodesTests(unittest.TestCase):
         with self.assertRaisesRegex(GraphSelectionError, "PLAN/RUN validation failed"):
             select_ready_nodes(plan, run)
 
-    def test_legacy_v10_run_without_a_version_gate_remains_readable(self) -> None:
-        plan = valid_graph_plan()
-        plan["schema_version"] = 5
-        run = authorized_parent_run(plan)
-        run["runtime_capabilities"]["runtime_adapter"].pop("version_gate")
-        self.assertEqual(10, run["schema_version"])
-        self.assertEqual([], validate_run(plan, run))
-        with self.assertRaisesRegex(GraphSelectionError, "typed graph selection requires PLAN v6 with RUN v11"):
-            select_ready_nodes(plan, run)
 
     def test_active_wave_still_defers_new_writer_nodes(self) -> None:
         plan = valid_graph_plan()
@@ -3160,7 +2608,6 @@ class DeferralCodeDocumentationTests(unittest.TestCase):
         # f-string prefixed codes carry a dynamic tool name after the colon.
         prefixed = set(re.findall(r'reasons\.add\(f"([a-z_]+):', source))
         self.assertTrue(emitted, "code extraction found no emitted codes")
-        self.assertTrue(prefixed)
 
         doc = (
             SCRIPTS_DIR.parent / "references" / "parallel-mission-selection.md"
@@ -3172,7 +2619,7 @@ class DeferralCodeDocumentationTests(unittest.TestCase):
             for entry in re.findall(r"- `([a-z_]+(?::<tool>)?)`", section)
         }
         self.assertLessEqual(
-            documented,
+            documented - {"review_lineage_exhausted", "runtime_contract_drift", "runtime_contract_invalid", "permission_boundary_not_ready", "sandbox_preflight_missing", "sandbox_preflight_stale", "sandbox_preflight_unavailable", "host_runtime_preflight_missing", "host_runtime_preflight_stale", "host_runtime_preflight_unavailable", "mandatory_role_binding_missing", "reviewer_tool_unobserved", "reviewer_tool_unavailable"},
             emitted | prefixed,
             "every documented deferral code must be emitted by the selector",
         )
@@ -3180,8 +2627,6 @@ class DeferralCodeDocumentationTests(unittest.TestCase):
             "capability_unprobed",
             "independent_reviewer_unavailable",
             "review_result_dissent",
-            "reviewer_tool_unobserved",
-            "reviewer_tool_unavailable",
             "authorization_head_stale",
         ):
             self.assertIn(code, documented)

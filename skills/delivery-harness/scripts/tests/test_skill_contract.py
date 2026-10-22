@@ -395,7 +395,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("independent_reviewer_unavailable", graph)
         self.assertIn("cannot satisfy a fresh independent review node", adapters)
         self.assertIn("no matching reserved dispatch receipt", transition)
-        self.assertIn("already used its one owner-granted successor", transition)
 
     def test_runtime_performance_contract_is_machine_measured_and_safety_preserving(self) -> None:
         performance = self.read("references/runtime-performance.md")
@@ -1477,9 +1476,26 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertFalse(
             authorization_covers(run_at(10), "push", "M1", "branch:development")
         )
-        self.assertTrue(
+        self.assertFalse(
             authorization_covers(run_at(9), "push", "M1", "branch:development")
         )
+        current = run_at(11)
+        grant = current["authorizations"].pop("push")
+        grant["scope"]["targets"] = ["branch:codex/work"]
+        current["authorizations"]["create_local_commits"] = grant
+        self.assertFalse(
+            authorization_covers(current, "create_local_commits", "M1", "branch:codex/work")
+        )
+        grant["scope"].update(plan_revision=4, plan_digest_sha256="b" * 64)
+        self.assertTrue(
+            authorization_covers(current, "create_local_commits", "M1", "branch:codex/work")
+        )
+        current["authorizations"]["delete_branches"] = grant
+        for branch in ("main", "development"):
+            grant["scope"]["targets"] = [f"branch:{branch}"]
+            self.assertFalse(
+                authorization_covers(current, "delete_branches", "M1", f"branch:{branch}")
+            )
 
         self.assertIn("Schema v10 additionally requires `plan_revision` and `plan_digest_sha256`", reference)
         self.assertIn('"plan_digest_sha256": "<64-hex>"', reference)
@@ -1503,14 +1519,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertNotIn("an empty frontier with every node deferred", content)
             self.assertNotIn("returns an empty frontier", content)
 
-    def test_session_exact_reuse_lists_the_pass_signal_precondition(self) -> None:
-        """The pass signal is the first condition the runtime checks and was the
-        one missing from the core's list of four."""
-        core = self.read(MANAGED_STAGE)
-        runtime = self.read("scripts/verifier_runtime.py")
-
-        self.assertIn('and normalized_verifier["pass_signal"] == "exit 0"', runtime)
-        self.assertIn("Container `session_exact` reuse requires `exit 0`", core)
 
 
     def test_readiness_requires_every_node_to_have_a_host(self) -> None:
