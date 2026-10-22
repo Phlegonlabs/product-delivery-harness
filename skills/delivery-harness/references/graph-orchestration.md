@@ -101,11 +101,9 @@ PLAN `required_reviews` lists the applicable review types. Validation requires a
 
 ## Root-Cause Repair Escalation
 
-One review, one consolidated repair, one targeted re-check (`gen-verify-correct.md`). The parent turns a `fix_required` result into one repair packet grouped by semantic root cause and failure family: the affected primitive, all known variants, the narrow approach that failed, the structural repair objective, the acceptance-matrix cases that prove the family closed, and the review attempts already consumed across PLAN revisions.
+Use one review, one consolidated repair, and one targeted re-check (`gen-verify-correct.md`). Group the repair by root cause and freeze its acceptance matrix before writing. A scope or contract gap returns upstream.
 
-Escalate from local correction to structural repair when findings are adjacent variants of one parsing, validation, serialization, protocol, state-machine, or boundary primitive, or when the proposed repair adds another special-case branch without proving the input grammar or state space is closed and bounded. Structural repair means the smallest coherent change that closes the named family. A regular expression remains acceptable for a genuinely closed local grammar; an open grammar needs an appropriate scanner, parser, state machine, or other structure-aware mechanism. Freeze the failure-family matrix in the task acceptance criteria before writing. If the change does not fit the mission scope or frozen contract, the worker returns `REFINEMENT_REQUEST` or `contract_gap` before another mutation.
-
-Review limits follow a stable mission + review surface + root-cause lineage, not only the current node ID. A PLAN revision carries consumed attempts forward and never resets the budget. After the one re-check, stop at `blocked`. One successor review attempt needs an explicit owner decision that names its decision ID in the exact quoted user turn, approves the changed strategy and acceptance matrix, and is recorded in `docs/goal/DECISIONS.md`. The lineage may use this gate once; a broad request to continue never satisfies it. The successor node sets `max_attempts` to only that allowance.
+Carry consumed attempts across revisions by stable mission + review surface + root-cause lineage. Replacing a node never resets that budget. The scripts enforce each node's `max_attempts`; the parent retains the cross-revision history. A failed re-check stops at `blocked`. One third attempt needs the owner's quoted decision, changed strategy, and acceptance matrix recorded in `docs/goal/DECISIONS.md`. The successor node permits only that one attempt.
 
 ## Multi-Reviewer Fan-Out
 

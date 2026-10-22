@@ -23,7 +23,7 @@ Performance work never weakens authorization, isolation, scope, exact-SHA review
 
 A section is not a worker boundary. Freeze shared interfaces first, then assign independent frontend, backend and integration outcomes to isolated checkout owners. Every shared token, router, package/lockfile, schema and migration path has one owner; dependent packets deny writes to those paths. Split executable tasks into verified atomic commits inside each coherent mission, not a fresh worker per task. Keep coupled same-file work with one writer.
 
-Count reviewers and writers against observed runtime capacity and exclusive resources. A completed mission may enter review while siblings run. The current wave barrier still prevents new writer dispatch until the wave closes; do not describe streaming review as rolling writer scheduling. Measure critical-path delay before proposing a new scheduler contract.
+Count reviewers and writers against observed runtime capacity and exclusive resources. Under `per_mission`, a completed mission may enter review while siblings run. The current wave barrier still prevents new writer dispatch until the wave closes; do not describe streaming review as rolling writer scheduling. Measure critical-path delay before proposing a new scheduler contract.
 
 Retain input precondition validation and final mutated-state validation. Reuse is limited to an identical immutable in-memory snapshot before any mutation, with fresh external-state checks where required. A matching PLAN identity alone, a changed batch base, or a caller-supplied boolean cannot justify skipping a new state check. Do not extend the existing internal validation fast paths without focused mutation and stale-state regression evidence.
 
@@ -31,8 +31,8 @@ The managed runtime uses the same four invariants:
 
 1. Launch each mission or review with a fresh bounded context capsule. Keep automatic repository instruction discovery enabled, but do not replay the parent transcript or copy full PLAN/RUN manifests.
 2. Consume host terminal events. Prefer a subscription, cursor wait, workflow result, or child completion event over repeated status reads. Poll only when the host has no wait/event surface, and record that fallback.
-3. Record each terminal mission with `record-worker-result`. As soon as one active-wave mission reaches `worker_passed`, reserve its dependency-ready read-only pre-integration review in RUN, dispatch only from that receipt, and integrate that mission once the same reserved attempt PASSes. Integration stays serial: at most one mission is `integrating` at a time. Do not launch another writer, and do not run batch gates, until every selected worker result is recorded and the wave closes.
-4. Run local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. Only container verifiers with `execution.parallel_safe: true` can refill free slots when their resource claims do not conflict. Host verifiers require `execution.parallel_safe: false` and run serially within that runner. Independent workers can still run host checks concurrently in separate worktrees. Use batch mode at the task and worker gates too, not only the batch gate.
+3. Record each terminal mission with `record-worker-result`. Under `per_mission`, as soon as one active-wave mission reaches `worker_passed`, reserve its dependency-ready read-only pre-integration review in RUN, dispatch only from that receipt, and integrate that mission once the same reserved attempt PASSes. Under `final_candidate` a mission integrates after `worker_passed` and the Worker Result Gate. Integration stays serial: at most one mission is `integrating` at a time. Do not launch another writer, and do not run batch gates, until every selected worker result is recorded and the wave closes.
+4. Run local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. Host verifiers require `execution.parallel_safe: false` and run serially within that runner. Independent workers can still run host checks concurrently in separate worktrees. Use batch mode at the task and worker gates too, not only the batch gate.
 
 ## Parent Turn Boundaries
 
@@ -89,89 +89,14 @@ A verifier that binds a shared resource declares it:
 }
 ```
 
-Container verifiers may run together when both declare `execution.parallel_safe: true` and no shared resource key has exclusive access. Host verifiers are serialized even when the runner has free slots. Current declarations require an explicit execution mode; a missing block is invalid, not permission for parallel host execution. Free slots refill from eligible nonconflicting container work.
+Host verifiers are serialized even when the runner has free slots, and run fresh with no result reuse. Current declarations require an explicit execution mode; a missing block is invalid, not permission for parallel host execution. Container verifiers in older pins follow `legacy-pins.md#container-verifiers-before-066`.
 
-Jobs in one batch may share immutable Git archive bytes for the same canonical checkout and exact SHA. Concurrent requests create the archive once. Each verifier still receives its own freshly checked extraction, including the existing link/device/traversal checks; no writable snapshot directory is shared. Cache ownership ends when the batch ends.
-
-Host verifiers run fresh and serially per runner; host results are never cached or coalesced. Container result reuse is opt-in through `session_exact` plus `cache.deterministic_local: true`, only for a deterministic `exit 0` PASS produced by this runner invocation. There is no disk verifier cache; a `cache_root` in a request is ignored. Equivalent concurrent requests share one execution, bound to the canonical checkout and protected Git inputs; failed origins release waiters for a fresh attempt. Reuse binds outputs to the exact immutable execution key and explicitly records its origin. Before accepting a result, each consumer freshly rechecks its live Git guard and the trusted runtime executable/image RepoDigest without rerunning the verifier command, and retains its own reservation, guard, and sandbox evidence. Never reuse failed, timed out, dirty, browser, network, mutable-environment, or cross-process results. New acceptance requires the origin in the current parent-observed batch; an origin found only in RUN history cannot authorize reuse. A forged, rebound, stale, or mismatched origin fails retained-evidence validation.
-
-Declare resources for shared caches, generated clients, databases, ports, browsers, and external state. Containers can still conflict through resources outside their filesystem; exclusive claims serialize those operations. Host execution is serial within the runner, but does not coordinate unrelated processes or grant permission to mutate external systems. Audit shared state before authorizing the command.
-
-## Machine Telemetry
-
-RUN-v11 may include `runtime_metrics`. It is observational and never grants authorization or satisfies a gate.
-
-### Parent-Observed Host Intervals
-
-The first supported workflow uses the Codex parent's observed dispatch and terminal events.
-The shared ingestion command accepts the existing provider identities; it does not select or launch a runtime.
-Use it only when the loaded contract supports this command. Do not change an existing RUN's version pin to enable it.
-
-1. Capture UTC time and a monotonic start immediately before the authorized launch.
-2. Capture completion when the parent observes the terminal result. Record the elapsed interval, including observation delay.
-3. Record visible retry backoff as a separate sample. Keep unexposed provider queue time and token counts unknown.
-4. Hold the parent RUN lock and record the sample through the guarded transition below.
-
-```text
-python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <parent> record-runtime-observation --observation <retained-local-json>
-```
-
-The request is one local regular UTF-8 JSON file, at most 64 KiB, with exactly these fields:
-
-```json
-{
-  "schema": "runtime-observation/1",
-  "run_id": "RUN-example",
-  "assignment_kind": "mission",
-  "assignment_id": "lease-1",
-  "node_id": "N-M1",
-  "attempt_id": "attempt-1",
-  "worker_id": "worker-1",
-  "sample_id": "terminal-1",
-  "phase": "dispatch_to_terminal",
-  "status": "complete",
-  "started_at": "2026-10-18T10:00:00Z",
-  "completed_at": "2026-10-18T10:01:00Z",
-  "duration_ms": 60000,
-  "wait_ms": null,
-  "input_tokens": null,
-  "output_tokens": null,
-  "cached_input_tokens": null,
-  "context_bytes": null
-}
-```
-
-Replace example values with actual observations. `assignment_kind` is `mission` or `review`; a review's assignment ID is its node ID.
-Phases are `dispatch_to_terminal` and `retry_backoff`. Statuses are `complete`, `failed`, `blocked` and `cancelled`.
-Use one stable sample ID per observed interval. Identical replay changes no RUN bytes; a conflicting replay fails.
-The assignment must match a retained reservation, including completed attempts.
-A dispatch interval requires its parent-retained launch; its event provider comes from that launch's observed model provider.
-Backoff without a launch uses the reserved model provider. This does not prove provider execution or internal queue time.
-
-The parent may record observations while paused or cancelled. Closed RUNs remain immutable.
-Workers return observations to the parent and never edit RUN. No observation grants retry, approval or execution authority.
-Keep only identifiers, times and counts; exclude prompts, responses, credentials and customer data.
-An unavailable observation remains a telemetry gap. Do not rerun a worker to reconstruct missing timings.
-This command never sets total wall time, critical path, comparison baseline or reduction targets.
-
-### Existing Metric Semantics
-
-Record one append-only event for queue, context render, dispatch, wait, execute, review, verify, and integrate transitions when applicable. Each event records provider, node/attempt identity, phase, terminal status, timestamps, duration, wait time, input/output/cached tokens, and context bytes. Unknown values remain `null`; do not estimate them.
-
-A `transition_prepare:<command>` event measures only local RUN transition preparation from entry to just before final PLAN/RUN validation. It excludes final validation, later request or packet rendering, persistence, and projection. Do not treat these event durations as `run_wall_time_ms`.
-
-The transition adds the event to the candidate before validation and saves it only with a successful guarded RUN replacement. `complete` describes preparation, not completion of later sidecar or projection work. Report-only watchdog calls do not add events. Existing events and optional targets are preserved; no event changes authorization. `inspect_harness_run.py` shows phase sums with unknown-duration counts and each verifier's timings separately. It never derives full-run or critical-path time by adding potentially overlapping intervals.
-
-Each verifier result may carry read-only `timings` for end-to-end, setup, Git guard, cache lookup, snapshot, command, and postcheck intervals. Existing `duration_ms` retains the execution interval including cleanup and postchecks; `command_ms` measures the command itself. A reused result keeps `duration_ms: 0`; its `end_to_end_ms` is observational only. Timings never grant authorization or satisfy a gate.
-
-At closeout record `run_wall_time_ms` and `critical_path_ms`. Record `baseline_wall_time_ms` only when a comparable earlier run was actually measured; otherwise leave it null rather than inventing one.
-
-`target_reduction_percent` is optional and carries no default. Set it only when a specific run has a specific agreed goal. Report any reduction as `(baseline - actual) / baseline`, and if workload, hardware, provider, model tier, or validation scope changed materially, label the comparison non-comparable and collect a new baseline.
+Declare resources for shared caches, generated clients, databases, ports, browsers, and external state. Exclusive claims serialize operations that conflict outside a checkout. Host execution is serial within the runner, but does not coordinate unrelated processes or grant permission to mutate external systems. Audit shared state before authorizing the command.
 
 ## Host Mapping
 
 - Use a fresh bounded native task or child, then subscribe to terminal events or cursor waits when observed. Use bounded polling only when events are unavailable and record that fallback. Preserve installed role and model settings and the configured role bridge.
 
-Process each terminal result immediately. Streaming review and streaming serial integration may overlap remaining workers; RUN remains parent-owned and integration remains serial throughout. A mission integrated early that later fails its integration verifier is reverted or superseded like any other integration failure — that rare rollback is the cost of not making every finished mission wait for the slowest one.
+Process each terminal result immediately. Under `per_mission`, streaming review may overlap remaining workers; serial integration may overlap them under either policy. RUN remains parent-owned. A failed integration follows the existing integration-failure route.
 
 Record the product container's actual computed CSS width with each screenshot. A verifier's exit code 0 proves that the process ended; acceptance still requires the gate's current evidence.

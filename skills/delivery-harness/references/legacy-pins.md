@@ -40,7 +40,7 @@ Runs pinned before 0.34.0 record no `layout_check`. Before 0.35.0 the `deviation
 
 ## Container Verifiers Before 0.66
 
-A PLAN pinned before 0.66 may declare `execution.isolation: "container"` with a pinned image RepoDigest, observed runtime, disabled network and read-only rootfs. Such a verifier never falls back to host mode, and `session_exact` reuse stays within one batch.
+A PLAN pinned before 0.66 may declare `execution.isolation: "container"` with a pinned image RepoDigest, observed runtime, disabled network and read-only rootfs. Such a verifier never falls back to host mode. Container verifiers with `execution.parallel_safe: true` and no exclusive resource conflict may run together and share immutable Git archive bytes within one batch, and `session_exact` reuse stays within one batch.
 
 ## Finishing A Run On Its Pinned Bundle
 

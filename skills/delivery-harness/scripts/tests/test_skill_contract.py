@@ -254,6 +254,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             operating, "## Managed Product Delivery Harness Runs"
         )
 
+        topology = self.owner_section(
+            self.read("references/verification-gates.md"), "## Review Topology"
+        )
+        self.assertIn("Default `review_policy: final_candidate`", topology)
+        self.assertIn("security lens re-binds", topology.lower())
+        self.assertIn("Security never skips and never reuses", topology)
         self.assertIn("## Default Mission Topology", skill)
         self.assertIn("Map one feature batch to one mission", skill)
         self.assertIn("one bounded worker slice per task", skill)
@@ -355,7 +361,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("root-cause failure family", skill)
         self.assertIn("A generic instruction to continue", skill)
         self.assertIn("## Root-Cause Repair Escalation", graph)
-        self.assertIn("open grammar needs an appropriate scanner, parser, state machine", graph)
+        self.assertIn("one review, one consolidated repair, and one targeted re-check", graph)
+        self.assertIn("the owner's quoted decision", graph)
+        self.assertIn("docs/goal/DECISIONS.md", graph)
         self.assertIn("stable mission + review surface + root-cause lineage", graph)
         self.assertIn("A mission-level replan does not replenish a review budget", decomposition)
         self.assertIn("Do not authorize another example-specific patch", verification)
@@ -419,6 +427,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("harness_step.py", performance)
         self.assertIn("validate_result.py", performance)
         self.assertIn("never weakens authorization", performance)
+        self.assertNotIn("## Machine Telemetry", performance)
+        self.assertNotIn("record-runtime-observation", performance)
         self.assertIn('"runtime_metrics"', runbook)
         self.assertNotIn("target_reduction_percent", runbook)
         self.assertIn("BATCH_PROTOCOL", verifier)
