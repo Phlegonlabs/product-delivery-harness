@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.66.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
-这是 **v0.65.3** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
+这是 **v0.66.0** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
 
 ```mermaid
 ---
@@ -991,6 +991,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.66.0** — 从 PRD、UI 到交付减少重复 review 轮次，保留 85／80、Impeccable、Visual Approval 与精确 SHA 安全审查。Mission 以功能批次规划，每个只派一位合并维度的 reviewer；只有证明干净的 merge chain 才跳过代码整合审查。候选的所有 review 回来后一次修复，复查只看修复范围。HiFi 复查限于修复清单并沿用未变记录，修改方向只新增一份研究，PRD 检查提前拦下无法到达的页面和没有出口的状态。每个 RUN 与设计轮固定一个 Harness 合约，未观察身份每个 session 只记一次，改加载简短入口清单。修正 retention 假缺陷与整合记录的 commit 边界竞态，并发布 AgentKiosk 的 compiler、状态覆盖、role-policy 与 ingestion 改动。
 
 - **0.65.3** — 设计端采用同轮审核与定向复查，实现端合并 UI 验收，保留 85／80 与必要证据。向作者提供完整画面、字体、素材及视觉特征，worker 选择交由 agent 配置。保留已有 RUN 契约，修正诊断覆盖、验收复用及 Activation 暂存动作摘要。
 
