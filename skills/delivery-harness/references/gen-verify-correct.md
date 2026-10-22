@@ -12,7 +12,7 @@ new retry budget.
 | Product requirements and architecture | Product author | Product checker, focused review, and explicit owner approvals |
 | UI direction and HiFi | Bound `frontend-design` author | Completeness, Impeccable, browser/grading, and Visual Approval owners |
 | Design-system compilation | Compiler author | Pair, contrast, type-scale, package, and preview checks |
-| Task and mission | Assigned writer | Focused verifier and exact-head reviewer |
+| Task and mission | Assigned writer | Focused verifier; exact-head reviewer under `per_mission` |
 | Feature acceptance | Owning mission writer | Declared `PRD-*` acceptance gates at the current candidate |
 | Platform handoff | Owning platform writer | Frozen platform order, dependencies, and completion verifier |
 | Integrated candidate | Owning code mission | One combined review (code, security, visual) and final matrix |

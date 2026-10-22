@@ -184,7 +184,7 @@ M6 E2E with allowed/denied/tenant/billing/admin scenarios
 
 When the Partner Channel Gate is `required`, add a separate partner-channel mission for attribution or lead/deal registration, commission/discount and reversal, payout records, reseller provisioning/deprovisioning, and partner/admin surfaces. Do not fold it into the billing/entitlement mission merely because both touch order or subscription events.
 
-M4 is an illustrative single line, not a mandate to build every authenticated screen in one mission. Per `contract-and-traceability.md`'s mission-granularity corollary, split it into one mission per feature batch (the screens of one journey or feature) and pair each with one scoped `visual` review as soon as that mission integrates. When the product has a design system, those batch missions come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order.
+M4 is an illustrative single line, not a mandate to build every authenticated screen in one mission. Per `contract-and-traceability.md`'s Review Placement Defaults, split it into one mission per feature batch; the one final review carries the visual lens, and per-mission visual reviews exist only under `per_mission`. When the product has a design system, those batch missions come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order.
 
 Required E2E scenarios:
 
@@ -223,7 +223,7 @@ M5 accessibility, visual QA, performance
 M6 sitemap/robots/redirect checks
 ```
 
-M2 and M5 above are illustrative single lines, not a mandate to lump every page into one mission or defer all visual QA to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M2 into one mission per feature batch (for example the conversion pages, or the legal/about/contact pages sharing one template) and pair each with one scoped `visual` review as soon as that mission integrates, rather than one mission and review per page or one M2 covering the whole page inventory reviewed once by a later M5.
+M2 and M5 above are illustrative single lines, not a mandate to lump every page into one mission or defer all visual QA to the end. Per `contract-and-traceability.md`'s Review Placement Defaults, split M2 into one mission per feature batch (for example the conversion pages, or the legal/about/contact pages sharing one template), not one mission per page or one M2 covering the whole page inventory. The one final review carries the visual lens; per-mission visual reviews exist only under `per_mission`.
 
 When the product has a design system, M2's page templates come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order. Each batch mission then implements its routes, one task per route, from `design-system.json` and each route's `UI-*` entry in `PRD.md`.
 
