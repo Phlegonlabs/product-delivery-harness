@@ -21,7 +21,7 @@ Reuse accepted boundaries for local repairs; reopen only a changed product or st
 
 ## Complete The Author Self-Review
 
-Apply `../../delivery-harness/references/pre-delivery-self-review.md#prd-self-review` to the reconciled candidate after post-draft market research. Use the perspectives above in that one pass, then recheck only changes from the Stack Decision Checkpoint before Product Definition Approval. Record the reviewed revision, evidence, findings, repairs and remaining blockers in the existing Epic/task record. A passing structural checker or a research report alone does not complete this author review. Keep required unresolved findings blocking and preserve the owner's decisions.
+Apply `../../delivery-harness/references/pre-delivery-self-review.md#prd-self-review` to the reconciled candidate after post-draft market research. Use the perspectives above in that one pass, then recheck only changes from the Stack Decision Checkpoint before Product Definition Approval. That contract owns the record, blocking findings and the rule that a checker pass or research report alone is not the review.
 
 ## Return New Evidence At Existing Checkpoints
 
