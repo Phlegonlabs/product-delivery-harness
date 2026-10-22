@@ -37,6 +37,7 @@ from harness_schema import (
     action_target_kind_allowed,
     action_target_kind_description,
     review_lenses,
+    review_policy,
 )
 from agent_role_contract import is_worker_role_id
 
@@ -771,10 +772,14 @@ def review_covers_ui_acceptance(
 MERGE_CHAIN_SKIP_TYPES = frozenset({"frontend_code", "backend_code"})
 
 
-def merge_chain_skip_allowed(review: dict[str, Any]) -> bool:
-    """Only code lenses may skip on a merge chain; visual and security never do."""
+def merge_chain_skip_allowed(plan: dict[str, Any], review: dict[str, Any]) -> bool:
+    """Only per_mission code reviews may skip; visual and security never do."""
     lenses = review_lenses(review)
-    return bool(lenses) and lenses <= MERGE_CHAIN_SKIP_TYPES
+    return (
+        review_policy(plan) == "per_mission"
+        and bool(lenses)
+        and lenses <= MERGE_CHAIN_SKIP_TYPES
+    )
 
 
 def reviewed_merge_chain_covers(
@@ -794,7 +799,7 @@ def reviewed_merge_chain_covers(
     rendered whole head, so it never uses this skip.
     """
 
-    if not merge_chain_skip_allowed(node["review"]):
+    if not merge_chain_skip_allowed(plan, node["review"]):
         return False
     integration = run.get("integration")
     chain = integration.get("reviewed_merge_chain") if isinstance(integration, dict) else None

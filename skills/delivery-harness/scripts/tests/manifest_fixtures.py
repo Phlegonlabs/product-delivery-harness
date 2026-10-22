@@ -25,6 +25,7 @@ from harness_manifest import AUTHORIZATION_KEYS, plan_digest  # noqa: E402
 from harness_schema import (  # noqa: E402
     CURRENT_PLAN_SCHEMA_VERSION,
     CURRENT_RUN_SCHEMA_VERSION,
+    REVIEW_LENS_ORDER,
     run_required_harness_version,
     version_at_least,
 )
@@ -627,6 +628,75 @@ def valid_plan() -> dict[str, object]:
     }
 
 
+def final_candidate_plan(
+    lenses: tuple[str, ...] = ("backend_code", "visual", "security"),
+) -> dict[str, object]:
+    """Three write missions and one combined integration-stage review."""
+    plan = valid_plan()
+    plan["missions"].append(
+        mission(
+            "M3",
+            "REQ-002",
+            "src/c/**",
+            [task("M3", 1, "REQ-002", "src/c/one.py")],
+            priority=60,
+            merge_rank=30,
+        )
+    )
+    mission_ids = [item["id"] for item in plan["missions"]]
+    outcomes = ["pass", "retryable_failure", "blocked", "contract_gap"]
+    review = graph_node("N-FINAL-REVIEW", "verifier", "final", "runtime_worker", outcomes)
+    review["review"] = {
+        "stage": "integration",
+        "type": next(lens for lens in REVIEW_LENS_ORDER if lens in lenses),
+        "lenses": list(lenses),
+        "lineage_id": "REVIEW-FINAL",
+        "mission_ids": mission_ids,
+        "scope": ["src/**"],
+        "required_evidence": ["reviewed_sha", "findings"],
+    }
+
+    def edge(edge_id: str, kind: str, source: str, target: str) -> dict[str, object]:
+        return {
+            "id": edge_id,
+            "kind": kind,
+            "from": source,
+            "to": target,
+            "on_outcomes": ["pass"],
+            "max_traversals": None,
+        }
+
+    plan["graph"] = {
+        "entry_nodes": ["N-M1", "N-M3"],
+        "nodes": [
+            *(
+                graph_node(f"N-{mission_id}", "mission", mission_id, "runtime_worker", outcomes)
+                for mission_id in mission_ids
+            ),
+            review,
+            graph_node("N-BATCH", "verifier", "batch", "local_command", ["pass", "blocked"]),
+            graph_node("N-FINAL", "verifier", "final", "local_command", ["pass", "blocked"]),
+        ],
+        "edges": [
+            edge("E-M1-M2", "dependency", "N-M1", "N-M2"),
+            *(
+                edge(f"E-{mission_id}-REVIEW", "dependency", f"N-{mission_id}", "N-FINAL-REVIEW")
+                for mission_id in mission_ids
+            ),
+            edge("E-REVIEW-BATCH", "route", "N-FINAL-REVIEW", "N-BATCH"),
+            edge("E-BATCH-FINAL", "dependency", "N-BATCH", "N-FINAL"),
+        ],
+    }
+    plan["review_policy"] = "final_candidate"
+    plan["required_reviews"] = ["security"]
+    plan["security_review"] = {
+        "status": "required",
+        "skill_slot": "code_security_verification",
+        "reason": None,
+    }
+    return plan
+
+
 def sandbox_observation(plan: dict[str, object]) -> dict[str, object]:
     entries: dict[tuple[str, str], dict[str, str]] = {}
     declarations: list[dict[str, object]] = []
@@ -1054,18 +1124,20 @@ def mark_complete(plan: dict[str, object], run: dict[str, object]) -> None:
     integration_head = run["integration"]["integration_head_sha"]
     batch_base = run["integration"]["batch_base_sha"]
     mission_ids = [mission["id"] for mission in plan["missions"]]
-    worker_heads = {
-        mission_id: head
-        for mission_id, head in zip(mission_ids, (SHA_B, SHA_C), strict=True)
-    }
-    integrated_heads = {
-        mission_id: head
-        for mission_id, head in zip(
+    # Two missions keep their historical heads; each further mission gets
+    # its own worker and integrated head.
+    spare_heads = [str(digit) * 40 for digit in range(1, 10)]
+    extra = len(mission_ids) - 2
+    worker_heads = dict(
+        zip(mission_ids, [SHA_B, SHA_C, *spare_heads[:extra]], strict=True)
+    )
+    integrated_heads = dict(
+        zip(
             mission_ids,
-            (SHA_D, integration_head),
+            [SHA_D, *spare_heads[extra : 2 * extra], integration_head],
             strict=True,
         )
-    }
+    )
     authorize_execution(run, mission_ids, status="complete")
     existing_version_gate = (
         run.get("runtime_capabilities", {})

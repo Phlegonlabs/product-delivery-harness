@@ -46,7 +46,9 @@ from harness_schema import (
     archive_first_required,
     parse_harness_version,
     required_harness_version,
+    REVIEW_POLICIES,
     review_lenses,
+    review_policy,
     security_result_decision,
     RUNTIME_REVIEW_TYPES,
     RUNTIME_REASONING_EFFORTS,
@@ -1988,12 +1990,13 @@ def validate_plan(
     # it. `required_reviews` is read below: whatever review types a PLAN lists
     # there must exist as graph review nodes. It is a self-declared obligation,
     # so an empty list was always legal and omitting it is the same thing --
-    # actual review coverage comes from the per-mission singleton review nodes
-    # described in `contract-and-traceability.md`, not from this field.
+    # actual review coverage comes from the review nodes that `review_policy`
+    # requires (validate_run checks them at execution), not from this field.
     plan_optional_keys = {
         "branch_policy",
         "risks",
         "required_reviews",
+        "review_policy",
         "security_review",
         "platform_delivery",
     }
@@ -2025,6 +2028,11 @@ def validate_plan(
                 "plan.required_reviews",
                 f"unsupported review types: {', '.join(unknown_reviews)}",
             )
+    if "review_policy" in plan and (
+        not isinstance(plan["review_policy"], str)
+        or plan["review_policy"] not in REVIEW_POLICIES
+    ):
+        _add(errors, "plan.review_policy", "must be per_mission or final_candidate")
     _validate_plan_security_review(errors, plan, required_reviews)
     if schema_version == 6 and "branch_policy" in plan:
         errors.extend(validate_branch_policy_shape(plan))
@@ -5767,6 +5775,9 @@ def preintegration_review_errors(
         .get("review", {})
         .get("mission_ids", [])
     }
+    if not preintegration_review_ids and review_policy(plan) == "final_candidate":
+        # The integration-stage review covers this mission after it merges.
+        return errors
     raw_graph_state = run.get("graph_state")
     raw_node_states = (
         raw_graph_state.get("node_states")
@@ -6028,6 +6039,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         and isinstance(plan.get("graph"), dict)
     ):
         reviewed_missions: set[str] = set()
+        final_candidate = review_policy(plan) == "final_candidate"
         raw_graph_nodes = plan["graph"].get("nodes", [])
         raw_graph_edges = plan["graph"].get("edges", [])
         graph_nodes = raw_graph_nodes if isinstance(raw_graph_nodes, list) else []
@@ -6048,9 +6060,22 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             review = node.get("review")
             if not isinstance(review, dict):
                 continue
-            if schema_version in {10, 11} and review.get("stage", "preintegration") != "preintegration":
-                continue
             review_mission_ids = review.get("mission_ids") or []
+            if schema_version in {10, 11} and review.get("stage", "preintegration") != "preintegration":
+                # Under final_candidate the integration-stage review covers
+                # its missions; under per_mission it never does.
+                if (
+                    final_candidate
+                    and isinstance(node.get("allowed_outcomes"), list)
+                    and "pass" in node["allowed_outcomes"]
+                    and isinstance(review_mission_ids, list)
+                ):
+                    reviewed_missions.update(
+                        mission_id
+                        for mission_id in review_mission_ids
+                        if isinstance(mission_id, str)
+                    )
+                continue
             if schema_version in {10, 11}:
                 if (
                     len(review_mission_ids) != 1
@@ -6080,7 +6105,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if unreviewed:
             review_requirement = (
                 "no direct singleton pre-integration review node"
-                if schema_version in {10, 11}
+                if schema_version in {10, 11} and not final_candidate
                 else "no review node"
             )
             _add(
@@ -7757,10 +7782,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                                 _add(errors, "run.launch_records", issue)
                         continue
                     review_provider = binding["provider"]
-                    review_policy = node.get("runtime") if isinstance(node, dict) else None
+                    review_runtime = node.get("runtime") if isinstance(node, dict) else None
                     if not is_valid_provider_id(review_provider):
                         _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
-                    if not isinstance(review_policy, dict) or review_provider not in review_policy.get(
+                    if not isinstance(review_runtime, dict) or review_provider not in review_runtime.get(
                         "allowed_providers", []
                     ):
                         _add(
@@ -7773,8 +7798,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if binding["source"] != "host":
                         _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
                     review_expected_options = (
-                        resolve_runtime_options(review_policy, review_provider)
-                        if isinstance(review_policy, dict)
+                        resolve_runtime_options(review_runtime, review_provider)
+                        if isinstance(review_runtime, dict)
                         else {
                             "model": None,
                             "reasoning_effort": None,

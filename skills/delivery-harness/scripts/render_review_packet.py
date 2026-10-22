@@ -13,7 +13,7 @@ from typing import Any
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import ui_acceptance_review
 from harness_manifest import ManifestError, load_plan, load_run, validate_current_plan_run
-from harness_schema import review_lenses
+from harness_schema import review_lenses, review_policy
 from check_launch_packet import (
     InvalidMessageBudgetError,
     MessageBudgetOverflowError,
@@ -226,7 +226,8 @@ def render_packet(
             "Perform a fresh full-scope review at the reviewed head. Prior mission"
             " reviews do not reduce security scope or replace required checks.",
         ]
-    elif review.get("stage") == "integration":
+    elif review.get("stage") == "integration" and review_policy(plan) == "per_mission":
+        # A final_candidate review has no earlier mission review to lean on.
         reviewed_heads = []
         for mission in missions:
             mission_head = (

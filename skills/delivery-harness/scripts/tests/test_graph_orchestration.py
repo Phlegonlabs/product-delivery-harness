@@ -14,10 +14,11 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import mission_dependencies, resolve_runtime_options  # noqa: E402
-from harness_graph import _validate_graph  # noqa: E402
+from harness_graph import _validate_graph, merge_chain_skip_allowed  # noqa: E402
 from harness_manifest import (  # noqa: E402
     INTERRUPTED_REVIEW_RECEIPT,
     plan_digest,
+    preintegration_review_errors,
     topological_levels,
     validate_plan,
     validate_run,
@@ -43,7 +44,7 @@ from test_harness_manifest import (  # noqa: E402
     valid_run,
 )
 from validate_node_result import validate_node_result  # noqa: E402
-from manifest_fixtures import record_review_spawn_receipts  # noqa: E402
+from manifest_fixtures import final_candidate_plan, record_review_spawn_receipts  # noqa: E402
 
 
 def graph_node(
@@ -511,6 +512,159 @@ def add_security_review(
     )
     plan["required_reviews"].append("security")
     return node
+
+
+def bind_security_pass(run: dict[str, object], node: dict[str, object]) -> dict[str, object]:
+    """Give a node's current reviewer an exact-head structured security PASS."""
+    head = run["integration"]["integration_head_sha"]
+    base = run["integration"]["batch_base_sha"]
+    worker = next(item for item in run["review_workers"] if item["node_id"] == node["id"])
+    worker.update(
+        {
+            "reviewed_sha": head,
+            "base_sha": base,
+            "review_path": "C:/repo",
+            "worker_runtime": "subagent",
+            "runtime_binding": {
+                "provider": "codex",
+                "driver": "subagents",
+                "source": "host",
+                "model": None,
+                "reasoning_effort": None,
+                "option_source": "provider_default",
+            },
+            "security_result": {
+                "review_type": "security",
+                "decision": "pass",
+                "reviewed_sha": head,
+                "base_sha": base,
+                "scope": node["review"]["scope"],
+                "exclusions": [],
+                "trust_boundaries": ["request to privileged delivery state"],
+                "tools": [
+                    {
+                        "name": "manual source review",
+                        "status": "passed",
+                        "evidence": "reviewed source-to-sink paths",
+                    }
+                ],
+                "coverage": {"status": "complete", "reviewed": ["full declared scope"], "gaps": []},
+                "findings": [],
+                "evidence": [f"reviewed exact SHA {head}"],
+            },
+        }
+    )
+    record_review_spawn_receipts(run)
+    return worker
+
+
+class FinalCandidatePolicyTests(unittest.TestCase):
+    """One combined review on the final candidate replaces per-mission reviews."""
+
+    def worker_passed(self, run: dict[str, object], mission_id: str) -> None:
+        run["mission_states"][mission_id].update(
+            {"phase": "worker_passed", "worker_id": f"W-{mission_id}", "head_sha": "b" * 40}
+        )
+        run["workers"].append({"worker_id": f"W-{mission_id}", "mission_id": mission_id})
+
+    def test_three_write_missions_authorize_with_one_combined_review(self) -> None:
+        plan = final_candidate_plan()
+        run = valid_graph_run(plan)
+        authorize_execution(run, ["M1", "M2", "M3"])
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual([], validate_run(plan, run))
+
+    def test_plan_without_review_policy_fails_where_it_fails_today(self) -> None:
+        plan = final_candidate_plan()
+        del plan["review_policy"]
+        run = valid_graph_run(plan)
+        authorize_execution(run, ["M1", "M2", "M3"])
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertIn(
+            "run.execution_authorized: cannot authorize execution while these missions have"
+            " a write scope and no direct singleton pre-integration review node: M1, M2, M3",
+            validate_run(plan, run),
+        )
+        plan["review_policy"] = "one_take"
+        self.assertIn(
+            "plan.review_policy: must be per_mission or final_candidate", validate_plan(plan)
+        )
+
+    def test_mission_integrates_after_worker_passed_without_a_mission_review(self) -> None:
+        plan = final_candidate_plan()
+        run = valid_graph_run(plan)
+        self.worker_passed(run, "M1")
+
+        self.assertEqual([], preintegration_review_errors(plan, run, "M1"))
+        del plan["review_policy"]
+        self.assertTrue(preintegration_review_errors(plan, run, "M1"))
+
+    def test_a_planned_mission_review_keeps_the_per_mission_rule(self) -> None:
+        plan = final_candidate_plan()
+        risk_review = graph_node(
+            "N-M1-RISK-REVIEW",
+            "verifier",
+            "batch",
+            "runtime_worker",
+            ["pass", "retryable_failure", "blocked", "contract_gap"],
+        )
+        risk_review["review"] = {
+            "type": "backend_code",
+            "lineage_id": "REVIEW-M1-RISK",
+            "mission_ids": ["M1"],
+            "scope": ["src/a/**"],
+            "required_evidence": ["reviewed_sha", "findings"],
+        }
+        attach_single_mission_review(plan, risk_review)
+        run = valid_graph_run(plan)
+        self.worker_passed(run, "M1")
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertTrue(
+            any(
+                "requires every planned pre-integration review node" in error
+                for error in preintegration_review_errors(plan, run, "M1")
+            )
+        )
+
+    def test_run_closes_with_the_security_result_on_the_combined_node(self) -> None:
+        plan = final_candidate_plan()
+        node = next(item for item in plan["graph"]["nodes"] if item["id"] == "N-FINAL-REVIEW")
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        worker = bind_security_pass(run, node)
+
+        self.assertEqual("complete", run["status"])
+        self.assertEqual([], validate_run(plan, run))
+        worker.pop("security_result")
+        self.assertTrue(
+            any(
+                "required security integration review needs a current worker_passed PASS result"
+                in error
+                for error in validate_run(plan, run)
+            )
+        )
+
+    def test_combined_review_without_security_lens_fails_required_security(self) -> None:
+        plan = final_candidate_plan(lenses=("backend_code", "visual"))
+
+        self.assertIn(
+            "plan.required_reviews: missing runtime review nodes: security",
+            validate_plan(plan),
+        )
+
+    def test_merge_chain_skip_is_only_for_per_mission_plans(self) -> None:
+        plan = final_candidate_plan(lenses=("backend_code",))
+        review = next(item for item in plan["graph"]["nodes"] if item["id"] == "N-FINAL-REVIEW")
+
+        self.assertFalse(merge_chain_skip_allowed(plan, review["review"]))
+        del plan["review_policy"]
+        self.assertTrue(merge_chain_skip_allowed(plan, review["review"]))
+        for lens in ("visual", "security"):
+            review["review"]["lenses"] = ["backend_code", lens]
+            self.assertFalse(merge_chain_skip_allowed(plan, review["review"]))
 
 
 class GraphManifestTests(unittest.TestCase):

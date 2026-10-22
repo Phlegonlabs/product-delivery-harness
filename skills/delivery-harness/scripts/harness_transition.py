@@ -5230,9 +5230,10 @@ def _record_reviewed_merge_chain(
     head contains. Anything else leaves no proof, so the review runs.
     """
 
-    if not merge_chain_skip_allowed(node["review"]):
+    if not merge_chain_skip_allowed(plan, node["review"]):
         raise ManifestError(
-            "a merge-chain skip applies only to frontend_code and backend_code reviews"
+            "a merge-chain skip applies only to frontend_code and backend_code"
+            " reviews of a per_mission PLAN"
         )
     reviewed: dict[str, str] = {}
     for worker in run.get("review_workers", []):

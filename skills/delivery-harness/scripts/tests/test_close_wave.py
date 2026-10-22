@@ -62,8 +62,11 @@ def save_run_block(path: Path, run: dict) -> None:
     path.write_text(text[: start + len("```json\n")] + body + text[end:], encoding="utf-8")
 
 
-class CloseWaveCliTests(unittest.TestCase):
-    """Drive the real CLI main() across the full write path, then close."""
+class CliFixture:
+    """Drive the real CLI main() against a Git checkout and PLAN/RUN files."""
+
+    def plan_fixture(self) -> dict:
+        return mf.valid_plan()
 
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
@@ -82,7 +85,7 @@ class CloseWaveCliTests(unittest.TestCase):
         self.head = mf.git(self.gitroot, "rev-parse", "HEAD")
         self.wt1 = (self.root / "wt-m1").as_posix()
 
-        self.plan = mf.valid_plan()
+        self.plan = self.plan_fixture()
         self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
             prd.read_bytes()
         ).hexdigest()
@@ -189,7 +192,7 @@ class CloseWaveCliTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self._seed_sandbox_observation()
 
-    def _integrate_m1(self, *, record: bool = True, retain_integration: bool = True) -> None:
+    def _pass_m1_worker(self, *, retain_integration: bool = True) -> None:
         result = self.cli(
             "--repo-root", str(self.gitroot),
             "accept-wave", "--wave-id", "W-1", "--mission-id", "M1",
@@ -243,6 +246,33 @@ class CloseWaveCliTests(unittest.TestCase):
             ))
         save_run_block(self.run_path, live)
 
+
+class FinalCandidateIntegrationCliTests(CliFixture, unittest.TestCase):
+    """A final_candidate mission integrates without a pre-integration review."""
+
+    def plan_fixture(self) -> dict:
+        return mf.final_candidate_plan()
+
+    def test_mission_integrates_on_worker_passed(self) -> None:
+        self._pass_m1_worker()
+
+        result = self.cli(
+            "--repo-root", str(self.gitroot),
+            "record-integration", "--mission-id", "M1",
+            "--integrated-sha", self.head,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        live = load_run_block(self.run_path)
+        self.assertEqual("integrated", live["mission_states"]["M1"]["phase"])
+        self.assertEqual([], live["review_workers"])
+
+
+class CloseWaveCliTests(CliFixture, unittest.TestCase):
+    """Drive the real CLI main() across the full write path, then close."""
+
+    def _integrate_m1(self, *, record: bool = True, retain_integration: bool = True) -> None:
+        self._pass_m1_worker(retain_integration=retain_integration)
         result = self.cli(
             "--repo-root", str(self.gitroot),
             "reserve-review-dispatch", "--node-id", "N-REVIEW-M1",

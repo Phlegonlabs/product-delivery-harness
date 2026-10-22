@@ -320,6 +320,8 @@ RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual", "security"}
 # A review node with `lenses` sets `type` to its widest lens in this order, so
 # every security and visual rule keyed on `type` still applies to it.
 REVIEW_LENS_ORDER = ("security", "visual", "frontend_code", "backend_code")
+# An absent PLAN `review_policy` means per_mission, the rule of every older PLAN.
+REVIEW_POLICIES = {"per_mission", "final_candidate"}
 REVIEWER_TOOL_KEYS = {"chrome_devtools"}
 REVIEWER_TOOL_STATUSES = {"available", "unavailable", "unobserved"}
 REVIEWER_TOOL_PROBE_SCOPES = {"reviewer_session", "parent_session", "unobserved"}
@@ -335,6 +337,11 @@ def review_lenses(review: object) -> set[str]:
         return {lens for lens in lenses if isinstance(lens, str)}
     review_type = review.get("type")
     return {review_type} if isinstance(review_type, str) else set()
+
+
+def review_policy(plan: object) -> str:
+    value = plan.get("review_policy") if isinstance(plan, dict) else None
+    return value if isinstance(value, str) else "per_mission"
 
 
 def security_result_decision(review: object, outcome: object, result: object) -> object:
