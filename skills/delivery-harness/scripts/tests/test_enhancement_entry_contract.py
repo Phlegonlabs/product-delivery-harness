@@ -44,7 +44,8 @@ class EnhancementEntryContractTests(unittest.TestCase):
                        "before completion or handoff", "commits made outside Harness",
                        "baseline gap", "observed / unverified", "working-tree", "actual verification separately",
                        "fingerprint", "no-change check", "read-only or no-write task",
-                       "not a background timer", "Keep `docs/DOCUMENTS.md` indexed"):
+                       "not a background timer", "Keep `docs/DOCUMENTS.md` indexed",
+                       "one entry check with one record"):
             self.assertIn(phrase, section)
         if (REPO / "AGENTS.md").exists():
             self.assertIn("significant edit", root.lower())
@@ -71,6 +72,7 @@ class EnhancementEntryContractTests(unittest.TestCase):
             "delivery-harness/VERSION",
             "current`, `stale` or `unknown`", "update only stale shared instructions in place",
             "A read-only handoff reports proposed updates", "not a timer",
+            "This audit is the one exit check",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, seeded)
