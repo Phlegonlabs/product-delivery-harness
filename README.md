@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>General runtime adapter: host capabilities, contract adoption and host handoff</b></summary>
 
-Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Host-specific models stay in host policy; shared skills retain configured roles and authorized fallbacks. Resolve frontend model and effort from the effective host policy for each launch. Keep requested settings separate from runtime observations.
+Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Host-specific models stay in host policy; shared skills retain configured roles and authorized fallbacks. Resolve the frontend model by design or implementation stage from effective host policy. Pass its exact effort explicitly. Keep requested settings separate from runtime observations.
 
 ## General runtime adapter
 

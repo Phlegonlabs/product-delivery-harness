@@ -12,7 +12,7 @@ The [audit](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9
 
 ## Accepted Scope
 
-- FAH-1: make the effective host policy the frontend model authority: Claude Opus 5.5 with `xhigh` effort.
+- FAH-1: make host policy the model authority by stage: UI design uses Claude Opus 5.5/xhigh; production frontend implementation uses Sonnet 5.5/xhigh.
 - FAH-2: pass selected screens, fonts, assets and observable visual features completely to the actual author.
 - Preserve overall 85, every dimension 80, necessary evidence, approval and repair limits.
 - Keep current UI package selection and direct/managed routing. No lightweight-policy or compiler redesign is included.
@@ -38,6 +38,7 @@ Gitignore impact: none. Task evidence and recoverable host-file backups stay out
 | 2026-10-21 entry | Source clean at the baseline. Global frontend policy says Opus/high; local worker skill repeats Sonnet/high. Launcher passes explicit model/effort through. | Confirm installed CLI effort support; preserve host files before changes; implement the two accepted outcomes sequentially. |
 | 2026-10-21 observed host update | The owner supplied replacement host instructions. Global AGENTS and claude-code-worker now agree on Opus 5.5/xhigh. The separately changed architect route is owner work and remains untouched. | Observe exact new host hashes and remove residual frontend high settings only. |
 | 2026-10-21 FAH-1 working tree | Updated Dynamic Workflow's frontend catalog and dispatch instructions, plus GLM Workers' frontend redirect, from high to xhigh. The existing bridge still forwards explicit request values. | New regression failed on high, then all 23 workflow tests passed after repair. Reviewer, architect and fallback settings are unchanged. |
+| 2026-10-21 owner refinement | After `611e4260`, the owner split design and production implementation models. UI directions, HiFi and design-reference repairs use Opus/xhigh; production frontend implementation and product UI repairs use Sonnet/xhigh. | Updated only frontend policy/redirects and the Dynamic Workflow implementation default. Distinct stage models use distinct actors. |
 
 Document inventory retains unknown loaded identity and first-baseline findings; it is not an approval PASS.
 
@@ -56,4 +57,9 @@ The parent verified the installed CLI's wrapped help text accepts `xhigh` and as
 See [model-policy read-back](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-model-policy-after.json) for exact current host-file hashes.
 Both changed host skills passed the skill-creator validator in UTF-8 mode. All 65 Harness skill-contract tests passed.
 The first help probe read only the first wrapped line; the corrected probe includes the documented choices. No model request was sent.
-FAH-1 is locally verified. FAH-2 and final independent review remain pending.
+The stage refinement preserves the prior instruction and result history rather than rewriting `611e4260`.
+Current host files and both no-launch command tails are retained in [stage-policy read-back](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-stage-policy-after.json).
+The pre-refinement files are retained in [stage-policy backup](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-host-before-stage-split/manifest.json).
+All 24 workflow tests pass, including Sonnet/xhigh default assignment and explicit Opus/xhigh design binding.
+All three changed host skills pass skill-creator validation; unrelated host policy and fallback settings remain unchanged.
+FAH-1 is locally verified under the latest stage split. FAH-2 and final independent review remain pending.

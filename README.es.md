@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>Adaptador general de runtime: capacidades del host, adopción del contrato y handoff entre hosts</b></summary>
 
-La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Los modelos específicos del host pertenecen a la política del host; los skills compartidos conservan los roles configurados y los fallback autorizados. Resuelve el modelo y esfuerzo frontend desde la política efectiva del host en cada lanzamiento. Separa la configuración solicitada de las observaciones del runtime.
+La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Los modelos específicos del host pertenecen a la política del host; los skills compartidos conservan los roles configurados y los fallback autorizados. Resuelve el modelo frontend por etapa de diseño o implementación desde la política del host. Pasa su esfuerzo explícitamente. Separa la configuración solicitada de las observaciones del runtime.
 
 ## Adaptador general de runtime
 
