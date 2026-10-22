@@ -42,7 +42,7 @@ the gate's existing explicit human decision and wait. After publication,
 deferred publication or handoff, do not repeat the inventory: report only the
 published, moved and archived paths with verified links and their approval
 statuses. The Visual Approval inventory already lists the Product Definition
-documents, so no combined handoff inventory follows it. Do not start
-implementation automatically. Unchanged approved decisions keep their approval;
+documents, so no combined handoff inventory follows it.
+Unchanged approved decisions keep their approval;
 presenting links never grants approval, publication, installation or
 implementation authority.

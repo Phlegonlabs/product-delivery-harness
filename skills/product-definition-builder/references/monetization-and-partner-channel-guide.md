@@ -2,7 +2,7 @@
 
 Use this guide whenever the product may charge money, gate features by purchase, or let an outside person or company help sell it. Monetization infrastructure and partner distribution are separate decisions. A product may need either, both, or neither.
 
-Do not select RevenueCat merely because a pricing page exists. First resolve the commercial model, purchase surfaces, entitlement owner, tax/compliance owner, and partner motion. Verify every named provider against current official documentation on the PRD date; do not freeze remembered pricing, platform support, or store-policy claims.
+First resolve the commercial model, purchase surfaces, entitlement owner, tax/compliance owner, and partner motion. Verify every named provider against current official documentation on the PRD date; do not freeze remembered pricing, platform support, or store-policy claims.
 
 ## Decision Gates
 

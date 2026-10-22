@@ -28,7 +28,7 @@ Every architecture should cover:
 - Data model and persistence.
 - API, event, file, or trigger contracts.
 - Authentication, authorization, and role boundaries.
-- Monetization model; product/price, purchase/subscription, entitlement, payment, tax, refund, and chargeback ownership; and the separately resolved affiliate, referral, or reseller operating model when applicable. Apply `monetization-and-partner-channel-guide.md` instead of assuming RevenueCat or treating every partner as an affiliate.
+- Monetization model; product/price, purchase/subscription, entitlement, payment, tax, refund, and chargeback ownership; and the separately resolved affiliate, referral, or reseller operating model when applicable. Apply `monetization-and-partner-channel-guide.md`.
 - Security, privacy, secrets, and audit concerns.
 - Required PRD Security Requirements rows: name each asset/boundary, enforcement point, safe failure, PRD ID, and TEST ID in Auth, Permissions, and Security.
 - The Data and Trust Gate: classification, residency, retention, deletion/export, consent/policy basis, vendor and human access, encryption, incident ownership, and applicable tests.
@@ -47,28 +47,15 @@ Recommend a complete compatible stack when the owner has no preference, includin
 
 ## Provider-Neutral Release Target Pattern
 
-Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close an explicit inventory of expected deployable surfaces during discovery instead of leaving destinations for implementation. Give each surface a stable identity, then give each exact destination a stable target ID and a `development` or `production` stage. Each expected surface needs at least one target in each stage; reject a package that omits one. Keep `surface` separate from `provider`: the same stable surface may use different providers in development and production.
+Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close the inventory of deployable surfaces during discovery. Record each target with the fields, source policy and availability rules in [Release Targets](output-contract.md#release-targets). Keep `surface` separate from `provider`: one surface may use different providers by stage.
 
-For every target, record:
+A build, upload, submission, deployment command, notarization result, or store approval is an intermediate event, not availability.
 
-- the stable surface identity and the stage-specific provider as separate fields;
-- a closed `Surface class` (`hosted_web`, `hosted_api`, `browser_extension`, `ios`, `android`, `macos`, `windows`, `worker`, `job`, `webhook`, `realtime`, `cli`, `agent`, or `other_nonpublic`) and explicit `Public discoverability: yes|no`; downstream gates must use these typed fields instead of guessing from names;
-- the explicit lowercase kebab-case surface suffix and provider-neutral release name, using the convention below;
-- the closed source policy: the exact candidate run branch/ref for the internally tested development release, or the verified protected-development SHA under an explicit `dual-branch/1` marker; production remains `refs/heads/main` after same-SHA promotion. Tags and alternative production refs are rejected;
-- artifact kind and exact signing/notarization requirement;
-- exact environment, channel, store track, tester group, update feed, or direct-download destination;
-- the ordered submission, promotion, review, or manual-approval path and its decision owner;
-- the availability signal proving the intended audience can actually reach, install, or download the release and pass its smoke/acceptance check;
-- rollout controls; and
-- rollback to a prior deployed version when the platform supports it, or rollout halt/removal plus a signed forward-fix through the same distribution path when it does not.
-
-A build, upload, submission, deployment command, notarization result, or store approval is an intermediate event, not availability. Hosted web/API availability requires the named route or API to serve the exact release and pass deployed smoke checks. Mobile and desktop availability requires the named audience to be able to install or download the approved artifact through the exact channel and pass the release smoke check.
-
-Keep native mobile and desktop targets in this provider-neutral record. Do not force TestFlight, Play tracks, App Store, notarized downloads, Microsoft Store, or signed update feeds into the two-row hosted environment table below. Preserve stable target IDs across revisions and retire rather than reuse an ID whose destination changes meaning.
+Keep native mobile and desktop targets in this provider-neutral record. Do not force TestFlight, Play tracks, App Store, notarized downloads, Microsoft Store, or signed update feeds into the two-row hosted environment table. Retire rather than reuse a target ID whose destination changes meaning.
 
 ### Surface Naming Convention
 
-Name an independently released unit from what it is, not from where it runs. Use lowercase kebab case. The production name is the canonical `<product-slug>-<surface-suffix>` name and never carries `-prod`; the development name is that exact canonical name plus `-dev`. A release name belongs to one surface ID and cannot be reused by another surface. Long-lived `-staging` or `-qa` names are valid only when those environments actually exist. Ephemeral branch/SHA previews keep platform-generated identities instead of inventing permanent names.
+Name an independently released unit from what it is, not from where it runs. Use lowercase kebab case: the production name is `<product-slug>-<surface-suffix>` and never carries `-prod`; the development name adds `-dev`. Long-lived `-staging` or `-qa` names are valid only when those environments exist. Ephemeral branch/SHA previews keep platform-generated identities.
 
 Use `web`, `api`, and `extension` as the normal suffixes. Use `admin`, `worker`, `jobs`, `agent`, `webhook`, `realtime`, or `cli` only for a separately released artifact. Native release artifacts may use `ios`, `android`, `macos`, or `windows`; a hosted backend shared by native clients is still `api`, not `ios-api` or `android-api`. A unit serving one combined web application and its API remains `web`; independently deployed web and API units get separate names. Keep Chrome, Firefox, an app store, and a hosting vendor in `provider` or channel fields. Add a browser name to the suffix only when browser-specific artifacts actually diverge, such as `chrome-extension` and `firefox-extension`. A public listing title may differ from this internal release name.
 
@@ -78,12 +65,7 @@ Record this sequence only when the human owner selects a whole-platform order. C
 
 ## Candidate-to-Production Release Pattern
 
-For a deployable hosted web, API, or backend product, resolve the platform before drafting. Keep one repository and one codebase. New ordinary work and hotfixes freeze remote main in PLAN `main-preview/1` and use a temporary branch. Deploy the exact candidate to its isolated PR/branch Preview, complete acceptance, then separately authorize protected-main landing and verify production. No permanent development branch or hotfix forward landing is required. Historical RUNs retain their pins. Development and production may use different providers; record both. Cloudflare uses native Workers Previews when supported, Pages only by owner choice, or an approved isolated fallback.
-
-| Target | Release source | Runtime and data boundary | Required proof |
-| --- | --- | --- | --- |
-| Development | Exact candidate run branch/ref and verified SHA during managed execution, with fixed Preview deployment identity | Development Preview (or approved fallback Worker for Cloudflare); isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Full internal suite on this SHA, migration result, deployed URL/version, and development smoke |
-| Production | Exact release SHA at remote `main` after separately authorized protected landing and promotion | Production environment (Worker for Cloudflare); production bindings, secrets, data, auth, and live payment credentials | Main ref read-back, deployed SHA, production smoke, monitoring signal, and recovery version |
+For a deployable hosted web, API, or backend product, resolve the platform before drafting. Keep one repository and one codebase. The release source policy is owned by [Release Targets](output-contract.md#release-targets); the environment contract is in the output contract's Deployment and Operations template. Cloudflare uses native Workers Previews when supported, Pages only by owner choice, or an approved isolated fallback.
 
 Do not model development as a second codebase or persistent branch. It is an isolated environment deployed from the exact candidate run branch/SHA. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward compatibility, secret ownership, recovery, and evidence invalidation.
 
@@ -106,7 +88,7 @@ Use for browser-based SaaS, marketplaces, dashboards, portals, and public web pr
 
 The mobile and desktop patterns below name concrete toolchains, store fees, code-signing steps, testing tracks, and OS-version deadlines. These change on the vendors' schedule, not yours. Do not copy any specific fee, tester count, testing-window rule, target-API deadline, minimum OS version, or signing/notarization step from memory into a PRD. Verify each against the official source cited in the pattern on the date the PRD is written, and record that check date and the direct link in `architecture.md`'s deployment/operations section, the same way `frontend-stack-selection.md` records a verification date in `stack-decisions.md` for web platform claims. When you cannot verify a specific number live, write the requirement without the number and mark it as needing live verification rather than asserting a stale figure.
 
-The native iOS, native Android, Flutter, React Native, and desktop targets do not use the web deployment-platform question (Cloudflare/Vercel/AWS/self-hosted). Their release path is an app store, testing track, notarized download, or signed installer/update feed. Record those exact development and production destinations as separate stable release targets; do not fit them into the hosted web environment table. A successful upload, submission, review approval, or notarization is not production availability until the intended audience can install or download the artifact and the release smoke check passes. When the channel cannot restore an already-installed version, recovery is a staged/phased-rollout halt where possible plus a corrected signed forward-fix through the same review or distribution path. A mobile or desktop product that also has a server backend still resolves that backend's own hosting separately.
+The native iOS, native Android, Flutter, React Native, and desktop targets do not use the web deployment-platform question (Cloudflare/Vercel/AWS/self-hosted). Their release path is an app store, testing track, notarized download, or signed installer/update feed. Record each destination as a separate stable release target (see Provider-Neutral Release Target Pattern). When the channel cannot restore an installed version, halt a staged rollout where possible and ship a signed forward-fix through the same distribution path. A mobile or desktop product that also has a server backend still resolves that backend's own hosting separately.
 
 ## Native iOS Pattern
 
@@ -116,7 +98,7 @@ Use for a native Apple-platform app built directly against Apple's SDKs (not a c
 - Client architecture: navigation and screen structure (commonly MVVM with a coordinator or navigation-stack pattern), local persistence (Core Data, SwiftData, or SQLite), local state, offline behavior, permissions, deep links, and device capabilities.
 - Distribution: a paid Apple Developer Program membership is required to ship to the App Store and TestFlight — confirm the current annual fee live. Builds must be code-signed with a distribution certificate and a provisioning profile. TestFlight is the beta channel before public release; confirm the current internal and external tester limits live. Push notifications go through APNs (Apple Push Notification service).
 - Backend: sync API, auth sessions, notification sending to APNs, media upload, and entitlement or subscription checks when the app sells content.
-- Purchases: apply `monetization-and-partner-channel-guide.md` when the app charges for digital access. StoreKit may be sufficient for one Apple-only surface; select RevenueCat or another layer only from cross-platform, entitlement, paywall, analytics, or operations requirements verified on the PRD date.
+- Purchases: apply `monetization-and-partner-channel-guide.md` when the app charges for digital access. StoreKit may be sufficient for one Apple-only surface.
 - Data: local cache versus remote canonical records, conflict resolution, sync timestamps, and deletion behavior.
 - Security: Keychain for secrets, biometric or device auth when needed, PII minimization, and jailbroken-device assumptions only when the product requires them.
 - Operations and required verification: app-review turnaround, server compatibility windows across app versions in the wild, analytics, crash reporting, and the limited rollback after an App Store release (you ship a new build or use phased release / expedited review, you do not silently roll back an installed version). Verify current signing, TestFlight, and submission requirements at [Apple Developer Program](https://developer.apple.com/programs/), [TestFlight](https://developer.apple.com/testflight/), and [code signing and provisioning profiles (TN3125)](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles) on the PRD date.
@@ -222,12 +204,8 @@ Use when the product is mainly a service consumed by other systems.
 - Prefer the simplest architecture that satisfies the stated workflows and constraints.
 - Call out tradeoffs when choosing between synchronous requests, background jobs, event-driven design, or scheduled processing.
 - Specify idempotency for payment, notification, import, workflow, and external mutation flows.
-- Keep monetization infrastructure separate from partner distribution. Pricing makes both gates applicable but does not automatically select RevenueCat; affiliate, referral, and reseller motions keep distinct attribution, customer-ownership, commission/discount, payout, provisioning, and support contracts.
 - Specify authorization at both UI and backend layers.
 - Implement required security controls and denial/no-side-effect tests with the task that touches their boundary. A scaffolded protected route stays fail-closed until those controls and tests exist.
 - For each applicable frontend, backend/data, mobile/desktop, commercial, or AI/automation area, present coherent stack bundles and record the owner-approved result. `Recommended` and `Provisional` rows are draft inputs, never implementation authority.
 - Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
-- For Cloudflare delivery, record the production Worker and native branch Preview identity, or a separately named isolated fallback. Define isolated bindings, secrets, data, auth, and payment modes plus the exact candidate-to-protected-branch promotion path.
-- Keep stable provider-neutral release target IDs above provider-specific commands. A successful publish command, upload, submission, or review is not availability without audience access and smoke evidence.
-- For native mobile and desktop channels, distinguish rollout halt/removal from rollback and require a signed forward-fix when installed clients cannot be reverted.
 - Avoid naming other vendors unless the user specified one, the current environment requires it, or a documented tradeoff makes the recommendation materially more useful.

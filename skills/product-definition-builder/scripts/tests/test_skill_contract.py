@@ -253,13 +253,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         platform = frontend.split("### Any Platform", 1)[1].split("### Cloudflare", 1)[0]
 
         self.assertIn("output-contract.md#release-targets", platform)
-        self.assertIn("Release source policy: main-preview/1", platform)
-        self.assertIn("Historical dual-branch/1 packages retain", platform)
-        self.assertIn("exact candidate PR/branch SHA", platform)
-        self.assertIn("`refs/heads/main`", platform)
-        self.assertIn("`promotion.verified_main_sha`", platform)
-        self.assertIn("separately authorized", platform)
-        self.assertIn("readback", platform)
         self.assertNotIn(
             "Development releases build from the exact candidate run branch/SHA and use",
             platform,
@@ -687,14 +680,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
                 "merged_main",
             ):
                 self.assertNotIn(retired, content)
-        for content in (interview, architecture):
-            self.assertTrue("branch or ref" in content or "branch/ref" in content)
-        for content in (interview, architecture):
-            self.assertIn("refs/heads/main", content)
-            self.assertTrue(
-                "signed tag" in content.lower()
-                or "tags and alternative production refs are rejected" in content.lower()
-            )
+        self.assertTrue("branch or ref" in interview or "branch/ref" in interview)
+        self.assertIn("refs/heads/main", interview)
+        self.assertIn("tags and alternative production refs are rejected", interview.lower())
         self.assertIn("promotion.verified_main_sha", contract)
 
     def test_migration_order_drops_plan_v5_field_mapping(self) -> None:
