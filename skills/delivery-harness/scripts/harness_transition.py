@@ -13,12 +13,9 @@ import copy
 import hashlib
 import json
 import os
-import re
-import secrets
 import subprocess
 import sys
 import tempfile
-import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,11 +31,6 @@ from harness_core import (
     plan_digest,
     path_in_scopes,
     validate_changed_path,
-)
-from harness_contract import (
-    contract_adoption_check_errors,
-    contract_adoption_check_evidence,
-    contract_digest,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import (
@@ -61,21 +53,9 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import EXACT_TARGET_LIFECYCLE_ACTIONS, RUN_DISPATCH_STATUSES, RUN_HEADING
-from harness_schema import archive_first_required, parse_harness_version, required_harness_version
-from harness_schema import review_lenses, security_result_decision, version_at_least
+from harness_schema import review_lenses, security_result_decision
 from harness_schema import frozen_coordination_path, supported_coordination_path
-from push_integration_branch import (
-    make_push_request,
-    validate_push_receipt,
-    validate_push_target,
-)
-from verifier_runtime import (
-    host_runtime_fingerprint,
-    host_executable_identity,
-    observe_plan_host_runtimes,
-    observe_plan_sandboxes,
-    sandbox_host_fingerprint,
-)
+from verifier_runtime import host_executable_identity, observe_plan_host_runtimes
 from harness_worker_result_transition import (
     record_worker_result,
     reject_worker_result,
@@ -83,18 +63,9 @@ from harness_worker_result_transition import (
 )
 from select_ready_nodes import (
     GraphSelectionError,
-    _sandbox_observation_reasons,
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
-from agent_launch_records import validate_launch_record_shape
-from agent_failure_receipts import (
-    interrupted_retry_issues, interruption_receipt_required, load_failure_receipt,
-)
-from agent_role_contract import role_contract_enabled, role_contract_gate_enabled
-from agent_result_receipts import load_result_receipt
-from agent_role_recovery import resolve_fallback_reservation
-from agent_launch_records import validate_launch_record
 from check_launch_packet import InvalidMessageBudgetError, check_message
 from security_review_result import (
     SecurityReviewResultError,
@@ -255,16 +226,6 @@ def _require_observed_plan_identity(
     observed = run.get("observed")
     if not isinstance(observed, dict) or not _nonempty_string(observed.get("captured_at")):
         raise ManifestError(f"{operation} requires a fresh parent observation")
-    for field in ("sandbox", "host_runtime"):
-        snapshot = observed.get(field)
-        if (
-            not isinstance(snapshot, dict)
-            or snapshot.get("plan_revision") != expected_revision
-            or snapshot.get("plan_digest_sha256") != expected_digest
-        ):
-            raise ManifestError(
-                f"{operation} requires a fresh observation for the live PLAN revision"
-            )
 
 
 def _candidate_allowed_scopes(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
@@ -313,16 +274,11 @@ DEFAULT_LOCK_STALE_MINUTES = 15
 # Dispatching the write path is single-writer work: these commands require
 # the calling session to already hold the run lock.
 DISPATCH_COMMANDS = {
-    "adopt-runtime-contract",
-    "update-role-bindings",
     "accept-wave",
     "lease-worker",
-    "record-launch-observation",
     "record-worker-result",
-    "reconcile-worker-ingestion",
     "reject-worker-result",
     "reserve-review-dispatch",
-    "bind-review-task-thread",
     "record-integration",
     "reconcile-candidate-head",
     "reconcile-coordination-head",
@@ -330,20 +286,6 @@ DISPATCH_COMMANDS = {
     "reserve-node-attempt",
     "record-node-result",
 }
-TASK_VIEW_CHECKPOINTS = {
-    "accept-wave",
-    "record-worker-result",
-    "reconcile-worker-ingestion",
-    "reject-worker-result",
-    "record-integration",
-    "reconcile-candidate-head",
-    "reconcile-coordination-head",
-    "reconcile-interrupted",
-    "reconcile-interrupted-reviews",
-    "close-wave",
-}
-
-
 @contextmanager
 def _run_transition_lock(path: Path) -> Iterator[None]:
     """Serialize the complete read/validate/write transaction for one RUN.
@@ -561,52 +503,6 @@ def _watchdog_report(run: dict[str, Any], stale_after: float) -> list[str]:
     return lines
 
 
-def _record_transition_prepare_metrics(
-    run: dict[str, Any],
-    args: argparse.Namespace,
-    *,
-    started_at: str,
-    started_counter_ns: int,
-) -> None:
-    """Append one measured preparation event to optional runtime metrics."""
-
-    if run.get("schema_version") not in {10, 11}:
-        return
-    metrics = run.get("runtime_metrics")
-    if metrics is None:
-        metrics = {
-            "baseline_wall_time_ms": None,
-            "run_wall_time_ms": None,
-            "critical_path_ms": None,
-            "events": [],
-        }
-        run["runtime_metrics"] = metrics
-    if not isinstance(metrics, dict) or not isinstance(metrics.get("events"), list):
-        raise ManifestError("run.runtime_metrics.events must be a list before transition recording")
-    events = metrics["events"]
-
-    elapsed_ns = time.perf_counter_ns() - started_counter_ns
-    events.append(
-        {
-            "event_id": (
-                f"transition-{args.command}-{started_at}-"
-                f"{secrets.token_hex(8)}"
-            ),
-            "provider": "generic",
-            "node_id": getattr(args, "node_id", None),
-            "attempt_id": getattr(args, "attempt_id", None),
-            "phase": f"transition_prepare:{args.command}",
-            "status": "complete",
-            "started_at": started_at,
-            "completed_at": _now(),
-            "duration_ms": max(0, elapsed_ns // 1_000_000),
-            "wait_ms": None,
-            "input_tokens": None,
-            "output_tokens": None,
-            "cached_input_tokens": None,
-            "context_bytes": None,
-        }
-    )
 
 
 def _git_out(repo_root: Path, *args: str) -> str:
@@ -726,30 +622,6 @@ def _require_non_default_integration_branch(run: dict[str, Any]) -> str:
     return branch
 
 
-def _validate_push_side_effect(
-    run: dict[str, Any], repo_root: Path | None, authorized_head_sha: Any
-) -> None:
-    """Bind push reservation/completion to the exact live branch head."""
-
-    if run.get("schema_version") == 11:
-        if required_harness_version(run) is None:
-            raise ManifestError("RUN schema 11 push requires an explicit valid required_harness_version pin")
-        if archive_first_required(run):
-            raise ManifestError("RUN pins archive-first promotion; reserve/push the archived candidate instead")
-
-    if not is_full_sha(authorized_head_sha):
-        raise ManifestError("push lifecycle requires a full authorized head SHA")
-    branch = _require_non_default_integration_branch(run)
-    integration = run.get("integration")
-    if not isinstance(integration, dict) or integration.get("integration_head_sha") != authorized_head_sha:
-        raise ManifestError(
-            "lifecycle authorization target or head is stale; reserve a fresh node attempt"
-        )
-    if repo_root is None:
-        raise ManifestError("push lifecycle reservation/completion requires --repo-root")
-    target = validate_push_target(run, repo_root, authorized_head_sha)
-    if target["branch"] != branch:
-        raise ManifestError("push authorization target does not match the live integration branch")
 
 
 def _validate_security_integration_checkout(
@@ -953,29 +825,6 @@ def _record_observation(
     default_branch = _remote_default_branch(root)
     if default_branch is not None:
         run["observed"]["git"]["default_branch"] = default_branch
-    sandbox_entries, sandbox_errors = observe_plan_sandboxes(plan)
-    run["observed"]["sandbox"] = {
-        "status": "available" if not sandbox_errors else "unavailable",
-        "plan_revision": plan.get("revision"),
-        "plan_digest_sha256": plan_digest(plan),
-        "captured_at": captured_at,
-        "host": sandbox_host_fingerprint(),
-        "entries": sandbox_entries,
-        "errors": sandbox_errors,
-    }
-    host_entries, host_errors = observe_plan_host_runtimes(
-        plan,
-        root,
-    )
-    run["observed"]["host_runtime"] = {
-        "status": "available" if not host_errors else "unavailable",
-        "plan_revision": plan.get("revision"),
-        "plan_digest_sha256": plan_digest(plan),
-        "captured_at": captured_at,
-        "host": host_runtime_fingerprint(),
-        "entries": host_entries,
-        "errors": host_errors,
-    }
     if update_capacity:
         run["observed"]["runtime"].update({
             "available_worker_slots": slots,
@@ -990,193 +839,6 @@ def _record_observation(
                 evidence.strip(),
             ],
         })
-
-
-def _quiescent_integration_pending(
-    plan: dict[str, Any], run: dict[str, Any], node_id: str,
-) -> dict[str, str] | None:
-    """Identify only a passed, reviewed mission whose integration is pending."""
-    from harness_manifest import preintegration_review_errors
-
-    nodes = [node for node in plan.get("graph", {}).get("nodes", [])
-             if isinstance(node, dict) and node.get("id") == node_id and node.get("kind") == "mission"]
-    if len(nodes) != 1:
-        return None
-    mission_id = nodes[0].get("ref")
-    if not _nonempty_string(mission_id):
-        return None
-    if sum(node.get("kind") == "mission" and node.get("ref") == mission_id
-           for node in plan.get("graph", {}).get("nodes", []) if isinstance(node, dict)) != 1:
-        return None
-    state = run.get("graph_state", {}).get("node_states", {}).get(node_id, {})
-    mission_states = run.get("mission_states")
-    mission = mission_states.get(mission_id) if isinstance(mission_states, dict) else None
-    if not isinstance(mission, dict):
-        return None
-    if state.get("phase") != "running" or mission.get("phase") != "worker_passed":
-        return None
-    workers = [worker for worker in run.get("workers", []) if isinstance(worker, dict)
-               and worker.get("worker_id") == state.get("bound_worker_id")]
-    if len(workers) != 1:
-        return None
-    worker = workers[0]
-    head = mission.get("head_sha")
-    if (worker.get("phase") != "worker_passed" or worker.get("mission_id") != mission_id
-            or worker.get("worker_id") != mission.get("worker_id")
-            or not _nonempty_string(worker.get("lease_id"))
-            or worker.get("lease_id") != mission.get("lease_id")
-            or not _nonempty_string(worker.get("attempt_id"))
-            or worker.get("attempt_id") != state.get("last_attempt_id")
-            or not is_full_sha(head) or worker.get("worker_head_sha") != head
-            or preintegration_review_errors(plan, run, mission_id)):
-        return None
-    return {"mission_id": mission_id, "node_id": node_id, "head_sha": head}
-
-
-def _adopt_runtime_contract(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> None:
-    """Record an owner-authorized fixed-contract re-read at a quiet boundary."""
-
-    if plan.get("schema_version") != 6 or run.get("schema_version") != 11:
-        raise ManifestError("runtime-contract adoption requires PLAN v6 with RUN v11")
-    control = run.get("control")
-    desired_state = control.get("desired_state") if isinstance(control, dict) else None
-    if run.get("status") == "complete" or desired_state == "cancelled":
-        raise ManifestError(
-            "runtime-contract adoption refuses a complete or cancelled run"
-        )
-
-    wave = run.get("active_wave")
-    if isinstance(wave, dict) and wave.get("status") in {"proposed", "active"}:
-        raise ManifestError(
-            "runtime-contract adoption refuses an active or proposed wave"
-        )
-    live_workers = sorted(
-        str(worker.get("worker_id"))
-        for worker in [*run.get("workers", []), *run.get("review_workers", [])]
-        if isinstance(worker, dict)
-        and worker.get("phase") in {"leased", "worker_running"}
-    )
-    integration_pending = []
-    running_nodes = []
-    for node_id in sorted(
-        str(node_id)
-        for node_id, state in run.get("graph_state", {}).get("node_states", {}).items()
-        if isinstance(state, dict) and state.get("phase") == "running"
-    ):
-        proof = _quiescent_integration_pending(plan, run, node_id)
-        if proof is None:
-            running_nodes.append(node_id)
-        else:
-            integration_pending.append(proof)
-    reserved_attempts = sorted(
-        str(attempt.get("attempt_id"))
-        for attempt in run.get("attempt_log", [])
-        if isinstance(attempt, dict)
-        and attempt.get("kind") == "node_attempt"
-        and attempt.get("result") == "reserved"
-    )
-    active_work = [*live_workers, *running_nodes, *reserved_attempts]
-    if active_work:
-        raise ManifestError(
-            "runtime-contract adoption requires a quiescent run; reconcile first: "
-            + ", ".join(active_work)
-        )
-
-    adapter = run.get("runtime_capabilities", {}).get("runtime_adapter")
-    gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
-    if not isinstance(gate, dict):
-        raise ManifestError("RUN has no runtime version gate")
-    if gate.get("loaded_contract_digest") is not None:
-        raise ManifestError(
-            "runtime-contract adoption applies only when loaded identity is unknown"
-        )
-    if gate.get("status") not in {"unobserved", "adopted"}:
-        raise ManifestError(
-            f"runtime version status {gate.get('status')!r} cannot be replaced by adoption"
-        )
-    harness_version = (
-        Path(__file__).resolve().parent.parent / "VERSION"
-    ).read_text(encoding="utf-8").strip()
-    required_version = required_harness_version(run)
-    parsed_harness_version = parse_harness_version(harness_version)
-    if not _nonempty_string(harness_version) or parsed_harness_version is None or required_version is None:
-        raise ManifestError("runtime-contract adoption requires Harness version evidence")
-    if not version_at_least(harness_version, required_version):
-        raise ManifestError(
-            "runtime-contract adoption cannot mark a Harness older than the RUN pin current"
-        )
-
-    owner_source = getattr(args, "owner_source", None)
-    reading_evidence = list(getattr(args, "reading_evidence", []) or [])
-    if not _nonempty_string(owner_source):
-        raise ManifestError("runtime-contract adoption requires --owner-source")
-    if not reading_evidence or any(not _nonempty_string(item) for item in reading_evidence):
-        raise ManifestError(
-            "runtime-contract adoption requires at least one --reading-evidence entry"
-        )
-
-    expected_digest = getattr(args, "expected_contract_digest", None)
-    if not isinstance(expected_digest, str) or re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None:
-        raise ManifestError(
-            "runtime-contract adoption requires --expected-contract-digest as a lowercase SHA-256"
-        )
-    installed_digest = contract_digest()
-    if installed_digest != expected_digest:
-        raise ManifestError(
-            "installed runtime contract differs from --expected-contract-digest; re-read before adopting"
-        )
-    prior = gate.get("contract_adoption")
-    prior_same_session = (
-        isinstance(prior, dict)
-        and prior.get("contract_digest_sha256") == installed_digest
-        and prior.get("session_id") == args.session_id
-    )
-    if prior_same_session:
-        raise ManifestError("this installed runtime contract is already adopted")
-
-    adopted_at = _now()
-    adoption = {
-        "session_id": args.session_id,
-        "adopted_at": adopted_at,
-        "contract_digest_sha256": installed_digest,
-        "owner_source": owner_source,
-        "reading_evidence": reading_evidence,
-    }
-    if isinstance(prior, dict):
-        gate.setdefault("contract_adoption_history", []).append(copy.deepcopy(prior))
-    gate["session_id"] = args.session_id
-    gate.setdefault("contract_adoption_history", [])
-    gate["contract_adoption"] = adoption
-    gate["harness_version"] = harness_version
-    gate["installed_contract_digest"] = installed_digest
-    gate["status"] = "adopted"
-    gate["evidence"] = (
-            "owner-adopted fixed contract after explicit lazy-filesystem re-read; "
-        "loaded-at-start digest remains unobserved"
-    )
-    run["attempt_log"].append(
-        {
-            "attempt_id": (
-                f"RUNTIME-CONTRACT-{adopted_at}-{len(run['attempt_log']) + 1}"
-            ),
-            "mission_id": None,
-            "task_id": None,
-            "lease_id": None,
-            "kind": "runtime_contract_adoption",
-            "result": "adopted",
-            "evidence": [
-                f"owner_source={owner_source}",
-                f"installed_contract_digest={installed_digest}",
-                "loaded_contract_digest=null",
-                *(f"integration_pending mission={proof['mission_id']} node={proof['node_id']} head={proof['head_sha']}"
-                  for proof in integration_pending),
-                *reading_evidence,
-            ],
-        }
-    )
-
 
 
 def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
@@ -1671,36 +1333,15 @@ def _local_verifier_request(
             }
         ),
     }
-    sandbox_policy = declaration.get("execution", {}).get("sandbox") if isinstance(declaration.get("execution"), dict) else None
-    declared_isolation = (
-        declaration.get("execution", {}).get("isolation")
-        if isinstance(declaration.get("execution"), dict)
-        else None
-    )
-    observed_sandbox = run.get("observed", {}).get("sandbox") if isinstance(run.get("observed"), dict) else None
-    observed_host = run.get("observed", {}).get("host_runtime") if isinstance(run.get("observed"), dict) else None
-    sandbox_preflight = None
-    host_preflight = None
-    if isinstance(sandbox_policy, dict) and isinstance(observed_sandbox, dict):
-        for entry in observed_sandbox.get("entries", []):
-            if isinstance(entry, dict) and entry.get("runtime") == sandbox_policy.get("runtime") and entry.get("image") == sandbox_policy.get("image"):
-                sandbox_preflight = copy.deepcopy(entry)
-                break
-    if declared_isolation == "host" and isinstance(observed_host, dict):
-        executable_identity = _declared_host_identity(declaration, repo_root)
-        for entry in observed_host.get("entries", []):
-            if (
-                isinstance(entry, dict)
-                and entry.get("argv0") == declaration["argv"][0]
-                and entry.get("executable") == executable_identity["executable"]
-                and entry.get("executable_sha256")
-                == executable_identity["executable_sha256"]
-            ):
-                host_preflight = copy.deepcopy(entry)
-                break
-    if declared_isolation == "container" and sandbox_preflight is None:
-        raise ManifestError("local verifier request requires the exact PLAN-bound sandbox preflight entry")
-    if declared_isolation == "host" and host_preflight is None:
+    host_entries, host_errors = observe_plan_host_runtimes({"final_gates": [declaration]}, repo_root)
+    if host_errors:
+        raise ManifestError("local verifier host preflight failed: " + "; ".join(host_errors))
+    executable_identity = _declared_host_identity(declaration, repo_root)
+    host_preflight = next((copy.deepcopy(entry) for entry in host_entries
+        if entry.get("argv0") == declaration["argv"][0]
+        and entry.get("executable") == executable_identity["executable"]
+        and entry.get("executable_sha256") == executable_identity["executable_sha256"]), None)
+    if host_preflight is None:
         raise ManifestError("local verifier request requires the exact PLAN-bound host preflight entry")
     return {
         "protocol": "harness-verifier-request-v1",
@@ -1724,7 +1365,6 @@ def _local_verifier_request(
             "expected_head_sha": head_sha,
             "ignored_paths": ignored_paths,
         },
-        "sandbox_preflight": sandbox_preflight,
         "host_preflight": host_preflight,
     }
 
@@ -1848,7 +1488,6 @@ def _reserve_node_attempt(
     node_dispatch = None
     verifier_dispatch = None
     verifier_request = None
-    push_request = None
     if node.get("kind") == "verifier" and node.get("executor") in {
         "local_command",
         "harness_parent",
@@ -1879,34 +1518,11 @@ def _reserve_node_attempt(
                 f"{node.get('ref')} lifecycle node must declare an exact PLAN target"
             )
         if node.get("ref") == "push":
-            _validate_push_side_effect(
-                run, getattr(args, "repo_root", None), entry.get("authorized_head_sha")
-            )
+            raise ManifestError("RUN publication is a separate post-archive action")
         node_dispatch = {
             "target": node.get("target") or "*",
             "authorized_head_sha": entry.get("authorized_head_sha"),
         }
-        if node.get("ref") == "push" and run.get("schema_version") == 11:
-            if getattr(args, "request_out", None) is None:
-                raise ManifestError(
-                    "current push reservation requires --request-out outside the checkout"
-                )
-            push_request = make_push_request(
-                plan,
-                run,
-                Path(args.repo_root),
-                node_id=args.node_id,
-                attempt_id=args.attempt_id,
-                authorized_head_sha=entry.get("authorized_head_sha"),
-            )
-            node_dispatch["remote"] = push_request["remote"]
-            node_dispatch["push_endpoint_kind"] = push_request["push_endpoint_kind"]
-            node_dispatch["push_endpoint_summary"] = push_request["push_endpoint_summary"]
-            node_dispatch["push_url_sha256"] = push_request["push_url_sha256"]
-            node_dispatch["branch"] = push_request["branch"]
-            node_dispatch["branch_ref"] = push_request["branch_ref"]
-            node_dispatch["request_sha256"] = _json_sha256(push_request)
-            node_dispatch["push_request"] = copy.deepcopy(push_request)
     state.update(
         {
             "phase": "running",
@@ -1943,7 +1559,6 @@ def _reserve_node_attempt(
         "evidence": list(attempt["evidence"]),
         "directive": copy.deepcopy(directive),
         **({"verifier_request": copy.deepcopy(verifier_request)} if verifier_request is not None else {}),
-        **({"push_request": copy.deepcopy(push_request)} if push_request is not None else {}),
     }
 
 
@@ -2015,7 +1630,6 @@ def _record_node_result(
     if attempt.get("result") != "reserved":
         raise ManifestError(f"node attempt {attempt_id!r} is already terminal")
 
-    push_receipt: dict[str, Any] | None = None
     if node.get("kind") == "lifecycle":
         dispatch = attempt.get("node_dispatch")
         if not isinstance(dispatch, dict):
@@ -2029,26 +1643,8 @@ def _record_node_result(
             )
         action = node.get("ref")
         reserved_head = dispatch.get("authorized_head_sha")
-        if action == "push" and outcome not in {"blocked", "contract_gap"}:
-            _validate_push_side_effect(
-                run, getattr(args, "repo_root", None), reserved_head
-            )
-            if run.get("schema_version") == 11 and outcome == "pass":
-                receipt_path = getattr(args, "push_receipt", None)
-                if receipt_path is None:
-                    raise ManifestError(
-                        "a current push PASS requires --push-receipt from the reserved side effect"
-                    )
-                if getattr(args, "repo_root", None) is None:
-                    raise ManifestError("recording a push receipt requires --repo-root")
-                push_receipt = validate_push_receipt(
-                    plan,
-                    run,
-                    Path(args.repo_root),
-                    node_id=node_id,
-                    attempt_id=attempt_id,
-                    receipt_path=Path(receipt_path),
-                )
+        if action == "push":
+            raise ManifestError("RUN publication is a separate post-archive action")
         # A successful or retryable lifecycle result still needs the exact
         # current grant and head. A blocked/contract-gap result is recovery for
         # an uncertain attempt and must remain recordable after revocation or
@@ -2087,9 +1683,6 @@ def _record_node_result(
                 raise ManifestError(
                     "lifecycle integration head changed after reservation; reserve a fresh node attempt"
                 )
-    elif getattr(args, "push_receipt", None) is not None:
-        raise ManifestError("--push-receipt is only valid for a push lifecycle node")
-
     # Local verifier execution files are retained before the gate projection is
     # written.  The worker-result transition owns the strict execution shape;
     # import lazily to keep the transition module's existing import graph
@@ -2256,8 +1849,6 @@ def _record_node_result(
     )
     if blockers:
         attempt["evidence"] = list(dict.fromkeys([*attempt["evidence"], *blockers]))
-    if push_receipt is not None:
-        attempt["push_receipt"] = copy.deepcopy(push_receipt)
 
     edge_receipts: list[str] = []
     for edge in plan.get("graph", {}).get("edges", []):
@@ -2379,94 +1970,20 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         next((row.get("impact") for row in run.get("ui_impact_summary", [])
               if isinstance(row, dict) and row.get("mission_id") == args.mission_id), None),
     )
-    fallback_record_path = getattr(args, "fallback_record", None)
-    if fallback_record_path is not None:
-        try:
-            fallback_evidence = json.loads(
-                Path(fallback_record_path).read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError) as exc:
-            raise ManifestError(f"cannot read --fallback-record: {exc}") from exc
-        if not role_contract_gate_enabled(runtime_axes):
-            raise ManifestError("fallback reservation requires a 0.58+ role-contract RUN")
-        if expected_binding is None:
-            raise ManifestError("fallback cannot bypass a missing mandatory primary role")
-        fallback_binding, fallback_issues = resolve_fallback_reservation(
-            mission_node, run, fallback_evidence, args.attempt_id)
-        if fallback_issues:
-            raise ManifestError(
-                "invalid fallback reservation:\n"
-                + "\n".join(f"- {item}" for item in fallback_issues)
-            )
-        expected_binding = fallback_binding
-        worker_runtime = expected_binding["worker_runtime"]
-        workspace_mode = expected_binding["workspace_mode"]
-        completion_channel = expected_binding["completion_channel"]
     if expected_binding is None:
         raise ManifestError(
             f"mission {args.mission_id!r} has no runtime binding on the observed host"
         )
-    # A fallback adapter is the historical RUN-v11 seed.  Older callers may
-    # still provide an explicit launch route before the parent records a fresh
-    # host probe; preserve that compatibility while making observed/explicit
-    # bindings strict selector assertions.
-    adapter = runtime_axes.get("runtime_adapter")
-    role_bound_058 = role_contract_gate_enabled(runtime_axes)
-    enforce_selector_binding = role_bound_058 or not (
-        isinstance(adapter, dict) and adapter.get("detection_source") == "fallback"
-    )
-    for key in ("provider", "driver"):
+    for key in ("provider", "driver", "model", "reasoning_effort",
+                "worker_runtime", "workspace_mode", "completion_channel"):
         supplied = getattr(args, key, None)
-        if enforce_selector_binding and supplied is not None and supplied != expected_binding[key]:
-            raise ManifestError(
-                f"lease-worker {key} {supplied!r} does not match selector binding "
-                f"{expected_binding[key]!r}"
-            )
-    for key in ("model", "reasoning_effort"):
-        supplied = getattr(args, key, None)
-        if enforce_selector_binding and supplied is not None and supplied != expected_binding[key]:
-            raise ManifestError(
-                f"lease-worker {key} {supplied!r} does not match selector binding "
-                f"{expected_binding[key]!r}"
-            )
-    for key in ("worker_runtime", "workspace_mode", "completion_channel"):
-        expected = expected_binding.get(key) if role_bound_058 else runtime_axes.get(key)
-        supplied = getattr(args, key, None)
-        if enforce_selector_binding and supplied is not None and expected is not None and supplied != expected:
-            raise ManifestError(
-                f"lease-worker {key} {supplied!r} does not match selector axis "
-                f"{expected!r}"
-            )
-    if role_bound_058:
-        worker_runtime = expected_binding["worker_runtime"]
-        workspace_mode = expected_binding["workspace_mode"]
-        completion_channel = expected_binding["completion_channel"]
-    task_thread_id = getattr(args, "task_thread_id", None)
-    if worker_runtime == "app_task":
-        if not isinstance(task_thread_id, str) or not task_thread_id.strip():
-            raise ManifestError(
-                "lease-worker app_task requires --task-thread-id"
-            )
-        if any(
-            isinstance(worker, dict)
-            and worker.get("task_thread_id") == task_thread_id
-            for worker in run.get("workers", [])
-        ):
-            raise ManifestError(
-                f"task thread id {task_thread_id!r} is already bound to another worker"
-            )
-    elif task_thread_id is not None:
-        raise ManifestError(
-            "--task-thread-id is only valid for an app_task worker"
-        )
-    if workspace_mode == "app_managed_worktree" and worker_runtime != "app_task":
-        raise ManifestError(
-            "app_managed_worktree requires an app_task worker"
-        )
-    if worker_runtime == "app_task" and workspace_mode != "app_managed_worktree":
-        raise ManifestError(
-            "app_task workers require an app_managed_worktree"
-        )
+        expected = expected_binding.get(key, runtime_axes.get(key))
+        if supplied is not None and supplied != expected:
+            raise ManifestError(f"lease-worker {key} {supplied!r} does not match selector binding {expected!r}")
+    worker_runtime = expected_binding.get("worker_runtime", runtime_axes["worker_runtime"])
+    workspace_mode = expected_binding.get("workspace_mode", runtime_axes["workspace_mode"])
+    completion_channel = expected_binding.get("completion_channel", runtime_axes["completion_channel"])
+    task_thread_id = args.worker_id if worker_runtime == "app_task" else None
     node_states = run.get("graph_state", {}).get("node_states", {})
     node_state = node_states.get(args.node_id)
     if not isinstance(node_state, dict):
@@ -2504,10 +2021,6 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             == "interrupted_worker_reconciliation"
             and latest_mission_attempt.get("result") == "blocked"
         )
-        if reconciled_interrupt:
-            issues = interrupted_retry_issues(run, latest_mission_attempt)
-            if issues:
-                raise ManifestError("interrupted retry is unsafe: " + "; ".join(issues))
         if not (retryable_failure or reconciled_interrupt):
             raise ManifestError(
                 f"mission {args.mission_id!r} cannot be re-leased from "
@@ -2687,7 +2200,7 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "report_path": report_path,
             "phase": "worker_running",
             "worker_head_sha": None,
-            **({"attempt_id": args.attempt_id} if role_contract_enabled(run) else {}),
+            "attempt_id": args.attempt_id,
         }
     )
     run["attempt_log"].append(
@@ -3025,23 +2538,7 @@ def _require_candidate_revalidation_budget(
         state = node_states.get(node_id) if isinstance(node_states, dict) else None
         if not isinstance(state, dict):
             raise ManifestError(f"candidate reconciliation has no graph state for {node_id!r}")
-        review = node.get("review")
-        if isinstance(review, dict):
-            lineage_id = review.get("lineage_id")
-            lineage = run.get("review_lineages", {}).get(lineage_id)
-            if not isinstance(lineage, dict):
-                raise ManifestError(
-                    f"candidate reconciliation has no review lineage for {node_id!r}"
-                )
-            allowance = int(lineage.get("base_allowance") or 0) + int(
-                lineage.get("additional_allowance") or 0
-            )
-            if int(lineage.get("consumed_attempts") or 0) >= allowance:
-                raise ManifestError(
-                    f"candidate reconciliation cannot re-arm {node_id!r}; "
-                    "its review lineage attempt budget is exhausted"
-                )
-        elif int(state.get("attempts") or 0) >= int(node.get("max_attempts") or 0):
+        if int(state.get("attempts") or 0) >= int(node.get("max_attempts") or 0):
             raise ManifestError(
                 f"candidate reconciliation cannot re-arm {node_id!r}; "
                 "its node attempt budget is exhausted"
@@ -3714,260 +3211,10 @@ def _git_tree(repo_root: Path, sha: str) -> str:
     return tree
 
 
-def _read_bound_posix(parent_fd: int, name: str) -> str:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(name, flags, dir_fd=parent_fd)
-    try:
-        with os.fdopen(fd, "r", encoding="utf-8") as handle:
-            return handle.read()
-    except Exception:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        raise
-
-
-def _run_document_version_token(
-    path: Path, *, parent_fd: int | None = None
-) -> tuple[int, int, int, int, str]:
-    """Bind RUN identity and bytes to the destination used by the commit primitive."""
-
-    if parent_fd is None:
-        info = path.stat(follow_symlinks=False)
-        payload = path.read_bytes()
-    else:
-        info = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-        descriptor = os.open(path.name, flags, dir_fd=parent_fd)
-        try:
-            with os.fdopen(descriptor, "rb") as handle:
-                payload = handle.read()
-        except Exception:
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
-            raise
-    return (
-        int(info.st_dev),
-        int(info.st_ino),
-        int(info.st_size),
-        int(info.st_mtime_ns),
-        hashlib.sha256(payload).hexdigest(),
-    )
-
-
 def _run_replace_commit_boundary(path: Path) -> None:
     """Deterministic race hook; production keeps this a no-op."""
 
     del path
-
-
-def _run_posix_exchange(parent_fd: int, left_name: str, right_name: str) -> None:
-    """Exchange two RUN names atomically; fail closed when unavailable."""
-
-    import ctypes
-
-    libc = ctypes.CDLL(None, use_errno=True)
-    # Linux renameat2(RENAME_EXCHANGE) and macOS renameatx_np(RENAME_SWAP)
-    # take the same arguments and both use flag 0x2.
-    exchange = getattr(libc, "renameat2", None)
-    if exchange is None:
-        exchange = getattr(libc, "renameatx_np", None)
-    if exchange is None:
-        raise ManifestError(
-            "RUN commit requires renameat2(RENAME_EXCHANGE) or renameatx_np(RENAME_SWAP)"
-        )
-    exchange.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-    exchange.restype = ctypes.c_int
-    if exchange(parent_fd, os.fsencode(left_name), parent_fd, os.fsencode(right_name), 0x2) != 0:
-        error = ctypes.get_errno()
-        raise ManifestError(f"RUN atomic exchange failed (errno={error})")
-
-
-def _run_windows_replace_with_backup(destination: Path, replacement: Path, backup: Path) -> None:
-    """Use ReplaceFileW with an explicit displaced RUN backup."""
-
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.ReplaceFileW.restype = wintypes.BOOL
-    kernel32.ReplaceFileW.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.LPCWSTR,
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.LPVOID,
-    ]
-    if backup.exists():
-        raise ManifestError(f"RUN transaction backup already exists: {backup}")
-    if not kernel32.ReplaceFileW(str(destination), str(replacement), str(backup), 0x1, None, None):
-        raise ManifestError(f"RUN ReplaceFileW failed (winerror={ctypes.get_last_error()})")
-
-
-def _run_exchange_commit(
-    path: Path,
-    temporary: Path,
-    *,
-    temporary_name: str,
-    parent_fd: int | None,
-    expected_version: tuple[int, int, int, int, str],
-    updated: bytes,
-) -> None:
-    """Commit RUN by exchange/backup, validating and restoring displaced bytes."""
-
-    if os.name != "nt":
-        if parent_fd is None:
-            raise ManifestError("RUN commit requires a held POSIX parent descriptor")
-        _run_posix_exchange(parent_fd, temporary_name, path.name)
-        displaced_version = _run_document_version_token(Path(temporary_name), parent_fd=parent_fd)
-        if displaced_version != expected_version:
-            # Move displaced bytes off the temp name first: the caller's cleanup deletes it.
-            recovery = path.parent / f".{path.name}.{secrets.token_hex(8)}.recovery"
-            os.rename(temporary_name, recovery.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-            preserved = f"RUN displaced bytes changed at atomic exchange; concurrent bytes preserved at {recovery}"
-            payload_hash = hashlib.sha256(updated).hexdigest()
-            try:
-                restore = _run_document_version_token(path, parent_fd=parent_fd)[-1] == payload_hash
-                if restore:
-                    _run_posix_exchange(parent_fd, recovery.name, path.name)
-            except (OSError, ManifestError) as exc:
-                raise ManifestError(preserved) from exc
-            if not restore:
-                raise ManifestError(preserved)
-            restored = _run_document_version_token(path, parent_fd=parent_fd)
-            leftover = _run_document_version_token(recovery, parent_fd=parent_fd)
-            # Delete the swapped-out file only when it is our own payload.
-            if restored != displaced_version or leftover[-1] != payload_hash:
-                raise ManifestError(
-                    f"RUN restore verification failed; recovery artifacts retained at {recovery}"
-                )
-            os.unlink(recovery.name, dir_fd=parent_fd)
-            raise ManifestError(
-                f"RUN displaced bytes changed at atomic exchange; concurrent bytes preserved at {path}"
-            )
-        os.unlink(temporary_name, dir_fd=parent_fd)
-        os.fsync(parent_fd)
-        return
-
-    backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.backup"
-    _run_windows_replace_with_backup(path, temporary, backup)
-    displaced_version = _run_document_version_token(backup)
-    if displaced_version != expected_version:
-        rollback_backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.rollback"
-        preserved = f"RUN displaced bytes changed at atomic replacement; concurrent bytes preserved at {backup}"
-        payload_hash = hashlib.sha256(updated).hexdigest()
-        try:
-            restore = _run_document_version_token(path)[-1] == payload_hash
-            if restore:
-                _run_windows_replace_with_backup(path, backup, rollback_backup)
-        except (OSError, ManifestError) as exc:
-            raise ManifestError(preserved) from exc
-        if not restore:
-            raise ManifestError(preserved)
-        restored = _run_document_version_token(path)
-        leftover = _run_document_version_token(rollback_backup)
-        # Delete the swapped-out file only when it is our own payload.
-        if restored != displaced_version or leftover[-1] != payload_hash:
-            raise ManifestError(
-                f"RUN restore verification failed; recovery artifacts retained at {rollback_backup}"
-            )
-        rollback_backup.unlink(missing_ok=True)
-        raise ManifestError(
-            f"RUN displaced bytes changed at atomic replacement; concurrent bytes preserved at {path}"
-        )
-    backup.unlink(missing_ok=True)
-
-
-def _open_posix_parent_chain(path: Path) -> list[int]:
-    """Open every parent component with O_NOFOLLOW and retain all handles."""
-
-    absolute = Path(os.path.abspath(path))
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    handles: list[int] = []
-    try:
-        current_fd = os.open(os.sep, flags)
-        handles.append(current_fd)
-        components = [part for part in absolute.parts if part not in {absolute.anchor, ""}]
-        for component in components:
-            current_fd = os.open(component, flags, dir_fd=current_fd)
-            handles.append(current_fd)
-        return handles
-    except OSError:
-        for descriptor in reversed(handles):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
-        raise
-
-
-def _open_windows_parent(path: Path, *, writable: bool = False) -> tuple[Any, int]:
-    """Hold a non-reparse parent directory for a relative native rename."""
-
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateFileW.restype = wintypes.HANDLE
-    kernel32.GetFinalPathNameByHandleW.restype = wintypes.DWORD
-    kernel32.CreateFileW.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.HANDLE,
-    ]
-    attrs = kernel32.GetFileAttributesW(str(path))
-    if attrs == wintypes.DWORD(-1).value or attrs & 0x0400:
-        raise ManifestError(f"RUN parent is unavailable or reparse: {path}")
-    handle = kernel32.CreateFileW(
-        str(path),
-        0x80000000 | (0x40000000 | 0x0002 if writable else 0),  # read, plus add-file for final parent
-        0x00000001 | 0x00000002,  # FILE_SHARE_READ | FILE_SHARE_WRITE
-        None,
-        3,  # OPEN_EXISTING
-        0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
-        None,
-    )
-    if handle in (None, wintypes.HANDLE(-1).value):
-        raise ManifestError(f"cannot hold RUN parent directory: {path}")
-    buffer = ctypes.create_unicode_buffer(32768)
-    length = kernel32.GetFinalPathNameByHandleW(handle, buffer, len(buffer), 0)
-    if not length:
-        kernel32.CloseHandle(handle)
-        raise ManifestError(f"cannot resolve held RUN parent directory: {path}")
-    actual = buffer.value[:length].removeprefix("\\\\?\\").casefold().replace("\\", "/")
-    expected = str(path.resolve(strict=True)).casefold().replace("\\", "/")
-    if actual != expected:
-        kernel32.CloseHandle(handle)
-        raise ManifestError("held RUN parent directory changed before rename")
-    return kernel32, int(handle)
-
-
-def _open_windows_parent_chain(path: Path) -> list[tuple[Any, int]]:
-    """Hold every existing Windows ancestor so no junction swap can retarget it."""
-
-    absolute = Path(os.path.abspath(path))
-    ancestors = [
-        ancestor
-        for ancestor in (list(reversed(absolute.parents)) + [absolute])
-        if ancestor != Path(absolute.anchor)
-    ]
-    handles: list[tuple[Any, int]] = []
-    try:
-        for ancestor in ancestors:
-            handles.append(_open_windows_parent(ancestor, writable=ancestor == absolute))
-        return handles
-    except BaseException:
-        for kernel32, handle in reversed(handles):
-            kernel32.CloseHandle(handle)
-        raise
 
 
 def _replace_run_document(
@@ -3994,99 +3241,50 @@ def _replace_run_document(
 def _replace_document_text(
     path: Path, updated: str, *, expected_text: str, before_commit=None
 ) -> None:
-    """Share the existing compare-and-swap writer with the derived tasks view."""
+    """Replace one document if its text still equals ``expected_text``.
 
-    # Compare-and-swap: if another writer replaced the document between this
-    # process's load and now, refuse instead of silently clobbering its work.
+    Shared with the derived tasks view. The text is compared before the temp
+    file is written and again at the commit boundary, so a concurrent edit
+    makes the writer refuse instead of clobbering it.
+    """
+
     path = Path(path)
     parent = path.parent
-    # A path check is part of the compare-and-swap, not a one-time setup
-    # assertion.  A junction/symlink here would let os.replace write outside
-    # the reviewed checkout while all manifest bytes still look valid.
     _assert_non_reparse_path(parent)
     if path.exists() and _is_reparse(path):
         raise ManifestError("RUN.md must not be a symlink or reparse point")
-    text = path.read_text(encoding="utf-8")
-    destination_version = _run_document_version_token(path)
-    if expected_text is not None and text != expected_text:
+
+    def current_text() -> str:
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+
+    if expected_text is not None and current_text() != expected_text:
         raise ManifestError(
             "RUN.md changed during this transition; re-load the manifest and retry"
         )
     parent.mkdir(parents=True, exist_ok=True)
-    _assert_non_reparse_path(parent)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=parent)
-    replaced = False
-    posix_parent_fds: list[int] = []
-    windows_parent_handles: list[tuple[Any, int]] = []
-    failure: BaseException | None = None
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(updated)
             handle.flush()
             os.fsync(handle.fileno())
-        # Last-read compare-and-swap immediately before replacement closes the
-        # common TOCTOU window.  The atomic rename still preserves readers.
-        _assert_non_reparse_path(parent)
-        if path.exists() and _is_reparse(path):
-            raise ManifestError("RUN.md became a symlink or reparse point")
-        if os.name != "nt":
-            try:
-                posix_parent_fds = _open_posix_parent_chain(parent)
-            except OSError as exc:
-                raise ManifestError(f"cannot hold RUN parent directory: {parent}: {exc}") from exc
-            try:
-                current = _read_bound_posix(posix_parent_fds[-1], path.name)
-            except FileNotFoundError:
-                current = ""
-        else:
-            windows_parent_handles = _open_windows_parent_chain(parent)
-            current = path.read_text(encoding="utf-8") if path.exists() else ""
-        if expected_text is not None and current != expected_text:
-            raise ManifestError(
-                "RUN.md changed during this transition; re-load the manifest and retry"
-            )
         _run_replace_commit_boundary(path)
         if before_commit is not None:
             before_commit(Path(temp_name))
-        current_version = _run_document_version_token(
-            path,
-            parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
-        )
-        if current_version != destination_version:
+        _assert_non_reparse_path(parent)
+        if path.exists() and _is_reparse(path):
+            raise ManifestError("RUN.md became a symlink or reparse point")
+        if expected_text is not None and current_text() != expected_text:
             raise ManifestError(
                 "RUN.md changed at the commit boundary; concurrent bytes were preserved"
             )
-        _run_exchange_commit(
-            path,
-            Path(temp_name),
-            temporary_name=Path(temp_name).name,
-            parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
-            expected_version=current_version,
-            updated=updated.encode("utf-8"),
-        )
-        replaced = True
-    except BaseException as exc:
-        failure = exc
-    finally:
-        if failure is not None and not replaced and posix_parent_fds:
-            try:
-                os.unlink(Path(temp_name).name, dir_fd=posix_parent_fds[-1])
-            except OSError:
-                pass
-        for descriptor in reversed(posix_parent_fds):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
-        for kernel32, handle in reversed(windows_parent_handles):
-            kernel32.CloseHandle(handle)
-    if failure is not None:
-        if not replaced and not posix_parent_fds:
-            try:
-                os.unlink(temp_name)
-            except OSError:
-                pass
-        raise failure
+        os.replace(temp_name, path)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
 
 
 def _is_reparse(path: Path) -> bool:
@@ -4152,64 +3350,6 @@ def _control(run: dict[str, Any], state: str, source: str) -> None:
     }
 
 
-def _grant(run: dict[str, Any], args: argparse.Namespace) -> None:
-    lineage = run.get("review_lineages", {}).get(args.lineage)
-    if not isinstance(lineage, dict):
-        raise ManifestError(f"unknown review lineage {args.lineage!r}")
-    if args.additional_attempts != 1:
-        raise ManifestError("one owner decision may grant exactly one additional review attempt")
-    if lineage.get("owner_decisions"):
-        raise ManifestError("this review lineage already used its one owner-granted successor")
-    current_allowance = lineage.get("base_allowance", 0) + lineage.get(
-        "additional_allowance", 0
-    )
-    if lineage.get("consumed_attempts", 0) < current_allowance:
-        raise ManifestError("review allowance is not exhausted; an owner grant is premature")
-    if not args.source_ref.startswith("user_turn:") or not args.source_ref.removeprefix(
-        "user_turn:"
-    ).strip():
-        raise ManifestError("--source-ref must identify the approving user turn as user_turn:<id>")
-    if args.decision_id.casefold() not in args.source.casefold():
-        raise ManifestError(
-            "--source must be the exact user quote and name the approved decision ID"
-        )
-    failure_family = next(
-        (
-            family
-            for family in lineage.get("failure_families", [])
-            if isinstance(family, dict) and family.get("id") == args.failure_family_id
-        ),
-        None,
-    )
-    if failure_family is None:
-        raise ManifestError(
-            "--failure-family-id must identify a retained failure family in this lineage"
-        )
-    if failure_family.get("status") not in {"open", "repairing"}:
-        raise ManifestError("the owner-granted failure family must still be open")
-    decision_ids = {
-        item.get("id")
-        for item in lineage.get("owner_decisions", [])
-        if isinstance(item, dict)
-    }
-    if args.decision_id in decision_ids:
-        raise ManifestError(f"duplicate owner decision {args.decision_id!r}")
-    lineage["additional_allowance"] += args.additional_attempts
-    lineage["owner_decisions"].append(
-        {
-            "id": args.decision_id,
-            "source": args.source,
-            "source_ref": args.source_ref,
-            "failure_family_id": args.failure_family_id,
-            "strategy": args.strategy,
-            "acceptance_matrix": args.acceptance,
-            "additional_review_attempts": args.additional_attempts,
-        }
-    )
-    failure_family["strategy"] = args.strategy
-    failure_family["status"] = "repairing"
-
-
 def _reconcile_interrupted(run: dict[str, Any], args: argparse.Namespace) -> None:
     worker = next(
         (
@@ -4223,10 +3363,6 @@ def _reconcile_interrupted(run: dict[str, Any], args: argparse.Namespace) -> Non
         raise ManifestError(f"unknown worker {args.worker_id!r}")
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("worker is not active; no interrupted transition is needed")
-    if interruption_receipt_required(run, worker):
-        worker["failure_receipt"] = load_failure_receipt(
-            getattr(args, "failure_receipt", None), run, worker, "mission"
-        )
     worker["phase"] = "blocked"
     mission_id = worker.get("mission_id")
     mission_state = run.get("mission_states", {}).get(mission_id)
@@ -4256,17 +3392,6 @@ def _reconcile_interrupted(run: dict[str, Any], args: argparse.Namespace) -> Non
     )
 
 
-def _sync_review_lineage_counts(run: dict[str, Any]) -> None:
-    counts = {
-        lineage_id: 0
-        for lineage_id, lineage in run.get("review_lineages", {}).items()
-        if isinstance(lineage, dict)
-    }
-    for attempt in run.get("attempt_log", []):
-        if isinstance(attempt, dict) and attempt.get("review_lineage_id") in counts:
-            counts[attempt["review_lineage_id"]] += 1
-    for lineage_id, count in counts.items():
-        run["review_lineages"][lineage_id]["consumed_attempts"] = count
 
 
 def _reset_edge_state(state: dict[str, Any]) -> None:
@@ -4299,7 +3424,6 @@ def _reconcile_interrupted_reviews(
         for edge in plan.get("graph", {}).get("edges", [])
         if isinstance(edge, dict)
     }
-    _sync_review_lineage_counts(run)
     retained_attempt_ids = {
         attempt.get("attempt_id")
         for attempt in run.get("attempt_log", [])
@@ -4330,10 +3454,6 @@ def _reconcile_interrupted_reviews(
                 f"review worker {worker_id!r} does not reference a PLAN review node"
             )
         lineage_id = review.get("lineage_id")
-        lineage = run.get("review_lineages", {}).get(lineage_id)
-        if not isinstance(lineage, dict):
-            raise ManifestError(f"unknown review lineage {lineage_id!r}")
-
         attempt_id = worker.get("attempt_id")
         if not isinstance(attempt_id, str) or not attempt_id:
             raise ManifestError(f"review worker {worker_id!r} has no attempt ID")
@@ -4365,7 +3485,6 @@ def _reconcile_interrupted_reviews(
                 "failure_family_ids": [],
             }
         )
-        lineage["consumed_attempts"] += 1
 
         state = node_states.get(node_id)
         if not isinstance(state, dict):
@@ -4414,7 +3533,6 @@ def _reconcile_interrupted_reviews(
 
     _control(run, "paused", args.source)
 
-
 def _review_node(plan: dict[str, Any], node_id: str) -> dict[str, Any]:
     node = next(
         (
@@ -4429,7 +3547,6 @@ def _review_node(plan: dict[str, Any], node_id: str) -> dict[str, Any]:
     if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
         raise ManifestError(f"{node_id!r} is not a PLAN runtime review node")
     return node
-
 
 def _review_target(
     plan: dict[str, Any],
@@ -4474,7 +3591,6 @@ def _review_target(
         raise ManifestError("review dispatch has no exact review path")
     return reviewed_sha, review_path
 
-
 def _reserve_review_dispatch(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -4482,17 +3598,6 @@ def _reserve_review_dispatch(
     *,
     repo_root: Path | None,
 ) -> dict[str, Any]:
-    fallback_requests = None
-    if getattr(args, "fallback_record", None) is not None:
-        try:
-            fallback_evidence = json.loads(Path(args.fallback_record).read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise ManifestError("cannot read --fallback-record") from exc
-        _, issues = resolve_fallback_reservation(_review_node(plan, args.node_id), run,
-                                                 fallback_evidence, args.attempt_id)
-        if issues:
-            raise ManifestError("invalid review fallback: " + "; ".join(issues))
-        fallback_requests = {args.node_id: {"evidence": fallback_evidence, "attempt_id": args.attempt_id}}
     try:
         pre_errors = validate_current_plan_run(plan, run, repo_root=repo_root)
         if pre_errors:
@@ -4502,7 +3607,6 @@ def _reserve_review_dispatch(
             )
         selection = select_ready_nodes(
             plan, run, repo_root=repo_root, manifest_already_validated=True,
-            fallback_requests=fallback_requests,
         )
     except GraphSelectionError as exc:
         raise ManifestError(str(exc)) from exc
@@ -4590,7 +3694,7 @@ def _reserve_review_dispatch(
         "worker_runtime": directive["worker_runtime"],
         "completion_channel": directive["completion_channel"],
         "runtime_binding": copy.deepcopy(directive["runtime_binding"]),
-        **({"workspace_mode": directive["workspace_mode"]} if role_contract_enabled(run) else {}),
+        "workspace_mode": directive["workspace_mode"],
         "task_thread_id": None,
         "report_path": report_path,
         "phase": "leased",
@@ -4644,215 +3748,9 @@ def _reserve_review_dispatch(
         }
     }
 
-
-def _record_launch_observation(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> dict[str, Any]:
-    if not role_contract_enabled(run):
-        raise ManifestError("launch observations require a 0.58+ role-contract RUN")
-    if args.assignment_kind == "mission":
-        reserved = next(
-            (
-                worker
-                for worker in run.get("workers", [])
-                if isinstance(worker, dict)
-                and worker.get("lease_id") == args.assignment_id
-                and worker.get("worker_id") == args.worker_id
-            ),
-            None,
-        )
-        expected_node = next(
-            (
-                node.get("id")
-                for node in plan.get("graph", {}).get("nodes", [])
-                if isinstance(node, dict)
-                and node.get("kind") == "mission"
-                and node.get("ref") == reserved.get("mission_id")
-            )
-            if isinstance(reserved, dict)
-            else None,
-            None,
-        )
-        source_sha = reserved.get("batch_base_sha") if reserved else None
-        base_sha = None
-        reviewed_sha = None
-    else:
-        reserved = next(
-            (
-                worker
-                for worker in run.get("review_workers", [])
-                if isinstance(worker, dict)
-                and worker.get("node_id") == args.assignment_id
-                and worker.get("worker_id") == args.worker_id
-                and worker.get("attempt_id") == args.attempt_id
-            ),
-            None,
-        )
-        expected_node = args.assignment_id
-        source_sha = reserved.get("reviewed_sha") if reserved else None
-        base_sha = reserved.get("base_sha") if reserved else None
-        reviewed_sha = reserved.get("reviewed_sha") if reserved else None
-    if not isinstance(reserved, dict) or reserved.get("attempt_id") != args.attempt_id:
-        raise ManifestError("launch observation has no matching reserved attempt")
-    if args.node_id != expected_node:
-        raise ManifestError("launch observation node does not match its reserved assignment")
-    if reserved.get("phase") not in {"leased", "worker_running"}:
-        raise ManifestError("launch observation requires an active reserved attempt")
-    binding = reserved.get("runtime_binding")
-    if not isinstance(binding, dict):
-        raise ManifestError("reserved attempt has no runtime_binding")
-    record: dict[str, Any] = {
-        "plan_revision": plan.get("revision"),
-        "plan_digest_sha256": plan_digest(plan),
-        "assignment_kind": args.assignment_kind,
-        "assignment_id": args.assignment_id,
-        "node_id": args.node_id,
-        "attempt_id": args.attempt_id,
-        "worker_id": args.worker_id,
-        "worker_role": binding.get("worker_role"),
-        "resolved_role": binding.get("resolved_role"),
-        "source_sha": source_sha,
-        "base_sha": base_sha,
-        "reviewed_sha": reviewed_sha,
-        "worker_runtime": binding.get("worker_runtime"),
-        "workspace_mode": binding.get("workspace_mode"),
-        "completion_channel": binding.get("completion_channel"),
-        "requested_model": binding.get("model"),
-        "requested_reasoning_effort": binding.get("reasoning_effort"),
-        "model_provider": args.model_provider,
-        "model": args.model,
-        "reasoning_effort": args.reasoning_effort,
-        "session_id": args.worker_session_id,
-        "launch_observation": args.launch_observation,
-        "host_observation": args.host_observation,
-    }
-    if getattr(args, "fallback_record", None) is not None:
-        try:
-            fallback = json.loads(
-                Path(args.fallback_record).read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError) as exc:
-            raise ManifestError(f"cannot read --fallback-record: {exc}") from exc
-        if not isinstance(fallback, dict):
-            raise ManifestError("--fallback-record must contain an object")
-        from agent_role_contract import LAUNCH_FALLBACK_KEYS
-
-        for key in LAUNCH_FALLBACK_KEYS:
-            if key in fallback:
-                record[key] = fallback[key]
-    for issue in validate_launch_record_shape(record, "run.launch_records"):
-        raise ManifestError(f"invalid launch observation: {issue}")
-    records = run.get("launch_records", [])
-    if not isinstance(records, list):
-        raise ManifestError("run.launch_records must be a list")
-    if any(
-        isinstance(item, dict)
-        and item.get("session_id") == record["session_id"]
-        for item in records
-    ):
-        raise ManifestError("launch session is already reserved by another attempt")
-    if any(
-        isinstance(item, dict)
-        and item.get("assignment_kind") == record["assignment_kind"]
-        and item.get("assignment_id") == record["assignment_id"]
-        and item.get("attempt_id") == record["attempt_id"]
-        and item.get("worker_id") == record["worker_id"]
-        for item in records
-    ):
-        raise ManifestError("launch observation already exists for this reserved attempt")
-    candidate_run = {**run, "launch_records": [*records, record]}
-    launch_issues = validate_launch_record(
-        candidate_run,
-        assignment_kind=record["assignment_kind"],
-        assignment_id=record["assignment_id"],
-        node_id=record["node_id"],
-        attempt_id=record["attempt_id"],
-        worker_id=record["worker_id"],
-        worker_role_expected=record["worker_role"],
-        reserved=reserved,
-    )
-    if launch_issues:
-        raise ManifestError(
-            "launch observation does not match its reserved predecessor:\n"
-            + "\n".join(f"- {item}" for item in launch_issues)
-        )
-    run["launch_records"] = candidate_run["launch_records"]
-    return {"command": "record-launch-observation", "record": copy.deepcopy(record)}
-
-
-def _bind_review_task_thread(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> dict[str, Any]:
-    """Bind the actual Codex task created by a reserved thread-poll review."""
-
-    worker = next(
-        (
-            item
-            for item in run.get("review_workers", [])
-            if isinstance(item, dict) and item.get("worker_id") == args.worker_id
-        ),
-        None,
-    )
-    if worker is None:
-        raise ManifestError(f"review worker {args.worker_id!r} has no reserved dispatch")
-    if worker.get("phase") != "leased":
-        raise ManifestError("only a leased review dispatch can bind its actual task thread")
-    if worker.get("completion_channel") != "thread_poll":
-        raise ManifestError("review task-thread binding requires a thread_poll completion channel")
-    task_thread_id = args.task_thread_id
-    if not isinstance(task_thread_id, str) or not task_thread_id.strip():
-        raise ManifestError("bind-review-task-thread requires a non-empty --task-thread-id")
-    if any(
-        isinstance(item, dict)
-        and item is not worker
-        and item.get("task_thread_id") == task_thread_id
-        for item in [*run.get("workers", []), *run.get("review_workers", [])]
-    ):
-        raise ManifestError(
-            f"task thread id {task_thread_id!r} is already bound to another worker"
-        )
-
-    if plan.get("schema_version") == 6 and run.get("schema_version") == 11:
-        sandbox_reasons = _sandbox_observation_reasons(plan, run)
-        if sandbox_reasons:
-            raise ManifestError(
-                "accept-wave sandbox preflight is stale or incomplete: "
-                + ", ".join(sorted(sandbox_reasons))
-            )
-    node = _review_node(plan, worker.get("node_id"))
-    for mission_id in node["review"].get("mission_ids", []):
-        _materialize_authorized_target(
-            run, "create_user_owned_tasks", mission_id, f"task:{task_thread_id}"
-        )
-    worker["task_thread_id"] = task_thread_id
-    worker["phase"] = "worker_running"
-    return {
-        "command": "bind-review-task-thread",
-        "worker_id": args.worker_id,
-        "node_id": worker["node_id"],
-        "task_thread_id": task_thread_id,
-        "phase": worker["phase"],
-    }
-
-
 def _record_review_attempt(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
 ) -> None:
-    if not role_contract_enabled(run):
-        _stage_review_attempt(plan, run, args)
-        return
-    staged = copy.deepcopy(run)
-    _stage_review_attempt(plan, staged, args)
-    run.clear()
-    run.update(staged)
-
-
-def _stage_review_attempt(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> None:
-    lineage = run.get("review_lineages", {}).get(args.lineage)
-    if not isinstance(lineage, dict):
-        raise ManifestError(f"unknown review lineage {args.lineage!r}")
     if any(
         isinstance(item, dict) and item.get("attempt_id") == args.attempt_id
         for item in run.get("attempt_log", [])
@@ -4874,12 +3772,6 @@ def _stage_review_attempt(
         )
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("review dispatch is not active")
-    if worker.get("completion_channel") == "thread_poll" and not (
-        isinstance(worker.get("task_thread_id"), str) and worker["task_thread_id"].strip()
-    ):
-        raise ManifestError(
-            "thread_poll review completion requires the bound actual task_thread_id"
-        )
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
@@ -4901,16 +3793,9 @@ def _stage_review_attempt(
     ):
         raise ManifestError("review result does not match the current reserved graph attempt")
     is_security_review = node["review"].get("type") == "security"
-    failure_receipt = None
-    if getattr(args, "failure_receipt", None) is not None:
-        if not role_contract_enabled(run) or args.result not in {"retryable_failure", "blocked", "contract_gap"}:
-            raise ManifestError("parent failure receipts require a non-passing 0.58+ review")
-        if getattr(args, "result_receipt", None) is not None:
-            raise ManifestError("a review cannot be both a returned result and a parent failure")
-        failure_receipt = load_failure_receipt(args.failure_receipt, run, worker, "review")
     security_result_path = getattr(args, "security_result", None)
     security_result: dict[str, Any] | None = None
-    if is_security_review and failure_receipt is None:
+    if is_security_review:
         if security_result_path is None:
             raise ManifestError(
                 "security review completion requires --security-result"
@@ -4971,90 +3856,6 @@ def _stage_review_attempt(
         raise ManifestError("UI acceptance PASS requires ui_parity: and ui_page_quality: evidence anchors")
     if args.result != "pass" and not findings:
         raise ManifestError("a non-pass review requires at least one --finding")
-    adoption_check_path = getattr(args, "contract_adoption_check", None)
-    adoption_check = None
-    if adoption_check_path is not None:
-        try:
-            adoption_check = json.loads(
-                Path(adoption_check_path).read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError) as exc:
-            raise ManifestError(f"cannot read --contract-adoption-check: {exc}") from exc
-        # Accept the reviewer's returned object with or without its field name.
-        if isinstance(adoption_check, dict) and set(adoption_check) == {
-            "contract_adoption_check"
-        }:
-            adoption_check = adoption_check["contract_adoption_check"]
-        if adoption_check is None:
-            raise ManifestError("--contract-adoption-check must contain an object")
-    # A reviewer that stopped on a digest mismatch reports `blocked`; it may
-    # omit the check or report the digest it saw with matched false. The
-    # parent may record a crashed or timed-out reviewer as retryable_failure,
-    # or a contract_gap, without child output; a supplied check is validated.
-    adoption_errors = contract_adoption_check_errors(
-        run,
-        adoption_check,
-        blocked=args.result == "blocked",
-        optional=args.result in {"retryable_failure", "contract_gap"},
-    )
-    if adoption_errors:
-        raise ManifestError(
-            "invalid --contract-adoption-check: " + "; ".join(adoption_errors)
-        )
-    result_receipt = None
-    if role_contract_enabled(run) and failure_receipt is None:
-        result_receipt = load_result_receipt(
-            getattr(args, "result_receipt", None), run, worker, "review",
-            {"outcome": args.result, "findings": findings, "security_result": security_result,
-             "contract_adoption_check": adoption_check},
-        )
-        launch_issues = validate_launch_record(
-            run,
-            assignment_kind="review",
-            assignment_id=node["id"],
-            node_id=node["id"],
-            attempt_id=args.attempt_id,
-            worker_id=args.worker_id,
-            worker_role_expected=(worker.get("runtime_binding") or {}).get("worker_role"),
-            reserved=worker,
-        )
-        if launch_issues:
-            raise ManifestError(
-                "role-bound review PASS has no matching parent launch record:\n"
-                + "\n".join(f"- {item}" for item in launch_issues)
-            )
-    allowance = lineage.get("base_allowance", 0) + lineage.get(
-        "additional_allowance", 0
-    )
-    if lineage.get("consumed_attempts", 0) >= allowance:
-        raise ManifestError("review lineage allowance was exhausted before completion")
-    family_ids: list[str] = []
-    if args.failure_family_id:
-        family_ids.append(args.failure_family_id)
-        existing = next(
-            (
-                item
-                for item in lineage["failure_families"]
-                if isinstance(item, dict) and item.get("id") == args.failure_family_id
-            ),
-            None,
-        )
-        if existing is None:
-            if not all((args.failure_primitive, args.equivalence_class, args.strategy)):
-                raise ManifestError(
-                    "a new --failure-family-id requires --failure-primitive, --equivalence-class, and --strategy"
-                )
-            lineage["failure_families"].append(
-                {
-                    "id": args.failure_family_id,
-                    "primitive": args.failure_primitive,
-                    "equivalence_classes": args.equivalence_class,
-                    "strategy": args.strategy,
-                    "status": "open",
-                }
-            )
-    if args.result == "fix_required" and not family_ids:
-        raise ManifestError("fix_required review requires one --failure-family-id")
     mission_ids = node["review"].get("mission_ids", [])
     mission_id = mission_ids[0] if len(mission_ids) == 1 else None
     if args.mission_id is not None and args.mission_id not in mission_ids:
@@ -5064,7 +3865,6 @@ def _stage_review_attempt(
         attempt_evidence.append(
             "security_result_sha256:" + _json_sha256(security_result)
         )
-    attempt_evidence.extend(contract_adoption_check_evidence(adoption_check))
     run["attempt_log"].append(
         {
             "attempt_id": args.attempt_id,
@@ -5075,14 +3875,8 @@ def _stage_review_attempt(
             "result": args.result,
             "evidence": attempt_evidence,
             "review_lineage_id": args.lineage,
-            "failure_family_ids": family_ids,
         }
     )
-    lineage["consumed_attempts"] += 1
-    if result_receipt is not None:
-        worker["result_receipt"] = result_receipt
-    if failure_receipt is not None:
-        worker["failure_receipt"] = failure_receipt
     worker.update(
         {
             "phase": {
@@ -5130,7 +3924,6 @@ def _stage_review_attempt(
             edge_state["status"] = "traversed"
             edge_state["traversals"] = traversals + 1
         edge_state["source_attempt_id"] = args.attempt_id
-
 
 def _skip_integration_review(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
@@ -5308,19 +4101,9 @@ def build_parser() -> argparse.ArgumentParser:
     for state in ("pause", "resume", "cancel"):
         command = subparsers.add_parser(state)
         command.add_argument("--source", required=True)
-    grant = subparsers.add_parser("grant-review-attempts")
-    grant.add_argument("--lineage", required=True)
-    grant.add_argument("--decision-id", required=True)
-    grant.add_argument("--source", required=True)
-    grant.add_argument("--source-ref", required=True)
-    grant.add_argument("--failure-family-id", required=True)
-    grant.add_argument("--strategy", required=True)
-    grant.add_argument("--acceptance", action="append", required=True)
-    grant.add_argument("--additional-attempts", type=int, default=1)
     reconcile = subparsers.add_parser("reconcile-interrupted")
     reconcile.add_argument("--worker-id", required=True)
     reconcile.add_argument("--reason", required=True)
-    reconcile.add_argument("--failure-receipt", type=Path)
     review_reconcile = subparsers.add_parser("reconcile-interrupted-reviews")
     review_reconcile.add_argument("--worker-id", action="append", required=True)
     review_reconcile.add_argument("--reason", required=True)
@@ -5331,7 +4114,6 @@ def build_parser() -> argparse.ArgumentParser:
     reserve_review.add_argument("--attempt-id", required=True)
     reserve_review.add_argument("--report-path")
     reserve_review.add_argument("--diff-artifact-out", type=Path)
-    reserve_review.add_argument("--fallback-record", type=Path)
     reserve_review.add_argument(
         "--packet-out",
         type=Path,
@@ -5339,24 +4121,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reserve_review.add_argument("--max-diff-bytes", type=int)
     reserve_review.add_argument("--max-message-bytes", type=int)
-    bind_review_task = subparsers.add_parser("bind-review-task-thread")
-    bind_review_task.add_argument("--worker-id", required=True)
-    bind_review_task.add_argument("--task-thread-id", required=True)
-    launch_observation = subparsers.add_parser("record-launch-observation")
-    launch_observation.add_argument("--assignment-kind", choices=["mission", "review"], required=True)
-    launch_observation.add_argument("--assignment-id", required=True)
-    launch_observation.add_argument("--node-id", required=True)
-    launch_observation.add_argument("--worker-id", required=True)
-    launch_observation.add_argument("--attempt-id", required=True)
-    launch_observation.add_argument("--model-provider", required=True)
-    launch_observation.add_argument("--model", required=True)
-    launch_observation.add_argument("--reasoning-effort", required=True)
-    launch_observation.add_argument("--worker-session-id", required=True)
-    launch_observation.add_argument("--launch-observation", required=True)
-    launch_observation.add_argument("--host-observation", required=True)
-    launch_observation.add_argument("--fallback-record", type=Path)
-    runtime_observation = subparsers.add_parser("record-runtime-observation")
-    runtime_observation.add_argument("--observation", type=Path, required=True)
     review = subparsers.add_parser("record-review-attempt")
     review.add_argument("--lineage", required=True)
     review.add_argument("--attempt-id", required=True)
@@ -5366,13 +4130,6 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--evidence", action="append", required=True)
     review.add_argument("--finding", action="append")
     review.add_argument("--security-result", type=Path)
-    review.add_argument("--result-receipt", type=Path)
-    review.add_argument("--failure-receipt", type=Path)
-    review.add_argument("--contract-adoption-check", type=Path)
-    review.add_argument("--failure-family-id")
-    review.add_argument("--failure-primitive")
-    review.add_argument("--equivalence-class", action="append")
-    review.add_argument("--strategy")
     review.add_argument("--tree-sha")
     skip = subparsers.add_parser("skip-integration-review")
     skip.add_argument("--node-id", required=True)
@@ -5387,15 +4144,6 @@ def build_parser() -> argparse.ArgumentParser:
     observation_parser.add_argument("--available-worker-slots", type=int)
     observation_parser.add_argument("--isolation-capacity", type=int)
     observation_parser.add_argument("--capacity-evidence")
-    adoption_parser = subparsers.add_parser("adopt-runtime-contract")
-    adoption_parser.add_argument("--owner-source", required=True)
-    adoption_parser.add_argument("--reading-evidence", action="append", required=True)
-    adoption_parser.add_argument("--expected-contract-digest", required=True)
-    role_policy = subparsers.add_parser("update-role-bindings")
-    role_policy.add_argument("--policy", type=Path, required=True)
-    role_policy.add_argument("--expected-role-bindings-sha256", required=True)
-    role_policy.add_argument("--update-id", required=True)
-    role_policy.add_argument("--owner-source", required=True)
     wave_command = subparsers.add_parser("accept-wave")
     wave_command.add_argument("--wave-id", required=True)
     wave_command.add_argument("--mission-id", action="append", required=True)
@@ -5417,9 +4165,7 @@ def build_parser() -> argparse.ArgumentParser:
     lease.add_argument("--worker-runtime")
     lease.add_argument("--workspace-mode")
     lease.add_argument("--completion-channel")
-    lease.add_argument("--task-thread-id")
     lease.add_argument("--report-path")
-    lease.add_argument("--fallback-record", type=Path)
     reserve_node = subparsers.add_parser("reserve-node-attempt")
     reserve_node.add_argument("--node-id", required=True)
     reserve_node.add_argument("--attempt-id", required=True)
@@ -5438,27 +4184,11 @@ def build_parser() -> argparse.ArgumentParser:
     record_node.add_argument("--evidence", action="append", default=[])
     record_node.add_argument("--blocker", action="append", default=[])
     record_node.add_argument("--verifier-result", action="append", type=Path, default=[])
-    record_node.add_argument(
-        "--push-receipt",
-        type=Path,
-        help="immutable receipt written by the reserved push side effect",
-    )
     worker_result = subparsers.add_parser("record-worker-result")
-    worker_result.add_argument("--result-receipt", type=Path)
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
     worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
-    ingestion = subparsers.add_parser("reconcile-worker-ingestion")
-    ingestion.add_argument("--node-result", required=True, type=Path)
-    ingestion.add_argument("--worker-result", required=True, type=Path)
-    ingestion.add_argument("--result-receipt", required=True, type=Path)
-    ingestion.add_argument("--original-run", required=True, type=Path)
-    ingestion.add_argument("--expected-original-run-sha256", required=True)
-    ingestion.add_argument("--verifier-result", action="append", required=True, type=Path)
-    ingestion.add_argument("--reconciliation-id", required=True)
-    ingestion.add_argument("--source", required=True)
     rejected = subparsers.add_parser("reject-worker-result")
-    rejected.add_argument("--failure-receipt", type=Path)
     rejected.add_argument("--node-id", required=True)
     rejected.add_argument("--worker-id", required=True)
     rejected.add_argument(
@@ -5485,56 +4215,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _tasks_view_path(run: dict[str, Any], args: argparse.Namespace) -> Path | None:
-    """Resolve the canonical coordination path for the generated tasks view."""
-
-    if args.command not in TASK_VIEW_CHECKPOINTS:
-        return None
-    repo_root = getattr(args, "repo_root", None)
-    if repo_root is None:
-        return None
-    integration = run.get("integration", {})
-    paths = (
-        integration.get("coordination_paths", [])
-        if isinstance(integration, dict)
-        else []
-    )
-    for candidate in paths:
-        if isinstance(candidate, str) and candidate.replace("\\", "/") == "docs/tasks.md":
-            return Path(repo_root) / "docs" / "tasks.md"
-    return None
 
 
-def _refresh_tasks_view_after_run(
-    args: argparse.Namespace, plan: dict[str, Any], run: dict[str, Any],
-    *, expected_plan_text: str | None = None,
-) -> None:
-    """Refresh the declared view after a durable checkpoint, without rollback."""
-
-    view_path = _tasks_view_path(run, args)
-    if view_path is None:
-        return
-    from render_tasks_view import refresh_view, source_guard
-
-    try:
-        refresh_view(
-            plan, run, view_path, repo_root=Path(args.repo_root),
-            check_sources=source_guard(
-                plan, run, args.plan, args.run, expected_plan_text=expected_plan_text
-            ),
-        )
-    except (ManifestError, OSError, ValueError) as exc:
-        repair = (
-            f'python "{Path(__file__).with_name("render_tasks_view.py").resolve()}" '
-            f'--plan "{args.plan}" --run "{args.run}" --out "{view_path}" '
-            f'--repo-root "{args.repo_root}"'
-        )
-        print(
-            f"warning: RUN {args.command} succeeded, but the tasks-view refresh "
-            f"failed: {exc}. RUN.md is authoritative and is not rolled back. "
-            f"Repair the non-canonical view with: {repair}",
-            file=sys.stderr,
-        )
 
 
 def _transition_under_lock(
@@ -5562,8 +4244,6 @@ def _transition_under_lock(
             raise ManifestError(f"invalid packet message budget: {exc}") from exc
     if diff_budget is not None and diff_budget < 1:
         raise ManifestError("invalid packet diff budget: --max-diff-bytes must be positive")
-    prepare_started_counter_ns = time.perf_counter_ns()
-    prepare_started_at = _now()
     original_text = args.run.read_text(encoding="utf-8")
     original = extract_json_manifest_text(
         original_text,
@@ -5603,8 +4283,6 @@ def _transition_under_lock(
             ],
             args.source,
         )
-    elif args.command == "grant-review-attempts":
-        _grant(run, args)
     elif args.command == "reconcile-interrupted":
         _reconcile_interrupted(run, args)
     elif args.command == "reconcile-interrupted-reviews":
@@ -5613,43 +4291,10 @@ def _transition_under_lock(
         if args.repo_root is None:
             raise ManifestError("reserve-review-dispatch requires --repo-root")
         receipt = _reserve_review_dispatch(plan, run, args, repo_root=args.repo_root)
-    elif args.command == "bind-review-task-thread":
-        receipt = _bind_review_task_thread(plan, run, args)
-    elif args.command == "record-launch-observation":
-        receipt = _record_launch_observation(plan, run, args)
-    elif args.command == "record-runtime-observation":
-        from runtime_observations import append_observation, load_observation
-
-        _require_held_run_lock(run, args)
-        if args.repo_root is None:
-            raise ManifestError("record-runtime-observation requires --repo-root")
-        receipt = append_observation(plan, run, load_observation(args.observation))
-        if not receipt["recorded"]:
-            errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
-            if errors:
-                raise ManifestError("runtime observation replay has an invalid RUN: " + "; ".join(errors))
-            _ensure_plan_unchanged(args.plan, expected_plan_text)
-            if args.run.read_text(encoding="utf-8") != original_text:
-                raise ManifestError("RUN changed during runtime observation replay")
-            return receipt, None, False
     elif args.command == "skip-integration-review":
         _skip_integration_review(plan, run, args)
     elif args.command == "record-observation":
         _record_observation(plan, run, args)
-    elif args.command == "update-role-bindings":
-        from agent_role_policy_updates import update_role_bindings
-
-        errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
-        if errors:
-            raise ManifestError("role-policy update requires a valid current RUN: " + "; ".join(errors))
-        receipt = update_role_bindings(plan, run, args)
-        if not receipt["recorded"]:
-            _ensure_plan_unchanged(args.plan, expected_plan_text)
-            if args.run.read_text(encoding="utf-8") != original_text:
-                raise ManifestError("RUN changed during role-policy update replay")
-            return receipt, None, False
-    elif args.command == "adopt-runtime-contract":
-        _adopt_runtime_contract(plan, run, args)
     elif args.command == "accept-wave":
         _accept_wave(plan, run, args)
     elif args.command == "close-wave":
@@ -5662,10 +4307,6 @@ def _transition_under_lock(
         _lease_worker(plan, run, args)
     elif args.command == "record-worker-result":
         receipt = record_worker_result(plan, run, args)
-    elif args.command == "reconcile-worker-ingestion":
-        from harness_worker_ingestion_transition import reconcile_worker_ingestion
-
-        receipt = reconcile_worker_ingestion(plan, run, args)
     elif args.command == "reject-worker-result":
         receipt = reject_worker_result(plan, run, args)
     elif args.command == "record-integration":
@@ -5691,12 +4332,6 @@ def _transition_under_lock(
         and lock.get("session_id") == args.session_id
     ):
         lock["heartbeat_at"] = _now()
-    _record_transition_prepare_metrics(
-        run,
-        args,
-        started_at=prepare_started_at,
-        started_counter_ns=prepare_started_counter_ns,
-    )
     errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
     if errors:
         raise ManifestError(
@@ -5722,20 +4357,17 @@ def _transition_under_lock(
                                artifacts=diff_artifacts)
 
     verifier_request = None
-    push_request_document = None
     request_out = getattr(args, "request_out", None)
     if request_out is not None:
         if not isinstance(receipt, dict):
             raise ManifestError(
-                "--request-out is only valid when reserving a local verifier or push node"
+                "--request-out is only valid when reserving a local verifier node"
             )
         if isinstance(receipt.get("verifier_request"), dict):
             request_document = receipt["verifier_request"]
-        elif isinstance(receipt.get("push_request"), dict):
-            request_document = receipt["push_request"]
         else:
             raise ManifestError(
-                "--request-out is only valid when reserving a local verifier or push node"
+                "--request-out is only valid when reserving a local verifier node"
             )
         repo_root = getattr(args, "repo_root", None)
         if repo_root is not None:
@@ -5753,18 +4385,11 @@ def _transition_under_lock(
             indent=2,
             ensure_ascii=False,
         ) + "\n"
-        if isinstance(receipt.get("verifier_request"), dict):
-            verifier_request = request_text
-        else:
-            push_request_document = request_text
+        verifier_request = request_text
 
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
         verify_worker_observation(observation)
-    if args.command == "reconcile-worker-ingestion":
-        from harness_worker_ingestion_transition import verify_ingestion_before_commit
-
-        verify_ingestion_before_commit(plan, run, args)
     before_commit = None
     if args.command == "record-integration":
         from harness_integration_results import verify_integration_observation
@@ -5799,15 +4424,6 @@ def _transition_under_lock(
                 f"{exc}; the RUN reservation is durable and its exact request remains "
                 "under attempt_log[].verifier_dispatch.request"
             ) from exc
-    if push_request_document is not None:
-        try:
-            _write_text_exclusive(request_out, push_request_document)
-        except (ManifestError, OSError) as exc:
-            raise ManifestError(
-                f"{exc}; the RUN reservation is durable and its exact request remains "
-                "under attempt_log[].node_dispatch.push_request"
-            ) from exc
-    _refresh_tasks_view_after_run(args, plan, run, expected_plan_text=expected_plan_text)
     return receipt, report, True
 
 

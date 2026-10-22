@@ -19,7 +19,7 @@ import harness_transition as ht  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 import test_close_wave as cw  # noqa: E402
 from harness_core import plan_digest  # noqa: E402
-from verifier_runtime import run_verifier  # noqa: E402
+from verifier_runtime import run_verifier, observe_plan_host_runtimes  # noqa: E402
 
 
 class IntegrationResultIngestionTests(unittest.TestCase):
@@ -52,6 +52,9 @@ class IntegrationResultIngestionTests(unittest.TestCase):
         fixture._integrate_m1(record=False, retain_integration=False)
         # RUN and its generated view are the exact protected coordination inputs.
         run = cw.load_run_block(fixture.run_path)
+        from render_tasks_view import refresh_view
+
+        refresh_view(self.plan, run, fixture.gitroot / "docs/tasks.md", repo_root=fixture.gitroot)
         fixture.run_path = fixture.gitroot / "RUN.md"
         fixture.run_path.write_text(mf.manifest_markdown("## Harness Run State", "harness_run", run), encoding="utf-8")
         self.run = run
@@ -67,7 +70,9 @@ class IntegrationResultIngestionTests(unittest.TestCase):
         }
         guard = {"expected_branch": "integration", "expected_head_sha": fixture.head,
                  "ignored_paths": sorted(ht._coordination_ignored_paths(fixture.gitroot, fixture.run_path, run))}
-        preflight = run["observed"]["host_runtime"]["entries"][0]
+        entries, errors = observe_plan_host_runtimes({"final_gates": [declaration]}, fixture.gitroot)
+        self.assertEqual([], errors)
+        preflight = entries[0]
         for index, declaration in enumerate(self.plan["missions"][0]["integration_verifiers"]):
             result = run_verifier(declaration, context, checkout_root=fixture.gitroot,
                                   timeout_seconds=15, git_guard=guard, host_preflight=preflight)
@@ -124,7 +129,7 @@ class IntegrationResultIngestionTests(unittest.TestCase):
             ("stdout", None), ("stderr", None), ("status", "FAIL"), ("exit_code", True),
             ("cache_status", "reused"), ("metrics", {"executed": 0, "reused": 1}),
             ("reservation", {}), ("dispatch_attestation", {}), ("container_reuse_origin", {}),
-            ("timings", None), ("git_guard_attestation", {}),
+            ("git_guard_attestation", {}),
         ]
         for field, value in mutations:
             with self.subTest(field=field):
@@ -235,11 +240,10 @@ class IntegrationResultIngestionTests(unittest.TestCase):
                     self._refresh_results()
 
     def _refresh_results(self):
-        run = cw.load_run_block(self.fixture.run_path)
         for index, declaration in enumerate(self.plan["missions"][0]["integration_verifiers"]):
             result = run_verifier(declaration, self.results[index]["context"], checkout_root=self.fixture.gitroot,
                                   timeout_seconds=15, git_guard=self.results[index]["git_guard_attestation"]["git_guard"],
-                                  host_preflight=run["observed"]["host_runtime"]["entries"][0])
+                                  host_preflight=observe_plan_host_runtimes({"final_gates": [declaration]}, self.fixture.gitroot)[0][0])
             self.assertEqual("PASS", result["status"], result["stderr"])
             self.results[index] = result
             self.sources[index].write_text(json.dumps(result), encoding="utf-8")

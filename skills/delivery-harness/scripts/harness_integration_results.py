@@ -149,14 +149,13 @@ def retain_integration_results(plan: dict[str, Any], run: dict[str, Any], args: 
                  and "container_reuse_origin" not in retained, "cache reuse is forbidden")
         _require("reservation" not in retained and "dispatch_attestation" not in retained,
                  "node reservations belong to another ingestion route")
-        _require(isinstance(retained.get("timings"), dict), "actual execution timings are required")
         isolation = declaration.get("execution", {}).get("isolation")
-        _require(isolation in {"host", "container"}, "explicit host or container policy is required")
-        nested_key = "host_execution_attestation" if isolation == "host" else "sandbox_attestation"
+        _require(isolation == "host", "explicit host policy is required")
+        nested_key = "host_execution_attestation"
         _require(set(retained) == {
             "protocol", "verifier_id", "status", "exit_code", "stdout", "stderr",
             "execution_key", "evidence_key", "verifier", "context", "key_document",
-            "cache_status", "cache_reason", "duration_ms", "metrics", "timings",
+            "cache_status", "cache_reason", "duration_ms", "metrics",
             "git_guard_attestation", nested_key,
         }, "runner output fields must match actual protocol-v2 output")
         attestation = retained.get("git_guard_attestation")

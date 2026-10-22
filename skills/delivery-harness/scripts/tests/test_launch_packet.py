@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import contextlib
 import argparse
-import hashlib
 import io
 import json
 import subprocess
@@ -22,6 +21,7 @@ for path in (TESTS_DIR, SCRIPTS_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+import manifest_fixtures as mf
 import harness_transition  # noqa: E402
 from check_launch_packet import (  # noqa: E402
     InvalidMessageBudgetError,
@@ -153,16 +153,10 @@ class ReviewPacketBudgetTests(unittest.TestCase):
         _git(self.root, "commit", "-qam", "head")
         self.head = _git(self.root, "rev-parse", "HEAD")
         self.plan = valid_plan()
-        source_contents = {
-            "docs/product/prd.md": b"# Test PRD\n",
-            "docs/product/architecture.md": b"# Test architecture\n",
-        }
-        for source in self.plan["sources"]:
-            contents = source_contents[source["location"]]
-            path = self.root / source["location"]
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(contents)
-            source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+        mf.materialize_plan_sources(self.root, self.plan)
+        _git(self.root, "add", "docs/product")
+        _git(self.root, "commit", "-qm", "freeze contracts")
+        self.head = _git(self.root, "rev-parse", "HEAD")
         self.run = valid_run(self.plan)
         self.run["integration"]["branch"] = _git(self.root, "branch", "--show-current")
         self.run["integration"]["batch_base_sha"] = self.base
@@ -307,16 +301,10 @@ class TransitionBudgetTests(unittest.TestCase):
         _git(self.root, "commit", "-qam", "head")
         self.head = _git(self.root, "rev-parse", "HEAD")
         self.plan = valid_plan()
-        source_contents = {
-            "docs/product/prd.md": b"# Test PRD\n",
-            "docs/product/architecture.md": b"# Test architecture\n",
-        }
-        for source in self.plan["sources"]:
-            contents = source_contents[source["location"]]
-            path = self.root / source["location"]
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(contents)
-            source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+        mf.materialize_plan_sources(self.root, self.plan)
+        _git(self.root, "add", "docs/product")
+        _git(self.root, "commit", "-qm", "freeze contracts")
+        self.head = _git(self.root, "rev-parse", "HEAD")
         self.run = valid_run(self.plan)
         self.run["integration"]["branch"] = _git(self.root, "branch", "--show-current")
         self.run["integration"]["batch_base_sha"] = self.base
