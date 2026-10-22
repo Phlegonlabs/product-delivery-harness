@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
-Este es el flujo predeterminado de **v0.65.2** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
+Este es el flujo predeterminado de **v0.65.3** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
 
 ```mermaid
 ---
@@ -982,6 +982,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.65.3** — Unificar la revisión de diseño y la aceptación de implementación, conservando 85/80 y las pruebas necesarias. Entregar referencias visuales completas y delegar la selección de workers a la configuración del agente. Mantener contratos RUN existentes y corregir cobertura, reutilización de aceptación y resúmenes de acciones preparadas de Activation.
 
 - **0.65.2** — Publicar el diagrama completo de entrega en cuatro idiomas. Indicar autorrevisión del PRD, preparación inicial, roles MultiAgent, revisiones existentes y entradas paralelas de GTM. Instagram y Threads describen el contexto actual; Facebook Pages queda por evaluar y X es opcional. Conservar 85/80 y los presupuestos de revisión.
 

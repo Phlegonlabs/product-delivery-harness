@@ -6,6 +6,7 @@ Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each pa
 
 | Document | Purpose | Status |
 | --- | --- | --- |
+| `docs/epics/EPIC-release-0.65.3.md` | Publish the accepted UI workflow and agent-policy fixes through a reviewed PR | 0.65.3 candidate; the publication receipt records exact review, CI, main, tag and installation results |
 | `docs/epics/EPIC-agent-owned-worker-policy.md` | Agent-owned worker selection; skills retain methods and acceptance | Installed development source ada2b750; 442 files and prior backup verified; 31 installed-location tests passed; loaded identity unknown |
 | `docs/epics/EPIC-frontend-author-handoff.md` | Stage-owned Opus design / Sonnet implementation routing and complete visual-author inputs | Source/host complete; reviewed 82b79145; visual inputs installed with ada2b750; later staffing ownership follows the agent-policy Epic |
 | `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 released at `dd8a52d3` and installed; 439 core files verified; exact candidate/main CI and reviews passed |

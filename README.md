@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-This is the **v0.65.2** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
+This is the **v0.65.3** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
 
 ```mermaid
 ---
@@ -982,6 +982,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.65.3** — Use one design review wave and one implementation UI acceptance while retaining 85/80 and required evidence. Deliver complete visual inputs to authors and let agent configuration choose workers. Preserve frozen runs and repair diagnostic coverage, acceptance reuse, and staged Activation digests.
 
 - **0.65.2** — Publish the complete four-language delivery flowchart. Mark PRD self-review, foundation timing, MultiAgent handoffs, existing review counts and parallel GTM inputs. Record Instagram and Threads as the current owner context, evaluate Facebook Pages and keep X optional. Preserve 85/80 and existing review budgets.
 
