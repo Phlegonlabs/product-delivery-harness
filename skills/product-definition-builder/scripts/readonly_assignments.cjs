@@ -4,10 +4,9 @@
 // no authorization.
 
 const { createHash } = require("crypto");
-const {frozenCopy, launchIndex, matchObserved} = require("./assignment_identity.cjs");
+const {frozenCopy, launchIndex, matchObserved, identityTracker} = require("./assignment_identity.cjs");
 
 const SCHEMA_VERSION = "readonly-assignments/1";
-const EXECUTION_ROLES = new Set(["market_researcher", "code_explorer"]);
 const ASSIGNMENT_PHASES = new Set([
   "pre_draft_research",
   "post_draft_market_research",
@@ -68,6 +67,7 @@ function inputIdentity(instance) {
       requested_identity: instance.requested_identity,
       run_id: instance.run_id,
       schema_version: SCHEMA_VERSION,
+      ...(instance.distinct_workers === undefined ? {} : {distinct_workers: instance.distinct_workers}),
     })))
     .digest("hex")}`;
 }
@@ -82,9 +82,10 @@ function createReadonlyAssignments(args) {
       reject(`${field} must be a non-empty string`);
     }
   }
-  if (!EXECUTION_ROLES.has(request.execution_role)) {
-    reject(`execution_role must be market_researcher or code_explorer`);
+  if (request.distinct_workers !== undefined && typeof request.distinct_workers !== "boolean") {
+    reject("distinct_workers must be a boolean when provided");
   }
+  const staffing = request.distinct_workers === undefined ? {} : {distinct_workers: request.distinct_workers};
   if (!ASSIGNMENT_PHASES.has(request.phase)) {
     reject("phase must be pre_draft_research, post_draft_market_research, ui_research, or code_exploration");
   }
@@ -181,6 +182,7 @@ function createReadonlyAssignments(args) {
       requested_identity: request.requested_identity,
       run_id: request.run_id,
       schema_version: SCHEMA_VERSION,
+      ...staffing,
     });
     const inputId = `sha256:${createHash("sha256").update(JSON.stringify(identitySource)).digest("hex")}`;
     if (inputIds.has(inputId)) {
@@ -208,6 +210,7 @@ function createReadonlyAssignments(args) {
       readonly: true,
       required_result: true,
       substantive: true,
+      ...staffing,
     };
   });
 
@@ -229,6 +232,7 @@ function createReadonlyAssignments(args) {
     schema_version: SCHEMA_VERSION,
     skip_allowed: request.skip_allowed,
     skip_reason: request.skip_allowed ? request.skip_reason : null,
+    ...staffing,
   };
   // Callers cannot mutate the frozen canonical inputs after hashing.
   return frozenCopy(plan);
@@ -297,10 +301,14 @@ function joinReadonlyResults(plan, rawResults, parentLaunchRecords) {
   }
 
   const byAssignment = new Map(plan.instances.map((instance) => [instance.assignment_id, instance]));
-  const launches = plan.binding_required ? launchIndex(plan.instances, parentLaunchRecords) : null;
+  if (plan.distinct_workers !== undefined && typeof plan.distinct_workers !== "boolean") reject("invalid staffing policy");
+  for (const instance of plan.instances) {
+    if (instance.distinct_workers !== plan.distinct_workers) reject("assignment staffing policy differs from plan");
+  }
+  const reuseGroups = plan.distinct_workers === false ? [plan.instances.map(a => a.assignment_id)] : [];
+  const launches = plan.binding_required ? launchIndex(plan.instances, parentLaunchRecords, {reuseGroups}) : null;
   const resultIds = { assignment_id: new Set(), attempt_id: new Set(), input_id: new Set(), question_id: new Set() };
-  const workerIds = new Set();
-  const sessionIds = new Set();
+  const observeIdentity = identityTracker(reuseGroups, "reuses observed");
   const joined = rawResults.map((rawResult, index) => {
     if (!isPlainObject(rawResult)) {
       reject(`results[${index}] must be an object`);
@@ -366,14 +374,7 @@ function joinReadonlyResults(plan, rawResults, parentLaunchRecords) {
         reject(`results[${index}].observed_identity.${field} must be a non-empty string`);
       }
     }
-    if (workerIds.has(observed.worker_id)) {
-      reject(`results[${index}] reuses observed worker_id ${observed.worker_id}`);
-    }
-    if (sessionIds.has(observed.session_id)) {
-      reject(`results[${index}] reuses observed session_id ${observed.session_id}`);
-    }
-    workerIds.add(observed.worker_id);
-    sessionIds.add(observed.session_id);
+    observeIdentity(instance.assignment_id, observed);
     if (observed.execution_role !== instance.requested_identity.execution_role) {
       reject(`results[${index}] has the wrong observed execution role`);
     }

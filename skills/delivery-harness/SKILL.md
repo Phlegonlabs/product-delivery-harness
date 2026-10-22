@@ -1,13 +1,13 @@
 ---
 name: delivery-harness
-description: "Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer and one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Resolve required delegates through observed native tools or explicitly bound external bridges."
+description: "Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer and one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Use agent-configured executors through observed tools or explicitly bound bridges."
 ---
 
 # Delivery Harness
 
 Commands: `references/installed-commands.md`.
 
-Before direct or managed routing, apply `references/delegation-contract.md`: distinct sibling assignments, required roles and actual execution identity. Delegation grants no actions and requires no managed run.
+Before direct or managed routing, apply `references/delegation-contract.md`: agent-owned worker policy, scoped assignments and actual execution identity. Delegation grants no actions and requires no managed run.
 
 Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
 
@@ -56,7 +56,7 @@ System Review And Route (parent-only, read-only)
   large -> planner -> PLAN v6 + RUN v11 -> readiness -> managed execution
 ```
 
-Small work creates no PLAN/RUN files. Resolve required delegates. If scope grows, preserve evidence and plan the remainder. The Sequential Parent Route in `execution-state-model.md` handles eligible generic work one mission at a time, never mandatory roles.
+Small work creates no PLAN/RUN files. Resolve executors from agent configuration. If scope grows, preserve evidence and plan the remainder. The Sequential Parent Route in `execution-state-model.md` represents one mission at a time under the pinned managed protocol. Preserve required independent reviews.
 
 ### System Review And Route
 
@@ -92,7 +92,7 @@ These rules apply to both routes:
 - Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Publishing A to the run branch and promoting A to `main` are separate post-RUN actions with separate authorization.
 - Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
-- The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers never delegate, edit PLAN/RUN, integrate, push, or clean up.
+- The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
 - Non-mission nodes reserve with `reserve-node-attempt`, execute outside the RUN lock, then record evidence with `record-node-result`; interrupted attempts become `blocked`.
 - A review PASS binds one exact SHA. Any repair invalidates it.
@@ -108,14 +108,18 @@ Implement local hooks first; route fixed-build external setup to separately auth
 For unproven cross-layer dependencies, apply [Early Journey And Engineering Evidence](references/execution-task-decomposition.md#early-journey-and-engineering-evidence) within existing tasks and checks.
 
 1. Inspect the bounded component and relevant instructions.
-2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. UI work requires the host frontend worker; the parent retains coordination and acceptance.
+   Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task, including direct work.
+2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance.
 3. Run the smallest focused checks, including security tests, that prove the change.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
 6. For code work, load `code-security-review` on that SHA; without one, report `UNVALIDATED`, not PASS.
 7. Perform only remaining authorized Git actions.
 
-For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates. Stop after two failed repair attempts and report the remaining gap.
+For small UI work, use one Final UI Acceptance for critique, parity and page quality, with one consolidated defect set.
+Use rendered evidence when required; a text-only markup/style review makes no visual PASS claim and cannot close a required visual gate.
+Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
+Recheck original defects and affected consumers after repair. Stop after two failed repair attempts and report the remaining gap.
 
 Optional `/feature-dev` exploration does not change authorization, ownership or verification.
 
@@ -147,7 +151,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
 - Initial/enhancement system-conformance uses current approved PRD, UI design, HiFi and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. Routine maintenance follows `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- After the Final Visual Parity Loop, one read-only page-quality pass (`references/verification-gates.md`) runs on the exact head. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
+- Final UI Acceptance combines the Final Visual Parity Loop and read-only page-quality pass on the exact head (`references/verification-gates.md`). One reviewer uses current shared evidence and returns one consolidated finding set. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
 - Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow

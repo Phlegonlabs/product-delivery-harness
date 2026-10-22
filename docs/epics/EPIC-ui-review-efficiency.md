@@ -251,3 +251,184 @@ All four Mermaid sources are byte-identical to the reviewed `05f14d1c` diagrams;
 The observed main ruleset requires PRs, resolved review threads and `validate`, and forbids branch deletion and non-fast-forward updates.
 The legacy branch-protection endpoint returned 404; the effective ruleset endpoint supplies the actual rules.
 Full candidate CI, fresh source/security review and later exact-main checks remain pending.
+
+## Consolidated UI Acceptance
+
+On 2026-10-20, the owner approved one implementation UI acceptance combining parity and page quality.
+The same decision requires one design diagnostic wave and targeted repair re-review.
+Keep HiFi overall 85, every H1-H9 dimension 80, required validation and existing repair budgets.
+
+Entry: clean detached HEAD `8db251b7f0999dd62a100ec70ea78b64455b2b6d` in source worktree `c38d`.
+Route: small direct source maintenance, one parent writer and one coherent verification sequence.
+UI impact and Gitignore impact are none. No product UI or new local-only file class changes.
+The owner confirmed branch `codex/ui-acceptance`; it was created from the observed released v0.65.2 base without changing existing edits.
+Publication, release, installation and active consumer RUN migration are outside this task.
+
+One bounded explorer checks whether executable scheduling or validation requires a change.
+One assignment suffices because the remaining question concerns that shared implementation contract.
+The prior source inspection already mapped the design and implementation review stages.
+The final independent reviewer checks the fixed candidate and all changed paths.
+
+| ID | Accepted result | Verification |
+| --- | --- | --- |
+| UCA-1 | One independent implementation UI acceptance covers parity and page quality on the same candidate. | Source contract checks and existing UI evidence regressions |
+| UCA-2 | One HiFi diagnostic wave shares current evidence and a consolidated defect ledger; repair review stays targeted. | Design contract checks and retained threshold regressions |
+| UCA-3 | Required matrices, motion/native proof, 85/80 thresholds, security and repair budgets remain binding. | Existing positive and negative checks plus fixed-candidate review |
+
+Update the owning skill references, affected templates, workflow guide and four README descriptions together.
+Keep existing schemas and frozen RUNs.
+The explorer found that parity is machine-validated evidence and page quality has no separate scheduler or result schema.
+The existing integration-stage `visual` node can carry both checks.
+Its generated packet now requests one combined assessment, current matrix evidence and targeted repair review.
+No new node type, schema field, scheduling path or attempt budget is introduced.
+Document sync reports `review_required` for unknown loaded identity and the first observed baseline.
+Implementation, focused checks and fixed-candidate independent review are pending.
+
+The working-tree candidate passed 323 focused tests: review packets 10, Harness contracts 65, UI contracts 14, Product Definition contracts 102,
+UI thresholds 59, diagnostic waves 23 and UI evidence 50.
+The new packet regression failed before the renderer change and passed afterward.
+Source specification, changed-Python Pyflakes and whitespace checks passed.
+The initial documentation-weight check measured 475 added words against v0.65.2; a later edit clarified review ordering.
+Evidence and finite process records are in the task's checkout-external [verification directory](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/).
+No browser, preview or watcher was started; every completed check process exited.
+The existing large test module keeps its single source-contract responsibility; this policy change does not justify a module split.
+
+Shared root instructions remain current by meaning against installed VERSION 0.65.2 and template SHA-256
+`257c6db1b429fce7138f29bb6e8ac9acb12ebad3c1524b0a7a20180cf84d939c`.
+Retain the source repository's intentional instruction, stage-binding, Git, deployment and activation exceptions.
+Loaded identity remains unknown. Fixed-candidate review is pending; no release or installation is claimed.
+
+The independent review of `ab1d125e0ebf4e380254d40756ebcc92e26d2606` returned one P2 correctness finding, UCA-REUSE-1.
+The older tree-identical skip checked review type and bytes, but not acceptance scope or both component evidence.
+Its separate bounded security review passed; that result does not close the correctness finding or apply to a repaired candidate.
+
+The repair uses `ui_acceptance` in the existing free-form `required_evidence` list, without changing a schema.
+Marked visual packets cover both components at either review stage.
+The transition and RUN validator require retained comparison and quality anchors before a marked PASS can satisfy acceptance.
+Reusing a prior PASS also requires its complete mission, semantic-scope, evidence and tool coverage.
+Unmarked legacy nodes keep their pinned behavior. No new node, attempt budget or scheduler is introduced.
+The existing graph validator and transition modules retain their current responsibilities; this shared guard does not justify splitting them.
+Focused repair regressions and a fresh fixed-candidate correctness/security review are pending.
+
+The repair passed 323 additional-suite checks: integration skip 19, graph orchestration 45, manifest 119,
+selector 65, contracts 65 and review packets 10. The combined distinct test count is 571, including retained earlier suites.
+The first manifest run exposed misplaced prose after the template's JSON heading; moving it before the heading restored all 119 tests.
+Required-marker, narrower-scope/mission, missing-tool and missing/blank-component evidence cases reject reuse.
+Complete same-tree coverage still reuses the prior PASS, and unmarked legacy skip cases remain green.
+Marked PASS recording and RUN validation both reject missing component anchors.
+Source specification, changed-Python Pyflakes and whitespace checks passed; all finite processes exited.
+The repaired candidate still needs a fresh exact-SHA review before completion.
+
+Fresh independent reviewer `/root/ui_acceptance_recheck` closed UCA-REUSE-1 on
+`943bbb1f9b9ec68621e6f98f4b1aed4160d03a8f` and passed correctness plus bounded security review of all 25 changed paths.
+No findings or exclusions remain in that declared scope.
+See the [review receipt](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/review-final.md)
+and unchanged returned [security result](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/security-final.json).
+
+UCA-1 through UCA-3 are complete in local source on `codex/ui-acceptance`.
+The 571 distinct focused tests retain their recorded working-tree origins; no fresh reviewer execution is claimed.
+The final bookkeeping commit updates only this Epic and its index; reviewed implementation and skill-contract bytes stay unchanged.
+Shared instructions remain current against the observed installed 0.65.2 template, retaining the intentional source exceptions.
+Document sync remains `review_required` for unknown loaded identity, first baseline and historical README pointers.
+No full release matrix, consumer UI execution, publication, tag, installation or loaded-runtime adoption is claimed.
+All finite checks exited. No preview, watcher or browser remains active from this task.
+Release and installed-skill updates require a separate owner instruction.
+
+## Development Installation
+
+On 2026-10-20, the owner explicitly requested updating the currently installed skills with this local outcome.
+The owner separately authorized coordination messages to the two active consumer chats.
+This is a development installation from clean `1169a58648ec5cec54b8c3247946af5b8f847606`, not a formal release.
+
+The HiFi-specimen chat confirmed that its author, verification and reviewers use an isolated DEV bundle.
+The Jolvex chat paused new shared-skill reads and dispatches, with only fixed-source review and local verification continuing.
+The parent retained those acknowledgments in [installation quiescence](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/install-quiescence.md).
+No worker or unrelated service was stopped.
+
+The official `install.ps1` completed against `C:/Users/mps19/.agents/skills` with its lock, staging, backup and rollback protections.
+All seven installed trees and all 439 tracked paths match the source bytes.
+The normalized bundle digest is `0e2d561494da11612a5772e4df4f9aad056310478006797e4bb6e73a40599bf9`.
+The installer source receipt names `1169a586` and confirms no uncommitted skill changes.
+
+The prior seven trees were preserved at `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261020-112719`.
+Their paths and bytes match the pre-install snapshot.
+Full-tree checks also confirm that frontend-design, Impeccable, go-to-market and gtm-content were unchanged.
+Legacy IDs, destination lock, staging directories and owner markers are absent.
+Installer and verification processes exited successfully.
+See [installed verification](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/install-after.json).
+
+Both chats were notified that the shared installation hold is released.
+They retain their existing isolated or frozen contracts; the notification grants no pin migration or product action.
+The installed version text remains 0.65.2. Actual loaded identity remains unknown, and new work requires a fresh host session.
+Shared root rules remain current by meaning against the newly installed template, retaining the source-repository exceptions.
+No push, formal release, tag, host restart or consumer-binding update occurred.
+
+## Whole-Skill Review Follow-Up
+
+The owner requested fixes for the two confirmed P2 findings in the whole-skill review.
+Baseline: clean `b2afa074` on `codex/ui-acceptance`, observed 2026-10-20.
+The [review report](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/whole-skills-review.md) records both findings.
+
+The UI fix must reject caller-selected subsets of the frozen manifest's complete surface, applicable state and target matrix.
+Keep 85/80 thresholds, current receipts, mandatory checks and the existing repair budget.
+Parent-owned validator work uses the direct route; UI impact and Gitignore impact are `none`.
+Prior read-only exploration is complete. No new architecture boundary requires another exploration wave.
+The validator and diagnostic tests retain their evidence-validation responsibility; a module split would widen this repair.
+Acceptance requires missing-surface/state/target regressions, complete-matrix positives, focused contract checks and fixed-candidate independent review.
+The validator now derives the complete applicable matrix from the frozen manifest before joining role receipts.
+Matching partial waves fail without becoming complete or repair-eligible. Per-surface targets and documented `n/a` states retain their meaning.
+The fixture now observes both declared surfaces with distinct captures.
+Working-tree verification: all 385 UI tests completed with two platform skips; all 27 diagnostic tests passed.
+Source skill specification, scoped Pyflakes and `git diff --check` passed.
+Logs: `fix-ui-suite-1792565025153977500.log` and `fix-ui-diagnostic-green-1792564998419684500.log` in the linked review evidence directory.
+The first fixture run exposed shared captures; distinct case captures corrected it before the passing run.
+A separate contract invocation selected the wrong test directory and ran zero tests; it supplies no verification evidence.
+The complete UI suite includes the applicable skill contracts.
+Entry document sync requires semantic review because loaded identity and a prior snapshot are unavailable; it grants no PASS.
+The UI fix is committed as `5a1cce1f`; the separate Activation fix is `73bdfd34`.
+On 2026-10-21, a fresh native reviewer inspected clean `73bdfd347518237b11cba3ec101175614544c8db` against `b2afa074`.
+The measured dispatch packet was 5,083 UTF-8 bytes within its 12,000-byte task limit.
+Correctness and scoped security review passed across all 13 changed paths, without findings, exclusions or coverage gaps.
+The unchanged [security result](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/fix-security-result.json) passed the source result validator.
+Its SHA-256 is `97131aea7f10f674ac08cc4d817bef1bcba1651387d09c5b18802f324b05f290`.
+The reviewer independently passed 27 diagnostic tests and 66 Activation checker tests.
+The parent passed 27 diagnostic, 75 complete Activation and 65 Harness skill-contract tests at that exact clean candidate.
+Logs: `fix-candidate-ui-1792566031092922300.log`, `fix-candidate-activation-1792566031093827200.log` and `fix-candidate-source-contract-1792566160001006300.log`.
+
+Both P2 follow-ups are complete in local source. This final bookkeeping changes only the two Epic records and their index.
+The reviewed implementation, test and skill-contract bytes remain unchanged.
+Shared instructions remain current by meaning against installed 0.65.2 template `cae9e29e365c60809811f1cd83ffc75f44621244b9966339c9ded3a197ddf8e2`.
+The source-specific bindings, deployment, Activation, Git and reading exceptions remain intentional.
+Handoff document sync remains `review_required` for unknown loaded identity, first baseline and retained historical README pointers.
+Those pointers describe migration/history. They are not new invocation routes, and no document-sync PASS is claimed.
+All finite task checks exited; no preview or watcher was started.
+This follow-up has no push, formal release, installation or loaded-runtime adoption. The prior development installation remains separate.
+
+## Audit-Fix Development Installation
+
+On 2026-10-21, the owner explicitly requested installing this follow-up into the current shared skills.
+The owner also approved coordinating the two new active chats, alongside the two previously authorized chats.
+All four confirmed paused shared reads or fixed isolated sources before installation.
+See the [quiescence record](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/fix-install-quiescence.md).
+No existing worker or unrelated service was stopped, and no consumer pin was migrated.
+
+The official `install.ps1` installed clean `92027b82ecda4cdd4be8982c4077d72bc31ccfbd` into `C:/Users/mps19/.agents/skills`.
+The reviewed skill bytes remain those of `73bdfd34`; later commits contain only task records.
+All seven skill trees and all 439 tracked files match the source bytes.
+Only `ui-design-builder` and `product-activation` differ from the previous installation.
+The installed bundle digest is `f635763875e40ad30f112933c3f78efbf9cebb5501eb13ea57d4b5dabb8ce28b`.
+The [read-back record](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/fix-install-after.json) retains all manifests and the source receipt.
+
+The previous seven trees are preserved at `C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261021-005755`.
+Backup paths and bytes match the pre-install snapshot. Existing backups remain preserved.
+Frontend Design, Impeccable, go-to-market and gtm-content remain unchanged.
+No legacy IDs, destination lock, staging directory or owner marker remains.
+Installed-location regressions passed: 27 diagnostic tests and 75 Activation tests.
+Logs: `fix-installed-ui-1792569561268393100.log` and `fix-installed-activation-1792569561268087600.log` in the linked evidence directory.
+Installer and checks exited successfully. All four chats received the verified completion and hold-release notification.
+
+This is a development installation; version text remains 0.65.2 and actual loaded identity remains unknown.
+A fresh host session must discover the changed bundle; existing tasks retain their original frozen contracts.
+The installed template and shared instructions remain current by meaning, preserving intentional source exceptions.
+Handoff document sync retains first-baseline, unknown-loaded-identity and historical-pointer review findings; no sync PASS is claimed.
+The final local commit records installation only. No push, formal release, tag or host restart occurred.

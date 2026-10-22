@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from argparse import Namespace
 from pathlib import Path
 
@@ -86,6 +87,103 @@ class IntegrationReviewSkipTests(unittest.TestCase):
         plan, run = self.state(reviewed_sha=HEAD)
 
         self.assertEqual([], self.skip_errors(plan, run))
+
+    def acceptance_state(self):
+        plan, run = self.state(reviewed_sha=HEAD)
+        source = next(node["review"] for node in plan["graph"]["nodes"] if node["id"] == "N-FRONTEND-REVIEW")
+        target = next(node["review"] for node in plan["graph"]["nodes"] if node["id"] == "N-VISUAL-REVIEW")
+        target["required_evidence"].append("ui_acceptance")
+        target["required_tools"] = ["chrome_devtools"]
+        for key in ("mission_ids", "scope", "required_evidence", "required_tools"):
+            source[key] = list(target[key])
+        run["attempt_log"].append({
+            "attempt_id": "ATT-PRE", "mission_id": "M1", "task_id": None,
+            "lease_id": None, "kind": "review", "result": "pass",
+            "review_lineage_id": source["lineage_id"], "failure_family_ids": [],
+            "evidence": ["ui_parity:captures/manifest.json", "ui_page_quality:review/report.md"],
+        })
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["review_workers"][0]["plan_digest_sha256"] = digest
+        return plan, run, source, target
+
+    def test_combined_acceptance_can_reuse_complete_same_tree_review(self) -> None:
+        plan, run, _, _ = self.acceptance_state()
+        self.assertEqual([], self.skip_errors(plan, run))
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"] = "dormant"
+        with patch("harness_transition._git_tree", return_value="e" * 40):
+            harness_transition._skip_integration_review(
+                plan, run, Namespace(node_id="N-VISUAL-REVIEW", worker_id="RW-PRE", repo_root=Path.cwd())
+            )
+        self.assertEqual([], self.skip_errors(plan, run))
+
+    def test_combined_acceptance_rejects_incomplete_prior_coverage_and_evidence(self) -> None:
+        for missing in ("marker", "scope", "mission_ids", "required_evidence", "required_tools", "parity", "quality", "blank_quality"):
+            with self.subTest(missing=missing):
+                plan, run, source, target = self.acceptance_state()
+                if missing == "marker":
+                    source["required_evidence"].remove("ui_acceptance")
+                elif missing == "scope":
+                    source["scope"] = ["other/**"]
+                elif missing == "mission_ids":
+                    source["mission_ids"] = []
+                elif missing == "required_evidence":
+                    target["required_evidence"].append("extra-comparison")
+                elif missing == "required_tools":
+                    source["required_tools"] = []
+                elif missing == "blank_quality":
+                    run["attempt_log"][-1]["evidence"][1] = "ui_page_quality: "
+                else:
+                    index = 0 if missing == "parity" else 1
+                    del run["attempt_log"][-1]["evidence"][index]
+                self.assertTrue(self.skip_errors(plan, run))
+                run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"] = "dormant"
+                with patch("harness_transition._git_tree") as git_tree:
+                    with self.assertRaisesRegex(ManifestError, "required acceptance coverage"):
+                        harness_transition._skip_integration_review(
+                            plan, run, Namespace(node_id="N-VISUAL-REVIEW", worker_id="RW-PRE", repo_root=Path.cwd())
+                        )
+                    git_tree.assert_not_called()
+
+    def test_combined_acceptance_pass_cannot_omit_component_evidence(self) -> None:
+        plan, run, _, _ = self.acceptance_state()
+        state = run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]
+        state.update(phase="succeeded", last_attempt_id="ATT-PRE", last_outcome="pass", attempts=1)
+        self.assertFalse(any("UI acceptance PASS requires" in error for error in validate_run(plan, run)))
+        run["attempt_log"][-1]["evidence"] = ["ui_parity:captures/manifest.json"]
+        self.assertTrue(any("UI acceptance PASS requires" in error for error in validate_run(plan, run)))
+
+    def test_combined_acceptance_supports_semantic_scope_containment(self) -> None:
+        plan, run, source, target = self.acceptance_state()
+        source["scope"] = ["web/**"]
+        target["scope"] = ["web/pages/home.tsx"]
+        self.assertEqual([], self.skip_errors(plan, run))
+
+    def test_record_combined_acceptance_requires_both_component_anchors(self) -> None:
+        for complete in (False, True):
+            with self.subTest(complete=complete):
+                plan, run, source, _ = self.acceptance_state()
+                run["attempt_log"] = [item for item in run["attempt_log"] if item["attempt_id"] != "ATT-PRE"]
+                run["review_workers"][0]["phase"] = "leased"
+                run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+                    phase="running", last_attempt_id="ATT-PRE", bound_worker_id="RW-PRE"
+                )
+                evidence = ["ui_parity:captures/manifest.json"]
+                if complete:
+                    evidence.append("ui_page_quality:review/report.md")
+                arguments = Namespace(
+                    lineage=source["lineage_id"], worker_id="RW-PRE", attempt_id="ATT-PRE",
+                    mission_id=None, result="pass", evidence=evidence, finding=None,
+                    failure_family_id=None, failure_primitive=None, equivalence_class=None,
+                    strategy=None, tree_sha="e" * 40, repo_root=None,
+                )
+                if complete:
+                    harness_transition._record_review_attempt(plan, run, arguments)
+                    self.assertEqual("worker_passed", run["review_workers"][0]["phase"])
+                else:
+                    with self.assertRaisesRegex(ManifestError, "UI acceptance PASS requires"):
+                        harness_transition._record_review_attempt(plan, run, arguments)
+                    self.assertEqual("leased", run["review_workers"][0]["phase"])
 
     def test_skip_is_rejected_when_the_head_moved(self) -> None:
         # A different commit is a different tree, so "did the combination

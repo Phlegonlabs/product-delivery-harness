@@ -106,9 +106,9 @@ Use the verification ladder:
 2. exact-head mission review;
 3. mission integration and interaction checks;
 4. retained platform handoff at the completion mission's integrated SHA;
-5. fresh exact-SHA unified review; only non-security review may reuse byte-identical-tree evidence;
+5. fresh exact-SHA unified review; new consolidated `visual` nodes declare `ui_acceptance` and combine parity and page quality using current evidence; non-security tree-identical reuse must meet the coverage rules in `verification-gates.md`;
 6. `code-security-review`, repair when required, and fresh review of the new SHA;
-7. final broad regression, browser E2E, platform TEST gates, breakpoint-by-state UI evidence, element overlap/clipping/overflow checks, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
+7. final broad regression, browser E2E, platform TEST gates, breakpoint-by-state UI evidence, element overlap/clipping/overflow checks, visual, and migration checks; retain Final UI Acceptance from `references/verification-gates.md` on the unchanged candidate without another reviewer dispatch;
 8. applicable `references/gitignore-contract.md` checks, then `git diff --check` and complete final-diff review.
 
 Host verifiers run fresh and serially per runner. Container `session_exact` reuse requires `exit 0`, clean matching inputs, read-only task/worker declarations, and `cache.deterministic_local: true` within one runner batch. Every consumer rechecks guards and runtime/image identity and retains its reservation, evidence, and origin. Keep request/result artifacts repository-external; no disk cache is used. Integration, cross-mission, final, browser, migration, mutable-environment, and network checks execute fresh. UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the integration head.

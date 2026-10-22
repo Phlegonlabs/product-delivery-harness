@@ -131,7 +131,8 @@ function createIdentityGraph(args, domain) {
       const b = binding("market-research");
       const researchPrompt = tasks.find(t => t.label === "prd:market-research").prompt;
       readonlyPlan = createReadonlyAssignments({schema_version: SCHEMA_VERSION, run_id: context.run_id,
-        business_role: "market-research", execution_role: "market_researcher", phase: "post_draft_market_research",
+        ...(context.research_distinct_workers === undefined ? {} : {distinct_workers: context.research_distinct_workers}),
+        business_role: "market-research", execution_role: b.execution_role, phase: "post_draft_market_research",
         authorization: b.authorization, capability: b.capability, attempt_number: attempt,
         binding_required: true, binding_requirements: {authority: b.authority, runtime: b.runtime},
         requested_identity: {execution_role: b.execution_role, model: b.model, effort: b.effort},
@@ -147,7 +148,8 @@ function createIdentityGraph(args, domain) {
   function finish(laneResults, synthesisResult, results, records) {
     if (!reviewTasks) throw new Error("review must precede finish");
     const allTasks = [...analysisTasks, synthesisTask, ...reviewTasks];
-    launchIndex(allTasks.map(t => t.assignment), records);
+    const reuseGroups = readonlyPlan?.distinct_workers === false ? [readonlyPlan.instances.map(a => a.assignment_id)] : [];
+    launchIndex(allTasks.map(t => t.assignment), records, {reuseGroups});
     const recordsFor = tasks => records.filter(r => tasks.some(t => t.assignment.assignment_id === r.assignment_id));
     const lanes = successful(join(analysisTasks, laneResults, recordsFor(analysisTasks)));
     if (digest(lanes) !== synthesisInput) throw new Error("analysis snapshot changed after synthesis");

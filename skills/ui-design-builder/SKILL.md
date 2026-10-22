@@ -42,7 +42,7 @@ Read the owning section before its matching action. Domain and direction guidanc
 ## Entry Boundary
 
 - A new round requires the approved Product Definition and Stack Decision Checkpoint, with the package's exact UI contract.
-- The host's actual `frontend_worker` is the single UI author. The actual writer loads the complete pinned `frontend-design` skill; a parent read does not author design.
+- Agent configuration designates the UI author; this skill does not choose its agent type or model. The actual writer loads the complete pinned `frontend-design` skill; a parent read does not author design.
 - Enhancements author only added or changed pages and necessary connecting flows. Routine maintenance does not rebuild historical HiFi or reopen frozen approvals.
 - Direction and HiFi authorship retain the required preflight, Impeccable critique/audit, browser evidence and H1-H9, then one human Visual Approval.
 
@@ -52,6 +52,8 @@ Use `references/review-workflow.md` to classify this round. New initial design a
 
 ## Review And Repair Boundaries
 
+Before author dispatch, apply [Frontend Visual Inputs](../delivery-harness/references/frontend-visual-inputs.md). Direction exploration may keep selection pending; HiFi and its repairs carry the selected direction's captures, fonts, assets and concrete visual-feature sources.
+
 - Author directions and HiFi from the PRD contract, not from an implied page skeleton. The design author may choose hierarchy, grouping, section rhythm, typography, density and visual treatment; it may not add a page, route, control, state, responsive target, operation, copy obligation or integration.
 - Keep selected direction and approved HiFi identities traceable. A changed candidate needs applicable fresh evidence. The compiler writes a separate formal-pair preview; it never changes historical approvals.
 
@@ -60,6 +62,7 @@ Use `references/review-workflow.md` to classify this round. New initial design a
 - New machine observations use `ui-evidence/3` without a human owner or attestation. `ui-evidence/2` retains its historical human-attested semantics and is never fabricated or relabeled. Only the actual owner supplies direction and Visual Approval.
 - Keep copy source/completeness and PRD responsibilities valid. A changed product decision returns upstream; composition repairs inside accepted scope reuse authorization. Copy is reviewed with the full HiFi.
 - HiFi checks use one complete diagnostic wave, one consolidated repair batch, and one re-review after the cheap completeness gate. Another failure stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+- Browser checks, Impeccable critique/audit and H1-H9 belong to that same wave and candidate. The lead reconciles their evidence once; do not launch another grading wave to restate completed checks.
 - Repair re-review follows `references/ui-grading-rubric.md#repair-re-review-scope`: original defects and affected consumers, with mandatory Impeccable checks and complete current evidence.
 - Numeric scores summarize quality; they never override a PRD contradiction, broken browser matrix, inaccessible required flow, dead control, or missing human approval.
 - HiFi readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80. Keep actual-score consistency and required Impeccable verdicts.

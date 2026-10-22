@@ -141,7 +141,7 @@ console.log("hybrid fallback and stale QA assertions completed");
                 self.assertIn(anchor, anchors)
 
         self.assertIn("approved Product Definition and Stack Decision Checkpoint", entry)
-        self.assertIn("host's actual `frontend_worker`", entry)
+        self.assertIn("Agent configuration designates the UI author", entry)
         self.assertIn("complete pinned `frontend-design`", entry)
         self.assertIn("Enhancements author only added or changed pages", entry)
         self.assertIn("Routine maintenance does not rebuild historical HiFi", entry)
@@ -223,7 +223,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("grants no spawn action", authoring_contract)
         self.assertNotIn("parent may author", authoring_contract)
         for document in (stage, wireframe, hifi, workflow):
-            self.assertIn("the parent cannot author it directly", document)
+            self.assertIn("Agent configuration designates", document)
         self.assertIn("shell construction and validation", authoring_contract)
 
     def test_motion_and_media_router_is_conditional(self):

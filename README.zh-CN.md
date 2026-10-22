@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Managed 本地 build／test 默认使用项目工具链，不需要 Docker 或 P
 
 ### Zero-to-one 流程（从零开始）
 
-这是 **v0.65.2** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
+这是 **v0.65.3** 新产品的默认流程。先按上方安装方式准备七个 skills，并开启新的 host session。只继续 owner 已授权的阶段；enhancement／maintenance 沿用已批准来源，只核对接受的变更。Headless 产品跳过 UI 阶段。
 
 ```mermaid
 ---
@@ -96,7 +96,7 @@ flowchart TD
     B["第一个固定可用 build＋SHA／产物<br/>授权后隔离部署＋Activation 前置准备<br/>分析埋点；获取动态错误／crash"]
     J["未证实的核心真实旅程先跑通，再扩展依赖功能<br/>前后端小任务＋针对性检查<br/>按风险验证失败、负载、成本、迁移／还原"]
     N["按已选路线做独立审查<br/>Direct：作者完整 diff 自查＋1 次精确 SHA 安全审查<br/>Managed：每个就绪 mission／适用面先审再整合<br/>之后在统一候选做新的适用面＋安全审查"]
-    Q["适用 UI：parity loop，2 轮修正失败即停<br/>之后 1 次只读页面质量检查；共用既有额度<br/>更严格的 lineage 限制优先 → 最终回归"]
+    Q["适用 UI：1 次只读 Final UI Acceptance<br/>parity＋页面质量；集中缺陷、定向复查<br/>2 次修复失败即停；更严格 lineage 优先 → 最终回归"]
     F["对外试用前：反馈入口实测送达 owner<br/>无人值守 Preview／beta 前：实收有效告警<br/>前置准备不授权试用或部署"]
     C["隔离 candidate Preview：精确 build 验收<br/>Managed：本地 C → 归档 A；Direct：固定候选<br/>Preview 若用远程分支，另行授权发布／读回"]
     R["另行授权 main／production 发布<br/>验证实际发布 SHA／产物<br/>服务器生成 main：树相等＋新的完整检查／安全审查"]
@@ -188,15 +188,16 @@ PRD 定义成果与可测量质量；architecture 定义职责、状态、接口
 | 完整 HiFi | 先做低成本完整性检查及作者自查，再跑 **一次完整初审**；需要修复时，最多 **一批集中修复＋一次复查**。 |
 | 每次 HiFi 审查的内容 | 必跑 Impeccable `critique` **与** `audit`、完整必要浏览器覆盖及当前 H1–H9。四舍五入的总平均 **至少 85**、每项 **至少 80**，且无 block／争议，再取得 **一次 Visual Approval**。 |
 | 设计系统编译 | 一组连贯的 source／pair／coverage／contrast／type／HTML 验证与实际展示检查；技术修复后重验受影响部分，不新增方向批准或审美评分 wave。 |
-| Direct 代码交付 | 一位 writer、聚焦测试、作者完整 diff 自查及一次精确候选 `code-security-review`；代码候选改变就要新的安全审查。小型 UI 加一个 critique／repair／recheck cycle，两次修复失败就停止。 |
+| Direct 代码交付 | 一位 writer、聚焦测试、作者完整 diff 自查及一次精确候选 `code-security-review`；代码候选改变就要新的安全审查。小型 UI 使用下列合并验收，两次修复失败就停止。 |
 | Managed 代码交付 | 每个 mission 在整合前，按适用 surface 各一位 reviewer；统一 head 再作全新适用 surface 审查，包含统一安全审查。节点由冻结 PLAN 声明；runtime review 允许初审及一次修复复查，原 lineage 预算持续累计。 |
-| 适用的实现 UI gates | 对必要矩阵跑 Final Visual Parity Loop，在现有预算内 **两次修复失败就停止**；之后 **一次最终只读 page-quality pass**，其缺陷共用原预算。这里的 Impeccable 要另行授权，不是默认 reviewer node。 |
+| 适用的实现 UI 验收 | **一次独立只读 Final UI Acceptance**，在精确候选上合并 Final Visual Parity Loop 与 page-quality 检查。同一位 reviewer 共用当前证据、集中缺陷，修复后复查原缺陷及受影响部分。保留必要矩阵，**两次修复失败即停**，更严格的既有 lineage 预算优先。Impeccable 要另行授权，不能替代 reviewer。 |
 | 候选与正式环境 | 隔离候选 Preview 与实际 promoted production build 分开验证；Preview 证据不能证明正式环境。Server 产生新 main SHA 时，要 tree equality、全新完整验证与安全审查；这些是发布核对，不新增 HiFi 审美 wave。 |
 | Activation | 每个 target／action 要有设置或人工操作证据、独立读回及适用行为证明；早期准备与实际正式版分开验证，动作数依必要 targets 决定。 |
 | 成效回顾 | 真实测量期结束后，执行 owner 要求的各 target Outcome Review；多 target 时再产生 aggregate。历史只追加。适用 `seo-growth-review` 可选，交付不等待 adoption。 |
 
-HiFi 默认一位 lead grader；owner 要求或已记录高影响风险时，最多增加两位 specialist sibling，仍须在同一初审 wave 完成后才修复。复查聚焦原缺陷及受影响 consumer，同时保留 Impeccable 的必需范围、完整浏览器覆盖与当前分数。第二次 review 仍失败就停在 `blocked`；只有 owner 明确批准改变策略与完整验收矩阵，才可例外增加一次 successor re-review。一般“继续”不代表批准。详见 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。
+HiFi grader 与汇总评估的 lead 由 agent 设置决定。浏览器、Impeccable 与 H1-H9 使用同一候选，在同一诊断 wave 完成；lead 集中回报后才修复，不再另开审美或评分 wave。复查聚焦原缺陷及受影响 consumer，同时保留 Impeccable 的必需范围、完整浏览器覆盖与当前分数。第二次 review 仍失败就停在 `blocked`；只有 owner 明确批准改变策略与完整验收矩阵，才可例外增加一次 successor re-review。一般“继续”不代表批准。详见 [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope)。 前端派工会完整带入方向研究 HTML、画面、字体、素材与视觉特征的来源及身份。方向探索允许截图待补，已记录的来源身份仍须验证；作者须自行读取并检视后才编辑。 维护派工传入已验证的 task record，使用当前 Product／Stack 来源并保留历史设计身份。 一般派工的衍生 preview 必须符合绑定 pair 与 HiFi；维护派工不把未验证的历史 preview 当成当前输入。
 
+复用较早的 visual PASS，须有两项验收证据并完整覆盖当前范围；代码树相同本身不足以复用。
 这里计算 Harness 阶段的 pass 次数；Impeccable 仍须完成 pinned workflow 与内部评估，其原生总分不能替代 H1–H9。
 
 通过即停止，不追 100 分；相同候选不重复同范围 review。SHA／输入改变时，更新适用证据。Managed 节点数与修复额度仍由 PLAN 和原 lineage 掌管，不能换 wave 名称重设预算。详见[实现验证规则](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop)。
@@ -619,7 +620,7 @@ Product Definition 与 UI 的批准／交接回复，要在对话中逐份列出
 
 从固定的初始版本开始，`product-activation` 先完成依赖功能所需的已授权设置。正式发布后沿用现有资源，再核对实际版本。Capability、action digest 与行为证据仍绑定精确 target、environment、SHA 和 artifact；最终 readiness、verified measurement sources 与 Outcome Review 保留各自的发布证据要求。
 
-Activation 默认进入执行：先盘点真实 delta，继续把 ready 且已授权的 action 做到 mutation/read-back/behavior，最后执行 closeout checker；只有 owner 明确要求时才是 documentation-only。`--require-closeout` 会拒绝停留在 ready、configured、pending、uncertain 或 stale 的 required action。只有 verified 工作或明确 concrete blocker 能关闭动作；blocked 状态让 record 保持 blocked。真正的 no-op 不需要合成 action，但每个 target 都必须有 concrete n/a disposition；verified handoff 仍要求 verified sources 与 target readiness。
+Activation 默认进入执行：先盘点真实 delta，继续把 ready 且已授权的 action 做到 mutation/read-back/behavior，最后执行 closeout checker；只有 owner 明确要求时才是 documentation-only。`--require-closeout` 会拒绝停留在 ready、configured、pending、uncertain 或 stale 的 required action。只有 verified 工作或明确 concrete blocker 能关闭动作；blocked 状态让 record 保持 blocked。真正的 no-op 不需要合成 action，但每个 target 都必须有 concrete n/a disposition；verified handoff 仍要求 verified sources 与 target readiness。 取得授权前，摘要命令必须用 `--activation` 明确选取当前的 staged 文件。
 
 Activation 之后，`seo-growth-review` 可对 typed public hosted-web production target 做独立只读 review。Dated report 必须对齐 Review date、deployment hostname、exact release、Activation hash、verified source roles、data cutoff 与 PASS integrity checks；它不修改网站或外部账户。
 
@@ -846,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>通用运行时适配：宿主能力、契约采用与宿主交接</b></summary>
 
-Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Host 专属模型放在 host policy；共用 skills 保留设定角色与已授权 fallback。
+Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Agent 定义与有效 AGENTS 负责 worker 身份、模型、effort、fallback 和委派方式；catalog 保留已安装 profile 的设置，派工记录明确选定的执行路线；actor 的完整结果状态通过验证后才写入；skills 负责方法、视觉输入、授权、证据和验收。要求值与实际执行观察分开记录。研究可按 agent 设置复用同一执行者；必需的独立佐证仍保留不同执行身份。
 
 ## 通用运行时适配
 
@@ -918,7 +919,7 @@ CI 也会运行端到端主干检查。POSIX shell 使用 `HARNESS_GOLDEN_PATH=1
 <details>
 <summary><b>验证与执行测量：CI、浏览器测试、计时与验收证据</b></summary>
 
-`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。完整观察到的 FAIL rows 仍是 complete 且可在既有授权下 repair-eligible，但 strict final approval 仍失败。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Direction `--overwrite` 会比较 destination、author sources 与 manifest 的文件身份并拒绝 hardlink，保留输入。Outcome 与 SEO checkers 把必要的 Product／Stack context 带进 strict Activation checks。
+`check_ui_diagnostic_wave.py` 连接 browser、critique、audit、grading、PRD、manifest 与 subject 身分。Request 与各角色必须覆盖 frozen manifest 的完整 surface、非 n/a state 与各 surface 的 target 矩阵。 完整观察到的 FAIL rows 仍是 complete 且可在既有授权下 repair-eligible，但 strict final approval 仍失败。缺少、blocked、部分、过期或超出范围的证据会阻挡 handoff；partial report 不会得到 repair approval。Direction `--overwrite` 会比较 destination、author sources 与 manifest 的文件身份并拒绝 hardlink，保留输入。Outcome 与 SEO checkers 把必要的 Product／Stack context 带进 strict Activation checks。
 
 ## 验证与执行测量
 
@@ -981,6 +982,8 @@ HiFi 示例以固定 LF 换行维持跨平台字节哈希。Wireframe 的 Node �
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.65.3** — 设计端采用同轮审核与定向复查，实现端合并 UI 验收，保留 85／80 与必要证据。向作者提供完整画面、字体、素材及视觉特征，worker 选择交由 agent 配置。保留已有 RUN 契约，修正诊断覆盖、验收复用及 Activation 暂存动作摘要。
 
 - **0.65.2** — 发布四语完整交付流程图，标明 PRD 自查、基础设置时点、MultiAgent 分工、既有 review 次数与 GTM 并行接入。记录当前 owner 同时推广 Instagram 与 Threads，Facebook Pages 待评估，X 可选。保留 85／80 门槛与既有审查额度。
 

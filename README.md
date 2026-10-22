@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Managed local build/test uses the project toolchain without Docker or Podman by 
 
 ### Zero-to-one flow
 
-This is the **v0.65.2** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
+This is the **v0.65.3** default flow for a new product. Install the seven skills using the setup above and start a fresh host session. Continue only the stages the owner authorized. Enhancements and maintenance reuse approved inputs and inspect the accepted delta; headless products skip UI stages.
 
 ```mermaid
 ---
@@ -96,7 +96,7 @@ flowchart TD
     B["First fixed usable build + SHA/artifact<br/>Authorized isolated deployment + Activation preparation<br/>Analytics hooks; retrieve dynamic errors/crashes"]
     J["Prove untested real core journey before dependent expansion<br/>Scoped frontend/backend tasks + focused checks<br/>Risk-based failure, load, cost, migration/restore proof"]
     N["Independent review under the chosen route<br/>Direct: author diff check + 1 exact-SHA security review<br/>Managed: each ready mission/surface before integration<br/>Then fresh unified applicable-surface + security reviews"]
-    Q["Applicable UI: parity loop, stop after 2 failed repair rounds<br/>Then 1 read-only page-quality pass; shared budget<br/>Stricter lineage limit wins → final regression"]
+    Q["Applicable UI: 1 read-only Final UI Acceptance<br/>Parity + page quality; consolidated findings, targeted recheck<br/>Stop after 2 failed repairs; stricter lineage wins → final regression"]
     F["Before external trials: tested feedback route to owner<br/>Before unattended Preview/beta: useful alert received<br/>Preparation grants no trial or deployment action"]
     C["Isolated candidate Preview: exact-build acceptance<br/>Managed: local C → archive A; Direct: fixed candidate<br/>Separate publication/readback if Preview uses remote branch"]
     R["Separately authorized main/production release<br/>Verify actual released SHA/artifact<br/>Server-created main: tree equality + fresh full checks/security"]
@@ -188,15 +188,16 @@ An author self-check, independent review, machine check and human decision are d
 | Complete HiFi | Cheap completeness check and author self-check first. Then **one complete diagnostic wave**; if needed, **one consolidated repair batch and one re-review**. |
 | HiFi checks within each pass | Required Impeccable `critique` **and** `audit`, complete required browser coverage and current H1-H9 assessment. Rounded overall mean **at least 85**, every dimension **at least 80**, no block or dispute; then **one Visual Approval**. |
 | Design-system compilation | One coherent source/pair/coverage/contrast/type/HTML validation sequence and rendered showcase inspection. Recheck affected technical repairs; no new direction-selection or aesthetic grading wave. |
-| Direct code delivery | One writer, focused checks, author complete-diff check and one exact-candidate `code-security-review`. A changed code candidate needs fresh security review. Small UI adds one critique/repair/recheck cycle and stops after two failed repair attempts. |
+| Direct code delivery | One writer, focused checks, author complete-diff check and one exact-candidate `code-security-review`. A changed code candidate needs fresh security review. Small UI uses the consolidated UI acceptance below and stops after two failed repair attempts. |
 | Managed code delivery | One reviewer per applicable surface at each mission head before integration, then fresh applicable-surface reviews at the unified head, including unified security. The frozen PLAN declares the nodes. Runtime review permits an initial review and one repair re-review; budgets stay cumulative across the same lineage. |
-| Implementation UI gates, when applicable | Final Visual Parity Loop over the required matrix; stop after **two failed repair rounds** within the existing budget. Then **one final read-only page-quality pass**. Its findings share that budget. Impeccable here is separately authorized, not the default reviewer node. |
+| Implementation UI acceptance, when applicable | **One independent read-only Final UI Acceptance** combines the Final Visual Parity Loop and page-quality checks on the exact candidate. One reviewer shares current evidence and consolidates defects. Recheck original defects and affected consumers; retain the required matrix and stop after **two failed repair rounds**, subject to the stricter existing lineage budget. Impeccable requires separate authorization and does not replace the reviewer. |
 | Candidate and production | Verify isolated candidate Preview, then the actual promoted production build separately. Earlier Preview evidence cannot prove production. A server-created main SHA needs tree equality, fresh full verification and security review. These are release checks, not HiFi taste waves. |
 | Activation | Per target/action: configuration or manual evidence, independent readback and applicable behavior proof. Verify early preparation and actual release separately; action count depends on required targets. |
 | Outcomes | After the real measurement window, perform the owner-requested per-target Outcome Review and the multi-target aggregate when applicable. History is append-only. Applicable `seo-growth-review` is optional; delivery does not wait for adoption. |
 
-HiFi uses one lead grader by default; up to two specialist siblings require an owner request or recorded high-impact risk. They finish the same wave before repair. Re-review follows original defects and affected consumers while retaining mandatory Impeccable scope, complete browser coverage and current scores. After a second failed review, stop at `blocked`. One exceptional successor re-review requires explicit owner approval of a changed strategy and acceptance matrix. A generic instruction to continue is insufficient. See the [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope).
+Agent policy selects HiFi graders and a lead for the consolidated assessment. Browser, Impeccable and H1-H9 checks share one frozen candidate and diagnostic wave. The lead consolidates the assessment before repair; no separate aesthetic or scoring wave follows. Re-review follows original defects and affected consumers while retaining mandatory Impeccable scope, complete browser coverage and current scores. After a second failed review, stop at `blocked`. One exceptional successor re-review requires explicit owner approval of a changed strategy and acceptance matrix. A generic instruction to continue is insufficient. See the [HiFi rubric](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope). Frontend dispatch includes source-bound direction studies, screens, fonts, assets and visual-feature sources. Direction exploration permits explicitly pending captures; recorded identities remain checked. The author inspects them before editing. For maintenance, pass the validated task record so current Product/Stack sources can accompany retained historical design identities. Ordinary derived previews must match the bound pair and HiFi. Maintenance omits unchecked historical previews from current inputs.
 
+Reusing an earlier visual PASS requires evidence for both acceptance components and complete scope coverage; tree identity alone is insufficient.
 The counts describe Harness stage passes. Impeccable still follows its complete pinned workflow and internal assessments; its native totals do not replace H1-H9 grading.
 
 Stop on PASS; do not chase 100. Do not repeat same-scope review on an unchanged candidate. A changed SHA/input requires applicable fresh evidence. Managed node counts and repair allowances remain governed by the PLAN and original lineage; renaming a wave never creates another budget. See the [implementation verification gates](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop).
@@ -619,7 +620,7 @@ For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Prod
 
 From a fixed initial build, `product-activation` prepares authorized prerequisites before dependent features. After production deployment, it reuses existing resources and re-verifies the actual release. Capabilities, action digests and behavior evidence remain bound to each exact target, environment, SHA and artifact. Final readiness, verified measurement sources and outcome review retain their release requirements.
 
-Activation is execution by default: inventory the real delta, continue ready authorized actions through mutation/read-back/behavior, and use the closeout checker at the end; documentation-only work requires an explicit owner request. `--require-closeout` rejects a required action left ready, configured, pending, uncertain, or stale. Only verified work or an explicit concrete blocker closes the action; either blocked state keeps the record blocked. A true no-op needs no synthetic action, but every target must have a concrete n/a disposition, while verified handoff still requires verified sources and target readiness.
+Activation is execution by default: inventory the real delta, continue ready authorized actions through mutation/read-back/behavior, and use the closeout checker at the end; documentation-only work requires an explicit owner request. `--require-closeout` rejects a required action left ready, configured, pending, uncertain, or stale. Only verified work or an explicit concrete blocker closes the action; either blocked state keeps the record blocked. A true no-op needs no synthetic action, but every target must have a concrete n/a disposition, while verified handoff still requires verified sources and target readiness. Generate action digests with an explicit staged `--activation` path before requesting authorization.
 
 After activation, `seo-growth-review` can run as an independent read-only pass for a typed public hosted-web production target. Its dated report must match the Review date, deployment hostname, exact release and Activation hash, verified source roles, data cutoff, and PASS integrity checks. It audits crawl/index behavior, separates Search Console visibility from GA4 behavior, ranks evidence-labeled opportunities, and routes follow-up without changing the site or external accounts.
 
@@ -846,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>General runtime adapter: host capabilities, contract adoption and host handoff</b></summary>
 
-Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Host-specific models stay in host policy; shared skills retain configured roles and authorized fallbacks.
+Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Agent definitions and effective AGENTS instructions own worker identity, models, effort, fallback and delegation. Catalog helpers preserve installed profile values and record explicit transport choices in assignments. Actor transitions validate the complete resulting state before commit. Shared skills own methods, visual inputs, authorization, evidence and acceptance. Keep requested settings separate from runtime observations. Research may reuse an agent when selected; independent corroboration still uses distinct identities.
 
 ## General runtime adapter
 
@@ -918,7 +919,7 @@ CI also runs the end-to-end spine check. In a POSIX shell use `HARNESS_GOLDEN_PA
 <details>
 <summary><b>Verification and measured execution: CI, browser suite, timing and acceptance evidence</b></summary>
 
-`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. Fully observed FAIL rows remain complete and repair-eligible under existing authority, while strict final approval still fails. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Direction `--overwrite` rejects hardlinks after comparing destinations with author sources and the manifest, preserving inputs. Outcome and SEO checkers carry the required Product/Stack context into strict Activation checks.
+`check_ui_diagnostic_wave.py` joins browser, critique, audit, grading, PRD, manifest, and subject identities. Every request and role must cover the frozen manifest’s complete surface, non-n/a state and per-surface target matrix. Fully observed FAIL rows remain complete and repair-eligible under existing authority, while strict final approval still fails. Missing, blocked, partial, stale, or out-of-scope evidence blocks handoff; a partial report never gains repair approval. Direction `--overwrite` rejects hardlinks after comparing destinations with author sources and the manifest, preserving inputs. Outcome and SEO checkers carry the required Product/Stack context into strict Activation checks.
 
 ## Verification and measured execution
 
@@ -981,6 +982,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.65.3** — Use one design review wave and one implementation UI acceptance while retaining 85/80 and required evidence. Deliver complete visual inputs to authors and let agent configuration choose workers. Preserve frozen runs and repair diagnostic coverage, acceptance reuse, and staged Activation digests.
 
 - **0.65.2** — Publish the complete four-language delivery flowchart. Mark PRD self-review, foundation timing, MultiAgent handoffs, existing review counts and parallel GTM inputs. Record Instagram and Threads as the current owner context, evaluate Facebook Pages and keep X optional. Preserve 85/80 and existing review budgets.
 

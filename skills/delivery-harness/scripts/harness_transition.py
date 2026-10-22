@@ -41,6 +41,11 @@ from harness_contract import (
     contract_digest,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
+from harness_graph import (
+    review_covers_ui_acceptance,
+    ui_acceptance_evidence_present,
+    ui_acceptance_review,
+)
 from harness_manifest import (
     _verifier_owners,
     INTERRUPTED_REVIEW_RECEIPT,
@@ -4894,6 +4899,8 @@ def _stage_review_attempt(
         findings = args.finding or []
     if args.result == "pass" and findings:
         raise ManifestError("a PASS review cannot contain findings")
+    if args.result == "pass" and ui_acceptance_review(node["review"]) and not ui_acceptance_evidence_present(args.evidence):
+        raise ManifestError("UI acceptance PASS requires ui_parity: and ui_page_quality: evidence anchors")
     if args.result != "pass" and not findings:
         raise ManifestError("a non-pass review requires at least one --finding")
     adoption_check_path = getattr(args, "contract_adoption_check", None)
@@ -5097,12 +5104,15 @@ def _skip_integration_review(
             == "preintegration"
             and (graph_nodes.get(item.get("node_id")) or {}).get("review", {}).get("type")
             == node["review"].get("type")
+            and review_covers_ui_acceptance(
+                graph_nodes[item["node_id"]]["review"], node["review"], item, run
+            )
         ),
         None,
     )
     if worker is None:
         raise ManifestError(
-            "no passed pre-integration review of the same type matches that worker"
+            "no passed pre-integration review of the same type with required acceptance coverage matches that worker"
         )
     reviewed = worker.get("reviewed_sha")
     if not is_full_sha(reviewed):

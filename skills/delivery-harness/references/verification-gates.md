@@ -273,9 +273,32 @@ For a desktop mission (`capture_mode: desktop`), use the platform desktop UI-tes
 
 When the design source's mockup HTML is styled to a different platform than the resolved target (for example web-styled mockups for a native mission), do not silently implement against it or guess the capture mechanism; stop and ask per `contract-and-traceability.md`'s mismatch condition.
 
-### Final Visual Parity Loop
+### Final UI Acceptance
 
-Every run with at least one PLAN `ui_surfaces` entry closes its UI evidence with a final visual parity loop, bound to the exact integration head. The loop compares the implemented surface against the run's visual authority — this applies to both conformance modes, not only target-conformance runs.
+New direct and managed UI work uses one independent read-only acceptance for parity and page quality on the exact candidate SHA.
+The parent or author prepares the required captures and automated results before review.
+One reviewer inspects both components below using the same current evidence and returns one consolidated finding set.
+Record parity comparisons and page-quality findings separately within that acceptance result; both must pass.
+Do not schedule a second page-quality review after parity or another parity review after page quality.
+
+For managed work, include this acceptance in the applicable planned `visual` review on the same candidate.
+New consolidated visual nodes include `ui_acceptance` in their existing `required_evidence` list.
+An earlier visual review may declare the same contract and receive the combined checklist before integration.
+Record `ui_parity:<comparison anchor>` and `ui_page_quality:<quality-report anchor>` in that attempt's evidence.
+The parent inspects both retained anchors; their presence alone does not prove the checks occurred.
+Tree-identical reuse also requires coverage of the target's missions, semantic scope, required evidence and tools.
+An unmarked or incomplete earlier PASS cannot replace a marked acceptance.
+Unmarked nodes retain their pinned legacy behavior; never add the marker to an already completed review.
+Do not add another reviewer node or reset its lineage budget.
+Required task, mission, integration, final regression and security gates retain their existing scopes and dependencies.
+A later relevant change invalidates affected acceptance evidence.
+Frozen RUNs retain their pinned contracts until an authorized task boundary.
+
+#### Final Visual Parity Loop
+
+The parity component covers every applicable UI surface and binds its evidence to the exact candidate head.
+Managed coverage includes every PLAN `ui_surfaces` entry.
+Compare the implementation against its approved visual authority in both conformance modes.
 
 For each planned route-by-breakpoint-by-state combination:
 
@@ -294,11 +317,19 @@ Static screenshots never close a motion change. When a mission's diff touches tr
 
 Repair cycle: a missing element, a structural difference, or any difference outside the recorded tolerance is not a `pass`. Repair the surface, recapture the affected matrix entries, and rebind the evidence to the new integration head SHA. A parity repair is an ordinary candidate-changing repair: it invalidates the final-gate PASS and every integration-stage PASS whose scope intersects the repair diff, and it consumes review-lineage attempts under `graph-orchestration.md`'s Root-Cause Repair Escalation — the loop's two-round cap does not add attempts on top of that budget. Stop after two failed repair rounds and report the remaining differences as-is; never widen the tolerance or relabel an unresolved difference to close the run. Screenshots from an older head or placeholder images never satisfy the loop.
 
-### Final Page-Quality Pass
+#### Final Page-Quality Pass
 
-Every run with at least one PLAN `ui_surfaces` entry follows the Final Visual Parity Loop with one final read-only page-quality review over the delivered design-reference surfaces, bound to the exact integration head. Hosted-browser surfaces use browser and source evidence; extension, native, and desktop surfaces use their platform capture and source evidence. The planned reviewer covers heuristic UX, accessibility, responsive/device behavior, and performance per delivered route in one round. Impeccable is not the default for this node: its pinned workflow has disclosed subagent, browser/server, snapshot-write, and optional-download side effects. It may run only as a separately authorized UI-quality workflow, and its report may be cited as evidence without replacing the independent Harness reviewer.
+The same acceptance reviewer checks heuristic UX, accessibility, responsive/device behavior and performance per delivered route.
+This page-quality pass is part of Final UI Acceptance, not a later review or another aesthetic grading wave.
+Hosted-browser surfaces use browser and source evidence; extension, native and desktop surfaces use their platform capture and source evidence.
+Impeccable is not the default for this node.
+Its pinned workflow has disclosed subagent, browser/server, snapshot-write and optional-download side effects.
+It may run only as a separately authorized UI-quality workflow.
+Its report may provide evidence without replacing the independent Harness reviewer.
 
 - Findings are ordinary review findings. A blocking defect enters the repair cycle under the same Root-Cause Repair Escalation budget as a parity repair; the pass adds no review attempts of its own. Record the pass, every finding, and its verdict as evidence rows bound to the integration head, and never relabel an unresolved finding to close the run.
+- Consolidate parity and quality defects before repair. Re-review original defects and affected consumers on the repaired candidate using current evidence.
+- Retain required matrix coverage and check both components for regressions. Do not reopen direction selection or start a broad search for taste preferences.
 - The pass verifies quality, not direction. A finding that conflicts with frozen product behavior returns to `product-definition-builder`; a finding that conflicts with `ui-design.md`, the approved HiFi (or a pinned legacy wireframe), or the active visual source returns to `ui-design-builder`. Neither authorizes a local change.
 - Read-only reviewer actions only. The pass never runs a bound skill's build, init, document, snapshot, download, or live-server flows, and never creates `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, or another competing authority in the repository.
 - If the bound skill is unavailable in the delivery environment, record the gate `UNVALIDATED` with the named residual risk; it blocks final completion unless the user explicitly accepts the descoped gate.

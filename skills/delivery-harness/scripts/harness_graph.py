@@ -694,6 +694,52 @@ def _validate_graph(
         _add(errors, f"{path}.nodes", f"unreachable nodes: {', '.join(unreachable)}")
 
 
+def ui_acceptance_review(review: dict[str, Any]) -> bool:
+    evidence = review.get("required_evidence")
+    return review.get("type") == "visual" and isinstance(evidence, list) and "ui_acceptance" in evidence
+
+
+def ui_acceptance_evidence_present(evidence: list[str]) -> bool:
+    return isinstance(evidence, list) and all(
+        any(isinstance(item, str) and item.startswith(prefix) and item[len(prefix):].strip()
+            for item in evidence)
+        for prefix in ("ui_parity:", "ui_page_quality:")
+    )
+
+
+def review_covers_ui_acceptance(
+    source: dict[str, Any], target: dict[str, Any], worker: dict[str, Any], run: dict[str, Any]
+) -> bool:
+    """Keep legacy skips; a marked acceptance needs matching coverage and evidence."""
+    if not ui_acceptance_review(target):
+        return True
+    if not ui_acceptance_review(source):
+        return False
+    for key in ("mission_ids", "required_evidence", "required_tools"):
+        required, provided = target.get(key, []), source.get(key, [])
+        if not all(isinstance(items, list) and all(isinstance(item, str) for item in items)
+                   for items in (required, provided)):
+            return False
+        if not set(required).issubset(provided):
+            return False
+    scopes = (source.get("scope"), target.get("scope"))
+    if not all(isinstance(items, list) and all(isinstance(item, str) and validate_scope_claim(item) is None for item in items)
+               for items in scopes):
+        return False
+    if not all(any(scope_contains(parent, claim) for parent in scopes[0])
+               for claim in scopes[1]):
+        return False
+    attempts = [item for item in run.get("attempt_log", []) if isinstance(item, dict)
+                and item.get("attempt_id") == worker.get("attempt_id")]
+    return (
+        len(attempts) == 1
+        and attempts[0].get("kind") == "review"
+        and attempts[0].get("result") == "pass"
+        and attempts[0].get("review_lineage_id") == source.get("lineage_id")
+        and ui_acceptance_evidence_present(attempts[0].get("evidence", []))
+    )
+
+
 def _add_integration_review_skip_errors(
     errors: list[str],
     state_path: str,
@@ -753,6 +799,8 @@ def _add_integration_review_skip_errors(
         if source["review"].get("stage", "preintegration") != "preintegration":
             continue
         if source["review"].get("type") != review_type:
+            continue
+        if not review_covers_ui_acceptance(source["review"], node["review"], worker, run):
             continue
         if worker.get("reviewed_sha") == head:
             return
@@ -888,6 +936,10 @@ def _validate_graph_state(
                 _add_integration_review_skip_errors(
                     errors, state_path, node, run, graph_nodes
                 )
+
+            if phase == "succeeded" and isinstance(node.get("review"), dict) and ui_acceptance_review(node["review"]):
+                if not review_covers_ui_acceptance(node["review"], node["review"], {"attempt_id": state["last_attempt_id"]}, run):
+                    _add(errors, state_path, "UI acceptance PASS requires ui_parity: and ui_page_quality: evidence anchors")
 
             # A required security review is a hard closeout gate.  It may not
             # be converted into a historical skip or superseded state to make

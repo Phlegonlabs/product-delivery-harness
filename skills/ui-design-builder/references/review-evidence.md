@@ -53,6 +53,10 @@ Before one consolidated HiFi repair handoff, verify the independent browser, cri
 
 Use actual repository paths and observed hashes. `manifest` equals the HiFi HTML subject because the manifest is embedded there; the checker joins child page hashes from that manifest and execution inputs. Before each write, the author rechecks the request and all frozen-input bytes in their own context. The checker changes no bytes, approval record or evidence schema.
 
+`requiredCases` must exactly cover every manifest surface, non-`n/a` state and that surface's responsive targets.
+The example assumes one surface, one state and one target. Expand it to the complete frozen manifest.
+Matching partial requests and receipts still block the handoff.
+
 Exit 0 means diagnostic completeness only. Complete observed FAIL, low scores, concrete scoreable design blocks, and fully observed focus, retention, visibility, wrong-destination or navigation defects may enter one existing consolidated repair batch only under the existing write grant. Missing outputs or detailed observations, unscorable `BLOCKED` or `MISSING`, an absent H dimension, malformed captures, or input drift blocks the dependent handoff regardless of aggregate FAIL. These findings still fail strict final acceptance. This is not a PASS, Visual Approval or new approval record.
 The existing attempt budget and same-author ownership remain binding.
 
@@ -75,3 +79,6 @@ Frontend Design source: docs/design/<folder>/SKILL.md @ sha256:<observed-source-
 | hifi | frontend-design @ sha256:<observed-source-digest> | docs/design/ui-references/round/index.html @ sha256:<candidate-digest> | Concrete typography, palette, layout and self-check outcomes |
 
 The source path is a retained repository snapshot of the actually observed `frontend-design` `SKILL.md` with `name: frontend-design`. Every stage's Skill SHA-256 equals this snapshot hash. The validator checks the snapshot bytes and current artifact bindings; it cannot prove that an agent truly used the skill. Use repair-1, repair-2 for actual design repairs with their resulting artifact and applied decisions. Current direction/hifi rows bind the exact current candidates, not a convenient other file; a legacy package may retain its historical `wireframe` row. Record only work actually performed. Human direction and final Visual Approval stay in their dedicated sections of ui-design.md.
+
+For the existing Application and task evidence, name the selected captures, font declarations, assets and visual features the author actually inspected.
+Use the current source identities from [Frontend Visual Inputs](../../delivery-harness/references/frontend-visual-inputs.md); do not substitute the parent's reading or backfill an inspection.

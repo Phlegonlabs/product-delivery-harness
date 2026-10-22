@@ -2,7 +2,7 @@
 
 Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval. It turns the approved PRD UI Surface Contract into direction studies and then a human-approved visual target; it does not create a gray structural wireframe first. `frontend-design` is the single design author. `impeccable` and rubric graders provide review evidence; they do not publish or approve the target.
 
-Before direction studies, connected HiFi or any repair, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` with installed-command resolution. The actual writer loads the complete owner-pinned `frontend-design` skill in that same context before authoring. A parent read, snapshot, role label or prior invocation is not proof; never backfill evidence or silently replace the binding. Missing or conflicting dependencies block only the current authoring stage and preserve earlier approvals and closed historical records. This rule grants no delegation. UI authoring requires the host's actual `frontend_worker`; the parent cannot author it directly. Reviewer and assembler helpers construct the shell or validate; they do not choose or repair the product design.
+Before direction studies, connected HiFi or any repair, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` with installed-command resolution. The actual writer loads the complete owner-pinned `frontend-design` skill in that same context before authoring. A parent read, snapshot, role label or prior invocation is not proof; never backfill evidence or silently replace the binding. Missing or conflicting dependencies block only the current authoring stage and preserve earlier approvals and closed historical records. This rule grants no delegation. Agent configuration designates the UI authoring executor. Reviewer and assembler helpers construct the shell or validate; they do not choose or repair the product design.
 
 ## Rebuild And Reading Scope
 
@@ -143,6 +143,10 @@ The file calls no live backend, credential, identity provider, or unapproved gen
 After the connected package passes the cheap completeness check, apply `../../delivery-harness/references/pre-delivery-self-review.md#hifi-self-review`. The same `frontend-design` author inspects actual renders and interactions under the Browser And Human Visual Approval restrictions below, checks the full contract and fixes in-scope defects before the independent review. Link existing browser, copy, motion and grading evidence rather than creating a second specification. Reuse only evidence for the same bytes and cases; changes require affected rechecks and the required final matrix. Missing visual evidence stays blocked or unvalidated. This self-review does not replace or reset the following independent diagnostic and repair budget.
 
 ## Impeccable Quality Review And PRD-Bound Grading
+
+Browser, Impeccable and rubric checks below form one diagnostic wave on the same frozen candidate.
+The lead uses current shared evidence and returns one consolidated assessment, not sequential independent review waves.
+Keep Impeccable's required internal workflow and both PASS records; its native totals never replace H1-H9.
 
 Before human visual approval:
 

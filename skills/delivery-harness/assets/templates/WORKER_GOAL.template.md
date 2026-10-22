@@ -25,6 +25,7 @@ Runtime:
 - Runtime-contract adoption: <contract_adoption receipt or none>
 - Handoff: <fresh bounded packet or host-native task context; max_message_bytes <positive integer>>
 - Context source hashes: <ordered paths with matching hashes>
+- Visual inputs: <frontend-visual-inputs.md block; omit for non-UI>
 - Result contract: <absolute or readable path to references/worker-result-contract.md>
 - Permissions: <mode/profile, filesystem/network/bindings, approval policy>
 - Resource claims: <typed keys and access>
@@ -51,7 +52,7 @@ Repair context (omit for an initial implementation):
 
 1. Enter the assigned worktree. Read the ordered repository context and only the named skills. Keep automatic context discovery enabled.
 2. With a contract-adoption receipt, independently recompute the seven-skill contract digest and stop on a mismatch. Read the fixed contract and report it as `contract_adoption_check`.
-3. Treat this handoff as the complete task; do not reconstruct the parent conversation. Open PLAN/RUN only for a named field the packet cannot supply.
+3. Use this complete handoff. Do not reconstruct parent context. Open PLAN/RUN only for named missing fields.
 4. The parent ran `scripts/check_launch_packet.py` before dispatch. Verify source hashes, repository, branch/ref, base SHA, clean state, digest, lease, scope, resources, permissions, authorizations. Stop on invalid, stale, or drift.
 5. Apply only the matching host contract; never borrow another host's model, role, context, or launch mechanics. Confirm temp/cache paths, network, local bindings, and sockets fit its boundary.
 
@@ -67,7 +68,7 @@ Repair context (omit for an initial implementation):
 - If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
 
-For direction/HiFi authoring/repair or explicitly pinned legacy Wireframe work, `required_skills` must name both `ui-design-builder` and the exact owner-bound `frontend-design`. Before authoring, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` through installed-command resolution. The actual writer loads full pinned skills there; a parent read, snapshot or role title is no substitute. Do not backfill evidence or replace a binding. Missing/conflicting dependencies block only authoring; preserve prior approvals and closed history. This grants no delegation; UI authoring uses the host-bound frontend author. Assemblers/reviewers provide shell construction and validation, not product-design decisions. Carry the delegation contract's maximum-creativity brief.
+For direction/HiFi authoring/repair or explicitly pinned legacy Wireframe work, `required_skills` must name both `ui-design-builder` and the exact owner-bound `frontend-design`. Before authoring, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` through installed-command resolution. The actual writer loads full pinned skills there; a parent read, snapshot or role title is no substitute. Do not backfill evidence or replace a binding. Missing/conflicting dependencies block only authoring; preserve prior approvals and closed history. This grants no delegation; agent policy selects the UI author. Assemblers/reviewers provide shell construction and validation, not product-design decisions. Carry the delegation contract's maximum-creativity brief.
 
 For design-system compilation, load `design-system-compiler`. Read approved `PRD.md`, `ui-design.md`, and the HiFi target; for `ui-design/3`, read the complete `design-system/4` package and frozen derived HTML on update/reuse. Read `wireframes.html` only for a legacy bound pair. Proceed only when the applicable gate requires compilation; do not reopen direction or claim another skill defines a mode.
 

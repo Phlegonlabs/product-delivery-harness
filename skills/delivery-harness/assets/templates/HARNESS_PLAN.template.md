@@ -2,6 +2,11 @@
 
 Use this template as `docs/goal/PLAN.md` for managed work that needs durable coordination, even when the selected execution route is sequential. Direct small work creates no PLAN/RUN artifacts. This example intentionally shows one neutral mission, one isolated writer, one exact-head pre-integration review, one fresh unified security review, and local final gates; it is not a UI repair graph or a promise of parallel fan-out. UI Design Intake remains an upstream contract when a product has UI; this neutral example has no UI surface. A web visual review adds `"required_tools": ["chrome_devtools"]` inside its `review` object; a frontend-code review adds it only when live browser state is part of the required evidence.
 
+For new consolidated UI acceptance, add `ui_acceptance` to the `visual` node's existing `required_evidence` list.
+Use the same marker on earlier visual reviews only when they cover parity and page quality for their complete declared scope.
+Keep comparison and quality-report anchors in that review attempt's evidence, as required by `references/verification-gates.md`.
+This neutral headless example remains unmarked. Do not rewrite frozen RUNs or earlier review results to adopt the marker.
+
 ## Harness Plan Manifest
 
 ```json

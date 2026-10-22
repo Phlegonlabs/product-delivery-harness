@@ -137,7 +137,7 @@ Compute lowercase SHA-256 over compact, key-sorted JSON with schema `activation-
 
 Normalize every string to Unicode NFC and trim surrounding whitespace. Exclude capability observations, authorization state, evidence, timestamps, blockers, and task status. Secret values never enter the action or digest.
 
-`python "<product-activation-skill-root>/scripts/check_activation.py" --show-action-digests` prints the current digest without editing the file. A mutation may run only when `Authorized digest` equals the recomputed `Action digest`. Any target, release SHA or artifact, precondition, desired state, dependency, secret name, risk, confirmation, route, capability observation or scope, read-back route/capability, or behavior verification change expires the approval.
+Run `python "<product-activation-skill-root>/scripts/check_activation.py" --activation "docs/.activation-staging/<run-id>/ACTIVATION.md" --show-action-digests` against the current staged record. The command prints digests without editing either record. Omitting `--activation` selects the live `docs/ACTIVATION.md`, which can be absent or different during preparation. A mutation may run only when `Authorized digest` equals the recomputed `Action digest`. Any target, release SHA or artifact, precondition, desired state, dependency, secret name, risk, confirmation, route, capability observation or scope, read-back route/capability, or behavior verification change expires the approval.
 
 ## Capability And Route Selection
 
@@ -232,7 +232,7 @@ python "<product-activation-skill-root>/scripts/check_activation.py" --activatio
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --require-filled
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --expected-repository <owner/repository> --candidate-ref <full-or-authority-ref> --require-verified-sources --require-ready <release-target-id>
 python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --expected-repository <owner/repository> --candidate-ref <full-or-authority-ref> --require-closeout
-python "<product-activation-skill-root>/scripts/check_activation.py" --activation docs/ACTIVATION.md --show-action-digests
+python "<product-activation-skill-root>/scripts/check_activation.py" --activation "docs/.activation-staging/<run-id>/ACTIVATION.md" --show-action-digests
 ```
 
 The checker is read-only. Exit `0` means the requested contract checks pass, `1` means findings were printed, and `2` means the input could not be read or the CLI was invalid. It never calls a provider, executes a recorded command, reads a secret, or edits a document. The agent's execution pass is not complete until closeout has been run with the full source set; a failed closeout leaves the work pending or blocked.

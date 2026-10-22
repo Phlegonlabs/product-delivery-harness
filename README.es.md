@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.65.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.65.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -72,7 +72,7 @@ Los build/test locales gestionados usan las herramientas del proyecto sin Docker
 
 ### Flujo Zero-to-one
 
-Este es el flujo predeterminado de **v0.65.2** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
+Este es el flujo predeterminado de **v0.65.3** para un producto nuevo. Instala los siete skills según la sección anterior y abre una nueva sesión del host. Continúa solo las etapas autorizadas por el owner. Enhancement y mantenimiento reutilizan decisiones aprobadas y revisan el cambio aceptado; los productos headless omiten las etapas UI.
 
 ```mermaid
 ---
@@ -96,7 +96,7 @@ flowchart TD
     B["Primer build utilizable fijo + SHA/artefacto<br/>Despliegue aislado autorizado + preparación de Activation<br/>Instrumentación analítica; recuperar errores/crashes dinámicos"]
     J["Probar el recorrido real no demostrado antes de ampliar dependencias<br/>Tareas frontend/backend acotadas + pruebas específicas<br/>Evidencia según riesgo: fallos, carga, coste, migración/restauración"]
     N["Revisión independiente según la ruta elegida<br/>Direct: revisión del diff por autor + 1 revisión de seguridad del SHA<br/>Gestionada: revisar cada misión/superficie lista antes de integrar<br/>Después: revisiones nuevas de superficies aplicables + seguridad unificada"]
-    Q["UI aplicable: paridad; parar tras 2 rondas de corrección fallidas<br/>Después 1 revisión de calidad de página de solo lectura; presupuesto compartido<br/>Prevalece el límite de linaje más estricto → regresión final"]
+    Q["UI aplicable: 1 Final UI Acceptance de solo lectura<br/>Paridad + calidad; hallazgos conjuntos, revisión enfocada<br/>Parar tras 2 reparaciones fallidas; prevalece el linaje más estricto → regresión final"]
     F["Antes de pruebas externas: feedback probado hasta su responsable<br/>Antes de Preview/beta sin supervisión: alerta útil recibida<br/>La preparación no autoriza pruebas ni despliegues"]
     C["Preview candidato aislado: aceptación del build exacto<br/>Gestionada: C local → archivo A; Direct: candidato fijo<br/>Si Preview usa rama remota: publicación/lectura autorizadas aparte"]
     R["Publicación main/producción autorizada por separado<br/>Verificar SHA/artefacto realmente publicado<br/>Main creado por servidor: árbol igual + pruebas completas/seguridad nuevas"]
@@ -188,15 +188,16 @@ Autorrevisión, revisión independiente, comprobación automática y decisión h
 | HiFi completo | Primero completitud automática y autorrevisión. Después **una ronda diagnóstica completa**; si hace falta, **un lote consolidado de reparaciones y una revisión posterior**. |
 | Contenido de cada revisión HiFi | Impeccable `critique` **y** `audit` obligatorios, cobertura completa de navegador y evaluación H1-H9 actual. Media global redondeada **mínima de 85**, cada dimensión **mínima de 80**, sin bloqueos/disputas; después **una Visual Approval**. |
 | Compilación del design system | Una secuencia coherente de validación de fuente/par/cobertura/contraste/tipo/HTML e inspección del showcase. Las reparaciones técnicas se reverifican; no hay otra selección ni ronda estética. |
-| Entrega de código Direct | Un escritor, pruebas enfocadas, autorrevisión del diff completo y un `code-security-review` del candidato exacto. Cambiar código exige nueva revisión de seguridad. UI pequeña añade un ciclo critique/repair/recheck; se detiene tras dos intentos fallidos de reparación. |
+| Entrega de código Direct | Un escritor, pruebas enfocadas, autorrevisión del diff completo y un `code-security-review` del candidato exacto. Cambiar código exige nueva revisión de seguridad. UI pequeña usa la aceptación conjunta indicada abajo; se detiene tras dos intentos fallidos de reparación. |
 | Entrega de código Managed | Un reviewer por superficie aplicable en cada mission antes de integrar; después revisiones nuevas del head unificado, incluida seguridad unificada. PLAN congelado declara los nodos. Runtime permite revisión inicial y una revisión tras reparación; el presupuesto se acumula en el mismo lineage. |
-| Gates UI de implementación aplicables | Final Visual Parity Loop en la matriz requerida; se detiene tras **dos rondas fallidas de reparación** dentro del presupuesto existente. Después **una revisión final page-quality de solo lectura**; sus hallazgos comparten el presupuesto. Impeccable aquí requiere autorización separada y no es el nodo reviewer predeterminado. |
+| Aceptación UI de implementación aplicable | **Una Final UI Acceptance independiente de solo lectura** combina Final Visual Parity Loop y calidad de página sobre el candidato exacto. Un reviewer comparte evidencia actual y consolida defectos. Revisa defectos originales y consumidores afectados; conserva la matriz requerida. Para tras **dos reparaciones fallidas**, sujeto al presupuesto de linaje más estricto. Impeccable requiere autorización separada y no sustituye al reviewer. |
 | Candidato y producción | Verifica Preview aislado y build promovido real por separado. Preview no demuestra producción. Un SHA main creado por el servidor exige igualdad de árbol, verificación completa y revisión de seguridad nuevas. Son checks de release, no rondas estéticas HiFi. |
 | Activation | Por target/acción: evidencia de configuración o acción manual, readback independiente y prueba de comportamiento aplicable. Preparación temprana y release real se verifican por separado; el número depende de los targets requeridos. |
 | Resultados | Tras la ventana real, ejecuta Outcome Review por target cuando lo solicita el owner y el aggregate multitarget aplicable. El historial solo añade entradas. `seo-growth-review` aplicable es opcional; la entrega no espera adopción. |
 
-HiFi usa un lead grader por defecto; hasta dos specialists sibling requieren petición del owner o riesgo alto registrado. Terminan la misma ronda antes de reparar. La revisión posterior sigue los defectos originales y consumidores afectados, manteniendo alcance Impeccable, navegador completo y puntuaciones actuales. Un segundo fallo termina en `blocked`. Solo una aprobación explícita de estrategia cambiada y matriz de aceptación permite una revisión sucesora excepcional. Un simple «continúa» no la autoriza. Consulta la [rúbrica HiFi](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope).
+La política de agentes selecciona graders HiFi y un lead para la evaluación consolidada. Navegador, Impeccable y H1-H9 comparten candidato y ronda diagnóstica. El lead consolida la evaluación antes de reparar; no añade otra ronda estética ni de puntuación. La revisión posterior sigue los defectos originales y consumidores afectados, manteniendo alcance Impeccable, navegador completo y puntuaciones actuales. Un segundo fallo termina en `blocked`. Solo una aprobación explícita de estrategia cambiada y matriz de aceptación permite una revisión sucesora excepcional. Un simple «continúa» no la autoriza. Consulta la [rúbrica HiFi](skills/ui-design-builder/references/ui-grading-rubric.md#repair-re-review-scope). El encargo frontend incluye estudios de dirección, pantallas, fuentes, recursos y rasgos visuales vinculados a sus fuentes. La exploración admite capturas pendientes; las identidades registradas siguen verificándose. El autor los inspecciona antes de editar. En mantenimiento, pasa el registro validado para usar Product/Stack actuales y conservar las identidades históricas del diseño. Las vistas derivadas actuales deben coincidir con el par y el HiFi vinculados. Mantenimiento excluye vistas históricas sin validar de las entradas actuales.
 
+Reutilizar un PASS visual anterior exige evidencia de ambos componentes y cobertura completa; la igualdad del árbol por sí sola no basta.
 Los recuentos describen pases de etapa Harness. Impeccable conserva su workflow fijado y evaluaciones internas; sus totales nativos no sustituyen H1-H9.
 
 Detente al pasar; no persigas 100. No repitas el mismo alcance sobre un candidato sin cambios. Cambiar SHA/entradas exige evidencia nueva aplicable. PLAN y el lineage original controlan nodos y reparaciones; renombrar una ronda no crea presupuesto. Consulta los [gates de implementación](skills/delivery-harness/references/verification-gates.md#final-visual-parity-loop).
@@ -619,7 +620,7 @@ Para cada release desplegable, `docs/DEPLOYMENT.md` es el handoff del operador. 
 
 Desde un build inicial fijo, `product-activation` prepara los requisitos autorizados antes de las funciones dependientes. Después del despliegue, reutiliza los recursos y verifica el release real. Capacidades, digests y evidencia siguen ligados al target, entorno, SHA y artifact exactos. Readiness, fuentes verificadas y Outcome Review conservan sus requisitos de publicación.
 
-Activation ejecuta por defecto: inventaría el delta real, continúa las acciones ready autorizadas hasta mutation/read-back/behavior y usa el checker de closeout al final; solo un pedido explícito del owner permite un trabajo documentation-only. `--require-closeout` rechaza una acción requerida dejada en ready, configured, pending, uncertain o stale. Solo el trabajo verificado o un bloqueo concreto explícito cierra la acción; ese estado blocked mantiene el record en blocked. Un no-op real no necesita una acción sintética, pero cada target requiere una disposición n/a concreta; el handoff verificado sigue exigiendo fuentes y readiness verificadas.
+Activation ejecuta por defecto: inventaría el delta real, continúa las acciones ready autorizadas hasta mutation/read-back/behavior y usa el checker de closeout al final; solo un pedido explícito del owner permite un trabajo documentation-only. `--require-closeout` rechaza una acción requerida dejada en ready, configured, pending, uncertain o stale. Solo el trabajo verificado o un bloqueo concreto explícito cierra la acción; ese estado blocked mantiene el record en blocked. Un no-op real no necesita una acción sintética, pero cada target requiere una disposición n/a concreta; el handoff verificado sigue exigiendo fuentes y readiness verificadas. Calcula los digests con `--activation` apuntando al archivo staged actual antes de solicitar autorización.
 
 Tras Activation, `seo-growth-review` puede revisar en solo lectura un target de producción hosted-web público. El informe fechado coincide con Review date, hostname de Deployment, release exacto, hash de Activation, roles de fuente, data cutoff y checks PASS; no modifica el sitio ni cuentas externas.
 
@@ -846,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>Adaptador general de runtime: capacidades del host, adopción del contrato y handoff entre hosts</b></summary>
 
-La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Los modelos específicos del host pertenecen a la política del host; los skills compartidos conservan los roles configurados y los fallback autorizados.
+La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Las definiciones de agentes y AGENTS deciden workers, modelos, esfuerzo, fallback y delegación. Los catálogos conservan los valores de perfiles instalados y registran la ruta explícita en el encargo. Cada transición de actor valida el estado resultante completo antes de guardar. Los skills conservan métodos, entradas visuales, autorización, evidencia y aceptación. Separa los valores solicitados de las observaciones reales. La investigación puede reutilizar un agente cuando se elija; la corroboración independiente conserva identidades distintas.
 
 ## Adaptador general de runtime
 
@@ -918,7 +919,7 @@ El CI también ejecuta el spine end-to-end. En POSIX usa `HARNESS_GOLDEN_PATH=1 
 <details>
 <summary><b>Verificación y medición: CI, suite de navegador, tiempos y evidencia de aceptación</b></summary>
 
-`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. Las filas FAIL completamente observadas siguen siendo complete y elegibles para reparación bajo la autoridad existente, mientras la strict final approval sigue fallando. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Direction `--overwrite` compara destinations con author sources y manifest por identidad de archivo y rechaza hardlinks, conservando las entradas. Los checkers de Outcome y SEO llevan el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
+`check_ui_diagnostic_wave.py` une las identidades de browser, critique, audit, grading, PRD, manifest y subject. La solicitud y cada rol deben cubrir todas las superficies, estados aplicables y targets por superficie del manifest congelado. Las filas FAIL completamente observadas siguen siendo complete y elegibles para reparación bajo la autoridad existente, mientras la strict final approval sigue fallando. La evidencia ausente, bloqueada, parcial, obsoleta o fuera de alcance bloquea el handoff; un informe parcial no recibe aprobación de reparación. Direction `--overwrite` compara destinations con author sources y manifest por identidad de archivo y rechaza hardlinks, conservando las entradas. Los checkers de Outcome y SEO llevan el contexto Product/Stack requerido a las comprobaciones estrictas de Activation.
 
 ## Verificación y medición de ejecución
 
@@ -981,6 +982,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.65.3** — Unificar la revisión de diseño y la aceptación de implementación, conservando 85/80 y las pruebas necesarias. Entregar referencias visuales completas y delegar la selección de workers a la configuración del agente. Mantener contratos RUN existentes y corregir cobertura, reutilización de aceptación y resúmenes de acciones preparadas de Activation.
 
 - **0.65.2** — Publicar el diagrama completo de entrega en cuatro idiomas. Indicar autorrevisión del PRD, preparación inicial, roles MultiAgent, revisiones existentes y entradas paralelas de GTM. Instagram y Threads describen el contexto actual; Facebook Pages queda por evaluar y X es opcional. Conservar 85/80 y los presupuestos de revisión.
 

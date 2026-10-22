@@ -3,11 +3,15 @@
 ## Runtime Boundary
 
 - This file is the entry. It contains authority boundaries and routes, not complete procedures. Preserve the current host's effective instruction discovery and precedence.
-- Apply [Parent-Owned Delegation](skills/delivery-harness/references/delegation-contract.md) before direct or managed routing. Resolve required frontend and reviewer roles against effective host policy and observed tools. The actual frontend author reads the complete pinned `frontend-design` SKILL.md and applicable project design skills in its own context; verify the full-tree pin independently. Fresh independent review binds the exact candidate. One writer owns each checkout, including the parent; required delegation never silently falls back to parent work.
+- Apply [Parent-Owned Delegation](skills/delivery-harness/references/delegation-contract.md) before direct or managed routing. Resolve executors and delegation from effective agent configuration, AGENTS instructions and observed tools. The actual frontend author reads the complete pinned `frontend-design` SKILL.md and applicable project design skills in its own context; verify the full-tree pin independently. Fresh independent review binds the exact candidate. One writer owns each checkout, including the parent; preserve required independent review and actual execution evidence.
 - Use [General Runtime Adapter](skills/delivery-harness/references/runtime-adapters.md) for observed native capabilities, authorization, isolation and result contracts. Capability does not grant an action.
 - Direct work uses one writer and one coherent verification sequence. Managed rules apply only after work routes into PLAN/RUN.
 - Preserve unrelated local work. Important local data needs explicit owner approval before deletion, overwrite, or move.
 - This source repository intentionally omits the template's Skill Bindings (it has no consumer stage slots), Deployment and Post-Delivery Activation (it deploys and activates no product), and the delivery-acceptance bullet (it has no product accounts or data). Its Git Flow replaces the template's Git Safety, and its Required Reading replaces the template's. Treat these as local choices, not drift, in the handoff audit.
+
+## Worker Policy
+
+Effective agent definitions and AGENTS instructions own worker selection, models, effort, fallback and delegation topology. Shared skills own methods, inputs, authorization, evidence and acceptance; they do not supply competing worker policy. Persisted RUN labels describe responsibilities, not native agent identities; preserve the pinned execution protocol.
 
 ## Mandatory Governance Routes
 
