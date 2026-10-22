@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic temporary-directory tests for both skill installers."""
+"""Deterministic temporary-directory tests for the skill installer."""
 
 from __future__ import annotations
 
@@ -43,31 +43,10 @@ def find_bash() -> str | None:
     return None
 
 
-def find_powershell() -> str | None:
-    for command in ("pwsh", "powershell"):
-        path = shutil.which(command)
-        if path is None:
-            continue
-        # A cold pwsh start on CI runners can exceed 10 s; a probe timeout
-        # must not break importing the whole module.
-        try:
-            probe = subprocess.run(
-                [path, "-NoProfile", "-Command", "$PSVersionTable.PSVersion.Major"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            continue
-        if probe.returncode == 0:
-            return path
-    return None
-
-
 REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import harness_contract  # noqa: E402
 BASH = find_bash()
-POWERSHELL = find_powershell()
 # Git Bash starts each helper process slowly (~70 ms per cmp/stat), so one full
 # install.sh run takes over a minute on Windows and more on a loaded machine.
 # The deadline only bounds a hung installer; it is not a performance check.
@@ -75,10 +54,12 @@ INSTALL_TIMEOUT = 600
 
 
 def is_cache_path(path: Path) -> bool:
+    """Match what install.sh leaves out: caches and test suites."""
     return (
         "__pycache__" in path.parts
         or ".pytest_cache" in path.parts
         or path.suffix.lower() in {".pyc", ".pyo"}
+        or any(pair == ("scripts", "tests") for pair in zip(path.parts, path.parts[1:]))
     )
 
 
@@ -104,7 +85,7 @@ def source_manifest(skill: str) -> dict[str, bytes]:
     return {
         path.relative_to(root).as_posix(): path.read_bytes()
         for path in sorted(root.rglob("*"))
-        if path.is_file() and not is_cache_path(path)
+        if path.is_file() and not is_cache_path(path.relative_to(root))
     }
 
 
@@ -113,7 +94,7 @@ def installed_manifest(skill: str, destination: Path) -> dict[str, bytes]:
     return {
         path.relative_to(root).as_posix(): path.read_bytes()
         for path in sorted(root.rglob("*"))
-        if path.is_file() and not is_cache_path(path)
+        if path.is_file() and not is_cache_path(path.relative_to(root))
     }
 
 
@@ -126,78 +107,6 @@ def tree_snapshot(root: Path) -> dict[str, bytes]:
 
 
 class InstallScriptTests(unittest.TestCase):
-    @unittest.skipUnless(shutil.which("pwsh"), "pwsh is required for the GitHub shell")
-    def test_ci_dependency_negative_check_exits_successfully(self) -> None:
-        workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
-            encoding="utf-8"
-        )
-        step = workflow.split(
-            "- name: Verify PowerShell installer syntax and dependency check route", 1
-        )[1].split("run: |-", 1)[1]
-        lines = []
-        for line in step.splitlines()[1:]:
-            if line.strip() and not line.startswith("          "):
-                break
-            lines.append(line[10:])
-        # GitHub appends this native-command exit check to PowerShell scripts.
-        script = "\n".join(lines) + (
-            "\nif (Test-Path variable:\\LASTEXITCODE) { exit $LASTEXITCODE }\n"
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            script_path = Path(temporary) / "ci-check.ps1"
-            script_path.write_text(script, encoding="utf-8")
-            result = subprocess.run(
-                [shutil.which("pwsh"), "-NoProfile", "-File", str(script_path)],
-                cwd=REPO_ROOT,
-                env={**os.environ, "RUNNER_TEMP": temporary},
-                capture_output=True,
-                text=True,
-                timeout=60,
-                check=False,
-            )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-    def test_ci_runs_installer_and_python_suites_on_macos(self) -> None:
-        # The harness suite includes these installer tests, so macOS CI
-        # covers install.sh under BSD tools and symlinked temp roots.
-        workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
-            encoding="utf-8"
-        )
-        harness = workflow.split("\n  macos-harness:\n", 1)[1].split("\n  macos-other:\n", 1)[0]
-        other = workflow.split("\n  macos-other:\n", 1)[1].split("\n  windows-native:\n", 1)[0]
-        for job in (harness, other):
-            self.assertIn("runs-on: macos-latest", job)
-            # macOS is supported, so its jobs block like the others.
-            self.assertNotIn("continue-on-error", job)
-            # Apple's root-owned Git must win over Homebrew's before Python setup.
-            prefer_git = 'echo "/usr/bin" >> "$GITHUB_PATH"'
-            self.assertIn(prefer_git, job)
-            self.assertLess(job.index(prefer_git), job.index("actions/setup-python"))
-            # Test repositories must not sit under the /var -> /private/var link.
-            self.assertIn('echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"', job)
-        # The long Harness suite is measured and sharded; installer tests stay
-        # in the discovered files and therefore retain macOS native coverage.
-        # Workflow expands the index from the matrix, so assert the matrix and
-        # its templated use rather than four literal copies of one command.
-        matrix = re.search(r"^\s*shard:\s*\[([^]]+)\]", harness, re.MULTILINE)
-        self.assertIsNotNone(matrix)
-        self.assertEqual(
-            ["0", "1", "2", "3"],
-            [item.strip() for item in matrix.group(1).split(",")],
-        )
-        self.assertIn("--platform macos --shard-count 4", harness)
-        self.assertIn("--shard-index '${{ matrix.shard }}'", harness)
-        self.assertIn("name: macos-harness-${{ matrix.shard }}", harness)
-        for skill in (
-            "product-definition-builder",
-            "ui-design-builder",
-            "design-system-compiler",
-            "product-activation",
-            "seo-growth-review",
-        ):
-            self.assertIn(f"unittest discover -s skills/{skill}/scripts/tests -v", other)
-        self.assertNotIn("PDH_REQUIRE_BROWSER_TESTS", other)
-
     SKILLS = (
         "delivery-harness",
         "product-definition-builder",
@@ -243,8 +152,9 @@ class InstallScriptTests(unittest.TestCase):
         for skill in self.SKILLS:
             with self.subTest(skill=skill):
                 self.assertEqual(source_manifest(skill), installed_manifest(skill, self.destination))
+                root = self.destination / skill
                 self.assertFalse(
-                    any(is_cache_path(path) for path in (self.destination / skill).rglob("*"))
+                    any(is_cache_path(path.relative_to(root)) for path in root.rglob("*"))
                 )
         for skill in self.LEGACY_SKILLS:
             self.assertFalse((self.destination / skill).exists())
@@ -349,50 +259,10 @@ class InstallScriptTests(unittest.TestCase):
         )
         self.assertFalse(self.destination.exists())
 
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    def test_powershell_rejects_tracked_symlink_mode_before_mutation(self) -> None:
-        source = self.make_minimal_repo()
-        relative = "skills/delivery-harness/tracked-link"
-        (source / relative).write_text("ordinary working-tree bytes\n", encoding="utf-8")
-        blob = subprocess.run(
-            ["git", "hash-object", "-w", "--stdin"],
-            cwd=source,
-            input="SKILL.md",
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        subprocess.run(
-            ["git", "update-index", "--add", "--cacheinfo", f"120000,{blob},{relative}"],
-            cwd=source,
-            check=True,
-        )
-        result = subprocess.run(
-            [
-                POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                str(source / "install.ps1"), "-Destination", str(self.destination),
-                "-BackupRoot", str(self.backup_root),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.home,
-            timeout=INSTALL_TIMEOUT,
-        )
-        self.assertNotEqual(0, result.returncode)
-        # pwsh on Linux colors the error record and wraps it with "|" gutters.
-        output = re.sub(r"\x1b\[[0-9;]*m", "", result.stderr + result.stdout)
-        output = re.sub(r"\s*\n\s*\|\s*", " ", output)
-        self.assertIn(
-            f"non-regular tracked source entry is not installable: mode=120000 path={relative}",
-            output,
-        )
-        self.assertFalse(self.destination.exists())
-
     def make_minimal_repo(self) -> Path:
         source = self.home / "minimal-source"
         source.mkdir()
         shutil.copy2(REPO_ROOT / "install.sh", source / "install.sh")
-        shutil.copy2(REPO_ROOT / "install.ps1", source / "install.ps1")
         for skill in self.SKILLS:
             skill_dir = source / "skills" / skill
             skill_dir.mkdir(parents=True)
@@ -411,35 +281,22 @@ class InstallScriptTests(unittest.TestCase):
         return source
 
     def make_junction(self, link: Path, target: Path) -> None:
-        if POWERSHELL is None:
-            self.skipTest("PowerShell is unavailable")
         target.mkdir(parents=True, exist_ok=True)
-        result = subprocess.run(
-            [
-                POWERSHELL,
-                "-NoProfile",
-                "-Command",
-                (
-                    "New-Item -ItemType Junction -Path $env:PDH_TEST_JUNCTION "
-                    "-Target $env:PDH_TEST_JUNCTION_TARGET "
-                    "-ErrorAction Stop | Out-Null"
-                ),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.home,
-            timeout=30,
-            env={
-                **os.environ,
-                "PDH_TEST_JUNCTION": str(link),
-                "PDH_TEST_JUNCTION_TARGET": str(target),
-            },
-        )
-        if result.returncode != 0 or not link.exists():
-            self.skipTest(
-                "directory junction creation is unavailable: "
-                + (result.stderr.strip() or result.stdout.strip())
-            )
+        try:
+            if os.name == "nt":
+                result = subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,
+                )
+                if result.returncode != 0:
+                    raise OSError(result.stderr.strip() or result.stdout.strip())
+            else:
+                os.symlink(target, link, target_is_directory=True)
+        except OSError as error:
+            self.skipTest(f"directory junction creation is unavailable: {error}")
 
     def test_bash_installs_complete_manifest_and_migrates_legacy_copies(self) -> None:
         self.destination = self.home / "installed skills"
@@ -449,6 +306,12 @@ class InstallScriptTests(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assert_full_install()
+        for skill in self.SKILLS:
+            self.assertFalse(list((self.destination / skill).rglob("tests")), skill)
+        self.assertEqual(
+            harness_contract.contract_digest(REPO_ROOT / "skills"),
+            harness_contract.contract_digest(self.destination),
+        )
         target = self.home / "empty target project"
         target.mkdir()
         for skill, script in (
@@ -594,7 +457,8 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("another install owns destination lock", second.stderr)
         self.assertFalse(lock.exists())
 
-    def test_installers_refuse_ignored_secret_like_source_files(self) -> None:
+    @unittest.skipIf(BASH is None, "no usable bash is available")
+    def test_bash_refuses_ignored_secret_like_source_files(self) -> None:
         source = self.make_minimal_repo()
         (source / ".gitignore").write_text(".env\n.dev.vars\n", encoding="utf-8")
         subprocess.run(["git", "add", ".gitignore"], cwd=source, check=True)
@@ -603,42 +467,20 @@ class InstallScriptTests(unittest.TestCase):
             "placeholder-only\n", encoding="utf-8"
         )
 
-        if BASH is not None:
-            result = subprocess.run(
-                [BASH, str(source / "install.sh"), bash_path(self.destination)],
-                capture_output=True,
-                text=True,
-                cwd=self.home,
-                timeout=INSTALL_TIMEOUT,
-                env={
-                    **os.environ,
-                    "HOME": bash_path(self.home),
-                    "SKILL_BACKUP_ROOT": bash_path(self.backup_root),
-                },
-            )
-            self.assertNotEqual(0, result.returncode)
-            self.assertIn("ignored source artifact is not installable", result.stderr)
-        if POWERSHELL is not None:
-            result = subprocess.run(
-                [
-                    POWERSHELL,
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-File",
-                    str(source / "install.ps1"),
-                    "-Destination",
-                    str(self.destination),
-                    "-BackupRoot",
-                    str(self.backup_root),
-                ],
-                capture_output=True,
-                text=True,
-                cwd=self.home,
-                timeout=INSTALL_TIMEOUT,
-            )
-            self.assertNotEqual(0, result.returncode)
-            self.assertIn("untracked or ignored source artifact is not installable", result.stderr + result.stdout)
+        result = subprocess.run(
+            [BASH, str(source / "install.sh"), bash_path(self.destination)],
+            capture_output=True,
+            text=True,
+            cwd=self.home,
+            timeout=INSTALL_TIMEOUT,
+            env={
+                **os.environ,
+                "HOME": bash_path(self.home),
+                "SKILL_BACKUP_ROOT": bash_path(self.backup_root),
+            },
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("ignored source artifact is not installable", result.stderr)
 
     def assert_source_line_recorded(self, source: Path, install) -> None:
         head = subprocess.run(
@@ -698,20 +540,6 @@ class InstallScriptTests(unittest.TestCase):
             )
         )
 
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    def test_powershell_keeps_an_existing_source_receipt(self) -> None:
-        source = self.make_minimal_repo()
-        self.assert_planted_receipt_preserved(
-            lambda: subprocess.run(
-                [
-                    POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                    str(source / "install.ps1"), "-Destination", str(self.destination),
-                    "-BackupRoot", str(self.backup_root),
-                ],
-                capture_output=True, text=True, cwd=self.home, timeout=INSTALL_TIMEOUT,
-            )
-        )
-
     @unittest.skipIf(BASH is None, "no usable bash is available")
     def test_bash_prints_and_records_source_commit_and_dirty_state(self) -> None:
         source = self.make_minimal_repo()
@@ -721,237 +549,6 @@ class InstallScriptTests(unittest.TestCase):
                 {"SKILL_BACKUP_ROOT": str(self.backup_root)}, installer=source / "install.sh"
             ),
         )
-
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    def test_powershell_prints_and_records_source_commit_and_dirty_state(self) -> None:
-        source = self.make_minimal_repo()
-        command = [
-            POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-            str(source / "install.ps1"), "-Destination", str(self.destination),
-            "-BackupRoot", str(self.backup_root),
-        ]
-        self.assert_source_line_recorded(
-            source,
-            lambda: subprocess.run(
-                command, capture_output=True, text=True, cwd=self.home, timeout=INSTALL_TIMEOUT
-            ),
-        )
-
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    def test_powershell_has_migration_rollback_and_complete_install_parity(self) -> None:
-        self.seed_managed_copies()
-        common = [
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(REPO_ROOT / "install.ps1"),
-            "-Destination",
-            str(self.destination),
-            "-BackupRoot",
-            str(self.backup_root),
-        ]
-        failed = subprocess.run(
-            [POWERSHELL, *common],
-            capture_output=True,
-            text=True,
-            cwd=self.home,
-            timeout=INSTALL_TIMEOUT,
-            env={**os.environ, "PDH_INSTALL_FAIL_AFTER": "delivery-harness"},
-        )
-        self.assertNotEqual(0, failed.returncode, failed.stderr or failed.stdout)
-        self.assertIn(
-            "induced failure after installing delivery-harness",
-            failed.stderr + failed.stdout,
-        )
-        self.assert_old_copies_restored()
-        self.assertEqual([], list(self.backup_root.iterdir()))
-
-        succeeded = subprocess.run(
-            [POWERSHELL, *common],
-            capture_output=True,
-            text=True,
-            cwd=self.home,
-            timeout=INSTALL_TIMEOUT,
-            env={**os.environ, "PDH_INSTALL_FAIL_AFTER": ""},
-        )
-        self.assertEqual(0, succeeded.returncode, succeeded.stderr or succeeded.stdout)
-        self.assert_full_install()
-        backups = [child for child in self.backup_root.iterdir() if child.is_dir()]
-        self.assertEqual(1, len(backups))
-        self.assertEqual(
-            set(self.MANAGED_SKILLS),
-            {child.name for child in backups[0].iterdir()},
-        )
-
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    @unittest.skipIf(os.name != "nt", "GetShortPathNameW 8.3 aliases are Windows-only")
-    def test_powershell_short_alias_normalizes_stage_manifest_and_rollback(self) -> None:
-        """Exercise Get-Item FullName normalization through an 8.3 alias."""
-
-        import ctypes
-
-        self.seed_managed_copies()
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.GetShortPathNameW.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
-        kernel32.GetShortPathNameW.restype = ctypes.c_uint32
-
-        def short_path(path: Path) -> Path:
-            buffer = ctypes.create_unicode_buffer(32768)
-            length = kernel32.GetShortPathNameW(str(path), buffer, len(buffer))
-            if not length or buffer.value.casefold() == str(path).casefold():
-                self.skipTest("8.3 short-name generation is disabled on this filesystem")
-            return Path(buffer.value)
-
-        destination_alias = short_path(self.destination)
-        self.backup_root.mkdir(parents=True, exist_ok=True)
-        backup_alias = short_path(self.backup_root)
-        common = [
-            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-            str(REPO_ROOT / "install.ps1"), "-Destination", str(destination_alias),
-            "-BackupRoot", str(backup_alias),
-        ]
-        failed = subprocess.run(
-            [POWERSHELL, *common], capture_output=True, text=True,
-            cwd=self.home, timeout=INSTALL_TIMEOUT,
-            env={**os.environ, "PDH_INSTALL_FAIL_AFTER": "delivery-harness"},
-        )
-        self.assertNotEqual(0, failed.returncode, failed.stderr or failed.stdout)
-        self.assert_old_copies_restored()
-
-        succeeded = subprocess.run(
-            [POWERSHELL, *common], capture_output=True, text=True,
-            cwd=self.home, timeout=INSTALL_TIMEOUT,
-            env={**os.environ, "PDH_INSTALL_FAIL_AFTER": ""},
-        )
-        self.assertEqual(0, succeeded.returncode, succeeded.stderr or succeeded.stdout)
-        self.assert_full_install()
-        backups = [child for child in self.backup_root.iterdir() if child.is_dir()]
-        self.assertEqual(1, len(backups))
-
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    def test_powershell_rejects_destination_and_backup_junctions_before_mutation(self) -> None:
-        command_prefix = [
-            POWERSHELL,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(REPO_ROOT / "install.ps1"),
-        ]
-        for label in ("destination", "backup"):
-            with self.subTest(label=label):
-                protected = self.home / f"protected-{label}"
-                protected.mkdir()
-                sentinel = protected / "keep.txt"
-                sentinel.write_text("preserve\n", encoding="utf-8")
-                alias = self.home / f"{label}-junction"
-                self.make_junction(alias, protected)
-                destination = alias if label == "destination" else self.home / "plain-skills"
-                backup = alias if label == "backup" else self.home / "plain-backups"
-                result = subprocess.run(
-                    [
-                        *command_prefix,
-                        "-Destination",
-                        str(destination),
-                        "-BackupRoot",
-                        str(backup),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    cwd=self.home,
-                    timeout=INSTALL_TIMEOUT,
-                )
-                self.assertNotEqual(0, result.returncode)
-                self.assertIn(
-                    "reparse-point path component is forbidden",
-                    result.stderr + result.stdout,
-                )
-                self.assertEqual("preserve\n", sentinel.read_text(encoding="utf-8"))
-                self.assertFalse((protected / ".pdh-install.lock").exists())
-                self.assertFalse(
-                    any(
-                        child.name.startswith(".pdh-install-stage-")
-                        for child in protected.iterdir()
-                    )
-                )
-
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    def test_powershell_foreign_race_target_is_never_deleted(self) -> None:
-        self.destination.mkdir(parents=True)
-        result = subprocess.run(
-            [
-                POWERSHELL,
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(REPO_ROOT / "install.ps1"),
-                "-Destination",
-                str(self.destination),
-                "-BackupRoot",
-                str(self.backup_root),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.home,
-            timeout=INSTALL_TIMEOUT,
-            env={
-                **os.environ,
-                "PDH_INSTALL_TEST_CREATE_FOREIGN_TARGET": "product-definition-builder",
-            },
-        )
-        self.assertNotEqual(0, result.returncode)
-        sentinel = self.destination / "product-definition-builder" / "keep.txt"
-        self.assertEqual("foreign sentinel\n", sentinel.read_text(encoding="utf-8"))
-        self.assertFalse((self.destination / "delivery-harness").exists())
-
-    @unittest.skipIf(POWERSHELL is None, "neither pwsh nor powershell is available")
-    def test_powershell_marker_failures_restore_and_release_the_lock(self) -> None:
-        self.seed_managed_copies()
-        command = [
-            POWERSHELL,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(REPO_ROOT / "install.ps1"),
-            "-Destination",
-            str(self.destination),
-            "-BackupRoot",
-            str(self.backup_root),
-        ]
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            cwd=self.home,
-            timeout=INSTALL_TIMEOUT,
-            env={
-                **os.environ,
-                "PDH_INSTALL_TEST_FAIL_OWNER_MARKER": "product-definition-builder",
-            },
-        )
-        self.assertNotEqual(0, result.returncode)
-        self.assert_old_copies_restored()
-        self.assertFalse((self.destination / ".pdh-install.lock").exists())
-
-        empty_destination = self.home / "empty-ps-skills"
-        result = subprocess.run(
-            [
-                *command[:7],
-                str(empty_destination),
-                "-BackupRoot",
-                str(self.backup_root),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.home,
-            timeout=INSTALL_TIMEOUT,
-            env={**os.environ, "PDH_INSTALL_TEST_FAIL_LOCK_OWNER": "1"},
-        )
-        self.assertNotEqual(0, result.returncode)
-        self.assertFalse((empty_destination / ".pdh-install.lock").exists())
 
 
 if __name__ == "__main__":
