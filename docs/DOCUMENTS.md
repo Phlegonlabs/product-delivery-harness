@@ -6,6 +6,7 @@ Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each pa
 
 | Document | Purpose | Status |
 | --- | --- | --- |
+| `docs/epics/EPIC-release-0.66.0.md` | Fewer review rounds across PRD, UI and delivery; Fable review, seven Opus packages and the Codex AgentKiosk line | Local candidate; PR, CI, main, tag, installation and consumer syncs pending |
 | `docs/epics/EPIC-review-batch-boundaries.md` | Feature-batch missions, one targeted repair per candidate and one Harness contract per RUN | Local source on `review-batch-boundaries`; release and installation not done |
 | `docs/epics/EPIC-release-0.65.3.md` | Publish the accepted UI workflow and agent-policy fixes through a reviewed PR | 0.65.3 candidate; the publication receipt records exact review, CI, main, tag and installation results |
 | `docs/epics/EPIC-agent-owned-worker-policy.md` | Agent-owned worker selection; skills retain methods and acceptance | Installed development source ada2b750; 442 files and prior backup verified; 31 installed-location tests passed; loaded identity unknown |
