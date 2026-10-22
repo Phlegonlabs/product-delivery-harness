@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import contextlib
 from concurrent.futures import ThreadPoolExecutor
-import hashlib
 import io
 import json
 import sys
@@ -259,16 +258,12 @@ class HostVerifierTests(unittest.TestCase):
         plan = mf.valid_plan()
         for _, declaration in vr._plan_verifier_declarations(plan):
             declaration.update({**host_verifier(), "id": declaration["id"]})
-        gate_id = plan["final_gates"][0]["id"]
+        plan["final_gates"].append(host_verifier())
+        gate_id = plan["final_gates"][-1]["id"]
         plan["graph"]["nodes"].append({"id": "N-HOST", "kind": "verifier", "ref": gate_id,
             "executor": "local_command", "allowed_outcomes": ["pass", "blocked"], "max_attempts": 1, "runtime": None})
         plan["graph"]["entry_nodes"].append("N-HOST")
-        for source in plan["sources"]:
-            payload = f"# Test {source['kind']}\n".encode()
-            path = self.root / source["location"]
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(payload)
-            source["content_sha256"] = hashlib.sha256(payload).hexdigest()
+        mf.materialize_plan_sources(self.root, plan)
         mf.git(self.root, "add", "docs/product")
         mf.git(self.root, "commit", "-qm", "contracts")
         head = mf.git(self.root, "rev-parse", "HEAD")
@@ -305,8 +300,14 @@ class HostVerifierTests(unittest.TestCase):
             recorded = load_run(run_path)
             self.assertEqual("succeeded", recorded["graph_state"]["node_states"]["N-HOST"]["phase"])
             self.assertEqual([], validate_run(plan, recorded))
-            recorded["observed"]["host_runtime"]["entries"][0]["executable_sha256"] = "0" * 64
-            self.assertTrue(any("host_preflight" in issue for issue in validate_run(plan, recorded)))
+            recorded["observed"]["host_runtime"] = {"entries": [{"executable_sha256": "0" * 64}]}
+            self.assertEqual([], validate_run(plan, recorded), "historical observation is opaque")
+            execution = recorded["verifier_executions"][-1]
+            execution["key_document"]["host_preflight"]["executable_sha256"] = "0" * 64
+            execution["execution_key"] = vr.execution_key_from_document(execution["key_document"])
+            execution["evidence_key"] = execution["execution_key"]
+            self.assertTrue(any("host attestation executable differs from preflight" in issue
+                                for issue in validate_run(plan, recorded)))
 
 
 if __name__ == "__main__":
