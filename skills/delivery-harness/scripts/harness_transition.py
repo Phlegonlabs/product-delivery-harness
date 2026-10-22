@@ -42,7 +42,9 @@ from harness_contract import (
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import (
+    MERGE_CHAIN_SKIP_TYPES,
     review_covers_ui_acceptance,
+    reviewed_merge_chain_covers,
     ui_acceptance_evidence_present,
     ui_acceptance_review,
 )
@@ -2932,6 +2934,7 @@ def _invalidate_stale_current_projections(
     integration = run.get("integration")
     if isinstance(integration, dict):
         integration.pop("integration_tree_sha", None)
+        integration.pop("reviewed_merge_chain", None)
 
 
 def _integration_review_route_active(
@@ -5148,6 +5151,10 @@ def _skip_integration_review(
         for item in plan.get("graph", {}).get("nodes", [])
         if isinstance(item, dict)
     }
+    if getattr(args, "worker_id", None) is None:
+        _record_reviewed_merge_chain(plan, run, node, graph_nodes, args.repo_root, head)
+        _mark_integration_review_skipped(state)
+        return
     worker = next(
         (
             item
@@ -5183,6 +5190,10 @@ def _skip_integration_review(
         )
     integration["integration_tree_sha"] = head_tree
     worker.setdefault("tree_sha", reviewed_tree)
+    _mark_integration_review_skipped(state)
+
+
+def _mark_integration_review_skipped(state: dict[str, Any]) -> None:
     state.update(
         {
             "phase": "skipped",
@@ -5193,6 +5204,91 @@ def _skip_integration_review(
             "blockers": [],
         }
     )
+
+
+def _record_reviewed_merge_chain(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    node: dict[str, Any],
+    graph_nodes: dict[str, Any],
+    repo_root: Path,
+    head: str,
+) -> None:
+    """Prove from live Git that the head only merges reviewed mission heads.
+
+    Walk first parents from the head. Each link must be a clean automatic merge
+    whose second parent is an exact passed single-mission review head, and that
+    side may change only the mission's write scope. The walk ends at the first
+    other commit; it must be a reviewed head itself or a base every reviewed
+    head contains. Anything else leaves no proof, so the review runs.
+    """
+
+    if node["review"].get("type") not in MERGE_CHAIN_SKIP_TYPES:
+        raise ManifestError(
+            "a merge-chain skip applies only to frontend_code and backend_code reviews"
+        )
+    reviewed: dict[str, str] = {}
+    for worker in run.get("review_workers", []):
+        if not isinstance(worker, dict):
+            continue
+        review = (graph_nodes.get(worker.get("node_id")) or {}).get("review") or {}
+        missions = review.get("mission_ids")
+        if (
+            worker.get("phase") == "worker_passed"
+            and worker.get("outcome") == "pass"
+            and review.get("stage", "preintegration") == "preintegration"
+            and isinstance(missions, list)
+            and len(missions) == 1
+            and is_full_sha(worker.get("reviewed_sha"))
+        ):
+            reviewed[worker["reviewed_sha"]] = missions[0]
+    scopes = {
+        mission.get("id"): mission.get("write_scope", [])
+        for mission in plan.get("missions", [])
+        if isinstance(mission, dict)
+    }
+    links: list[dict[str, str]] = []
+    commit = head
+    while True:
+        parents = _git_out(repo_root, "rev-list", "--parents", "-n", "1", commit).split()[1:]
+        mission_id = reviewed.get(parents[1]) if len(parents) == 2 else None
+        if mission_id is None or any(link["mission_id"] == mission_id for link in links):
+            break
+        try:
+            merged = run_git(repo_root, "merge-tree", "--write-tree", parents[0], parents[1])
+        except GitMetadataError as exc:
+            raise ManifestError(str(exc)) from exc
+        merged_tree = merged.stdout.split()[:1]
+        if merged.returncode != 0 or merged_tree != [_git_tree(repo_root, commit)]:
+            raise ManifestError(
+                f"merge {commit} is not a clean automatic merge; the review must run"
+            )
+        base = _git_out(repo_root, "merge-base", parents[0], parents[1]).strip()
+        if not all(
+            path_in_scopes(path, scopes.get(mission_id, []))
+            for path in _candidate_changed_paths(repo_root, base, parents[1])
+        ):
+            raise ManifestError(
+                f"mission {mission_id} changed paths outside its write scope; the review must run"
+            )
+        links.append({"mission_id": mission_id, "reviewed_sha": parents[1], "commit_sha": commit})
+        commit = parents[0]
+    root_mission = reviewed.get(commit)
+    if root_mission is not None and all(link["mission_id"] != root_mission for link in links):
+        links.append({"mission_id": root_mission, "reviewed_sha": commit, "commit_sha": commit})
+    elif not all(_git_is_ancestor(repo_root, commit, link["reviewed_sha"]) for link in links):
+        raise ManifestError(
+            f"merge chain base {commit} is not in every reviewed head; the review must run"
+        )
+    proof = {"head_sha": head, "links": links}
+    if not reviewed_merge_chain_covers(
+        plan, node, {**run, "integration": {**run["integration"], "reviewed_merge_chain": proof}}, graph_nodes
+    ):
+        raise ManifestError(
+            "the merge chain does not cover every reviewed mission with disjoint write scopes;"
+            " the review must run"
+        )
+    run["integration"]["reviewed_merge_chain"] = proof
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -5272,7 +5368,10 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--tree-sha")
     skip = subparsers.add_parser("skip-integration-review")
     skip.add_argument("--node-id", required=True)
-    skip.add_argument("--worker-id", required=True)
+    skip.add_argument(
+        "--worker-id",
+        help="prove a byte-identical tree; omit to prove a reviewed merge chain",
+    )
     for name in ("acquire-run-lock", "release-run-lock", "heartbeat-run-lock"):
         lock_command = subparsers.add_parser(name)
         lock_command.add_argument("--owner")

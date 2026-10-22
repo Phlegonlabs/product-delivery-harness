@@ -16,6 +16,7 @@ from harness_core import (
     is_full_sha,
     is_safe_model_token,
     scope_contains,
+    scope_overlap,
     validate_scope_claim,
 )
 from harness_schema import (
@@ -740,24 +741,109 @@ def review_covers_ui_acceptance(
     )
 
 
+MERGE_CHAIN_SKIP_TYPES = frozenset({"frontend_code", "backend_code"})
+
+
+def reviewed_merge_chain_covers(
+    plan: dict[str, Any],
+    node: dict[str, Any],
+    run: dict[str, Any],
+    graph_nodes: dict[str, Any],
+) -> bool:
+    """Check the recorded merge chain against RUN review state and PLAN scopes.
+
+    ``skip-integration-review`` proves the Git facts from live Git and records
+    them as ``integration.reviewed_merge_chain``: every link is a clean automatic
+    merge of an exact reviewed mission head. This check binds that record to the
+    current head, requires every planned single-mission review of each linked
+    mission to PASS that exact head, requires every covered mission to be
+    linked, and rejects overlapping write scopes. A visual review judges the
+    rendered whole head, so it never uses this skip.
+    """
+
+    if node["review"].get("type") not in MERGE_CHAIN_SKIP_TYPES:
+        return False
+    integration = run.get("integration")
+    chain = integration.get("reviewed_merge_chain") if isinstance(integration, dict) else None
+    if not isinstance(chain, dict) or not is_full_sha(chain.get("head_sha")):
+        return False
+    if chain["head_sha"] != integration.get("integration_head_sha"):
+        return False
+    node_states = (run.get("graph_state") or {}).get("node_states") or {}
+    review_mission: dict[Any, Any] = {}
+    for node_id, item in graph_nodes.items():
+        review = item.get("review") if isinstance(item, dict) else None
+        if (
+            isinstance(review, dict)
+            and review.get("stage", "preintegration") == "preintegration"
+            and isinstance(review.get("mission_ids"), list)
+            and len(review["mission_ids"]) == 1
+            and (node_states.get(node_id) or {}).get("phase") != "superseded"
+        ):
+            review_mission[node_id] = review["mission_ids"][0]
+    passed: dict[tuple[Any, Any], set[Any]] = {}
+    workers = run.get("review_workers")
+    for worker in workers if isinstance(workers, list) else []:
+        if (
+            isinstance(worker, dict)
+            and worker.get("phase") == "worker_passed"
+            and worker.get("outcome") == "pass"
+            and worker.get("node_id") in review_mission
+        ):
+            key = (review_mission[worker["node_id"]], worker.get("reviewed_sha"))
+            passed.setdefault(key, set()).add(worker["node_id"])
+    links = chain.get("links")
+    if not isinstance(links, list) or not links:
+        return False
+    linked: set[Any] = set()
+    for link in links:
+        if not isinstance(link, dict) or link.get("mission_id") in linked:
+            return False
+        mission_id = link["mission_id"]
+        planned = {node_id for node_id, owner in review_mission.items() if owner == mission_id}
+        if not planned or planned - passed.get((mission_id, link.get("reviewed_sha")), set()):
+            return False
+        linked.add(mission_id)
+    covered = node["review"].get("mission_ids")
+    if not isinstance(covered, list) or not covered or not set(covered) <= linked:
+        return False
+    scopes = {
+        mission.get("id"): mission.get("write_scope", [])
+        for mission in plan.get("missions", [])
+        if isinstance(mission, dict)
+    }
+    if any(not isinstance(scopes.get(mission_id), list) for mission_id in linked):
+        return False
+    chained = sorted(linked)
+    return not any(
+        scope_overlap(left_scope, right_scope, casefold=True)
+        for index, left in enumerate(chained)
+        for right in chained[index + 1:]
+        for left_scope in scopes[left]
+        for right_scope in scopes[right]
+    )
+
+
 def _add_integration_review_skip_errors(
     errors: list[str],
     state_path: str,
     node: dict[str, Any],
     run: dict[str, Any],
     graph_nodes: dict[str, Any],
+    plan: dict[str, Any],
 ) -> None:
-    """An integration-stage review may be skipped only on a byte-identical tree.
+    """An integration-stage review may skip only when no new combination exists.
 
     Re-dispatching a reviewer against a commit that a pre-integration review
     already passed reads a byte-identical tree and reaches the same verdict, and
     a reviewer dispatch is one of the most expensive steps in a run. Skipping it
-    is safe in exactly two cases: the integration head IS that reviewed commit,
-    or it is a merge commit whose recorded ``integration_tree_sha`` equals the
-    reviewed commit's recorded ``tree_sha`` — same bytes, same verdict. In both
-    cases the PASS must be the same review type. Any other integration head has
-    a tree no earlier PASS covers, so the "did the combination break" question
-    is real and the review must run.
+    is safe when the integration head IS that reviewed commit, or it is a merge
+    commit whose recorded ``integration_tree_sha`` equals the reviewed commit's
+    recorded ``tree_sha`` — same bytes, same verdict. In both cases the PASS
+    must be the same review type. A code review may also skip on a recorded
+    merge chain of reviewed heads with disjoint write scopes; see
+    ``reviewed_merge_chain_covers``. Any other integration head has a
+    combination no earlier PASS covers, so the review must run.
 
     Without this check ``skipped`` carried no justification at all, so this both
     enables the short-circuit and closes that hole.
@@ -810,12 +896,15 @@ def _add_integration_review_skip_errors(
             and worker["tree_sha"] == integration_tree
         ):
             return
+    if reviewed_merge_chain_covers(plan, node, run, graph_nodes):
+        return
 
     _add(
         errors,
         state_path,
         "skipped integration review requires a pre-integration PASS of the same"
-        " review type on the exact integration head or a byte-identical tree",
+        " review type on the exact integration head or a byte-identical tree,"
+        " or a recorded merge chain of reviewed heads",
     )
 
 
@@ -934,7 +1023,7 @@ def _validate_graph_state(
                 and phase == "skipped"
             ):
                 _add_integration_review_skip_errors(
-                    errors, state_path, node, run, graph_nodes
+                    errors, state_path, node, run, graph_nodes, plan
                 )
 
             if phase == "succeeded" and isinstance(node.get("review"), dict) and ui_acceptance_review(node["review"]):

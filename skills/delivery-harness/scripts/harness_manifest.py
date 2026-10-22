@@ -6943,6 +6943,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     if schema_version == 11:
         integration_optional_keys.add("coordination_paths")
         integration_optional_keys.add("integration_tree_sha")
+        integration_optional_keys.add("reviewed_merge_chain")
     if _keys(
         errors,
         "run.integration",
@@ -6984,6 +6985,25 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _optional_sha(
                 errors, "run.integration.integration_tree_sha", integration.get("integration_tree_sha")
             )
+            chain = integration.get("reviewed_merge_chain")
+            chain_path = "run.integration.reviewed_merge_chain"
+            if "reviewed_merge_chain" in integration and _keys(
+                errors, chain_path, chain, {"head_sha", "links"}
+            ):
+                if not is_full_sha(chain["head_sha"]):
+                    _add(errors, f"{chain_path}.head_sha", "must be a full lowercase Git SHA")
+                links = chain["links"]
+                if not isinstance(links, list) or not links:
+                    _add(errors, f"{chain_path}.links", "must be a non-empty list")
+                    links = []
+                for index, link in enumerate(links):
+                    link_path = f"{chain_path}.links[{index}]"
+                    if _keys(errors, link_path, link, {"mission_id", "reviewed_sha", "commit_sha"}):
+                        if not _nonempty_string(link["mission_id"]):
+                            _add(errors, f"{link_path}.mission_id", "must be a non-empty string")
+                        for key in ("reviewed_sha", "commit_sha"):
+                            if not is_full_sha(link[key]):
+                                _add(errors, f"{link_path}.{key}", "must be a full lowercase Git SHA")
         if schema_version in {10, 11} and "prior_head_shas" in integration:
             integration_prior_heads = _validated_sha_history(
                 errors,
