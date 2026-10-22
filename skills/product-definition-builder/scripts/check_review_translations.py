@@ -9,8 +9,10 @@ import re
 import sys
 from pathlib import Path
 
+from contract_utils import _without_machine_block
 
-SOURCE = re.compile(r"<!-- review-source: ([^\r\n]+?) sha256:([0-9a-f]{64}) -->")
+
+SOURCE =re.compile(r"<!-- review-source: ([^\r\n]+?) sha256:([0-9a-f]{64}) -->")
 TRACE = re.compile(r"\b(?:PRD|ARCH|UI|UX|TEST|DS|RA|MR)-[A-Za-z0-9][A-Za-z0-9_-]*\b")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 HEADING = re.compile(r"^ {0,3}(#{1,6})(?:\s+|$)")
@@ -129,8 +131,13 @@ def validate_pair(source: Path, review: Path) -> list[str]:
     errors = []
     if marker[1] != source.name:
         errors.append(f"{review.name}: source filename does not match {source.name}")
-    if marker[2] != hashlib.sha256(source_bytes).hexdigest():
-        errors.append(f"{review.name}: stale review; English source SHA-256 changed")
+    # The approval block is excluded, so recording approval does not stale the copy.
+    # The raw-bytes hash stays valid for copies written before this rule.
+    canonical = _without_machine_block(
+        source_text, "<!-- product-definition-approval:start -->", "<!-- product-definition-approval:end -->")
+    current = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if marker[2] not in {current, hashlib.sha256(source_bytes).hexdigest()}:
+        errors.append(f"{review.name}: stale review; English source SHA-256 changed (current sha256:{current})")
     body = review_text[:marker.start()] + review_text[marker.end():]
     source_ids = set(TRACE.findall(source_text))
     review_ids = set(TRACE.findall(body))
@@ -140,7 +147,7 @@ def validate_pair(source: Path, review: Path) -> list[str]:
     if not body.strip():
         errors.append(f"{review.name}: review body is empty")
     else:
-        errors.extend(_coverage_errors(source_text, body, review.name))
+        errors.extend(_coverage_errors(canonical, body, review.name))
     return errors
 
 

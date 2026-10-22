@@ -1400,7 +1400,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            "# Read-Only Agent Work Graph",
+            "# Read-Only Analysis Helpers",
             (
                 REPO_ROOT
                 / "skills"

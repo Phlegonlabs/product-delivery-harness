@@ -14,13 +14,13 @@ class ReviewTranslationTests(unittest.TestCase):
     def test_contract_reaches_drafting_review_publication_and_handoff(self):
         root = SCRIPTS.parent
         for path in ("references/stages/product-definition.md", "references/output-contract.md", "references/artifact-lifecycle.md",
-                     "references/architecture-playbook.md", "references/agent-work-graph.md"):
+                     "references/architecture-playbook.md"):
             self.assertIn("bilingual-review.md", (root / path).read_text(encoding="utf-8"))
         contract = (root / "references/bilingual-review.md").read_text(encoding="utf-8")
         for phrase in ("English files alone are canonical", "before every owner review",
                        "do not prove translation quality", "English source first",
                        "compare only the sections that changed in either file",
-                       "after writing approval metadata", "archive each English/review pair together",
+                       "approval metadata needs no copy refresh", "archive each English/review pair together",
                        "Existing English-only Documents", "same directory", "Create missing copies exclusively",
                        "Preserve the English bytes", "read-only task"):
             self.assertIn(phrase.lower(), contract.lower())
@@ -50,6 +50,23 @@ class ReviewTranslationTests(unittest.TestCase):
     def test_english_change_invalidates_review_even_with_same_ids(self):
         self.source.write_text(self.source.read_text(encoding="utf-8").replace("Save", "Delete"), encoding="utf-8")
         self.assertTrue(any("stale review" in error for error in validate_pair(self.source, self.review)))
+
+    def test_approval_block_change_does_not_stale_the_review(self):
+        draft = "# Product\nPRD-001: Save a draft.\n"
+        approval = ("<!-- product-definition-approval:start -->\n### Approval\n"
+                    "- Decided on: 2026-10-22\n- Package digest: sha256:" + "a" * 64 + "\n"
+                    "<!-- product-definition-approval:end -->\n")
+        self.source.write_bytes(draft.encode("utf-8"))
+        self.write_review("# 產品\nPRD-001：儲存草稿。\n")
+        self.source.write_bytes((draft + approval).encode("utf-8"))
+        self.assertEqual([], validate_pair(self.source, self.review))
+        self.source.write_bytes((draft + approval).replace("Save", "Delete").encode("utf-8"))
+        self.assertTrue(any("stale review" in error for error in validate_pair(self.source, self.review)))
+
+    def test_raw_bytes_hash_from_before_this_rule_still_passes(self):
+        approval = "<!-- product-definition-approval:start -->\n### A\n<!-- product-definition-approval:end -->\n"
+        self.write_pair("# Product\nPRD-001: Save a draft.\n" + approval, "# 產品\nPRD-001：儲存草稿。\n")
+        self.assertEqual([], validate_pair(self.source, self.review))
 
     def test_missing_and_extra_ids_are_rejected(self):
         self.write_review("PRD-002：草稿。TEST-001\n")

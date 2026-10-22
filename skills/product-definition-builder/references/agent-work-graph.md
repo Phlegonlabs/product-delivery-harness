@@ -1,97 +1,11 @@
-# Read-Only Agent Work Graph
+# Read-Only Analysis Helpers
 
-Use this reference only after product discovery, the later UI decision owner when applicable, Stack Decision Mode, Data and Trust Gate inputs, Security Requirements Gate and Security scope inputs, AI and Automation Gate inputs, and source identification are complete. A running agent graph can draft recommendations and coherent stack options, but it cannot ask the user, approve a Stack Decision Checkpoint or Product Definition package, create UI design artifacts, authorize publication, or replace the parent-owned artifact lifecycle.
+Helpers are optional. They only read, search and report. A helper never asks the owner, approves a choice, writes a file, or publishes.
 
-## Graph Model
-
-The stable org graph defines these roles:
-
-| Role | Responsibility | Output |
-| --- | --- | --- |
-| requirements | Product scope, functional requirements, measurable non-functional requirements, stable test obligations, metrics, risks | PRD sections with PRD/TEST trace coverage |
-| architecture | Components, data, APIs, security, deployment, failure handling | Architecture sections and contracts |
-| frontend-platform | Browser stack and platform evidence when applicable, plus the mobile/desktop platform decision when that target is in scope | Frontend and mobile/desktop decisions with source evidence |
-| backend | Service topology first, then backend runtime, database, and auth technology decisions when the product has a backend, persistent data, or auth requirement | Backend and Data Technology Decision rows with per-layer status and cited source evidence |
-| synthesis | Reconcile all lanes into one package | Draft artifact bodies |
-| market-research | Reconcile prior evidence and check the drafted package against what exists in the market: alternatives, feature baseline, differentiation, pricing, benchmarks, market risks, new or stale gaps | `market-research.md` body, `MR-*` findings, gap findings, and evidence-based Platform Optimization Recommendations |
-| trace-verifier | Check requirement and ID coverage | Findings and decision |
-| consistency-verifier | Check cross-document conflicts and unsupported claims | Findings and decision |
-| seo-copy-verifier | Check public/marketing screen copy for SEO effectiveness when the product has public-facing content | Findings and decision |
-
-The temporary work graph is one bounded host-native agent run. It may fan out analysis lanes, join them for synthesis, and fan out verification. It does not persist as a second PLAN/RUN system.
-
-## Preconditions
-
-A package is "non-trivial" when more than one role in the Graph Model above would produce substantive, non-boilerplate content for it — for example a UI-bearing product spanning more than one screen or archetype, not a single-page trivial stub. "Multi-agent analysis is authorized" means the parent has an explicit authorization for this agent run and the current session is not restricted to single-agent or sequential-only execution by explicit user instruction, host policy, or permission mode. Capability or tool availability is evidence only; it never grants authorization. Both conditions must hold before launch. Every host records that authorization through `args.multi_agent_authorized: true`. Missing authorization or capability blocks required delegation; it never transfers that work to the parent.
-
-Before launch, freeze the following inputs. `args.*` names the host-neutral input contract in `scripts/product_agent_graph.cjs`. The module validates inputs and builds packets; it launches no agents and grants no authorization.
-
-- a stable run ID;
-- the product name and archetype;
-- an interview summary or explicit assumption authorization;
-- the human decision owner and `args.stack_decision_mode` (`review_recommendation`, `select_layers`, or `delegate`) for unresolved technology choices;
-- `args.data_trust_gate`, `args.security_requirements_gate`, and `args.ai_automation_gate` as `required`, `not_required`, or `blocked`; a blocked gate prevents launch because a read-only lane cannot resolve the owner decision. Also freeze `args.security_scope` as `executable` or `documentation_only`; executable scope and any deployable target require the Security Requirements Gate to be `required`.
-- the later UI decision owner for UI-bearing products, passed as `args.ui_design_owner` alongside `args.ui_bearing`. UI-bearing is not the same as having a browser frontend: a native mobile or desktop app is UI-bearing with `browser_frontend: false`; UI layout, style, motion, and media remain deferred to `ui-design-builder`;
-- source paths or a complete source summary, including the completed `research-assessment.md` and retained evidence when available, so drafting and reconciliation use the same pre-draft research;
-- a decision on whether a browser frontend and optional implementation plan are in scope;
-- a decision on whether the product has a backend, persistent data, or auth requirement, passed as `args.has_backend`, which gates whether the `backend` role runs. Local persistence or local auth can make this true without creating a hosted surface;
-- an explicit `args.hosted_deployable` boolean that is true only when the product includes a hosted deployable web, API, or backend surface. Only then must the deployment platform decision be resolved (via the interview's platform `AskUserQuestion` step in workflow step 7, the user, or the current repository) and passed as `args.deployment_platform`; when providers differ by stage, this string records that resolved stage mapping while each target's `provider` remains authoritative. A running read-only lane cannot ask the user for this. A native local-data product may therefore run with `has_backend: true`, `hosted_deployable: false`, and no deployment platform while still receiving the backend analysis lane;
-- for a deployable product, a complete `args.deployable_surfaces` inventory of stable surface IDs plus `args.release_targets`. Every target includes a closed `surface_class`, explicit `public_discoverability: yes|no`, lowercase kebab-case `surface_suffix`, and stable lowercase kebab-case `release_name`; production uses the canonical product-and-surface name without `-prod`, development uses that exact name plus `-dev`, and distinct surfaces never reuse one release name. Keep each target's `surface` separate from its `provider`, because development and production may use different providers for the same surface. Every expected surface must have at least one development target and one production target; the template rejects a missing expected surface, a target for an undeclared surface, an invalid release-name pair, or a cross-surface name collision;
-- `args.release_source_policy` selects the closed protocol. New graphs default to `main-preview/1`: development is `stage=development; ref=run.integration.branch; sha=run.integration.integration_head_sha`. Historical `candidate/1` keeps that mapping; `dual-branch/1` keeps `stage=development; ref=refs/heads/development; sha=promotion.verified_development_sha`. Production always uses `stage=production; ref=refs/heads/main; sha=promotion.verified_main_sha`. Copy the selected active architecture marker and source rows exactly. New ordinary work and hotfixes freeze remote main; historical RUNs retain their pin. Tags and alternative production refs are rejected;
-- a decision on whether the product has any public-facing marketing, landing, or SEO-relevant page, which gates whether `seo-copy-verifier` runs;
-- explicit `args.monetization_model` and `args.partner_channel_model` values from the closed decisions. The workflow requires both even when they are `none`; either non-`none` value enables the separate monetization-channel lane, which applies `monetization-and-partner-channel-guide.md` without defaulting to RevenueCat or conflating affiliate, referral, and reseller;
-- an explicit `args.market_research` boolean gating the `market-research` role. Default it to true for a non-trivial package; set it false only when the user declined the pass or the launch profile exposes no web search or fetch tool. The role runs after synthesis, reads the drafted package, and returns findings — it never edits a file, and like every other lane it cannot ask the user anything. Read `market-research-guide.md` before launching it;
-- an explicit `args.result_join_mode`: `readonly_assignments_v1` for current work, or `legacy_positional` only for a retained fixture or pinned compatibility path. Current work requires an explicit `args.research_question_inventory`, including `[]` with a concrete `research_skip_reason` for a permitted disabled pass. Disabled research emits no packets and requires no research binding, model, authorization or capability. An inventoried required assignment or `research_delegation_required: true` cannot be disabled. Missing required authorization/capability/results block; a permitted skip before delegation and a completed search returning `no_sources` remain different outcomes;
-- `args.source_manifest`: one `{path, sha256}` record per frozen source, including `research-assessment.md` and retained RA evidence when available. Cover every `source_paths` entry with a full lowercase SHA-256 of actual bytes, including uncommitted inputs. The parent and workers verify those bytes before use; this pure module does not read files. Freeze full inline source summaries too;
-- `args.role_bindings`, keyed by business role, with host-resolved `logical_role`, actual `execution_role`, `model`, `effort`, `authority`, `runtime`, `runtime_kind: native|external`, `required_tools`, `authorization` and observed `capability`. Both authorization and capability require `readonly_tools`; authorization also requires `delegation`, capability requires `launch_runtime` and a `tools` list covering required tools. External runtimes additionally require `invoke_external_runtime`. Technical lanes resolve `code_architect`, verifiers resolve `reviewer`, and research resolves `market_researcher`. Resolve requirements, synthesis and other applicable lanes explicitly under host policy; no shared model/effort default or generic worker substitution is supplied.
-- a `builder_readonly` launch profile, asserted via `args.tool_profile` and honored by the launch configuration, that exposes only the required read/search/web tools, with no file mutation, shell execution, or other mutating tools. Map these restrictions to the current host's actual permission controls.
-- an explicit multi-agent authorization for this agent run, recorded as `args.multi_agent_authorized: true`; reject or do not launch when `args.single_agent_only` or `args.sequential_only` is true. This is a launch gate, not a capability probe.
-
-If the host cannot enforce that read-only tool boundary, block the dependent assignment. If a human decision, missing secret, publish approval, destructive action, or scope change is needed, do not launch or continue the workflow. Resolve it in the parent session first.
-
-### Optional Platform Research Lanes
-
-Only when platform choice is genuinely ambiguous, inventory bounded read-only lookups before presenting the platform question. Use `scripts/readonly_assignments.cjs` for substantive independent questions, with staffing selected by agent configuration and separate question identities. Return two or three serious applicable options with tradeoffs and an evidence-backed recommendation choice; do not dump a fixed global provider catalog into a tool with a smaller option limit. These scoped assignments do not restart the full graph.
-
-## Host Routing And Execution
-
-Analysis and synthesis produce canonical English content. The parent creates complete Chinese PRD/architecture review copies alongside the reconciled candidate under `bilingual-review.md`, before presenting it to the owner. Reviewer findings and accepted owner changes update the English sources and their copies together. Translation does not grant approval or change implementation references.
-
-Use the current session's observed tools under the general runtime contract. Preserve installed roles, models and fallback policy. Do not use a bundled launch script or guess native API names. The parent maps packets from `scripts/product_agent_graph.cjs` to actual calls and validates returned schemas. `createProductAgentGraph(args)` keeps `analyze`, `synthesize`, `review` and `finish`; these only construct data or reconcile supplied results. Missing read-only isolation, host binding or required result blocks the dependent stage. The agent graph is read-only:
-
-1. Requirements, architecture, and conditional frontend/platform roles run independently.
-2. All successful and failed lane results are retained explicitly.
-3. Synthesis starts only after the analysis barrier.
-4. Trace, consistency, and (when public-facing content is in scope) SEO copy verifiers review the same synthesis independently. Trace verification checks that every Must functional requirement and applicable NFR maps to a required stable `TEST-*` obligation with an observable expected signal.
-5. In current `readonly_assignments_v1`, the business role is `market-research`; actual executor identity comes from its agent binding. The graph emits one packet per inventoried question and joins results by assignment, attempt, question, and phase-scoped input identity. A `no_sources` result is explicit evidence, a permitted skip stays explicit, and a missing or blocked required result blocks the graph barrier. Recommendations stay `pending`; the workers never apply one or accept one on the owner's behalf. `legacy_positional` keeps the old single business-role result only for retained compatibility.
-6. The parent receives candidate Markdown bodies, coherent stack options, review findings, and the research result. Every proposed new stack row remains `Recommended`; the agent graph cannot mark it `Approved`. The parent presents the complete candidate and its recommendations, records explicit owner decisions, and applies only accepted proposals; a deferred or rejected proposal leaves any approval-blocking gap open.
-
-Apply `prd-refinement.md`: `requirements` carries the product-level UI lens; `architecture` and applicable `backend`/`frontend-platform` roles carry the technical lens. Synthesis reconciles their findings, and consistency review checks the same candidate's complete first-delivery journeys and cross-feature dependencies. The parent records evidence, affected IDs and dispositions in existing records. Required delegated checks never become sequential parent work.
-
-### Current Packet API
-
-Current callers use these barriers, retaining each returned assignment and its separately observed parent launch record in the existing Epic/task evidence:
-
-1. `analyze()` returns `product-graph-assignments/1` packets. Each has a business role, scoped assignment/attempt/question/input identities, the host execution binding and frozen source inputs. The child returns the advertised envelope with its domain payload in `result` and actual identity in `observed_identity`.
-2. `synthesize(laneResults, analysisLaunchRecords)` joins every analysis envelope by identity, accepts reordering and returns the synthesis packet. Missing, failed, duplicate or mismatched dependencies block synthesis.
-3. `review(synthesisResult, synthesisLaunchRecords)` validates that synthesis envelope and freezes its complete draft. Verifier and research inputs bind this exact draft, source context, RA source hashes and their instructions. Research packets use `readonly-assignments/1`. Each subsequent review call creates a new attempt and invalidates the prior review results.
-4. `finish(laneResults, synthesisResult, reviewResults, allParentLaunchRecords)` revalidates every stage and rejects changed analysis/draft snapshots, stale attempts or missing results. It returns candidate readiness, never owner approval. Changed sources require a new graph/source freeze and fresh dependent evidence.
-
-Parent launch records are supplied separately, never extracted from child output. Each record contains `assignment_id`, `attempt_id`, `input_id`, a unique `reservation_id`, `authority`, `runtime`, actual `execution_role`, `model`, `effort`, `worker_id` and `session_id`. Records must match the reserved assignment/attempt/input and host binding, and child identity must agree. Reservations cannot be reused. Analysis, synthesis and independent verifiers retain distinct worker/session identities. Research may reuse one stable worker/session pair only when the frozen `distinct_workers` choice is false; reuse never crosses into an independent verifier. The pure validator checks agreement; the host must retain real launch evidence. A child-written `launch_observation` is not independent proof.
-
-Standalone pre-draft, enhancement-delta, UI and code questions use `createReadonlyAssignments(request)`, `readonlyResult(instance, payload)` and `joinReadonlyResults(plan, results, parentLaunchRecords)` from `scripts/readonly_assignments.cjs`. Set `binding_required: true` and record agent-selected `distinct_workers` explicitly for current flows. False permits sequential worker reuse; true requires distinct worker/session identities for independent corroboration. Omission preserves legacy distinct-worker semantics. Product graphs forward `args.research_distinct_workers` to their research packets. Each question has `question_id`, `prompt`, frozen `input`, and parent classifications `substantive: true`, `independent: true`; request fields include schema, run/business/execution roles, phase, attempt number, requested identity, binding requirements, authorization, capability and explicit skip policy. Use phases `pre_draft_research`, `post_draft_market_research`, `ui_research` or `code_exploration`. Include exact candidate/source hashes and complete applicable research/disclosure/source rules in these standalone packets. Scope enhancement inputs to the accepted delta without restarting the full graph. No launcher or evidence database is added.
-
-Only explicitly retained `legacy_positional` callers keep raw domain payloads and the old method argument shapes. New flows must not select legacy mode or omit inventory/bindings to bypass these barriers.
-
-An agent-graph result authorizes nothing. The parent records factual evidence and applies only explicitly accepted product recommendations, presents coherent technology choices under the recorded Stack Decision Mode, records the owner's Stack Decision Checkpoint, then presents the reconciled core package for Product Definition Approval. It never returns or materializes wireframe data. A later explicit `ui-design-builder` run consumes the approved package; a changed product obligation returns here and reopens Product Definition Approval. Publication authorization remains a later, separate filesystem decision.
-
-## Failure And Resume
-
-- A skipped or failed agent becomes an explicit failed lane result; it is never silently omitted.
-- A failed required lane blocks package finalization until an authorized delegate completes a fresh bound attempt.
-- A host-native resume is useful only while that host preserves the same child-run identity. Across sessions, use the retained staging package and frozen source inputs to start a new agent run.
-- Record the host run IDs and relevant findings in the task report when the runtime exposes them.
-
-## Fallback
-
-When a compliant sibling-agent runner is unavailable, unauthorized, or blocked by a single-agent/sequential-only constraint, current mandatory readonly assignments are blocked; they do not become sequential parent work. The parent records the blocker and resolves authorization or capability. An explicit legacy fixture may keep `legacy_positional`. The parent still owns recommendation presentation and owner decisions. Do not claim multi-agent verification or agent-run resume when a fallback is used.
+- Use a helper when delegation is authorized for this task and the host exposes read-only tools. Capability alone grants nothing. Without a helper, the parent does the work itself or records the skip with its reason.
+- Launch one `market_researcher` per research phase (pre-draft, post-draft). It covers the whole question inventory, unless the owner asks for more. Do not add verifier agents. The checker and the one self-review cover trace and consistency.
+- Give the helper frozen sources, the public-safe query summary and the rules in `research-first-guide.md` or `market-research-guide.md`. Do not send confidential inputs.
+- The parent records in the Epic what each helper read (paths and SHA-256) and what it returned. A search that found nothing is recorded as `no_sources`. A skipped pass is recorded with its reason.
+- A helper's proposal stays `pending` until the owner decides. A proposed new stack row stays `Recommended`.
+- Every factual claim carries publisher, URL and retrieval date, or is `UNVALIDATED`.
+- If a helper fails, repeat it once or record the gap. A material gap becomes a blocking Open Question.

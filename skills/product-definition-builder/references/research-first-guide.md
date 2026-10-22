@@ -37,7 +37,7 @@ Apply `references/market-research-guide.md`'s Source Rules and confidence vocabu
 
 ## Delegation
 
-Before drafting, build the same versioned `readonly-assignments/1` inventory directly; this phase has no product graph lane. Two or more parent-classified independent substantive questions require separate `market_researcher` instances when delegation and readonly capability are granted. Missing authorization or capability blocks the pass instead of becoming parent work. A permitted skip is explicit; an evidence-backed no-source result is not a failed launch.
+Inventory the research questions before drafting. One `market_researcher` helper may cover them all under `agent-work-graph.md`; otherwise the parent researches. A permitted skip is explicit; an evidence-backed no-source result is not a failed launch.
 
 ## The Artifact
 
@@ -94,8 +94,8 @@ The researcher recommends; the human owner decides. Record the decision in `PRD.
 Research Gate: [go | clarify | stop | skipped] — [assessment date and findings path, or skip reason], decided by [human owner]
 ```
 
-- `go` — the evidence supports drafting. Proceed to the closed-set decisions with the assessment's findings as input.
-- `clarify` — specific unresolved items would change the product's shape. Ask exactly those questions in one bounded `AskUserQuestion` round, record the answers as resolutions in `research-assessment.md`'s `## Unresolved`, then re-assess only the affected findings and record the final gate value.
-- `stop` — the evidence says do not draft this product: no real problem, an existing alternative the segment will not switch from, or a blocking risk. Draft nothing. Report the findings, leave `research-assessment.md` in the staging directory for the user, and end the run.
+- `go` — the evidence supports drafting. Summarize the findings in the same turn, then ask this decision as the first question of the archetype `AskUserQuestion` call, with `go` recommended. Proceed to the closed-set decisions with the findings as input.
+- `clarify` — specific unresolved items would change the product's shape. This recommendation is put to the owner on its own, before any closed-set call. Ask exactly those questions in one bounded `AskUserQuestion` round, record the answers as resolutions in `research-assessment.md`'s `## Unresolved`, then re-assess only the affected findings and record the final gate value.
+- `stop` — put to the owner on its own, like `clarify`. The evidence says do not draft this product: no real problem, an existing alternative the segment will not switch from, or a blocking risk. Draft nothing. Report the findings, leave `research-assessment.md` in the staging directory for the user, and end the run.
 
 A researcher-recommended `stop` without owner confirmation is recorded as `clarify` with the decisive question stated, never as a silent refusal to draft.
