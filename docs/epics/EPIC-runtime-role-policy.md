@@ -1,6 +1,6 @@
 # Retain reservation identity when the owner changes role policy
 
-Status: local implementation and focused verification complete; independent source review and isolated adoption pending.
+Status: in_progress
 
 The owner instructed AgentKiosk to use GPT-6.1 Sol for all new work on 2026-10-22. Its unchanged PLAN leaves model and effort selections to host policy. The retained M01 author was Opus/high. Current validation re-resolves every retained reservation against today's defaults, so changing the frontend policy invalidates both historical M01 workers.
 

@@ -1,6 +1,6 @@
 # Admit integration results and adopt at a reviewed mission boundary
 
-Status: local source and focused checks complete; independent review and isolated adoption pending.
+Status: in_progress
 
 ## Problem and accepted scope
 

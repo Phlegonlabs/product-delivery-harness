@@ -1,6 +1,6 @@
 # EPIC-architecture-loop-remote-execution: Integrate architecture and remote execution methods
 
-Status: in progress (T2/T3 source methods implemented and focused checks passed; remote execution pending)
+Status: in_progress
 
 ## Problem And Baseline
 
@@ -59,7 +59,7 @@ Runtime schemas, release version, installed skills and remote capabilities stay 
 
 | Path | Impact | Recheck |
 | --- | --- | --- |
-| `docs/research/architecture-loop-remote-execution.md` | Accepted direction, future work and explicit gaps | Source links, review boundary and pilot scope |
+| `docs/research/architecture-loop-remote-execution.md` (deleted; recover from Git history) | Accepted direction, future work and explicit gaps | Source links, review boundary and pilot scope |
 | `docs/DOCUMENTS.md` | Discoverable proposal and Epic | Paths and pending status |
 | Canonical skills and four READMEs | No change in T1 | Update together when an actual skill/rule/flow changes |
 
