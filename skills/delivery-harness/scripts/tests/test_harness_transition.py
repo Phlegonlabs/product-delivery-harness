@@ -26,24 +26,30 @@ from harness_core import plan_digest  # noqa: E402
 
 
 class HarnessTransitionTaskViewTests(unittest.TestCase):
+    def test_retired_commands_and_flags_are_rejected(self) -> None:
+        parser = harness_transition.build_parser()
+        common = ["--plan", "PLAN.md", "--run", "RUN.md"]
+        commands = ["adopt-runtime-contract", "update-role-bindings", "record-runtime-observation",
+                    "record-launch-observation", "bind-review-task-thread", "grant-review-attempts",
+                    "reconcile-worker-ingestion"]
+        flags = ["--result-receipt", "--failure-receipt", "--fallback-record", "--contract-adoption-check",
+                 "--failure-family-id", "--failure-primitive", "--equivalence-class", "--strategy",
+                 "--push-receipt", "--task-thread-id"]
+        for arguments in [[*common, command] for command in commands] + [
+            [*common, "pause", "--source", "owner", flag, "old-value"] for flag in flags
+        ]:
+            with self.subTest(arguments=arguments), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as stopped:
+                    parser.parse_args(arguments)
+                self.assertEqual(2, stopped.exception.code)
+
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
         self.addCleanup(self._temp.cleanup)
         self.root = Path(self._temp.name)
         self.plan = mf.valid_plan()
         self.run = mf.valid_run(self.plan)
-        source_contents = {
-            "docs/product/prd.md": b"# Test PRD\n",
-            "docs/product/architecture.md": b"# Test architecture\n",
-        }
-        import hashlib
-
-        for source in self.plan["sources"]:
-            contents = source_contents[source["location"]]
-            path = self.root / source["location"]
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(contents)
-            source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+        mf.materialize_plan_sources(self.root, self.plan)
         (self.root / "file.txt").write_text("base\n", encoding="utf-8")
         mf.git(self.root, "init", "-q", "-b", "integration")
         mf.git(self.root, "config", "user.email", "t@example.com")
@@ -75,33 +81,6 @@ class HarnessTransitionTaskViewTests(unittest.TestCase):
             repo_root=self.root,
         )
 
-    def test_projection_uses_exact_checkpoints_and_declared_path(self) -> None:
-        self.assertEqual(
-            {
-                "accept-wave",
-                "record-worker-result",
-                "reject-worker-result",
-                "record-integration",
-                "reconcile-candidate-head",
-                "reconcile-coordination-head",
-                "reconcile-interrupted",
-                "reconcile-interrupted-reviews",
-                "close-wave",
-            },
-            harness_transition.TASK_VIEW_CHECKPOINTS,
-        )
-        for command in ("heartbeat-run-lock", "lease-worker", "record-node-result"):
-            with self.subTest(command=command):
-                self.assertIsNone(
-                    harness_transition._tasks_view_path(self.run, self.arguments(command))
-                )
-        self.assertEqual(
-            self.view_path,
-            harness_transition._tasks_view_path(self.run, self.arguments("close-wave")),
-        )
-        no_root = self.arguments("close-wave")
-        no_root.repo_root = None
-        self.assertIsNone(harness_transition._tasks_view_path(self.run, no_root))
 
     def test_refresh_preserves_update_log_and_refuses_foreign_file(self) -> None:
         render_tasks_view.refresh_view(
@@ -142,28 +121,6 @@ class HarnessTransitionTaskViewTests(unittest.TestCase):
                 )
             self.assertFalse(outside.exists())
 
-    def test_projection_failure_after_transition_save_is_a_repair_warning(self) -> None:
-        from test_new_run import NewRunTests
-
-        fixture = NewRunTests()
-        fixture.setUp()
-        self.addCleanup(fixture.doCleanups)
-        run_path = fixture.generate()
-        view = fixture.dir / "docs/tasks.md"
-        view.write_text("hand-authored notes", encoding="utf-8")
-        stderr = io.StringIO()
-        checkpoints = {*harness_transition.TASK_VIEW_CHECKPOINTS, "pause"}
-        with unittest.mock.patch.object(harness_transition, "TASK_VIEW_CHECKPOINTS", checkpoints):
-            with contextlib.redirect_stderr(stderr):
-                result = harness_transition.main([
-                    "--plan", str(fixture.plan_path), "--run", str(run_path),
-                    "--repo-root", str(fixture.dir), "pause", "--source", "focused test",
-                ])
-        self.assertEqual(0, result, stderr.getvalue())
-        self.assertIn("RUN pause succeeded", stderr.getvalue())
-        self.assertIn("render_tasks_view.py", stderr.getvalue())
-        self.assertEqual("hand-authored notes", view.read_text(encoding="utf-8"))
-        self.assertEqual("paused", harness_transition.load_run(run_path)["control"]["desired_state"])
 
     def test_new_run_failure_after_durable_run_is_a_repair_warning(self) -> None:
         from test_new_run import NewRunTests
@@ -242,32 +199,10 @@ class HarnessTransitionTaskViewTests(unittest.TestCase):
             calls += 1
             if calls == 2:
                 self.view_path.write_text("new user file", encoding="utf-8")
-        with self.assertRaises(FileExistsError):
+        with self.assertRaisesRegex(harness_transition.ManifestError, "refusing to overwrite"):
             render_tasks_view.refresh_view(self.plan, self.run, self.view_path, repo_root=self.root, check_sources=race)
         self.assertEqual("new user file", self.view_path.read_text(encoding="utf-8"))
 
-    def test_source_drift_after_run_save_is_a_warning_not_transition_failure(self) -> None:
-        from test_new_run import NewRunTests
-
-        fixture = NewRunTests()
-        fixture.setUp()
-        self.addCleanup(fixture.doCleanups)
-        run_path = fixture.generate()
-        saved_view = (fixture.dir / "docs/tasks.md").read_bytes()
-        replace = harness_transition._replace_run_document
-        def race(*args, **kwargs):
-            replace(*args, **kwargs)
-            fixture.plan_path.write_text("concurrent PLAN edit", encoding="utf-8")
-        stderr = io.StringIO()
-        with unittest.mock.patch.object(harness_transition, "TASK_VIEW_CHECKPOINTS", {"pause"}), unittest.mock.patch.object(harness_transition, "_replace_run_document", side_effect=race), contextlib.redirect_stderr(stderr):
-            result = harness_transition.main([
-                "--plan", str(fixture.plan_path), "--run", str(run_path),
-                "--repo-root", str(fixture.dir), "pause", "--source", "test",
-            ])
-        self.assertEqual(0, result, stderr.getvalue())
-        self.assertIn("RUN pause succeeded", stderr.getvalue())
-        self.assertEqual("paused", harness_transition.load_run(run_path)["control"]["desired_state"])
-        self.assertEqual(saved_view, (fixture.dir / "docs/tasks.md").read_bytes())
 
     def test_symlink_destination_is_not_written_or_exempted(self) -> None:
         target = self.root / "notes.md"

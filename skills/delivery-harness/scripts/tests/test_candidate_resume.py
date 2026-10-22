@@ -616,7 +616,6 @@ class CandidateResumeTests(unittest.TestCase):
         )
         self.assertEqual("reconcile-candidate-head", args.command)
         self.assertIn(args.command, harness_transition.DISPATCH_COMMANDS)
-        self.assertIn(args.command, harness_transition.TASK_VIEW_CHECKPOINTS)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 import sys
@@ -72,11 +71,7 @@ class CliFixture:
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)
         self.gitroot = self.root / "git"
-        (self.gitroot / "docs" / "product").mkdir(parents=True)
-        prd = self.gitroot / "docs" / "product" / "prd.md"
-        arch = self.gitroot / "docs" / "product" / "architecture.md"
-        prd.write_text("product contract\n", encoding="utf-8")
-        arch.write_text("technical contract\n", encoding="utf-8")
+        self.gitroot.mkdir()
         self.base = mf.init_repo(self.gitroot, "file.txt")
         mf.git(self.gitroot, "checkout", "-qb", "integration")
         (self.gitroot / "file.txt").write_text("work\n", encoding="utf-8")
@@ -86,12 +81,10 @@ class CliFixture:
         self.wt1 = (self.root / "wt-m1").as_posix()
 
         self.plan = self.plan_fixture()
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd.read_bytes()
-        ).hexdigest()
-        self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
-            arch.read_bytes()
-        ).hexdigest()
+        mf.materialize_plan_sources(self.gitroot, self.plan)
+        mf.git(self.gitroot, "add", "docs/product")
+        mf.git(self.gitroot, "commit", "-qm", "freeze contracts")
+        self.head = mf.git(self.gitroot, "rev-parse", "HEAD")
         run = mf.valid_run(self.plan)
         mf.authorize_execution(run, ["M1", "M2"])
         mf.authorize_action(
@@ -576,14 +569,7 @@ class AcceptWaveGuardTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temp, self.root, _, self.head = make_repo()
         self.plan = mf.valid_plan()
-        for source, contents in zip(
-            self.plan["sources"],
-            (b"product contract\n", b"technical contract\n"),
-        ):
-            source_path = self.root / source["location"]
-            source_path.parent.mkdir(parents=True, exist_ok=True)
-            source_path.write_bytes(contents)
-            source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+        mf.materialize_plan_sources(self.root, self.plan)
         mf.git(self.root, "add", "docs/product")
         mf.git(self.root, "commit", "-qm", "frozen contracts")
         self.head = mf.git(self.root, "rev-parse", "HEAD")
@@ -704,6 +690,9 @@ class LeaseWorkerGuardTests(unittest.TestCase):
             "create_local_commits",
         ):
             mf.authorize_action(self.run, action, ["M1", "M2"], ["*"])
+        self.run["runtime_capabilities"]["worker_runtime"] = "subagent"
+        self.run["runtime_capabilities"]["runtime_adapter"].update(
+            available_drivers=["subagents", "sequential_parent"], detection_source="observed")
         self.run["active_wave"].update(
             {
                 "wave_id": "W-1",

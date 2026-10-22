@@ -12,9 +12,7 @@ import hashlib
 import os
 import stat
 from pathlib import Path
-from typing import Any
 
-from harness_schema import run_required_harness_version, version_at_least
 
 
 SKILL_NAMES = (
@@ -118,87 +116,6 @@ def contract_digest(skills_root: str | Path | None = None) -> str:
             digest.update(data)
             digest.update(b"\0")
     return digest.hexdigest()
-
-
-CONTRACT_ADOPTION_CHECK_KEYS = {"digest", "matched", "reading_evidence"}
-
-
-def contract_adoption_check_errors(
-    run: dict[str, Any],
-    check: Any,
-    *,
-    blocked: bool = False,
-    optional: bool = False,
-) -> list[str]:
-    """Check a worker's or reviewer's own contract-adoption report.
-
-    The report is required when the RUN has an adopted contract (so the
-    directive or review packet carried it) and the RUN requires Harness 0.55.1
-    or later; older RUNs may omit it. A report must never appear without an
-    adopted contract. Pass ``blocked=True`` for a blocked review: it may omit
-    the report, or report a mismatch with ``matched`` false so the observed
-    digest is kept. Pass ``optional=True`` for a result the parent may record
-    without child output: it may omit the report, but one it supplies is
-    checked in full.
-    """
-
-    runtime = run.get("runtime_capabilities") if isinstance(run, dict) else None
-    adapter = runtime.get("runtime_adapter") if isinstance(runtime, dict) else None
-    gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
-    adoption = (
-        gate.get("contract_adoption")
-        if isinstance(gate, dict) and gate.get("status") == "adopted"
-        else None
-    )
-    if check is None:
-        if (
-            not blocked
-            and not optional
-            and isinstance(adoption, dict)
-            and version_at_least(run_required_harness_version(run), (0, 55, 1))
-        ):
-            return ["is required because the dispatch carried contract_adoption"]
-        return []
-    if not isinstance(adoption, dict):
-        return ["is not allowed without an adopted runtime contract"]
-    if not isinstance(check, dict) or set(check) != CONTRACT_ADOPTION_CHECK_KEYS:
-        return ["must be an object with exactly digest, matched, and reading_evidence"]
-    errors = []
-    digest = check["digest"]
-    same = digest == adoption.get("contract_digest_sha256")
-    if not isinstance(digest, str) or not digest:
-        errors.append("digest must be a non-empty string")
-    elif blocked:
-        if check["matched"] is not same:
-            errors.append("matched must be true exactly when digest equals the adopted digest")
-    else:
-        if not same:
-            errors.append("digest does not match the adopted contract digest")
-        if check["matched"] is not True:
-            errors.append("matched must be true")
-    reading = check["reading_evidence"]
-    # A child that stopped on a mismatch may not have read the contract.
-    may_be_empty = blocked and check["matched"] is False
-    if (
-        not isinstance(reading, list)
-        or (not reading and not may_be_empty)
-        or any(not isinstance(item, str) or not item.strip() for item in reading)
-    ):
-        errors.append("reading_evidence must be a non-empty list of non-empty strings")
-    elif reading and reading == adoption.get("reading_evidence"):
-        errors.append("reading_evidence must be the child's own reading, not the parent receipt")
-    return errors
-
-
-def contract_adoption_check_evidence(check: Any) -> list[str]:
-    """Attempt-log lines that retain a validated contract-adoption report."""
-
-    if not isinstance(check, dict):
-        return []
-    label = "digest" if check["matched"] is True else "mismatch"
-    return [f"contract_adoption_{label}:{check['digest']}"] + [
-        f"contract_adoption_reading:{item}" for item in check["reading_evidence"]
-    ]
 
 
 if __name__ == "__main__":

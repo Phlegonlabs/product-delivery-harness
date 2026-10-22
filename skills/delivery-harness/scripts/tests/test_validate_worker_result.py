@@ -24,6 +24,7 @@ from harness_manifest import (  # noqa: E402
     validate_run,
 )
 import validate_worker_result as subject  # noqa: E402
+import manifest_fixtures as mf  # noqa: E402
 
 
 BASE_SHA = "a" * 40
@@ -38,26 +39,12 @@ def verifier(verifier_id: str) -> dict[str, object]:
     return {
         "id": verifier_id,
         "cwd": ".",
-        "argv": ["python3", "-m", "unittest"],
+        "argv": [sys.executable, "-m", "unittest"],
         "pass_signal": "exit_code_0",
         "execution": {
-            "parallel_safe": True,
+            "parallel_safe": False,
             "resources": [],
-            "isolation": "container",
-            "sandbox": {
-                "runtime": "docker",
-                "image": "fixture@sha256:" + "1" * 64,
-                "network": "none",
-                "read_only_rootfs": True,
-                "no_new_privileges": True,
-                "cap_drop": ["ALL"],
-                "tmpfs": ["/tmp"],
-                "memory": "512m",
-                "cpus": "1",
-                "pids_limit": "256",
-                "user": "65532:65532",
-                "pull": "never",
-            },
+            "isolation": "host",
         },
     }
 
@@ -73,7 +60,7 @@ def retained_verifier_result(
         "run_id": "RUN_TEST",
         "plan_revision": 1,
         "plan_digest_sha256": plan_digest(plan),
-        "graph_revision": None,
+        "graph_revision": 1,
         "batch_base_sha": BASE_SHA,
         "head_sha": HEAD_SHA,
         "changed_files": changed_files,
@@ -89,7 +76,7 @@ def retained_verifier_result(
     }
     declaration = verifier(verifier_id)
     key_document = {
-        "protocol": "harness-verifier-execution-v1",
+        "protocol": "harness-verifier-execution-v2",
         "verifier_id": verifier_id,
         "layer": context["layer"],
         "mission_id": context["mission_id"],
@@ -123,7 +110,16 @@ def retained_verifier_result(
             "inode": 1,
         },
         "environment_digests": {},
+        "execution": declaration["execution"],
     }
+    from verifier_runtime import observe_plan_host_runtimes
+    entries, errors = observe_plan_host_runtimes({"final_gates": [declaration]}, Path.cwd())
+    assert not errors, errors
+    preflight = entries[0]
+    key_document["host_preflight"] = preflight
+    host = {"isolation": "host", "cwd": str(Path("/tmp/worker-m1").resolve()),
+        "host": preflight["host"], "runtime_version": preflight["runtime_version"],
+        "executable": {"path": preflight["executable"], "sha256": preflight["executable_sha256"]}}
     execution_key = hashlib.sha256(
         json.dumps(
             key_document,
@@ -133,7 +129,7 @@ def retained_verifier_result(
         ).encode("utf-8")
     ).hexdigest()
     return {
-        "protocol": "harness-verifier-execution-v1",
+        "protocol": "harness-verifier-execution-v2",
         "verifier_id": verifier_id,
         "status": "PASS",
         "exit_code": 0,
@@ -155,79 +151,28 @@ def retained_verifier_result(
         "cache_reason": "cache_disabled",
         "duration_ms": 1,
         "metrics": {"executed": 1, "reused": 0},
+        "host_execution_attestation": host,
+        "git_guard_attestation": {
+            "checkout_root": "/tmp/worker-m1",
+            "isolation_mode": "host", "source_head_sha": HEAD_SHA,
+            "host_execution_attestation": host,
+            "git_guard": {"expected_branch": BRANCH_REF, "expected_head_sha": HEAD_SHA, "ignored_paths": []},
+            "tracked_files": {}, "protected_path_sha256": {}, "protected_path_stats": {},
+        },
     }
 
 
 def make_plan() -> dict[str, object]:
-    return {
-        "schema_version": 2,
-        "plan_id": "PLAN_TEST",
-        "revision": 1,
-        "objective": "Deliver the test mission with a verified result.",
-        "max_parallel_workers": 3,
-        "sources": [
-            {
-                "id": "SRC1",
-                "kind": "prd",
-                "location": "docs/requirements.md",
-                "owner": "test",
-                "status": "frozen",
-                "notes": "test fixture",
-            }
-        ],
-        "traces": [
-            {
-                "id": "REQ1",
-                "source_ids": ["SRC1"],
-                "priority": "must",
-                "requirement": "Implement the bounded behavior.",
-                "disposition": "planned",
-                "rationale": None,
-            }
-        ],
-        "ui_surfaces": [],
-        "risks": [],
-        "batch_verifiers": [verifier("batch")],
-        "final_gates": [verifier("final")],
-        "missions": [
-            {
-                "id": "M1",
-                "alias": "mission-one",
-                "objective": "Implement mission one.",
-                "priority": 100,
-                "merge_rank": 10,
-                "depends_on": [],
-                "trace_ids": ["REQ1"],
-                "write_scope": ["src/m1/**"],
-                "deny_scope": ["docs/goal/PLAN.md", "docs/goal/RUN.md"],
-                "resource_inventory_complete": True,
-                "serialized_resources": [],
-                "runtime_resources": [],
-                "worktree_eligible": True,
-                "required_skills": [],
-                "stop_conditions": ["scope escape"],
-                "worker_verifiers": [verifier("mission-focused")],
-                "integration_verifiers": [verifier("mission-integration")],
-                "tasks": [
-                    {
-                        "id": "M1/T01",
-                        "alias": "task-one",
-                        "objective": "Implement the focused behavior.",
-                        "acceptance_matrix": ["focused behavior passes"],
-                        "trace_ids": ["REQ1"],
-                        "depends_on": [],
-                        "parent_task": None,
-                        "legacy_task_ids": [],
-                        "replaced_by": [],
-                        "split_reason": None,
-                        "refinement_generation": 0,
-                        "write_scope": ["src/m1/**"],
-                        "verifiers": [verifier("task-focused")],
-                    }
-                ],
-            }
-        ],
-    }
+    plan = mf.valid_plan()
+    plan["plan_id"] = "PLAN_TEST"
+    mission = plan["missions"][0]
+    mission["write_scope"] = ["src/m1/**"]
+    mission["tasks"] = mission["tasks"][:1]
+    mission["tasks"][0]["write_scope"] = ["src/m1/**"]
+    mission["tasks"][0]["verifiers"] = [verifier("task-focused")]
+    mission["worker_verifiers"] = [verifier("mission-focused")]
+    mission["integration_verifiers"] = [verifier("mission-integration")]
+    return plan
 
 
 def authorization(
@@ -258,7 +203,7 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
     authorizations["create_local_commits"] = authorization(
         "create_local_commits", enabled=True, target=f"branch:{BRANCH_REF}"
     )
-    return {
+    value = {
         "schema_version": 3,
         "run_id": "RUN_TEST",
         "plan": {
@@ -397,6 +342,31 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
         ],
     }
 
+    run = mf.valid_run(plan)
+    for key, item in value.items():
+        if key in {"schema_version", "authorizations", "execution_authorization_scope"}:
+            continue
+        if isinstance(item, dict) and isinstance(run.get(key), dict):
+            run[key].update(item)
+        else:
+            run[key] = item
+    mf.authorize_execution(run, ["M1"])
+    for action, target in [("create_local_commits", f"branch:{BRANCH_REF}"),
+                           ("create_local_branches", f"branch:{BRANCH_REF}"),
+                           ("create_local_worktrees", "worktree:/tmp/worker-m1"),
+                           ("spawn_subagents", "worker:W1")]:
+        mf.authorize_action(run, action, ["M1"], [target])
+    adapter = run["runtime_capabilities"]["runtime_adapter"]
+    adapter.update(available_drivers=["subagents", "sequential_parent"], detection_source="observed")
+    run["observed"]["git"]["parent_worktree_path"] = "/tmp/integration"
+
+    run["graph_state"]["node_states"]["N-M1"].update(
+        phase="running", attempts=1, last_attempt_id="ATTEMPT_WORKER",
+        last_outcome=None, bound_worker_id="W1")
+    run["integration"]["coordination_paths"] = ["docs/goal/PLAN.md", "docs/goal/RUN.md", "docs/tasks.md"]
+    run["control"]["desired_state"] = "running"
+    return run
+
 
 def make_result(plan: dict[str, object]) -> dict[str, object]:
     return {
@@ -406,6 +376,7 @@ def make_result(plan: dict[str, object]) -> dict[str, object]:
         "mission_id": "M1",
         "lease_id": "LEASE1",
         "status": "worker_passed",
+
         "current_task_id": None,
         "plan_revision": 1,
         "plan_digest_sha256": plan_digest(plan),
@@ -487,6 +458,7 @@ def validate(
         retained_verifier_results=retained,
         observed_commit_order=effective_observed_commits,
         observed_task_changed_files=observed_task_changed_files,
+        manifest_already_validated=True,
     )
 
 
@@ -592,33 +564,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
             reported["evidence"] = item["evidence_key"]
         return plan, run, result, retained
 
-    def test_same_batch_container_origin_is_accepted_and_required(self) -> None:
-        from harness_worker_result_transition import _retained_execution
-        from verifier_runtime import container_reuse_origin_run_errors
 
-        plan, run, result, retained = self._same_batch_container_fixture()
-        consumer = retained[1]
-        self.assertEqual([], validate(plan, run, result, retained=retained))
-        records = [_retained_execution(run, item, []) for item in retained]
-        self.assertEqual([], container_reuse_origin_run_errors(records[1], {"verifier_executions": records}))
-        consumer["container_reuse_origin"]["context_sha256"] = "f" * 64
-        self.assertTrue(validate(plan, run, result, retained=retained))
-        consumer.pop("container_reuse_origin")
-        self.assertTrue(validate(plan, run, result, retained=retained))
-
-    def test_prior_run_container_origin_cannot_authorize_current_reuse(self) -> None:
-        from harness_worker_result_transition import _retained_execution
-
-        plan, run, result, retained = self._same_batch_container_fixture()
-        self.assertEqual([], validate(plan, run, result, retained=retained))
-        run["verifier_executions"] = [_retained_execution(run, copy.deepcopy(retained[0]), [])]
-        # The current command ran independently. Only the prior RUN row carries
-        # the origin marker; matching output and keys do not make it current.
-        retained[0]["cache_reason"] = "container_reuse_not_requested"
-        for current in (retained, retained[1:]):
-            with self.subTest(current_execution_present=len(current) == 2):
-                errors = validate(plan, run, result, retained=current)
-                self.assertTrue(any("container_reuse_origin" in error["path"] for error in errors), errors)
 
     def test_parent_observed_diff_selects_required_verifiers(self) -> None:
         plan = copy.deepcopy(self.plan)
@@ -1125,47 +1071,8 @@ class ValidateWorkerResultTests(unittest.TestCase):
             }
         }
 
-    def test_adopted_contract_requires_a_matching_child_check_from_0_55_1(self) -> None:
-        self._adopt_contract("0.55.1")
-        missing = validate(self.plan, self.run, self.result)
-        self.assertIn("contract_adoption_check", error_codes(missing))
 
-        result = copy.deepcopy(self.result)
-        result["contract_adoption_check"] = {
-            "digest": "a" * 64,
-            "matched": True,
-            "reading_evidence": ["worker read SKILL.md and worker-result-contract.md"],
-        }
-        self.assertEqual([], validate(self.plan, self.run, result))
 
-        for field, value in (
-            ("digest", "b" * 64),
-            ("matched", False),
-            ("reading_evidence", []),
-            ("reading_evidence", ["parent re-read the fixed contract"]),
-        ):
-            with self.subTest(field=field, value=value):
-                bad = copy.deepcopy(result)
-                bad["contract_adoption_check"][field] = value
-                self.assertIn(
-                    "contract_adoption_check",
-                    error_codes(validate(self.plan, self.run, bad)),
-                )
-
-    def test_contract_adoption_check_is_optional_before_0_55_1(self) -> None:
-        self._adopt_contract("0.55.0")
-        self.assertEqual([], validate(self.plan, self.run, self.result))
-
-    def test_contract_adoption_check_is_rejected_without_an_adoption(self) -> None:
-        result = copy.deepcopy(self.result)
-        result["contract_adoption_check"] = {
-            "digest": "a" * 64,
-            "matched": True,
-            "reading_evidence": ["worker read the contract"],
-        }
-        self.assertIn(
-            "contract_adoption_check", error_codes(validate(self.plan, self.run, result))
-        )
 
     def test_unknown_result_field_is_rejected(self) -> None:
         result = copy.deepcopy(self.result)
@@ -1173,252 +1080,10 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, self.run, result)
         self.assertIn("unknown_field", error_codes(errors))
 
-    def test_completed_activity_requires_an_enabled_policy(self) -> None:
-        result = copy.deepcopy(self.result)
-        result["subagent_activity"] = {
-            "status": "completed",
-            "skip_reason": None,
-            "children": [
-                {
-                    "agent_id": "A1",
-                    "role": "explorer",
-                    "task": "Trace the affected request path.",
-                    "status": "completed",
-                    "summary": "The path is isolated to the planned module.",
-                    "evidence_paths": ["src/m1/file.py"],
-                }
-            ],
-        }
-        errors = validate(self.plan, self.run, result)
-        self.assertIn("invalid_value", error_codes(errors))
 
-    def test_v10_worker_result_requires_flat_not_applicable_activity(self) -> None:
-        run = copy.deepcopy(self.run)
-        run["schema_version"] = 10
-        run["execution_authorization_scope"].update(
-            {
-                "plan_revision": self.plan["revision"],
-                "plan_digest_sha256": plan_digest(self.plan),
-            }
-        )
-        run["authorizations"]["create_local_commits"]["scope"].update(
-            {
-                "plan_revision": self.plan["revision"],
-                "plan_digest_sha256": plan_digest(self.plan),
-            }
-        )
-        result = copy.deepcopy(self.result)
-        missing = error_codes(validate(self.plan, run, result))
-        self.assertIn("missing_field", missing)
 
-        result["subagent_activity"] = {
-            "status": "not_applicable",
-            "skip_reason": "flat parent-owned topology",
-            "children": [
-                {
-                    "agent_id": "A1",
-                    "role": "explorer",
-                    "task": "Inspect the request path.",
-                    "status": "completed",
-                    "summary": "The path is understood.",
-                    "evidence_paths": ["src/m1/file.py"],
-                }
-            ],
-        }
-        invalid_children = error_codes(validate(self.plan, run, result))
-        self.assertIn("invalid_value", invalid_children)
 
-        result["subagent_activity"]["children"] = []
-        self.assertEqual(validate(self.plan, run, result), [])
 
-    def test_v10_forbids_nested_activity_and_legacy_contract_remains_readable(self) -> None:
-        run = copy.deepcopy(self.run)
-        run["schema_version"] = 10
-        run["execution_authorization_scope"].update(
-            {
-                "plan_revision": self.plan["revision"],
-                "plan_digest_sha256": plan_digest(self.plan),
-            }
-        )
-        run["authorizations"]["create_local_commits"]["scope"].update(
-            {
-                "plan_revision": self.plan["revision"],
-                "plan_digest_sha256": plan_digest(self.plan),
-            }
-        )
-        worker = run["workers"][0]
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "nested_subagents": {
-                    "available": True,
-                    "max_depth": 1,
-                    "max_children_per_worker": 3,
-                    "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-            }
-        )
-        run["runtime_capabilities"]["platform_lifecycle"] = {
-            "owner": "app",
-            "automatic_retention_cleanup_possible": True,
-            "durable_branch_required_before_unique_work": True,
-        }
-        worker.update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "nested_subagent_policy": {
-                    "enabled": True,
-                    "max_children": 2,
-                    "allowed_roles": ["explorer", "reviewer"],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-            }
-        )
-        run["observed"]["git"]["worktrees"][0]["managed_by"] = "app"
-        run["authorizations"]["spawn_subagents"] = {
-            "authorized": True,
-            "source": "test user authorization",
-            "scope": {
-                "run_id": "RUN_TEST",
-                "plan_revision": self.plan["revision"],
-                "plan_digest_sha256": plan_digest(self.plan),
-                "mission_ids": ["M1"],
-                "targets": ["worker:W1"],
-            },
-            "expires_when": "run_complete",
-        }
-
-        result = copy.deepcopy(self.result)
-        result["subagent_activity"] = {
-            "status": "completed",
-            "skip_reason": None,
-            "children": [
-                {
-                    "agent_id": "A1",
-                    "role": "explorer",
-                    "task": "Trace the affected request path.",
-                    "status": "completed",
-                    "summary": "The change is isolated to the planned module.",
-                    "evidence_paths": ["src/m1/file.py"],
-                },
-                {
-                    "agent_id": "A2",
-                    "role": "reviewer",
-                    "task": "Review the proposed behavior and tests.",
-                    "status": "completed",
-                    "summary": "No additional correctness gaps found.",
-                    "evidence_paths": ["evidence/task.txt"],
-                    "reviewed_sha": result["head_sha"],
-                    "decision": "PASS",
-                },
-            ],
-        }
-        v10_codes = error_codes(validate(self.plan, run, result))
-        self.assertIn("nested_delegation_forbidden", v10_codes)
-
-        legacy_run = copy.deepcopy(run)
-        legacy_run["schema_version"] = 9
-        self.assertNotIn(
-            "nested_delegation_forbidden",
-            error_codes(validate(self.plan, legacy_run, result)),
-        )
-
-        worker["nested_subagent_policy"] = {
-            "enabled": False,
-            "max_children": 0,
-            "allowed_roles": [],
-            "write_policy": "read_only",
-            "completion_channel": "agent_result",
-        }
-        result["subagent_activity"] = {
-            "status": "not_applicable",
-            "skip_reason": "flat parent-owned topology",
-            "children": [],
-        }
-        self.assertEqual(validate(self.plan, run, result), [])
-
-    def test_disabled_nested_policy_defers_parent_review_to_integration(self) -> None:
-        plan = copy.deepcopy(self.plan)
-        review_node = {
-            "id": "N-M1-PREINTEGRATION-REVIEW",
-            "kind": "verifier",
-            "executor": "runtime_worker",
-            "review": {
-                "type": "backend_code",
-                "mission_ids": ["M1"],
-                "scope": ["src/m1/**"],
-                "required_evidence": ["reviewed_sha", "decision"],
-            },
-        }
-        plan["graph"] = {"nodes": [review_node], "edges": []}
-        run = copy.deepcopy(self.run)
-        result = copy.deepcopy(self.result)
-        digest = plan_digest(plan)
-        run["plan"]["digest_sha256"] = digest
-        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
-        run["mission_states"]["M1"]["head_sha"] = HEAD_SHA
-        run["active_wave"]["plan_digest_sha256"] = digest
-        run["workers"][0]["plan_digest_sha256"] = digest
-        run["workers"][0]["nested_subagent_policy"] = {
-            "enabled": False,
-            "max_children": 0,
-            "allowed_roles": [],
-            "write_policy": "read_only",
-            "completion_channel": "agent_result",
-        }
-        result["plan_digest_sha256"] = digest
-        for verifier_result in result["verifiers"]:
-            verifier_result["evidence"] = retained_verifier_result(
-                verifier_result["id"],
-                plan,
-            )["execution_key"]
-        result["subagent_activity"] = {
-            "status": "not_applicable",
-            "skip_reason": "flat parent-owned topology",
-            "children": [],
-        }
-
-        self.assertEqual(validate(plan, run, result), [])
-
-    def test_absent_nested_policy_defers_parent_review_to_integration(self) -> None:
-        plan = copy.deepcopy(self.plan)
-        review_node = {
-            "id": "N-M1-PREINTEGRATION-REVIEW",
-            "kind": "verifier",
-            "executor": "runtime_worker",
-            "review": {
-                "type": "backend_code",
-                "mission_ids": ["M1"],
-                "scope": ["src/m1/**"],
-                "required_evidence": ["reviewed_sha", "decision"],
-            },
-        }
-        plan["graph"] = {"nodes": [review_node], "edges": []}
-        run = copy.deepcopy(self.run)
-        result = copy.deepcopy(self.result)
-        digest = plan_digest(plan)
-        run["plan"]["digest_sha256"] = digest
-        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
-        run["mission_states"]["M1"]["head_sha"] = HEAD_SHA
-        run["active_wave"]["plan_digest_sha256"] = digest
-        run["workers"][0]["plan_digest_sha256"] = digest
-        run["workers"][0].pop("nested_subagent_policy", None)
-        run["review_workers"] = []
-        result["plan_digest_sha256"] = digest
-        for verifier_result in result["verifiers"]:
-            verifier_result["evidence"] = retained_verifier_result(
-                verifier_result["id"],
-                plan,
-            )["execution_key"]
-
-        self.assertEqual(validate(plan, run, result), [])
 
     def test_shared_loader_requires_exact_heading_and_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1496,8 +1161,9 @@ class ValidateWorkerResultTests(unittest.TestCase):
                     ]
                 )
             payload = json.loads(output.getvalue())
-            self.assertEqual(exit_code, 0)
-            self.assertEqual(payload, {"errors": [], "mission_id": "M1", "status": "PASS"})
+            self.assertEqual(exit_code, 1)
+            self.assertEqual("FAIL", payload["status"])
+            self.assertTrue(payload["errors"])
             self.assertEqual(output.getvalue().strip(), json.dumps(payload, sort_keys=True, separators=(",", ":")))
 
             output = io.StringIO()

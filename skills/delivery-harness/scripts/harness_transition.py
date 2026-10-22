@@ -13,11 +13,9 @@ import copy
 import hashlib
 import json
 import os
-import secrets
 import subprocess
 import sys
 import tempfile
-import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,10 +31,6 @@ from harness_core import (
     plan_digest,
     path_in_scopes,
     validate_changed_path,
-)
-from harness_contract import (
-    contract_adoption_check_errors,
-    contract_adoption_check_evidence,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import (
@@ -59,21 +53,9 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import EXACT_TARGET_LIFECYCLE_ACTIONS, RUN_DISPATCH_STATUSES, RUN_HEADING
-from harness_schema import archive_first_required, required_harness_version
 from harness_schema import review_lenses, security_result_decision
 from harness_schema import frozen_coordination_path, supported_coordination_path
-from push_integration_branch import (
-    make_push_request,
-    validate_push_receipt,
-    validate_push_target,
-)
-from verifier_runtime import (
-    host_runtime_fingerprint,
-    host_executable_identity,
-    observe_plan_host_runtimes,
-    observe_plan_sandboxes,
-    sandbox_host_fingerprint,
-)
+from verifier_runtime import host_executable_identity, observe_plan_host_runtimes
 from harness_worker_result_transition import (
     record_worker_result,
     reject_worker_result,
@@ -84,13 +66,6 @@ from select_ready_nodes import (
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
-from agent_failure_receipts import (
-    interrupted_retry_issues, interruption_receipt_required, load_failure_receipt,
-)
-from agent_role_contract import role_contract_enabled, role_contract_gate_enabled
-from agent_result_receipts import load_result_receipt
-from agent_role_recovery import resolve_fallback_reservation
-from agent_launch_records import validate_launch_record
 from check_launch_packet import InvalidMessageBudgetError, check_message
 from security_review_result import (
     SecurityReviewResultError,
@@ -251,16 +226,6 @@ def _require_observed_plan_identity(
     observed = run.get("observed")
     if not isinstance(observed, dict) or not _nonempty_string(observed.get("captured_at")):
         raise ManifestError(f"{operation} requires a fresh parent observation")
-    for field in ("sandbox", "host_runtime"):
-        snapshot = observed.get(field)
-        if (
-            not isinstance(snapshot, dict)
-            or snapshot.get("plan_revision") != expected_revision
-            or snapshot.get("plan_digest_sha256") != expected_digest
-        ):
-            raise ManifestError(
-                f"{operation} requires a fresh observation for the live PLAN revision"
-            )
 
 
 def _candidate_allowed_scopes(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
@@ -321,19 +286,6 @@ DISPATCH_COMMANDS = {
     "reserve-node-attempt",
     "record-node-result",
 }
-TASK_VIEW_CHECKPOINTS = {
-    "accept-wave",
-    "record-worker-result",
-    "reject-worker-result",
-    "record-integration",
-    "reconcile-candidate-head",
-    "reconcile-coordination-head",
-    "reconcile-interrupted",
-    "reconcile-interrupted-reviews",
-    "close-wave",
-}
-
-
 @contextmanager
 def _run_transition_lock(path: Path) -> Iterator[None]:
     """Serialize the complete read/validate/write transaction for one RUN.
@@ -551,52 +503,6 @@ def _watchdog_report(run: dict[str, Any], stale_after: float) -> list[str]:
     return lines
 
 
-def _record_transition_prepare_metrics(
-    run: dict[str, Any],
-    args: argparse.Namespace,
-    *,
-    started_at: str,
-    started_counter_ns: int,
-) -> None:
-    """Append one measured preparation event to optional runtime metrics."""
-
-    if run.get("schema_version") not in {10, 11}:
-        return
-    metrics = run.get("runtime_metrics")
-    if metrics is None:
-        metrics = {
-            "baseline_wall_time_ms": None,
-            "run_wall_time_ms": None,
-            "critical_path_ms": None,
-            "events": [],
-        }
-        run["runtime_metrics"] = metrics
-    if not isinstance(metrics, dict) or not isinstance(metrics.get("events"), list):
-        raise ManifestError("run.runtime_metrics.events must be a list before transition recording")
-    events = metrics["events"]
-
-    elapsed_ns = time.perf_counter_ns() - started_counter_ns
-    events.append(
-        {
-            "event_id": (
-                f"transition-{args.command}-{started_at}-"
-                f"{secrets.token_hex(8)}"
-            ),
-            "provider": "generic",
-            "node_id": getattr(args, "node_id", None),
-            "attempt_id": getattr(args, "attempt_id", None),
-            "phase": f"transition_prepare:{args.command}",
-            "status": "complete",
-            "started_at": started_at,
-            "completed_at": _now(),
-            "duration_ms": max(0, elapsed_ns // 1_000_000),
-            "wait_ms": None,
-            "input_tokens": None,
-            "output_tokens": None,
-            "cached_input_tokens": None,
-            "context_bytes": None,
-        }
-    )
 
 
 def _git_out(repo_root: Path, *args: str) -> str:
@@ -716,30 +622,6 @@ def _require_non_default_integration_branch(run: dict[str, Any]) -> str:
     return branch
 
 
-def _validate_push_side_effect(
-    run: dict[str, Any], repo_root: Path | None, authorized_head_sha: Any
-) -> None:
-    """Bind push reservation/completion to the exact live branch head."""
-
-    if run.get("schema_version") == 11:
-        if required_harness_version(run) is None:
-            raise ManifestError("RUN schema 11 push requires an explicit valid required_harness_version pin")
-        if archive_first_required(run):
-            raise ManifestError("RUN pins archive-first promotion; reserve/push the archived candidate instead")
-
-    if not is_full_sha(authorized_head_sha):
-        raise ManifestError("push lifecycle requires a full authorized head SHA")
-    branch = _require_non_default_integration_branch(run)
-    integration = run.get("integration")
-    if not isinstance(integration, dict) or integration.get("integration_head_sha") != authorized_head_sha:
-        raise ManifestError(
-            "lifecycle authorization target or head is stale; reserve a fresh node attempt"
-        )
-    if repo_root is None:
-        raise ManifestError("push lifecycle reservation/completion requires --repo-root")
-    target = validate_push_target(run, repo_root, authorized_head_sha)
-    if target["branch"] != branch:
-        raise ManifestError("push authorization target does not match the live integration branch")
 
 
 def _validate_security_integration_checkout(
@@ -943,29 +825,6 @@ def _record_observation(
     default_branch = _remote_default_branch(root)
     if default_branch is not None:
         run["observed"]["git"]["default_branch"] = default_branch
-    sandbox_entries, sandbox_errors = observe_plan_sandboxes(plan)
-    run["observed"]["sandbox"] = {
-        "status": "available" if not sandbox_errors else "unavailable",
-        "plan_revision": plan.get("revision"),
-        "plan_digest_sha256": plan_digest(plan),
-        "captured_at": captured_at,
-        "host": sandbox_host_fingerprint(),
-        "entries": sandbox_entries,
-        "errors": sandbox_errors,
-    }
-    host_entries, host_errors = observe_plan_host_runtimes(
-        plan,
-        root,
-    )
-    run["observed"]["host_runtime"] = {
-        "status": "available" if not host_errors else "unavailable",
-        "plan_revision": plan.get("revision"),
-        "plan_digest_sha256": plan_digest(plan),
-        "captured_at": captured_at,
-        "host": host_runtime_fingerprint(),
-        "entries": host_entries,
-        "errors": host_errors,
-    }
     if update_capacity:
         run["observed"]["runtime"].update({
             "available_worker_slots": slots,
@@ -1474,36 +1333,15 @@ def _local_verifier_request(
             }
         ),
     }
-    sandbox_policy = declaration.get("execution", {}).get("sandbox") if isinstance(declaration.get("execution"), dict) else None
-    declared_isolation = (
-        declaration.get("execution", {}).get("isolation")
-        if isinstance(declaration.get("execution"), dict)
-        else None
-    )
-    observed_sandbox = run.get("observed", {}).get("sandbox") if isinstance(run.get("observed"), dict) else None
-    observed_host = run.get("observed", {}).get("host_runtime") if isinstance(run.get("observed"), dict) else None
-    sandbox_preflight = None
-    host_preflight = None
-    if isinstance(sandbox_policy, dict) and isinstance(observed_sandbox, dict):
-        for entry in observed_sandbox.get("entries", []):
-            if isinstance(entry, dict) and entry.get("runtime") == sandbox_policy.get("runtime") and entry.get("image") == sandbox_policy.get("image"):
-                sandbox_preflight = copy.deepcopy(entry)
-                break
-    if declared_isolation == "host" and isinstance(observed_host, dict):
-        executable_identity = _declared_host_identity(declaration, repo_root)
-        for entry in observed_host.get("entries", []):
-            if (
-                isinstance(entry, dict)
-                and entry.get("argv0") == declaration["argv"][0]
-                and entry.get("executable") == executable_identity["executable"]
-                and entry.get("executable_sha256")
-                == executable_identity["executable_sha256"]
-            ):
-                host_preflight = copy.deepcopy(entry)
-                break
-    if declared_isolation == "container" and sandbox_preflight is None:
-        raise ManifestError("local verifier request requires the exact PLAN-bound sandbox preflight entry")
-    if declared_isolation == "host" and host_preflight is None:
+    host_entries, host_errors = observe_plan_host_runtimes({"final_gates": [declaration]}, repo_root)
+    if host_errors:
+        raise ManifestError("local verifier host preflight failed: " + "; ".join(host_errors))
+    executable_identity = _declared_host_identity(declaration, repo_root)
+    host_preflight = next((copy.deepcopy(entry) for entry in host_entries
+        if entry.get("argv0") == declaration["argv"][0]
+        and entry.get("executable") == executable_identity["executable"]
+        and entry.get("executable_sha256") == executable_identity["executable_sha256"]), None)
+    if host_preflight is None:
         raise ManifestError("local verifier request requires the exact PLAN-bound host preflight entry")
     return {
         "protocol": "harness-verifier-request-v1",
@@ -1527,7 +1365,6 @@ def _local_verifier_request(
             "expected_head_sha": head_sha,
             "ignored_paths": ignored_paths,
         },
-        "sandbox_preflight": sandbox_preflight,
         "host_preflight": host_preflight,
     }
 
@@ -1651,7 +1488,6 @@ def _reserve_node_attempt(
     node_dispatch = None
     verifier_dispatch = None
     verifier_request = None
-    push_request = None
     if node.get("kind") == "verifier" and node.get("executor") in {
         "local_command",
         "harness_parent",
@@ -1682,34 +1518,11 @@ def _reserve_node_attempt(
                 f"{node.get('ref')} lifecycle node must declare an exact PLAN target"
             )
         if node.get("ref") == "push":
-            _validate_push_side_effect(
-                run, getattr(args, "repo_root", None), entry.get("authorized_head_sha")
-            )
+            raise ManifestError("RUN publication is a separate post-archive action")
         node_dispatch = {
             "target": node.get("target") or "*",
             "authorized_head_sha": entry.get("authorized_head_sha"),
         }
-        if node.get("ref") == "push" and run.get("schema_version") == 11:
-            if getattr(args, "request_out", None) is None:
-                raise ManifestError(
-                    "current push reservation requires --request-out outside the checkout"
-                )
-            push_request = make_push_request(
-                plan,
-                run,
-                Path(args.repo_root),
-                node_id=args.node_id,
-                attempt_id=args.attempt_id,
-                authorized_head_sha=entry.get("authorized_head_sha"),
-            )
-            node_dispatch["remote"] = push_request["remote"]
-            node_dispatch["push_endpoint_kind"] = push_request["push_endpoint_kind"]
-            node_dispatch["push_endpoint_summary"] = push_request["push_endpoint_summary"]
-            node_dispatch["push_url_sha256"] = push_request["push_url_sha256"]
-            node_dispatch["branch"] = push_request["branch"]
-            node_dispatch["branch_ref"] = push_request["branch_ref"]
-            node_dispatch["request_sha256"] = _json_sha256(push_request)
-            node_dispatch["push_request"] = copy.deepcopy(push_request)
     state.update(
         {
             "phase": "running",
@@ -1746,7 +1559,6 @@ def _reserve_node_attempt(
         "evidence": list(attempt["evidence"]),
         "directive": copy.deepcopy(directive),
         **({"verifier_request": copy.deepcopy(verifier_request)} if verifier_request is not None else {}),
-        **({"push_request": copy.deepcopy(push_request)} if push_request is not None else {}),
     }
 
 
@@ -1818,7 +1630,6 @@ def _record_node_result(
     if attempt.get("result") != "reserved":
         raise ManifestError(f"node attempt {attempt_id!r} is already terminal")
 
-    push_receipt: dict[str, Any] | None = None
     if node.get("kind") == "lifecycle":
         dispatch = attempt.get("node_dispatch")
         if not isinstance(dispatch, dict):
@@ -1832,26 +1643,8 @@ def _record_node_result(
             )
         action = node.get("ref")
         reserved_head = dispatch.get("authorized_head_sha")
-        if action == "push" and outcome not in {"blocked", "contract_gap"}:
-            _validate_push_side_effect(
-                run, getattr(args, "repo_root", None), reserved_head
-            )
-            if run.get("schema_version") == 11 and outcome == "pass":
-                receipt_path = getattr(args, "push_receipt", None)
-                if receipt_path is None:
-                    raise ManifestError(
-                        "a current push PASS requires --push-receipt from the reserved side effect"
-                    )
-                if getattr(args, "repo_root", None) is None:
-                    raise ManifestError("recording a push receipt requires --repo-root")
-                push_receipt = validate_push_receipt(
-                    plan,
-                    run,
-                    Path(args.repo_root),
-                    node_id=node_id,
-                    attempt_id=attempt_id,
-                    receipt_path=Path(receipt_path),
-                )
+        if action == "push":
+            raise ManifestError("RUN publication is a separate post-archive action")
         # A successful or retryable lifecycle result still needs the exact
         # current grant and head. A blocked/contract-gap result is recovery for
         # an uncertain attempt and must remain recordable after revocation or
@@ -1890,9 +1683,6 @@ def _record_node_result(
                 raise ManifestError(
                     "lifecycle integration head changed after reservation; reserve a fresh node attempt"
                 )
-    elif getattr(args, "push_receipt", None) is not None:
-        raise ManifestError("--push-receipt is only valid for a push lifecycle node")
-
     # Local verifier execution files are retained before the gate projection is
     # written.  The worker-result transition owns the strict execution shape;
     # import lazily to keep the transition module's existing import graph
@@ -2059,8 +1849,6 @@ def _record_node_result(
     )
     if blockers:
         attempt["evidence"] = list(dict.fromkeys([*attempt["evidence"], *blockers]))
-    if push_receipt is not None:
-        attempt["push_receipt"] = copy.deepcopy(push_receipt)
 
     edge_receipts: list[str] = []
     for edge in plan.get("graph", {}).get("edges", []):
@@ -2182,94 +1970,20 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         next((row.get("impact") for row in run.get("ui_impact_summary", [])
               if isinstance(row, dict) and row.get("mission_id") == args.mission_id), None),
     )
-    fallback_record_path = getattr(args, "fallback_record", None)
-    if fallback_record_path is not None:
-        try:
-            fallback_evidence = json.loads(
-                Path(fallback_record_path).read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError) as exc:
-            raise ManifestError(f"cannot read --fallback-record: {exc}") from exc
-        if not role_contract_gate_enabled(runtime_axes):
-            raise ManifestError("fallback reservation requires a 0.58+ role-contract RUN")
-        if expected_binding is None:
-            raise ManifestError("fallback cannot bypass a missing mandatory primary role")
-        fallback_binding, fallback_issues = resolve_fallback_reservation(
-            mission_node, run, fallback_evidence, args.attempt_id)
-        if fallback_issues:
-            raise ManifestError(
-                "invalid fallback reservation:\n"
-                + "\n".join(f"- {item}" for item in fallback_issues)
-            )
-        expected_binding = fallback_binding
-        worker_runtime = expected_binding["worker_runtime"]
-        workspace_mode = expected_binding["workspace_mode"]
-        completion_channel = expected_binding["completion_channel"]
     if expected_binding is None:
         raise ManifestError(
             f"mission {args.mission_id!r} has no runtime binding on the observed host"
         )
-    # A fallback adapter is the historical RUN-v11 seed.  Older callers may
-    # still provide an explicit launch route before the parent records a fresh
-    # host probe; preserve that compatibility while making observed/explicit
-    # bindings strict selector assertions.
-    adapter = runtime_axes.get("runtime_adapter")
-    role_bound_058 = role_contract_gate_enabled(runtime_axes)
-    enforce_selector_binding = role_bound_058 or not (
-        isinstance(adapter, dict) and adapter.get("detection_source") == "fallback"
-    )
-    for key in ("provider", "driver"):
+    for key in ("provider", "driver", "model", "reasoning_effort",
+                "worker_runtime", "workspace_mode", "completion_channel"):
         supplied = getattr(args, key, None)
-        if enforce_selector_binding and supplied is not None and supplied != expected_binding[key]:
-            raise ManifestError(
-                f"lease-worker {key} {supplied!r} does not match selector binding "
-                f"{expected_binding[key]!r}"
-            )
-    for key in ("model", "reasoning_effort"):
-        supplied = getattr(args, key, None)
-        if enforce_selector_binding and supplied is not None and supplied != expected_binding[key]:
-            raise ManifestError(
-                f"lease-worker {key} {supplied!r} does not match selector binding "
-                f"{expected_binding[key]!r}"
-            )
-    for key in ("worker_runtime", "workspace_mode", "completion_channel"):
-        expected = expected_binding.get(key) if role_bound_058 else runtime_axes.get(key)
-        supplied = getattr(args, key, None)
-        if enforce_selector_binding and supplied is not None and expected is not None and supplied != expected:
-            raise ManifestError(
-                f"lease-worker {key} {supplied!r} does not match selector axis "
-                f"{expected!r}"
-            )
-    if role_bound_058:
-        worker_runtime = expected_binding["worker_runtime"]
-        workspace_mode = expected_binding["workspace_mode"]
-        completion_channel = expected_binding["completion_channel"]
-    task_thread_id = getattr(args, "task_thread_id", None)
-    if worker_runtime == "app_task":
-        if not isinstance(task_thread_id, str) or not task_thread_id.strip():
-            raise ManifestError(
-                "lease-worker app_task requires --task-thread-id"
-            )
-        if any(
-            isinstance(worker, dict)
-            and worker.get("task_thread_id") == task_thread_id
-            for worker in run.get("workers", [])
-        ):
-            raise ManifestError(
-                f"task thread id {task_thread_id!r} is already bound to another worker"
-            )
-    elif task_thread_id is not None:
-        raise ManifestError(
-            "--task-thread-id is only valid for an app_task worker"
-        )
-    if workspace_mode == "app_managed_worktree" and worker_runtime != "app_task":
-        raise ManifestError(
-            "app_managed_worktree requires an app_task worker"
-        )
-    if worker_runtime == "app_task" and workspace_mode != "app_managed_worktree":
-        raise ManifestError(
-            "app_task workers require an app_managed_worktree"
-        )
+        expected = expected_binding.get(key, runtime_axes.get(key))
+        if supplied is not None and supplied != expected:
+            raise ManifestError(f"lease-worker {key} {supplied!r} does not match selector binding {expected!r}")
+    worker_runtime = expected_binding.get("worker_runtime", runtime_axes["worker_runtime"])
+    workspace_mode = expected_binding.get("workspace_mode", runtime_axes["workspace_mode"])
+    completion_channel = expected_binding.get("completion_channel", runtime_axes["completion_channel"])
+    task_thread_id = args.worker_id if worker_runtime == "app_task" else None
     node_states = run.get("graph_state", {}).get("node_states", {})
     node_state = node_states.get(args.node_id)
     if not isinstance(node_state, dict):
@@ -2307,10 +2021,6 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             == "interrupted_worker_reconciliation"
             and latest_mission_attempt.get("result") == "blocked"
         )
-        if reconciled_interrupt:
-            issues = interrupted_retry_issues(run, latest_mission_attempt)
-            if issues:
-                raise ManifestError("interrupted retry is unsafe: " + "; ".join(issues))
         if not (retryable_failure or reconciled_interrupt):
             raise ManifestError(
                 f"mission {args.mission_id!r} cannot be re-leased from "
@@ -2490,7 +2200,7 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "report_path": report_path,
             "phase": "worker_running",
             "worker_head_sha": None,
-            **({"attempt_id": args.attempt_id} if role_contract_enabled(run) else {}),
+            "attempt_id": args.attempt_id,
         }
     )
     run["attempt_log"].append(
@@ -2828,23 +2538,7 @@ def _require_candidate_revalidation_budget(
         state = node_states.get(node_id) if isinstance(node_states, dict) else None
         if not isinstance(state, dict):
             raise ManifestError(f"candidate reconciliation has no graph state for {node_id!r}")
-        review = node.get("review")
-        if isinstance(review, dict):
-            lineage_id = review.get("lineage_id")
-            lineage = run.get("review_lineages", {}).get(lineage_id)
-            if not isinstance(lineage, dict):
-                raise ManifestError(
-                    f"candidate reconciliation has no review lineage for {node_id!r}"
-                )
-            allowance = int(lineage.get("base_allowance") or 0) + int(
-                lineage.get("additional_allowance") or 0
-            )
-            if int(lineage.get("consumed_attempts") or 0) >= allowance:
-                raise ManifestError(
-                    f"candidate reconciliation cannot re-arm {node_id!r}; "
-                    "its review lineage attempt budget is exhausted"
-                )
-        elif int(state.get("attempts") or 0) >= int(node.get("max_attempts") or 0):
+        if int(state.get("attempts") or 0) >= int(node.get("max_attempts") or 0):
             raise ManifestError(
                 f"candidate reconciliation cannot re-arm {node_id!r}; "
                 "its node attempt budget is exhausted"
@@ -3669,10 +3363,6 @@ def _reconcile_interrupted(run: dict[str, Any], args: argparse.Namespace) -> Non
         raise ManifestError(f"unknown worker {args.worker_id!r}")
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("worker is not active; no interrupted transition is needed")
-    if interruption_receipt_required(run, worker):
-        worker["failure_receipt"] = load_failure_receipt(
-            getattr(args, "failure_receipt", None), run, worker, "mission"
-        )
     worker["phase"] = "blocked"
     mission_id = worker.get("mission_id")
     mission_state = run.get("mission_states", {}).get(mission_id)
@@ -3702,17 +3392,6 @@ def _reconcile_interrupted(run: dict[str, Any], args: argparse.Namespace) -> Non
     )
 
 
-def _sync_review_lineage_counts(run: dict[str, Any]) -> None:
-    counts = {
-        lineage_id: 0
-        for lineage_id, lineage in run.get("review_lineages", {}).items()
-        if isinstance(lineage, dict)
-    }
-    for attempt in run.get("attempt_log", []):
-        if isinstance(attempt, dict) and attempt.get("review_lineage_id") in counts:
-            counts[attempt["review_lineage_id"]] += 1
-    for lineage_id, count in counts.items():
-        run["review_lineages"][lineage_id]["consumed_attempts"] = count
 
 
 def _reset_edge_state(state: dict[str, Any]) -> None:
@@ -3745,7 +3424,6 @@ def _reconcile_interrupted_reviews(
         for edge in plan.get("graph", {}).get("edges", [])
         if isinstance(edge, dict)
     }
-    _sync_review_lineage_counts(run)
     retained_attempt_ids = {
         attempt.get("attempt_id")
         for attempt in run.get("attempt_log", [])
@@ -3776,10 +3454,6 @@ def _reconcile_interrupted_reviews(
                 f"review worker {worker_id!r} does not reference a PLAN review node"
             )
         lineage_id = review.get("lineage_id")
-        lineage = run.get("review_lineages", {}).get(lineage_id)
-        if not isinstance(lineage, dict):
-            raise ManifestError(f"unknown review lineage {lineage_id!r}")
-
         attempt_id = worker.get("attempt_id")
         if not isinstance(attempt_id, str) or not attempt_id:
             raise ManifestError(f"review worker {worker_id!r} has no attempt ID")
@@ -3811,7 +3485,6 @@ def _reconcile_interrupted_reviews(
                 "failure_family_ids": [],
             }
         )
-        lineage["consumed_attempts"] += 1
 
         state = node_states.get(node_id)
         if not isinstance(state, dict):
@@ -3860,7 +3533,6 @@ def _reconcile_interrupted_reviews(
 
     _control(run, "paused", args.source)
 
-
 def _review_node(plan: dict[str, Any], node_id: str) -> dict[str, Any]:
     node = next(
         (
@@ -3875,7 +3547,6 @@ def _review_node(plan: dict[str, Any], node_id: str) -> dict[str, Any]:
     if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
         raise ManifestError(f"{node_id!r} is not a PLAN runtime review node")
     return node
-
 
 def _review_target(
     plan: dict[str, Any],
@@ -3920,7 +3591,6 @@ def _review_target(
         raise ManifestError("review dispatch has no exact review path")
     return reviewed_sha, review_path
 
-
 def _reserve_review_dispatch(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -3928,17 +3598,6 @@ def _reserve_review_dispatch(
     *,
     repo_root: Path | None,
 ) -> dict[str, Any]:
-    fallback_requests = None
-    if getattr(args, "fallback_record", None) is not None:
-        try:
-            fallback_evidence = json.loads(Path(args.fallback_record).read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise ManifestError("cannot read --fallback-record") from exc
-        _, issues = resolve_fallback_reservation(_review_node(plan, args.node_id), run,
-                                                 fallback_evidence, args.attempt_id)
-        if issues:
-            raise ManifestError("invalid review fallback: " + "; ".join(issues))
-        fallback_requests = {args.node_id: {"evidence": fallback_evidence, "attempt_id": args.attempt_id}}
     try:
         pre_errors = validate_current_plan_run(plan, run, repo_root=repo_root)
         if pre_errors:
@@ -3948,7 +3607,6 @@ def _reserve_review_dispatch(
             )
         selection = select_ready_nodes(
             plan, run, repo_root=repo_root, manifest_already_validated=True,
-            fallback_requests=fallback_requests,
         )
     except GraphSelectionError as exc:
         raise ManifestError(str(exc)) from exc
@@ -4036,7 +3694,7 @@ def _reserve_review_dispatch(
         "worker_runtime": directive["worker_runtime"],
         "completion_channel": directive["completion_channel"],
         "runtime_binding": copy.deepcopy(directive["runtime_binding"]),
-        **({"workspace_mode": directive["workspace_mode"]} if role_contract_enabled(run) else {}),
+        "workspace_mode": directive["workspace_mode"],
         "task_thread_id": None,
         "report_path": report_path,
         "phase": "leased",
@@ -4090,25 +3748,9 @@ def _reserve_review_dispatch(
         }
     }
 
-
 def _record_review_attempt(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
 ) -> None:
-    if not role_contract_enabled(run):
-        _stage_review_attempt(plan, run, args)
-        return
-    staged = copy.deepcopy(run)
-    _stage_review_attempt(plan, staged, args)
-    run.clear()
-    run.update(staged)
-
-
-def _stage_review_attempt(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> None:
-    lineage = run.get("review_lineages", {}).get(args.lineage)
-    if not isinstance(lineage, dict):
-        raise ManifestError(f"unknown review lineage {args.lineage!r}")
     if any(
         isinstance(item, dict) and item.get("attempt_id") == args.attempt_id
         for item in run.get("attempt_log", [])
@@ -4130,12 +3772,6 @@ def _stage_review_attempt(
         )
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("review dispatch is not active")
-    if worker.get("completion_channel") == "thread_poll" and not (
-        isinstance(worker.get("task_thread_id"), str) and worker["task_thread_id"].strip()
-    ):
-        raise ManifestError(
-            "thread_poll review completion requires the bound actual task_thread_id"
-        )
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
@@ -4157,16 +3793,9 @@ def _stage_review_attempt(
     ):
         raise ManifestError("review result does not match the current reserved graph attempt")
     is_security_review = node["review"].get("type") == "security"
-    failure_receipt = None
-    if getattr(args, "failure_receipt", None) is not None:
-        if not role_contract_enabled(run) or args.result not in {"retryable_failure", "blocked", "contract_gap"}:
-            raise ManifestError("parent failure receipts require a non-passing 0.58+ review")
-        if getattr(args, "result_receipt", None) is not None:
-            raise ManifestError("a review cannot be both a returned result and a parent failure")
-        failure_receipt = load_failure_receipt(args.failure_receipt, run, worker, "review")
     security_result_path = getattr(args, "security_result", None)
     security_result: dict[str, Any] | None = None
-    if is_security_review and failure_receipt is None:
+    if is_security_review:
         if security_result_path is None:
             raise ManifestError(
                 "security review completion requires --security-result"
@@ -4227,90 +3856,6 @@ def _stage_review_attempt(
         raise ManifestError("UI acceptance PASS requires ui_parity: and ui_page_quality: evidence anchors")
     if args.result != "pass" and not findings:
         raise ManifestError("a non-pass review requires at least one --finding")
-    adoption_check_path = getattr(args, "contract_adoption_check", None)
-    adoption_check = None
-    if adoption_check_path is not None:
-        try:
-            adoption_check = json.loads(
-                Path(adoption_check_path).read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError) as exc:
-            raise ManifestError(f"cannot read --contract-adoption-check: {exc}") from exc
-        # Accept the reviewer's returned object with or without its field name.
-        if isinstance(adoption_check, dict) and set(adoption_check) == {
-            "contract_adoption_check"
-        }:
-            adoption_check = adoption_check["contract_adoption_check"]
-        if adoption_check is None:
-            raise ManifestError("--contract-adoption-check must contain an object")
-    # A reviewer that stopped on a digest mismatch reports `blocked`; it may
-    # omit the check or report the digest it saw with matched false. The
-    # parent may record a crashed or timed-out reviewer as retryable_failure,
-    # or a contract_gap, without child output; a supplied check is validated.
-    adoption_errors = contract_adoption_check_errors(
-        run,
-        adoption_check,
-        blocked=args.result == "blocked",
-        optional=args.result in {"retryable_failure", "contract_gap"},
-    )
-    if adoption_errors:
-        raise ManifestError(
-            "invalid --contract-adoption-check: " + "; ".join(adoption_errors)
-        )
-    result_receipt = None
-    if role_contract_enabled(run) and failure_receipt is None:
-        result_receipt = load_result_receipt(
-            getattr(args, "result_receipt", None), run, worker, "review",
-            {"outcome": args.result, "findings": findings, "security_result": security_result,
-             "contract_adoption_check": adoption_check},
-        )
-        launch_issues = validate_launch_record(
-            run,
-            assignment_kind="review",
-            assignment_id=node["id"],
-            node_id=node["id"],
-            attempt_id=args.attempt_id,
-            worker_id=args.worker_id,
-            worker_role_expected=(worker.get("runtime_binding") or {}).get("worker_role"),
-            reserved=worker,
-        )
-        if launch_issues:
-            raise ManifestError(
-                "role-bound review PASS has no matching parent launch record:\n"
-                + "\n".join(f"- {item}" for item in launch_issues)
-            )
-    allowance = lineage.get("base_allowance", 0) + lineage.get(
-        "additional_allowance", 0
-    )
-    if lineage.get("consumed_attempts", 0) >= allowance:
-        raise ManifestError("review lineage allowance was exhausted before completion")
-    family_ids: list[str] = []
-    if args.failure_family_id:
-        family_ids.append(args.failure_family_id)
-        existing = next(
-            (
-                item
-                for item in lineage["failure_families"]
-                if isinstance(item, dict) and item.get("id") == args.failure_family_id
-            ),
-            None,
-        )
-        if existing is None:
-            if not all((args.failure_primitive, args.equivalence_class, args.strategy)):
-                raise ManifestError(
-                    "a new --failure-family-id requires --failure-primitive, --equivalence-class, and --strategy"
-                )
-            lineage["failure_families"].append(
-                {
-                    "id": args.failure_family_id,
-                    "primitive": args.failure_primitive,
-                    "equivalence_classes": args.equivalence_class,
-                    "strategy": args.strategy,
-                    "status": "open",
-                }
-            )
-    if args.result == "fix_required" and not family_ids:
-        raise ManifestError("fix_required review requires one --failure-family-id")
     mission_ids = node["review"].get("mission_ids", [])
     mission_id = mission_ids[0] if len(mission_ids) == 1 else None
     if args.mission_id is not None and args.mission_id not in mission_ids:
@@ -4320,7 +3865,6 @@ def _stage_review_attempt(
         attempt_evidence.append(
             "security_result_sha256:" + _json_sha256(security_result)
         )
-    attempt_evidence.extend(contract_adoption_check_evidence(adoption_check))
     run["attempt_log"].append(
         {
             "attempt_id": args.attempt_id,
@@ -4331,14 +3875,8 @@ def _stage_review_attempt(
             "result": args.result,
             "evidence": attempt_evidence,
             "review_lineage_id": args.lineage,
-            "failure_family_ids": family_ids,
         }
     )
-    lineage["consumed_attempts"] += 1
-    if result_receipt is not None:
-        worker["result_receipt"] = result_receipt
-    if failure_receipt is not None:
-        worker["failure_receipt"] = failure_receipt
     worker.update(
         {
             "phase": {
@@ -4386,7 +3924,6 @@ def _stage_review_attempt(
             edge_state["status"] = "traversed"
             edge_state["traversals"] = traversals + 1
         edge_state["source_attempt_id"] = args.attempt_id
-
 
 def _skip_integration_review(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
@@ -4567,7 +4104,6 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile = subparsers.add_parser("reconcile-interrupted")
     reconcile.add_argument("--worker-id", required=True)
     reconcile.add_argument("--reason", required=True)
-    reconcile.add_argument("--failure-receipt", type=Path)
     review_reconcile = subparsers.add_parser("reconcile-interrupted-reviews")
     review_reconcile.add_argument("--worker-id", action="append", required=True)
     review_reconcile.add_argument("--reason", required=True)
@@ -4578,7 +4114,6 @@ def build_parser() -> argparse.ArgumentParser:
     reserve_review.add_argument("--attempt-id", required=True)
     reserve_review.add_argument("--report-path")
     reserve_review.add_argument("--diff-artifact-out", type=Path)
-    reserve_review.add_argument("--fallback-record", type=Path)
     reserve_review.add_argument(
         "--packet-out",
         type=Path,
@@ -4595,13 +4130,6 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--evidence", action="append", required=True)
     review.add_argument("--finding", action="append")
     review.add_argument("--security-result", type=Path)
-    review.add_argument("--result-receipt", type=Path)
-    review.add_argument("--failure-receipt", type=Path)
-    review.add_argument("--contract-adoption-check", type=Path)
-    review.add_argument("--failure-family-id")
-    review.add_argument("--failure-primitive")
-    review.add_argument("--equivalence-class", action="append")
-    review.add_argument("--strategy")
     review.add_argument("--tree-sha")
     skip = subparsers.add_parser("skip-integration-review")
     skip.add_argument("--node-id", required=True)
@@ -4637,9 +4165,7 @@ def build_parser() -> argparse.ArgumentParser:
     lease.add_argument("--worker-runtime")
     lease.add_argument("--workspace-mode")
     lease.add_argument("--completion-channel")
-    lease.add_argument("--task-thread-id")
     lease.add_argument("--report-path")
-    lease.add_argument("--fallback-record", type=Path)
     reserve_node = subparsers.add_parser("reserve-node-attempt")
     reserve_node.add_argument("--node-id", required=True)
     reserve_node.add_argument("--attempt-id", required=True)
@@ -4658,18 +4184,11 @@ def build_parser() -> argparse.ArgumentParser:
     record_node.add_argument("--evidence", action="append", default=[])
     record_node.add_argument("--blocker", action="append", default=[])
     record_node.add_argument("--verifier-result", action="append", type=Path, default=[])
-    record_node.add_argument(
-        "--push-receipt",
-        type=Path,
-        help="immutable receipt written by the reserved push side effect",
-    )
     worker_result = subparsers.add_parser("record-worker-result")
-    worker_result.add_argument("--result-receipt", type=Path)
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
     worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
     rejected = subparsers.add_parser("reject-worker-result")
-    rejected.add_argument("--failure-receipt", type=Path)
     rejected.add_argument("--node-id", required=True)
     rejected.add_argument("--worker-id", required=True)
     rejected.add_argument(
@@ -4696,56 +4215,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _tasks_view_path(run: dict[str, Any], args: argparse.Namespace) -> Path | None:
-    """Resolve the canonical coordination path for the generated tasks view."""
-
-    if args.command not in TASK_VIEW_CHECKPOINTS:
-        return None
-    repo_root = getattr(args, "repo_root", None)
-    if repo_root is None:
-        return None
-    integration = run.get("integration", {})
-    paths = (
-        integration.get("coordination_paths", [])
-        if isinstance(integration, dict)
-        else []
-    )
-    for candidate in paths:
-        if isinstance(candidate, str) and candidate.replace("\\", "/") == "docs/tasks.md":
-            return Path(repo_root) / "docs" / "tasks.md"
-    return None
 
 
-def _refresh_tasks_view_after_run(
-    args: argparse.Namespace, plan: dict[str, Any], run: dict[str, Any],
-    *, expected_plan_text: str | None = None,
-) -> None:
-    """Refresh the declared view after a durable checkpoint, without rollback."""
-
-    view_path = _tasks_view_path(run, args)
-    if view_path is None:
-        return
-    from render_tasks_view import refresh_view, source_guard
-
-    try:
-        refresh_view(
-            plan, run, view_path, repo_root=Path(args.repo_root),
-            check_sources=source_guard(
-                plan, run, args.plan, args.run, expected_plan_text=expected_plan_text
-            ),
-        )
-    except (ManifestError, OSError, ValueError) as exc:
-        repair = (
-            f'python "{Path(__file__).with_name("render_tasks_view.py").resolve()}" '
-            f'--plan "{args.plan}" --run "{args.run}" --out "{view_path}" '
-            f'--repo-root "{args.repo_root}"'
-        )
-        print(
-            f"warning: RUN {args.command} succeeded, but the tasks-view refresh "
-            f"failed: {exc}. RUN.md is authoritative and is not rolled back. "
-            f"Repair the non-canonical view with: {repair}",
-            file=sys.stderr,
-        )
 
 
 def _transition_under_lock(
@@ -4773,8 +4244,6 @@ def _transition_under_lock(
             raise ManifestError(f"invalid packet message budget: {exc}") from exc
     if diff_budget is not None and diff_budget < 1:
         raise ManifestError("invalid packet diff budget: --max-diff-bytes must be positive")
-    prepare_started_counter_ns = time.perf_counter_ns()
-    prepare_started_at = _now()
     original_text = args.run.read_text(encoding="utf-8")
     original = extract_json_manifest_text(
         original_text,
@@ -4863,12 +4332,6 @@ def _transition_under_lock(
         and lock.get("session_id") == args.session_id
     ):
         lock["heartbeat_at"] = _now()
-    _record_transition_prepare_metrics(
-        run,
-        args,
-        started_at=prepare_started_at,
-        started_counter_ns=prepare_started_counter_ns,
-    )
     errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
     if errors:
         raise ManifestError(
@@ -4894,20 +4357,17 @@ def _transition_under_lock(
                                artifacts=diff_artifacts)
 
     verifier_request = None
-    push_request_document = None
     request_out = getattr(args, "request_out", None)
     if request_out is not None:
         if not isinstance(receipt, dict):
             raise ManifestError(
-                "--request-out is only valid when reserving a local verifier or push node"
+                "--request-out is only valid when reserving a local verifier node"
             )
         if isinstance(receipt.get("verifier_request"), dict):
             request_document = receipt["verifier_request"]
-        elif isinstance(receipt.get("push_request"), dict):
-            request_document = receipt["push_request"]
         else:
             raise ManifestError(
-                "--request-out is only valid when reserving a local verifier or push node"
+                "--request-out is only valid when reserving a local verifier node"
             )
         repo_root = getattr(args, "repo_root", None)
         if repo_root is not None:
@@ -4925,10 +4385,7 @@ def _transition_under_lock(
             indent=2,
             ensure_ascii=False,
         ) + "\n"
-        if isinstance(receipt.get("verifier_request"), dict):
-            verifier_request = request_text
-        else:
-            push_request_document = request_text
+        verifier_request = request_text
 
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
@@ -4967,15 +4424,6 @@ def _transition_under_lock(
                 f"{exc}; the RUN reservation is durable and its exact request remains "
                 "under attempt_log[].verifier_dispatch.request"
             ) from exc
-    if push_request_document is not None:
-        try:
-            _write_text_exclusive(request_out, push_request_document)
-        except (ManifestError, OSError) as exc:
-            raise ManifestError(
-                f"{exc}; the RUN reservation is durable and its exact request remains "
-                "under attempt_log[].node_dispatch.push_request"
-            ) from exc
-    _refresh_tasks_view_after_run(args, plan, run, expected_plan_text=expected_plan_text)
     return receipt, report, True
 
 

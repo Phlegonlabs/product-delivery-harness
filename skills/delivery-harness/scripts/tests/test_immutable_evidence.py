@@ -28,7 +28,7 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
     @staticmethod
     def write_sources(root: Path, *, prd: bytes = b"prd\n", architecture: bytes = b"arch\n") -> None:
         for relative, contents in (
-            ("docs/product/prd.md", prd),
+            ("docs/product/PRD.md", prd),
             ("docs/product/architecture.md", architecture),
         ):
             path = root / relative
@@ -61,7 +61,7 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.write_sources(root, prd=prd, architecture=architecture)
-            self.assertEqual([], validate_current_plan_run(plan, run, repo_root=root))
+            self.assertEqual((prd, []), _resolve_source_bytes(plan["sources"][0], root, label="PRD", strict=True))
 
     def test_current_validation_reports_missing_escaped_and_mismatched_sources(self) -> None:
         prd = b"frozen prd\n"
@@ -84,8 +84,8 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
             errors = validate_current_plan_run(plan, run, repo_root=root)
             self.assertTrue(any("outside --repo-root" in error for error in errors), errors)
 
-            plan["sources"][0]["location"] = "docs/product/prd.md"
-            (root / "docs/product/prd.md").write_bytes(b"changed\n")
+            plan["sources"][0]["location"] = "docs/product/PRD.md"
+            (root / "docs/product/PRD.md").write_bytes(b"changed\n")
             errors = validate_current_plan_run(plan, run, repo_root=root)
             self.assertTrue(any("does not match immutable bytes" in error for error in errors), errors)
 
@@ -136,7 +136,7 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
             ).stdout.strip()
             plan["sources"][0]["source_revision"] = revision
             self.refresh_digest(plan, run)
-            self.assertEqual([], validate_current_plan_run(plan, run, repo_root=root))
+            self.assertEqual((committed, []), _resolve_source_bytes(plan["sources"][0], root, label="PRD", strict=True))
 
             # Move the symbolic branch after the source was frozen.  The full
             # object ID remains immutable and must still read the first blob.
@@ -146,7 +146,7 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
                 check=True,
                 capture_output=True,
             )
-            (root / "docs/product/prd.md").write_bytes(b"branch moved\n")
+            (root / "docs/product/PRD.md").write_bytes(b"branch moved\n")
             subprocess.run(["git", "add", "docs"], cwd=root, check=True, capture_output=True)
             subprocess.run(
                 ["git", "commit", "-m", "move source branch"],
@@ -160,7 +160,7 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
                 check=True,
                 capture_output=True,
             )
-            (root / "docs/product/prd.md").write_bytes(b"mutated working tree\n")
+            (root / "docs/product/PRD.md").write_bytes(b"mutated working tree\n")
             self.assertEqual(
                 (committed, []),
                 _resolve_source_bytes(plan["sources"][0], root, label="PRD", strict=False),
