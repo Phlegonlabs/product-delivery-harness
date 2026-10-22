@@ -10,7 +10,7 @@ These rules own skill-source reading, Git, release verification, installation, a
 
 ## Mission Task Split
 
-- When decomposing a PRD into full-delivery missions, split each mission into more, finer tasks: one task per small, independently verifiable step, so each step is done and checked carefully.
+- When decomposing a PRD into full-delivery missions, keep each mission a feature batch and split it into finer tasks: one task per small, independently verifiable step, so each step is done and checked carefully. Fine tasks, not more missions, carry the small steps; each mission adds a review.
 - Each task keeps its own atomic commit. Finer tasks stay sequential checkpoints inside their mission. A section may contain several independent frontend, backend or integration missions after shared interfaces are frozen; each writer uses an isolated checkout and a nonconflicting scope.
 
 ## Git Flow

@@ -127,7 +127,7 @@ M7 E2E and visual evidence
 
 In system-conformance mode, M4 through M6 follow `execution-task-decomposition.md`'s UI Build Order: tokens and primitives before components, components before routes, the registry and catalog landing with the primitives, and the contract check landing with the first routes rather than at the end. Target-conformance mode does not create placeholder registry or catalog work.
 
-M6 and M7 above are illustrative single lines, not a mandate to implement every route in one mission and defer visual evidence to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M6 into one mission per page (or a small tightly-coupled group) and pair each with its own scoped `visual` review as soon as that mission integrates, rather than one M6 covering every route reviewed once by a later M7.
+M6 and M7 above are illustrative single lines, not a mandate to implement every route in one mission and defer visual evidence to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M6 into one mission per feature batch and pair each with one scoped `visual` review as soon as that mission integrates, rather than one mission and review per page or one M6 covering every route reviewed once by a later M7.
 
 ## Existing App Refinement Flow
 

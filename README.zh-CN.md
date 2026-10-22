@@ -189,7 +189,7 @@ PRD 定义成果与可测量质量；architecture 定义职责、状态、接口
 | 每次 HiFi 审查的内容 | 必跑 Impeccable `critique` **与** `audit`、完整必要浏览器覆盖及当前 H1–H9。四舍五入的总平均 **至少 85**、每项 **至少 80**，且无 block／争议，再取得 **一次 Visual Approval**。 |
 | 设计系统编译 | 一组连贯的 source／pair／coverage／contrast／type／HTML 验证与实际展示检查；技术修复后重验受影响部分，不新增方向批准或审美评分 wave。 |
 | Direct 代码交付 | 一位 writer、聚焦测试、作者完整 diff 自查及一次精确候选 `code-security-review`；代码候选改变就要新的安全审查。小型 UI 使用下列合并验收，两次修复失败就停止。 |
-| Managed 代码交付 | 每个 mission 在整合前，按适用 surface 各一位 reviewer；统一 head 再作全新适用 surface 审查，包含统一安全审查。节点由冻结 PLAN 声明；runtime review 允许初审及一次修复复查，原 lineage 预算持续累计。 |
+| Managed 代码交付 | 每个 mission 在整合前，按适用 surface 各一位 reviewer；统一 head 再作全新适用 surface 审查，包含统一安全审查。节点由冻结 PLAN 声明；runtime review 允许初审及一次修复复查，原 lineage 预算持续累计。一个 mission 是一个功能批次，细 task 放在里面，所以 review 数跟着功能走，不跟着步骤走。 |
 | 适用的实现 UI 验收 | **一次独立只读 Final UI Acceptance**，在精确候选上合并 Final Visual Parity Loop 与 page-quality 检查。同一位 reviewer 共用当前证据、集中缺陷，修复后复查原缺陷及受影响部分。保留必要矩阵，**两次修复失败即停**，更严格的既有 lineage 预算优先。Impeccable 要另行授权，不能替代 reviewer。 |
 | 候选与正式环境 | 隔离候选 Preview 与实际 promoted production build 分开验证；Preview 证据不能证明正式环境。Server 产生新 main SHA 时，要 tree equality、全新完整验证与安全审查；这些是发布核对，不新增 HiFi 审美 wave。 |
 | Activation | 每个 target／action 要有设置或人工操作证据、独立读回及适用行为证明；早期准备与实际正式版分开验证，动作数依必要 targets 决定。 |

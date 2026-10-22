@@ -120,9 +120,9 @@
 83. main 永久保護；現有 development 不自動刪除。Worker 與 RUN 在暫時工作分支 author。
 84. Managed 使用 `HARNESS_PLAN.template.md`，凍結產品、設計、接口、原始 branch base、需求 traces、scope、verifiers 與 stop conditions。
 85. 使用 `MISSION_RUNBOOK.template.md`、`WORKER_GOAL.template.md` 等適用模板建立角色正確且有界的派工；不用空白自由文取代必填契約。
-86. 將每個 mission 拆成小而能獨立驗證的 executable tasks；每個 task 一個初始 atomic commit，不為每一步重新啟動 agent。
+86. 每個 mission 是一個功能批次（一個功能或一個共用基礎，一種 writer role），內部拆成小而能獨立驗證的 executable tasks；每個 task 一個初始 atomic commit，不為每一步重新啟動 agent。每個 mission 都要一次 review 和整合，所以 readiness 前先數 review 節點，單 task 的 mission 要寫明理由。
 87. 先完成共用 API/schema/types/tokens 契約任務，再派相依 frontend／backend；下游 deny scope 保護共用來源。
-88. 一個 section 若可分開列表、編輯、API、測試，分到不同隔離 writer；同檔高耦合工作留單一 owner。
+88. 只有需要不同 writer role、要先凍結共用契約、並行省下的時間大於多一次 review，或批次裝不進一個 worker session 時，才拆成不同隔離 writer；同一功能的列表、編輯、API 和測試是同一 mission 內的 tasks。
 89. 把測試／browser／DB／port／cache 等實際共享資源列入 ownership；worktree 隔離不代表外部資源隔離。
 90. 以 `DELIVERY_ACCEPTANCE.template.json` 凍結 TEST、platform、auth、environment、build、scenario 及真實 assertions。
 91. 用 `DELIVERY_RESULTS.template.json` 和適用 `E2E_VERIFICATION.template.md` 記實際結果；預期契約與執行結果分開。

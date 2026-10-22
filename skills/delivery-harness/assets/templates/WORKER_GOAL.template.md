@@ -9,7 +9,7 @@ Identity:
 - PLAN: <path>; ID <id>; revision <revision>; digest <sha256>
 - RUN snapshot: <path or payload>
 - Mission/tasks: <IDs>
-- Runtime slice: one bounded mission slice; target 10-20 minutes including focused verification
+- Runtime slice: tasks in order; each targets 10-20 minutes with focused verification
 - Lease: <lease-id>
 - Batch base: <full SHA>
 

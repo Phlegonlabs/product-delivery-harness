@@ -35,23 +35,24 @@ Do not reuse or renumber IDs after a plan is published. If historical data needs
 
 ## Mission Cohesion Gate
 
-Run this gate for every proposed mission before PLAN readiness. The goal is a small independently reviewable outcome, not the largest set of changes one worker could technically finish.
+Run this gate for every proposed mission before PLAN readiness. A mission is a feature batch: one user-visible feature or one shared foundation, owned by one writer role. Its fine tasks keep their own atomic commits and verifiers.
 
-Split the mission when any answer is yes:
+Every mission adds fixed cost: worktree, handoff, result validation, one exact-head review per applicable surface, serial integration and integration reruns. Review is the largest of these, and review count follows mission count. Plan as few missions as the work allows.
 
-- Can one clause of the objective deliver value, fail, or pass review without another clause?
-- Does it combine separate product surfaces or domain capabilities, such as Blog, Settings, and user administration?
-- Would parts of it naturally use different focused verifier families or different review surfaces?
-- Does a task hide two independently useful outcomes that should be separate atomic commits?
-- Is the mission being kept together mainly because the parts touch the same router, auth boundary, migration directory, schema, or serialized resource?
+Split a mission only when one of these is true:
 
-Shared foundations do not justify a catch-all mission. Freeze the smallest shared contract or primitive in its own predecessor mission when needed, then use mission dependencies and serialized-resource claims for the dependent outcome missions. Expected merge conflicts are scheduling facts, not product cohesion.
+- Parts need different writer roles, such as frontend and backend work.
+- A shared contract or primitive must be frozen and integrated before dependent work starts.
+- Parts are independent, and running them in parallel saves more time than one more review costs.
+- The batch will not fit one worker session under the Runtime Slice Gate below.
+
+Do not split a mission only because one clause could pass review alone, because parts use different focused verifiers, or because the feature spans several pages or endpoints. Make those parts separate tasks inside the mission. A one-task mission needs one of the reasons above, recorded in the PLAN. Before readiness, count the planned review nodes; when most missions carry a single task, merge them into feature batches.
+
+Shared foundations do not justify a catch-all mission. A batch owns one feature or one foundation, not unrelated work that happens to touch the same router, auth boundary, migration directory, schema, or serialized resource. Freeze the smallest shared contract in its own predecessor mission when dependents need it, then use mission dependencies and serialized-resource claims. Expected merge conflicts are scheduling facts, not product cohesion.
 
 For `platform-delivery/1`, map each mission that explicitly owns a `UI-*` surface to its `release_surface` stage. Put shared ARCH work in the first stage. Later missions may touch shared ARCH only when their dependencies retain the earlier platform regression.
 
-Keep work together only when splitting would produce an unverifiable or nonfunctional half-state, such as one schema change and its inseparable compatibility adapter. Even then, the mission owns one outcome and its tasks remain separate commit-sized checkpoints. Prefer the smaller cohesive mission when either split would work.
-
-Use a mission split, not merely more tasks, when the resulting units can have their own write scope, focused verifier, exact-head review, and integration result. Use task boundaries only for sequential checkpoints that still form one independently reviewable mission outcome. Do this before readiness; execution-time refinement is recovery for a mistaken estimate, not the normal planning path.
+Use task boundaries, not more missions, for every other step: each task has its own deliverable, verifier and atomic commit inside the mission. Do this before readiness; execution-time refinement is recovery for a mistaken estimate, not the normal planning path.
 
 ## What Deserves A Task
 
@@ -71,7 +72,7 @@ Apply the project's File Size Checkpoint when a touched module reaches 500 lines
 
 When a task touches a required security boundary, its `trace_ids` name the existing upstream `PRD-*` and its acceptance-matrix `test_id` names the existing required `TEST-*`. The row proves the control, denial, and absence of unauthorized side effects using the declared verifier and retained evidence.
 
-The parallel write unit is always a mission, and one independently testable goal maps to one mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker. Give the mission one explicit `write_scope` that is also the writer's file ownership. When missions share an API, schema, or type contract, freeze and integrate that contract before cutting dependent mission worktrees.
+The parallel write unit is always a mission, and one feature batch maps to one mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker. Give the mission one explicit `write_scope` that is also the writer's file ownership. When missions share an API, schema, or type contract, freeze and integrate that contract before cutting dependent mission worktrees.
 
 ## Early Journey And Engineering Evidence
 
@@ -110,15 +111,15 @@ Early proof does not replace final exact-candidate verification, release readbac
 
 ## Runtime Slice Gate
 
-The default performance target is one bounded worker execution per mission, sized so the mission's fixed overhead — worktree, handoff, result validation, exact-head review, integration, integration verifier rerun — stays small against its useful work. A normal bounded slice should stay within roughly 10-20 minutes of implementation plus focused verification; treat that range as an upper shape, not capacity to fill. Prefer a smaller cohesive mission when it exposes an independent verification or review boundary, but do not slice until overhead dominates useful work. Every delegated worker uses a fresh bounded context and the observed native isolation contract. Treat this as a planning SLO, not a hard process timer and not an authorization shortcut.
+The 10-20 minute slice applies to each task: implementation plus its focused verifier should stay within roughly 10-20 minutes. Treat that range as an upper shape, not capacity to fill. A mission's worker runs its tasks in order and commits each one before the next, so one feature batch spans several slices in one worker session. Every delegated worker uses a fresh bounded context and the observed native isolation contract. Treat this as a planning SLO, not a hard process timer and not an authorization shortcut.
 
-- Keep tasks as sequential checkpoints inside that bounded mission slice. A task still needs one deliverable, scope, trace, and verifier; a list of acceptance cases is not extra work units.
-- Before readiness, split a proposed mission when its frozen work is expected to exceed the slice, span independent deliverables, or require unrelated verifier families. Create dependency edges between the smaller missions and freeze shared contracts first.
+- Keep tasks as sequential checkpoints inside the mission. A task still needs one deliverable, scope, trace, and verifier; a list of acceptance cases is not extra work units.
+- Before readiness, split a task that is expected to exceed the slice. Split a mission only for a Mission Cohesion Gate reason; then create dependency edges and freeze shared contracts first.
 - Do not use a 30-minute host timeout as task decomposition. If execution shows that the slice estimate was wrong, stop before beginning the next independent mutation and return `REFINEMENT_REQUEST`; preserve the current head and evidence.
 - A worker timeout is interrupted evidence, not a successful checkpoint. The parent may resume only after validating the worktree and deciding whether the remaining work still fits the same mission.
 - Record the estimate and actual elapsed phase timestamps in the human PLAN/RUN view. They are telemetry, not machine authorization and do not change PLAN/RUN schema.
 
-This slice gate shortens child contexts and failure recovery. It is not a target to slice toward: past the point where a mission's fixed overhead dominates its useful work, more missions make a run slower. It does not authorize parallel writers in one mission; only independently scoped missions may enter the parallel frontier.
+This slice gate shortens child contexts and failure recovery. It is not a reason to add missions: each extra mission adds a review and an integration. It does not authorize parallel writers in one mission; only independently scoped missions may enter the parallel frontier.
 
 ## UI Build Order
 
