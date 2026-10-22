@@ -9,14 +9,12 @@ dormant, and closeout must accept that without hand-edited graph state.
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -250,11 +248,9 @@ class CliCloseoutWalkTests(unittest.TestCase):
         self.addCleanup(self._temp.cleanup)
         self.root = Path(self._temp.name)
         self.gitroot = self.root / "git"
-        (self.gitroot / "docs" / "product").mkdir(parents=True)
-        prd = self.gitroot / "docs" / "product" / "prd.md"
-        arch = self.gitroot / "docs" / "product" / "architecture.md"
-        prd.write_text("product contract\n", encoding="utf-8")
-        arch.write_text("technical contract\n", encoding="utf-8")
+        self.gitroot.mkdir(parents=True)
+        self.plan = walk_plan()
+        mf.materialize_plan_sources(self.gitroot, self.plan)
         mf.init_repo(self.gitroot, "file.txt")
         mf.git(self.gitroot, "checkout", "-qb", "integration")
         (self.gitroot / "file.txt").write_text("work\n", encoding="utf-8")
@@ -263,13 +259,6 @@ class CliCloseoutWalkTests(unittest.TestCase):
         self.head = mf.git(self.gitroot, "rev-parse", "HEAD")
         self.wt1 = (self.root / "wt-m1").as_posix()
 
-        self.plan = walk_plan()
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd.read_bytes()
-        ).hexdigest()
-        self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
-            arch.read_bytes()
-        ).hexdigest()
         run = mf.valid_run(self.plan)
         missions = ["M1", "M3"]
         mf.authorize_execution(run, missions)
@@ -348,9 +337,7 @@ class CliCloseoutWalkTests(unittest.TestCase):
             repo_root=True,
         )
         output = io.StringIO()
-        with patch.object(
-            vr, "_run_container_verifier", side_effect=AssertionError("container invoked")
-        ), contextlib.redirect_stdout(output):
+        with contextlib.redirect_stdout(output):
             code = vr.main(["--request", str(request_path)])
         self.assertEqual(0, code, output.getvalue())
         self.assertEqual("PASS", json.loads(output.getvalue())["status"])

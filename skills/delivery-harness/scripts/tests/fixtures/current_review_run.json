@@ -1,6 +1,6 @@
 {
   "harness_run": {
-    "schema_version": 10,
+    "schema_version": 11,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",

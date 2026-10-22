@@ -51,16 +51,11 @@ class CurrentValidationAndRoutingTests(unittest.TestCase):
 
         self.assertEqual([], validate_current_plan_run(plan, run))
 
-    def test_legacy_validators_keep_accepted_shapes(self) -> None:
+    def test_older_schemas_require_the_pinned_bundle(self) -> None:
         plan = legacy_plan()
         run = legacy_run(plan, 5)
-
-        self.assertEqual([], validate_plan(plan))
-        self.assertEqual([], validate_run(plan, run))
-        self.assertEqual(
-            ["current PLAN/RUN validation requires PLAN v6 with RUN v11"],
-            validate_current_plan_run(plan, run),
-        )
+        self.assertIn("pinned bundle", validate_plan(plan)[0])
+        self.assertIn("pinned bundle", validate_run(plan, run)[0])
 
     def test_execution_route_prefers_direct_before_managed_artifacts(self) -> None:
         self.assertEqual(

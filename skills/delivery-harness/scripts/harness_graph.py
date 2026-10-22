@@ -39,7 +39,6 @@ from harness_schema import (
     review_lenses,
     review_policy,
 )
-from agent_role_contract import is_worker_role_id
 
 
 def validate_cleanup_lifecycle_targets(errors: list[str], graph: Any) -> None:
@@ -433,13 +432,6 @@ def _validate_graph(
                             f"{runtime_path}.preferred_provider",
                             "must be null or one of allowed_providers",
                         )
-                    worker_role = runtime.get("worker_role")
-                    if worker_role is not None and not is_worker_role_id(worker_role):
-                        _add(
-                            errors,
-                            f"{runtime_path}.worker_role",
-                            "must be a lowercase host-safe logical role id",
-                        )
                     provider_options = runtime.get("provider_options", {})
                     if not isinstance(provider_options, dict):
                         _add(errors, f"{runtime_path}.provider_options", "must be an object")
@@ -726,6 +718,61 @@ def _validate_graph(
 def ui_acceptance_review(review: dict[str, Any]) -> bool:
     evidence = review.get("required_evidence")
     return "visual" in review_lenses(review) and isinstance(evidence, list) and "ui_acceptance" in evidence
+
+
+def unactivated_review_repairs(
+    plan: dict[str, Any], review_node: dict[str, Any], run: dict[str, Any]
+) -> set[str]:
+    """Identify an untouched one-shot repair behind this final review's failure."""
+    review = review_node.get("review")
+    if (
+        review_policy(plan) != "final_candidate"
+        or not isinstance(review, dict)
+        or review.get("stage") != "integration"
+    ):
+        return set()
+    graph = plan.get("graph", {})
+    nodes = {node["id"]: node for node in graph.get("nodes", [])
+             if isinstance(node, dict) and isinstance(node.get("id"), str)}
+    edges = graph.get("edges", [])
+    node_states = run.get("graph_state", {}).get("node_states", {})
+    edge_states = run.get("graph_state", {}).get("edge_states", {})
+    result: set[str] = set()
+    for edge in edges:
+        if (
+            edge.get("kind") != "route"
+            or edge.get("from") != review_node.get("id")
+            or edge.get("on_outcomes") != ["fix_required"]
+            or edge.get("max_traversals") != 1
+        ):
+            continue
+        repair = nodes.get(edge.get("to"), {})
+        mission_id = repair.get("ref")
+        state = node_states.get(repair.get("id"), {})
+        route_state = edge_states.get(edge.get("id"), {})
+        incoming = [item for item in edges if item.get("to") == repair.get("id")]
+        if (
+            repair.get("kind") == "mission"
+            and repair.get("max_attempts") == 1
+            and mission_id in review.get("mission_ids", [])
+            and incoming == [edge]
+            and state.get("phase") == "dormant"
+            and state.get("attempts") == 0
+            and not state.get("blockers")
+            and run.get("mission_states", {}).get(mission_id, {}).get("phase") == "queued"
+            and route_state.get("status") == "dormant"
+            and route_state.get("traversals") == 0
+            and any(
+                item.get("kind") == "route"
+                and item.get("from") == repair.get("id")
+                and item.get("to") == review_node.get("id")
+                and item.get("on_outcomes") == ["pass"]
+                and item.get("max_traversals") == 1
+                for item in edges
+            )
+        ):
+            result.add(mission_id)
+    return result
 
 
 def ui_acceptance_evidence_present(evidence: list[str]) -> bool:
@@ -1094,11 +1141,13 @@ def _validate_graph_state(
                 and node["review"].get("stage") == "integration"
                 and phase in {"ready", "running"}
             ):
+                pending_repairs = unactivated_review_repairs(plan, node, run)
                 incomplete_missions = sorted(
                     mission_id
                     for mission_id in node["review"].get("mission_ids", [])
-                    if not isinstance(mission_states.get(mission_id), dict)
-                    or mission_states[mission_id].get("phase") != "integrated"
+                    if mission_id not in pending_repairs
+                    and (not isinstance(mission_states.get(mission_id), dict)
+                         or mission_states[mission_id].get("phase") != "integrated")
                 )
                 if incomplete_missions:
                     _add(

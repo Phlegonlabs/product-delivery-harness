@@ -16,11 +16,9 @@ from harness_manifest import (
     load_plan,
     load_run,
     plan_digest,
-    is_current_pair,
     validate_current_plan_run,
     validate_integration_head_against_git,
     validate_plan,
-    validate_run,
     validate_ui_evidence_files,
     validate_ui_surface_design_coverage,
 )
@@ -39,7 +37,6 @@ from harness_contract_join import (
     web_viewport_floor_required,
 )
 from harness_design_contract import compare_design_system_pair
-from verifier_runtime import probe_plan_sandboxes
 
 
 PRD_SOURCE_KINDS = {"prd", "product requirement", "product requirements"}
@@ -234,11 +231,6 @@ def main(argv: list[str] | None = None) -> int:
         "pair so its bytes and generated contract can be checked against "
         "--design-system.",
     )
-    parser.add_argument(
-        "--probe-sandboxes",
-        action="store_true",
-        help="Read-only probe every declared container runtime and exact local image RepoDigest before readiness",
-    )
     args = parser.parse_args(argv)
     try:
         plan = load_plan(args.plan)
@@ -262,24 +254,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
         if args.run:
             run = load_run(args.run)
-            if is_current_pair(plan, run):
-                errors.extend(
-                    validate_current_plan_run(
-                        plan,
-                        run,
-                        repo_root=args.repo_root,
-                        require_repo_root=requires_root,
-                    )
-                )
-            else:
-                # Preserve the compatibility CLI for historical manifests;
-                # current PLAN/RUN execution is strict before this dispatch.
-                errors.extend(validate_plan(plan, repo_root=args.repo_root))
-                run_errors = validate_run(plan, run)
+            errors.extend(validate_current_plan_run(plan, run, repo_root=args.repo_root, require_repo_root=requires_root))
         else:
             errors.extend(validate_plan(plan, repo_root=args.repo_root))
-        if args.probe_sandboxes:
-            errors.extend(probe_plan_sandboxes(plan))
         errors.extend(required_design_system_source_errors(plan))
         if args.repo_root and run is None:
             errors.extend(validate_frozen_contract_joins(plan, args.repo_root))

@@ -286,6 +286,11 @@ class DesignCoverageEvidenceTests(unittest.TestCase):
             "artifact_sha256": "a" * 64,
             "head_sha": head,
             "status": "PASS",
+            "target_comparison": {
+                "baseline": "design_system",
+                "baseline_artifact": "check_ui_contract:clean-run",
+                "verdict": "pass", "differences": [], "evidence": "fixture parity",
+            },
         }
 
     def test_conditions_are_members_and_exclusions_make_no_screenshots(self) -> None:
@@ -295,7 +300,7 @@ class DesignCoverageEvidenceTests(unittest.TestCase):
         head = "b" * 40
         states = ["ready", *CONDITIONS]
         run = {
-            "schema_version": 10,
+            "schema_version": 11,
             "status": "complete",
             "integration": {"integration_head_sha": head},
             "ui_evidence": [
@@ -319,7 +324,7 @@ class DesignCoverageEvidenceTests(unittest.TestCase):
         plan = {"ui_surfaces": [plan_surface]}
         head = "c" * 40
         run = {
-            "schema_version": 10,
+            "schema_version": 11,
             "status": "complete",
             "integration": {"integration_head_sha": head},
             "ui_evidence": [

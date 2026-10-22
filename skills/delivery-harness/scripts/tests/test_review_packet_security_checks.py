@@ -191,7 +191,7 @@ class SecurityPacketCheckTests(unittest.TestCase):
                         self.assertIn("layout_check", packet)
                         self.assertIn("full required UI matrix", packet)
                         self.assertIn("original defects and affected consumers", packet)
-                        self.assertIn("existing lineage budget", packet)
+                        self.assertIn("existing node attempt limit", packet)
                         self.assertIn("pinned contract", packet)
                         self.assertIn("ui_parity:<retained comparison anchor>", packet)
                         self.assertIn("ui_page_quality:<retained quality-report anchor>", packet)

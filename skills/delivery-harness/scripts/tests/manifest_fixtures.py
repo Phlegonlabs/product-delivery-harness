@@ -26,8 +26,6 @@ from harness_schema import (  # noqa: E402
     CURRENT_PLAN_SCHEMA_VERSION,
     CURRENT_RUN_SCHEMA_VERSION,
     REVIEW_LENS_ORDER,
-    run_required_harness_version,
-    version_at_least,
 )
 
 
@@ -53,6 +51,39 @@ def eval_exempt_product_fixture():
     original = package_fixture.valid_prd
     with patch.object(package_fixture, "valid_prd", side_effect=lambda **options: eval_exempt_prd(original(**options))):
         yield
+
+
+def materialize_plan_sources(root: Path, plan: dict[str, object]) -> None:
+    """Write real approved synthetic Product sources for authority-join tests."""
+    package_tests = SCRIPTS_DIR.parents[1] / "product-definition-builder/scripts/tests"
+    previous_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(package_tests))
+        from test_product_package_checker import (
+            release_architecture, strictize_approved_package, valid_prd, valid_stack,
+        )
+        architecture = release_architecture()
+        if plan.get("branch_policy", {}).get("protocol") == "main-preview/1":
+            architecture = architecture.replace(
+                "## Release Targets", "## Release Targets\n\nRelease source policy: main-preview/1", 1
+            )
+        product, architecture, stack = strictize_approved_package(
+            eval_exempt_prd(valid_prd()), architecture, valid_stack()
+        )
+    finally:
+        sys.path[:] = previous_path
+    contents = {"prd": product, "architecture": architecture, "stack decisions": stack}
+    for source in plan["sources"]:
+        kind = source.get("kind")
+        if kind not in contents:
+            continue
+        path = root / source["location"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents[kind], encoding="utf-8", newline="\n")
+        source.update(content_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                      source_revision=None, staged_revision=None)
+    if not any(trace.get("id") == "PRD-003" for trace in plan["traces"]):
+        carry_security_requirement(plan)
 
 
 def manifest_markdown(
@@ -273,7 +304,7 @@ def verifier(identifier: str, *argv: str) -> dict[str, object]:
         "cwd": ".",
         "argv": list(argv) or ["python3", "-m", "unittest"],
         "pass_signal": "exit 0",
-        "execution": container_execution(),
+        "execution": {"parallel_safe": False, "resources": [], "isolation": "host"},
     }
 
 
@@ -580,7 +611,7 @@ def valid_plan() -> dict[str, object]:
             {
                 "id": "SRC-001",
                 "kind": "prd",
-                "location": "docs/product/prd.md",
+                "location": "docs/product/PRD.md",
                 "owner": "product",
                 "status": "frozen",
                 "content_sha256": "f" * 64,
@@ -598,6 +629,17 @@ def valid_plan() -> dict[str, object]:
                 "source_revision": None,
                 "staged_revision": None,
                 "notes": "technical contract",
+            },
+            {
+                "id": "SRC-003",
+                "kind": "stack decisions",
+                "location": "docs/product/stack-decisions.md",
+                "owner": "owner",
+                "status": "frozen",
+                "content_sha256": "d" * 64,
+                "source_revision": None,
+                "staged_revision": None,
+                "notes": "approved stack",
             },
         ],
         "traces": [
@@ -694,6 +736,33 @@ def final_candidate_plan(
         "skill_slot": "code_security_verification",
         "reason": None,
     }
+    return plan
+
+
+def conditional_final_candidate_plan() -> dict[str, object]:
+    """Three original missions and one one-shot consolidated repair mission."""
+    plan = final_candidate_plan(lenses=("backend_code", "security"))
+    repair = mission(
+        "M4", "REQ-001", "src/**",
+        [task("M4", 1, "REQ-001", "src/a/repair.py")],
+        priority=50, merge_rank=40,
+    )
+    plan["missions"].append(repair)
+    review = next(node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL-REVIEW")
+    review["allowed_outcomes"].append("fix_required")
+    review["review"]["mission_ids"].append("M4")
+    repair_node = graph_node(
+        "N-M4", "mission", "M4", "runtime_worker",
+        ["pass", "retryable_failure", "blocked", "contract_gap"],
+    )
+    repair_node["max_attempts"] = 1
+    plan["graph"]["nodes"].append(repair_node)
+    plan["graph"]["edges"].extend([
+        {"id": "E-FINAL-REPAIR", "kind": "route", "from": "N-FINAL-REVIEW",
+         "to": "N-M4", "on_outcomes": ["fix_required"], "max_traversals": 1},
+        {"id": "E-REPAIR-RECHECK", "kind": "route", "from": "N-M4",
+         "to": "N-FINAL-REVIEW", "on_outcomes": ["pass"], "max_traversals": 1},
+    ])
     return plan
 
 
@@ -979,17 +1048,8 @@ def _valid_run(plan: dict[str, object]) -> dict[str, object]:
 
 
 def valid_run(plan: dict[str, object]) -> dict[str, object]:
-    """Build the current pair, or the matching v5/v10 compatibility fixture."""
+    """Build the current PLAN-v6/RUN-v11 pair."""
     run = _valid_run(plan)
-    if plan.get("schema_version") != 6:
-        run["schema_version"] = 10
-        run.pop("control")
-        run.pop("review_lineages")
-        run["integration"].pop("coordination_paths")
-        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate.pop("session_id")
-        gate.pop("loaded_contract_digest")
-        gate.pop("installed_contract_digest")
     return run
 
 
@@ -1485,9 +1545,6 @@ def retained_gate_execution(
     head_sha: str | None = None,
     checkout_role: str = "integration",
 ) -> dict[str, object]:
-    strict_runtime = version_at_least(
-        run_required_harness_version(run), (0, 38, 0)
-    )
     changed_files: list[str] = []
     execution_head = head_sha or run["integration"]["integration_head_sha"]
     context = {
@@ -1520,15 +1577,13 @@ def retained_gate_execution(
         "execution": declaration["execution"],
         "cache": declared_cache,
     }
+    if "read_only" in declaration:
+        normalized_verifier["read_only"] = declaration["read_only"]
     if "acceptance_test_ids" in declaration:
         normalized_verifier["acceptance_test_ids"] = sorted(
             declaration["acceptance_test_ids"]
         )
-    protocol = (
-        "harness-verifier-execution-v2"
-        if strict_runtime
-        else "harness-verifier-execution-v1"
-    )
+    protocol = "harness-verifier-execution-v2"
     key_document = {
         "protocol": protocol,
         "verifier_id": declaration["id"],
@@ -1563,72 +1618,9 @@ def retained_gate_execution(
         },
         "environment_digests": {},
     }
-    sandbox_attestation: dict[str, object] | None = None
-    git_guard_attestation: dict[str, object] | None = None
-    if strict_runtime:
-        for logical_key in (
-            "verifier_id",
-            "layer",
-            "mission_id",
-            "task_id",
-            "attempt_id",
-            "lease_id",
-        ):
-            key_document.pop(logical_key)
-        observed_entries = run.get("observed", {}).get("sandbox", {}).get("entries", [])
-        policy = declaration["execution"]["sandbox"]
-        preflight = next(
-            entry
-            for entry in observed_entries
-            if entry.get("runtime") == policy.get("runtime")
-            and entry.get("image") == policy.get("image")
-        )
-        preflight = json.loads(json.dumps(preflight))
-        key_document.update(
-            {
-                "read_only": declaration.get("read_only", False),
-                "execution": declaration["execution"],
-                "sandbox_preflight": preflight,
-            }
-        )
-        sandbox_attestation = {
-            "runtime": preflight["runtime"],
-            "runtime_probe": json.loads(json.dumps(preflight["runtime_probe"])),
-            "image": preflight["image"],
-            "image_probe": preflight["repo_digest"],
-            "policy": json.loads(json.dumps(policy)),
-            "mount": {
-                "source": "git_archive",
-                "destination": "/workspace",
-                "read_only": True,
-            },
-            "network": "none",
-        }
-        if layer in {"task", "worker"}:
-            bound_worker = next(
-                worker
-                for worker in run.get("workers", [])
-                if worker.get("mission_id") == mission_id
-                and worker.get("lease_id") == lease_id
-            )
-            git_guard_attestation = {
-                "checkout_root": bound_worker["worktree_path"],
-                "git_guard": {
-                    "expected_branch": str(bound_worker["branch_ref"]).removeprefix(
-                        "refs/heads/"
-                    ),
-                    "expected_head_sha": execution_head,
-                    "ignored_paths": [],
-                },
-                "isolation_mode": "container",
-                "source_head_sha": execution_head,
-                "sandbox_attestation": json.loads(
-                    json.dumps(sandbox_attestation)
-                ),
-                "tracked_files": {},
-                "protected_path_sha256": {},
-                "protected_path_stats": {},
-            }
+    for key in ("verifier_id", "layer", "mission_id", "task_id", "attempt_id", "lease_id"):
+        key_document.pop(key)
+    key_document.update(read_only=declaration.get("read_only", False), execution=declaration["execution"], host_preflight={"isolation": "host", "argv0": declaration["argv"][0]})
     execution_key = hashlib.sha256(
         json.dumps(
             key_document,
@@ -1661,16 +1653,19 @@ def retained_gate_execution(
         "stdout_sha256": empty_digest,
         "stderr_sha256": empty_digest,
         "evidence_paths": [],
-        **(
-            {"sandbox_attestation": sandbox_attestation}
-            if sandbox_attestation is not None
-            else {}
-        ),
-        **(
-            {"git_guard_attestation": git_guard_attestation}
-            if git_guard_attestation is not None
-            else {}
-        ),
+        "git_guard_attestation": {
+            "checkout_root": "C:/repo",
+            "git_guard": {
+                "expected_branch": "codex/test",
+                "expected_head_sha": execution_head,
+                "ignored_paths": [],
+            },
+            "isolation_mode": "host",
+            "source_head_sha": execution_head,
+            "tracked_files": {},
+            "protected_path_sha256": {},
+            "protected_path_stats": {},
+        },
     }
 
 

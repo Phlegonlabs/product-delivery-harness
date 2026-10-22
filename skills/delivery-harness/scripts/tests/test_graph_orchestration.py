@@ -13,13 +13,12 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from harness_core import mission_dependencies, resolve_runtime_options  # noqa: E402
+from harness_core import resolve_runtime_options  # noqa: E402
 from harness_graph import _validate_graph, merge_chain_skip_allowed  # noqa: E402
 from harness_manifest import (  # noqa: E402
     INTERRUPTED_REVIEW_RECEIPT,
     plan_digest,
     preintegration_review_errors,
-    topological_levels,
     validate_plan,
     validate_run,
 )
@@ -33,9 +32,6 @@ from test_harness_manifest import (  # noqa: E402
     authorize_execution,
     native_capability_probe,
     current_version_gate,
-    legacy_graph_plan,
-    legacy_graph_run,
-    mark_legacy_complete,
     mark_complete,
     retained_gate_execution,
     sandbox_observation,
@@ -44,7 +40,7 @@ from test_harness_manifest import (  # noqa: E402
     valid_run,
 )
 from validate_node_result import validate_node_result  # noqa: E402
-from manifest_fixtures import final_candidate_plan, record_review_spawn_receipts  # noqa: E402
+from manifest_fixtures import final_candidate_plan, conditional_final_candidate_plan, record_review_spawn_receipts  # noqa: E402
 
 
 def graph_node(
@@ -647,6 +643,27 @@ class FinalCandidatePolicyTests(unittest.TestCase):
             )
         )
 
+    def test_first_pass_closes_with_the_unused_consolidated_repair_dormant(self) -> None:
+        plan = conditional_final_candidate_plan()
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        node = next(item for item in plan["graph"]["nodes"] if item["id"] == "N-FINAL-REVIEW")
+        bind_security_pass(run, node)
+        pristine = valid_run(plan)
+        run["mission_states"]["M4"] = pristine["mission_states"]["M4"]
+        for task in plan["missions"][-1]["tasks"]:
+            run["task_states"][task["id"]] = pristine["task_states"][task["id"]]
+        run["graph_state"]["node_states"]["N-M4"] = pristine["graph_state"]["node_states"]["N-M4"]
+        for edge in ("E-FINAL-REPAIR", "E-REPAIR-RECHECK"):
+            run["graph_state"]["edge_states"][edge] = pristine["graph_state"]["edge_states"][edge]
+        run["workers"] = [worker for worker in run["workers"] if worker["mission_id"] != "M4"]
+        run["verifier_executions"] = [record for record in run["verifier_executions"] if record["mission_id"] != "M4"]
+        run["attempt_log"] = [attempt for attempt in run["attempt_log"] if attempt.get("mission_id") != "M4"]
+        self.assertEqual([], validate_run(plan, run))
+        self.assertEqual("queued", run["mission_states"]["M4"]["phase"])
+        run["graph_state"]["node_states"]["N-M4"]["phase"] = "ready"
+        self.assertTrue(validate_run(plan, run))
+
     def test_combined_review_without_security_lens_fails_required_security(self) -> None:
         plan = final_candidate_plan(lenses=("backend_code", "visual"))
 
@@ -1078,87 +1095,11 @@ class GraphManifestTests(unittest.TestCase):
             any("providers must be lowercase ids" in error for error in errors)
         )
 
-    def test_plan_v4_and_v5_project_the_same_graph_dependencies(self) -> None:
-        current_plan = valid_graph_plan()
-        expected = mission_dependencies(current_plan)
-        self.assertTrue(any(expected.values()))
-
-        legacy_plan = legacy_graph_plan()
-
-        self.assertEqual(expected, mission_dependencies(legacy_plan))
-
-    def test_schema_v4_and_v8_are_valid_and_keep_mission_topology(self) -> None:
-        plan = legacy_graph_plan()
-        run = legacy_graph_run(plan, 8)
-
-        self.assertEqual([], validate_plan(plan))
-        self.assertEqual([], validate_run(plan, run))
-        self.assertEqual({"M1": 0, "M2": 1}, topological_levels(plan))
 
 
 
 
-    def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
-        plan = legacy_graph_plan()
-        run = legacy_graph_run(plan, 9)
-        mark_legacy_complete(plan, run)
 
-        errors = validate_run(plan, run)
-        self.assertTrue(
-            any("every node to succeed, skip, or be superseded" in error for error in errors),
-            errors,
-        )
-        self.assertTrue(
-            any("every edge to be terminal" in error for error in errors),
-            errors,
-        )
-
-        attempt_by_node: dict[str, str] = {}
-        for index, node in enumerate(plan["graph"]["nodes"], start=1):
-            attempt_id = f"ATTEMPT-{index}"
-            attempt_by_node[node["id"]] = attempt_id
-            run["graph_state"]["node_states"][node["id"]].update(
-                {
-                    "phase": "succeeded",
-                    "attempts": 1,
-                    "last_attempt_id": attempt_id,
-                    "last_outcome": "pass",
-                }
-            )
-        for edge in plan["graph"]["edges"]:
-            run["graph_state"]["edge_states"][edge["id"]].update(
-                {
-                    "status": "traversed",
-                    "traversals": 1,
-                    "source_attempt_id": attempt_by_node[edge["from"]],
-                }
-            )
-
-        self.assertEqual([], validate_run(plan, run))
-        run["graph_state"]["node_states"]["N-FINAL"].update(
-            {
-                "phase": "failed",
-                "last_outcome": "retryable_failure",
-            }
-        )
-        self.assertTrue(
-            any(
-                "every node to succeed, skip, or be superseded" in error
-                for error in validate_run(plan, run)
-            )
-        )
-        run["graph_state"]["node_states"]["N-FINAL"].update(
-            {
-                "phase": "succeeded",
-                "last_outcome": "retryable_failure",
-            }
-        )
-        self.assertTrue(
-            any(
-                "every succeeded node to have pass outcome" in error
-                for error in validate_run(plan, run)
-            )
-        )
 
 
     def test_malformed_graph_scalars_return_errors_without_crashing(self) -> None:
@@ -1216,17 +1157,6 @@ class GraphManifestTests(unittest.TestCase):
                     )
                 )
 
-    def test_schema_v4_source_content_is_bound_into_the_plan_digest(self) -> None:
-        plan = legacy_graph_plan()
-        original_digest = plan_digest(plan)
-        plan["sources"][0]["content_sha256"] = "e" * 64
-
-        self.assertNotEqual(original_digest, plan_digest(plan))
-        plan["sources"][0]["content_sha256"] = None
-        plan["sources"][0]["source_revision"] = None
-        self.assertTrue(
-            any("require content_sha256 or source_revision" in error for error in validate_plan(plan))
-        )
 
     def test_runtime_nodes_require_a_declared_workflow_failure_outcome(self) -> None:
         plan = valid_graph_plan()
@@ -1325,208 +1255,8 @@ class GraphManifestTests(unittest.TestCase):
         node["runtime"]["provider_options"]["pi"]["model"] = "gpt-5.6-sol"
         self.assertEqual([], validate_plan(plan))
 
-    def test_run_worker_binding_must_match_plan_provider_options(self) -> None:
-        plan = valid_graph_plan()
-        plan["graph"]["nodes"][0]["runtime"]["provider_options"] = {
-            "codex": {
-                "model": "gpt-5.6-terra",
-                "reasoning_effort": "medium",
-            }
-        }
-        run = valid_graph_run(plan)
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-            }
-        )
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            {
-                "capability_probe": native_capability_probe(app_threads=True),
-                "provider": "codex",
-                "available_drivers": ["app_threads", "sequential_parent"],
-                "detection_source": "observed",
-            }
-        )
-        run["workers"].append(
-            {
-                "worker_id": "W-M1",
-                "mission_id": "M1",
-                "lease_id": "LEASE-M1",
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": plan_digest(plan),
-                "batch_base_sha": "a" * 40,
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "runtime_binding": {
-                    "provider": "codex",
-                    "driver": "app_threads",
-                    "source": "host",
-                    "model": "gpt-5.6-terra",
-                    "reasoning_effort": "medium",
-                    "option_source": "plan_provider_options",
-                },
-                "task_thread_id": "THREAD-M1",
-                "worktree_path": "C:/repo/worktrees/M1",
-                "branch_ref": "refs/heads/codex/m1",
-                "report_path": None,
-                "phase": "leased",
-                "worker_head_sha": None,
-            }
-        )
-        authorize_recorded_worker(run, run["workers"][0])
 
-        self.assertEqual([], validate_run(plan, run))
-        run["workers"][0]["runtime_binding"]["reasoning_effort"] = "high"
-        self.assertTrue(
-            any("must match the matching PLAN provider option" in error for error in validate_run(plan, run))
-        )
 
-    def test_pi_run_worker_binding_accepts_plan_reasoning_effort(self) -> None:
-        plan = valid_graph_plan()
-        node = plan["graph"]["nodes"][0]
-        node["runtime"]["preferred_provider"] = "pi"
-        node["runtime"]["allowed_providers"].append("pi")
-        node["runtime"]["provider_options"] = {
-            "pi": {"model": None, "reasoning_effort": "high"}
-        }
-        run = valid_graph_run(plan)
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "subagent",
-                "workspace_mode": "parent_managed_worktree",
-                "completion_channel": "agent_result",
-            }
-        )
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            {
-                "capability_probe": native_capability_probe(subagents=True),
-                "provider": "pi",
-                "available_drivers": ["subagents", "sequential_parent"],
-                "detection_source": "observed",
-            }
-        )
-        worker = {
-            "worker_id": "W-M1-PI",
-            "mission_id": "M1",
-            "lease_id": "LEASE-M1-PI",
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": plan_digest(plan),
-            "batch_base_sha": "a" * 40,
-            "worker_runtime": "subagent",
-            "workspace_mode": "parent_managed_worktree",
-            "completion_channel": "agent_result",
-            "runtime_binding": {
-                "provider": "pi",
-                "driver": "subagents",
-                "source": "host",
-                "model": None,
-                "reasoning_effort": "high",
-                "option_source": "plan_provider_options",
-            },
-            "task_thread_id": "pi-run-m1",
-            "worktree_path": "C:/repo/worktrees/M1",
-            "branch_ref": "refs/heads/codex/m1",
-            "report_path": None,
-            "phase": "leased",
-            "worker_head_sha": None,
-        }
-        run["workers"].append(worker)
-        authorize_recorded_worker(run, worker)
-        authorize_action(
-            run,
-            "spawn_subagents",
-            ["M1"],
-            ["worker:W-M1-PI"],
-        )
-
-        self.assertEqual([], validate_run(plan, run))
-
-        claude_rebind = copy.deepcopy(run)
-        claude_rebind["workers"][0]["runtime_binding"] = {
-            "provider": "claude_code",
-            "driver": "app_threads",
-            "source": "host",
-            "model": "sonnet",
-            "reasoning_effort": None,
-            "option_source": "provider_default",
-        }
-        errors = validate_run(plan, claude_rebind)
-        self.assertIn(
-            "run.workers[0].runtime_binding.provider: must match the current RUN runtime adapter provider",
-            errors,
-        )
-        self.assertIn(
-            "run.workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
-            errors,
-        )
-
-        wrong_pi_driver = copy.deepcopy(run)
-        wrong_pi_driver["workers"][0]["runtime_binding"]["driver"] = "app_threads"
-        self.assertIn(
-            "run.workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
-            validate_run(plan, wrong_pi_driver),
-        )
-
-    def test_codex_worker_runtime_binding_rejects_non_host_source(self) -> None:
-        # The guarded external-Codex-agent driver/source pair is gone: a
-        # worker's runtime_binding.source is always exactly "host", so the
-        # old external_agent axis-consistency contract no longer applies.
-        plan = valid_graph_plan()
-        run = valid_graph_run(plan)
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-            }
-        )
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            {
-                "capability_probe": native_capability_probe(app_threads=True),
-                "provider": "codex",
-                "available_drivers": ["app_threads", "sequential_parent"],
-                "detection_source": "observed",
-            }
-        )
-        worker = {
-            "worker_id": "W-M1-CODEX",
-            "mission_id": "M1",
-            "lease_id": "LEASE-M1-CODEX",
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": plan_digest(plan),
-            "batch_base_sha": "a" * 40,
-            "worker_runtime": "app_task",
-            "workspace_mode": "app_managed_worktree",
-            "completion_channel": "thread_poll",
-            "runtime_binding": {
-                "provider": "codex",
-                "driver": "app_threads",
-                "source": "host",
-                "model": None,
-                "reasoning_effort": None,
-                "option_source": "provider_default",
-            },
-            "task_thread_id": "thread-codex-1",
-            "worktree_path": "C:/repo/worktrees/M1",
-            "branch_ref": "refs/heads/codex/m1",
-            "report_path": None,
-            "phase": "leased",
-            "worker_head_sha": None,
-        }
-        run["workers"].append(worker)
-        authorize_recorded_worker(run, worker)
-        self.assertEqual([], validate_run(plan, run))
-
-        run["workers"][0]["runtime_binding"]["source"] = "external_agent"
-        self.assertTrue(
-            any(
-                "runtime_binding.source: has an unsupported value" in error
-                for error in validate_run(plan, run)
-            )
-        )
 
     def test_dependency_cycles_and_unbounded_route_cycles_are_rejected(self) -> None:
         dependency_cycle = valid_graph_plan()
@@ -2173,14 +1903,7 @@ class GraphManifestTests(unittest.TestCase):
             }
         )
         errors = validate_run(plan, pi_host_mismatch)
-        self.assertIn(
-            "run.review_workers[0].runtime_binding.provider: must match the current RUN runtime adapter provider",
-            errors,
-        )
-        self.assertNotIn(
-            "run.review_workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
-            errors,
-        )
+        self.assertEqual([], errors)  # Runtime binding history is opaque.
 
         historical_claude_review = copy.deepcopy(pi_host_mismatch)
         historical_claude_review["graph_state"]["node_states"][review["id"]].update(

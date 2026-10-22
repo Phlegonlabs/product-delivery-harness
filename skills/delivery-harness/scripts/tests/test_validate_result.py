@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 import tempfile
@@ -68,7 +67,7 @@ class ValidateResultTests(unittest.TestCase):
         node_path = write(self.dir, "node.json", {"node_result": self.result})
         code, payload = self.run_cli("--node-result", str(node_path))
 
-        self.assertEqual(0, code)
+        self.assertEqual(0, code, payload)
         self.assertEqual("PASS", payload["status"])
         self.assertEqual([], payload["errors"])
 
@@ -97,23 +96,16 @@ class ValidateResultTests(unittest.TestCase):
         ) as spy:
             code, payload = self.run_cli("--node-result", str(node_path))
 
-        self.assertEqual(0, code)
+        self.assertEqual(0, code, payload)
         self.assertEqual("PASS", payload["status"])
         self.assertEqual(1, spy.call_count)
 
     def test_repo_root_reruns_frozen_source_joins(self) -> None:
         root = self.dir / "repo"
-        (root / "docs" / "product").mkdir(parents=True)
-        prd_path = root / "docs" / "product" / "prd.md"
-        prd_path.write_text("# Product contract\n", encoding="utf-8")
-        architecture_path = root / "docs" / "product" / "architecture.md"
-        architecture_path.write_text("# Architecture\n", encoding="utf-8")
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd_path.read_bytes()
-        ).hexdigest()
-        self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
-            architecture_path.read_bytes()
-        ).hexdigest()
+        from manifest_fixtures import materialize_plan_sources
+        materialize_plan_sources(root, self.plan)
+        self.run = valid_graph_run(self.plan)
+        prd_path = root / self.plan["sources"][0]["location"]
         # This case isolates frozen-source joins. A current integration head is
         # tested against a real Git checkout in the dedicated live-head cases.
         self.run["integration"]["integration_head_sha"] = None
@@ -124,12 +116,12 @@ class ValidateResultTests(unittest.TestCase):
         node_path = write(self.dir, "node.json", {"node_result": self.result})
 
         code, payload = self.run_cli("--node-result", str(node_path), "--repo-root", str(root))
-        self.assertEqual(0, code)
+        self.assertEqual(0, code, payload)
         self.assertEqual("PASS", payload["status"])
 
         prd_path.write_text("# Product contract (drifted)\n", encoding="utf-8")
         code, payload = self.run_cli("--node-result", str(node_path))
-        self.assertEqual(0, code)
+        self.assertEqual(0, code, payload)
         self.assertEqual("PASS", payload["status"])
 
         code, payload = self.run_cli("--node-result", str(node_path), "--repo-root", str(root))
