@@ -6,15 +6,15 @@ Outside a real Markdown link, `references/...`, `assets/...`, `scripts/...`, and
 
 ## Required Inputs
 
-Read the applicable files before drafting or executing:
+Before drafting or executing, read only these sections. The Workflow checkers still join each complete file.
 
-- `docs/product/PRD.md` for metrics, privacy decisions, and required `TEST-*` signals;
-- `docs/product/architecture.md` for stable release targets and distribution channels;
-- `docs/product/stack-decisions.md` for the approved Stack Decision Checkpoint, providers, and constraints;
-- `docs/DEPLOYMENT.md` for environment URLs, deployed SHA evidence, configuration names, and external-console handoff;
+- `docs/product/PRD.md`: `Data and Integration Requirements`, `Data and Trust`, `AI and Automation`, `Monetization and Partner Channels`, `Metrics`, and `Test Obligations`, for metrics, privacy decisions, feature overlays, and required `TEST-*` signals;
+- `docs/product/architecture.md`: `Release Targets`, `Integrations`, `Deployment and Operations`, and `Observability`, for stable release targets and distribution channels;
+- `docs/product/stack-decisions.md`: `Stack Decision Checkpoint` and each applicable `Recorded or Approved Stack`, for the approved Stack Decision Checkpoint, providers, and constraints;
+- `docs/DEPLOYMENT.md`: `Record`, `Required Secrets and Variables`, `External Console Setup`, `Release Target Status`, `Environment Status`, and `Product Activation Handoff`, for environment URLs, deployed SHA evidence, configuration names, and external-console handoff;
 - the tracked declarations and code paths that establish non-secret configuration names and implemented hooks.
 
-Also read an existing `docs/ACTIVATION.md` in full. If a staged activation exists under `docs/.activation-staging/`, do not create another one until the user chooses whether to resume, publish, or preserve it.
+Read another section when a selected profile or action needs it, such as `Frontend Delivery Requirements` for web discoverability. Read an existing `docs/ACTIVATION.md` in full; this stage reconciles every section of it. If a staged activation exists under `docs/.activation-staging/`, do not create another one until the user chooses whether to resume, publish, or preserve it.
 
 An absent product package is a `contract_gap`. An absent release identity or ambiguous account, organization, project, property, app, environment, or store target blocks external writes.
 

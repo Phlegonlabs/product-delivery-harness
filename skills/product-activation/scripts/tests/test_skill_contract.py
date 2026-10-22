@@ -135,6 +135,25 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         self.assertIn("Target / guardrail", contract)
         self.assertIn("historical three-column", contract)
 
+    def test_required_inputs_name_the_sections_activation_reads(self) -> None:
+        stage = self.read(STAGE)
+        inputs = stage.split("## Required Inputs", 1)[1].split("\n## ", 1)[0]
+
+        self.assertNotIn("Read the applicable files", inputs)
+        self.assertIn("read only these sections", inputs)
+        self.assertIn("Workflow checkers still join each complete file", inputs)
+        for section in (
+            "`Metrics`, and `Test Obligations`",
+            "`Data and Trust`",
+            "`Release Targets`",
+            "`Stack Decision Checkpoint` and each applicable `Recorded or Approved Stack`",
+            "`Required Secrets and Variables`",
+            "`Product Activation Handoff`",
+        ):
+            self.assertIn(section, inputs)
+        self.assertIn("Read another section when a selected profile or action needs it", inputs)
+        self.assertIn("Read an existing `docs/ACTIVATION.md` in full", inputs)
+
     def test_release_authority_and_digest_contract_are_strict(self) -> None:
         stage = self.read(STAGE)
         contract = self.read("references/activation-contract.md")
