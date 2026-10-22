@@ -1656,7 +1656,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         worker = self.read("assets/templates/WORKER_GOAL.template.md")
 
-        for content in (skill, verification, plan, worker):
+        for content in (verification, plan, worker):
             self.assertIn('selection.mode: "changed_files"', content)
             self.assertIn("parent-observed changed files", content)
         for content in (skill, verification, run):
@@ -1665,7 +1665,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"isolation": "host"', plan)
         self.assertIn('"parallel_safe": false', plan)
         self.assertIn("real cross-mission", verification)
-        self.assertIn("broad regression, browser E2E", skill)
+        self.assertIn("broad regression, browser E2E", verification)
         self.assertIn("after exact-SHA review and repair converge", plan)
 
     def test_schema_v10_closes_only_with_real_ui_evidence(self) -> None:
@@ -1680,7 +1680,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"ui_evidence"', runbook)
         self.assertIn("New managed work uses PLAN schema v6 and RUN schema v11", skill)
         self.assertIn("complete` is an execution closeout state", state)
-        for content in (skill, verification, runbook):
+        for content in (verification, runbook):
             self.assertIn("breakpoint-by-state", content)
             self.assertIn("SHA-256", content)
             self.assertIn("docs/goal/evidence/", content)
@@ -1689,10 +1689,13 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         graph = self.read("references/graph-orchestration.md")
         verification = self.read("references/verification-gates.md")
         worker = self.read("references/worker-result-contract.md")
-        for content in (graph, verification, worker):
+        self.assertIn("`host` policy", graph)
+        self.assertIn("legacy-pins.md#container-verifiers-before-066", graph)
+        for content in (verification, worker):
             self.assertIn("host", content)
             self.assertIn("container", content)
             self.assertIn("PLAN-bound", content)
+        for content in (graph, verification, worker):
             self.assertNotIn("future separately implemented route", content)
             self.assertNotIn("route them through a planned external read-only verifier node", content)
 

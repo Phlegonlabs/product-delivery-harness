@@ -26,11 +26,13 @@ Where the current rules name the approved HiFi surface, a pinned legacy contract
 
 A schema-5 wireframe PRD has one `copy` anchor per `UI-*` entry. A pinned legacy initial or enhancement wireframe source needs byte-matching `--wireframes <path to wireframes.html>` and must pass the full checker, including sourced copy and the exact PRD join. An unmarked Final UI Acceptance node keeps its pinned behavior; never add the `ui_acceptance` marker to a completed review.
 
+A retained `ui-design/2` package (pins 0.56–0.58) freezes its original conditional `design-system/3` contract; older pins retain their historical joins.
+
 A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated. Raise the set to at least three ascending viewports and carry the new target through `PRD.md`, the retained design source, the design-system package when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` stays readable at two targets and `wireframes/3` remains readable with its earlier media-intent shape; current wireframe-free packages create no wireframe.
 
 ## RUN Schemas Before V11
 
-RUN-v9 and earlier UI evidence remains readable and keeps its working-tree binding: the historical working-tree check and invalidation, not the accepted Git blob read. Legacy plans may mark an inapplicable state `<state>:n/a` explicitly rather than omitting it.
+RUN-v9 and earlier UI evidence remains readable and keeps its working-tree binding: the historical working-tree check and invalidation, not the accepted Git blob read. Legacy plans may mark an inapplicable state `<state>:n/a` explicitly rather than omitting it. PLAN v4 orders missions by graph dependency edges like v6; PLAN v2 and v3 keep the legacy `missions[].depends_on` DAG.
 
 ## Pins Before 0.55
 
