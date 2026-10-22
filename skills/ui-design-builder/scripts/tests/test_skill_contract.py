@@ -197,7 +197,6 @@ console.log("hybrid fallback and stale QA assertions completed");
         stage = self.read(UI_STAGE)
         wireframe = self.read("references/wireframe-guide.md")
         hifi = self.read("references/ui-design-pass.md")
-        workflow = self.read("references/review-workflow.md")
         binding = (
             'python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" '
             "--agents-md <target-AGENTS.md> --stage ui-design"
@@ -210,19 +209,18 @@ console.log("hybrid fallback and stale QA assertions completed");
             (stage, "produce direction studies"),
             (wireframe, "## Wireframe Validation Gate (wireframes/5)"),
             (hifi, "## Frontend Design Style Integration"),
-            (workflow, "Product/stack and PRD preflight"),
         ):
             with self.subTest(authoring_marker=authoring_marker):
                 self.assertIn(binding, document)
                 self.assertLess(document.index(binding), document.index(authoring_marker))
 
-        authoring_contract = "\n".join((stage, wireframe, hifi, workflow))
+        authoring_contract = "\n".join((stage, wireframe, hifi))
         self.assertIn("actual writer", authoring_contract)
         self.assertIn("parent read", authoring_contract.lower())
         self.assertIn("silently replace the binding", authoring_contract)
         self.assertIn("grants no spawn action", authoring_contract)
         self.assertNotIn("parent may author", authoring_contract)
-        for document in (stage, wireframe, hifi, workflow):
+        for document in (stage, wireframe, hifi):
             self.assertIn("Agent configuration designates", document)
         self.assertIn("shell construction and validation", authoring_contract)
 

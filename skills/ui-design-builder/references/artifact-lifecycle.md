@@ -17,22 +17,20 @@ Before changing an existing file, identify its mode. The exact top-level value `
 
 ## Updates And Full Rebuilds
 
-Use `design-freshness.md` after applicable skill updates and before implementation. Record sources, hashes and changed-rule impact in existing evidence. Full rebuild with retained PRD follows `design-translation.md`; inventory old files without using their layout/style as creative authority. Do not overwrite canonical artifacts or inherit approvals simply because a new design was requested.
+After a skill update, follow [Versions And Migration](review-workflow.md#versions-and-migration) and record sources, hashes and changed-rule impact in existing evidence. Full rebuild with retained PRD follows `design-translation.md`; inventory old files without using their layout/style as creative authority. Do not overwrite canonical artifacts or inherit approvals simply because a new design was requested.
 
 ## Locations
 
-Use `docs/design/.ui-staging/<run-id>/` only for unapproved drafts. Before collecting approvals, prepare an explicitly authorized separate publication checkout at the source HEAD, retaining its Git history and every upstream source. Put approval candidates at their final repository-relative paths inside that checkout. Do not record `.ui-staging` paths in approvals. New canonical publish locations are:
+Use `docs/design/.ui-staging/<run-id>/` only for unapproved drafts. Before collecting approvals, move the candidate to its final repository-relative paths on the task branch of the one checkout. Archive any superseded artifact by move in the same change. Do not record `.ui-staging` paths in approvals. New canonical publish locations are:
 
 - `docs/design/ui-design.md`;
 - referenced direction-study captures under `docs/design/directions/<round>/`;
 - `docs/design/ui-references/<run-id>/index.html` when retention is approved; and
 - `docs/design/design-system.md` plus `docs/design/design-system.json` and their derived `docs/design/design-system-preview.html` when required.
 
-The approved Product Definition remains under `docs/product/` in both checkouts. Preserve its exact bytes and all non-design source files; the publication checkout must retain the same HEAD and Git history so `Selected` stack source evidence can resolve. Do not use a documentation-only mirror.
+The approved Product Definition remains under `docs/product/`; preserve its exact bytes and all non-design source files so `Selected` stack source evidence resolves.
 
-From the source repository root, run `python "<ui-design-builder-skill-root>/scripts/check_ui_publication.py" --source-root <source-checkout> --repo-root <publication-checkout> --hifi docs/design/ui-references/<run-id>/index.html`. Add `--design-system-required` for a required pair. This read-only gate compares upstream bytes, runs the full approved Product checker, and runs normal final UI validation at the final logical paths. It never bypasses a path/hash check or creates human approval evidence. Run ordinary draft checks while approvals are pending; only the complete approved publication set can pass this gate.
-
-After exact publication authorization, transfer the checked UI set to the same logical paths in the source checkout, preserving its bytes, sibling pages, evidence, and pair. Immediately rerun the same command with `--published` before claiming publication. It requires the published inventory to equal the checked checkout. Any content change, upstream drift, missing sibling, or path change requires reconciliation and renewed affected approvals. The helper does not create worktrees, commit, overwrite, move, or delete files.
+Run `python "<ui-design-builder-skill-root>/scripts/check_ui_design_contract.py" --ui-design docs/design/ui-design.md --repo-root . --prd docs/product/PRD.md --hifi docs/design/ui-references/<run-id>/index.html --require-filled --require-visual-approved` at those paths. Add `--design-system-markdown` and `--design-system-registry` when the pair is required. Approval links name the final paths. Any content change, upstream drift, missing sibling or path change requires reconciliation and renewed affected approvals. The commit needs exact publication authorization.
 
 ## Publish And Archive
 
@@ -44,6 +42,6 @@ The HiFi entry and every page listed in its `ui-hifi/2` manifest publish and arc
 
 The required design-system files publish and archive atomically, including the derived HTML. A new `ui-design/3` package compiles `design-system/4`; a retained `ui-design/2` package compiles `design-system/3`. Neither has a wireframe binding. Legacy `design-system/1` remains inspection-only; `design-system/2` retains its original validation and approval semantics for legacy UI contracts. A retained `not_required` decision does not silently remove an existing pair; explicitly retain or retire it with owner approval.
 
-For a required pair, retain `docs/design/design-system-preview.html` in the same authorized publication set. `check_ui_publication.py --design-system-required` checks it against the pair before and after transfer; a missing or edited view fails. Generate it with the compiler's `render_design_system_preview.py`. It is derived review output, not another authority or a product screen. An existing package gains this view through an authorized update without rewriting prior wireframe bytes or backfilling approval.
+For a required pair, retain `docs/design/design-system-preview.html` in the same authorized publication set. Generate it with the compiler's `render_design_system_preview.py`. It is derived review output, not another authority or a product screen. An existing package gains this view through an authorized update without rewriting prior wireframe bytes or backfilling approval.
 
 For a new required pair, the pending marker is a short-lived compiler handoff, not a publishable state. The compiler consumes the exact approved `ui-design/2` or `ui-design/3` and `ui-hifi/2` digests, writes Markdown and JSON together (plus the derived HTML package for `ui-design/3`), and the UI owner records both final hashes before the normal checker runs.
