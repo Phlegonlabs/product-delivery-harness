@@ -861,6 +861,8 @@ Provider 身分只控制 PLAN 明確允許的 host。Driver 順序由觀察到�
 
 授權、PLAN/RUN、lease、隔離寫入、精確 SHA 驗證與循序整合仍由 parent 掌握。Reviewer 使用新 context，所需工具必須在它自己的 session 內驗證。原生完成、重試與快取不取代這些關卡。明確要求的獨立 app task 不能默默換成直接子代理。
 
+在 owner 授權的靜止邊界，`update-role-bindings` 先檢查目前 map digest 與已觀察能力，再替換指定的 host binding。RUN 保留精確 policy chain 與 reservation 身分。歷史 attempt 保留原模型、launch 與 receipt；新 reservation 只使用目前 map。PLAN、授權、次數與 skill adoption 不變。見 [role-policy 更新](skills/delivery-harness/references/runtime-adapters.md#host-role-policy-updates)。
+
 Product Definition 只在獲授權時執行有界的唯讀分析圖。`product_agent_graph.cjs` 驗證凍結輸入並產生交接資料，不啟動 agent。Parent 派發指定角色並保留既有決策與發布關卡。無法強制唯讀邊界時，阻擋受影響的 assignment；容量只有一個時循序派出不同 delegate，不改由 parent 代做。
 
 Managed 角色結果使用 [parent 保留的執行收據](skills/delivery-harness/references/agent-execution-receipts.md)，核對實際 host session、原始保留內容與接收的 payload。啟動失敗有獨立收據，可按設定處理明確的模型／provider 不可用錯誤，不捏造成功啟動。Hash 綁定證據內容，不是對不可信 parent adapter 的身分認證。

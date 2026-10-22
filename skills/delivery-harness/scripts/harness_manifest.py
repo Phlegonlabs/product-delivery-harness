@@ -63,6 +63,7 @@ from agent_launch_records import validate_launch_record, validate_launch_record_
 from agent_result_receipts import validate_result_receipt
 from agent_failure_receipts import read_failure_receipt
 from agent_role_bindings import validate_execution_binding, validate_role_bindings
+from agent_role_policy_updates import runtime_for_reservation, validate_policy_history
 from agent_role_contract import ROLE_CONTRACT_VERSION, binding_is_role_bound, role_contract_enabled, role_contract_gate_enabled, mandatory_worker_role
 from security_review_result import validate_security_review_result
 from harness_design_coverage import validate_design_coverage
@@ -5266,12 +5267,15 @@ def _validate_run_workers(
                     if "result_receipt" in worker or worker.get("phase") == "worker_passed":
                         for issue in validate_result_receipt(run, worker, "mission", worker.get("result_receipt")):
                             _add(errors, f"{path}.result_receipt", issue)
+                    reservation_runtime = runtime_for_reservation(
+                        run, "mission", worker, graph_node.get("id") if graph_node else ""
+                    )
                     if graph_node is not None:
                         for issue in validate_execution_binding(
                             f"{path}.runtime_binding",
                             runtime_binding,
                             graph_node,
-                            runtime,
+                            reservation_runtime,
                         ):
                             _add(errors, f"{path}.runtime_binding", issue)
                     if requires_current_host_binding:
@@ -5279,7 +5283,7 @@ def _validate_run_workers(
                             errors,
                             f"{path}.runtime_binding",
                             runtime_binding,
-                            runtime,
+                            reservation_runtime,
                             graph_node,
                         )
                     if runtime_binding.get("worker_runtime") != worker["worker_runtime"]:
@@ -5739,9 +5743,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     if schema_version in {9, 10, 11}:
         optional_run_keys.update({"deviation_ledger", "ui_impact_summary"})
     if schema_version == 11 and version_at_least(required_harness_version, ROLE_CONTRACT_VERSION):
-        optional_run_keys.add("launch_records")
+        optional_run_keys.update({"launch_records", "role_binding_updates"})
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
+    errors.extend(validate_policy_history(plan, run))
     if (
         schema_version == 11
         and plan.get("schema_version") == 6
@@ -7533,8 +7538,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         if "result_receipt" in worker or worker.get("phase") == "worker_passed":
                             for issue in validate_result_receipt(run, worker, "review", worker.get("result_receipt")):
                                 _add(errors, f"{path}.result_receipt", issue)
+                        reservation_runtime = runtime_for_reservation(run, "review", worker, node.get("id"))
                         for issue in validate_execution_binding(
-                            f"{path}.runtime_binding", binding, node, runtime
+                            f"{path}.runtime_binding", binding, node, reservation_runtime
                         ):
                             _add(errors, f"{path}.runtime_binding", issue)
                         if requires_current_host_binding:
@@ -7542,7 +7548,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                                 errors,
                                 f"{path}.runtime_binding",
                                 binding,
-                                runtime,
+                                reservation_runtime,
                                 node,
                             )
                         for axis in ("worker_runtime", "workspace_mode", "completion_channel"):

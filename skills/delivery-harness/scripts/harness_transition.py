@@ -307,6 +307,7 @@ DEFAULT_LOCK_STALE_MINUTES = 15
 # the calling session to already hold the run lock.
 DISPATCH_COMMANDS = {
     "adopt-runtime-contract",
+    "update-role-bindings",
     "accept-wave",
     "lease-worker",
     "record-launch-observation",
@@ -5219,6 +5220,11 @@ def build_parser() -> argparse.ArgumentParser:
     adoption_parser.add_argument("--owner-source", required=True)
     adoption_parser.add_argument("--reading-evidence", action="append", required=True)
     adoption_parser.add_argument("--expected-contract-digest", required=True)
+    role_policy = subparsers.add_parser("update-role-bindings")
+    role_policy.add_argument("--policy", type=Path, required=True)
+    role_policy.add_argument("--expected-role-bindings-sha256", required=True)
+    role_policy.add_argument("--update-id", required=True)
+    role_policy.add_argument("--owner-source", required=True)
     wave_command = subparsers.add_parser("accept-wave")
     wave_command.add_argument("--wave-id", required=True)
     wave_command.add_argument("--mission-id", action="append", required=True)
@@ -5458,6 +5464,18 @@ def _transition_under_lock(
         _skip_integration_review(plan, run, args)
     elif args.command == "record-observation":
         _record_observation(plan, run, args)
+    elif args.command == "update-role-bindings":
+        from agent_role_policy_updates import update_role_bindings
+
+        errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
+        if errors:
+            raise ManifestError("role-policy update requires a valid current RUN: " + "; ".join(errors))
+        receipt = update_role_bindings(plan, run, args)
+        if not receipt["recorded"]:
+            _ensure_plan_unchanged(args.plan, expected_plan_text)
+            if args.run.read_text(encoding="utf-8") != original_text:
+                raise ManifestError("RUN changed during role-policy update replay")
+            return receipt, None, False
     elif args.command == "adopt-runtime-contract":
         _adopt_runtime_contract(plan, run, args)
     elif args.command == "accept-wave":

@@ -6,6 +6,8 @@ In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` 
 
 For a receipt-proven inherited-head rejection, `harness_transition.py ... reconcile-worker-ingestion` uses the [strict recovery flags](execution-state-model.md#scripted-transition-flag-surfaces). It preserves the failed dispatch and creates no author attempt. Ordinary failed results remain ineligible.
 
+For an owner-authorized host policy change, use `harness_transition.py [global flags] update-role-bindings --policy <absolute-local-json> --expected-role-bindings-sha256 <digest> --update-id <id> --owner-source <reference>`. Global flags include `--plan`, `--run`, `--repo-root` and the held parent `--session-id`. The JSON maps existing logical roles to complete replacement bindings. See the [quiet-boundary and history contract](runtime-adapters.md#host-role-policy-updates).
+
 Before each stage, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage <stage>`. The stage names are:
 
 - `product-definition`: future slots may be absent or `pending`/`pending`; no installed-stage PASS is claimed.

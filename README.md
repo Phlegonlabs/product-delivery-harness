@@ -861,6 +861,8 @@ Provider identity controls only explicit PLAN eligibility. Available drivers are
 
 The parent keeps all authorization, PLAN/RUN, leases, isolated writes, exact-SHA result checks and serial integration. Reviewers start fresh and prove required tools inside their own session. Native completion, retries and caches never replace those gates. Explicitly requested independent app tasks cannot silently become direct subagents.
 
+At an owner-authorized quiet boundary, `update-role-bindings` replaces named host bindings after checking the current map digest and observed capabilities. RUN retains an exact policy chain and reservation identities. Historical attempts keep their original model, launch and receipts; new reservations use only the current map. PLAN, grants, attempts and skill adoption stay unchanged. See [role-policy updates](skills/delivery-harness/references/runtime-adapters.md#host-role-policy-updates).
+
 Product Definition uses a bounded read-only analysis graph only when authorized. `product_agent_graph.cjs` validates frozen inputs and produces packets; it launches no agents. The parent dispatches the assigned roles and retains the existing decision and publication gates. If the required read-only boundary cannot be enforced, block the affected assignment. Capacity of one serializes distinct delegates; it does not substitute parent work.
 
 Managed role-bound results use [parent-retained execution receipts](skills/delivery-harness/references/agent-execution-receipts.md): exact host session, retained source bytes and accepted payload must agree. Explicit failed-start receipts allow configured availability recovery without inventing a successful launch. These hashes bind evidence; they do not authenticate an untrusted parent adapter.

@@ -79,6 +79,7 @@ Record a returned graph-backed mission payload with one locked call: `scripts/ha
 Required flags per `harness_transition.py` subcommand, as the parser defines them:
 
 - `pause`, `resume`, `cancel`: `--source`.
+- `update-role-bindings`: `--policy <absolute-local-json>`, `--expected-role-bindings-sha256`, `--update-id`, and `--owner-source`. Requires global `--repo-root` and a held parent `--session-id` lock. At a quiet boundary, it records the optional schema-1 policy chain in RUN. See [role-policy updates](runtime-adapters.md#host-role-policy-updates). It changes no PLAN, attempt, outcome, grant or contract adoption.
 - `accept-wave`: `--wave-id`, repeatable `--mission-id`, `--batch-base-sha`.
 - `lease-worker`: `--mission-id`, `--node-id`, `--worker-id`, `--lease-id`, `--attempt-id`, `--branch-ref`, and `--worktree-path`. Optional `--provider`, `--driver`, `--model`, `--reasoning-effort`, `--worker-runtime`, `--workspace-mode`, and `--completion-channel` are compatibility assertions and must match the selector-derived binding. Optional `--task-thread-id` is required only for `app_task`. The transition materializes exact lease targets only from an active wildcard grant without changing authorization.
 - `reserve-node-attempt`: `--node-id`, `--attempt-id`; optional repeatable `--evidence` records the pre-side-effect receipt. A local batch/final verifier also requires top-level `--repo-root` and may use `--request-out` to write its directly executable verifier request.

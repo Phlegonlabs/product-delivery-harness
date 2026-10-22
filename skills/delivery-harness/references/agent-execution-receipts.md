@@ -58,3 +58,8 @@ For 0.59+ role-bound delegated missions, `reconcile-interrupted --failure-receip
 For either `lease-worker` or `reserve-review-dispatch`, pass the existing `--fallback-record` evidence. It must name the configured primary-to-fallback mapping, exact stopped predecessor and a fresh attempt. Its error, termination and partial-work evidence must match the retained failure. The logical role remains unchanged; `resolved_role` records the fallback implementation. Recompute the fallback's capabilities, required tools, action grants, capacity and isolation before reserving it. The same review/mission retry budget still applies. Fallback cannot chain from a fallback.
 
 Record the fallback's actual launch with the same fallback evidence. A failed start has a failure receipt, not a fabricated predecessor launch. A runtime failure has both its original launch and failure receipt. Neither receipt grants an action or lets an ineligible UI/reviewer node become parent work.
+
+
+## Role-Policy Boundaries
+
+An owner-authorized [role-policy update](runtime-adapters.md#host-role-policy-updates) preserves each captured reservation, launch and receipt. Historical fallback provenance uses that reservation's exact archived policy view. A fresh fallback still resolves the current mapping and requires explicit availability failure, stopped predecessor and partial-work evidence. Updating policy grants no fallback or retry and changes no result admission rule.
