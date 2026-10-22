@@ -125,14 +125,32 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
                 retain(_identity(root, relative))
 
     pair = view["design_system_pair"]
+    preview_context = "not applicable"
     if stage == "implementation" and view["gate_decision"] == "required" and not pair:
         raise ValueError("implementation requires the current design-system pair")
     if stage == "implementation" and pair:
-        retain(pair["markdown"])
-        registry = json.loads(retain(pair["registry"]).decode("utf-8"))
+        markdown_bytes = retain(pair["markdown"])
+        registry_bytes = retain(pair["registry"])
+        registry = json.loads(registry_bytes.decode("utf-8"))
         if registry.get("schema") == "design-system/4":
-            preview = str(Path(pair["registry"]["path"]).parent / "design-system-preview.html").replace("\\", "/")
-            retain(_identity(root, preview))
+            if task_record:
+                preview_context = "historical derived view omitted from current inputs; retained pair and HiFi remain authoritative"
+            else:
+                preview = str(Path(pair["registry"]["path"]).parent / "design-system-preview.html").replace("\\", "/")
+                preview_bytes = retain(_identity(root, preview))
+                saved_paths = list(sys.path)
+                try:
+                    scripts = Path(__file__).resolve().parents[2] / "design-system-compiler" / "scripts"
+                    sys.path.insert(0, str(scripts))
+                    from render_design_system_preview import render_view
+                    expected = render_view(registry_bytes, markdown_bytes, root).encode("utf-8")
+                except ImportError as exc:
+                    raise ValueError("design-system preview validator is unavailable") from exc
+                finally:
+                    sys.path[:] = saved_paths
+                if preview_bytes != expected:
+                    raise ValueError("design-system preview is stale or modified")
+                preview_context = "current derived view matches the bound pair and HiFi"
 
     def label(binding):
         return binding["path"] + " @ sha256:" + binding["sha256"]
@@ -143,6 +161,7 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
                                       if task_record else "active UI contract source identities"),
             "- Historical Product/Stack bindings: " + ("; ".join(label(item) for item in historical)
                                                        or "not applicable"),
+            "- Design-system preview: " + preview_context,
             "- Direction mode: " + (view["direction_mode"] or "pending"),
             "- Selected direction: " + (selected or "pending"),
             "- Approved target: " + (label(target) if target else "pending"),

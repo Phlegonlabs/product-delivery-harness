@@ -205,18 +205,17 @@ Decision: not_required
         with self.assertRaisesRegex(ValueError, "approved target"):
             build_visual_inputs(self.root, self.ui, "implementation")
 
-    def test_required_pair_and_preview_are_transferred_without_redefining_values(self):
+    def test_required_legacy_pair_is_transferred_without_redefining_values(self):
         markdown = self.write("docs/design/design-system.md", "# Approved system\n")
-        registry = self.write("docs/design/design-system.json", '{"schema":"design-system/4"}')
-        preview = self.write("docs/design/design-system-preview.html", "<h1>Derived preview</h1>")
-        text = self.contract(target=True, hifi=True, studies=True).replace(
+        registry = self.write("docs/design/design-system.json", '{"schema":"design-system/3"}')
+        text = self.contract(target=True, hifi=True).replace(
             "Decision: not_required", "Decision: required\nCompiled design system pair: "
             + self.binding(markdown) + " and " + self.binding(registry) + "\nPackage action: compile")
         self.write(self.ui, text)
         packet = build_visual_inputs(self.root, self.ui, "implementation")
-        for source in (markdown, registry, preview):
+        for source in (markdown, registry):
             self.assertIn(self.binding(source), packet)
-        (self.root / preview).rename(self.root / "preserved-preview.html")
+        (self.root / registry).rename(self.root / "preserved-registry.json")
         with self.assertRaisesRegex(ValueError, "missing"):
             build_visual_inputs(self.root, self.ui, "implementation")
 

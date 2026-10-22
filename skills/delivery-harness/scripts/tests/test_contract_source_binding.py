@@ -397,6 +397,26 @@ UI scope: UI-001
                 frozen_pair.write_bytes(frozen_pair.read_bytes() + b" ")
                 self.assertTrue(join.validate_frozen_contract_joins(plan, root, run=run))
 
+    def test_ordinary_visual_handoff_checks_the_derived_preview(self):
+        from manifest_fixtures import eval_exempt_product_fixture
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with _sibling_paths(), eval_exempt_product_fixture():
+                _, _, preview, _ = self.fixture(root, pin="0.65.3")
+                from visual_inputs import build_visual_inputs
+            relative = preview.relative_to(root).as_posix()
+            self.assertIn(relative, build_visual_inputs(root, "docs/design/ui-design.md", "implementation"))
+            original = preview.read_bytes()
+            for content in (original + b"<!-- edited -->", b"<h1>unrelated preview</h1>"):
+                preview.write_bytes(content)
+                with self.assertRaisesRegex(ValueError, "preview.*stale|stale.*preview"):
+                    build_visual_inputs(root, "docs/design/ui-design.md", "implementation")
+                self.assertEqual(content, preview.read_bytes())
+            preview.write_bytes(original)
+            preview.rename(root / "retained-preview.html")
+            with self.assertRaisesRegex(ValueError, "missing"):
+                build_visual_inputs(root, "docs/design/ui-design.md", "implementation")
+
     def test_current_maintenance_visual_handoff_retains_the_frozen_package(self):
         from manifest_fixtures import eval_exempt_product_fixture
         with tempfile.TemporaryDirectory() as directory:
@@ -434,6 +454,7 @@ UI scope: UI-001
                                          task_record="docs/epics/EPIC-maintenance.md")
             for path in product_paths:
                 self.assertIn(hashlib.sha256(path.read_bytes()).hexdigest(), packet)
+            self.assertNotIn("docs/design/design-system-preview.html", packet)
             self.assertEqual(before, {path: path.read_bytes() for path in (root / "docs").rglob("*") if path.is_file()})
             self.assertEqual([], join.validate_frozen_contract_joins(plan, root, run=run))
 

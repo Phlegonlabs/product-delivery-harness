@@ -17,6 +17,8 @@ For implementation maintenance, pass `--task-record docs/epics/<current-epic>.md
 This route names current Product/Stack files and retains historical UI, selected studies, captures and target identities without rewriting them.
 Other stages keep strict product-source joins. Managed work still requires its exact frozen task record and current Product Definition/PLAN joins.
 The task record classifies this packet; it grants no approval or permission and cannot waive those checks.
+Ordinary `design-system/4` preview bytes must match the existing deterministic renderer for the bound pair and HiFi.
+Maintenance omits the historical derived preview from current input pointers; it retains the authoritative pair and HiFi without requiring fresh rendering or approval.
 Run `check_launch_packet.py` on the complete final message with its explicit byte budget.
 Overflow requires a smaller scoped assignment or complete named source reads; never silently truncate visual inputs.
 
