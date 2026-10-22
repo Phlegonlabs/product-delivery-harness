@@ -28,6 +28,12 @@ from test_host_verifier_runtime import host_verifier  # noqa: E402
 from test_role_dispatch_integration import launch_arguments  # noqa: E402
 from harness_core import plan_digest  # noqa: E402
 from harness_manifest import load_run  # noqa: E402
+__import__("test_product_package_checker")  # cached for manifest_fixtures' lazy import
+
+# Another skill's tests directory stays on sys.path only for the imports above;
+# left there, discovery imports that skill's test_skill_contract instead.
+while str(PRODUCT_TESTS_DIR) in sys.path:
+    sys.path.remove(str(PRODUCT_TESTS_DIR))
 
 
 def cli(script: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
