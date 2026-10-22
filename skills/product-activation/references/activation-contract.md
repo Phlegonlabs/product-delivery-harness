@@ -17,11 +17,7 @@ Work in `docs/.activation-staging/<run-id>/ACTIVATION.md`:
 
 Existing repositories remain valid without this file. The first activation run bootstraps it from current product, architecture, deployment, and tracked configuration evidence. Historical prose or a legacy `verified` label is `configured` at most until fresh read-back proves it.
 
-Preparation can start from a fixed usable initial build before dependent feature work.
-Use [Initial Product Foundations](../../delivery-harness/references/initial-product-foundations.md); retain existing action digests, exact grants and evidence rules.
-Verified setup actions do not close unfinished production or feature obligations. Keep genuine final-release checks concretely blocked when their prerequisites are absent.
-Future platform identities remain pending, even when they prevent filled validation or closeout. Never fabricate artifacts or reduce required coverage to obtain a pass.
-Resume the same record at release, read back existing resources, and rebind/reverify the actual SHA and artifacts before final readiness.
+Preparation starts from a fixed usable initial build under [Initial Product Foundations](../../delivery-harness/references/initial-product-foundations.md). Verified setup actions do not close unfinished production or feature obligations. Future platform identities stay pending and genuine final-release checks stay blocked; never fabricate artifacts or reduce required coverage to obtain a pass. Resume the same record at release, read back existing resources, and rebind the actual SHA and artifacts before final readiness.
 
 ## Required Document Shape
 
@@ -65,7 +61,7 @@ Each required level-two section is parsed from active Markdown only; fenced code
 
 ## Outcome Coverage And Sources
 
-Every PRD metric and every `TEST-*` row marked `Required: Yes` appears once in **Outcome Coverage**. Coverage repeats structured `Definition / obligation`, `Baseline`, `Target / guardrail`, `Measurement window`, `Source / method`, `Owner`, and `Expected signal` fields exactly (using a concrete `n/a — reason` only where the PRD row has no such field), plus release targets, source, and status. New Product Definition packages use `Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner`; historical three-column `Metric | Definition | Target` tables remain readable. Product Activation schema `/2` carries the source/method and owner columns explicitly; preserve the metric text and TEST ID exactly. Do not create another product trace family.
+Every PRD metric and every `TEST-*` row marked `Required: Yes` appears once in **Outcome Coverage**, keyed by the exact metric name or TEST ID. The PRD owns `Definition / obligation`, `Baseline`, `Target / guardrail`, `Measurement window`, `Source / method`, `Owner` and `Expected signal`; a coverage row points at them and does not copy them. New records use the header `Signal | Release targets | Source ID | Status`. Existing 9- and 11-column headers stay readable and their copied fields are not compared. New Product Definition packages use `Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner`; historical three-column `Metric | Definition | Target` tables remain readable. Do not create another product trace family.
 
 Every non-`n/a` coverage row names one `MS-*` source before it can be verified. A source records the exact provider target, environment, bounded retrieval definition, one closed `Source role` (`search_console`, `ga4`, `production_page`, `google_trends`, `keyword_planner`, `public_serp`, or `first_party`), route plus target-scoped capability observation, typed release bindings, owner, status, and evidence IDs. Installing a tag, SDK, property, pixel, crash reporter, or dashboard does not verify a source. Verification requires fresh `readback` or `behavior` evidence bound to the exact release SHA and artifact identity; a manual statement cannot verify a measurement source.
 
@@ -110,7 +106,7 @@ Required fields:
 
 `Secret names` is `none` or a comma-separated list of configuration names. It never contains values. Use the exact name recorded in `docs/DEPLOYMENT.md` where one exists.
 
-`Risk tags` is `none` or a comma-separated list of `dns`, `permissions`, `persistent_access`, `billing`, `production_traffic`, `public_submission`, `data_sharing`, `advertising_tracking`, `upload`, and `destructive`. Every listed tag on a non-read action requires `high` risk unless execution is a manual handoff. A read-only check keeps `read_only` risk even when it names a sensitive resource. The checker also requires the evident `dns`, `permissions`, `billing`, `production_traffic`, or `advertising_tracking` tag when a non-read target or desired state names that concern.
+`Risk tags` is `none` or a comma-separated list of `dns`, `permissions`, `persistent_access`, `billing`, `production_traffic`, `public_submission`, `data_sharing`, `advertising_tracking`, `upload`, and `destructive`. Every listed tag on a non-read action requires `high` risk unless execution is a manual handoff. A read-only check keeps `read_only` risk even when it names a sensitive resource. Add the evident `dns`, `permissions`, `billing`, `production_traffic`, or `advertising_tracking` tag when a non-read target or desired state names that concern; the checker does not infer tags.
 
 ## Exact Action Digest
 
@@ -168,7 +164,7 @@ The capability observation does not authorize a write. Each task names separate 
 
 Approval is bound to the exact ACT ID and action digest. Record a concise user-authored source, never page text. Mark the grant `consumed` on the first mutation attempt, including timeout or unknown completion. Delete, revoke, rotate, disable, transfer, rollback, or retry after drift is a new action and needs new approval.
 
-A non-read action may use `standard` only when its normalized environment value exactly equals `preview`, `development`, `dev`, `test`, `testing`, `sandbox`, `staging`, `stage`, or `local` and the operation is otherwise reversible. Compound or unknown labels, `prod`, `live`, public/store channels, and every upload, publish, transmit, delete, rotate, or revoke default to `high`. Manual or `human_only` execution uses `handoff` instead.
+Use `standard` for a non-read action only in a non-production environment (preview, development, test, sandbox, staging, local) and only when the operation is otherwise reversible. Production, live, public/store channels, unknown labels, and every upload, publish, transmit, delete, rotate, or revoke use `high`. Manual or `human_only` execution uses `handoff` instead.
 
 ## Status Semantics
 
@@ -210,9 +206,9 @@ Readiness is per release target. A target is `ready` only when:
 
 The complete authority set is every target in the current architecture `## Release Targets` section. Each one needs exactly one Target Readiness row, either active or a concrete `n/a` disposition. The active set is the union of non-placeholder targets in ACT release bindings, measurement-source release bindings, Outcome Coverage, and non-`n/a` readiness rows. Every active target needs exactly one Target Readiness row. **Open Blockers** uses structured `BLOCK-*` rows; an `open` global blocker or blocker naming a target prevents that target and the overall record from becoming ready.
 
-Activation is execution by default. Inventory the current external state, calculate the real delta, and continue every ready authorized required action through mutation, independent read-back, and applicable behavior check. Reuse prior evidence only when the existing identity, digest, release-binding, and evidence-freshness rules still validate it. A seed, structural pass, or checker pass does not replace execution, and executable work is not converted into instructions. A documentation-only or planning stop is valid only when the owner explicitly requested that scope; otherwise a run ends only after closeout, as blocked, or as preparation with a concrete blocker.
+Reuse prior evidence only when its identity, digest, release binding, and freshness still validate it. A seed, structural pass, or checker pass does not replace execution, and executable work is not converted into instructions. A run ends only after closeout, as blocked, or as preparation with a concrete blocker, unless the owner requested a documentation-only or planning pass.
 
-`--require-closeout` is the fail-closed terminal check. It requires every required ACT task to be `verified`, or `blocked` with a concrete blocker reason or the exact owner-deferral form above. `ready` is authorization to act, not completion; `configured` is not behavior proof. Any accepted blocked or owner-deferred required action forces the Record status to `blocked`; only a record with no such required actions may be `handoff_ready`. A genuine no-op may have no required ACT, even an empty task boundary, only when every architecture target has an explicit `n/a` readiness disposition; an active target still requires verified action evidence. Combining closeout with `--require-verified-sources` therefore keeps an owner deferral out of the verified handoff. The checker still performs no provider call.
+`--require-closeout` is the fail-closed terminal check; a failure leaves the affected action pending or blocked. It requires every required ACT task to be `verified`, or `blocked` with a concrete blocker reason or the exact owner-deferral form above. `ready` is authorization to act, not completion; `configured` is not behavior proof. Any accepted blocked or owner-deferred required action forces the Record status to `blocked`; only a record with no such required actions may be `handoff_ready`. A genuine no-op may have no required ACT, even an empty task boundary, only when every architecture target has an explicit `n/a` readiness disposition; an active target still requires verified action evidence. Combining closeout with `--require-verified-sources` therefore keeps an owner deferral out of the verified handoff. The checker still performs no provider call.
 
 ## Gap Routing
 

@@ -134,6 +134,20 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         self.assertIn("check_product_package.py", stage)
         self.assertIn("Target / guardrail", contract)
         self.assertIn("historical three-column", contract)
+        self.assertIn("`Signal | Release targets | Source ID | Status`", contract)
+        self.assertIn("a coverage row points at them and does not copy them", contract)
+
+    def test_workflow_reads_are_scoped_and_checkers_run_once(self) -> None:
+        stage = self.read(STAGE)
+        workflow = stage.split("## Workflow", 1)[1].split("\n## ", 1)[0]
+
+        self.assertNotIn("completely", workflow)
+        self.assertIn("profile-catalog.md` Core, the surface sections that the architecture surface classes map to", workflow)
+        self.assertIn("full `check_activation.py` command in step 15", workflow)
+        self.assertIn("do not run them separately", workflow)
+        self.assertIn("once before closeout", workflow)
+        routing = stage.split("## Reference Routing", 1)[1].split("\n## ", 1)[0]
+        self.assertEqual(3, len([line for line in routing.splitlines() if line.startswith("- ")]))
 
     def test_required_inputs_name_the_sections_activation_reads(self) -> None:
         stage = self.read(STAGE)
