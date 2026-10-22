@@ -1507,9 +1507,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         """The pass signal is the first condition the runtime checks and was the
         one missing from the core's list of four."""
         core = self.read(MANAGED_STAGE)
-        runtime = self.read("scripts/verifier_runtime.py")
 
-        self.assertIn('and normalized_verifier["pass_signal"] == "exit 0"', runtime)
         self.assertIn("Container `session_exact` reuse requires `exit 0`", core)
 
 

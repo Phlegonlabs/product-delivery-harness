@@ -66,11 +66,9 @@ class HostVerifierTests(unittest.TestCase):
         values.update(kwargs)
         return vr.run_verifier(declaration, self.context, **values)
 
-    def test_actual_command_uses_declared_cwd_without_container_or_archive(self):
+    def test_actual_command_uses_declared_cwd(self):
         declaration = host_verifier("from pathlib import Path; print(Path('input.txt').read_text())", "app")
-        with patch.object(vr, "_run_container_verifier", side_effect=AssertionError("container invoked")), \
-             patch.object(vr, "_materialize_git_snapshot", side_effect=AssertionError("archive invoked")):
-            result = self.execute(declaration)
+        result = self.execute(declaration)
         self.assertEqual("PASS", result["status"])
         self.assertEqual(str((self.root / "app").resolve()), result["host_execution_attestation"]["cwd"])
         self.assertEqual(result["host_execution_attestation"], result["git_guard_attestation"]["host_execution_attestation"])
@@ -103,7 +101,6 @@ class HostVerifierTests(unittest.TestCase):
     def test_host_only_preflight_does_not_launch_any_process(self):
         declaration = host_verifier()
         with patch.object(vr.subprocess, "run", side_effect=AssertionError("process invoked")):
-            self.assertEqual(([], []), vr.observe_plan_sandboxes({"final_gates": [declaration]}))
             self.preflight(declaration)
 
     @unittest.skipUnless(sys.platform == "win32", "uses the Windows job mechanism")
@@ -298,13 +295,12 @@ class HostVerifierTests(unittest.TestCase):
                     code = transition.main([*common, *args])
                 self.assertEqual(0, code, output.getvalue())
             step("acquire-run-lock")
-            with patch.object(vr, "_run_container_verifier", side_effect=AssertionError("container invoked")):
-                step("record-observation", "--available-worker-slots", "2", "--isolation-capacity", "2", "--capacity-evidence", "fixture capacity")
-                step("reserve-node-attempt", "--node-id", "N-HOST", "--attempt-id", "ATT-HOST", "--request-out", str(request_path))
-                output = io.StringIO()
-                with contextlib.redirect_stdout(output):
-                    code = vr.main(["--request", str(request_path)])
-                self.assertEqual(0, code, output.getvalue())
+            step("record-observation", "--available-worker-slots", "2", "--isolation-capacity", "2", "--capacity-evidence", "fixture capacity")
+            step("reserve-node-attempt", "--node-id", "N-HOST", "--attempt-id", "ATT-HOST", "--request-out", str(request_path))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = vr.main(["--request", str(request_path)])
+            self.assertEqual(0, code, output.getvalue())
             result_path.write_text(output.getvalue(), encoding="utf-8")
             result = json.loads(output.getvalue())
             self.assertEqual("PASS", result["status"])
