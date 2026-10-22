@@ -2,11 +2,11 @@
 
 Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval. It turns the approved PRD UI Surface Contract into direction studies and then a human-approved visual target; it does not create a gray structural wireframe first. `frontend-design` is the single design author. `impeccable` and rubric graders provide review evidence; they do not publish or approve the target.
 
-Before direction studies and before connected HiFi, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` with installed-command resolution. Repairs and the `frontend-design` read follow [Required Skills And Inputs](stages/ui-design.md#required-skills-and-inputs): the actual writer loads the complete owner-pinned skill in its own context, and nobody may silently replace the binding. Agent configuration designates the UI authoring executor. Reviewer and assembler helpers construct the shell or validate; they do not choose or repair the product design.
+Before direction studies and connected HiFi, bind and load `frontend-design` as [Required Skills And Inputs](stages/ui-design.md#required-skills-and-inputs) states. Reviewer and assembler helpers construct the shell or validate; they do not choose or repair the product design.
 
 ## Rebuild And Reading Scope
 
-Apply `design-translation.md` and `design-freshness.md`. An explicit full rebuild retains product/stack constraints but starts from fresh directions built from the PRD UI Surface Contract, not from prior design authority. Refine provisional type, optical spacing and fine proportions without changing the approved behavior or hierarchy of responsibilities. Inspect repeated controls across pages, real CJK/Latin copy, stacked bilingual reading where required, text enlargement and dense/alternate states. Use source-bound before/after findings; numerical grades alone prove no improvement. New iOS scope defaults to iPhone; iPad remains conditional on Product Definition, never silently dropped from an existing PRD.
+Apply `design-translation.md`. An explicit full rebuild retains product/stack constraints but starts from fresh directions built from the PRD UI Surface Contract, not from prior design authority. Refine provisional type, optical spacing and fine proportions without changing the approved behavior or hierarchy of responsibilities. Inspect repeated controls across pages, real CJK/Latin copy, stacked bilingual reading where required, text enlargement and dense/alternate states. Use source-bound before/after findings; numerical grades alone prove no improvement. New iOS scope defaults to iPhone; iPad remains conditional on Product Definition, never silently dropped from an existing PRD.
 
 Apply `ui-grading-rubric.md#layout-integrity-and-anti-slop-review` while authoring and before presenting HiFi. Inspect control compression, alignment, open layers, long content and intermediate Web widths; record measured failures and product-specific visual findings in the existing evidence and defect ledger. Fix shared causes rather than hiding overflow.
 
@@ -54,12 +54,6 @@ python "<ui-design-builder-skill-root>/scripts/check_ui_design_contract.py" --ui
 ```
 
 This checks source identities, the approved Product package, manifest closure, UI IDs, routes, states, responsive sets, operation/control destinations and copy provenance against actual product DOM. Repair failures and rerun before expensive review. Keep the command result with existing task evidence; no extra approval or duplicated requirements table is needed. Structured coverage does not prove chart meaning, data integration, aesthetics or runtime behavior. The author and reviewer check those responsibilities against the PRD; browser evidence still verifies interactions.
-
-For `ui-design/3`, the CLI also reports advisory `compiler-source` diagnostics from the hash-checked HiFi package.
-Inspect unresolved animation provenance before owner review. The author can clarify intended triggers or repair approved-scope source limitations early.
-Static controls need no animation. A diagnostic never proves a design defect or a failed approval gate by itself.
-Registry trigger feasibility and variant/state coverage remain deferred until the compiler has the actual registry.
-The report creates no registry, changes no HiFi bytes and grants no compile-readiness PASS.
 
 ## Style Intake Gate
 
@@ -144,23 +138,14 @@ After the connected package passes the cheap completeness check, apply `../../de
 
 ## Impeccable Quality Review And PRD-Bound Grading
 
-Browser, Impeccable and rubric checks below form one diagnostic wave on the same frozen candidate.
-The lead uses current shared evidence and returns one consolidated assessment, not sequential independent review waves.
-Keep Impeccable's required internal workflow and both PASS records; its native totals never replace H1-H9.
+Browser, Impeccable and rubric checks form one diagnostic wave on the same frozen candidate. The rubric owns staffing, the defect ledger and repair scope; [Workflow](stages/ui-design.md#workflow) step 6 owns the sequence.
 
 Before human visual approval:
 
-1. Freeze the PRD, `ui-design.md`, and HiFi candidate paths and SHA-256 values.
-2. Run the cheap machine completeness preflight on the exact `ui-hifi/2` entry, manifest and sibling hashes against the PRD UI Surface Contract and current UI decisions. Repair missing coverage on the candidate and rerun it before formal review.
-3. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects, so it needs that authorization, but it is required: Visual Approval and publication need both PASS records, and a declined authorization leaves the stage `blocked`. Its Nielsen, detector, accessibility, responsive, performance, theming, and implementation-integrity scores are diagnostic evidence. Record exact `PASS` when the run covered its required scope and every finding is in the ledger as closed, an advisory or a block.
-4. Run `ui-grading-rubric.md`'s Technical Hard Gate and complete `H1`–`H9` scoring. These scores, not Impeccable's native totals, decide readiness.
-5. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
-6. Let `frontend-design` make one repair batch. Re-review the new SHA-256 under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope).
-
-Readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80.
-No block or disputed dimension may remain. Record the actual scores, even when they fail these thresholds.
-After all readiness checks pass, do not repair merely to raise the overall score.
-A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+1. Freeze the PRD, `ui-design.md`, and HiFi candidate paths and SHA-256 values. Pass the cheap completeness check on them.
+2. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects, so it needs that authorization, but it is required: Visual Approval and publication need both PASS records, and a declined authorization leaves the stage `blocked`. Keep its required internal workflow. Its native totals are diagnostic and never replace H1-H9. Record exact `PASS` when the run covered its required scope and every finding is in the ledger as closed, an advisory or a block.
+3. Run `ui-grading-rubric.md`'s Technical Hard Gate and complete `H1`–`H9` scoring. Readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80, with no block or dispute.
+4. Consolidate every finding into one root-cause defect ledger. Let `frontend-design` make one repair batch, then re-review under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
 
 ## Browser And Human Visual Approval
 
@@ -174,7 +159,7 @@ For the reviewer object, measure the product canvas's actual bounding width afte
 
 HiFi surface evidence keeps method `sandboxed-offline-browser`. New packages require `ui-output/3` with the exact interaction results and local-navigation transcript described in `output-contract.md`. A missing result, wrong destination, invisible destination, bad focus, undeclared navigation, external request, popup, form attempt, or console error fails. Schema-1 references retain their existing `ui-output/1` no-navigation policy. Also reject unintended overlap, clipping, occlusion, broken wrapping, off-container content, or horizontal overflow. Verify long and localized content, normal/reduced motion, and intentional-overlay stacking and dismissal.
 
-Proactively send one user-visible response with verified absolute Markdown links to the complete current schema-2 HiFi entrypoint, every manifest-listed sibling page, and the affected `ui-design.md` design handoff. Use the final logical paths in the authorized publication checkout for approval; after publication, link canonical files in the source checkout. Do not collect approval on `.ui-staging` paths. Say that the full approved scope is included, name what the owner should review, and ask explicitly for Visual Approval. A preview or panel open is convenience only and cannot replace the response or links; if any page or preview cannot be verified or opened, report that blockage instead of approval readiness.
+Request Visual Approval as [Workflow](stages/ui-design.md#workflow) step 7 states: send one user-visible response with verified absolute Markdown links to the complete current schema-2 HiFi entry, every manifest-listed sibling page and the affected `ui-design.md` handoff, at final repository paths on the task branch. Do not collect approval on `.ui-staging` paths. Name what the owner should review and ask explicitly for Visual Approval. A preview or panel open cannot replace the response or links; if any page or preview cannot be opened, report that blockage instead of approval readiness.
 
 Wait for the owner's explicit decision. Record it as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. The checker rejects an approval dated before the newest HiFi, Impeccable, grading or motion receipt; a repaired candidate needs a new owner decision. When the owner already reviewed the earlier candidate, present the repair diff and its changed pages; the owner may decide on that diff. Approval proves visual-direction conformance, not representative-user usability or production readiness.
 

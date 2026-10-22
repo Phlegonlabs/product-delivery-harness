@@ -205,24 +205,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertLess(prompt.index("$frontend-design"), prompt.index("directions"))
         self.assertIn("actual design author for directions", prompt)
         self.assertIn("Before each authoring stage", prompt)
-        for document, authoring_marker in (
-            (stage, "produce direction studies"),
-            (wireframe, "## Wireframe Validation Gate (wireframes/5)"),
-            (hifi, "## Frontend Design Style Integration"),
-        ):
-            with self.subTest(authoring_marker=authoring_marker):
-                self.assertIn(binding, document)
-                self.assertLess(document.index(binding), document.index(authoring_marker))
+        self.assertIn(binding, stage)
+        self.assertLess(stage.index(binding), stage.index("produce direction studies"))
+        for document in (wireframe, hifi):
+            with self.subTest(document=document[:30]):
+                self.assertNotIn(binding, document)
+                self.assertIn("stages/ui-design.md#required-skills-and-inputs", document)
 
-        authoring_contract = "\n".join((stage, wireframe, hifi))
-        self.assertIn("actual writer", authoring_contract)
-        self.assertIn("parent read", authoring_contract.lower())
-        self.assertIn("silently replace the binding", authoring_contract)
-        self.assertIn("grants no spawn action", authoring_contract)
-        self.assertNotIn("parent may author", authoring_contract)
-        for document in (stage, wireframe, hifi):
-            self.assertIn("Agent configuration designates", document)
-        self.assertIn("shell construction and validation", authoring_contract)
+        self.assertIn("The resolved writer must load the full owner-pinned `frontend-design` skill in its own context", stage)
+        self.assertIn("parent read", stage.lower())
+        self.assertIn("silently replace the binding", stage)
+        self.assertIn("grants no spawn action", stage)
+        self.assertNotIn("parent may author", "\n".join((stage, wireframe, hifi)))
+        self.assertIn("Agent configuration designates", stage)
+        self.assertIn("Assemblers and reviewers build the shell or validate", stage)
 
     def test_motion_and_media_router_is_conditional(self):
         router = self.read("references/motion-and-media-routing.md")
@@ -284,8 +280,8 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("complete HiFi candidate", contract)
         for document in (stage, visual_pass):
             with self.subTest(document=document[:50]):
-                self.assertIn("final logical paths in the authorized publication checkout", document)
-                self.assertTrue("source checkout" in document or "canonical source paths" in document)
+                self.assertIn("at final repository paths on the task branch", document)
+                self.assertNotIn("publication checkout", document)
                 self.assertIn("Do not collect approval on `.ui-staging` paths", document)
                 self.assertNotIn("Use staging paths for an unapproved staged draft", document)
         self.assertIn("`stages/ui-design.md#workflow` step 7", contract)
