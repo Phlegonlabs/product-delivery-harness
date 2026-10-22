@@ -4,13 +4,25 @@ These procedures are the rule owners for task entry, repository checkpoints, han
 
 ## Project Entry And Current Work
 
-Start with the effective repository instructions, `docs/DOCUMENTS.md` when present, current product/design sources and relevant unfinished work. At the first work in a new session and every skill invocation, apply `delivery-harness/references/document-sync-contract.md`. Resolve every `delivery-harness/` reference against the observed installed delivery-harness skill root, not a presumed target-local `skills/` directory. In this skill-source repository, the logical path resolves as `skills/delivery-harness/references/`. Observe loaded versus installed skill identity; unknown means unknown, not the current disk version.
+This is the entry checklist. Run it at the first work in a session and at every skill invocation. Read each linked contract in full only when its trigger fires.
 
-Keep one current PRD. Complete enhancements use `docs/epics/EPIC-<id>.md`, indexed in `docs/DOCUMENTS.md`, to record the problem, baseline, accepted outcome, requirement references, dependencies, document impact and result. Small fixes append to the relevant Epic; detailed direct-task evidence may be linked from it. Follow `delivery-harness/references/bounded-enhancement.md`; an Epic never duplicates PRD or RUN and never grants actions.
+1. Read the effective repository instructions, `docs/DOCUMENTS.md` when present, current product/design sources and relevant unfinished work. Resolve every `delivery-harness/` reference against the observed installed delivery-harness skill root, not a presumed target-local `skills/` directory. In this skill-source repository, it resolves as `skills/delivery-harness/references/`.
+2. Run the document-sync inventory with the Repository Change Checkpoint below. Pass `--loaded-digest` when the host exposes it, otherwise this session's `--session-marker`; unknown means unknown, not the current disk version. The parent runs the full global inventory at first entry and after a source, instruction, scope, skill identity, cross-stage dependency or handoff change.
 
-Select the record before implementation: a new accepted outcome gets a new Epic; same-outcome fixes append to its Change Log; an isolated small fix gets a bounded Epic entry that may link detailed direct-task evidence. Log the reason, affected scope, commit, tests and remaining work. Do not rewrite closed history. UI enhancements add or patch only named Wireframe/HiFi pages and necessary connecting controls; retain every unaffected product page, style and ID. Full package coverage is not an instruction to redraw the product.
+   ```text
+   python "<delivery-harness-skill-root>/scripts/check_document_sync.py" --repo-root <project-root> --baseline docs/document-sync.json
+   ```
 
-Derive the goal, write scope, design source, dependencies and acceptance checks in the existing task record or PLAN/RUN. Use direct work when one writer and one coherent verification sequence suffice; use managed coordination only when durable handoff, isolated integration or a bounded graph requires it. Preserve valid decisions and authorizations; ask only about a concrete missing dependency.
+   Read [document-sync-contract](../document-sync-contract.md) when the report needs review or input is invalid, when no baseline exists, and before a child inventory. Design consumers then apply [design-freshness](../../../ui-design-builder/references/design-freshness.md).
+3. Select the record before implementation. A new accepted outcome gets `docs/epics/EPIC-<id>.md`, indexed in `docs/DOCUMENTS.md`. Small fixes append to the matching Epic. Keep one current PRD. [Epic Selection](../bounded-enhancement.md#epic-selection-and-change-history) owns the details.
+4. Record the goal, write scope, design source, dependencies and acceptance checks in the existing task record or PLAN/RUN. Preserve valid decisions and authorizations; ask only about a concrete missing dependency.
+5. Read these contracts on their trigger:
+   - [bounded-enhancement](../bounded-enhancement.md): the owner accepts an enhancement scope, or a repair, module replacement or next-round handoff starts.
+   - [delegation-contract](../delegation-contract.md): before you assign work to another executor or launch one. Before a frontend author dispatch, also [frontend-visual-inputs](../frontend-visual-inputs.md).
+   - [gen-verify-correct](../gen-verify-correct.md): a checkpoint verifier or review fails or returns findings.
+   - [prd-refinement](../../../product-definition-builder/references/prd-refinement.md): a stage checkpoint finds new product evidence.
+   - [Product Contracts](product-contracts.md#consumer-keep-product-contracts-current): an English PRD or architecture has no Chinese copy.
+   - Other triggers: the project `AGENTS.md` Mandatory Governance Routes.
 
 ## Repository Change Checkpoints
 

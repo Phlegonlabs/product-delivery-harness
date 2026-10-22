@@ -13,14 +13,12 @@ Resolve `<design-system-compiler-skill-root>` to the absolute directory containi
 
 ## Purpose
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. Follow `../delivery-harness/references/bounded-enhancement.md` for accepted enhancement work. Compile the approved persona-dependent component states without creating accounts or changing requirements. Rechecking or rebuilding the same approved direction is technical verification, not a reason to repeat its approval; changed direction remains an upstream gap.
+At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work). Compile the approved persona-dependent component states without creating accounts or changing requirements. Rechecking or rebuilding the same approved direction is technical verification, not a reason to repeat its approval; changed direction remains an upstream gap.
 
 Turn an approved UI direction into two binding reusable UI sources:
 
 - `design-system.md` for the selected visual direction and short human-facing rules; and
 - `design-system.json` for machine-readable tokens, primitives, closed variants, product components, motion, responsive rules, source paths, and the state matrix.
-
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) at compilation checkpoints. The compiler repairs the pair within the approved consequences and reruns focused checks; direction or product gaps return upstream.
 
 Invoke it only when Product Definition Approval and the Stack Decision Checkpoint are approved and `docs/design/ui-design.md` records the approved complete HiFi decision plus `Design System Need Gate: required`. A `ui-design/3` package always requires it and names `Package action: compile|update|reuse`; it compiles `design-system/4` with a source-bound `showcase` and its HTML specimen book. A `ui-design/2` package compiles `design-system/3` only when its gate requires it. Both consume complete approved `ui-hifi/2`. The compiler respects the approved component foundation and styling approach; it never changes stack by implication. `PRD.md` owns product behavior, while `ui-design-builder` owns `ui-design.md` and the HiFi target; a historical wireframe remains legacy evidence only. Do not duplicate or change those contracts, implement production UI, or create Harness PLAN/RUN state.
 

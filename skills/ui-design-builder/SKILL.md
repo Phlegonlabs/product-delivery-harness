@@ -11,7 +11,7 @@ Resolve `<ui-design-builder-skill-root>` to the absolute directory containing th
 
 ## Purpose
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. During accepted delivery, use `../delivery-harness/references/bounded-enhancement.md` for same-scope corrections and next-round gaps; do not repeat initial design choices for a repair that restores the frozen design. Model the PRD's synthetic personas and loading, empty, permission, expired-session, failure, and recovery states. A mockup or HTML native projection is not real-login or native E2E evidence; that belongs to Harness.
+At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work). A repair that restores the frozen design does not repeat initial design choices. Model the PRD's synthetic personas and loading, empty, permission, expired-session, failure, and recovery states. A mockup or HTML native projection is not real-login or native E2E evidence; that belongs to Harness.
 
 Use this skill only after `product-definition-builder` has produced an owner-approved `PRD.md`, `architecture.md`, and `stack-decisions.md`. Product Definition decides what the product does and which frontend, backend, data, auth, deployment, mobile, and commercial technologies it uses. This skill decides how the approved UI is structured and expressed.
 
@@ -25,10 +25,6 @@ For every UI-bearing product, this skill owns:
 Existing wireframes and old design-system pairs remain inspection and validation evidence. They are not inputs to a new `ui-design/3` package and never acquire new approval authority.
 
 It does not change product scope, routes, actions, states, responsive targets, copy responsibilities, architecture, or stack by implication. Return those changes to `product-definition-builder` and resume only from a newly approved Product Definition revision.
-
-At direction review and HiFi review, apply `../product-definition-builder/references/prd-refinement.md` to newly discovered journey, state, content and recovery gaps. Link evidence and affected PRD/UI/TEST IDs in the existing change record; distinguish a design defect from a missing product decision. Keep frozen product inputs intact until their owning flow resolves a contract gap. Continue unaffected design work.
-
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) at direction and HiFi checkpoints. The bound frontend author repairs accepted-scope design defects and reruns the focused check; owners retain human selections and approvals.
 
 ## Stage Routing
 

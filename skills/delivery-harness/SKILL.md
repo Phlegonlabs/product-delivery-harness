@@ -7,15 +7,7 @@ description: "Route engineering work through planning, authorization, execution,
 
 Commands: `references/installed-commands.md`.
 
-Before direct or managed routing, apply `references/delegation-contract.md`: agent-owned worker policy, scoped assignments and actual execution identity. Delegation grants no actions and requires no managed run.
-
-Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
-
-[Generate, Verify, Correct](references/gen-verify-correct.md)
-
-At implementation/integration/acceptance checkpoints, apply `../product-definition-builder/references/prd-refinement.md`: record evidenced PRD gaps, repair requirement violations and preserve frozen inputs.
-
-Follow `AGENTS.md` Repository Change Checkpoints at entry, significant changes and handoff, even outside Harness. Record meaningful Git/working-tree changes in the Epic, without PLAN/RUN or watchers. Read-only tasks propose records. English PRD/architecture remain implementation authority, not Chinese review copies.
+At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). It loads document sync, bounded enhancement, delegation, gen-verify-correct and PRD refinement on their triggers. Acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
 
 ## Design And Maintenance Routing
 

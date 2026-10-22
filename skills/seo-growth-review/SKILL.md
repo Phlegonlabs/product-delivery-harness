@@ -11,13 +11,13 @@ Resolve `<seo-growth-review-skill-root>` to the absolute directory containing th
 
 ## Purpose
 
-At every invocation with a repository, apply `../delivery-harness/references/document-sync-contract.md` read-only; a public-only review records repository checks as not applicable. Separate test traffic and synthetic content from production measurement. Report exposed test pages or polluted analytics to their implementation/activation owner, never fix external settings under review authority. Use `../delivery-harness/references/bounded-enhancement.md` for next-round handoffs rather than keeping a review open.
+At every invocation with a repository, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work) read-only; a public-only review records repository checks as not applicable. Separate test traffic and synthetic content from production measurement. Report exposed test pages or polluted analytics to their implementation/activation owner, never fix external settings under review authority.
 
 Turn production search and behavior evidence into a short, prioritized organic-growth review. Separate observed first-party demand from market estimates and hypotheses. Explain what should be improved, why it matters, how success will be measured, and which upstream workflow owns any change.
 
 This skill owns the review and opportunity ranking only. It does not own product requirements, website implementation, external-console setup, API authentication, content publication, or a standing dashboard.
 
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) only to review routing. Return observed findings to Product, Delivery, or Activation; the SEO reviewer never changes the site or external systems.
+Return observed findings to Product, Delivery, or Activation; the SEO reviewer never changes the site or external systems.
 
 Apply SEO only to the product's applicable publicly discoverable surfaces. Private tools, internal APIs and native-only screens do not need an SEO round unless an approved public discovery surface exists. Record the reason in the current task; do not generate an empty review or reopen product interviews.
 

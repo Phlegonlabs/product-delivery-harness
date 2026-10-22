@@ -1,6 +1,6 @@
 # Parent-Owned Delegation
 
-Apply this contract before choosing direct or managed execution. It governs Product Definition, UI Design, code exploration and delivery. Delegation alone does not require PLAN/RUN. Existing product, design, security and publication gates still apply. An installed role or available tool grants no action.
+Apply this contract before you assign work to another executor or launch one, in direct or managed work. It governs Product Definition, UI Design, code exploration and delivery. Delegation alone does not require PLAN/RUN. Existing product, design, security and publication gates still apply. An installed role or available tool grants no action.
 
 For managed role-bound results and availability recovery, use [parent-retained execution receipts](agent-execution-receipts.md).
 
