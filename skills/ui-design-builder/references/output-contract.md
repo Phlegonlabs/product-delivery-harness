@@ -22,7 +22,7 @@ Legacy `docs/product/wireframes.html` and `docs/product/design-system.*` remain 
 
 ## Translation And Freshness Handoff
 
-Keep the `design-translation.md` table and `design-freshness.md` observations in this existing handoff or linked task evidence. Record incremental versus explicit full rebuild, fixed/provisional decisions, selected recipe/version, language and iPhone scope, representative stress cases and animation boundaries. No new approval gate or product authority is created. Inspector metadata and bilingual/motion examples are not shipping copy unless the PRD's sourced copy contract includes them.
+Keep the `design-translation.md` table and current source/candidate freshness observations in this existing handoff or linked task evidence. Record incremental versus explicit full rebuild, fixed/provisional decisions, selected recipe/version, language and iPhone scope, representative stress cases and animation boundaries. No new approval gate or product authority is created. Inspector metadata and bilingual/motion examples are not shipping copy unless the PRD's sourced copy contract includes them.
 
 ## Reviewer Navigation And Design Specifications
 
