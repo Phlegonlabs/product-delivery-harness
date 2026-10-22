@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>General runtime adapter: host capabilities, contract adoption and host handoff</b></summary>
 
-Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Agent definitions and effective AGENTS instructions own worker identity, models, effort, fallback and delegation. Catalog helpers preserve installed profile values and record explicit transport choices in assignments. Shared skills own methods, visual inputs, authorization, evidence and acceptance. Keep requested settings separate from runtime observations. Research may reuse an agent when selected; independent corroboration still uses distinct identities.
+Required reviewer browser capability must match the reviewer's binding. A native reviewer proves the host provider and driver. An external bridge additionally proves the model provider and reserved probe session. Agent definitions and effective AGENTS instructions own worker identity, models, effort, fallback and delegation. Catalog helpers preserve installed profile values and record explicit transport choices in assignments. Actor transitions validate the complete resulting state before commit. Shared skills own methods, visual inputs, authorization, evidence and acceptance. Keep requested settings separate from runtime observations. Research may reuse an agent when selected; independent corroboration still uses distinct identities.
 
 ## General runtime adapter
 

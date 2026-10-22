@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>Adaptador general de runtime: capacidades del host, adopción del contrato y handoff entre hosts</b></summary>
 
-La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Las definiciones de agentes y AGENTS deciden workers, modelos, esfuerzo, fallback y delegación. Los catálogos conservan los valores de perfiles instalados y registran la ruta explícita en el encargo. Los skills conservan métodos, entradas visuales, autorización, evidencia y aceptación. Separa los valores solicitados de las observaciones reales. La investigación puede reutilizar un agente cuando se elija; la corroboración independiente conserva identidades distintas.
+La capacidad del navegador del reviewer debe coincidir con su binding. Un reviewer nativo prueba el provider y driver del host. Un external bridge prueba además el model provider y la probe session reservada. Las definiciones de agentes y AGENTS deciden workers, modelos, esfuerzo, fallback y delegación. Los catálogos conservan los valores de perfiles instalados y registran la ruta explícita en el encargo. Cada transición de actor valida el estado resultante completo antes de guardar. Los skills conservan métodos, entradas visuales, autorización, evidencia y aceptación. Separa los valores solicitados de las observaciones reales. La investigación puede reutilizar un agente cuando se elija; la corroboración independiente conserva identidades distintas.
 
 ## Adaptador general de runtime
 

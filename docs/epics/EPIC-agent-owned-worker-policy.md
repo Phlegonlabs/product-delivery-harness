@@ -121,3 +121,25 @@ The three changed host repair inputs have a new 13-file snapshot at `agent-polic
 Manifest SHA-256: `7c684f2834e81da9907f697f12e153ce8b1c0f282cf139157caa279780624927`.
 
 Prior snapshots and the failed review remain immutable. Fresh fixed-candidate re-review remains pending.
+
+## Actor-State Repair Round 2
+
+Re-review of `12d8c15cd584ab216a9dacf47ad7b5024025ab9d` found one remaining actor-state variant.
+An inherited first-node choice could bind a different model/effort from an explicit pending successor, persist that conflict and block later operations.
+The original blocked JSON had complete coverage plus a non-empty gaps field; the validator rejected that result format.
+The reviewer preserved it and supplied `agent-policy-repair-security-result-corrected.json`, which passed strict validation unchanged.
+Corrected result SHA-256: `106c557224a20471a245a6836b5186af35ee7992e7f136b01c8f6b4f0739afd9`.
+
+The direct task uses its second default repair round under bounded-enhancement.md; one actor-family round was already spent.
+This is an accepted-scope repair with a changed structural strategy, not an additional UI grading wave or managed graph attempt.
+The acceptance matrix covers mixed inherited/explicit model and effort, unchanged revision/handle after rejection, and successful recovery under the same lease.
+The new regression reproduced both variants before implementation.
+
+Every workflow mutation now validates the complete prospective graph and retained actor bindings before snapshot/commit.
+Any conflict follows the existing rollback path, preserving revision, lease and prior valid state.
+This closes the transaction boundary rather than adding another bind-only special case.
+All 35 host cases pass, including the new atomic-rejection/recovery case, explicit actor replacement and legacy inheritance.
+Both default actor-family repair rounds are now spent. Another required defect remains blocked for an explicit next strategy; no automatic third repair is authorized.
+Final host snapshot: `agent-policy-host-atomic/manifest.json`, SHA-256 `3671adbd3a7adaf726ffdd7eba32e580c35a7b199ecad2360f5156501e27f6b5`.
+
+All earlier source/results/backups remain intact. A fresh final fixed-candidate review remains required.
