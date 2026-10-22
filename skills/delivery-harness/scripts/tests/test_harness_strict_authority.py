@@ -24,7 +24,7 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR, UI_TESTS_DIR, PDB_TESTS_DIR, DS_TESTS_
         sys.path.insert(0, str(candidate))
 
 from harness_contract_join import (  # noqa: E402
-    _PRD_UI_CONTRACT_PARSERS,
+    _SIBLING_MODULES,
     _load_canonical_prd_ui_contract_parser,
     _strict_ui_surface_errors,
     _resolve_source_bytes,
@@ -365,7 +365,7 @@ class StrictAuthorityJoinTests(unittest.TestCase):
         poisoned.__file__ = str(sibling / "poisoned.py")
         poisoned.parse_prd_ui_contract = lambda _text: ({"UI-GHOST": {}}, [])
         previous = sys.modules.get("prd_ui_contract")
-        _PRD_UI_CONTRACT_PARSERS.pop(sibling.resolve(), None)
+        _SIBLING_MODULES.pop((sibling.resolve(), "prd_ui_contract"), None)
         sys.modules["prd_ui_contract"] = poisoned
         try:
             parser = _load_canonical_prd_ui_contract_parser(sibling)
@@ -385,7 +385,7 @@ class StrictAuthorityJoinTests(unittest.TestCase):
                 sys.modules.pop("prd_ui_contract", None)
             else:
                 sys.modules["prd_ui_contract"] = previous
-            _PRD_UI_CONTRACT_PARSERS.pop(sibling.resolve(), None)
+            _SIBLING_MODULES.pop((sibling.resolve(), "prd_ui_contract"), None)
 
     def test_source_revision_drift_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

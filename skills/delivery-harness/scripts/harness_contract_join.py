@@ -1439,9 +1439,7 @@ _FULL_PRODUCT_PACKAGE_CHECKERS: dict[Path, Any] = {}
 _PRODUCT_SECURITY_REQUIREMENT_PARSERS: dict[Path, Any] = {}
 _FULL_DESIGN_SYSTEM_CHECKERS: dict[Path, Any] = {}
 _UI_CONTRACT_VIEWS: dict[Path, Any] = {}
-_PRD_UI_CONTRACT_PARSERS: dict[Path, Any] = {}
-_RELEASE_SOURCE_CONTRACTS: dict[Path, Any] = {}
-_PLATFORM_DELIVERY_PARSERS: dict[Path, Any] = {}
+_SIBLING_MODULES: dict[tuple[Path, str], Any] = {}
 
 
 def sibling_builder_scripts_dir() -> Path:
@@ -1450,46 +1448,60 @@ def sibling_builder_scripts_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
 
 
+def _load_sibling(
+    sibling_scripts: Path,
+    module_name: str,
+    aliases: tuple[str, ...] = ("markdown_contract",),
+) -> Any:
+    """Load one Product Definition module under a private name, or return None.
+
+    The sibling module imports its helpers by top-level name. Each alias is
+    loaded first from the verified sibling directory and bound to that import
+    name only while the module executes, so a same-name module already in the
+    host process is never used. Results are cached per directory and module.
+    """
+
+    key = sibling_scripts.resolve()
+    if (key, module_name) in _SIBLING_MODULES:
+        return _SIBLING_MODULES[(key, module_name)]
+    names = (*aliases, module_name)
+    paths = {name: key / f"{name}.py" for name in names}
+    module: Any = None
+    if all(candidate.is_file() for candidate in paths.values()):
+        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
+        private = {name: f"_harness_sibling_{name}_{tag}" for name in names}
+        previous = {name: sys.modules.get(name) for name in aliases}
+        try:
+            for name in names:
+                spec = importlib.util.spec_from_file_location(private[name], paths[name])
+                if spec is None or spec.loader is None:
+                    raise ImportError("canonical sibling module spec is unavailable")
+                loaded = importlib.util.module_from_spec(spec)
+                sys.modules[private[name]] = loaded
+                if name in aliases:
+                    sys.modules[name] = loaded
+                spec.loader.exec_module(loaded)
+            if Path(str(getattr(loaded, "__file__", ""))).resolve() != paths[module_name].resolve():
+                raise ImportError("canonical sibling module path does not match sibling source")
+            module = loaded
+        except Exception:
+            module = None
+        finally:
+            for name, before in previous.items():
+                if before is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = before
+            for name in names:
+                sys.modules.pop(private[name], None)
+    _SIBLING_MODULES[(key, module_name)] = module
+    return module
+
+
 def _load_release_source_contract(sibling_scripts: Path) -> Any:
     """Load the canonical active-Markdown release parser without host aliasing."""
 
-    key = sibling_scripts.resolve()
-    if key in _RELEASE_SOURCE_CONTRACTS:
-        return _RELEASE_SOURCE_CONTRACTS[key]
-    contract: Any = None
-    parser_path = key / "release_targets.py"
-    markdown_path = key / "markdown_contract.py"
-    if parser_path.is_file() and markdown_path.is_file():
-        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
-        markdown_name = f"_harness_release_markdown_contract_{tag}"
-        parser_name = f"_harness_release_targets_{tag}"
-        previous_markdown = sys.modules.get("markdown_contract")
-        try:
-            markdown_spec = importlib.util.spec_from_file_location(markdown_name, markdown_path)
-            parser_spec = importlib.util.spec_from_file_location(parser_name, parser_path)
-            if markdown_spec is None or parser_spec is None or markdown_spec.loader is None or parser_spec.loader is None:
-                raise ImportError("canonical release parser module spec is unavailable")
-            markdown_module = importlib.util.module_from_spec(markdown_spec)
-            parser_module = importlib.util.module_from_spec(parser_spec)
-            sys.modules[markdown_name] = markdown_module
-            sys.modules["markdown_contract"] = markdown_module
-            markdown_spec.loader.exec_module(markdown_module)
-            sys.modules[parser_name] = parser_module
-            parser_spec.loader.exec_module(parser_module)
-            if Path(str(getattr(parser_module, "__file__", ""))).resolve() != parser_path.resolve():
-                raise ImportError("canonical release parser path does not match sibling source")
-            contract = parser_module
-        except Exception:
-            contract = None
-        finally:
-            if previous_markdown is None:
-                sys.modules.pop("markdown_contract", None)
-            else:
-                sys.modules["markdown_contract"] = previous_markdown
-            sys.modules.pop(markdown_name, None)
-            sys.modules.pop(parser_name, None)
-    _RELEASE_SOURCE_CONTRACTS[key] = contract
-    return contract
+    return _load_sibling(sibling_scripts, "release_targets")
 
 
 def _load_canonical_prd_ui_contract_parser(sibling_scripts: Path) -> Any:
@@ -1500,116 +1512,16 @@ def _load_canonical_prd_ui_contract_parser(sibling_scripts: Path) -> Any:
     it must never fall back to the legacy regex parser for an executable join.
     """
 
-    key = sibling_scripts.resolve()
-    if key in _PRD_UI_CONTRACT_PARSERS:
-        return _PRD_UI_CONTRACT_PARSERS[key]
-    parser: Any = None
-    parser_path = key / "prd_ui_contract.py"
-    markdown_path = key / "markdown_contract.py"
-    if parser_path.is_file() and markdown_path.is_file():
-        # The sibling parser uses a top-level ``markdown_contract`` import.
-        # Load both files under private names and temporarily bind that import
-        # to the verified sibling module.  This avoids accepting a poisoned
-        # same-name module already present in the host process.
-        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
-        markdown_name = f"_harness_prd_markdown_contract_{tag}"
-        parser_name = f"_harness_prd_ui_contract_{tag}"
-        previous_markdown = sys.modules.get("markdown_contract")
-        try:
-            markdown_spec = importlib.util.spec_from_file_location(
-                markdown_name, markdown_path
-            )
-            parser_spec = importlib.util.spec_from_file_location(
-                parser_name, parser_path
-            )
-            if (
-                markdown_spec is None
-                or markdown_spec.loader is None
-                or parser_spec is None
-                or parser_spec.loader is None
-            ):
-                raise ImportError("canonical PRD parser module spec is unavailable")
-            markdown_module = importlib.util.module_from_spec(markdown_spec)
-            parser_module = importlib.util.module_from_spec(parser_spec)
-            sys.modules[markdown_name] = markdown_module
-            sys.modules["markdown_contract"] = markdown_module
-            markdown_spec.loader.exec_module(markdown_module)
-            sys.modules[parser_name] = parser_module
-            parser_spec.loader.exec_module(parser_module)
-            loaded_path = Path(str(getattr(parser_module, "__file__", ""))).resolve()
-            if loaded_path != parser_path.resolve():
-                raise ImportError("canonical PRD parser path does not match sibling source")
-            parser = getattr(parser_module, "parse_prd_ui_contract", None)
-        except Exception:
-            parser = None
-        finally:
-            if previous_markdown is None:
-                sys.modules.pop("markdown_contract", None)
-            else:
-                sys.modules["markdown_contract"] = previous_markdown
-            sys.modules.pop(markdown_name, None)
-            sys.modules.pop(parser_name, None)
-    _PRD_UI_CONTRACT_PARSERS[key] = parser
-    return parser
+    module = _load_sibling(sibling_scripts, "prd_ui_contract")
+    return getattr(module, "parse_prd_ui_contract", None)
 
 
 def _load_platform_delivery_parser(sibling_scripts: Path) -> Any:
     """Load Product Definition's canonical platform-delivery parser safely."""
 
-    key = sibling_scripts.resolve()
-    if key in _PLATFORM_DELIVERY_PARSERS:
-        return _PLATFORM_DELIVERY_PARSERS[key]
-    parser: Any = None
-    parser_path = key / "platform_delivery.py"
-    markdown_path = key / "markdown_contract.py"
-    release_path = key / "release_targets.py"
-    if parser_path.is_file() and markdown_path.is_file() and release_path.is_file():
-        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
-        markdown_name = f"_harness_platform_markdown_contract_{tag}"
-        release_name = f"_harness_platform_release_targets_{tag}"
-        parser_name = f"_harness_platform_delivery_{tag}"
-        previous_markdown = sys.modules.get("markdown_contract")
-        previous_release = sys.modules.get("release_targets")
-        try:
-            markdown_spec = importlib.util.spec_from_file_location(markdown_name, markdown_path)
-            release_spec = importlib.util.spec_from_file_location(release_name, release_path)
-            parser_spec = importlib.util.spec_from_file_location(parser_name, parser_path)
-            if any(
-                spec is None or spec.loader is None
-                for spec in (markdown_spec, release_spec, parser_spec)
-            ):
-                raise ImportError("canonical platform-delivery module spec is unavailable")
-            markdown_module = importlib.util.module_from_spec(markdown_spec)
-            release_module = importlib.util.module_from_spec(release_spec)
-            parser_module = importlib.util.module_from_spec(parser_spec)
-            sys.modules[markdown_name] = markdown_module
-            sys.modules["markdown_contract"] = markdown_module
-            sys.modules[release_name] = release_module
-            sys.modules["release_targets"] = release_module
-            markdown_spec.loader.exec_module(markdown_module)
-            release_spec.loader.exec_module(release_module)
-            sys.modules[parser_name] = parser_module
-            parser_spec.loader.exec_module(parser_module)
-            loaded_path = Path(str(getattr(parser_module, "__file__", ""))).resolve()
-            if loaded_path != parser_path.resolve():
-                raise ImportError("canonical platform-delivery parser path does not match sibling source")
-            parser = parser_module
-        except Exception:
-            parser = None
-        finally:
-            if previous_markdown is None:
-                sys.modules.pop("markdown_contract", None)
-            else:
-                sys.modules["markdown_contract"] = previous_markdown
-            if previous_release is None:
-                sys.modules.pop("release_targets", None)
-            else:
-                sys.modules["release_targets"] = previous_release
-            sys.modules.pop(markdown_name, None)
-            sys.modules.pop(release_name, None)
-            sys.modules.pop(parser_name, None)
-    _PLATFORM_DELIVERY_PARSERS[key] = parser
-    return parser
+    return _load_sibling(
+        sibling_scripts, "platform_delivery", ("markdown_contract", "release_targets")
+    )
 
 
 def sibling_ui_design_scripts_dir() -> Path:
