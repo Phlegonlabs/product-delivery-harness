@@ -27,13 +27,13 @@ The section order and visual treatment remain design choices within the user's s
 
 ## Author And Verify
 
-Read [rendering and evidence](references/rendering-and-evidence.md) before changing presentation, media or a README used by a registry. Route visual authoring through the target host's required frontend binding and design skills; do not substitute a generic author when that route is mandatory. Plain factual copy edits follow the target's documentation rules.
+Read [rendering and evidence](references/rendering-and-evidence.md) before changing presentation, media or a README used by a registry. Route visual authoring through the target host's required frontend binding and design skills, resolved from the target's effective instructions and observed skill configuration rather than this repository's defaults, never a generic author when that route is mandatory; plain factual copy edits follow the target's documentation rules.
 
-Resolve that binding from the target's effective instructions and observed skill configuration, not this source repository's defaults. If no target context is available, return a direction proposal and name the missing context before dependent authoring. A read-only direction exercise is not a visual implementation or rendered acceptance.
+Without target context, return a direction proposal and name the missing context before dependent authoring; a read-only direction exercise is not a visual implementation or rendered acceptance.
 
-Check local assets, relative links, heading anchors, commands and examples. Inspect the actual destination renderer when available, including light/dark mode and narrow widths. Capture before/after images for visual changes and a short recording for changed motion. A local Markdown preview is fallback evidence, not GitHub or registry verification; name any unavailable renderer.
+Check local assets, relative links, heading anchors, commands and examples. Inspect the actual destination renderer when available and capture evidence as Media And Claims describes. A local Markdown preview is fallback evidence, not GitHub or registry verification; name any unavailable renderer.
 
-For release-related edits, reconcile version, downloads, supported platforms and installation instructions against the actual artifacts and per-channel publication state. Use `release-packager` if it is available and packaging is in scope; otherwise follow the project's native release process. The companion skill is optional, not a dependency.
+For release-related edits, reconcile version, downloads, supported platforms and installation instructions against the actual artifacts and per-channel publication state. Use `release-packager` if it is available and packaging is in scope; otherwise follow the project's native release process.
 
 ## Deliver
 

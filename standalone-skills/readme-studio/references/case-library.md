@@ -1,6 +1,6 @@
 # README Case Library
 
-Observed: 2026-10-04. The pinned primary sources and GitHub article DOM were inspected. DOM inspection confirmed images, theme markup, tables and collapsible content; it did not include theme toggles or screenshot-based visual review. The techniques below describe source structure. Borrow techniques, not another project's identity or claims. Recheck the source and its license when using assets or adapting more than a small structural pattern.
+Observed: 2026-10-04 from the pinned sources and GitHub article DOM (images, theme markup, tables, collapsible content), without theme toggles or screenshot-based visual review. The techniques below describe source structure. Borrow techniques, not another project's identity or claims. Recheck the source and its license when using assets or adapting more than a small structural pattern.
 
 | Case | Source technique | Useful for | Adaptation check |
 | --- | --- | --- | --- |
