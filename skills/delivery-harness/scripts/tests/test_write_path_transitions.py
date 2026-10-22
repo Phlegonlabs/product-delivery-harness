@@ -6,12 +6,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import os
 import sys
 import subprocess
 import tempfile
 import time
-import types
 import unittest
 from unittest import mock
 from argparse import Namespace
@@ -58,108 +56,6 @@ def make_repo() -> tuple[tempfile.TemporaryDirectory, Path, str, str]:
     git(root, "commit", "-qm", "work")
     head = git(root, "rev-parse", "HEAD")
     return temp, root, base, head
-
-
-class _DirFdOs:
-    """Real ``os`` with a chosen ``name`` and ``dir_fd`` resolved against one directory."""
-
-    def __init__(self, name: str, directory: Path) -> None:
-        self.name = name
-        self._directory = directory
-
-    def __getattr__(self, attribute: str):
-        return getattr(os, attribute)
-
-    def _resolve(self, name, dir_fd):
-        return self._directory / name if dir_fd is not None else name
-
-    def stat(self, name, *, dir_fd=None, follow_symlinks=True):
-        return os.stat(self._resolve(name, dir_fd), follow_symlinks=follow_symlinks)
-
-    def open(self, name, flags, mode=0o777, *, dir_fd=None):
-        return os.open(self._resolve(name, dir_fd), flags | getattr(os, "O_BINARY", 0), mode)
-
-    def unlink(self, name, *, dir_fd=None):
-        os.unlink(self._resolve(name, dir_fd))
-
-    def rename(self, source, target, *, src_dir_fd=None, dst_dir_fd=None):
-        os.rename(self._resolve(source, src_dir_fd), self._resolve(target, dst_dir_fd))
-
-    def fsync(self, descriptor):
-        del descriptor
-
-
-def _exchange_race(
-    branch: str, writes: dict[tuple[str, int], object], payload: bytes
-) -> tuple[str, bytes | None, bytes, list[str]]:
-    """Run one RUN exchange commit with scripted concurrent writes to RUN.md.
-
-    ``writes`` maps ("before"|"after", primitive call number) to bytes written
-    (or a callable applied to the destination path)
-    to the destination around that call. Returns the error text, the final
-    destination bytes, the bytes at the path the error reports, and the
-    directory listing.
-    """
-
-    with tempfile.TemporaryDirectory() as temp:
-        directory = Path(temp)
-        destination = directory / "RUN.md"
-        destination.write_bytes(b"# original\n")
-        temporary = directory / ".RUN.md.pending"
-        temporary.write_bytes(payload)
-        expected = harness_transition._run_document_version_token(destination)
-        calls: list[int] = []
-
-        def write(stage: str) -> None:
-            data = writes.get((stage, len(calls)))
-            if callable(data):
-                data(destination)
-            elif data is not None:
-                destination.write_bytes(data)
-
-        def exchange(_parent_fd: int, left: str, right: str) -> None:
-            calls.append(1)
-            write("before")
-            hold = directory / ".swap-hold"
-            os.replace(directory / left, hold)
-            os.replace(directory / right, directory / left)
-            os.replace(hold, directory / right)
-            write("after")
-
-        def replace(target: Path, replacement: Path, backup: Path) -> None:
-            calls.append(1)
-            write("before")
-            if backup.exists():
-                raise ManifestError("backup exists")
-            os.replace(target, backup)
-            os.replace(replacement, target)
-            write("after")
-
-        primitive = (
-            ("_run_posix_exchange", exchange)
-            if branch == "posix"
-            else ("_run_windows_replace_with_backup", replace)
-        )
-        with mock.patch.object(harness_transition, "os", _DirFdOs(branch, directory)), \
-                mock.patch.object(harness_transition, primitive[0], side_effect=primitive[1]):
-            try:
-                harness_transition._run_exchange_commit(
-                    destination,
-                    temporary,
-                    temporary_name=temporary.name,
-                    parent_fd=7 if branch == "posix" else None,
-                    expected_version=expected,
-                    updated=payload,
-                )
-            except ManifestError as exc:
-                message = str(exc)
-            else:
-                raise AssertionError("exchange race was not detected")
-        retained = Path(message.rsplit(" at ", 1)[1]).read_bytes()
-        final = destination.read_bytes() if destination.is_file() else None
-        return message, final, retained, sorted(
-            item.name for item in directory.iterdir()
-        )
 
 
 class WritePathTransitionTests(unittest.TestCase):
@@ -264,29 +160,6 @@ class WritePathTransitionTests(unittest.TestCase):
                 harness_transition._record_observation(self.plan, self.run, Namespace(repo_root=self.root, **fields))
             self.assertEqual(before, self.run)
 
-    def test_run_document_replacement_binds_parent_on_posix(self) -> None:
-        if os.name == "nt":
-            self.skipTest("POSIX dirfd assertion is not applicable on Windows")
-        run_path = self.root / "RUN.md"
-        original = mf.manifest_markdown(
-            "## Harness Run State", "harness_run", self.run
-        )
-        run_path.write_text(original, encoding="utf-8")
-        with mock.patch.object(
-            harness_transition, "_run_posix_exchange", wraps=harness_transition._run_posix_exchange
-        ) as exchange:
-            try:
-                harness_transition._replace_run_document(
-                    run_path, self.run, expected_text=original
-                )
-            except ManifestError as exc:
-                if "renameat2" in str(exc):
-                    self.skipTest(str(exc))
-                raise
-        self.assertTrue(exchange.called)
-        _parent_fd, _temporary_name, _destination_name = exchange.call_args.args
-        self.assertNotEqual(original, run_path.read_text(encoding="utf-8"))
-
     def test_run_document_replacement_rejects_parent_symlink(self) -> None:
         link = self.root / "linked-run-parent"
         target = self.root / "real-run-parent"
@@ -326,155 +199,35 @@ class WritePathTransitionTests(unittest.TestCase):
                     run_path, self.run, expected_text=original
                 )
         self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
+        self.assertEqual(["RUN.md"], sorted(item.name for item in self.root.glob("*RUN.md*")))
 
-    def test_run_document_exchange_primitive_preserves_displaced_edit(self) -> None:
-        # Only the first primitive call races; the restore call must stay clean.
-        calls: list[int] = []
+    def test_run_document_replacement_writes_the_manifest_block_only(self) -> None:
         run_path = self.root / "RUN.md"
-        original = mf.manifest_markdown(
-            "## Harness Run State", "harness_run", self.run
+        original = mf.manifest_markdown("## Harness Run State", "harness_run", self.run)
+        run_path.write_bytes(original.encode("utf-8"))
+        changed = copy.deepcopy(self.run)
+        changed["control"]["source"] = "replacement writer test"
+        harness_transition._replace_run_document(run_path, changed, expected_text=original)
+        body_start = original.index("\n", original.index("```json")) + 1
+        fence_end = original.index("\n```", body_start)
+        expected = (
+            original[:body_start]
+            + json.dumps({"harness_run": changed}, indent=2, ensure_ascii=False)
+            + original[fence_end:]
         )
-        concurrent = "# concurrent primitive edit\n"
-        run_path.write_text(original, encoding="utf-8")
-        if os.name == "nt":
-            primitive = harness_transition._run_windows_replace_with_backup
+        self.assertEqual(expected.encode("utf-8"), run_path.read_bytes())
+        self.assertEqual(["RUN.md"], sorted(item.name for item in self.root.glob("*RUN.md*")))
 
-            def inject(destination: Path, replacement: Path, backup: Path) -> None:
-                if not calls:
-                    destination.write_text(concurrent, encoding="utf-8")
-                calls.append(1)
-                primitive(destination, replacement, backup)
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_windows_replace_with_backup", side_effect=inject
-            )
-        else:
-            primitive = harness_transition._run_posix_exchange
-
-            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
-                if not calls:
-                    run_path.write_text(concurrent, encoding="utf-8")
-                calls.append(1)
-                primitive(parent_fd, left_name, right_name)
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_posix_exchange", side_effect=inject
-            )
-        with patcher:
-            with self.assertRaisesRegex(ManifestError, "displaced bytes changed") as caught:
-                harness_transition._replace_run_document(
-                    run_path, self.run, expected_text=original
-                )
-        self.assertNotIn("restore", str(caught.exception))
-        self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
-
-    def test_run_document_double_concurrent_write_keeps_displaced_bytes(self) -> None:
+    def test_run_document_replacement_refuses_text_that_changed_after_load(self) -> None:
         run_path = self.root / "RUN.md"
-        original = mf.manifest_markdown(
-            "## Harness Run State", "harness_run", self.run
-        )
-        first = "# first concurrent edit\n"
-        second = "# second concurrent edit\n"
-        run_path.write_text(original, encoding="utf-8")
-        if os.name == "nt":
-            primitive = harness_transition._run_windows_replace_with_backup
-
-            def inject(destination: Path, replacement: Path, backup: Path) -> None:
-                destination.write_text(first, encoding="utf-8")
-                primitive(destination, replacement, backup)
-                destination.write_text(second, encoding="utf-8")
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_windows_replace_with_backup", side_effect=inject
+        original = mf.manifest_markdown("## Harness Run State", "harness_run", self.run)
+        run_path.write_text("# edited after load\n" + original, encoding="utf-8")
+        before = run_path.read_bytes()
+        with self.assertRaisesRegex(ManifestError, "changed during this transition"):
+            harness_transition._replace_run_document(
+                run_path, self.run, expected_text=original
             )
-        else:
-            primitive = harness_transition._run_posix_exchange
-
-            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
-                run_path.write_text(first, encoding="utf-8")
-                primitive(parent_fd, left_name, right_name)
-                run_path.write_text(second, encoding="utf-8")
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_posix_exchange", side_effect=inject
-            )
-        with patcher:
-            with self.assertRaisesRegex(ManifestError, "displaced bytes changed") as caught:
-                harness_transition._replace_run_document(
-                    run_path, self.run, expected_text=original
-                )
-        retained = Path(str(caught.exception).rsplit(" at ", 1)[1])
-        self.assertEqual(second, run_path.read_text(encoding="utf-8"))
-        self.assertEqual(first, retained.read_text(encoding="utf-8"))
-
-    def test_run_exchange_commit_races_keep_concurrent_bytes(self) -> None:
-        payload = b"# transaction output\n"
-        first, second = b"# first concurrent edit\n", b"# second concurrent edit\n"
-        scenarios = {
-            "concurrent edit": ({("before", 1): first}, "displaced bytes changed", first, first, 1),
-            "double write": (
-                {("before", 1): first, ("after", 1): second},
-                "displaced bytes changed",
-                second,
-                first,
-                2,
-            ),
-            "restore overwritten": (
-                {("before", 1): first, ("after", 2): second},
-                "restore verification failed",
-                second,
-                payload,
-                2,
-            ),
-            "second write before restore": (
-                {("before", 1): first, ("before", 2): second},
-                "restore verification failed",
-                first,
-                second,
-                2,
-            ),
-            "destination removed after exchange": (
-                {("before", 1): first, ("after", 1): Path.unlink},
-                "displaced bytes changed",
-                None,
-                first,
-                1,
-            ),
-            "destination replaced by a directory": (
-                {("before", 1): first, ("after", 1): lambda target: (target.unlink(), target.mkdir())},
-                "displaced bytes changed",
-                None,
-                first,
-                2,
-            ),
-        }
-        for branch in ("posix", "nt"):
-            for label, (writes, message, final, kept, count) in scenarios.items():
-                with self.subTest(branch=branch, scenario=label):
-                    result, destination, retained, names = _exchange_race(
-                        branch, writes, payload
-                    )
-                    self.assertIn(message, result)
-                    if message != "restore verification failed":
-                        self.assertNotIn("restore", result)
-                    self.assertEqual(final, destination)
-                    self.assertEqual(kept, retained)
-                    self.assertNotIn(".RUN.md.pending", names)
-                    self.assertEqual(count, len(names), names)
-
-    def test_run_posix_exchange_uses_linux_or_macos_primitive(self) -> None:
-        for symbol in ("renameat2", "renameatx_np"):
-            with self.subTest(symbol=symbol):
-                primitive = mock.Mock(return_value=0)
-                libc = types.SimpleNamespace(**{symbol: primitive})
-                with mock.patch("ctypes.CDLL", return_value=libc):
-                    harness_transition._run_posix_exchange(7, "left", "right")
-                primitive.assert_called_once_with(7, b"left", 7, b"right", 0x2)
-
-    def test_run_posix_exchange_fails_closed_without_exchange_primitive(self) -> None:
-        with mock.patch("ctypes.CDLL", return_value=types.SimpleNamespace()):
-            with self.assertRaisesRegex(ManifestError, "renameat2.*renameatx_np"):
-                harness_transition._run_posix_exchange(7, "left", "right")
+        self.assertEqual(before, run_path.read_bytes())
 
     def _sync_plan_digest(self) -> None:
         digest = plan_digest(self.plan)

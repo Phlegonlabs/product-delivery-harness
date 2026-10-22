@@ -3517,260 +3517,10 @@ def _git_tree(repo_root: Path, sha: str) -> str:
     return tree
 
 
-def _read_bound_posix(parent_fd: int, name: str) -> str:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(name, flags, dir_fd=parent_fd)
-    try:
-        with os.fdopen(fd, "r", encoding="utf-8") as handle:
-            return handle.read()
-    except Exception:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        raise
-
-
-def _run_document_version_token(
-    path: Path, *, parent_fd: int | None = None
-) -> tuple[int, int, int, int, str]:
-    """Bind RUN identity and bytes to the destination used by the commit primitive."""
-
-    if parent_fd is None:
-        info = path.stat(follow_symlinks=False)
-        payload = path.read_bytes()
-    else:
-        info = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-        descriptor = os.open(path.name, flags, dir_fd=parent_fd)
-        try:
-            with os.fdopen(descriptor, "rb") as handle:
-                payload = handle.read()
-        except Exception:
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
-            raise
-    return (
-        int(info.st_dev),
-        int(info.st_ino),
-        int(info.st_size),
-        int(info.st_mtime_ns),
-        hashlib.sha256(payload).hexdigest(),
-    )
-
-
 def _run_replace_commit_boundary(path: Path) -> None:
     """Deterministic race hook; production keeps this a no-op."""
 
     del path
-
-
-def _run_posix_exchange(parent_fd: int, left_name: str, right_name: str) -> None:
-    """Exchange two RUN names atomically; fail closed when unavailable."""
-
-    import ctypes
-
-    libc = ctypes.CDLL(None, use_errno=True)
-    # Linux renameat2(RENAME_EXCHANGE) and macOS renameatx_np(RENAME_SWAP)
-    # take the same arguments and both use flag 0x2.
-    exchange = getattr(libc, "renameat2", None)
-    if exchange is None:
-        exchange = getattr(libc, "renameatx_np", None)
-    if exchange is None:
-        raise ManifestError(
-            "RUN commit requires renameat2(RENAME_EXCHANGE) or renameatx_np(RENAME_SWAP)"
-        )
-    exchange.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-    exchange.restype = ctypes.c_int
-    if exchange(parent_fd, os.fsencode(left_name), parent_fd, os.fsencode(right_name), 0x2) != 0:
-        error = ctypes.get_errno()
-        raise ManifestError(f"RUN atomic exchange failed (errno={error})")
-
-
-def _run_windows_replace_with_backup(destination: Path, replacement: Path, backup: Path) -> None:
-    """Use ReplaceFileW with an explicit displaced RUN backup."""
-
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.ReplaceFileW.restype = wintypes.BOOL
-    kernel32.ReplaceFileW.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.LPCWSTR,
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.LPVOID,
-    ]
-    if backup.exists():
-        raise ManifestError(f"RUN transaction backup already exists: {backup}")
-    if not kernel32.ReplaceFileW(str(destination), str(replacement), str(backup), 0x1, None, None):
-        raise ManifestError(f"RUN ReplaceFileW failed (winerror={ctypes.get_last_error()})")
-
-
-def _run_exchange_commit(
-    path: Path,
-    temporary: Path,
-    *,
-    temporary_name: str,
-    parent_fd: int | None,
-    expected_version: tuple[int, int, int, int, str],
-    updated: bytes,
-) -> None:
-    """Commit RUN by exchange/backup, validating and restoring displaced bytes."""
-
-    if os.name != "nt":
-        if parent_fd is None:
-            raise ManifestError("RUN commit requires a held POSIX parent descriptor")
-        _run_posix_exchange(parent_fd, temporary_name, path.name)
-        displaced_version = _run_document_version_token(Path(temporary_name), parent_fd=parent_fd)
-        if displaced_version != expected_version:
-            # Move displaced bytes off the temp name first: the caller's cleanup deletes it.
-            recovery = path.parent / f".{path.name}.{secrets.token_hex(8)}.recovery"
-            os.rename(temporary_name, recovery.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-            preserved = f"RUN displaced bytes changed at atomic exchange; concurrent bytes preserved at {recovery}"
-            payload_hash = hashlib.sha256(updated).hexdigest()
-            try:
-                restore = _run_document_version_token(path, parent_fd=parent_fd)[-1] == payload_hash
-                if restore:
-                    _run_posix_exchange(parent_fd, recovery.name, path.name)
-            except (OSError, ManifestError) as exc:
-                raise ManifestError(preserved) from exc
-            if not restore:
-                raise ManifestError(preserved)
-            restored = _run_document_version_token(path, parent_fd=parent_fd)
-            leftover = _run_document_version_token(recovery, parent_fd=parent_fd)
-            # Delete the swapped-out file only when it is our own payload.
-            if restored != displaced_version or leftover[-1] != payload_hash:
-                raise ManifestError(
-                    f"RUN restore verification failed; recovery artifacts retained at {recovery}"
-                )
-            os.unlink(recovery.name, dir_fd=parent_fd)
-            raise ManifestError(
-                f"RUN displaced bytes changed at atomic exchange; concurrent bytes preserved at {path}"
-            )
-        os.unlink(temporary_name, dir_fd=parent_fd)
-        os.fsync(parent_fd)
-        return
-
-    backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.backup"
-    _run_windows_replace_with_backup(path, temporary, backup)
-    displaced_version = _run_document_version_token(backup)
-    if displaced_version != expected_version:
-        rollback_backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.rollback"
-        preserved = f"RUN displaced bytes changed at atomic replacement; concurrent bytes preserved at {backup}"
-        payload_hash = hashlib.sha256(updated).hexdigest()
-        try:
-            restore = _run_document_version_token(path)[-1] == payload_hash
-            if restore:
-                _run_windows_replace_with_backup(path, backup, rollback_backup)
-        except (OSError, ManifestError) as exc:
-            raise ManifestError(preserved) from exc
-        if not restore:
-            raise ManifestError(preserved)
-        restored = _run_document_version_token(path)
-        leftover = _run_document_version_token(rollback_backup)
-        # Delete the swapped-out file only when it is our own payload.
-        if restored != displaced_version or leftover[-1] != payload_hash:
-            raise ManifestError(
-                f"RUN restore verification failed; recovery artifacts retained at {rollback_backup}"
-            )
-        rollback_backup.unlink(missing_ok=True)
-        raise ManifestError(
-            f"RUN displaced bytes changed at atomic replacement; concurrent bytes preserved at {path}"
-        )
-    backup.unlink(missing_ok=True)
-
-
-def _open_posix_parent_chain(path: Path) -> list[int]:
-    """Open every parent component with O_NOFOLLOW and retain all handles."""
-
-    absolute = Path(os.path.abspath(path))
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    handles: list[int] = []
-    try:
-        current_fd = os.open(os.sep, flags)
-        handles.append(current_fd)
-        components = [part for part in absolute.parts if part not in {absolute.anchor, ""}]
-        for component in components:
-            current_fd = os.open(component, flags, dir_fd=current_fd)
-            handles.append(current_fd)
-        return handles
-    except OSError:
-        for descriptor in reversed(handles):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
-        raise
-
-
-def _open_windows_parent(path: Path, *, writable: bool = False) -> tuple[Any, int]:
-    """Hold a non-reparse parent directory for a relative native rename."""
-
-    import ctypes
-    from ctypes import wintypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateFileW.restype = wintypes.HANDLE
-    kernel32.GetFinalPathNameByHandleW.restype = wintypes.DWORD
-    kernel32.CreateFileW.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.HANDLE,
-    ]
-    attrs = kernel32.GetFileAttributesW(str(path))
-    if attrs == wintypes.DWORD(-1).value or attrs & 0x0400:
-        raise ManifestError(f"RUN parent is unavailable or reparse: {path}")
-    handle = kernel32.CreateFileW(
-        str(path),
-        0x80000000 | (0x40000000 | 0x0002 if writable else 0),  # read, plus add-file for final parent
-        0x00000001 | 0x00000002,  # FILE_SHARE_READ | FILE_SHARE_WRITE
-        None,
-        3,  # OPEN_EXISTING
-        0x02000000 | 0x00200000,  # BACKUP_SEMANTICS | OPEN_REPARSE_POINT
-        None,
-    )
-    if handle in (None, wintypes.HANDLE(-1).value):
-        raise ManifestError(f"cannot hold RUN parent directory: {path}")
-    buffer = ctypes.create_unicode_buffer(32768)
-    length = kernel32.GetFinalPathNameByHandleW(handle, buffer, len(buffer), 0)
-    if not length:
-        kernel32.CloseHandle(handle)
-        raise ManifestError(f"cannot resolve held RUN parent directory: {path}")
-    actual = buffer.value[:length].removeprefix("\\\\?\\").casefold().replace("\\", "/")
-    expected = str(path.resolve(strict=True)).casefold().replace("\\", "/")
-    if actual != expected:
-        kernel32.CloseHandle(handle)
-        raise ManifestError("held RUN parent directory changed before rename")
-    return kernel32, int(handle)
-
-
-def _open_windows_parent_chain(path: Path) -> list[tuple[Any, int]]:
-    """Hold every existing Windows ancestor so no junction swap can retarget it."""
-
-    absolute = Path(os.path.abspath(path))
-    ancestors = [
-        ancestor
-        for ancestor in (list(reversed(absolute.parents)) + [absolute])
-        if ancestor != Path(absolute.anchor)
-    ]
-    handles: list[tuple[Any, int]] = []
-    try:
-        for ancestor in ancestors:
-            handles.append(_open_windows_parent(ancestor, writable=ancestor == absolute))
-        return handles
-    except BaseException:
-        for kernel32, handle in reversed(handles):
-            kernel32.CloseHandle(handle)
-        raise
 
 
 def _replace_run_document(
@@ -3797,99 +3547,50 @@ def _replace_run_document(
 def _replace_document_text(
     path: Path, updated: str, *, expected_text: str, before_commit=None
 ) -> None:
-    """Share the existing compare-and-swap writer with the derived tasks view."""
+    """Replace one document if its text still equals ``expected_text``.
 
-    # Compare-and-swap: if another writer replaced the document between this
-    # process's load and now, refuse instead of silently clobbering its work.
+    Shared with the derived tasks view. The text is compared before the temp
+    file is written and again at the commit boundary, so a concurrent edit
+    makes the writer refuse instead of clobbering it.
+    """
+
     path = Path(path)
     parent = path.parent
-    # A path check is part of the compare-and-swap, not a one-time setup
-    # assertion.  A junction/symlink here would let os.replace write outside
-    # the reviewed checkout while all manifest bytes still look valid.
     _assert_non_reparse_path(parent)
     if path.exists() and _is_reparse(path):
         raise ManifestError("RUN.md must not be a symlink or reparse point")
-    text = path.read_text(encoding="utf-8")
-    destination_version = _run_document_version_token(path)
-    if expected_text is not None and text != expected_text:
+
+    def current_text() -> str:
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+
+    if expected_text is not None and current_text() != expected_text:
         raise ManifestError(
             "RUN.md changed during this transition; re-load the manifest and retry"
         )
     parent.mkdir(parents=True, exist_ok=True)
-    _assert_non_reparse_path(parent)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=parent)
-    replaced = False
-    posix_parent_fds: list[int] = []
-    windows_parent_handles: list[tuple[Any, int]] = []
-    failure: BaseException | None = None
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(updated)
             handle.flush()
             os.fsync(handle.fileno())
-        # Last-read compare-and-swap immediately before replacement closes the
-        # common TOCTOU window.  The atomic rename still preserves readers.
-        _assert_non_reparse_path(parent)
-        if path.exists() and _is_reparse(path):
-            raise ManifestError("RUN.md became a symlink or reparse point")
-        if os.name != "nt":
-            try:
-                posix_parent_fds = _open_posix_parent_chain(parent)
-            except OSError as exc:
-                raise ManifestError(f"cannot hold RUN parent directory: {parent}: {exc}") from exc
-            try:
-                current = _read_bound_posix(posix_parent_fds[-1], path.name)
-            except FileNotFoundError:
-                current = ""
-        else:
-            windows_parent_handles = _open_windows_parent_chain(parent)
-            current = path.read_text(encoding="utf-8") if path.exists() else ""
-        if expected_text is not None and current != expected_text:
-            raise ManifestError(
-                "RUN.md changed during this transition; re-load the manifest and retry"
-            )
         _run_replace_commit_boundary(path)
         if before_commit is not None:
             before_commit(Path(temp_name))
-        current_version = _run_document_version_token(
-            path,
-            parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
-        )
-        if current_version != destination_version:
+        _assert_non_reparse_path(parent)
+        if path.exists() and _is_reparse(path):
+            raise ManifestError("RUN.md became a symlink or reparse point")
+        if expected_text is not None and current_text() != expected_text:
             raise ManifestError(
                 "RUN.md changed at the commit boundary; concurrent bytes were preserved"
             )
-        _run_exchange_commit(
-            path,
-            Path(temp_name),
-            temporary_name=Path(temp_name).name,
-            parent_fd=posix_parent_fds[-1] if posix_parent_fds else None,
-            expected_version=current_version,
-            updated=updated.encode("utf-8"),
-        )
-        replaced = True
-    except BaseException as exc:
-        failure = exc
-    finally:
-        if failure is not None and not replaced and posix_parent_fds:
-            try:
-                os.unlink(Path(temp_name).name, dir_fd=posix_parent_fds[-1])
-            except OSError:
-                pass
-        for descriptor in reversed(posix_parent_fds):
-            try:
-                os.close(descriptor)
-            except OSError:
-                pass
-        for kernel32, handle in reversed(windows_parent_handles):
-            kernel32.CloseHandle(handle)
-    if failure is not None:
-        if not replaced and not posix_parent_fds:
-            try:
-                os.unlink(temp_name)
-            except OSError:
-                pass
-        raise failure
+        os.replace(temp_name, path)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
 
 
 def _is_reparse(path: Path) -> bool:
