@@ -89,5 +89,19 @@ class MaintenanceFreshnessTests(unittest.TestCase):
         self.assertEqual("review_required", report["status"])
 
 
+class DesignRoundPinTests(unittest.TestCase):
+    def test_design_round_keeps_one_skill_tree_until_visual_approval(self):
+        skills = Path(__file__).resolve().parents[3]
+        guide = (skills / "ui-design-builder/references/design-freshness.md").read_text(encoding="utf-8")
+        pin = (skills / "delivery-harness/references/runtime-upgrades.md").read_text(encoding="utf-8")
+        pin = pin.split("## Run-Scoped Contract Pin", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("runtime-upgrades.md#run-scoped-contract-pin", guide)
+        self.assertIn("at the next round start", guide)
+        for phrase in ("from UI intake to Visual Approval", "`ui-design-builder` tree",
+                       "applies to the next round", "adopted mid-round, once", "`restart_required`"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, pin)
+
+
 if __name__ == "__main__":
     unittest.main()

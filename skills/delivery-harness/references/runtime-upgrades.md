@@ -27,6 +27,8 @@ Keep one RUN on one adopted Harness contract and one role/model policy from read
 
 Only a defect that blocks the active RUN justifies adoption mid-run. Collect every known blocking fix into one candidate, review it once, and adopt it once through the sequence below under its existing owner authorization. An owner-directed model change applies to new assignments only and is recorded once; existing reservations keep their bindings.
 
+A UI design round uses the same pin from UI intake to Visual Approval. It keeps the seven-skill digest recorded at intake, so the `ui-design-builder` tree, its rules and its thresholds stay fixed. A new release applies to the next round. Only a defect that blocks the round is adopted mid-round, once. Collect its fixes into one release and install it when no author or reviewer runs. Record the new digest in the round evidence. Installation authority and `restart_required` follow the sequence below.
+
 ## Safe Upgrade Sequence
 
 Never hot-upgrade a live worker or transfer its lease to a replacement process.

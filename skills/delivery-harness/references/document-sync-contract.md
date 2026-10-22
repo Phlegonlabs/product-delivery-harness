@@ -15,8 +15,6 @@ When another skill invocation needs a source already read in this session, reuse
 
 Before work, a child independently reads its complete named instruction chain and applicable authority sources. It verifies packet source hashes, observes loaded identity where the host exposes it, and reports its own read evidence. A parent attestation never substitutes for those child checks. Unknown loaded identity stays unknown.
 
-Reuse a semantic template audit only within the same Epic or task after a complete first audit. Its recorded SHA-256 values must prove that template, VERSION, bundle, effective instructions, owner references, scope, capabilities, and full source text are unchanged. A first, newly applicable, missing, or changed input invalidates reuse, as do restart and summary compaction. Recheck action and live source guards before reuse. Preserve current, stale, and unknown labels and intentional source exceptions. Never synthesize unknown loaded identity from installed bytes.
-
 ```text
 python "<delivery-harness-skill-root>/scripts/check_document_sync.py" --repo-root <project-root> --loaded-digest <observed-session-contract-sha256> --baseline docs/document-sync.json
 ```
@@ -31,7 +29,7 @@ That report names `baseline_review_required`; without an observed digest it also
 
 ## Reconcile Under Existing Authority
 
-When the host cannot observe the loaded digest, omit `--loaded-digest`; the report remains `review_required` with `loaded_identity_unobserved`. Do not invent one from disk. Snapshot paths and hashes are checkout-relative, so the tracked snapshot works in another clone or worktree of the same project. The parent verifies that the baseline belongs to this project's history; a snapshot is not a repository identity credential. Explicitly scoped root or component Markdown, such as `SECURITY.md`, is allowed; credential and historical exclusions still apply.
+When the host cannot observe the loaded digest, omit `--loaded-digest`; do not invent one from disk. Review `loaded_identity_unobserved` once per host session and record it with the marker `<session-id>:<installed-digest>`. Pass that marker as `--session-marker` at later invocations in the same session. The report keeps the finding with its marker but no longer counts it as review. A new session, a restart, or changed installed bytes needs a fresh review and marker. Snapshot paths and hashes are checkout-relative, so the tracked snapshot works in another clone or worktree of the same project. The parent verifies that the baseline belongs to this project's history; a snapshot is not a repository identity credential. Explicitly scoped root or component Markdown, such as `SECURITY.md`, is allowed; credential and historical exclusions still apply.
 
 A RUN may separately record an `adopted` runtime-contract receipt after the owner authorizes a quiescent re-read. That disposition belongs in existing task/RUN evidence and must name its own owner source and reading evidence. It never quiets or removes `loaded_identity_unobserved`, changes `document-sync/1`, or becomes approval/capability proof.
 
@@ -55,9 +53,7 @@ For design consumers, continue with `../../ui-design-builder/references/design-f
 
 ## Impact Review
 
-Markdown byte inventory does not replace the project's **Repository Change Checkpoints**. At task start, significant changes and completion/handoff, also inspect local Git history and working-tree changes, including changes made without Harness. Record relevant code/configuration/product changes in the matching Epic and update `docs/DOCUMENTS.md` under existing write authority. No installed skill or sync snapshot is required for that standalone AGENTS rule. Preserve unverified external changes, missing baselines and read-only restrictions explicitly; never convert an observation into approval or test evidence.
-
-At handoff, apply the project's Handoff Documentation Audit as well. Reconcile applicable live sources, the Epic and index, and the direct task record or PLAN/RUN with any generated `docs/tasks.md` view. Compare the target `AGENTS.md` shared rules to the observed installed `PROJECT_AGENTS.template.md` and version; a document-sync snapshot or matching byte hash alone cannot prove the rules are current. Classify safe additions, intentional local overrides, and unresolved same-heading divergences separately. Refresh only safe shared instructions under existing document-write authority, preserving repository-specific text and immutable records. If the template or semantic merge cannot be observed, report the gap rather than replacing the target file. This is a handoff checkpoint, not a scheduled scan.
+This inventory and the project's **Repository Change Checkpoints** form one entry check with one record. The checkpoint adds Git and working-tree changes, including changes made without Harness. The **Handoff Documentation Audit** is the one exit check; it repeats the checkpoint and owns the template drift audit. Both rules live in `governance/task-and-handoff.md`.
 
 The read-only report includes `impacts`: source path, observation reason, affected artifacts/stages, required checks and `semantic_review_required`. Present first-observation sources and changed or required/missing sources need review; unchanged bytes have no source impact rows. Unknown source types route to parent semantic review. These are conservative routing hints: inspect actual requirement references and the diff before selecting checks. Skill identity changes still require the separate restart/contract findings even when all document bytes match.
 

@@ -22,6 +22,7 @@ DEFAULT_PATHS = (
     "docs/goal/RUN.md",
 )
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+SESSION_MARKER = re.compile(r"[A-Za-z0-9._-]{1,128}:[0-9a-f]{64}\Z")
 RETIRED_NAMES = ("full-harness", "prd-builder", "product-design-builder")
 RETIRED = re.compile(r"(?:skills[/\\]|`)(full-harness|prd-builder|product-design-builder)(?=[/\\`])")
 RETIREMENT_CATALOG = re.compile(
@@ -164,13 +165,17 @@ def default_inventory(root, baseline=None):
     return paths
 
 
-def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=()):
+def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=(),
+            session_marker=None):
     root = Path(root).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("repository root must be a directory")
     if not (isinstance(installed_digest, str) and DIGEST.fullmatch(installed_digest)) or (
             loaded_digest is not None and not (isinstance(loaded_digest, str) and DIGEST.fullmatch(loaded_digest))):
         raise ValueError("loaded and installed contract digests must be lowercase SHA-256")
+    if session_marker is not None and (loaded_digest is not None or not (
+            isinstance(session_marker, str) and SESSION_MARKER.fullmatch(session_marker))):
+        raise ValueError("session marker is <session-id>:<installed-digest> without a loaded digest")
     if not isinstance(paths, (list, tuple)) or not paths or len(paths) > 128:
         raise ValueError("declare between 1 and 128 document paths")
     if not all(isinstance(item, str) for item in paths) or len(set(paths)) != len(paths):
@@ -178,7 +183,11 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
     if not set(required).issubset(paths):
         raise ValueError("required paths must be in the inventory")
     findings = []
-    if loaded_digest is None:
+    # A marker recorded earlier this session against the same installed bytes
+    # keeps the unknown identity visible without asking for another review.
+    if loaded_digest is None and session_marker is not None and session_marker.endswith(":" + installed_digest):
+        findings.append({"kind": "loaded_identity_unobserved", "session_marker": session_marker})
+    elif loaded_digest is None:
         findings.append({"kind": "loaded_identity_unobserved"})
     elif loaded_digest != installed_digest:
         findings.append({"kind": "restart_required"})
@@ -229,7 +238,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
     snapshot = {"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
-    return {"status": "review_required" if findings else "unchanged",
+    review = [row for row in findings if "session_marker" not in row]
+    return {"status": "review_required" if review else "unchanged",
             "findings": findings, "impacts": impacts, "snapshot": snapshot,
             "meaning": "Byte drift only; semantic review, capability, authorization and approval are separate."}
 
@@ -238,6 +248,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", required=True)
     parser.add_argument("--loaded-digest", help="observed session digest; omit when unobserved")
+    parser.add_argument("--session-marker", help="<session-id>:<installed-digest> recorded with this session's first loaded_identity_unobserved")
     parser.add_argument("--installed-digest", help="optional expected installed digest; checked against disk")
     parser.add_argument("--skills-root", help="observed installed sibling skill root; defaults to this bundle")
     parser.add_argument("--path", action="append", dest="paths")
@@ -256,7 +267,7 @@ def main(argv=None):
                 raise ValueError("baseline must be a JSON snapshot")
             baseline = json.loads(read_bounded(path).decode("utf-8-sig"), object_pairs_hook=unique_object)
         report = inspect(root, args.paths or default_inventory(root, baseline), args.loaded_digest,
-                         installed_digest, baseline, args.required_path)
+                         installed_digest, baseline, args.required_path, args.session_marker)
     except (ValueError, OSError, UnicodeError, RecursionError) as exc:
         # Never echo document content, JSON bodies, or credential values.
         print(json.dumps({"status": "invalid", "error": type(exc).__name__}))

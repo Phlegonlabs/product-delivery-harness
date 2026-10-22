@@ -185,6 +185,25 @@ class DocumentSyncTests(unittest.TestCase):
         self.assertEqual("review_required", result["status"])
         self.assertEqual("loaded_identity_unobserved", result["findings"][0]["kind"])
 
+    def test_session_marker_records_unknown_identity_once(self):
+        snapshot = self.observe()["snapshot"]
+        marker = "session-1:" + self.digest
+        result = inspect(self.root, ["AGENTS.md"], None, self.digest, snapshot, (), marker)
+        self.assertEqual("unchanged", result["status"])
+        self.assertEqual([{"kind": "loaded_identity_unobserved", "session_marker": marker}],
+                         result["findings"])
+        self.doc.write_text("changed", encoding="utf-8")
+        result = inspect(self.root, ["AGENTS.md"], None, self.digest, snapshot, (), marker)
+        self.assertEqual("review_required", result["status"])
+        # Installed bytes changed since the marker: the identity needs review again.
+        result = inspect(self.root, ["AGENTS.md"], None, "b" * 64, snapshot, (), marker)
+        self.assertIn({"kind": "loaded_identity_unobserved"}, result["findings"])
+        self.assertEqual("review_required", result["status"])
+        for bad, loaded in (("session-1:" + "B" * 64, None), (self.digest, None),
+                            ("a b:" + self.digest, None), (marker, self.digest)):
+            with self.subTest(marker=bad, loaded=loaded), self.assertRaises(ValueError):
+                inspect(self.root, ["AGENTS.md"], loaded, self.digest, snapshot, (), bad)
+
     def test_symlink_rejected(self):
         link = self.root / "CLAUDE.md"
         try:
