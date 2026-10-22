@@ -19,9 +19,5 @@
 ## Landing
 
 - [ ] Complete diff reviewed locally before push
-- [ ] PR is ready for review
-- [ ] Codex reviewed the current PR head
-- [ ] Blocking findings and unresolved threads are zero
-- [ ] Auto-merge is SHA-bound and enabled only after all landing gates pass, or is not authorized
+- [ ] Independent review of the current PR head with code and security lenses; review and CI are green on this SHA
 - [ ] Merge and deploy remain separate authorized actions
-- [ ] Post-merge local branch/worktree cleanup is complete, deferred, or not authorized
