@@ -63,14 +63,10 @@ Show the proposed Adopt / Adapt / Avoid set to the human owner and end the turn.
 
 ## Direction Records
 
-`frontend-design` creates directions only after the Visual Preference Brief and any supplied-reference principles are confirmed. Give each direction a versioned `VD-R<round>-<number>` ID.
-
-- When the owner explicitly chooses a single recommendation, create one direction, normally `VD-R1-01`. This holds for `ui-design/3` and `ui-design/2`.
-- Otherwise, create exactly three materially different directions over the same approved surfaces, states, and responsive set. Continuing uncertainty does not substitute for that explicit single-direction choice.
-- A rejected set produces a complete new round; do not append a fourth direction to the old round.
+`frontend-design` creates directions only after the Visual Preference Brief and any supplied-reference principles are confirmed. Give each direction a versioned `VD-R<round>-<number>` ID. The direction-mode rule is in [Style Intake Gate](ui-design-pass.md#style-intake-gate). A rejected set produces a complete new round; do not append a fourth direction to the old round.
 
 Each direction records product fit, the accepted Design Brief page-purpose/profile and type/density/headline constraints, visual rules, confirmed `REF-*` and `RP-*` evidence with useful roles and avoid rationale, tradeoffs, avoid rules, and its relationship to the approved component foundation and styling approach. Carry selected direction decisions into connected HiFi and H1–H9 review; selected profile and motion decisions reach conditional compilation and implementation through their existing contracts. A current public reference may support a direction only after it has been inspected. Market evidence (`MR-*`) and visual evidence (`REF-*`) remain separate.
 
 Use the representative studies and `### Direction comparison` table in `ui-design-pass.md` before asking the owner to select. The same primary and stress cases appear in every direction with unchanged content. Reference moodboards and written style labels do not replace rendered product studies. Preserve prior rounds as non-canonical evidence; only the current complete round belongs in the active table.
 
-Impeccable does not generate directions. After `frontend-design` creates the connected HiFi candidate, Impeccable critiques and audits it under `ui-design-pass.md`, and the PRD-bound H1-H9 rubric remains the approval score.
+Impeccable does not generate directions. It reviews the connected HiFi candidate under `ui-design-pass.md`.
