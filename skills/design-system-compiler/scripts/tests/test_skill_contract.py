@@ -151,6 +151,18 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("Skip the reviewer shell and inline asset data", inputs)
         self.assertIn("Read another section when a finding", inputs)
 
+    def test_preview_browser_inspection_is_conditional_on_live_treatments(self) -> None:
+        contract = self.read("references/output-contract.md")
+
+        self.assertNotIn("Inspect the generated view in a browser and link", contract)
+        self.assertIn(
+            "When the pair registers a motion variant or a `pseudo` state row, inspect those plates in a browser",
+            contract,
+        )
+        self.assertIn("`verify_runtime_motion.py` still closes source-runtime rows", contract)
+        self.assertIn("Close compilation only after", contract)
+        self.assertIn("Link the view with the pair in the handoff", contract)
+
     def test_templates_and_checker_commands_belong_to_this_skill(self) -> None:
         stage = self.read(STAGE)
         self.assertIn("Run these from the repository root", stage)
