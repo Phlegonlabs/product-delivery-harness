@@ -462,10 +462,13 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             lifecycle,
         )
         self.assertIn("keep the staged package", lifecycle)
-        self.assertIn("ask one explicit yes/no publication question", skill)
+        self.assertIn("publish the mutations listed in step 15 when the owner's reply approved them", skill)
+        self.assertIn("ask one explicit yes/no question for the list", skill)
         self.assertIn(
             "execute the approved publish and archive moves in the same run", skill
         )
+        self.assertIn("An owner reply that approves the package and those paths grants both", lifecycle)
+        self.assertIn("approves only the content", lifecycle)
 
     def test_prd_contract_requires_measurable_nfrs_and_test_obligations(self) -> None:
         contract = self.read("references/output-contract.md")
@@ -1145,6 +1148,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         refinement = self.read("references/prd-refinement.md")
         contract = self.read("references/output-contract.md")
         skill = self.read(STAGE)
+        lifecycle = self.read("references/artifact-lifecycle.md")
         self.assertIn("as a contract delta", contract)
         self.assertIn("full package revision and Product Definition Approval", contract)
         for phrase in (
@@ -1155,7 +1159,8 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             "Do not stage.",
         ):
             self.assertIn(phrase, refinement)
-        self.assertIn("except for a design-time contract delta", skill)
+        self.assertIn("A bounded enhancement and a design-time contract delta", skill)
+        self.assertIn("Bounded enhancement (no stack change): edit the published files in place; Git is the archive", lifecycle)
 
     def test_output_contract_templates_are_read_per_artifact(self) -> None:
         skill = self.read(STAGE)
