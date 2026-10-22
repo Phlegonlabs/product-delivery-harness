@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for current PLAN schema v6 and RUN schema v11 typed graphs, conditional routing, retries, and graph traces. Older typed-graph schema pairs remain validatable as manifests but cannot be selected or executed.
+Use this reference for current PLAN schema v6 and RUN schema v11 typed graphs, conditional routing, retries, and graph traces. Historical schema pairs use their exact pinned bundle and are never migrated silently.
 
 ## Contents
 
@@ -81,7 +81,7 @@ Task/worker, mission-integration, batch, and final verifiers declare an explicit
 
 Harness 0.38+ PLANs contain no `push` lifecycle node and RUN push stays false. Archive and publication follow `branch-promotion-contract.md#managed-run-archive-before-promotion`; a pre-0.38 recovery PLAN follows `legacy-pins.md#pre-038-run-branch-push`.
 
-`lease-worker` accepts an already active exact execution identity or materializes one only when the matching action has an active wildcard grant. The wildcard remains the user's authorization scope; appending an exact target to the receipt does not set `authorized` or expand the grant. Lifecycle and push targets are never materialized here. The lease also derives the selector's provider, driver, model, effort, worker runtime, workspace mode, and completion channel, and rejects incompatible caller flags. For an app task, `--task-thread-id` is the only valid task identity and requires the `app_task`/`app_managed_worktree`/`thread_poll` axes.
+`lease-worker` accepts an already active exact execution identity or materializes one only when the matching action has an active wildcard grant. The wildcard remains the user's authorization scope; appending an exact target to the receipt does not set `authorized` or expand the grant. Lifecycle and push targets are never materialized here. The lease also derives the selector's provider, driver, model, effort, worker runtime, workspace mode, and completion channel, and rejects incompatible caller flags. Current drivers do not dispatch app tasks; historical identities remain under their exact pinned bundle.
 
 A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, `visual`, or `security`), optional `lenses` (the lens list of a combined review; `type` is its widest lens in the order security, visual, frontend_code, backend_code), optional `stage` (`preintegration` by default or `integration`), reviewed mission IDs, repository scope, and required evidence. A `security` node must use the integration stage, cover every PLAN mission, and declare scope that contains every covered mission write scope. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree or integrated SHA. Persist that binding with `harness_transition.py reserve-review-dispatch` after selection and before the runtime side effect. Complete only that reserved attempt with `record-review-attempt`; a raw launch or log-only verdict is never accepted. It never receives a mission lease, write scope, branch, or commit authority.
 
@@ -95,9 +95,37 @@ contract freeze
   -> one broad final deterministic validation on the fixed candidate SHA
 ```
 
-A review node reports every blocking finding it can establish in one bounded pass. Under `review_policy: final_candidate` it depends on the integrated missions and becomes ready once every covered mission is integrated and `integration_head_sha` exists; the parent re-arms it after `reconcile-candidate-head` records the repair. A `fix_required` result is parent-side correction handling: wait until every required review of that candidate has returned, deduplicate findings by file, location, and root cause, and send the consolidated set once, per `gen-verify-correct.md`. Non-blocking suggestions go to the Epic backlog and never make `fix_required`. A repair changes the candidate SHA and invalidates the prior integration review. The `security` lens never skips: it loads the project's `code_security_verification` binding and evaluates the unified trust boundaries from a fresh context. Under `per_mission`, each mission also has a pre-integration review node that depends on its mission, consumes its `worker_passed` head, and returns `fix_required` to the original task and worktree; the same node re-arms on the changed head, and non-security integration reviews may skip under `verification-gates.md`'s Fresh integration review gate. Runtime review nodes follow the attempt budget in the Root-Cause Repair Escalation section below. Scope missions per feature batch (`execution-task-decomposition.md#mission-cohesion-gate`).
+A review node reports every blocking finding it can establish in one bounded pass. Under `review_policy: final_candidate` it depends on the integrated missions and becomes ready once every covered mission is integrated and `integration_head_sha` exists, except for the untouched conditional repair below; the parent re-arms it after `reconcile-candidate-head` records the repair. A `fix_required` result is parent-side correction handling: wait until every required review of that candidate has returned, deduplicate findings by file, location, and root cause, and send the consolidated set once, per `gen-verify-correct.md`. Non-blocking suggestions go to the Epic backlog and never make `fix_required`. A repair changes the candidate SHA and invalidates the prior integration review. The `security` lens never skips: it loads the project's `code_security_verification` binding and evaluates the unified trust boundaries from a fresh context. Under `per_mission`, each mission also has a pre-integration review node that depends on its mission, consumes its `worker_passed` head, and returns `fix_required` to the original task and worktree; the same node re-arms on the changed head, and non-security integration reviews may skip under `verification-gates.md`'s Fresh integration review gate. Runtime review nodes follow the attempt budget in the Root-Cause Repair Escalation section below. Scope missions per feature batch (`execution-task-decomposition.md#mission-cohesion-gate`).
 
 PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type; a combined node counts for each lens it lists, so the planner cannot mark a review required only in prose. Every new RUN also requires an explicit `security_review` policy: code delivery uses `required`; a non-code delivery may use `not_applicable` only with a reason. Older valid PLAN/RUN pairs remain readable and are never silently rewritten. The security review uses `code_review_readonly`, covers all missions, and runs before broad final validation. Render each reviewer a compact packet with the exact reviewed SHA, its declared scope, scoped changed paths/diff, applicable acceptance rows, required evidence, skill-binding slot when applicable, the security review's `required_checks` with the `execution_key` of each check's PASS at that SHA, and unresolved prior findings (`render_review_packet.py --max-diff-bytes N` bounds the diff — default 50000 bytes, truncation marked in the packet heading). Refer to PLAN/RUN by identity and path instead of copying their full manifests into the prompt.
+
+### Optional Repair-Only Mission
+
+A `final_candidate` PLAN may predeclare one isolated consolidated repair mission using existing graph fields.
+The repair node has `max_attempts: 1` and only one incoming `fix_required` route from the final review.
+That route has `max_traversals: 1`; a bounded `pass` route returns from repair to the same review.
+The review has `max_attempts: 2` and covers the repair mission in `review.mission_ids` and its write scope.
+Keep normal implementation dependencies on the review; do not add a repair-to-review dependency that blocks the first review.
+
+```json
+[
+  {"id":"E-FINAL-REPAIR","kind":"route","from":"N-FINAL-REVIEW","to":"N-REPAIR","on_outcomes":["fix_required"],"max_traversals":1},
+  {"id":"E-REPAIR-RECHECK","kind":"route","from":"N-REPAIR","to":"N-FINAL-REVIEW","on_outcomes":["pass"],"max_traversals":1}
+]
+```
+
+This is a pattern, not a new schema flag or scheduler.
+The first review may run while that repair alone remains untouched: queued mission, dormant node, zero attempts and untraversed route.
+Every other covered mission must already be integrated.
+A first-review PASS leaves the repair dormant; closeout recognizes the untaken route without inventing a repair PASS or integration.
+A `fix_required` activates the repair's one authorized writer attempt.
+Record its result, integrate it and run its focused integration checks through the normal mission protocol.
+The bounded pass route then permits one fresh targeted recheck on the repaired unified SHA.
+A failed recheck exhausts the review and repair route; stop and retain the findings for the owner.
+
+All source, scope, authorization, security, browser and evidence gates still apply.
+A repair not declared before execution needs the existing owner-authorized PLAN revision procedure.
+A PLAN without `review_policy` retains `per_mission` semantics; this initial-review exception does not apply to it.
 
 ## Root-Cause Repair Escalation
 
@@ -146,7 +174,7 @@ Run `scripts/select_ready_nodes.py` for PLAN v6 with RUN v11. A node is logicall
 
 - plan readiness and execution authorization are current;
 - RUN `control.desired_state` is `running`; `paused` and `cancelled` fail closed for every node;
-- its phase is `dormant` or `ready` and its attempt budget remains; runtime reviews consume the stable `review.lineage_id` budget in `RUN.review_lineages`, not a fresh node-local budget after replan;
+- its phase is `dormant` or `ready` and its attempt budget remains; the scripts enforce node-local `max_attempts`, while the parent preserves cumulative review history across revisions;
 - all dependency sources succeeded with `pass`, except that, under `per_mission`, a planned pre-integration review may consume a covered mission's validated `worker_passed` exact head before the parent integrates it;
 - at least one incoming route matches when route edges exist (OR, not AND; see Dependency And Route Edges), except that the same pre-integration dependency activates the review's initial attempt while a matching repair route activates later attempts;
 - no node blocker remains;
@@ -164,11 +192,13 @@ The parent must reserve a selected non-runtime directive before executing it. `r
 
 PLAN declares `allowed_providers`, optional `preferred_provider`, and optional `provider_options` keyed by an allowed host. Every provider follows the same rules. A model or effort preference is not proof of support. Null `model` and `reasoning_effort` preserve the current host's installed defaults and role/fallback configuration; no catalog or provider-specific default is bundled.
 
-Select the current host only when it is allowed; otherwise defer with `runtime_unavailable`. `preferred_provider` never excludes an allowed current host and never permits a provider bridge; pre-0.58 pins: `legacy-pins.md#pre-058-runtime-dispatch`. On a 0.58+ role-bound RUN, an explicitly configured external binding still requires the host to be allowed plus both external-invocation and spawn grants; a preferred provider alone never permits it. Copy explicit PLAN options into each worker's `runtime_binding`; the parent checks support against the actual native interface before launch. Unsupported explicit options block that node, without substitution.
+Select the current host only when it is allowed; otherwise defer with `runtime_unavailable`. `preferred_provider` never excludes an allowed current host and never permits a provider bridge; pre-0.58 pins: `legacy-pins.md#pre-058-runtime-dispatch`. An explicitly configured external bridge still requires the host to be allowed plus both external-invocation and spawn grants; a preferred provider alone never permits it. Copy explicit PLAN options into each worker's `runtime_binding`; the parent checks support against the actual native interface before launch. Unsupported explicit options block that node, without substitution.
 
 The parent uses `runtime-adapters.md` to map observed native tools to the selected generic driver. Read-only and write scopes remain separate. A tool-profile label or prompt is not permission-level tool removal; enforce the required boundary and validate actual scope and Git results. Native launch, result, retry and resume APIs belong to the host, not a bundled script. They never change graph readiness, authorization, result validation or integration rules.
 
-On 0.58.0+ RUNs, a runtime node may declare logical `runtime.worker_role`. Host policy maps writers and reviewers to a native or bridge binding and portable per-node axes. The current serialized protocol labels UI authorship `frontend_worker` and independent review `reviewer`; these labels do not select the native agent identity; an unrelated undeclared generic node keeps the legacy native path. A missing mandatory binding defers only its dependent node. External bridge actions require both external invocation and child-spawn grants. Each attempt's persisted binding and launch record are checked against the same resolver.
+Host policy maps logical writer/reviewer responsibilities to actual native or bridge executors.
+The parent records the actual session, model, effort and result origin in attempt evidence.
+A result is accepted only from its launched session; a failed start records `blocked` and the actual host error.
 
 Models and roles configured by the user remain authoritative. Preserve their declared fallback policy and record the actual resolved role, model and effort; never change installed definitions or manually redispatch to another provider.
 

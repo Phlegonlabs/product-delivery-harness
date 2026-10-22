@@ -145,7 +145,6 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
           "runtime": {
             "preferred_provider": null,
             "allowed_providers": ["generic"],
-            "worker_role": "implementer",
             "provider_options": {
               "generic": {"model": null, "reasoning_effort": null}
             }
@@ -273,8 +272,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
               "resources": [],
               "isolation": "host"
             },
-            "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
-            "cache": {"mode": "disabled", "environment_keys": []}
+            "selection": {"mode": "changed_files", "scopes": ["src/example/**"]}
           }
         ],
         "integration_verifiers": [
@@ -322,8 +320,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
                   "resources": [],
                   "isolation": "host"
                 },
-                "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
-                "cache": {"mode": "disabled", "environment_keys": []}
+                "selection": {"mode": "changed_files", "scopes": ["src/example/**"]}
               }
             ]
           }
@@ -334,7 +331,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
 }
 ```
 
-The exact fenced JSON block is the canonical plan. New plans use PLAN schema v6. Older PLAN schemas remain readable; their recorded schema decides which fields apply. Every runtime review has a stable `lineage_id` that survives node replacement and PLAN revision. The graph is the canonical source for mission dependencies and routing. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. There is no `execution_route` PLAN field: the selector derives it from the chosen route and actually selected safe write missions.
+The exact fenced JSON block is the canonical plan. New plans use PLAN schema v6. Historical PLAN schemas run through their exact pinned bundle. Every runtime review has a stable `lineage_id` that survives node replacement and PLAN revision. The graph is the canonical source for mission dependencies and routing. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. There is no `execution_route` PLAN field: the selector derives it from the chosen route and actually selected safe write missions.
 
 `branch_policy` freezes the observed remote main head for both `ordinary` work and `hotfix`. Replace the zero SHA with that full SHA; waves never advance it. Harness 0.63+ requires `main-preview/1` and the active architecture marker `Release source policy: main-preview/1`. Pinned 0.59–0.62 RUNs retain `dual-branch/1`; older pins retain their recorded contract. The exact-A correction exception retains its original policy and runtime pin. `new_run.py --branch` names the owner-resolved temporary integration branch; the generator never invents or mutates the base. PR/branch Preview acceptance precedes separately authorized main landing.
 
@@ -346,13 +343,24 @@ Planned security requirements reuse upstream `PRD-*` traces and required `TEST-*
 
 The single-mission example deliberately leaves `batch_verifiers` empty: a one-mission managed route has no true cross-mission batch gate. It still proves the selected runtime driver, allocates an isolated writer, checks exact authorization and scope/head bindings, integrates the candidate after the Worker Result Gate, dispatches one fresh combined reviewer whose `security` lens uses the project's `code_security_verification` binding, and closes through final gates. A validated finding on the combined node returns `fix_required`, and its `max_attempts` of 2 allows the first review plus one targeted re-check. The repair needs no extra node: the parent applies one consolidated repair as a declared task of a covered mission (here `M1/T01`), commits it on the integration branch, and records it with `reconcile-candidate-head`, which re-arms the node for the re-check. A second `fix_required` stops at `blocked` for the owner. If two or more safe write missions are selected, the selector reports `parallel_graph` and the plan may declare real cross-mission checks.
 
+For an isolated repair author, predeclare the optional repair-only mission described in `references/graph-orchestration.md#optional-repair-only-mission`.
+Use one bounded failure route and pass route back, one repair attempt and at most two review attempts.
+Include its mission and scope in the final review before execution.
+First-pass approval leaves it dormant; a failed targeted recheck stops with no further automatic dispatch.
+This uses existing graph fields, not an extra `repair_only` flag.
+
 For each `runtime_worker` node, record the actually allowed host identities in `allowed_providers`, with `preferred_provider` null unless explicitly chosen. The `generic` example is a placeholder for an unknown host, not a wildcard. Leave model and effort null to preserve installed defaults. Set explicit supported options only when selected; the agent observes native capability rather than applying provider-specific rules.
 
-Add logical `runtime.worker_role` when host policy binds a specialist or reviewer. UI authoring or implementation uses `frontend_worker`; independent review uses `reviewer`. Other portable or host-defined role IDs are allowed. The RUN maps the role to actual native or bridge execution and per-node axes; a missing mandatory binding defers the node instead of substituting the parent or another implementer.
+Host policy selects the actual specialist or reviewer, including model and effort. Record actual execution identity in attempt evidence; never substitute another executor silently.
 
 Harness 0.38+ always freezes the three exact rows shown above with current `content_sha256`; if `source_revision` is present, that full-SHA Git blob and current bytes must both match. Contract joins consume those immutable bytes. Harness 0.59+ new full-UI work adds exact `ui design` (`ui-design/3`) and `approved ui target` rows; the target entry embeds the manifest and binds every sibling hash. A retained `ui-design/2` package uses its original contract; pins 0.56–0.58 require `ui-design/2`. Older pinned RUNs, and maintenance rounds on a legacy UI contract, retain their wireframe row. Current rows stay at their canonical `docs/design/` paths. A `required` Design System Need gate adds exact `design system` and `design system json` rows; `ui-design/3` also adds the frozen `design system preview` row. `not_required` adds neither and permits no `DS-*` trace. Every UI surface records `capture_mode: hosted-browser | browser-extension | native | desktop`. A surface may add opt-in `design_coverage` with schema `ui-design-coverage/1`. Keep `states` as the exact product states. Cover every global design-system state with an active product state, a condition (`long-content`, `reduced-motion`, or `mobile-reflow` bound to one active state), or a reasoned exclusion. URLs are never fetched or joined as authority. A `staged_revision` is not an executable publication. Publish the accepted revision to the canonical source location, clear staging, and increment PLAN revision/digest.
 
-Every executable verifier declaration uses an explicit isolation mode. New templates default to `isolation: "host"`, `parallel_safe: false`, and disabled cache: the command runs in the exact checkout cwd with the project's local tools and environment, and host builds may create ignored artifacts but tracked source and protected Git state must remain unchanged. Host mode is not OS isolation and never reuses results. To use the legacy pinned container route instead, declare the full container policy explicitly and replace the example image reference with a locally observed immutable RepoDigest before readiness; zero or fabricated template digests are rejected, and omission never downgrades to host. External, network, browser, and mutable-environment checks use an external-wait, lifecycle, or browser route instead of a local candidate subprocess. Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files.
+Every executable verifier declaration uses explicit `isolation: "host"` and `parallel_safe: false`.
+Commands run fresh in the exact checkout cwd with project tools and current user permissions.
+Ignored build artifacts are allowed; tracked sources and protected Git/coordination state must stay unchanged.
+Host mode provides no OS confinement. Historical container declarations use their exact pinned bundle, never this template.
+External, network, browser and mutable-environment checks retain their own routes and action authorization.
+Task and worker checks may use the shown `selection.mode: "changed_files"` form against parent-observed changed files.
 
 Before readiness, apply `references/execution-task-decomposition.md`'s Mission Cohesion Gate to every mission. Plan each mission as one feature batch owned by one writer role, and split only for a reason that gate lists; model shared foundations and ordering explicitly instead of creating a catch-all mission. Count the planned review nodes. Keep each task within roughly 10-20 minutes of implementation plus focused verification, treating that range as an upper shape rather than capacity to fill. Make every executable task one atomic initial commit boundary: verify and commit it before the next task begins; keep later repair commits separate and attributed to that task.
 
@@ -385,9 +393,9 @@ Use immutable flat task IDs such as `M1/T01`. Each task has a structured accepta
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
 Execution route (derived after selection): direct | managed_sequential | parallel_graph
-Expected worker runtime: parent | subagent | app_task
-Expected workspace mode: shared_checkout | parent_managed_worktree | app_managed_worktree
-Expected completion channel: agent_result | thread_poll | report_file | user_relay
+Expected worker runtime: parent | subagent
+Expected workspace mode: shared_checkout | parent_managed_worktree
+Expected completion channel: agent_result | report_file
 UI Evidence Gate: required | optional | n/a
 ```
 

@@ -51,7 +51,9 @@ Worker mission gate:
 - Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
-Current RUN-v11 task and worker verifiers use their explicit execution policy. New declarations select `host` for ordinary local build/lint/test; `container` remains available with its exact PLAN-bound runtime trust and image RepoDigest observation. Host-only readiness does not probe Docker or Podman. Execution and retained evidence must match the declared mode and exact candidate; a container failure never falls back to the host.
+Current task and worker verifiers declare explicit host execution.
+Commands run fresh in the bound checkout with exact candidate, command identity, logs, exit status and source/Git guards.
+No container runtime or image policy is part of current readiness or result evidence.
 
 Non-runtime node gate:
 
@@ -72,7 +74,7 @@ Mission integration gate:
 - Runs after reviewed work lands on the exact non-protected run integration branch resolved from repository governance or the user's instruction.
 - Runs that mission's declared `integration_verifiers` on the integrated head.
 - Admit actual protocol-v2 output through repeatable `record-integration --verifier-result <absolute-external-json>` flags. Require fresh execution, captured streams, exact PLAN/RUN context, and complete declared PASS coverage. Existing valid retained evidence remains usable without flags.
-- Bind host and container output to the live integration root, branch, candidate, tracked snapshots, and exact RUN/generated-tasks protected paths. Recheck source bytes and protected identities before the atomic RUN write. Reuse, duplicate input, retained-PASS replay, and another route's reservation are refused.
+- Bind host output to the live integration root, branch, candidate, tracked snapshots, and exact RUN/generated-tasks protected paths. Recheck source bytes and protected identities before the atomic RUN write. Reuse, duplicate input, retained-PASS replay, and another route's reservation are refused.
 - When missions meet at a security boundary, integration checks cover the seam — enforcement, cross-mission trust/data flow, and failure/no-side-effect behavior — rather than repeating only per-task unit checks.
 - Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
 
@@ -85,7 +87,7 @@ Platform handoff gate:
 Batch integration gate:
 
 - Runs the PLAN-level `batch_verifiers` after every selected wave has integrated serially.
-- Uses `scripts/verifier_runtime.py` batch mode. Only container verifiers with `parallel_safe: true` and nonconflicting resource claims may run together. Host verifiers require `parallel_safe: false` and run serially within that runner; independent workers may run host checks concurrently in separate worktrees. Task and worker gates use the same batch path.
+- Uses `scripts/verifier_runtime.py` batch mode. Host verifiers require `parallel_safe: false` and run serially within that runner; independent workers may run host checks concurrently in separate worktrees. Task and worker gates use the same batch path.
 - Contains only checks that need more than one integrated mission or shared contract. Do not repeat focused task suites here.
 - Proves cross-mission behavior did not regress and blocks the next wave on failure.
 
@@ -160,9 +162,9 @@ The parent supplies normalized, repository-relative observed paths to `select_ve
 
 Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v11 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
 
-Every applicable declared verifier requires an explicit execution mode. Host mode runs the declared argv in the bound checkout with the project toolchain and current user permissions. It retains command identity, cwd, exact SHA, logs, exit status, timeout and source/Git checks. It allows ignored build output but rejects changed tracked source or protected Git/coordination state; it does not automatically reset or clean up. Host verifiers execute serially within one runner and never reuse cached results. This is not a claim of network or filesystem confinement. Container mode retains the pinned image, trusted runtime, read-only Git archive, disabled network, read-only rootfs and resource limits. Missing, `live`, and `git_snapshot` modes remain invalid. Browser, external service, migration, and mutable-environment operations retain their separate routes and action authorization.
+Every applicable declared verifier requires an explicit execution mode. Host mode runs the declared argv in the bound checkout with the project toolchain and current user permissions. It retains command identity, cwd, exact SHA, logs, exit status, timeout and source/Git checks. It allows ignored build output but rejects changed tracked source or protected Git/coordination state; it does not automatically reset or clean up. Host verifiers execute serially within one runner and never reuse cached results. This is not a claim of network or filesystem confinement. Missing, container, `live`, and `git_snapshot` modes remain invalid in current tools. Browser, external service, migration, and mutable-environment operations retain their separate routes and action authorization.
 
-Before the final source/Git checks, host execution ends its owned process group or job after success, failure, or timeout. Process ownership setup or cleanup failure cannot produce PASS. Windows starts the command suspended, assigns it to a Job, then resumes it. POSIX uses a new process group; host commands must stay in that group and must not daemonize with `setsid` or `setpgid`. Commands that need to escape that lifetime need the container route or a separately managed service. This manages verifier lifetime; it does not grant filesystem or network confinement.
+Before the final source/Git checks, host execution ends its owned process group or job after success, failure, or timeout. Process ownership setup or cleanup failure cannot produce PASS. Windows starts the command suspended, assigns it to a Job, then resumes it. POSIX uses a new process group; host commands must stay in that group and must not daemonize with `setsid` or `setpgid`. Commands that need to escape that lifetime need a separately authorized managed service with its own finite lifetime. This manages verifier lifetime; it does not grant filesystem or network confinement.
 
 A parent-owned batch/final graph verifier also carries the reserved node/attempt nonce and Git guard emitted by `reserve-node-attempt`. The runtime verifies the exact branch, HEAD, clean tree, and tracked-file fingerprint before and after execution. RUN and its declared generated `docs/tasks.md` view are coordination exceptions to dirty status, not integrity checks: their bytes and file identities are snapshotted across execution, starting SHA-256 values are attested, and `record-node-result` rehashes both before accepting evidence. Hand-authored or undeclared views and product dirt still block dispatch. A different checkout, replayed nonce, retargeted request, checkout drift, protected coordination-file change, or request/result artifact inside the reviewed checkout is rejected.
 
@@ -172,47 +174,16 @@ New local verifier declarations use:
 {"execution":{"parallel_safe":false,"resources":[],"isolation":"host"}}
 ```
 
-Host declarations omit `sandbox`; an explicit mode prevents legacy plans from silently changing their execution boundary. They do not grant dependency installation, network side effects, or publication. Provision the declared project environment under its existing authorization before verification. On Windows, use native executables with argument arrays (for example Node plus a package-manager CLI script); do not wrap arbitrary commands in a shell.
+Host declarations grant no dependency installation, network side effect or publication authority.
+Provision the project environment under its existing authorization before verification.
+On Windows, use native executables with argument arrays; do not wrap arbitrary commands in a shell.
 
-Optional container verifier declarations include the full execution policy:
-
-```json
-{
-  "execution": {
-    "parallel_safe": true,
-    "resources": [],
-    "isolation": "container",
-    "sandbox": {
-      "runtime": "docker",
-      "image": "<observed-image>@sha256:<observed-repodigest>",
-      "network": "none",
-      "read_only_rootfs": true,
-      "no_new_privileges": true,
-      "cap_drop": ["ALL"],
-      "tmpfs": ["/tmp"],
-      "memory": "512m",
-      "cpus": "1",
-      "pids_limit": "256",
-      "user": "65532:65532",
-      "pull": "never"
-    }
-  },
-  "selection": {
-    "mode": "changed_files",
-    "scopes": ["apps/api/**"]
-  },
-  "cache": {
-    "mode": "session_exact",
-    "environment_keys": ["CI"]
-  }
-}
-```
-
-The runtime decides PASS from exit code 0 alone; `pass_signal` records that signal and is not a separate check. Write it as `exit 0`, and give any other condition its own verifier argv. `session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`.
-
-There is no disk verifier cache; a `cache_root` field in an older request is accepted and ignored. Keep verifier request and result artifacts repository-external. Within one batch, read-only task/worker declarations may opt into PASS reuse with `session_exact` and `deterministic_local: true`. Equivalent concurrent requests share one execution; each consumer freshly verifies its live guard and runtime/image identity and keeps its own reservation and attestations. The origin must arrive in the same parent-observed result batch, with matching context and output hashes; historical RUN rows cannot authorize new reuse. After acceptance, RUN retains both origin and consumer for later validation. The exact execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, pinned image policy, observed runtime executable/hash/version/RepoDigest, OS/architecture, pass signal, and selected environment-value digests. The in-memory cache also binds the canonical checkout and protected Git inputs; it cannot bypass the container boundary.
-
-Only PASS with exit code 0 is reusable. A changed input, dirty checkout, failure, or timeout runs the command fresh. A failed origin releases waiting consumers without caching its result. Logical attribution — verifier ID, layer, mission, task, attempt, and lease — is not in the execution key, so equivalent opted-in task and worker gates may cite one exact execution while each keeps its own PASS record, context, and evidence key. Never use this cache for runtime review, browser capture, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
+The runtime decides PASS from exit code 0 alone.
+Write `pass_signal` as `exit 0`; give any additional condition its own verifier argv.
+Keep request and result artifacts outside the reviewed checkout.
+Every execution key binds its immutable context, exact head, command, cwd, host executable identity and source/Git inputs.
+Current verifier commands always execute fresh. Historical container/cache protocols use their [exact pinned bundle](legacy-pins.md#container-verifiers-before-066).
+Retained evidence keeps its original SHA and origin; never relabel it as a fresh execution.
 
 ## Automated E2E And Smoke Reuse
 
@@ -249,7 +220,7 @@ Prefer targeted viewport, element, or region screenshots over whole-page capture
 
 For every PLAN surface with `evidence_gate: required`, capture each planned product state and applicable `design_coverage` condition at every declared responsive target. Exclusions make no screenshot.
 
-Capture the full matrix once on the final candidate; mission-head captures are author evidence, not `ui_evidence` rows. Schema-v9 `ui_evidence` records the surface ID, route, breakpoint, state, repo-relative image path under `docs/goal/evidence/`, lowercase SHA-256, exact integration head SHA, and status. Rows additionally record the PLAN `capture_mode`-compatible `capture_method` and a complete immutable `target_comparison`: `baseline`, exact `authority_sources` path/hash identities, a real hashed `baseline_artifact` image under `docs/goal/evidence/`, its `baseline_artifact_sha256`, verdict, and differences. The closeout validator checks the matrix, current-head binding, file existence, non-empty image signature, and hash. Every row also records `layout_check`: `pass` from a real-browser DOM geometry scan at that breakpoint and state — no unintended element overlap, clipping, occlusion, or horizontal overflow over visible peers, containers, and viewport bounds; `fail — <selectors>` records the offending elements and blocks the gate until the surface is repaired and the entry recaptured; `manual — <basis>` records a labeled manual review or native UI-test layout assertion; `n/a — <reason>` records why no geometry check applies. A `layout_check` value — like a `deviation_ledger` citation or a `ui_impact_summary` row — is a recorded attestation, not a validator-proven fact: the validators prove completeness and shape, never that the scan ran or that a citation is true, so each attestation names a verifiable anchor (`ui-design.md` clause, delta ID, or manual basis) a reviewer can check. A screenshot alone never satisfies the layout check.
+Capture the full matrix once on the final candidate; mission-head captures are author evidence, not `ui_evidence` rows. Current RUN-v11 `ui_evidence` records the surface ID, route, breakpoint, state, repo-relative image path under `docs/goal/evidence/`, lowercase SHA-256, exact integration head SHA, and status. Rows additionally record the PLAN `capture_mode`-compatible `capture_method` and a complete immutable `target_comparison`: `baseline`, exact `authority_sources` path/hash identities, a real hashed `baseline_artifact` image under `docs/goal/evidence/`, its `baseline_artifact_sha256`, verdict, and differences. The closeout validator checks the matrix, current-head binding, file existence, non-empty image signature, and hash. Every row also records `layout_check`: `pass` from a real-browser DOM geometry scan at that breakpoint and state — no unintended element overlap, clipping, occlusion, or horizontal overflow over visible peers, containers, and viewport bounds; `fail — <selectors>` records the offending elements and blocks the gate until the surface is repaired and the entry recaptured; `manual — <basis>` records a labeled manual review or native UI-test layout assertion; `n/a — <reason>` records why no geometry check applies. A `layout_check` value — like a `deviation_ledger` citation or a `ui_impact_summary` row — is a recorded attestation, not a validator-proven fact: the validators prove completeness and shape, never that the scan ran or that a citation is true, so each attestation names a verifiable anchor (`ui-design.md` clause, delta ID, or manual basis) a reviewer can check. A screenshot alone never satisfies the layout check.
 
 For a route whose `UI-*` entry records SEO metadata, the same evidence set includes the rendered `<head>` on the integration head: its `<title>` and meta description match the PRD record. A mismatch is a failing check, not a style preference; a route with no PRD SEO record is a contract gap routed to `product-definition-builder`, not a verifier skip.
 
@@ -412,11 +383,17 @@ Security reservation and completion recheck the live integration checkout before
 
 An interrupted security reviewer does not fabricate a structured decision. `reconcile-interrupted-reviews` retains a blocked worker without `security_result` only when the unique matching review attempt carries the `interrupted_review_reconciliation` receipt. The node returns to dormant and the run stays paused; the receipt cannot satisfy closeout. A later exact structured PASS from the current reviewer may close the gate while the receipt-bound historical worker remains. A PASS also needs at least one tool or manual source review recorded as `passed` or `findings`; skipped or unavailable tools alone are not review evidence.
 
-The neutral PLAN template's combined final node returns `fix_required` on a validated finding, with `max_attempts` 2. The one consolidated repair is a declared task of a covered mission, committed on the integration branch and recorded with `reconcile-candidate-head`, which re-arms the node for one targeted re-check. A second `fix_required` stops at `blocked`. A security-typed node covers every PLAN mission, so a separate repair mission cannot be added without a PLAN revision.
+The neutral PLAN template's combined final node allows one initial review and one targeted recheck (`max_attempts: 2`).
+A covered parent-side repair uses the existing declared task and `reconcile-candidate-head` under its exact authorization.
+Alternatively, predeclare the [optional repair-only mission](graph-orchestration.md#optional-repair-only-mission) before execution.
+A first-review PASS leaves that untouched mission dormant; it does not block closeout.
+A `fix_required` activates its single bounded repair, followed by normal result recording, integration and one targeted recheck.
+A failed recheck stops; never reset attempts, hide the finding or dispatch another repair automatically.
+Both routes review the actual repaired unified SHA with complete security scope.
 
 ## Failure Handling
 
-Review packets are bounded previews. Both `render_review_packet.py` and `reserve-review-dispatch --packet-out` accept `--diff-artifact-out <new-checkout-external-path>` to retain the complete binary-capable diff. The packet binds its absolute path, SHA-256, byte count, fixed base/head and complete name-status inventory. Neither output replaces an existing file. A truncated packet requires reading the full artifact or the same fixed Git range and reporting uninspected paths or binary gaps before PASS. These instructions improve review input; the existing result receipt does not mechanically prove path coverage or reviewer understanding. Security integration packets require fresh full-scope review and retain all original checks and exclusions rules. A sidecar failure after RUN persistence reports the durable reservation and requires a new output path before launch.
+Review packets are bounded previews. Both `render_review_packet.py` and `reserve-review-dispatch --packet-out` accept `--diff-artifact-out <new-checkout-external-path>` to retain the complete binary-capable diff. The packet binds its absolute path, SHA-256, byte count, fixed base/head and complete name-status inventory. Neither output replaces an existing file. A truncated packet requires reading the full artifact or the same fixed Git range and reporting uninspected paths or binary gaps before PASS. These instructions improve review input; retained result evidence does not mechanically prove path coverage or reviewer understanding. Security integration packets require fresh full-scope review and retain all original checks and exclusions rules. A sidecar failure after RUN persistence reports the durable reservation and requires a new output path before launch.
 
 Apply `bounded-enhancement.md`: reuse existing exact authority for covered repairs instead of requesting repeated approval. At the stricter repair/graph limit, report verified and incomplete scope and hand remaining failures to the next round. Finishing the session is not successful delivery closeout; keep unfinished managed state paused/reconciled and do not archive it as passed.
 
@@ -439,7 +416,7 @@ Final PASS requires:
 - Every required gate is PASS.
 - Every new managed code-delivery PLAN has a completed `security` review from the `code_security_verification` binding, recorded as PASS on the exact current integration head with no exclusions. The required security node cannot be skipped or superseded; a missing, skipped, stale, partial, blocked, or superseded security review prevents closeout.
 - Every visual `TEST-*` obligation `PRD.md` marks required maps to a specific verification row above and that row is PASS. A generically named visual gate does not satisfy a specific obligation (see `contract-and-traceability.md`'s Trace IDs). A required `TEST-*` ID with no matching row is an uncovered must-have trace, not an optional extra.
-- Schema-v9-and-later batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
+- RUN-v11 batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
 - Closeout runs `scripts/validate_harness_plan.py --design-system <path to design-system.json> --design-system-markdown <path to design-system.md>` whenever the Design System Need Gate is `required`, so both frozen hashes, the generated Markdown contract, compiler ID namespaces, all PLAN `DS-*` traces, `stateMatrix`, `design_coverage`, and the responsive set are cross-checked. `ui-design/3` joins also prove the frozen `design-system/4` derived HTML. In target-conformance mode, required screenshot coverage comes from the frozen PRD target scope and PLAN UI evidence rows; absence of both design-system arguments is expected only when PLAN does not freeze that pair.
 - Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS: RUN.md's own internal consistency never proves the recorded head still matches reality.
 - Closeout passes `--prd <path to PRD.md>` whenever PLAN freezes a PRD source. The given bytes must equal that row's `content_sha256`; a source-revision-only row is not enough for this file join. The PRD-to-PLAN `UI-*` surface join and the `ui-design/3` joins under `--repo-root` follow `contract-and-traceability.md`; retained `ui-design/2` and legacy wireframe sources follow `legacy-pins.md#legacy-ui-contracts-before-059`. Managed maintenance instead freezes its task-record Epic, preserves historical design bytes, and still joins current PRD/PLAN route/state/targets. The transition write path runs the same applicable joins under `--repo-root`.
@@ -449,11 +426,11 @@ Final PASS requires:
 - Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason. RUN-v11 re-reads the accepted Git blob at the recorded head, so a working-tree mutation cannot replace or satisfy that evidence.
 - Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; for RUN-v11, existence and decoding are checked in the accepted Git commit/ref rather than the working tree. Accepted non-file evidence applies only to gates that do not require screenshots. Every required row also carries a non-failing `layout_check` result, and a PASS row with a failed layout check never closes the run.
 - Baseline and skipped-check justifications are recorded when relevant.
-- When `parent_managed_worktree` or `app_managed_worktree` was used: the mission integration verifiers passed on the integrated head. The one full run on the candidate is the only full run; in `shared_checkout` mode the final E2E gate on the working integration head covers this.
-- Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.
+- When `parent_managed_worktree` was used (historical app-managed execution follows its exact pinned bundle): the mission integration verifiers passed on the integrated head. The one full run on the candidate is the only full run; in `shared_checkout` mode the final E2E gate on the working integration head covers this.
+- Every required reached mission is `integrated` or explicitly superseded, with recorded passing tasks and no blockers, active/blocked workers or open wave. An untouched repair-only mission behind the final review's untaken route may remain queued with dormant tasks; never mark it as executed.
 - The final integration head still descends from every recorded required mission integration SHA.
 - Landing is `local_only`: `landing.continuity` is `preserved` at C, `pushed_head_sha` is null, push authorization is false, and no push lifecycle node exists (`legacy-pins.md#pins-before-055`).
-- Archival is post-closeout. A must pass archived PLAN/RUN validation, receipt and anchor verification, and exact C-to-A relocation. It inherits C's review, security and gate evidence when the C-to-A diff touches only the archive allowlist (`branch-promotion-contract.md#managed-run-archive-before-promotion`); it never changes the archived RUN.
-- For current PLAN-v6 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
+- Archival is post-closeout. A must pass archived PLAN/RUN validation, receipt verification and exact C-to-A relocation/allowlist checks. It inherits C's review, security and gate evidence when the C-to-A diff touches only the archive allowlist (`branch-promotion-contract.md#managed-run-archive-before-promotion`); it never changes the archived RUN.
+- For current graphs, every reached node is terminal with no retained blocker and every reached edge is terminal. Untaken routes may leave their exclusive repair subtree dormant. No selector-ready work remains; an activated failed repair cannot use this exception.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

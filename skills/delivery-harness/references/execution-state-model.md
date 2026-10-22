@@ -32,7 +32,10 @@ The harness has three distinct authorities. Do not merge them into one table or 
 
 The parent is the only writer of `PLAN.md` and `RUN.md`. Workers return reports and evidence. The parent verifies those reports against observed facts before changing canonical state.
 
-New managed work is never authored as compact RUN-only work. Legacy compact RUN-only manifests whose `plan` identity fields are `null` remain readable and validatable for migration and closeout compatibility, but they make no current scheduling claim and cannot authorize new managed execution or enter the PLAN-v6/RUN-v11 graph. When work continues, the parent creates a fresh PLAN schema v6 and RUN schema v11 pair after routing; it does not null the PLAN fields in the current runbook. “Sequential” for a current large run follows the Sequential Parent Route defined above. The same sequential parent context cannot supply an independent review, so use a fresh eligible reviewer context on an allowed driver or serialize a same-repository host handoff. Reviews follow `verification-gates.md#review-topology`; merge each passing head into the resolved integration branch and run its integration gate.
+New managed work uses PLAN v6 with RUN v11. Legacy compact RUN-only records and older schemas remain readable history; they cannot authorize new managed execution.
+To finish an older protocol, use its [exact pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
+Do not null the current PLAN identity or migrate a live RUN to bypass a gate.
+The sequential parent cannot supply independent review; use a fresh eligible reviewer or an authorized serialized host handoff.
 
 Use exact RUN lifecycle values:
 
@@ -48,8 +51,8 @@ plan_readiness: draft | ready | blocked
 | Execution intent | The run carries execution intent, not plan-only |
 | Inputs frozen | Every source input is ready/frozen or accepted |
 | Integration head | A `integration_head_sha` is recorded |
-| Missions | Every mission is integrated or superseded |
-| Tasks | Every live task is `mission_recorded` with a PASS verifier |
+| Missions | Every reached mission is integrated or superseded; an untouched repair-only mission behind an untaken final-review route may stay queued |
+| Tasks | Every reached live task is `mission_recorded` with a PASS verifier; an untriggered repair's tasks remain dormant/queued |
 | Blockers | No blockers remain |
 | Workers | No active or blocked mission or review worker |
 | Waves | No proposed or active wave |
@@ -58,7 +61,8 @@ plan_readiness: draft | ready | blocked
 | RUN-v11 gates | Every PLAN batch and final gate has a PASS result bound to the integration head, and every required UI screenshot matrix entry is PASS; when a UI registry is supplied, the PLAN surface matrix also covers its exact responsive set, required states, and route trace/test bindings |
 | Gate freshness | A changed integration head invalidates an earlier gate PASS immediately, in every RUN lifecycle state |
 
-New PLAN/RUN files are authored at the current schema (PLAN v6, RUN v11). The manifest validator still reads older schemas, but graph selection and node-result validation require RUN v11. RUN v9 introduced the gate arrays; v10 adds PLAN-v6 binding, continuity, and append-only verifier history.
+Current tools validate PLAN v6 with RUN v11 only.
+Historical schema procedures belong to their pinned bundle, never the current execution path.
 
 `plan_readiness: ready` is the machine gate. Human verification tables may display `PASS`, but selectors never substitute a table cell for canonical readiness.
 
@@ -68,7 +72,19 @@ Author PLAN by hand: its objective, sources and digests, traces, scopes, verifie
 
 Generate RUN with `scripts/new_run.py --plan <PLAN.md> --run-id <id> --branch <exact ref> --out <RUN.md>`. Everything a new RUN can derive from PLAN it derives: the mirrored graph state, seeded mission and task states, gate result ids, and the plan digest. Everything it cannot derive stays at its safe unset value — authorizations false, `observed` null, `batch_base_sha` unset, `plan_readiness: draft`. Generating a RUN grants nothing, and the command refuses to overwrite an existing file.
 
-Reserve every non-mission graph attempt before its side effect with `scripts/harness_transition.py --plan <PLAN.md> --run <RUN.md> --session-id <id> reserve-node-attempt --node-id <id> --attempt-id <id> [--evidence <text>]`. This covers `approval`, `external_wait`, `lifecycle`, and deterministic batch/final (`local_command` or `harness_parent`) verifier nodes. For a local verifier, also pass `--repo-root <root> --request-out <file>`; RUN persists the exact branch, head, checkout, complete request, request digest, attempt nonce, and any required PLAN-bound container preflight before the output file is created. If exclusive output creation fails, that durable request remains recoverable under `attempt_log[].verifier_dispatch.request`. Request and result artifacts stay outside the reviewed checkout. `verifier_runtime.py --request <file>` verifies the branch, HEAD, clean status, tracked-file fingerprint, and declared execution identity before invoking the command. Container execution additionally checks runtime path/hash/version and image RepoDigest; its preflight is part of the execution key and retained sandbox evidence. Host execution records its local executable identity and never claims container isolation. The RUN and declared tasks view, excluded from dirty status, stay protected: the runtime hashes their bytes and file identity before and after execution and attests the starting hashes; changing either before result recording rejects the evidence. Finish the same receipt with `record-node-result` (flags below; a completed local verifier needs exactly one `--verifier-result`). Result recording with verifier evidence also requires `--repo-root`, rehashes the protected RUN, rechecks the live checkout, and rejects a different root, request, reservation, runtime identity, retargeted head, or changed coordination file. If a local verifier was interrupted before producing a result, close it as `blocked` with explicit evidence and a blocker but no result file. The transition records only lifecycle evidence; it never executes the lifecycle action itself.
+Reserve each non-mission graph attempt before its side effect with `scripts/harness_transition.py --plan <PLAN.md> --run <RUN.md> --session-id <id> reserve-node-attempt --node-id <id> --attempt-id <id> [--evidence <text>]`.
+This covers approval, external-wait, lifecycle and deterministic batch/final verifier nodes.
+A local verifier also needs global `--repo-root <root>` and may write `--request-out <file>` outside the checkout.
+RUN retains the exact branch, head, checkout, request, digest and attempt nonce before writing that file.
+If file creation fails, the request remains recoverable in `attempt_log[].verifier_dispatch.request`.
+
+Run `verifier_runtime.py --request <file>` outside the RUN lock.
+It checks branch, HEAD, clean status, tracked inputs and host execution identity before and after the command.
+RUN and its declared generated tasks view remain content-protected coordination exceptions, with starting hashes and file identities attested.
+Finish the reserved attempt with `record-node-result` and exactly one `--verifier-result` for a completed local check.
+Result recording requires `--repo-root` and rejects replay, root/head drift, request mismatch or changed protected files.
+An interrupted check records `blocked`, evidence and a blocker without inventing a result file.
+Lifecycle transitions record evidence only; they never perform the lifecycle action.
 
 Record a returned graph-backed mission payload with one locked call: `scripts/harness_transition.py --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-worker-result --node-result <file> --worker-result <file> --verifier-result <file>`. Repeat the verifier-result flag as needed. The transition observes the bound worker worktree's live branch, head, dirty state, `base..head` diff, and ancestry; reloads and validates the current pair, node result, worker result, and retained verifier executions inside the RUN transaction; then rechecks the worker head and PLAN before replacing RUN. A non-passing mission uses the same command with its node result and no passing worker/verifier payload. When the parent cannot trust or accept the candidate itself, use guarded `reject-worker-result --node-id <id> --worker-id <id> --outcome <retryable_failure|blocked> --reason <text>`. `scripts/validate_result.py` remains the read-only preflight when no state update is requested.
 
@@ -77,19 +93,15 @@ Record a returned graph-backed mission payload with one locked call: `scripts/ha
 Required flags per `harness_transition.py` subcommand, as the parser defines them:
 
 - `pause`, `resume`, `cancel`: `--source`.
-- `update-role-bindings`: `--policy <absolute-local-json>`, `--expected-role-bindings-sha256`, `--update-id`, and `--owner-source`. Requires global `--repo-root` and a held parent `--session-id` lock. At a quiet boundary, it records the optional schema-1 policy chain in RUN. See [role-policy updates](runtime-adapters.md#host-role-policy-updates). It changes no PLAN, attempt, outcome, grant or contract adoption.
 - `accept-wave`: `--wave-id`, repeatable `--mission-id`, `--batch-base-sha`.
-- `lease-worker`: `--mission-id`, `--node-id`, `--worker-id`, `--lease-id`, `--attempt-id`, `--branch-ref`, and `--worktree-path`. Optional `--provider`, `--driver`, `--model`, `--reasoning-effort`, `--worker-runtime`, `--workspace-mode`, and `--completion-channel` are compatibility assertions and must match the selector-derived binding. Optional `--task-thread-id` is required only for `app_task`. The transition materializes exact lease targets only from an active wildcard grant without changing authorization.
+- `lease-worker`: `--mission-id`, `--node-id`, `--worker-id`, `--lease-id`, `--attempt-id`, `--branch-ref`, and `--worktree-path`. Optional `--provider`, `--driver`, `--model`, `--reasoning-effort`, `--worker-runtime`, `--workspace-mode`, and `--completion-channel` are compatibility assertions and must match the selector-derived binding. The transition materializes exact lease targets only from an active wildcard grant without changing authorization.
 - `reserve-node-attempt`: `--node-id`, `--attempt-id`; optional repeatable `--evidence` records the pre-side-effect receipt. A local batch/final verifier also requires top-level `--repo-root` and may use `--request-out` to write its directly executable verifier request.
 - `record-node-result`: `--node-id`, `--attempt-id`, `--outcome`, repeatable `--evidence`; optional repeatable `--blocker` and `--verifier-result`. It requires the matching reserved attempt and derives the graph phase from the declared outcome.
 - `record-observation`: requires global `--repo-root`; optional `--available-worker-slots <n>`, `--isolation-capacity <n>`, and `--capacity-evidence <text>` must be supplied together from current host observations. Non-negative counts are recorded with an attempt-log entry; omitted flags preserve existing capacity and do not discover agent slots.
 - `reserve-review-dispatch`: `--node-id`, `--worker-id`, `--attempt-id`; optional `--report-path` and `--packet-out` render the reviewer packet in the same call. With `--packet-out`, optional `--diff-artifact-out` retains a complete diff at a new checkout-external path.
-- `record-launch-observation`: `--assignment-kind`, `--assignment-id`, `--node-id`, `--worker-id`, `--attempt-id`, `--model-provider`, `--model`, `--reasoning-effort`, `--worker-session-id`, `--launch-observation`, `--host-observation`. Global `--session-id` holds the parent RUN lock; the child session must be independently observed.
-- `reconcile-interrupted`: `--worker-id`, `--reason`; 0.59+ role-bound delegated missions also require `--failure-receipt`, confirmed stop and partial-work inspection before retry.
-- `record-review-attempt`: `--lineage`, `--attempt-id`, `--worker-id`, `--result`, repeatable `--evidence`; bind the reviewed tree with `--tree-sha`, or derive it with the global `--repo-root <root>` placed before `record-review-attempt`; optional `--mission-id`, repeatable `--finding` (required for every non-pass result, including `retryable_failure` and `contract_gap`), `--failure-family-id`, `--failure-primitive`, repeatable `--equivalence-class`, `--strategy`. A `security` node requires `--security-result <json>` and derives findings from that validated object instead of `--finding`. Optional `--contract-adoption-check <json file>` holds the reviewer's `contract_adoption_check`; a `pass` or `fix_required` result needs it when the RUN has an adopted runtime contract and requires 0.55.1 or later, and it is refused without an adopted contract.
-- `grant-review-attempts`: `--lineage`, `--decision-id`, `--source`, `--source-ref`, `--failure-family-id`, `--strategy`, repeatable `--acceptance`; optional `--additional-attempts`.
+- `reconcile-interrupted`: `--worker-id`, `--reason`. Confirm the predecessor stopped and inspect partial work before retry.
+- `record-review-attempt`: `--lineage`, `--attempt-id`, `--worker-id`, `--result`, repeatable `--evidence`; optional `--mission-id`, `--finding`, `--security-result`, and `--tree-sha`. Every non-pass result needs findings. A node with the `security` lens requires `--security-result` and derives findings from that validated object. Supply global `--repo-root` to derive the reviewed tree when `--tree-sha` is absent.
 - `reject-worker-result`: `--node-id`, `--worker-id`, `--outcome retryable_failure|blocked`, repeatable `--reason`.
-- `reconcile-worker-ingestion`: `--node-result`, `--worker-result` (the original Markdown report), `--result-receipt`, `--original-run`, `--expected-original-run-sha256`, repeatable `--verifier-result`, `--reconciliation-id`, and `--source`. Requires global `--repo-root` and a held parent `--session-id` lock. Only the [sole inherited-head rejection](agent-execution-receipts.md#rejected-ingestion-of-a-passing-result) qualifies. It preserves failed history and counts, records a strict audit receipt, and refreshes the declared tasks view. It does not complete the mission node or waive review.
 - `record-integration`: `--mission-id`, `--integrated-sha`; optional repeatable `--verifier-result <absolute-external-json>`. It admits fresh protocol-v2 mission integration output and records integration in one locked, validated CAS transaction. Existing valid retained evidence remains usable without the flag.
 - `reconcile-candidate-head`: `--candidate-sha`, `--source`, `--repair-node-id`, `--repair-attempt-id`, `--repair-task-id`; requires global `--repo-root` and a held `--session-id` lock. Records an already committed, authorized repair after mission integration; it never edits Git or grants repair authority.
 
@@ -121,7 +133,10 @@ PLAN authoring is a separate owner-gated discipline from a running RUN. A parent
 
 The tools have no guarded formal PLAN-revision mutation. If a substantive revision is required while a RUN is live, stop new dispatch at a safe boundary, reconcile active workers and reviews, preserve every worktree, dirty state, failed attempt, receipt, and historical RUN record unchanged, release the run lock when the session ends, and obtain a fresh owner instruction for the new revision and its exact actions. Prepare the revised PLAN as a new candidate, validate it, and continue only through the documented revision/recovery procedure with exact new authorization, or a newly authorized run pair. Never edit the live RUN to make old grants or evidence look current, reset attempt counts, discard verifier records, or relabel an old result as new-revision evidence. Keep an unchanged copy of the previous pair and review the complete state diff before writing; a validator PASS alone is insufficient.
 
-The non-canonical tasks view is projected from validated RUN state at fixed checkpoints, not on heartbeat or lease churn. `new_run.py --out <RUN.md> --repo-root <target-root>` writes the initial view. `accept-wave`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-candidate-head`, `reconcile-coordination-head`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, and `close-wave` refresh the exact `docs/tasks.md` path declared in `integration.coordination_paths` when their top-level invocation supplies `--repo-root`. Projection reuses the transition's validated pair, preserves the Update Log, and refuses a non-generated file or a path outside that repo root. If projection fails after RUN commits, the command reports a distinct warning and the exact standalone repair command; it does not roll back RUN or report the transition failed. Run `scripts/render_tasks_view.py --plan <PLAN.md> --run <RUN.md> --out docs/tasks.md --repo-root <target-root>` to repair, or add `--check` to diagnose staleness.
+Render the non-canonical tasks view explicitly when needed.
+Use `scripts/render_tasks_view.py --plan <PLAN.md> --run <RUN.md> --out docs/tasks.md --repo-root <target-root>`.
+Add `--check` to diagnose staleness. RUN transitions no longer refresh the view automatically.
+The renderer preserves the Update Log and refuses a non-generated destination.
 
 Only RUN and the declared `docs/tasks.md` carrying this run's generation marker/identity are coordination exceptions to the clean-checkout check. A hand-authored, undeclared, retargeted, or other-run view remains ordinary dirt, as do product files. No coordination commit is needed between checkpoints. After an authorized formal PLAN revision or closeout outside these transitions, explicitly render and check the view.
 
@@ -173,7 +188,7 @@ blocked | worker_failed | integration_failed | superseded
 | `ready -> leased` | Parent records one worker lease bound to mission, plan revision/digest, and base SHA |
 | `leased -> worker_running` | Worker identity and workspace are observable |
 | `worker_running -> worker_passed` | `record-worker-result` observed the bound worktree and revalidated its head/diff/ancestry, worker/node payload, and retained verifier evidence under the RUN lock |
-| `worker_failed -> worker_passed` | Only `reconcile-worker-ingestion` may recover the receipt-proven sole inherited-head rejection; it preserves the failed dispatch and counters, leaves the wave closed, and still requires review and integration |
+| `worker_failed -> worker_passed` | For a sole stale parent-head rejection, run `record-observation`, then record the unchanged result through a fresh permitted attempt. Preserve the original failed dispatch; ordinary review and integration still apply |
 | `worker_passed -> integrating` | Parent rechecks ancestry, actual diff scope, forbidden files, head stability and integration authorization; under `review_policy: per_mission` also a terminal `review_workers[]` PASS bound to the exact worktree head. RUN-v11 workers never use task-local nested review evidence |
 | `integrating -> integrated` | Changes are on the resolved integration branch, the integration verifier passed, and `integrated_sha` is recorded |
 
@@ -220,11 +235,13 @@ Never treat a dirty checkout as "safe to ignore" or "safe to build on" without t
 
 A resume snapshot is usable only when the parent checkout path, branch, head, and clean/dirty state are all known. Enumerate linked worktrees, then reconcile the current parent and currently bound mission/review workspaces to their exact paths, branches, heads and clean state. A missing, dirty or mismatched relevant workspace blocks the frontier. Unrelated linked worktrees and retained historical workers do not become current dependencies merely because they appear in the inventory. Apply the same checks to a `ready` RUN that already contains active work. A stale RUN snapshot is not a safe default.
 
-Reconcile the current host and loaded Harness release through `runtime_capabilities.runtime_adapter.version_gate` as a separate observation. Follow `runtime-upgrades.md`. `unobserved`, `upgrade_required`, and `restart_required` defer runtime-worker dispatch. `compatible_old` may finish only the already-active wave and its streaming reviews; it defers the next wave. A runtime update never revives a lease.
+Reconcile the current host and loaded Harness release through `runtime_capabilities.runtime_adapter.version_gate` as a separate observation. Follow `runtime-upgrades.md`. `unobserved`, `upgrade_required`, `restart_required`, and historical `adopted` defer current runtime-worker dispatch. `compatible_old` may finish only the already-active wave and its streaming reviews; it defers the next wave. A runtime update never revives a lease.
 
-At resume, a worker recorded as `leased` or `worker_running` requires observation of its owning runtime before the parent treats it as live or interrupted. A phase alone does not block unrelated ready work during a live wave: passing siblings can enter streaming review while other verified bindings remain active. After a confirmed stopped review fan-out, use `harness_transition.py reconcile-interrupted-reviews` once with every affected review worker ID. The transition records each interrupted attempt as blocked, restores lineage counts from the append-only attempt log, resets the current review nodes, removes incoming edge traversals that have no current or retained source attempt, and persists `control.desired_state: paused`. It does not grant another review attempt or resume dispatch. When the interrupted worker was a security reviewer, the matching attempt receipt records `interrupted_review_reconciliation`; only that exact receipt permits the blocked worker to omit `security_result`. It is interruption evidence, never a security decision or PASS. After a later current reviewer supplies the exact structured PASS, the receipt-bound historical worker may remain without blocking closeout.
+At resume, a worker recorded as `leased` or `worker_running` requires observation of its owning runtime before the parent treats it as live or interrupted. A phase alone does not block unrelated ready work during a live wave: passing siblings can enter streaming review while other verified bindings remain active. After a confirmed stopped review fan-out, use `harness_transition.py reconcile-interrupted-reviews` once with every affected review worker ID. The transition records each interrupted attempt as blocked, preserves attempt counts in the append-only attempt log, resets the current review nodes, removes incoming edge traversals that have no current or retained source attempt, and persists `control.desired_state: paused`. It does not grant another review attempt or resume dispatch. When the interrupted worker was a security reviewer, the matching attempt receipt records `interrupted_review_reconciliation`; only that exact receipt permits the blocked worker to omit `security_result`. It is interruption evidence, never a security decision or PASS. After a later current reviewer supplies the exact structured PASS, the receipt-bound historical worker may remain without blocking closeout.
 
 ## Repairing The Integrated Candidate
+
+For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck.
 
 The additional historical-review admission preserves a passed or failed integration reviewer at a recorded prior head after its current graph binding is cleared. It requires a unique retained review attempt, matching outcome and lineage. A blocked reviewer qualifies only through the existing interrupted-review reconciliation receipt, using the same predicate as closeout. Other blocked or active old reviewers remain invalid and refuse candidate movement before RUN persistence. The older fix_required prior-head rule keeps its pinned semantics. Its retained bytes and receipts stay unchanged. This admissibility does not revive its PASS or security coverage for the new candidate.
 
@@ -266,9 +283,17 @@ Non-mission nodes use a two-step attempt invariant: `reserve-node-attempt` chang
 
 Dependency edges always consume `pass` and remain acyclic. Route edges activate from declared outcomes. A cyclic route requires a PLAN traversal bound and an exit. A retry or subgraph replay creates new attempts and preserves old evidence; it never revives a lease, action grant, base/head binding, or verifier result.
 
-Run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation` before `select_ready_nodes.py` for PLAN v6 with RUN v11. Global flags precede the subcommand. The transition probes every declared container runtime/image and durably records the canonical executable path, executable SHA-256, version-output SHA-256, machine trust/ownership proof, exact RepoDigest, host fingerprint, PLAN revision, and digest in RUN; `validate_harness_plan.py --probe-sandboxes` is diagnostic only. `accept-wave` and selector readiness reject missing, unavailable, stale, host-mismatched, or substituted observations. Every authority-bearing Git read disables replacement objects and rejects replace refs plus legacy graft metadata before trusting a SHA. The selector's strict current-pair entrypoint rejects other schema pairs before compatibility dispatch. Every task, worker, mission-integration, batch, and final verifier declaration explicitly selects `execution.isolation: "host"` (the new default) or `container`; missing/live/git-snapshot modes remain invalid. A host-only PLAN retains the host/PLAN observation but needs no Docker/Podman probe. Host verifiers run fresh and serially per runner in the declared checkout with source/Git guards; worktrees do not confine their operating-system permissions. Mutable, network, browser, and external checks use external-wait, lifecycle, or browser graph nodes. The derived selector-only `execution_route` is `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more; `runtime_driver` remains a separate transport fact. See `graph-orchestration.md` for the complete routing contract.
+Run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan docs/goal/PLAN.md --run docs/goal/RUN.md --repo-root <absolute-root> record-observation` before selection.
+Global flags precede the subcommand. Record actual Git facts and capacity from the host; never infer process liveness from RUN phases.
+Every authority-bearing Git read disables replacement objects and rejects replace refs plus legacy graft metadata before trusting a SHA.
+Current selection requires PLAN v6 with RUN v11.
 
-For container declarations, the retained runtime probe also includes the administrator-installed path's owner/mode and non-reparse proof; a missing or substituted trust object defers readiness before any container probe.
+Task, worker, mission-integration, batch and final verifier declarations use explicit `execution.isolation: "host"`.
+Missing, container and snapshot modes are invalid in current tools.
+Host commands run fresh and serially per runner with exact source/Git guards; worktrees do not confine operating-system permissions.
+Browser, network, external-service and mutable-environment operations retain their own routes and action authorization.
+The derived `execution_route` is `managed_sequential` for fewer than two selected writers, or `parallel_graph` for two or more.
+`runtime_driver` remains a separate transport fact. Follow `graph-orchestration.md` for routing.
 
 ## Authorization Action Ledger
 
@@ -291,9 +316,9 @@ remove_worktrees
 delete_branches
 ```
 
-`invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization. Pre-0.58 pins follow [legacy pins](legacy-pins.md#pre-058-runtime-dispatch). On a 0.58+ role-bound RUN, an explicit configured bridge requires this key and `spawn_subagents`; PLAN host eligibility still applies. It remains a parent rule for external processes the parent starts itself.
+`invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization. Pre-0.58 pins follow [legacy pins](legacy-pins.md#pre-058-runtime-dispatch). A configured external bridge requires this key and `spawn_subagents`; PLAN host eligibility still applies. It remains a parent rule for external processes the parent starts itself.
 
-The ordinary execution loop uses only the applicable local entries. The outer v10 `app_threads` app-task route excludes `spawn_subagents` because app-task workers never delegate. Parent-dispatched direct sibling workers and reviewers retain their own launch authorization. "Implement", "build", "fix", or "refactor" never implies a remote action. Harness 0.38+ keeps RUN `push` false; after A exists, a new exact instruction is captured in the checkout-external request instead of the archived RUN. All 12 keys remain for schema compatibility.
+The ordinary execution loop uses only the applicable local entries. Parent-dispatched sibling workers and reviewers require their exact launch authorization. App-task dispatch is historical and unsupported by the current driver set. "Implement", "build", "fix", or "refactor" never implies a remote action. Harness 0.38+ keeps RUN `push` false; after A exists, a new exact instruction is captured in the checkout-external request instead of the archived RUN. All 12 keys remain for schema compatibility.
 
 For a large `sequential_parent` route, leave `spawn_subagents`, `create_user_owned_tasks`, and `create_app_managed_worktrees` unauthorized and unused. The route's parent-owned worktree/branch/commit/integration actions still require their own matching grants.
 
@@ -329,7 +354,7 @@ That pair is what makes `SKILL.md`'s rule real: when the plan revision or digest
 
 Targets use action-specific prefixes, and there are only five: `worker:`, `task:`, `worktree:`, `branch:`, and `runtime:`. The kind is part of the action's type, so every action accepts only its own kinds and this is always enforced — there is no per-artifact opt-in. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
 
-When a `"*"` grant covers a launch, the transition records the exact target as a receipt in the same grant: `lease-worker` for mission workers and `reserve-review-dispatch` for a subagent reviewer (`worker:<id>`). RUN-v11 validation requires each mission worker launch receipt (`worker:`, `task:`, `worktree:`, `branch:`) under exact `mission_ids` at every version, as it does an `app_threads` reviewer's `task:` receipt, and a subagent reviewer's receipt from 0.55.0. So the selector defers those launches and `lease-worker` refuses a mission launch whose grant lists `"*"` in `mission_ids`.
+When a `"*"` grant covers a launch, the transition records the exact target as a receipt in the same grant: `lease-worker` for mission workers and `reserve-review-dispatch` for a subagent reviewer (`worker:<id>`). RUN-v11 validation requires each mission worker launch receipt (`worker:`, `task:`, `worktree:`, `branch:`) under exact `mission_ids` at every version, and each current subagent reviewer needs its exact `worker:` authorization receipt. So the selector defers those launches and `lease-worker` refuses a mission launch whose grant lists `"*"` in `mission_ids`.
 
 A `"*"` grant may cover `archive_worker_tasks`, `remove_worktrees`, and `delete_branches`, but their PLAN lifecycle node must name an exact `target`: `reserve-node-attempt` refuses one without it, and a cleanup PASS recorded against `"*"` fails validation. `delete_branches` never covers `main`, `development`, the observed default branch, or their full `refs/remotes/<remote>/<name>` equivalents; from 0.55.0 a grant listing one is also invalid. The guard is exact rather than origin-specific: an unqualified `<remote>/<name>` target is an ordinary branch name unless it equals the observed default.
 
@@ -374,124 +399,54 @@ status: planned | preserved | blocked
 
 ## Runtime Capability Axes
 
-Represent orchestration with three independent axes. Do not encode them as a single mode string.
-
-RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and optional backward-compatible `nested_subagents`, `permission_boundary`, and `reviewer_tools` objects. Schema v10 requires `runtime_adapter`. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
+Record provider, supported driver, worker runtime, workspace and completion channel without inferring capabilities from product labels.
+Host policy owns concrete tools, models, effort and fallbacks; `runtime-adapters.md` owns the dispatch procedure.
 
 ### Runtime adapter and routing
 
-`runtime_adapter` records `provider` (any lowercase host identity, or `generic`), ordered `available_drivers`, `detection_source` and the version gate. Providers do not select a driver or a model. The first advertised supported driver wins; `sequential_parent` is the safe fallback. Use `app_threads` for independent user-owned app tasks, `subagents` for fresh native children, and `sequential_parent` for actual parent execution.
+`runtime_adapter` records the observed lowercase `provider`, ordered `available_drivers`, `detection_source` and version gate.
+The current drivers are `subagents` and `sequential_parent`.
+A user-owned app-task request is unsupported; block it rather than silently replacing it.
+Historical app/task fields remain retained history, interpreted only by their [pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 
-For schema 10/11 ready or running delegation, `detection_source` must be `observed` and `capability_probe` must prove every advertised delegated driver. Each fact has exactly `status` (`available`, `unavailable`, or `unobserved`) and non-empty `evidence`. App tasks require `app_project_list`, `app_thread_create`, `app_thread_read`, `app_thread_message`, `app_thread_wait` and `app_managed_worktree`; subagents require `direct_subagent_spawn` and `direct_agent_result`. These are semantic capabilities, not native API names. Only advertised driver requirements must be available. The parent inspects the current interface and records actual native calls and limits; unrelated capability inventory is optional.
-
-Explicit provider identity is not an observed capability. A missing grant never changes an available capability into unavailable. Keep the live session identity, loaded/installed contract digests and version evidence in the existing version gate. No public latest-version query is needed.
+Missing grants do not erase capability. Unknown loaded identity stays unknown.
+A historical `adopted` status defers current dispatch with `pinned_bundle_or_restart_required`.
+See `runtime-upgrades.md` for digest, restart and legacy-pin handling.
 
 ### Reviewer tool capabilities
 
-PLAN review nodes may declare `required_tools`. The supported reviewer tool is currently `chrome_devtools`. Use it for web visual review and any frontend review whose evidence needs the live DOM, console, network, runtime JavaScript, accessibility tree, or rendered interaction. Source-only and backend reviews omit it.
-
-RUN records the selected driver's observation separately from its orchestration capability:
-
-```json
-{
-  "reviewer_tools": {
-    "chrome_devtools": {
-      "status": "available",
-      "provider": "generic",
-      "driver": "subagents",
-      "surface": "browser_inspection",
-      "probe_scope": "reviewer_session",
-      "session_id": "reviewer-probe-01",
-      "evidence": "Fresh reviewer attached to the active tab and Runtime.evaluate returned 2 for 1+1"
-    }
-  }
-}
-```
-
-`status` is `available`, `unavailable`, or `unobserved`. An available entry's provider and driver must match the current adapter; its lowercase `surface` names the actual native browser interface, never `none`, `unknown` or `unobserved`. It requires `probe_scope: reviewer_session`, a real reviewer session ID and evidence from a deterministic inspection inside that reviewer. The parent's browser connection is not proof. Missing capability defers the review.
-
-PLAN runtime-worker nodes may add `provider_options` with exactly `model` and `reasoning_effort`. Null preserves the host default. The validator checks portable value syntax; the parent verifies support using the current native interface before launch. Unsupported explicit options block without substitution. Copy selected options and `option_source` into each mission or review worker's `runtime_binding`; bindings still match PLAN, provider, driver and exact attempt. Provider names never impose a model or effort rule.
-
-RUN-v11 pinned to 0.58.0+ may add `runtime_adapter.role_bindings` and role-bound `runtime_binding` fields. A binding retains the PLAN `worker_role`, the configured `resolved_role`, actual model provider, native/bridge identity, capability probe, and per-node portable axes. The parent records a separate `run.launch_records[]` entry before accepting a role-bound PASS. Its key is assignment kind/id plus attempt and worker ID; it binds PLAN revision/digest, exact input/base/review SHA, requested and concrete observed model/effort, session, and parent launch/host observations. A PASS joins that record to the reserved attempt. Child echoes and role labels alone never prove launch. Sessions are unique across launch records. Availability fallback requires a positively classified model/provider error, confirmed predecessor stop, partial-work reconciliation, and the predecessor binding's configured `fallback_role`.
-
-`app_threads` requires `app_task` + `app_managed_worktree` + `thread_poll`. `subagents` requires `subagent`, a supported isolated/read-only workspace and an observed result channel. `sequential_parent` requires `parent` + `parent_managed_worktree` + `agent_result` and cannot satisfy an independent review. On pre-0.58 pinned RUNs, native runs have no separate bundled workflow state. On a 0.58+ role-bound RUN, a bridge also has no separate workflow state and uses the same canonical graph attempts, leases, launch records, results and `runtime_metrics`.
+A visual reviewer must attach a real browser and report actual inspection evidence.
+A parent's browser connection or a role name does not prove reviewer capability.
+A missing required tool blocks the review; source-only review cannot supply a visual PASS.
 
 ### Worker runtime
 
-```text
-parent | subagent | app_task
-```
-
-`worktree-thread-orchestration.md#describe-capabilities-not-product-labels` defines the three values.
+Use `subagent` for a delegated child or `parent` for actual sequential-parent execution.
+The selector derives the matching portable binding from observed host capabilities and PLAN options.
+Unsupported explicit model or effort choices block without substitution.
 
 ### Workspace mode
 
-```text
-shared_checkout | parent_managed_worktree | app_managed_worktree
-```
-
-- `shared_checkout`: one checkout; all writes are serialized.
-- `parent_managed_worktree`: the parent creates and records a Git worktree and branch when separately authorized.
-- `app_managed_worktree`: the host app owns worktree creation and retention; the harness records, but does not control, that lifecycle.
+`parent_managed_worktree` is required for mission writes, including sequential-parent work.
+`shared_checkout` is limited to direct sole-writer work or read-only analysis.
+A worktree isolates repository files, not ports, databases, secrets or operating-system permissions.
 
 ### Completion channel
 
-```text
-agent_result | thread_poll | report_file | user_relay
-```
-
-- `agent_result`: the direct or subagent result returns to the parent execution flow.
-- `thread_poll`: the stable schema label for a separately running task completion channel. Prefer a status subscription or cursor-based thread wait; use repeated inspection only as a recorded fallback.
-- `report_file`: a durable report is the handoff channel; the parent still verifies it against Git/runtime facts.
-- `user_relay`: the user reports completion when no programmatic channel exists.
+Use the selected driver's actual result channel: `agent_result` or supported `report_file`.
+Prefer terminal events or waits. Use bounded polling only when neither is available, and record that limitation.
 
 ### Flat parent-owned delegation
 
-An app task is a root task in its own app-managed worktree and is the sole writer for one mission. It never coordinates child agents. The parent may still record the observed host capability under `runtime_capabilities.nested_subagents`, but capability does not change the RUN-v11 prohibition:
-
-```json
-{
-  "available": true,
-  "max_depth": 1,
-  "max_children_per_worker": 3,
-  "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
-  "write_policy": "read_only",
-  "completion_channel": "agent_result"
-}
-```
-
-`available` is an observed capability, not authorization. Outer app-task selection and creation does not require or preauthorize `spawn_subagents`. RUN v11 accepts only an omitted `nested_subagent_policy` or one with `enabled: false`; enabled policy is invalid even when the host exposes child tools. The worker reports `subagent_activity.status: "not_applicable"`, no children, and a concrete flat-topology reason.
-
-The parent owns every launch. It may dispatch independent read-only explorers before writing, one writer per mission/worktree, and the reviews `verification-gates.md#review-topology` requires. These are sibling PLAN nodes or parent-owned runtime attempts; none is a child of a worker or reviewer. RUN v6 through v9 retain their legacy nested-policy compatibility for validation only. Never copy that legacy shape into a new RUN.
+Workers and reviewers never delegate.
+The parent dispatches every explorer, writer and reviewer as a sibling under its own authorization and attempt budget.
+One writer owns each exact-base checkout.
 
 ### Permission boundary
 
-Record the permission state that applies before a worker is launched:
-
-```json
-{
-  "selected_mode": "ask_for_approval",
-  "profile_name": null,
-  "approval_policy": "on-request",
-  "filesystem_scope": "workspace",
-  "network_scope": "filtered",
-  "local_binding": "blocked",
-  "worker_inheritance": "inherited",
-  "status": "may_prompt"
-}
-```
-
-| Field | Allowed values |
-|---|---|
-| `selected_mode` | `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown` (`profile_name` is required only for `named_profile`) |
-| `approval_policy` | `untrusted`, `on-request`, `never`, `granular`, or `unknown` |
-| `filesystem_scope` | `read_only`, `workspace`, `custom`, `unrestricted`, or `unknown` |
-| `network_scope` | `disabled`, `filtered`, `open`, or `unknown` |
-| `local_binding` | `allowed`, `blocked`, or `unknown` |
-| `worker_inheritance` | `inherited`, `not_inherited`, or `unknown` |
-| `status` | `ready`, `may_prompt`, `blocked`, or `unknown` |
-
-`status: ready` means the current boundary already covers the concrete worker surfaces, including linked-worktree Git metadata, temp/cache paths, outbound destinations, local bindings, and sockets required by its verifiers. It does not authorize an action. `approve_for_me` may automate review but does not widen filesystem or network access. `full_access` means unrestricted filesystem/network access with approval policy `never`; use it only when the user intentionally selected that boundary. Permission changes do not retroactively update already-running app tasks, so re-observe the boundary when creating or restarting workers.
+Observe the actual parent/child permissions before launch.
+They must cover linked-worktree Git metadata, temp/cache paths, network destinations, local bindings and required sockets.
+A prompt or profile label does not prove permission-level isolation, and permissions never grant an action.
 
 ## Capability Gate
 
@@ -505,10 +460,10 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 | Completion observable | Chosen `completion_channel` can return a terminal result, blocker, or failure to the parent |
 | Integration observable | Parent can obtain base SHA, worker head SHA, actual changed paths, and verifier evidence |
 | Resource isolation | File scopes and every runtime resource have complete, supported claims |
-| Lifecycle understood | Branch/ref durability and app-managed retention behavior are recorded |
+| Lifecycle understood | Branch/ref durability and retention behavior are recorded |
 | Permission boundary | Parent mode/profile and inheritance are observed; every required filesystem, Git metadata, temp/cache, network, local-binding, and socket surface is covered without an unresolved prompt |
 | Runtime route | Provider and available drivers are observed; the deterministic selected driver matches the declared runtime/workspace/completion axes |
-| Flat worker result | Current RUN-v11 workers report `subagent_activity: not_applicable` with a concrete reason and empty `children`; legacy v6-v9 nested-policy evidence is compatibility-only |
+| Flat worker topology | Every worker and reviewer remains a parent-dispatched sibling and never delegates |
 
 If any capability, isolation, permission, or completion row is unknown, do not fan out. Observe it first; if it remains unavailable, select the real `sequential_parent` route defined above and apply the same verification gates. Missing launch authorization is not an unknown capability: request the exact run-wide launch bundle once and pause rather than rewriting the runtime adapter or silently downgrading.
 
@@ -518,10 +473,12 @@ The configured write-worker maximum follows `stages/managed-delivery.md#default-
 
 Durable execution for one RUN has two machine guards; both are `harness_transition.py` subcommands.
 
-- **Run lock**: before dispatching, the parent records `run.run_lock` (`session_id`, `acquired_at`, `heartbeat_at`) with `--session-id <id> acquire-run-lock` (the flag goes before the subcommand) and refreshes it with `--session-id <id> heartbeat-run-lock`; any successful transition by the holding session also refreshes the heartbeat. Every mutating transition refuses a lock held by another session — fresh, stale, or with an unparseable heartbeat — so two parents cannot dispatch against the same state; a stale or unparseable foreign lock is taken over only through the explicit `watchdog --reclaim` or `acquire-run-lock` path. The dispatch commands (`accept-wave`, `lease-worker`, `reserve-node-attempt`, `record-node-result`, `record-worker-result`, `reject-worker-result`, `reserve-review-dispatch`, `record-integration`, `reconcile-candidate-head`, `close-wave`) additionally require the calling session to already hold the durable lock. Separately, every `harness_transition.py` process takes a short operating-system lock keyed to the RUN path across its PLAN/RUN load, validation, mutation, and atomic replace, which also serializes two commands from the same session. The final commit validates the displaced destination and restores it, or leaves recovery artifacts, rather than deleting concurrent bytes; a non-cooperating writer that changed either file first is refused. Release the durable lock with `release-run-lock` when the session ends.
+- **Run lock**: before dispatching, the parent records `run.run_lock` (`session_id`, `acquired_at`, `heartbeat_at`) with `--session-id <id> acquire-run-lock` (the flag goes before the subcommand) and refreshes it with `--session-id <id> heartbeat-run-lock`; any successful transition by the holding session also refreshes the heartbeat. Every mutating transition refuses a lock held by another session — fresh, stale, or with an unparseable heartbeat — so two parents cannot dispatch against the same state; a stale or unparseable foreign lock is taken over only through the explicit `watchdog --reclaim` or `acquire-run-lock` path. The dispatch commands (`accept-wave`, `lease-worker`, `reserve-node-attempt`, `record-node-result`, `record-worker-result`, `reject-worker-result`, `reserve-review-dispatch`, `record-integration`, `reconcile-candidate-head`, `close-wave`) additionally require the calling session to already hold the durable lock. Separately, every `harness_transition.py` process takes a short operating-system lock keyed to the RUN path across its PLAN/RUN load, validation, mutation, and atomic replace, which also serializes two commands from the same session. The writer compares the expected destination text, writes a same-directory temporary file, and uses `os.replace` under the OS lock. A detected conflicting edit is refused. Release the durable lock with `release-run-lock` when the session ends.
 - **Watchdog**: `watchdog [--stale-after-minutes N]` reports read-only whether the lock is live or stale and lists `running` nodes that lost their parent heartbeat as interrupted-work candidates; `--reclaim` clears a stale lock so the reconcile transitions can run.
 
-RUN coordination paths also protect `docs/goal/DECISIONS.md`, the parent-owned mid-run decision log: one row per owner decision (decision id, question, decision, source turn, date), created on the run's first owner decision and never written by a worker. A decision recorded there binds later waves exactly like a PLAN revision note; `review_lineages.owner_decisions` remains the review-attempt view of the same decisions. `new_run.py` seeds the full set — `docs/goal/PLAN.md`, `RUN.md`, `DECISIONS.md`, `REFINEMENT_BACKLOG.md`, and the initial `docs/tasks.md` — and the fixed projection checkpoints above keep that non-canonical view current without tripping the stale-head check.
+RUN coordination paths protect `docs/goal/DECISIONS.md`, the parent-owned mid-run decision log.
+Record each owner decision with its ID, question, decision, source and date. Workers never write that log.
+`new_run.py` declares the coordination paths; render and check `docs/tasks.md` explicitly at handoff.
 
 ## Serialized Same-Repository Host Handoff
 
@@ -552,10 +509,13 @@ listed there. A `wave_closed` grant is valid only when its scope matches the
 current pair and that pair is absent from `closed_waves`. Older RUN schemas do
 not require this field and remain readable.
 
-Each mission lease and worker record repeats the lease ID, plan revision/digest, and batch base so stale results can be rejected without inference. The run-level `runtime_adapter` records provider/driver routing. Worker records name runtime/workspace/completion axes, the selected runtime binding when graph-backed, task/thread identity when applicable, worktree path, branch/ref, optional nested-subagent policy, optional report path, phase, and observed head SHA. `lease-worker` copies the selector's complete runtime binding and axes into that record, validates any compatibility flags, and accepts `task_thread_id` only for an `app_task`/`app_managed_worktree`/`thread_poll` binding.
+Each mission lease and worker record binds the mission, attempt, PLAN revision/digest and batch base.
+`lease-worker` copies the selector's portable runtime binding and validates compatibility flags.
+The parent records the actual launched session, model and result origin in attempt evidence.
+Accept only that session's result; record failed starts as `blocked` with the host error.
 
 Worker status, head SHA, integration result, and evidence are live RUN state. A wave stays `active` while its selected workers run, and `record-worker-result` accepts a result only against that active wave and the current bound attempt. During the active wave the selector blocks new writers and lifecycle mutations, but dispatches any dependency-ready read-only node: under `review_policy: per_mission`, a pre-integration review for a selected mission already at `worker_passed`; an approval; or an external wait. Read-only nodes hold no lease, produce no commit, and move no head, so they cannot perturb a live writer. The parent records terminal worker results as they arrive and re-runs selection. A mission may integrate before the wave closes once its gate passed (under `per_mission`, its exact-head review PASS); integration stays strictly serial, so at most one mission is `integrating` at a time. The wave closes as soon as every selected mission's worker result is recorded. Batch gates always follow wave close. Any worker failure, integration failure, dependency change, or plan revision also closes the wave and forces a recompute from current state. A plan revision supersedes every active old-revision lease: quiesce those workers at safe boundaries and issue new leases only after validating their preserved heads against the new plan. Never carry forward an old result, conflict, or readiness assumption.
 
 Closing a wave is a guarded transition, never a hand edit: `harness_transition.py ... close-wave --source <text>` refuses while any worker or review worker is still live (reconcile them first) and while any selected mission is still queued or running. A `worker_passed` mission may close with the wave — its worker result was recorded by `record-worker-result` and its integration may complete after the close — but only while overall execution authorization survives the boundary: a `run_complete`-bounded grant does, while a `wave_closed`-bounded grant dies at close and therefore requires those missions to integrate, fail, or reconcile first. The command appends the `{ wave_id, batch_base_sha }` tombstone, flips the wave to `closed`, resets every `wave_closed`-bounded action grant to `{ "authorized": false, "source": null }`, and clears overall execution authorization when it used the same boundary; `run_complete`-bounded grants survive as closeout evidence. The next `accept-wave` must name a fresh wave identity and base pair. The write-path guards are likewise enforced by the tooling: `accept-wave` requires a live clean product tree on the observed non-protected run integration branch and head; `lease-worker` binds the mission's own graph node, derives its full runtime binding, validates the portable axes, and refuses conflicting concurrent missions; `record-integration` proves the integrated head against live Git. Each command fails closed on stale state.
 
-Missing required native probe facts fail with `capability_snapshot_incomplete`; no host-name or explicit-route exception bypasses this check.
+Observe actual required capabilities before dispatch; host names do not prove them.

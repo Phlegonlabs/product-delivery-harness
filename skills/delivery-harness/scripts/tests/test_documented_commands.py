@@ -35,6 +35,24 @@ class DocumentedCommandTests(unittest.TestCase):
         self.assertEqual(Path("<PLAN.md>"), parsed.plan)
         self.assertEqual(Path("<RUN.md>"), parsed.run)
 
+    def test_documented_conditional_repair_routes_validate_and_stay_bounded(self):
+        from harness_manifest import validate_plan
+        from manifest_fixtures import conditional_final_candidate_plan
+
+        text = (SCRIPTS.parent / "references/graph-orchestration.md").read_text(encoding="utf-8")
+        section = text.split("### Optional Repair-Only Mission", 1)[1].split("## Root-Cause", 1)[0]
+        routes = json.loads(re.search(r"```json\n(.*?)\n```", section, re.S).group(1))
+        for route in routes:
+            for key in ("from", "to"):
+                if route[key] == "N-REPAIR":
+                    route[key] = "N-M4"
+        plan = conditional_final_candidate_plan()
+        route_ids = {route["id"] for route in routes}
+        plan["graph"]["edges"] = [edge for edge in plan["graph"]["edges"] if edge["id"] not in route_ids] + routes
+        self.assertEqual([], validate_plan(plan))
+        routes[0]["max_traversals"] = 2
+        self.assertTrue(any("one bounded repair" in error for error in validate_plan(plan)))
+
     def test_documented_ui_scans_check_real_source_and_reject_raw_values(self):
         for reference in ("ui-implementation-contract.md", "verification-gates.md"):
             for command in self.commands(reference, "check_ui_contract.py"):

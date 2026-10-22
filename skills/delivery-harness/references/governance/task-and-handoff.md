@@ -13,7 +13,7 @@ This is the entry checklist. Run it at the first work in a session. A later invo
    python "<delivery-harness-skill-root>/scripts/check_document_sync.py" --repo-root <project-root> --baseline docs/document-sync.json
    ```
 
-   Read [document-sync-contract](../document-sync-contract.md) when the report needs review or input is invalid, when no baseline exists, and before a child inventory. Design consumers then apply [design-freshness](../../../ui-design-builder/references/design-freshness.md).
+   Read [document-sync-contract](../document-sync-contract.md) when the report needs review or input is invalid, when no baseline exists, and before a child inventory. Design consumers then apply [UI Artifact Impact](../document-sync-contract.md#ui-artifact-impact).
 3. Select the record before implementation. A new accepted outcome gets `docs/epics/EPIC-<id>.md`, indexed in `docs/DOCUMENTS.md`. Small fixes append to the matching Epic. A Harness bundle adoption is one Change Log row with the adopted digest in the current Epic, never a new Epic. Keep one current PRD. [Epic Selection](../bounded-enhancement.md#epic-selection-and-change-history) owns the details.
 4. Record the goal, write scope, design source, dependencies and acceptance checks in the existing task record or PLAN/RUN. Preserve valid decisions and authorizations; ask only about a concrete missing dependency.
 5. Read these contracts on their trigger:

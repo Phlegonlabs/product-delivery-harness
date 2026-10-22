@@ -10,7 +10,7 @@ The Harness parent owns selection, authorization, dispatch, the durable review r
 
 A security integration review is never eligible for the byte-identical-tree skip. Its purpose is a fresh cross-boundary review of the unified candidate.
 
-Targeted re-check: a `final_candidate` PLAN always declares the single repair route, so a validated finding returns `fix_required`. After the one consolidated repair, the same lens runs again in a fresh context on the new SHA. It re-validates the original findings, reviews the diff between the two candidates and its direct consumers, carries forward inspection of unchanged blobs, and returns a complete result object for the new SHA with `coverage.status: complete`. The earlier result never stands for the new SHA.
+Targeted re-check: a validated finding returns `fix_required` when the PLAN declares its bounded repair handling. The repair may be a covered parent-side task or the optional repair-only mission in the Harness graph contract. After the one consolidated repair, the same lens runs again in a fresh context on the new SHA. It re-validates the original findings, reviews the diff between the two candidates and its direct consumers, carries forward inspection of unchanged blobs, and returns a complete result object for the new SHA with `coverage.status: complete`. The earlier result never stands for the new SHA.
 
 ## Result
 
@@ -68,4 +68,4 @@ Use fix_required for a validated code or configuration vulnerability when the re
 
 ## Harness Evidence
 
-Save the returned object as JSON outside the reviewed repository; the parent passes it unchanged with `--security-result`. Under an adopted runtime contract, return `contract_adoption_check` beside the object, never inside it, because the security result rejects unknown keys; the parent passes it with `--contract-adoption-check`. The parent's validation, live-checkout rechecks, interruption handling and closeout rules are in the security gate of `../delivery-harness/references/verification-gates.md`.
+Save the returned object as JSON outside the reviewed repository; the parent passes it unchanged with `--security-result`. The parent's validation, live-checkout rechecks, interruption handling and closeout rules are in the security gate of `../delivery-harness/references/verification-gates.md`.

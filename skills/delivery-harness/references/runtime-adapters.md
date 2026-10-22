@@ -1,81 +1,102 @@
 # General Runtime Adapter
 
-Use this contract only when managed work needs native execution. Direct work needs no adapter preflight. Every host uses the same contract; there are no provider sections, model catalogs, fixed launch commands, or bundled runtime workflow scripts.
+Use this contract when managed work needs native execution. Direct work needs no adapter preflight.
+Host policy owns models and launch tools; this reference owns authorization, isolation, evidence and acceptance.
 
 ## Observe The Current Session
 
-The agent reads the current tool descriptions and effective repository instructions, resolves deferred tools when available, and maps native capabilities to the contract below. A host name, installed package, CLI binary, or agent file does not prove a usable worker surface. Do not probe for another runtime's CLI, binary, or plugin as a substitute route.
+Inspect the current tool descriptions and effective repository instructions.
+A host name, installed package or CLI binary does not prove a usable worker surface.
+Do not probe another runtime as a substitute route.
 
-Record the observed host identity as a lowercase `runtime_adapter.provider`, or `generic` when it is unknown. The identity grants no capability. A PLAN node is eligible on the current host exactly when its `allowed_providers` includes that host. `preferred_provider` is advisory ordering among allowed hosts; it never blocks the current host. A mismatch defers with `runtime_unavailable`; do not bridge to another host.
+Record the observed lowercase `runtime_adapter.provider`, or `generic` when unknown.
+A node is eligible exactly when its `allowed_providers` includes that host.
+`preferred_provider` is advisory among allowed hosts. A mismatch defers with `runtime_unavailable`.
 
-Record `available_drivers` in the order appropriate to the requested topology and observed capabilities. The selector uses that order, independently of provider name. Include `sequential_parent` last as the safe fallback. Never replace explicitly requested independent app tasks with direct subagents or sequential parent execution.
+Record supported `available_drivers` in preference order:
 
 | Driver | Required observed capability | Runtime axes |
 | --- | --- | --- |
-| `app_threads` | Resolve the project; create, inspect, message and wait for a distinct user-owned task; allocate its managed worktree | `app_task` + `app_managed_worktree` + `thread_poll` |
-| `subagents` | Launch a fresh child by stable identity and receive its terminal result | `subagent` + `parent_managed_worktree` or read-only `shared_checkout` + `agent_result` or `report_file` |
-| `sequential_parent` | The current parent performs the work in the assigned checkout | `parent` + `parent_managed_worktree` + `agent_result` |
+| `subagents` | Launch a fresh child and receive its terminal result | `subagent` + `parent_managed_worktree` or read-only `shared_checkout` + `agent_result` or `report_file` |
+| `sequential_parent` | The parent performs one assigned mission at a time | `parent` + `parent_managed_worktree` + `agent_result` |
 
-These names describe capabilities, not tool names. The agent selects the actual native calls from the current session. For schema 10/11 ready or running delegation, record `detection_source: observed` and `capability_probe` facts with status and concrete evidence for every advertised delegated driver. App facts are `app_project_list`, `app_thread_create`, `app_thread_read`, `app_thread_message`, `app_thread_wait`, and `app_managed_worktree`; child facts are `direct_subagent_spawn` and `direct_agent_result`. Unrelated surfaces need no probe. `unobserved` or `unavailable` cannot prove an advertised driver. Capability is independent of authorization; a missing grant does not erase an available capability.
+Include `sequential_parent` last only when that route is available and permitted.
+It cannot satisfy a fresh independent review node.
+Current dispatch does not support user-owned app tasks.
+An explicit request for those tasks blocks until the owner changes the request or selects its [pinned bundle](legacy-pins.md).
+Never silently substitute subagents or parent execution.
 
-Confirm fresh context, workspace binding, permission inheritance, terminal result identity, cancellation/recovery behavior, and actual capacity before dispatch. When the host cannot satisfy the selected contract, block that work or use another observed route under the existing authorization. `sequential_parent` cannot satisfy a fresh independent review node.
+Confirm fresh context, workspace binding, permissions, completion, cancellation and actual capacity before dispatch.
+Record the host, driver and provider once in `runtime_adapter`, with concrete evidence in the existing attempt record.
+Capability does not grant an action. A missing grant does not make an available capability unavailable.
 
 ## Models, Roles And Context
 
-Effective agent configuration and AGENTS instructions own executor, model, effort, fallback and delegation choices. There is no built-in model or effort default. Null PLAN options preserve the host's installed defaults, role-to-model mapping and fallback order. Pass explicit PLAN options only when the current native interface supports them; never substitute a different model silently or pretend an unsupported option was applied. Unsupported explicit choices block that node. Record actual resolved role, model, effort and any host-owned fallback in existing result evidence. Do not install roles, change provider credentials, or edit runtime configuration to make a route appear available.
+Effective agent configuration and AGENTS instructions own executor, model, effort and fallback choices.
+Null PLAN options preserve host defaults. Unsupported explicit options block without substitution.
+Record the actual model and effort; do not treat requested values as execution proof.
+Never change provider credentials, installed roles or settings to make a route appear available.
 
-On a RUN pinned to 0.58.0+, a runtime node may declare a logical `worker_role`. `runtime_adapter.role_bindings` maps that role to host policy: native agent or bridge identity, model provider, requested model/effort, observed capability probes, and portable execution axes. PLAN host eligibility remains `allowed_providers`; `model_provider` records the actual model provider and may differ from the host. Binding `model: null` preserves the host default, while a launch record must retain the concrete observed model and effort. `worker_role` remains the PLAN role; `resolved_role` names the configured binding actually used. External bridge dispatch requires both `invoke_external_runtime` and `spawn_subagents`, plus existing isolation and Git grants. A fallback is a new reservation only after a positively classified model/provider availability error, confirmed predecessor termination, explicit partial-work reconciliation, exact predecessor attempt/worker identity, and a configured `fallback_role`.
+Discover the effective instruction chain from repository root to the assigned checkout.
+Include ordered paths and source hashes in a fresh bounded packet.
+Keep automatic context discovery enabled; never replay the parent transcript or inject another host's instructions.
+The child reads its named sources independently, verifies hashes, and reports its own reading evidence.
+Unknown loaded identity stays unknown.
 
-Discover the effective instruction chain from repository root to the assigned checkout and include its ordered paths and source hashes in the bounded context packet. Keep automatic context discovery enabled. Do not inject another runtime's instruction file as this host's instructions. Observe the installed skill identity separately from the actually loaded identity; unknown loaded identity stays unknown. The child independently reads its named sources and reports its own loaded/read evidence. For a NEW parent launch, provide the explicit observed or task `max_message_bytes`. Check the complete parent-visible packet before dispatch. Keep the selected role bridge and fresh host-native context; never replay the parent transcript. The byte guard cannot measure total host tokens.
+Every NEW parent launch carries an explicit observed or task `max_message_bytes`.
+Check the complete parent-visible UTF-8 packet with `check_launch_packet.py` before dispatch.
+Overflow means reduce optional context or defer. The guard does not measure host-injected tokens.
 
-If a selector directive carries `contract_adoption`, that object is an owner-authorized fixed-contract re-read in the parent session—not proof of what the host loaded at startup. Before any worker or reviewer action, the fresh child independently recomputes the seven-skill digest, compares it with the receipt, reads the fixed contract, and reports that reading evidence as `contract_adoption_check` (`worker-result-contract.md`). Stop on mismatch; never copy the parent receipt as child evidence.
-
-
-## Host Role-Policy Updates
-
-Use `harness_transition.py ... update-role-bindings` only after explicit owner direction changes host role choices. This is separate from contract adoption. It changes no PLAN, provider, grant, skill pin, attempt or outcome.
-
-The parent holds the durable RUN lock. The existing OS lock and final PLAN/RUN compare-and-swap still apply. The current pair must validate, and `run_complete` execution authority must survive. Complete or cancelled runs, active/proposed waves, live workers/reviewers, running nodes and reserved node attempts block the update.
-
-Pass an absolute, checkout-external JSON file with one replacement object per existing logical role. The file is limited to 1 MiB. Duplicate, unknown and malformed keys fail. Validate the complete proposed map and its required available capability probes. Evidence strings are data. Explicit incompatible PLAN model or effort choices remain blocking. Models remain host/owner data; this command supplies no shared model default.
-
-RUN optionally retains `role_binding_updates` schema 1. Each update records owner source, parent session/time, patch identity, before/after maps and canonical SHA-256 digests. It captures exact reservation boundaries, input/candidate identities, binding identities and launch digests. Reservations freeze at their first boundary. Historical lookup joins kind, assignment, node, worker and attempt together. A role or old model alone never selects history. New reservations resolve only the current map.
-
-Identical replay keeps canonical bytes unchanged. Conflicting update-ID reuse fails. The history chain must end at the current map. Runs without this extension keep their prior validation semantics. This is no legacy migration, retry grant, fallback grant, attempt reset or PASS. Mandatory frontend skills, ownership, independent reviews and receipt checks remain binding.
+The parent records the actual session/model/result origin in attempt evidence.
+Accept a result only from the session the parent launched.
+Record a failed start as `blocked` with the actual host error.
+Follow configured fallback rules only after confirmed predecessor termination and inspection of partial work.
+A quiet stream, quota limit, timeout, test failure or permission denial does not prove model unavailability.
 
 ## Authorization And Dispatch
 
-The parent owns authorization, PLAN/RUN, dispatch, leases, integration and lifecycle actions. This adapter grants none of them and does not own shared state. Follow every `dispatchable_nodes[].required_actions` exactly. Never infer extra authorization. A review app task needs `create_user_owned_tasks`; a direct-subagent review needs `spawn_subagents`. A capability probe that launches a child needs the same applicable authorization.
+This adapter does not own shared state.
+The parent owns authorization, PLAN/RUN, dispatch, leases, integration and lifecycle actions.
+Follow every directive's `required_actions`; all 12 ledger keys remain in the schema.
+Subagent dispatch requires `spawn_subagents`; an external provider process also requires `invoke_external_runtime`.
+Worktree, branch, commit, integration and cleanup actions retain their separate grants.
 
-1. Validate PLAN/RUN and accept the selected frontier. Reserve runtime reviews with `reserve-review-dispatch` before launch; never reconstruct a receipt afterward.
-2. Allocate only authorized exact-base worktrees and branches. Before allocating any write, verify repository, branch/ref, HEAD, and clean `git status --porcelain`. Never run parallel writers in `shared_checkout`. One mission has one writer; parallel writes require separate worktrees and non-overlapping scopes.
-3. Render `../assets/templates/WORKER_GOAL.template.md` with the mission or review, scope, skills, verifier, permission boundary, result contract, exact base or review SHA, and context paths. Every worker and reviewer is a fresh sibling; do not replay the parent transcript. No worker or reviewer spawns another agent, edits PLAN/RUN, integrates, pushes, or cleans up. RUN-v11 forbids task-local child agents.
-4. Use the observed native calls to launch all selected siblings before waiting. A blocking launch must run asynchronously. Apply the host's actual restrictions; a prompt or profile label is not permission-level tool removal. Keep write and read-only scopes separate and verify reviewer read-only behavior.
-5. Bind the real task/worker identity and observed checkout to `lease-worker`; `--task-thread-id` is app-task-only. Wildcard receipts never grant authority. When a task must be created before its exact identity is known, `accept-wave` is the durable pre-create boundary. Put run ID, PLAN revision/digest, wave ID and mission ID in its packet. If creation returns ambiguously, inspect existing tasks/worktrees for a unique exact packet and base match. Bind the unique match or block; never automatically create a duplicate or delete an orphan.
-6. Subscribe or block on terminal child/status events; prefer cursor waits when supported. Do not repeatedly read unchanged tasks. Use bounded polling only when no wait/event surface exists, and record its reason and cost in `runtime_metrics`.
-   Record observed dispatch-to-terminal and retry-backoff intervals through `record-runtime-observation`; follow [Parent-Observed Host Intervals](runtime-performance.md#parent-observed-host-intervals).
-   Match the existing reservation and retain unknown values. A telemetry gap never becomes permission to repeat a launch.
-7. Validate each terminal result immediately against live worktree, branch, head, scope, commits and verifier evidence, then integrate serially. After integration, launch one fresh read-only reviewer against the exact unified integration SHA with the lenses its diff needs, including security with `code_security_verification`, then one planned broad final validation. Under `review_policy: per_mission`, also stream each ready pre-integration review while siblings continue. Security never skips; only non-security review may use a recorded byte-identical skip.
+1. Validate PLAN/RUN and accept the selected frontier.
+2. Reserve runtime reviews with `reserve-review-dispatch` before launch; never reconstruct the reservation afterward.
+3. Verify repository, branch, exact base and clean status before allocating an authorized isolated writer.
+4. Render `../assets/templates/WORKER_GOAL.template.md` with scope, skills, permissions, verifier, result contract and exact input identity.
+5. Launch all selected siblings before waiting; run a blocking bridge asynchronously.
+6. Bind the real worker identity and assigned checkout through `lease-worker`.
+7. Consume terminal events or waits; use bounded polling only when the host has neither.
+8. Validate each result against its current reservation, live Git, scope, commits and verifier evidence.
+9. Integrate serially after the gates required by `review_policy` pass.
 
-Reserve non-runtime nodes before their checks or actions, execute outside the RUN lock, then record `record-node-result` evidence. Native task completion is not a verification PASS. Native caches, resumes and retries never replace current authorization, Git reconciliation or exact-SHA evidence.
+One writer owns each checkout, including the parent.
+Workers and reviewers never delegate, edit PLAN/RUN, integrate, push or clean up.
+A prompt restriction alone does not prove read-only tool isolation.
+Preserve failed starts, partial work, dirty files and interrupted evidence.
+A result or native completion is a candidate, never a verification PASS.
+
+Reserve non-runtime attempts with `reserve-node-attempt`, execute outside the RUN lock, then use `record-node-result`.
+Transitions record lifecycle evidence; they do not perform lifecycle actions.
 
 ## Reviewer Tools
 
-For `runtime_capabilities.reviewer_tools.chrome_devtools`, launch a read-only probe through the exact selected driver after its launch is authorized. Inside that fresh reviewer, attach to the required browser target and perform a deterministic inspection. Record the actual lowercase surface identifier, provider, driver, `probe_scope: reviewer_session`, session ID and evidence. This is not a review attempt and cannot update review state. An available surface cannot be `none`, `unknown` or `unobserved`. Parent browser access, an installed package or a launch flag is not proof; record unavailable and defer when the reviewer cannot perform the check.
+A visual reviewer must attach a real browser and report the inspected surface in its evidence.
+The parent's browser session does not prove reviewer capability; missing required access blocks that review.
 
-Give each reviewer one bounded packet: scoped diff, acceptance, evidence, tool capability and unresolved findings. Refer to PLAN/RUN by path. A changed SHA invalidates the review PASS.
-
-For `frontend_code` and `backend_code`, apply [Architecture Method](delegation-contract.md#architecture-method) to the affected boundaries.
-The rendered packet carries this guidance without adding review types, result fields or approval authority.
+Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
+A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
+For architecture-bearing reviews, apply [Architecture Method](delegation-contract.md#architecture-method) to the affected boundaries.
 
 ## Version, Handoff And Failure
 
-Recover an unchanged PLAN in its existing RUN. Reconcile the current candidate and relevant workspaces before dispatch; do not replay integrated missions or create a new RUN merely because a repair invalidated a gate. Retain old attempts and verifier contexts at their original identities. Current PASS coverage must use the current exact SHA and applicable lease. Candidate reconciliation grants no Git action or extra attempt, and a provider change still follows the separate replanning boundary below.
+Recover an unchanged PLAN in its existing RUN. Reconcile current Git, workers and relevant workspaces before dispatch.
+Do not replay integrated missions or create a RUN merely to escape a failed gate or exhausted budget.
+Retain original attempts and evidence at their original identities.
 
-Record `runtime_adapter.version_gate` and follow `runtime-upgrades.md`. A host with no observable own-version is never deferred for that reason alone; the loaded Harness identity and selected capabilities still need evidence. A `compatible_old` session finishes only its active wave. After an update, mark `restart_required`, start a fresh session and re-probe; never hot-upgrade a worker.
-
-Use the Repository Context Contract, Serialized Same-Repository Host Handoff in `execution-state-model.md`, and `runtime-performance.md`. This adapter adds no alternate state or handoff rules and no alternate upgrade rules. Preserve failed, cancelled, stalled, dirty and partial evidence. One failed node does not cancel passing siblings. Reduce concurrency or use another observed native driver only within existing grants; never reset or remove evidence automatically.
-
-Use only the observed native capability contract above. Historical platform-specific launch templates and `dynamic_workflow`/`workflow_runs` files are not executable through it; preserve them as historical evidence. Resume unfinished work only after explicit replanning and fresh capability, identity and authorization checks. Do not relabel historical results or silently migrate a live RUN.
-
-There is no mechanism in the adapter layer to invoke another provider without a 0.58+ configured role binding and both required grants. Do not stop after printing a non-empty app-task wave; consume every accepted dispatch entry.
+Follow `runtime-upgrades.md` for loaded/installed digest drift, restart and pinned-bundle handling.
+A historical `adopted` status never authorizes current dispatch.
+Provider changes require explicit replanning, never an inferred bridge.
+This adapter adds no alternate state or handoff rules.
+Serialized host handoff follows `execution-state-model.md`; a shared path alone is not portable evidence transport.

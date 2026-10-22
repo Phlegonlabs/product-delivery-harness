@@ -382,7 +382,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         self.assertIn("### Scripted Transition Flag Surfaces", state)
         self.assertIn("`pause`, `resume`, `cancel`: `--source`", state)
-        self.assertIn("--additional-attempts", state)
+        self.assertNotIn("--additional-attempts", state)
         self.assertIn("--ancestry-confirmed", state)
         self.assertIn("--packet-out", state)
         self.assertIn("--security-result", state)
@@ -428,7 +428,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("never weakens authorization", performance)
         self.assertNotIn("## Machine Telemetry", performance)
         self.assertNotIn("record-runtime-observation", performance)
-        self.assertIn('"runtime_metrics"', runbook)
+        self.assertNotIn('"runtime_metrics"', runbook)
         self.assertNotIn("target_reduction_percent", runbook)
         self.assertIn("BATCH_PROTOCOL", verifier)
 
@@ -596,7 +596,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, state, runbook, goal):
             self.assertIn("PLAN schema v6", content)
             self.assertIn("RUN schema v11", content)
-            self.assertIn("legacy compact run-only", content.lower())
+            self.assertIn("compact run-only", content.lower())
             self.assertIn("read", content.lower())
         self.assertIn("New managed work never authors a compact RUN-only artifact", skill)
         self.assertIn("cannot authorize new managed execution", state)
@@ -667,8 +667,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for content in (state, runbook, orchestration):
             self.assertIn("RUN-v11", content)
             self.assertIn("parent", content.lower())
-        self.assertIn("accepts only an omitted `nested_subagent_policy` or one with `enabled: false`", state)
-        self.assertIn("RUN v6 through v9 retain their legacy nested-policy compatibility", state)
+        self.assertIn("Workers and reviewers never delegate", state)
+        self.assertIn("exact pinned bundle", state)
         self.assertIn("RUN-v11 workers never delegate", runbook)
         self.assertIn("Workers and reviewers never spawn or delegate further", orchestration)
         self.assertNotIn("app-task fan-out includes `spawn_subagents`", selector.lower())
@@ -680,11 +680,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
         self.assertIn("only the applicable local entries", state)
-        self.assertIn("outer v10 `app_threads` app-task route excludes `spawn_subagents`", state)
-        self.assertIn("app-task workers never delegate", state)
-        self.assertIn("Parent-dispatched direct sibling workers and reviewers", state)
+        self.assertIn("App-task dispatch is historical and unsupported", state)
+        self.assertIn("Parent-dispatched sibling workers and reviewers", state)
         self.assertIn("does not authorize `push`", skill)
-        self.assertIn("separate explicit remote instruction", runbook)
+        self.assertIn("separate exact SHA/branch instruction", runbook)
         for content in (skill, state, runbook):
             self.assertNotIn("covers all nine together", content)
             self.assertNotIn("one execution-intent instruction covers all nine", content)
@@ -813,7 +812,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "manifest_already_validated",
             self.read("references/runtime-performance.md"),
         )
-        self.assertIn('"runtime_metrics": null', runbook)
+        self.assertNotIn('"runtime_metrics"', runbook)
         self.assertIn("inspect_harness_run.py", state)
         self.assertIn("check_skill_bindings.py", state)
         self.assertIn("--max-diff-bytes", packet_guide)
@@ -1083,7 +1082,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "the owner's exact instruction naming the SHA and branch",
             "Never use force",
             "Read back the remote ref and record it in the Epic",
-            "C..A archive allowlist check passes",
+            "exact receipt-bound C..A archive verification passes",
+            "Any product-path change or other difference makes A a new candidate",
+            "Never relabel inherited candidate, security or CI results as fresh executions at S",
             "legacy-pins.md#branch-protocols-before-063",
         ):
             self.assertIn(phrase, promotion)
@@ -1161,8 +1162,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("# Documents", documents_template)
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
-        self.assertIn("automatically render `docs/tasks.md`", stage)
-        self.assertIn("A refresh failure leaves successful RUN state intact", stage)
+        self.assertIn("Render `docs/tasks.md` explicitly when needed", stage)
+        self.assertIn("RUN transitions do not refresh", stage)
         self.assertIn("no RUN grant authorizes them", stage)
         self.assertIn(
             "delivery-harness/references/project-operating-rules.md"
@@ -1247,32 +1248,29 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         research = self.read("references/orchestration-research-notes.md")
 
         self.assertIn(
-            "There is no mechanism in the adapter layer to invoke another provider", adapters
+            "Provider changes require explicit replanning", adapters
         )
         self.assertIn(
-            "Do not probe for another runtime's CLI, binary, or plugin as a substitute route",
+            "Do not probe another runtime as a substitute route",
             adapters,
         )
         self.assertIn("There is no cross-host preflight, no bridged process, and no declared fallback", research)
         self.assertIn("blocked on provider mismatch rather than probing or launching the other runtime", research)
 
-    def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
+    def test_current_dispatch_blocks_explicit_unsupported_app_tasks(self) -> None:
         adapters = self.read("references/runtime-adapters.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
         selector = self.read("references/parallel-mission-selection.md")
         goal = self.read("assets/templates/GOAL.template.md")
-
-        self.assertIn("Do not stop after printing a non-empty app-task wave", adapters)
-        self.assertIn("consume every accepted dispatch entry", adapters)
-        self.assertIn("resolves deferred tools", adapters)
-        self.assertIn("distinct user-owned task", adapters)
-        self.assertIn("## Launch Selected Native Workers", orchestration)
-        self.assertIn("one clean exact-base app-managed worktree", orchestration)
-        self.assertIn("Every explorer, writer and reviewer remains a parent-dispatched sibling", orchestration)
-        self.assertIn("fresh-context packets", orchestration)
-        self.assertIn("direct subagent of the coordinator is not equivalent", selector)
-        self.assertIn("explicitly requested user-owned tasks", goal)
-        self.assertIn("Never replace explicitly requested independent app tasks", adapters)
+        self.assertIn("Current dispatch does not support user-owned app tasks", adapters)
+        self.assertIn("Never silently substitute subagents or parent execution", adapters)
+        self.assertIn("Current managed dispatch does not support user-owned app tasks", orchestration)
+        self.assertIn("never replace it silently", orchestration)
+        self.assertIn("Never replace those tasks silently", selector)
+        self.assertIn("An explicit request for them blocks", goal)
+        for content in (adapters, orchestration, selector, goal):
+            self.assertNotIn("--task-thread-id", content)
+            self.assertNotIn("app_threads", content)
 
     def test_plan_backed_runs_detect_then_select_full_frontier(self) -> None:
         skill = self.read(MANAGED_STAGE)
@@ -1286,16 +1284,16 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Default Runtime And Wave Policy", skill)
         self.assertIn("Proactively inspect the current-session native tool surface", skill)
         self.assertIn("Missing authorization must never make an available driver disappear", skill)
-        self.assertIn("observed `capability_probe` facts", skill)
+        self.assertIn("Observe every advertised current driver", skill)
         self.assertIn("unrelated surfaces", skill)
         self.assertIn("Do not cap `max_parallel_workers` at a small fixed number", skill)
         self.assertIn("default immediately after Plan Readiness", state)
-        self.assertIn("capability_snapshot_incomplete", state)
-        self.assertIn("capability_snapshot_incomplete", selector)
-        self.assertIn("evidenced capability facts", orchestration)
-        self.assertIn("Record only relevant capabilities", orchestration)
-        self.assertIn("every advertised delegated driver", runbook)
-        self.assertIn("unrelated capabilities need no inventory", runbook)
+        self.assertIn("Observe actual required capabilities before dispatch", state)
+        self.assertIn("Observe every advertised current driver", selector)
+        self.assertIn("Observe each advertised driver", orchestration)
+        self.assertIn("no launch grant is implied", orchestration)
+        self.assertIn("Observe the actual driver", runbook)
+        self.assertNotIn("capability_probe", runbook)
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
@@ -1312,11 +1310,13 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Never hot-upgrade a live worker", upgrades)
         self.assertIn("runtime_adapter.version_gate", upgrades)
         self.assertIn("## Re-Orchestrate Remaining Work Onto The New Runtime", upgrades)
-        self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
-        self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
+        self.assertIn("Never revive a lease or re-execute completed missions", upgrades)
+        self.assertIn("provider outside `allowed_providers` needs an explicitly authorized PLAN revision", upgrades)
         self.assertIn("## Run-Scoped Contract Pin", upgrades)
-        self.assertIn("applies to the next RUN, not the active one", upgrades)
-        self.assertIn("adopt it once", upgrades)
+        self.assertIn("A new bundle applies to the next RUN", upgrades)
+        self.assertIn("pinned_bundle_or_restart_required", upgrades)
+        self.assertIn("A 0.66+ RUN cannot use that status", upgrades)
+        self.assertNotIn("adopt-runtime-contract", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
         version = self.read("VERSION").strip()
         self.assertIn(f'"required_harness_version": "{version}"', runbook)
@@ -1445,7 +1445,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("RUNs close `local_only`", skill)
         self.assertIn("`integration_push` remains legacy recovery state only", runbook)
         self.assertIn("`pushed_head_sha` stays null", runbook)
-        self.assertIn("checkout-external immutable artifacts", runbook)
+        self.assertIn("an explicit no-force push, and remote readback", runbook)
         self.assertIn("Harness 0.38+ RUNs start and finish `local_only`", runbook)
 
 
@@ -1665,8 +1665,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         adapters = self.read("references/runtime-adapters.md")
         self.assertIn('"allowed_providers": ["generic"]', plan)
         self.assertIn('"generic": {"model": null, "reasoning_effort": null}', plan)
-        self.assertIn("Unsupported explicit choices block", adapters)
-        self.assertIn("installed defaults", adapters)
+        self.assertIn("Unsupported explicit options block", adapters)
+        self.assertIn("host defaults", adapters)
         for model in ("gpt-5.6-sol", "gpt-5.6-terra", "sonnet", "haiku"):
             self.assertNotIn(model, plan + adapters)
 
@@ -1681,8 +1681,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn('selection.mode: "changed_files"', content)
             self.assertIn("parent-observed changed files", content)
         for content in (skill, verification, run):
-            self.assertIn("session_exact", content)
-            self.assertIn("repository-external", content)
+            self.assertNotIn("session_exact", content)
+            self.assertIn("run fresh", content)
+            self.assertIn("outside", content)
         self.assertIn('"isolation": "host"', plan)
         self.assertIn('"parallel_safe": false', plan)
         self.assertIn("real cross-mission", verification)
@@ -1715,7 +1716,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for content in (verification, worker):
             self.assertIn("host", content)
             self.assertIn("container", content)
-            self.assertIn("PLAN-bound", content)
+            self.assertIn("source/Git", content)
+            self.assertNotIn("RepoDigest", content)
         for content in (graph, verification, worker):
             self.assertNotIn("future separately implemented route", content)
             self.assertNotIn("route them through a planned external read-only verifier node", content)

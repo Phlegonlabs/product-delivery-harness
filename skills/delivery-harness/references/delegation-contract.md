@@ -2,7 +2,7 @@
 
 Apply this contract before you assign work to another executor or launch one, in direct or managed work. It governs Product Definition, UI Design, code exploration and delivery. Delegation alone does not require PLAN/RUN. Existing product, design, security and publication gates still apply. An installed role or available tool grants no action.
 
-For managed role-bound results and availability recovery, use [parent-retained execution receipts](agent-execution-receipts.md).
+For launch and terminal-result provenance, use [Worker Result Contract](worker-result-contract.md#common-rules).
 
 ## Worker Policy Ownership
 
@@ -64,7 +64,7 @@ Independent review uses an agent-configured executor with the tools required by 
 
 Resolve the logical role against effective host policy and observed capabilities. Record the actual native agent type or external bridge, explicit model and effort when required, permissions, required tools and allowed fallback. Host-specific models and launch paths belong to host policy, not shared skill defaults. Keep the parent host identity separate from the worker's model provider; a bridge does not bypass `allowed_providers`.
 
-An external bridge needs `invoke_external_runtime` and applicable delegation authorization; user-owned chats additionally need their own explicit creation authority. Worktree, branch, commit and integration actions retain their existing gates. Never infer these grants from role resolution. Resolve configured execution before launch; missing required capabilities or grants block the dependent assignment. Preserve explicit agent choices and independent-review requirements.
+An external bridge needs `invoke_external_runtime` and applicable delegation authorization. Current managed dispatch does not support user-owned app tasks. Worktree, branch, commit and integration actions retain their existing gates. Never infer these grants from role resolution. Resolve configured execution before launch; missing required capabilities or grants block the dependent assignment. Preserve explicit agent choices and independent-review requirements.
 
 ## Assignment And Result Evidence
 
