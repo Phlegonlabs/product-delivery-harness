@@ -8,11 +8,11 @@ This file defines the shared scope/resource conflict rules and deterministic wri
 
 For every execution-authorized managed run, selection is the default post-readiness action, not an optional optimization the parent may skip. Prove the chosen runtime driver before readiness and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number. The selector reports `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more; this derived route is separate from `runtime_driver`. A one-mission managed route makes no fan-out claim, requires no tasks view, invents no cross-mission batch gate, and inventories no unused parallel drivers; it keeps the isolated writer, authorization, scope/head, and review gates.
 
-Every advertised delegated driver needs observed capability facts before ready/running execution. Unrelated surfaces need no inventory; capability and authorization stay separate. Missing required facts fail validation with `capability_snapshot_incomplete`, before a launch proposal is returned.
+Observe every advertised current driver before dispatch. Unrelated surfaces need no inventory; capability and authorization stay separate.
 
 ## Capacity And Dispatch
 
-Before accepting a multi-mission wave, check `observed.runtime.available_worker_slots` and `isolation_capacity` against current host evidence. `new_run.py` seeds both as 1; those placeholders are not a measured one-worker limit. `max_parallel_workers: 4` alone does not override observed capacity. A Git/container observation does not discover agent slots. Record the actual available capacity through `record-observation --available-worker-slots <n> --isolation-capacity <n> --capacity-evidence <text>`; global `--repo-root` precedes the subcommand. These values must come from current host evidence, never a guessed number. If independent missions remain deferred, report the specific capacity, dependency, scope, resource, or authorization reason.
+Before accepting a multi-mission wave, check `observed.runtime.available_worker_slots` and `isolation_capacity` against current host evidence. `new_run.py` seeds both as 1; those placeholders are not a measured one-worker limit. `max_parallel_workers: 4` alone does not override observed capacity. A Git observation does not discover agent slots. Record the actual available capacity through `record-observation --available-worker-slots <n> --isolation-capacity <n> --capacity-evidence <text>`; global `--repo-root` precedes the subcommand. These values must come from current host evidence, never a guessed number. If independent missions remain deferred, report the specific capacity, dependency, scope, resource, or authorization reason.
 
 Launch every selected worker in its own authorized worktree before waiting for any worker to finish. Short launch/lease bookkeeping may be sequential; implementation must overlap when the driver supports it, so dispatch a blocking external CLI asynchronously rather than awaiting it inside a loop. Collect each result as it finishes. Serial task checkpoints stay inside each mission and serial integration stays in the parent; neither serializes independent mission workers.
 
@@ -46,7 +46,7 @@ conflict_edges
 
 `ready_frontier` lists the node IDs that are logically ready before dispatch gating. Serialize each deferred entry as `{ "node_id": ..., "reason_codes": [...] }` and each conflict edge as `{ "left": <node ID>, "right": <node ID>, "reason_codes": [...] }`. Sort IDs and reason codes; never encode a reason only in prose.
 
-Each `dispatchable_nodes` entry carries the node's `node_id`, `kind`, `ref`, and `launch_kind`; runtime-bound nodes also carry the runtime provider/driver/source, the immutable `runtime_binding`, `tool_profile`, `failure_outcome`, required action keys, and the runtime/workspace/completion axes. It contains no allocated worker, task, branch, or worktree identity. Wave bundling — the workflow template `script_path` and its structured `args` — and the `batch_base_sha`/budget binding are parent-side steps, not selector output: the parent re-observes facts, records the batch base and accepted wave in RUN, and renders launcher arguments from the dispatchable entries. The output is a proposal until the parent rechecks observed facts and records it in RUN state.
+Each `dispatchable_nodes` entry carries the node's `node_id`, `kind`, `ref`, and `launch_kind`; runtime-bound nodes also carry the runtime provider/driver/source, the immutable `runtime_binding`, `tool_profile`, `failure_outcome`, required action keys, and the runtime/workspace/completion axes. It contains no allocated worker, task, branch, or worktree identity. The `batch_base_sha`/budget binding and concrete launch arguments are parent-side steps, not selector output: the parent re-observes facts, records the batch base and accepted wave in RUN, and renders launcher arguments from the dispatchable entries. The output is a proposal until the parent rechecks observed facts and records it in RUN state.
 
 ## Ready Frontier
 
@@ -60,13 +60,13 @@ A mission is in the ready frontier only when all conditions pass:
 6. Trace, write-scope, verifier, and resource inventory validation passed.
 7. `resource_inventory_complete` is true.
 8. The chosen runtime/workspace/completion capability combination supports the mission; a parallel write mission has `worktree_eligible: true` and an isolated workspace.
-9. Required action-specific authorizations for the proposed launch path are present. Outer app-task fan-out requires its task/worktree/branch/commit actions but excludes `spawn_subagents` because RUN-v11 workers never delegate. Direct parent-owned sibling agents require top-level `spawn_subagents`; isolated writes also require parent-managed worktree, branch, and commit authorization.
+9. Required action-specific authorizations for the proposed launch path are present. Parent-owned sibling agents require `spawn_subagents`; isolated writes also require parent-managed worktree, branch, and commit authorization.
 10. The inherited permission boundary is observed and already covers linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets.
 11. No human approval, secret, service, contract decision, or destructive action remains unresolved.
 
 An isolated write worker must have an authorized durable branch/ref and `create_local_commits: true`; the portable protocol does not integrate an uncommitted patch from another workspace. When those are unavailable, the mission stays deferred and the parent requests the missing branch/commit authorization; the integration checkout is merge-only and never hosts implementation.
 
-Selection happens before worker/task/branch/worktree identities are allocated. Therefore a launch-path action passes this pre-allocation gate only when the user explicitly authorized that action for the mission scope with `targets: ["*"]`. For a RUN-v11 mission launch that grant must also list exact `mission_ids`, not `"*"`, at every version, because RUN validation checks each launch receipt against exact mission ids; the selector defers such a launch and `lease-worker` refuses it. A reviewer needs exact `mission_ids` too: under `app_threads` at every version, as a subagent from 0.55.0. A selector must never manufacture `worker:<mission-id>`, `branch:<mission-id>`, or another pseudo-target. After the parent allocates concrete identities, it checks the exact `worker:`, `task:`, `worktree:`, or `branch:` target again immediately before each mutation; the pre-allocation result is not a substitute for that check.
+Selection happens before worker/task/branch/worktree identities are allocated. Therefore a launch-path action passes this pre-allocation gate only when the user explicitly authorized that action for the mission scope with `targets: ["*"]`. For a RUN-v11 mission launch that grant must also list exact `mission_ids`, not `"*"`, at every version, because RUN validation checks each launch receipt against exact mission ids; the selector defers such a launch and `lease-worker` refuses it. A current subagent reviewer also needs exact `mission_ids`. A selector must never manufacture `worker:<mission-id>`, `branch:<mission-id>`, or another pseudo-target. After the parent allocates concrete identities, it checks the exact `worker:`, `task:`, `worktree:`, or `branch:` target again immediately before each mutation; the pre-allocation result is not a substitute for that check.
 
 Keep capability detection independent from this authorization gate. If the preferred observed route lacks one or more action grants, retain that route in `runtime_adapter`, report `action_not_authorized`, request the complete route bundle once, and rerun selection after the answer. Do not select a lower-priority runtime driver solely because its mutation bundle is easier to satisfy.
 
@@ -151,12 +151,9 @@ Unary ineligibility or deferral belongs on the node entry, not on a graph edge. 
 - `authorization_head_stale` — a v10 head-bound lifecycle grant does not cover the current integration head.
 - `independent_reviewer_unavailable` — a sequential-parent review node requires an independent reviewer and no role-aware fresh-reviewer driver or other allowed host is available.
 - `review_result_dissent` — the node's current review result disagrees with the recorded worker outcome.
-- `reviewer_tool_unobserved:<tool>` — a review's required reviewer tool has no observed capability record.
-- `reviewer_tool_unavailable:<tool>` — a review's required reviewer tool is observed but not available.
 - `capability_unprobed` — independent, conflict-free, authorized missions were held back only by a write budget, and `runtime_adapter.detection_source` is still `fallback`. The selector withholds the whole proposal in that state rather than dispatching one mission: `fallback` means the capability was never determined, so a sequential wave there is a guess presented as a decision, and it looks exactly like a deliberate cap. Resolve it by probing the host and recording real capacity (`observed`), or by declaring the sequential route on purpose (`explicit`). A genuine observed capacity of one is a real answer and dispatches normally.
-- `runtime_contract_drift` — an adopted harness contract no longer matches the live installed seven-skill digest.
-- `runtime_contract_invalid` — an adopted receipt conflicts with its session or the still-null loaded-at-start identity.
-- `runtime_contract_unobserved` — the installed harness contract digest is not observed for the loaded runtime, or an adopted receipt cannot be checked.
+- `pinned_bundle_or_restart_required` — historical `adopted` cannot dispatch in current tools; use its exact pinned bundle or restart.
+- `runtime_contract_unobserved` — a required loaded or installed Harness digest is unknown; preserve unknown identity and follow `runtime-upgrades.md`.
 
 Dependency edges determine readiness and topological level; they are not conflict edges among already-ready missions. Unknown facts yield an ineligibility/defer code or a conservative pairwise edge, never an assumed independent pair.
 
@@ -221,18 +218,10 @@ Recording the accepted wave and batch base, minting worker/branch/worktree ident
 
 When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. If the System Review And Route selected no-agent execution, use `sequential_parent` directly and do not request `spawn_subagents` or report a delegated launch. For an agent-capable route, use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
 
-For `launch_kind: "create_thread"`, the parent must consume the directive after accepting the wave instead of merely reporting `selected_missions`:
-
-1. Search the current native tool surface when project/thread tools were not loaded initially, then resolve the current project once through the available project-listing surface.
-2. Allocate a worker/lease and exact durable branch target. For task/worktree identities assigned only by creation, recheck the explicit pre-allocation `*` grant; recheck every already-known target exactly.
-3. Create one top-level app-managed worktree thread for the mission. It is a separate conversation in the host task list; a direct subagent of the coordinator is not equivalent. Use the complete `WORKER_GOAL.template.md` handoff as the initial prompt and start from the recorded integration branch/ref that points at `batch_base_sha`.
-4. Record the returned thread ID or queued client-thread ID in the RUN worker record, bind later actions to that concrete identity, and move the mission to `worker_running` only when the task/workspace is observable.
-5. If the directive says `capability_handshake`, prohibit production edits until the thread reports its own result channel. Do not enable a nested policy in RUN-v11: workers remain sole writers, report `subagent_activity: not_applicable` with empty `children`, and route every explorer or reviewer through the parent as a sibling. Legacy v6-v9 policy records are compatibility-only.
-6. After all selected missions have been launched, wait through the available task completion/status surface with backoff. Treat the terminal task output as a worker result candidate and validate it normally.
-
-If project/thread creation, worktree isolation, follow-up messaging, or polling is unavailable, do not mark the directive launched. Record the capability failure. Use sequential parent execution only when the user did not explicitly require independent left-sidebar tasks; otherwise stop at the missing-capability boundary.
-
-For app-managed worktrees, record that they may begin detached and are governed by platform retention. `platform_lifecycle` is an object with `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`. Create a durable authorized branch/ref early when unique work must survive task/worktree lifecycle. `remove_worktrees: false` prevents the harness from removing one; it cannot disable platform-managed retention.
+Current dispatch supports subagents and sequential-parent work only.
+If the owner explicitly requests user-owned app tasks, report the unsupported route and stop that dispatch.
+Never replace those tasks silently or fabricate an app-task identity.
+Historical app/task bindings use their [exact pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 
 ## Batch Integration And Recompute
 

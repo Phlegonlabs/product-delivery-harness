@@ -68,4 +68,4 @@ Use fix_required for a validated code or configuration vulnerability when the re
 
 ## Harness Evidence
 
-Save the returned object as JSON outside the reviewed repository; the parent passes it unchanged with `--security-result`. Under an adopted runtime contract, return `contract_adoption_check` beside the object, never inside it, because the security result rejects unknown keys; the parent passes it with `--contract-adoption-check`. The parent's validation, live-checkout rechecks, interruption handling and closeout rules are in the security gate of `../delivery-harness/references/verification-gates.md`.
+Save the returned object as JSON outside the reviewed repository; the parent passes it unchanged with `--security-result`. The parent's validation, live-checkout rechecks, interruption handling and closeout rules are in the security gate of `../delivery-harness/references/verification-gates.md`.

@@ -1,6 +1,6 @@
 # Legacy Pins
 
-Read this file only when you resume, recover, validate, edit or close a PLAN, RUN or design package pinned to an earlier Harness version, schema or branch protocol. New work never uses these rules. The validators keep enforcing them, and a pin never widens authorization.
+Read this file only when you resume, recover, validate, edit or close a PLAN, RUN or design package pinned to an earlier Harness version, schema or branch protocol. New work never uses these rules. Use the exact pinned bundle for these procedures; current tools are not their execution path. A pin never widens authorization.
 
 ## Pre-0.38 Run-Branch Push
 
@@ -44,4 +44,13 @@ A PLAN pinned before 0.66 may declare `execution.isolation: "container"` with a 
 
 ## Finishing A Run On Its Pinned Bundle
 
-A RUN pinned below 0.66 that cannot adopt the installed bundle runs the scripts from `~/.agents/skill-backups/product-delivery-harness/<stamp>/delivery-harness/` or from a checkout of tag `v<pin>`, with `<delivery-harness-skill-root>` pointing there. `installed-commands.md` resolution already allows a non-default root.
+A RUN pinned below 0.66 that needs its original protocol runs the scripts from `~/.agents/skill-backups/product-delivery-harness/<stamp>/delivery-harness/` or from a checkout of tag `v<pin>`, with `<delivery-harness-skill-root>` pointing there. `installed-commands.md` resolution already allows a non-default root.
+
+## Historical Runtime And Publication Evidence
+
+The pinned bundle owns historical app-task drivers, role/launch/result receipts, adoption commands, container caches and signed publication procedures.
+Do not run those procedures from the current skill root or add their fields to a new RUN.
+Retain old records and original results unchanged.
+Historical `adopted` is readable only with an explicit pin below 0.66.
+Current dispatch defers it with `pinned_bundle_or_restart_required`; it never proves a current loaded bundle.
+A 0.66+ RUN cannot use `adopted`.

@@ -30,4 +30,4 @@ Use a clean checkout at the candidate SHA. A dirty or uncommitted target may rec
 
 ## Handoff
 
-Return all validated findings in one pass. For a managed review, return the exact JSON object from [Review Contract](../review-contract.md), with contract_adoption_check beside it when that contract applies; the parent does not reconstruct missing fields. A fix_required result routes back to Delivery Harness as a bounded repair on a separately authorized write path; contract_gap routes to the product or architecture owner. The Review Contract's targeted re-check covers the repaired SHA.
+Return all validated findings in one pass. For a managed review, return the exact JSON object from [Review Contract](../review-contract.md); the parent does not reconstruct missing fields. A fix_required result routes back to Delivery Harness as a bounded repair on a separately authorized write path; contract_gap routes to the product or architecture owner. The Review Contract's targeted re-check covers the repaired SHA.
