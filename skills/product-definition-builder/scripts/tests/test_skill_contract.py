@@ -2974,6 +2974,14 @@ new Function(scripts.at(-1)[1]);
             self.assertIn(phrase, refinement)
         self.assertIn("except for a design-time contract delta", skill)
 
+    def test_full_link_inventory_runs_only_at_the_two_owner_gates(self) -> None:
+        presentation = " ".join(self.read("references/review-presentation.md").split())
+        skill = self.read(STAGE)
+        self.assertIn("at the two owner gates: Product Definition Approval and Visual Approval", presentation)
+        self.assertIn("do not repeat the inventory", presentation)
+        self.assertNotIn("final handoff", presentation)
+        self.assertIn("do not repeat its full inventory here", skill)
+
     def test_full_hifi_copy_review_does_not_require_a_circular_prd_rewrite(self) -> None:
         skill = self.read(STAGE)
         contract = self.read("references/output-contract.md")
