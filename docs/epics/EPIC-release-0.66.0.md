@@ -74,3 +74,15 @@ SC is clean at `b1b95ff1`. New commits localize the host identity keys (`13bcc51
 DH-A is clean at `74ee543f`, with its earlier partials committed and 89 focused tests passing. A multi-mission final-review repair path remains an integration issue for SA/SB; the singleton template test does not prove it.
 
 The original consumer inventory was recovered from the prior session: ticketradar, hardwareprices, jolvex-platform, dilution-radar, agentcommercehq, agentic-commons-site and agentkiosk. AgentKiosk remains report-only. The [scope inventory](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/seven-consumer-scope.json) records the source and initial Git state. Preserve dirty work in ticketradar, agentcommercehq and agentkiosk. Instruction syncs wait for the verified release and installation.
+
+### Integrated Script And Review Batch
+
+All six remaining heads are integrated at `d6388113`, in the requested order: SA `03b6a492`, SB `a9cad550`, SC `b1b95ff1`, SD `59def2c5`, SEC `d0bc5450`, and DH-A `74ee543f`.
+
+The SB predecessor overlapped two SA-owned test files; the merge preserves the final verified SA versions. The retired container-cache contract test stays removed. DH-A's modern template-budget regression is preserved in `test_validator_diet.py`; its fallback mutation became an assertion against the actual merged template. That targeted real-validator test passed before the merge commit.
+
+SA records 505 cutover checks, 63 skill contracts, 112 image/contract checks, 44 repair checks, and two actual repair journeys passing on frozen real combined inputs. SB records 212 passes and three Windows symlink skips across 215 focused checks. SD's scoped checks and targeted repairs remain at their original inputs; subsequent real-source overlays found strict fixture prerequisites, not an obsolete API call. These are worker-input results, not a PASS for the merged release candidate.
+
+Four consumer structural comparisons added no errors and preserved every PLAN/RUN byte. The full consumer source joins remain unverified after a bounded AgentKiosk baseline timeout. No consumer was adopted or edited. Current `adopted` history is readable only for pins below 0.66 and always defers new dispatch to the pinned-bundle/restart route.
+
+Native CI now selects `test_push_archived_candidate.py` instead of the retired trusted-host test (`9742a5ac`). Five shard tests and both native planner invocations passed. Next: actual merged-code checks, ALIGN, README/CHANGELOG cleanup, fresh Sol 6.1 / high review with security, and required fixed-candidate CI before publication.
