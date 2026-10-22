@@ -13,6 +13,10 @@ python "<ui-design-builder-skill-root>/scripts/visual_inputs.py" --repo-root <pr
 
 The helper reads current identities and emits source pointers without writing files or granting approval.
 It rejects stale inputs and missing stage dependencies. Existing publication and managed source-join checks still govern acceptance.
+For implementation maintenance, pass `--task-record docs/epics/<current-epic>.md` after validating the existing `maintenance` record with UI impact `none` or `style`.
+This route names current Product/Stack files and retains historical UI, selected studies, captures and target identities without rewriting them.
+Other stages keep strict product-source joins. Managed work still requires its exact frozen task record and current Product Definition/PLAN joins.
+The task record classifies this packet; it grants no approval or permission and cannot waive those checks.
 Run `check_launch_packet.py` on the complete final message with its explicit byte budget.
 Overflow requires a smaller scoped assignment or complete named source reads; never silently truncate visual inputs.
 

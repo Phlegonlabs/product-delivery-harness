@@ -7,9 +7,11 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import check_ui_design_contract as contract
+from design_workflow import report as workflow_report
 from review_evidence import HIFI_MANIFEST_RE, MAX_BYTES, read_identity, safe_path
 
 
@@ -20,7 +22,7 @@ def _identity(root: Path, relative: str) -> dict[str, str]:
     return {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
-def build_visual_inputs(root: Path, ui_design: str, stage: str) -> str:
+def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: str | None = None) -> str:
     """Return pointers to current visual truth, never an approval or new copy."""
     if stage not in {"direction", "hifi", "implementation"}:
         raise ValueError("stage must be direction, hifi or implementation")
@@ -51,8 +53,25 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str) -> str:
         inputs[identity["path"]] = identity
         return data
 
+    historical = []
+    if task_record:
+        if stage != "implementation":
+            raise ValueError("task record context is only for implementation maintenance")
+        record = _identity(root, task_record)
+        workflow = workflow_report(root, task_record)
+        if (workflow["workflow"] != "maintenance" or workflow["designRequired"]
+                or workflow["findings"]):
+            raise ValueError("implementation maintenance requires a valid none/style task record")
+        retain(record)
     for key in ("prd", "architecture", "stack"):
-        retain(view["source_identities"][key])
+        binding = view["source_identities"][key]
+        if task_record:
+            if not binding:
+                raise ValueError("required product source identity is missing")
+            historical.append(binding)
+            retain(_identity(root, binding["path"]))
+        else:
+            retain(binding)
 
     studies = []
     pending = []
@@ -120,6 +139,10 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str) -> str:
 
     rows = ["Visual inputs:", "- Stage: " + stage,
             "- Authority: " + label(authority),
+            "- Product context: " + ("current maintenance files; retained design bindings are historical provenance"
+                                      if task_record else "active UI contract source identities"),
+            "- Historical Product/Stack bindings: " + ("; ".join(label(item) for item in historical)
+                                                       or "not applicable"),
             "- Direction mode: " + (view["direction_mode"] or "pending"),
             "- Selected direction: " + (selected or "pending"),
             "- Approved target: " + (label(target) if target else "pending"),
@@ -146,10 +169,12 @@ def main(argv=None):
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--ui-design", required=True)
     parser.add_argument("--stage", choices=("direction", "hifi", "implementation"), required=True)
+    parser.add_argument("--task-record", help="existing validated maintenance task/Epic; never an approval override")
     options = parser.parse_args(argv)
     try:
-        print(build_visual_inputs(options.repo_root.resolve(), options.ui_design, options.stage), end="")
-    except (OSError, ValueError, TypeError, KeyError, UnicodeError) as exc:
+        print(build_visual_inputs(options.repo_root.resolve(), options.ui_design, options.stage,
+                                  task_record=options.task_record), end="")
+    except (OSError, ValueError, TypeError, KeyError, UnicodeError, subprocess.TimeoutExpired) as exc:
         parser.exit(2, "visual inputs blocked: " + str(exc) + "\n")
     return 0
 

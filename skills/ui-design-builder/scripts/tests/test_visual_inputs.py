@@ -242,6 +242,61 @@ Decision: not_required
                     build_visual_inputs(self.root, self.ui, "implementation")
                 path.write_bytes(original)
 
+    def maintenance_context(self, impact="style"):
+        self.contract(target=True, hifi=True, studies=True)
+        record = self.write("docs/epics/EPIC-maintenance.md",
+                            "Design workflow: maintenance\nUI impact: " + impact + "\n")
+        for command in (("init", "-q"), ("config", "core.autocrlf", "false"), ("add", "."),
+                        ("-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
+                         "commit", "-qm", "retain approved design")):
+            subprocess.run(["git", *command], cwd=self.root, check=True,
+                           capture_output=True, timeout=15)
+        for source in (self.prd, self.architecture, self.stack):
+            path = self.root / source
+            path.write_bytes(path.read_bytes() + b"Accepted maintenance clarification.\n")
+        return record
+
+    def test_maintenance_uses_current_product_and_retains_design_bytes(self):
+        for impact in ("none", "style"):
+            with self.subTest(impact=impact):
+                record = self.maintenance_context(impact)
+                before = {str(path): path.read_bytes() for path in (self.root / "docs").rglob("*") if path.is_file()}
+                with self.assertRaisesRegex(ValueError, "stale"):
+                    build_visual_inputs(self.root, self.ui, "implementation")
+                packet = build_visual_inputs(self.root, self.ui, "implementation", task_record=record)
+                for source in (self.prd, self.architecture, self.stack, self.hifi, self.study, record):
+                    self.assertIn(self.binding(source), packet)
+                self.assertIn("historical provenance", packet)
+                result = subprocess.run([sys.executable, "-B", str(SCRIPTS / "visual_inputs.py"),
+                                         "--repo-root", str(self.root), "--ui-design", self.ui,
+                                         "--stage", "implementation", "--task-record", record],
+                                        capture_output=True, text=True, encoding="utf-8", timeout=15)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(packet, result.stdout)
+                self.assertEqual(before, {str(path): path.read_bytes() for path in (self.root / "docs").rglob("*") if path.is_file()})
+
+    def test_maintenance_context_cannot_relax_design_or_classification_checks(self):
+        record = self.maintenance_context()
+        valid = (self.root / record).read_text(encoding="utf-8")
+        for text in (valid.replace("style", "structure"), valid.replace("style", "both"),
+                     valid + "UI impact: none\n", "```\n" + valid + "```\n",
+                     valid.replace("maintenance", "initial_design")):
+            with self.subTest(text=text):
+                self.write(record, text)
+                with self.assertRaises(ValueError):
+                    build_visual_inputs(self.root, self.ui, "implementation", task_record=record)
+        self.write(record, valid)
+        with self.assertRaisesRegex(ValueError, "implementation maintenance"):
+            build_visual_inputs(self.root, self.ui, "hifi", task_record=record)
+        for source in (self.screen, self.study, self.hifi, self.child):
+            with self.subTest(source=source):
+                path = self.root / source
+                original = path.read_bytes()
+                path.write_bytes(original + b" changed")
+                with self.assertRaisesRegex(ValueError, "stale"):
+                    build_visual_inputs(self.root, self.ui, "implementation", task_record=record)
+                path.write_bytes(original)
+
     def test_no_input_bytes_are_written_and_cli_uses_same_packet(self):
         self.contract(target=True, hifi=True)
         before = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
