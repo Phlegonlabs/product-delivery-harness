@@ -35,6 +35,7 @@ from harness_schema import (
     EXACT_TARGET_LIFECYCLE_ACTIONS,
     HEAD_BOUND_AUTHORIZATION_ACTIONS,
     RUN_DISPATCH_STATUSES,
+    review_lenses,
     run_required_harness_version,
     version_at_least,
 )
@@ -74,7 +75,7 @@ def _requires_repo_root(plan: dict[str, Any]) -> bool:
 def _tool_profile(node: dict[str, Any]) -> str:
     if node["kind"] == "mission":
         return "mission_write"
-    if node["kind"] == "verifier" and node.get("review", {}).get("type") == "visual":
+    if node["kind"] == "verifier" and "visual" in review_lenses(node.get("review")):
         return "visual_review_readonly"
     if node["kind"] == "verifier" and node.get("review") is not None:
         return "code_review_readonly"

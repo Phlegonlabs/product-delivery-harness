@@ -198,6 +198,16 @@ class IntegrationReviewSkipTests(unittest.TestCase):
 
         self.assertTrue(self.skip_errors(plan, run))
 
+    def test_skip_needs_a_pass_that_covers_every_lens(self) -> None:
+        plan, run = self.state(reviewed_sha=HEAD)
+        reviews = {node["id"]: node.get("review") for node in plan["graph"]["nodes"]}
+        reviews["N-VISUAL-REVIEW"]["lenses"] = ["frontend_code", "visual"]
+
+        self.assertTrue(self.skip_errors(plan, run))
+
+        reviews["N-FRONTEND-REVIEW"]["lenses"] = ["frontend_code", "visual"]
+        self.assertEqual([], self.skip_errors(plan, run))
+
     def test_security_review_is_never_skippable(self) -> None:
         plan, run = self.state(reviewed_sha=HEAD, review_type="security")
         for node in plan["graph"]["nodes"]:

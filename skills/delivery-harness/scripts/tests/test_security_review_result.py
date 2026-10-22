@@ -421,6 +421,56 @@ class SecurityReviewTransitionTests(unittest.TestCase):
             )
         )
 
+    def security_node(self, plan: dict[str, object], lenses: list[str] | None):
+        node = next(
+            item for item in plan["graph"]["nodes"] if item["id"] == "N-SECURITY-REVIEW"
+        )
+        if lenses is None:
+            node["review"].pop("lenses", None)
+        else:
+            node["review"]["lenses"] = lenses
+        return node
+
+    def test_combined_node_records_other_lens_findings_beside_a_security_pass(self) -> None:
+        plan, run = self.state()
+        node = self.security_node(plan, ["backend_code", "security"])
+        result = valid_result(self._security_head, self._security_head)
+        result["scope"] = node["review"]["scope"]
+        finding = "src/example/app.py:1 backend_code: input reaches the store unchecked"
+        with tempfile.TemporaryDirectory() as temp:
+            args = self.args(self.write_result(temp, result))
+            args.result = "blocked"
+            args.finding = [finding]
+
+            harness_transition._record_review_attempt(plan, run, args)
+
+        worker = run["review_workers"][0]
+        self.assertEqual(("blocked", [finding]), (worker["outcome"], worker["findings"]))
+        self.assertEqual("pass", worker["security_result"]["decision"])
+        self.assertFalse(
+            [item for item in validate_run(plan, run) if "security_result" in item]
+        )
+        # Without other lenses the result decision must equal the outcome.
+        self.security_node(plan, None)
+        self.assertTrue(
+            [item for item in validate_run(plan, run) if "recorded review outcome" in item]
+        )
+
+    def test_security_only_node_keeps_findings_and_decision_in_its_result(self) -> None:
+        plan, run = self.state()
+        node = self.security_node(plan, None)
+        result = valid_result(self._security_head, self._security_head)
+        result["scope"] = node["review"]["scope"]
+        with tempfile.TemporaryDirectory() as temp:
+            args = self.args(self.write_result(temp, result))
+            args.finding = ["extra finding"]
+            with self.assertRaisesRegex(ManifestError, "not --finding"):
+                harness_transition._record_review_attempt(plan, run, args)
+            args.result = "blocked"
+            args.finding = None
+            with self.assertRaisesRegex(ManifestError, "recorded review outcome"):
+                harness_transition._record_review_attempt(plan, run, args)
+
     def test_record_rejects_missing_or_wrong_sha_result(self) -> None:
         plan, run = self.state()
         with self.assertRaisesRegex(ManifestError, "--security-result"):

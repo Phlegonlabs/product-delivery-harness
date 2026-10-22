@@ -13,6 +13,7 @@ from typing import Any
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import ui_acceptance_review
 from harness_manifest import ManifestError, load_plan, load_run, validate_current_plan_run
+from harness_schema import review_lenses, review_policy
 from check_launch_packet import (
     InvalidMessageBudgetError,
     MessageBudgetOverflowError,
@@ -130,6 +131,7 @@ def render_packet(
     if not isinstance(node, dict) or not isinstance(node.get("review"), dict):
         raise ManifestError(f"{node_id!r} is not a runtime review node")
     review = node["review"]
+    lenses = review_lenses(review)
     lineage = run["review_lineages"][review["lineage_id"]]
     mission_ids = set(review["mission_ids"])
     missions = [item for item in plan["missions"] if item["id"] in mission_ids]
@@ -224,7 +226,8 @@ def render_packet(
             "Perform a fresh full-scope review at the reviewed head. Prior mission"
             " reviews do not reduce security scope or replace required checks.",
         ]
-    elif review.get("stage") == "integration":
+    elif review.get("stage") == "integration" and review_policy(plan) == "per_mission":
+        # A final_candidate review has no earlier mission review to lean on.
         reviewed_heads = []
         for mission in missions:
             mission_head = (
@@ -246,7 +249,7 @@ def render_packet(
             " changed: merge seams, conflict resolutions, cross-mission"
             " interaction, and shared-contract boundaries.",
         ]
-    if review["type"] in {"frontend_code", "backend_code"}:
+    if lenses & {"frontend_code", "backend_code"}:
         packet_lines += [
             "",
             "## Architecture review",
@@ -306,6 +309,7 @@ def render_packet(
         json.dumps(
             {
                 "review_type": review["type"],
+                "review_lenses": sorted(lenses),
                 "diff_artifact": diff_artifact,
                 "skill_binding_slot": (
                     "code_security_verification"

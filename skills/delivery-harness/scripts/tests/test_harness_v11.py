@@ -504,6 +504,12 @@ class HarnessV11Tests(unittest.TestCase):
             self.assertIn("## Integration focus", integration_packet)
             self.assertIn("merge seams", integration_packet)
             self.assertIn("cross-mission interaction", integration_packet)
+            # No mission review precedes a final_candidate review.
+            plan["review_policy"] = "final_candidate"
+            final_packet = render_packet(plan, run, "N-REVIEW-M1", root, max_diff_bytes=64)
+            self.assertNotIn("## Already-reviewed mission heads", final_packet)
+            self.assertNotIn("## Integration focus", final_packet)
+            del plan["review_policy"]
 
             review_node = next(
                 node

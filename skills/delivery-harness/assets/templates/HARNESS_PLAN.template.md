@@ -1,8 +1,8 @@
 # Plan: <feature or product slice>
 
-Use this template as `docs/goal/PLAN.md` for managed work that needs durable coordination, even when the selected execution route is sequential. Direct small work creates no PLAN/RUN artifacts. This example intentionally shows one neutral mission, one isolated writer, one exact-head pre-integration review, one fresh unified security review, and local final gates; it is not a UI repair graph or a promise of parallel fan-out. UI Design Intake remains an upstream contract when a product has UI; this neutral example has no UI surface. A web visual review adds `"required_tools": ["chrome_devtools"]` inside its `review` object; a frontend-code review adds it only when live browser state is part of the required evidence.
+Use this template as `docs/goal/PLAN.md` for managed work that needs durable coordination, even when the selected execution route is sequential. Direct small work creates no PLAN/RUN artifacts. This example intentionally shows one neutral mission, one isolated writer, one combined final review, and local final gates; it is not a UI repair graph or a promise of parallel fan-out. UI Design Intake remains an upstream contract when a product has UI; this neutral example has no UI surface. A review with the `visual` lens adds `"required_tools": ["chrome_devtools"]` inside its `review` object; a frontend-code review adds it only when live browser state is part of the required evidence.
 
-For new consolidated UI acceptance, add `ui_acceptance` to the `visual` node's existing `required_evidence` list.
+For new consolidated UI acceptance, add `ui_acceptance` to the existing `required_evidence` list of the node with the `visual` lens.
 Use the same marker on earlier visual reviews only when they cover parity and page quality for their complete declared scope.
 Keep comparison and quality-report anchors in that review attempt's evidence, as required by `references/verification-gates.md`.
 This neutral headless example remains unmarked. Do not rewrite frozen RUNs or earlier review results to adopt the marker.
@@ -86,6 +86,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
       "reason": null
     },
     "required_reviews": ["security"],
+    "review_policy": "final_candidate",
     "batch_verifiers": [],
     "final_gates": [
       {
@@ -151,29 +152,6 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
           }
         },
         {
-          "id": "N-M1-REVIEW",
-          "kind": "verifier",
-          "ref": "mission-focused",
-          "executor": "runtime_worker",
-          "allowed_outcomes": ["pass", "fix_required", "retryable_failure", "blocked", "contract_gap"],
-          "max_attempts": 2,
-          "runtime": {
-            "preferred_provider": null,
-            "allowed_providers": ["generic"],
-            "provider_options": {
-              "generic": {"model": null, "reasoning_effort": null}
-            }
-          },
-          "review": {
-            "stage": "preintegration",
-            "type": "backend_code",
-            "lineage_id": "REVIEW-M1",
-            "mission_ids": ["M1"],
-            "scope": ["src/example/**"],
-            "required_evidence": ["reviewed_sha", "path-and-line findings", "root-cause-grouped finding set", "pass or fix_required decision"]
-          }
-        },
-        {
           "id": "N-SECURITY-REVIEW",
           "kind": "verifier",
           "ref": "mission-focused",
@@ -190,6 +168,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
           "review": {
             "stage": "integration",
             "type": "security",
+            "lenses": ["backend_code", "security"],
             "lineage_id": "REVIEW-SECURITY",
             "mission_ids": ["M1"],
             "scope": [
@@ -197,7 +176,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
               "docs/verification/delivery-results.json",
               "docs/verification/evidence/**"
             ],
-            "required_evidence": ["reviewed_sha", "trust-boundary coverage", "source-to-sink findings", "tool coverage and gaps", "pass or blocked decision"]
+            "required_evidence": ["reviewed_sha", "path-and-line findings", "trust-boundary coverage", "source-to-sink findings", "tool coverage and gaps", "pass or blocked decision"]
           }
         },
         {
@@ -233,17 +212,9 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
           "id": "E-M1-REVIEW",
           "kind": "dependency",
           "from": "N-M1",
-          "to": "N-M1-REVIEW",
-          "on_outcomes": ["pass"],
-          "max_traversals": null
-        },
-        {
-          "id": "E-M1-REVIEW-SECURITY",
-          "kind": "route",
-          "from": "N-M1-REVIEW",
           "to": "N-SECURITY-REVIEW",
           "on_outcomes": ["pass"],
-          "max_traversals": 2
+          "max_traversals": null
         },
         {
           "id": "E-SECURITY-FINAL",
@@ -373,7 +344,7 @@ When the frozen architecture declares `platform-delivery/1`, add optional `platf
 
 Planned security requirements reuse upstream `PRD-*` traces and required `TEST-*` acceptance IDs. Give each trace an existing disposition (`planned`, `deferred`, or `out_of_scope`) under the current trace rules; an executable touched boundary must be `planned`. This template adds no security-specific schema or risk document.
 
-The single-mission example deliberately leaves `batch_verifiers` empty: a one-mission managed route has no true cross-mission batch gate. It still proves the selected runtime driver, allocates an isolated writer, checks exact authorization and scope/head bindings, runs the direct singleton pre-integration review, integrates the candidate, dispatches a fresh `security` reviewer with the project's `code_security_verification` binding, and closes through final gates. The neutral example has no predeclared security-repair mission, so a validated finding returns `blocked` and requires an explicit PLAN refinement before any write; a project that declares `fix_required` must also declare the bounded repair and re-review route. If two or more safe write missions are selected, the selector reports `parallel_graph` and the plan may declare real cross-mission checks.
+The single-mission example deliberately leaves `batch_verifiers` empty: a one-mission managed route has no true cross-mission batch gate. It still proves the selected runtime driver, allocates an isolated writer, checks exact authorization and scope/head bindings, integrates the candidate after the Worker Result Gate, dispatches one fresh combined reviewer whose `security` lens uses the project's `code_security_verification` binding, and closes through final gates. The neutral example has no predeclared security-repair mission, so a validated finding returns `blocked` and requires an explicit PLAN refinement before any write; a project that declares `fix_required` must also declare the bounded repair and re-review route. If two or more safe write missions are selected, the selector reports `parallel_graph` and the plan may declare real cross-mission checks.
 
 For each `runtime_worker` node, record the actually allowed host identities in `allowed_providers`, with `preferred_provider` null unless explicitly chosen. The `generic` example is a placeholder for an unknown host, not a wildcard. Leave model and effort null to preserve installed defaults. Set explicit supported options only when selected; the agent observes native capability rather than applying provider-specific rules.
 
@@ -389,7 +360,7 @@ Before implementation, every touched security boundary has a control, denial/no-
 
 For each required security TEST, its acceptance `criterion` uses `denial: rejected (<observable rejection signal>); no unauthorized side effects: unchanged (<observable state evidence>)`. Each observation needs at least 12 characters and no placeholders. The canonical Product checker validates this same format in the TEST Expected signal; matching IDs or a generic scan result alone cannot satisfy the join.
 
-Plan one runtime reviewer per applicable surface, set `max_attempts` to at most 2, and add same-surface fan-out only for an explicit user request or a recorded high-impact risk. Every new code-delivery plan includes one integration-stage `security` review covering all missions and loads the skill bound to `code_security_verification`; it always runs fresh on the unified candidate and cannot use the byte-identical-tree skip. Group repair findings by root-cause failure family, freeze the family's acceptance matrix before another write, and carry consumed review attempts across PLAN revisions in the owner-decision source, mission stop conditions, and reviewer packet. A replan does not grant a fresh review budget. After exhaustion, only an explicit owner decision naming the structural strategy, failure-family matrix, and exact additional allowance may create one successor review node; set its `max_attempts` to that allowance, never the default two. Model and effort choices remain per-node and explicit. Null preserves the host defaults. The agent checks current support and preserves installed role/fallback policy; no provider-specific catalog or default applies. A non-null preferred provider records an explicit host preference and never authorizes a bridge. Keep final review tied to the unified SHA and do not add another same-scope review on an unchanged head.
+New plans set `review_policy: "final_candidate"`, as shown. One integration-stage review node covers every mission, with `max_attempts` at most 2. Its `review.lenses` lists each lens the diff needs: the code lenses that apply (`frontend_code`, `backend_code`), `visual` when `ui_surfaces` is not empty, and always `security` for code delivery. Its `type` equals the widest lens, in the order `security`, `visual`, `frontend_code`, `backend_code`. A mission integrates after `worker_passed` and the Worker Result Gate. For a recorded high-impact risk or an owner request, add a direct `preintegration` review node for that mission; it keeps the per-mission rules. A PLAN without `review_policy` is `per_mission`: every write mission needs its own direct pre-integration review. The `security` lens loads the skill bound to `code_security_verification` and records `--security-result`; it always runs fresh on the unified candidate and is never skipped. A separate security-only node stays valid. Group repair findings by root-cause failure family, freeze the family's acceptance matrix before another write, and carry consumed review attempts across PLAN revisions in the owner-decision source, mission stop conditions, and reviewer packet. A replan does not grant a fresh review budget. After exhaustion, only an explicit owner decision naming the structural strategy, failure-family matrix, and exact additional allowance may create one successor review node; set its `max_attempts` to that allowance, never the default two. A non-null preferred provider records an explicit host preference and never authorizes a bridge. Keep final review tied to the unified SHA and do not add another same-scope review on an unchanged head.
 
 For UI work, load `references/ui-implementation-contract.md`. Freeze the approved UI contract, HiFi target, capture mode, and exactly one visual route. `design-system-compiler` owns the required `design-system/4` package and frozen derived HTML for `ui-design/3`; a retained `ui-design/2` package owns its conditional schema-3 pair; otherwise use the exact `not_required` replacement. UI implementation uses the owner-bound frontend-authoring skill under Harness conformance. A missing source is a design-input delta. Run platform-correct evidence after exact-SHA review and repair converge.
 
