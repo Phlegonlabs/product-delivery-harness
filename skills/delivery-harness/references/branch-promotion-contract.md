@@ -26,9 +26,22 @@ RUNs pinned before 0.63 follow [legacy pins](legacy-pins.md#branch-protocols-bef
 
 At RUN close, candidate C is complete local work only. On that same resolved run branch, the parent reviews the dry run and applies `scripts/archive_run.py` with `--expected-main <full SHA>` and `--main-ref refs/heads/main` or `refs/remotes/<remote>/main`. `--apply` refuses missing or mismatched bindings, protected or detached branches, and a branch that does not match the RUN integration branch. It moves the coordination set without deleting it and never moves anything under `docs/product/`; it does not authorize a commit, push, promotion, or cleanup.
 
-For Harness 0.38+, `archive_run.py --apply` writes closed `ARCHIVE_RECEIPT.json` in the archive, binding every pre-move source, C, branch, and observed `main`; A failure preserves partial moves for parent-led recovery. Empty optional directories are deliberately skipped because the receipt inventory is regular-file-only. Commit only repository bookkeeping as A. Revalidate the archived PLAN/RUN, receipt, destinations, deterministic `docs/DOCUMENTS.md`, absent live sources, and unchanged outside paths. If separately authorized, publish A as [Archive publication](trusted-host-publication.md) describes: the parent pushes A only after the owner's exact instruction naming the SHA and branch, never with force, then reads back the remote ref and records it in the Epic. The archived RUN grants nothing.
+For Harness 0.38+, `archive_run.py --apply` writes closed `ARCHIVE_RECEIPT.json` in the archive.
+The receipt binds every pre-move source, C, branch, and observed `main`.
+A failure preserves partial moves for parent-led recovery.
+Empty optional directories are skipped because the receipt inventories regular files only.
+Commit only repository bookkeeping as A.
+Revalidate the archived PLAN/RUN, receipt, destinations, deterministic `docs/DOCUMENTS.md`, absent live sources, and unchanged outside paths.
+For separately authorized publication, follow [Archive publication](trusted-host-publication.md).
+The parent pushes A only after the owner's exact instruction naming the SHA and branch.
+Never use force.
+Read back the remote ref and record it in the Epic.
+The archived RUN grants nothing.
 
-A inherits C's review, security and gate evidence only when the C..A diff touches the archive allowlist: moves under `docs/goal/`, `docs/DOCUMENTS.md` and `ARCHIVE_RECEIPT.json`. `push_archived_candidate.py prepare` checks this allowlist and refuses any other path. Any other change makes A a new candidate.
+A inherits C's review, security and gate evidence only after the C..A archive allowlist check passes.
+The allowlist covers coordination moves from `docs/goal/` and `docs/tasks.md`, the `docs/DOCUMENTS.md` update, and `ARCHIVE_RECEIPT.json`.
+`push_archived_candidate.py prepare` checks this allowlist and refuses any other path.
+Any other change makes A a new candidate.
 
 ## Candidate Gate
 
