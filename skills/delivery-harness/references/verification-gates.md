@@ -321,7 +321,11 @@ Repair cycle: a missing element, a structural difference, or any difference outs
 
 #### Final Page-Quality Pass
 
-The same acceptance reviewer checks heuristic UX, accessibility, responsive/device behavior and performance per delivered route.
+The same acceptance reviewer checks each delivered route.
+When parity passes within tolerance and the HiFi evidence is current, the HiFi review already proved heuristic UX, accessibility and responsive layout.
+The pass then covers only implementation-only properties: performance, the no-JavaScript path, console and network errors, and the focus handling and accessible names the framework renders.
+HiFi evidence is current when PLAN freezes the approved HiFi entry that Visual Approval and its passing review bind.
+Otherwise, including routine maintenance and legacy wireframe sources, the pass also checks heuristic UX, accessibility and responsive/device behavior.
 This page-quality pass is part of Final UI Acceptance, not a later review or another aesthetic grading wave.
 Hosted-browser surfaces use browser and source evidence; extension, native and desktop surfaces use their platform capture and source evidence.
 Impeccable is not the default for this node.
