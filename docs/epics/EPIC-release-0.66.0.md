@@ -114,3 +114,15 @@ The code [local handoff](C:/Users/mps19/Documents/GitHub/product-delivery-harnes
 Eight read-only consumer CLI checks preserved every PLAN/RUN byte. AgentKiosk timed out under both versions. Jolvex and dilution kept identical existing errors. The cancelled 0.32 agentic RUN gained current strict-source errors; historical execution still requires its exact pinned bundle. These comparisons are not a consumer compatibility PASS. Six clean main-based sync worktrees are prepared; no consumer document has changed.
 
 This checkpoint still awaits a fresh-context targeted review and complete CI on the integrated repair SHA. Main, `v0.66.0`, official installation and consumer publication remain pending in the linked receipt. Shared installation remains 0.65.3; loaded identity is unknown.
+
+### Remaining CI Cutover Fixes
+
+Candidate `0e9aabd6` received a complete security PASS. The independent review closed R1–R5 and retained earlier inspection origins. Its 131 focused tests passed with six local platform skips. A fresh host command passed admission; nine tampered results were rejected before RUN mutation.
+
+Required CI run `39868504338` completed with ten successful jobs and three failed execution jobs. The aggregate failed. Both real conditional journeys passed on Windows Python 3.13.16. macOS completed all 17 native files. The failed Windows shard stopped before its remaining checks.
+
+The remaining failures share three cutover tails. Commits `a5cc952f`, `d960b5f2` and `b7d3790e` bind the current 44-command inventory, restore optional README catalog routes, and canonicalize the archive test fixture root. Runtime code and guards remain unchanged. The exact hosted short-path pair remains unobserved.
+
+All 116 focused tail tests passed without skips. Spec, pyflakes, document weight, 100 local links and preservation checks passed. All 14 captured process roots exited. The [tail handoff](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/repair-docs-sol2/handoff-final.json) retains exact inputs and logs. Earlier review and CI evidence remain unchanged.
+
+Fresh exact-candidate review and required CI remain pending. The linked release receipt records later main, tag, official installation and consumer outcomes. No consumer document has changed at this checkpoint.

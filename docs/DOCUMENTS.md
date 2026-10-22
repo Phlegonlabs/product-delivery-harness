@@ -6,7 +6,7 @@ Index of live documents. Only open Epics are indexed; closed Epics live in Git h
 | --- | --- | --- |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior, installation and release instructions | Documentation of record |
 | `CHANGELOG.md` | Release history older than the newest README entries | Added with the 0.66.0 README diet |
-| `docs/epics/EPIC-release-0.66.0.md` | Fewer review rounds across PRD, UI and delivery | in_progress; consolidated repair integrated; fresh recheck, CI and release outcomes follow the linked receipt |
+| `docs/epics/EPIC-release-0.66.0.md` | Fewer review rounds across PRD, UI and delivery | in_progress; C2 security passed, remaining CI cutover fixes integrated; exact-candidate and release outcomes follow the linked receipt |
 | `docs/epics/EPIC-review-batch-boundaries.md` | Feature-batch missions, one targeted repair per candidate and one Harness contract per RUN | complete; local source, release and installation not done |
 | `docs/epics/EPIC-release-0.65.3.md` | Publish the accepted UI workflow and agent-policy fixes through a reviewed PR | in_progress; the publication receipt records exact review, CI, main, tag and installation results |
 | `docs/epics/EPIC-integration-result-adoption.md` | Atomic integration output ingestion and reviewed terminal-mission adoption | in_progress; independent review and isolated adoption pending |
