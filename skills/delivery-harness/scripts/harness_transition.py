@@ -2739,6 +2739,9 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
             f"integration branch HEAD is {live_head}, not {args.integrated_sha}; "
             "integrate first, then record"
         )
+    from harness_integration_results import retain_integration_results
+
+    retain_integration_results(plan, run, args)
     previous_head = run.get("integration", {}).get("integration_head_sha")
     if is_full_sha(previous_head) and previous_head != args.integrated_sha:
         inactive_skips = _inactive_skipped_integration_reviews(plan, run)
@@ -5297,6 +5300,7 @@ def build_parser() -> argparse.ArgumentParser:
     integration = subparsers.add_parser("record-integration")
     integration.add_argument("--mission-id", required=True)
     integration.add_argument("--integrated-sha", required=True)
+    integration.add_argument("--verifier-result", type=Path, action="append", default=[])
     candidate = subparsers.add_parser("reconcile-candidate-head")
     candidate.add_argument("--candidate-sha", required=True)
     candidate.add_argument("--source", required=True)
@@ -5593,6 +5597,10 @@ def _transition_under_lock(
         from harness_worker_ingestion_transition import verify_ingestion_before_commit
 
         verify_ingestion_before_commit(plan, run, args)
+    if args.command == "record-integration":
+        from harness_integration_results import verify_integration_observation
+
+        verify_integration_observation(args)
     _ensure_plan_unchanged(args.plan, expected_plan_text)
     _replace_run_document(args.run, run, expected_text=original_text)
     if packet is not None:

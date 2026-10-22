@@ -65,6 +65,8 @@ Mission integration gate:
 
 - Runs after reviewed work lands on the exact non-protected run integration branch resolved from repository governance or the user's instruction.
 - Runs that mission's declared `integration_verifiers` on the integrated head.
+- Admit actual protocol-v2 output through repeatable `record-integration --verifier-result <absolute-external-json>` flags. Require fresh execution, captured streams, exact PLAN/RUN context, and complete declared PASS coverage. Existing valid retained evidence remains usable without flags.
+- Bind host and container output to the live integration root, branch, candidate, tracked snapshots, and exact RUN/generated-tasks protected paths. Recheck source bytes and protected identities before the atomic RUN write. Reuse, duplicate input, retained-PASS replay, and another route's reservation are refused.
 - When missions meet at a security boundary, integration checks cover the seam — enforcement, cross-mission trust/data flow, and failure/no-side-effect behavior — rather than repeating only per-task unit checks.
 - Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
 

@@ -6,6 +6,7 @@ Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each pa
 
 | Document | Purpose | Status |
 | --- | --- | --- |
+| `docs/epics/EPIC-integration-result-adoption.md` | Atomic integration output ingestion and reviewed terminal-mission adoption | Local source implementation and focused verification in progress; independent review and isolated adoption pending |
 | `docs/epics/EPIC-runtime-role-policy.md` | Apply new host role choices without relabelling retained reservations | Local implementation and focused checks complete; exact-commit Sol review and isolated adoption pending |
 | `docs/epics/EPIC-worker-ingestion-reconciliation.md` | Retry-head prevention and exact-result ingestion recovery | Runtime candidate `1dea7fd4` passed native Sol review; private installation/adoption and actual M01 recovery pending |
 | `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 released at `dd8a52d3` and installed; 439 core files verified; exact candidate/main CI and reviews passed |

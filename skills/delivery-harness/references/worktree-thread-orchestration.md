@@ -207,12 +207,14 @@ Integrate selected missions serially, one at a time. A mission integrates as soo
 3. If the candidate itself is stale or cannot be trusted enough to enter that validation path, record the current attempt with guarded `reject-worker-result`; never rewrite RUN by hand.
 4. Transition `worker_passed -> integrating` only after `record-worker-result` succeeds.
 5. Integrate onto the current integration head when `integrate_locally` is authorized. Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule — reviewed mission heads only; coordination updates use a separate bookkeeping commit, never an unrelated fix.
-6. Rerun the mission integration verifier on the new head.
-7. Record `integrated_sha` and `integration_gate: PASS`, then transition to `integrated`; otherwise record `integration_failed` and stop dependent work.
+6. Run every declared mission integration verifier on the new head. Retain actual protocol-v2 output in checkout-external JSON files.
+7. Run `record-integration --mission-id <id> --integrated-sha <sha> --verifier-result <json>` with one result flag per new verifier. The transition admits fresh output and records integration atomically. Complete declared PASS coverage may combine new results with valid retained evidence. Without new files, omit the flags. A failed check stops dependent work.
 8. After the wave closes and every selected mission has integrated, run the PLAN-level batch verifiers; stop the next wave if any fail.
 9. Reobserve the integration head and recompute the ready frontier/conflict graph before launching another wave.
 
 Never treat a completed task/thread, a worker `PASS`, or a commit on a mission branch as dependency satisfaction. Only the integrated state described in `verification-gates.md` unblocks downstream missions.
+
+Keep RUN and its declared generated tasks view unchanged between verifier execution and result ingestion. Both execution modes require the complete live Git guard. The transition rechecks source bytes, branch, candidate, tracked snapshots, and protected file hashes and identities before writing. It rejects reused output, duplicate inputs, retained-PASS replay, and evidence from worker, task, batch, or final routes. These result flags grant no execution or merge authority.
 
 ## Push And Lifecycle
 
