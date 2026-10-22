@@ -19,6 +19,8 @@ A validated frozen maintenance record may retain either `ui-design/3` or `ui-des
 
 ## Rules For Every UI Mission
 
+Before author dispatch, apply [Frontend Visual Inputs](frontend-visual-inputs.md). Carry the selected captures, font/asset sources and visual features into the actual implementation task; require the author's own source and capture inspection evidence.
+
 An enhancement implements only the accepted added/changed page or region scope. Retain existing Wireframe and HiFi pages, approved tokens/components and behavior outside that scope. New entry/return links are explicit affected regions. Follow `../../ui-design-builder/references/enhancement-recommendations.md`'s Incremental UI Scope and compare preserved screens before and after; a broad redraw is a scope failure even when every route still exists.
 
 For initial UI and enhancements, reconcile explicit hero/motion requests with the approved UI/MM scope before writing. Use the approved composition, assets, CTA and compact reflow, then exercise the actual trigger, intermediate behavior, end state and reduced-motion fallback. A static screenshot or deferred asset cannot close a required motion item. Native typography, transitions, gestures and haptics need the approved platform tooling in the first implementation slice and final matrix; HTML projection evidence does not satisfy them. Route new design recommendations through `../../ui-design-builder/references/enhancement-recommendations.md` before changing a frozen decision.

@@ -52,6 +52,8 @@ Use `references/review-workflow.md` to classify this round. New initial design a
 
 ## Review And Repair Boundaries
 
+Before author dispatch, apply [Frontend Visual Inputs](../delivery-harness/references/frontend-visual-inputs.md). Direction exploration may keep selection pending; HiFi and its repairs carry the selected direction's captures, fonts, assets and concrete visual-feature sources.
+
 - Author directions and HiFi from the PRD contract, not from an implied page skeleton. The design author may choose hierarchy, grouping, section rhythm, typography, density and visual treatment; it may not add a page, route, control, state, responsive target, operation, copy obligation or integration.
 - Keep selected direction and approved HiFi identities traceable. A changed candidate needs applicable fresh evidence. The compiler writes a separate formal-pair preview; it never changes historical approvals.
 

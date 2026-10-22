@@ -108,6 +108,7 @@ Implement local hooks first; route fixed-build external setup to separately auth
 For unproven cross-layer dependencies, apply [Early Journey And Engineering Evidence](references/execution-task-decomposition.md#early-journey-and-engineering-evidence) within existing tasks and checks.
 
 1. Inspect the bounded component and relevant instructions.
+   Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task, including direct work.
 2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. UI work requires the host frontend worker; the parent retains coordination and acceptance.
 3. Run the smallest focused checks, including security tests, that prove the change.
 4. Review the complete diff and run `git diff --check`.

@@ -25,6 +25,7 @@ Runtime:
 - Runtime-contract adoption: <contract_adoption receipt or none>
 - Handoff: <fresh bounded packet or host-native task context; max_message_bytes <positive integer>>
 - Context source hashes: <ordered paths with matching hashes>
+- Visual inputs: <frontend-visual-inputs.md block; omit for non-UI>
 - Result contract: <absolute or readable path to references/worker-result-contract.md>
 - Permissions: <mode/profile, filesystem/network/bindings, approval policy>
 - Resource claims: <typed keys and access>
@@ -51,7 +52,7 @@ Repair context (omit for an initial implementation):
 
 1. Enter the assigned worktree. Read the ordered repository context and only the named skills. Keep automatic context discovery enabled.
 2. With a contract-adoption receipt, independently recompute the seven-skill contract digest and stop on a mismatch. Read the fixed contract and report it as `contract_adoption_check`.
-3. Treat this handoff as the complete task; do not reconstruct the parent conversation. Open PLAN/RUN only for a named field the packet cannot supply.
+3. Use this complete handoff. Do not reconstruct parent context. Open PLAN/RUN only for named missing fields.
 4. The parent ran `scripts/check_launch_packet.py` before dispatch. Verify source hashes, repository, branch/ref, base SHA, clean state, digest, lease, scope, resources, permissions, authorizations. Stop on invalid, stale, or drift.
 5. Apply only the matching host contract; never borrow another host's model, role, context, or launch mechanics. Confirm temp/cache paths, network, local bindings, and sockets fit its boundary.
 

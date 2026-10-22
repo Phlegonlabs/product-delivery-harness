@@ -551,6 +551,8 @@ def parse_ui_contract_view(text: str) -> tuple[dict[str, Any], list[str]]:
     view: dict[str, Any] = {
         "contract_version": contract_version,
         "structure_review": is_structure_review(active),
+        "direction_mode": _field(_section(active, "## UI Design Intake") or "", "Direction mode"),
+        "selected_direction": _field(style_section, "Selected direction"),
         "source_identities": sources,
         # Short aliases keep the exported view ergonomic while the longer
         # names remain the canonical serialized shape.

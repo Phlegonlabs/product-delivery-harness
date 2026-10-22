@@ -82,6 +82,8 @@ All UI authoring and implementation, including pages, components, markup, stylin
 
 Every frontend dispatch packet carries an explicit maximum-creativity brief. It directs the writer to pursue the most distinctive, high-craft visual concept the frozen PRD allows — ambitious hierarchy, typography, composition and motion rather than a generic template or a mechanical section recipe. The PRD bounds pages, operations, states and copy; it does not cap creative ambition. Direction and HiFi launch prompts restate this brief; a bare task list is not a valid frontend dispatch.
 
+Apply [Frontend Visual Inputs](frontend-visual-inputs.md) in the actual task for every frontend stage. Pass current selected screens, font and asset sources, concrete visual-feature sources and inspection duties. Preserve source authority and stage-specific pending decisions.
+
 Independent review requires the host's reviewer binding and the tools required by the review. A source reviewer without browser access cannot pass a visual inspection; the parent's browser session is not that reviewer's capability. A role title or prompt restriction does not prove tool isolation.
 
 Resolve the logical role against effective host policy and observed capabilities. Record the actual native agent type or external bridge, explicit model and effort when required, permissions, required tools and allowed fallback. Host-specific models and launch paths belong to host policy, not shared skill defaults. Keep the parent host identity separate from the worker's model provider; a bridge does not bypass `allowed_providers`.

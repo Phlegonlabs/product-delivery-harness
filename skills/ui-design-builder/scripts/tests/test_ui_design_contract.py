@@ -781,6 +781,8 @@ class UiDesignContractTests(unittest.TestCase):
         view, problems = checker.parse_ui_contract_view(contract())
 
         self.assertEqual([], problems)
+        self.assertEqual("one recommended direction", view["direction_mode"])
+        self.assertEqual("VD-R1-01 precise operations", view["selected_direction"])
         self.assertEqual(
             "docs/product/PRD.md",
             view["source_identities"]["prd"]["path"],

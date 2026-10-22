@@ -79,3 +79,6 @@ Frontend Design source: docs/design/<folder>/SKILL.md @ sha256:<observed-source-
 | hifi | frontend-design @ sha256:<observed-source-digest> | docs/design/ui-references/round/index.html @ sha256:<candidate-digest> | Concrete typography, palette, layout and self-check outcomes |
 
 The source path is a retained repository snapshot of the actually observed `frontend-design` `SKILL.md` with `name: frontend-design`. Every stage's Skill SHA-256 equals this snapshot hash. The validator checks the snapshot bytes and current artifact bindings; it cannot prove that an agent truly used the skill. Use repair-1, repair-2 for actual design repairs with their resulting artifact and applied decisions. Current direction/hifi rows bind the exact current candidates, not a convenient other file; a legacy package may retain its historical `wireframe` row. Record only work actually performed. Human direction and final Visual Approval stay in their dedicated sections of ui-design.md.
+
+For the existing Application and task evidence, name the selected captures, font declarations, assets and visual features the author actually inspected.
+Use the current source identities from [Frontend Visual Inputs](../../delivery-harness/references/frontend-visual-inputs.md); do not substitute the parent's reading or backfill an inspection.

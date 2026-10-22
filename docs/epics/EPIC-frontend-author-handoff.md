@@ -62,4 +62,30 @@ Current host files and both no-launch command tails are retained in [stage-polic
 The pre-refinement files are retained in [stage-policy backup](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-host-before-stage-split/manifest.json).
 All 24 workflow tests pass, including Sonnet/xhigh default assignment and explicit Opus/xhigh design binding.
 All three changed host skills pass skill-creator validation; unrelated host policy and fallback settings remain unchanged.
-FAH-1 is locally verified under the latest stage split. FAH-2 and final independent review remain pending.
+FAH-1 is locally verified under the latest stage split. Final independent review remains pending.
+
+## Visual Handoff Result
+
+FAH-2 uses one `Visual inputs` block in existing direct and managed author tasks, with no new approval record.
+The UI builder's read-only `visual_inputs.py` assembles current source pointers from the existing contract view.
+It carries the selected captures, complete HiFi children, font/asset declaration sources, concrete visual-feature sources and applicable pair/preview.
+Direction exploration permits pending selection; HiFi requires selection, and implementation requires the approved target identity and scope.
+Missing or stale source bytes block assembly. Existing stage approval, full source joins and visual checks remain required.
+The actual author must inspect captures and source material and report their own read evidence before editing.
+The bridge skill carries this checklist even when a pinned older core bundle lacks the helper.
+
+The existing authority-view parser gains two read-only fields; it retains its single parsing responsibility despite its existing size.
+No source schema, score threshold, repair budget, publication rule, compiler policy or action authorization changes.
+The worker template stays within its existing 1,200-word bound after a short wording trim; no budget was raised.
+
+Working-tree verification completed: 393 UI tests with two Windows/POSIX permission skips; 18 cross-skill contracts; 65 Harness skill contracts.
+The eight new handoff cases cover pending direction/HiFi, selected capture isolation, complete children, pair/preview, malformed or stale inputs and read-only CLI behavior.
+All six Python script trees passed Pyflakes, and source skill specification passed.
+The first fixture used an incorrect scope separator and incomplete manifest; both were corrected before the passing full suite.
+The first worker-template check exceeded the existing word bound; the final template passes without increasing the limit.
+Logs: `frontend-visual-ui-suite-1792635383139711900.log`, `frontend-visual-cross-contract-1792635493010793500.log`, and `frontend-visual-source-contract-pass-1792635544004148800.log`.
+
+Final host inputs are retained in [host snapshot manifest](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/frontend-host-final/manifest.json).
+The manifest binds host files outside Git separately from the source candidate; Git SHA alone does not identify them.
+FAH-1 and FAH-2 are locally verified. Independent fixed-candidate review, final records and handoff audit remain pending.
+The seven-core-skill installation remains the prior verified bundle; this request did not authorize another core installation.

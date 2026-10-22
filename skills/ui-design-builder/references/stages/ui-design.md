@@ -15,6 +15,8 @@ Outside a real Markdown link, `references/...`, `skills/...`, and `../delivery-h
 
 ## Workflow
 
+Before direction or HiFi author dispatch, apply [Frontend Visual Inputs](../../../delivery-harness/references/frontend-visual-inputs.md). Include its block in the actual author task, not only the parent record. Use `direction` before selection and `hifi` after selection; retain the stage's existing approval requirements.
+
 For initial UI work and affected frontend/mobile enhancements, apply `references/enhancement-recommendations.md`. Reuse supplied decisions, proactively recommend task-fit reference/CSS or native treatments, and carry explicit hero/motion requests into the existing UI/MM records. Recommendations never replace the existing approvals or actual platform evidence.
 
 Before choosing incremental work, inspect the owner instruction for **full design rebuild with retained PRD**. Follow `references/design-translation.md` for that explicit exception, reading UX and iPhone scope. After skill updates and before implementation, apply `references/design-freshness.md`. Rebuild changes design authority, not product scope or filesystem permissions.
