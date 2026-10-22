@@ -6,7 +6,7 @@ These are preparation checks inside the existing stage exits, not new human appr
 
 Apply these new author handoff requirements to work adopting Harness 0.57.0 or later. Record the observed skill version/source identity in the existing task record; an unknown loaded identity remains unknown. Earlier pinned RUNs retain their recorded contracts until an authorized upgrade boundary.
 
-When a new 0.57.0-or-later task consumes stages already approved without these checks, perform present-day catch-up self-reviews of the applicable currently approved scope at handoff. Name each approval's identity and the actual review date and candidate; never claim the review happened before that historical approval. Unchanged owner decisions remain valid. Required findings block dependent execution; repairs that change approved content renew the affected decisions. A closed approval alone never exempts a new task from current self-review.
+When a new 0.57.0-or-later task consumes stages already approved without these checks, perform a present-day catch-up self-review at handoff only for approved scope whose bytes changed since approval, or when its UI contract version changed. Record the identity of each unchanged approval instead. Name each approval's identity and the actual review date and candidate; never claim the review happened before that historical approval. Unchanged owner decisions remain valid. Required findings block dependent execution; repairs that change approved content renew the affected decisions. A closed approval alone never exempts changed scope or the new task's own work from current self-review.
 
 ## Record The Reviewed Candidate
 

@@ -47,7 +47,9 @@ class PreDeliverySelfReviewTests(unittest.TestCase):
                          "not a fifth authored target", "parent semantic handoff check",
                          "A repair self-check covers the ledger rows, changed sources, direct consumers",
                          "it does not rerun the complete matrix",
-                         "builds the complete matrix receipt once per candidate"):
+                         "builds the complete matrix receipt once per candidate",
+                         "only for approved scope whose bytes changed since approval",
+                         "or when its UI contract version changed"):
             self.assertIn(boundary, source)
 
     def test_every_readme_routes_initial_review_and_scoped_work(self):
