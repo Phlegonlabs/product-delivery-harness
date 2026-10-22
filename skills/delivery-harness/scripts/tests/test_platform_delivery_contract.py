@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import io
+import re
 import sys
 import tempfile
 from contextlib import redirect_stdout
@@ -26,8 +27,10 @@ from harness_manifest import _validate_verifier_executions  # noqa: E402
 from manifest_fixtures import valid_plan  # noqa: E402
 from manifest_fixtures import (  # noqa: E402
     eval_exempt_prd,
+    carry_security_requirement,
     graph_node,
     manifest_markdown,
+    materialize_plan_sources,
     retained_gate_execution,
     task as task_fixture,
     valid_run,
@@ -1772,14 +1775,21 @@ class FrozenSourceJoinTests(unittest.TestCase):
         try:
             from test_platform_delivery import (  # noqa: E402
                 architecture as platform_architecture,
-                prd as platform_prd,
                 sequence,
             )
+            from test_product_package_checker import valid_architecture, valid_prd
         finally:
             sys.path[:] = original_path
+        architecture = valid_architecture()
+        platform = platform_architecture(platform=sequence())
+        for heading in ("Component Architecture", "API and Interface Contracts", "Release Targets"):
+            section = re.search(rf"^## {heading}\n.*?(?=^## |\Z)", platform, re.MULTILINE | re.DOTALL).group()
+            architecture = re.sub(rf"^## {heading}\n.*?(?=^## |\Z)", lambda _: section, architecture,
+                                  count=1, flags=re.MULTILINE | re.DOTALL)
+        architecture += "\n" + sequence()
         return (
-            platform_architecture(platform=sequence()),
-            platform_prd(required=("TEST-001", "TEST-002")),
+            architecture,
+            eval_exempt_prd(valid_prd()),
         )
 
     def not_required_architecture(self, status: str = "approved") -> str:
@@ -1861,12 +1871,13 @@ class FrozenSourceJoinTests(unittest.TestCase):
             set(gate["acceptance_test_ids"]) | {"TEST-FEATURE"}
         )
         return prd.replace(
-            "| TEST-002 | Fixture obligation | integration | Yes | PRD-001 | "
-            "Fixture signal passes |",
-            "| TEST-002 | Fixture obligation | integration | Yes | PRD-001 | "
-            "Fixture signal passes |\n"
+            "## Non-Functional Requirements",
+            "| PRD-FEATURE | Complete the platform feature | Must | The feature result is observable |\n"
+            "## Non-Functional Requirements", 1,
+        ).replace(
+            "## UI Design Handoff Status",
             "| TEST-FEATURE | Feature works | integration | Yes | PRD-FEATURE | "
-            "Feature passes |",
+            "Feature passes |\n## UI Design Handoff Status",
         )
 
     def materialized_platform_plan(
@@ -1878,6 +1889,31 @@ class FrozenSourceJoinTests(unittest.TestCase):
         plan: dict[str, object] | None = None,
     ) -> dict[str, object]:
         plan = plan or platform_plan()
+        package_tests = Path(__file__).resolve().parents[3] / "product-definition-builder/scripts/tests"
+        original_path = list(sys.path)
+        try:
+            sys.path.insert(0, str(package_tests))
+            from test_product_package_checker import strictize_approved_package, valid_stack
+            from check_product_package import STACK_SECTION_LAYERS
+            stack = valid_stack().replace("| Required |", "| Approved |")
+            stack = stack.replace(
+                "## Frontend Technology Decision",
+                "| OPT-BE-01 | Backend or data | Python service bundle | Local API | Team owns runtime | approved |\n"
+                "| OPT-BE-02 | Backend or data | Go service bundle | Hosted API | Team owns compilation | rejected |\n"
+                "| OPT-MOB-01 | Mobile or desktop | SwiftUI and Xcode bundle | iOS app | Team owns distribution | approved |\n"
+                "| OPT-MOB-02 | Mobile or desktop | Cross-platform bundle | Multi-OS app | Team owns upgrades | rejected |\n\n"
+                "## Frontend Technology Decision", 1,
+            )
+            stack += (
+                "\n## Mobile/Desktop Technology Decision\n### Recorded or Approved Stack\n"
+                "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |\n"
+                "| --- | --- | --- | --- | --- | --- |\n" +
+                "\n".join(f"| {layer.title()} | fixture choice | Approved | Owner decision | Fits iOS | None |"
+                          for layer in STACK_SECTION_LAYERS["Mobile/Desktop Technology Decision"]) + "\n"
+            )
+            prd, architecture, stack = strictize_approved_package(prd, architecture, stack)
+        finally:
+            sys.path[:] = original_path
         plan["sources"] = [
             {
                 "id": "SRC-001",
@@ -1916,7 +1952,7 @@ class FrozenSourceJoinTests(unittest.TestCase):
         texts = {
             "docs/product/PRD.md": prd,
             "docs/product/architecture.md": architecture,
-            "docs/product/stack-decisions.md": "# Stack\n",
+            "docs/product/stack-decisions.md": stack,
         }
         for location, text in texts.items():
             path = root / location
@@ -1928,6 +1964,14 @@ class FrozenSourceJoinTests(unittest.TestCase):
             source["content_sha256"] = hashlib.sha256(
                 path.read_bytes()
             ).hexdigest()
+        acceptance_tests = list(plan["final_gates"][0]["acceptance_test_ids"])
+        carry_security_requirement(plan)
+        plan["final_gates"][0]["acceptance_test_ids"] = sorted(set(acceptance_tests) | {"TEST-003"})
+        for task in plan["missions"][0]["tasks"]:
+            arch_ids = [trace for trace in task["trace_ids"] if trace.startswith("ARCH-")]
+            if arch_ids:
+                task["acceptance_matrix"].append({"test_id": "TEST-001", "trace_ids": arch_ids,
+                                                   "criterion": "The shared platform interface passes"})
         return plan
 
     def combined_platform_feature_fixture(
@@ -1946,7 +1990,7 @@ class FrozenSourceJoinTests(unittest.TestCase):
         next(
             trace for trace in plan["traces"] if trace["id"] == "ARCH-001"
         )["id"] = "ARCH-002"
-        feature_prd = self.add_planned_feature(plan, eval_exempt_prd(base_prd))
+        feature_prd = self.add_planned_feature(plan, base_prd)
         plan = self.materialized_platform_plan(
             root,
             architecture=architecture,
@@ -1957,10 +2001,8 @@ class FrozenSourceJoinTests(unittest.TestCase):
             source for source in plan["sources"] if source["kind"] == "prd"
         )
         self.assertIsNone(prd_source["source_revision"])
-        self.assertEqual(
-            hashlib.sha256(feature_prd.encode("utf-8")).hexdigest(),
-            prd_source["content_sha256"],
-        )
+        feature_prd = (root / prd_source["location"]).read_text(encoding="utf-8")
+        self.assertEqual(hashlib.sha256(feature_prd.encode("utf-8")).hexdigest(), prd_source["content_sha256"])
         return plan, feature_prd
 
     def test_run_none_marked_platform_join_and_exact_byte_reuse(self) -> None:
@@ -1972,6 +2014,8 @@ class FrozenSourceJoinTests(unittest.TestCase):
                 architecture=architecture,
                 prd=prd,
             )
+            architecture = (root / "docs/product/architecture.md").read_text(encoding="utf-8")
+            prd = (root / "docs/product/PRD.md").read_text(encoding="utf-8")
             real_loader = harness_contract_join_module._load_platform_delivery_parser
             real_module = real_loader(
                 harness_contract_join_module.sibling_builder_scripts_dir()
@@ -2171,7 +2215,7 @@ class FrozenSourceJoinTests(unittest.TestCase):
             no_dependency["graph"]["edges"] = [
                 edge
                 for edge in no_dependency["graph"]["edges"]
-                if edge["id"] != "E-M1-REPAIR-FINAL"
+                if not (edge["kind"] == "dependency" and edge["from"] == "N-M1" and edge["to"] == "N-FINAL")
             ]
             no_dependency_errors = validate_frozen_contract_joins(
                 no_dependency,
@@ -2286,12 +2330,12 @@ class FrozenSourceJoinTests(unittest.TestCase):
         architecture, valid_prd = self.product_fixtures()
         invalid_utf8 = b"# PRD\n\xff\n\n## Test Obligations\n"
         cases = (
-            ("omitted", "requires readable frozen PRD bytes"),
-            ("duplicate", "requires exactly one frozen PRD source"),
-            ("missing", "cannot read frozen PRD source"),
+            ("omitted", "requires exactly one frozen prd source"),
+            ("duplicate", "requires exactly one frozen prd source"),
+            ("missing", "cannot inspect frozen PRD path component"),
             ("hash mismatch", "bytes do not match content_sha256"),
             ("revision invalid", "source_revision must be a full Git SHA"),
-            ("utf8 invalid", "adopted platform or feature authority requires readable"),
+            ("utf8 invalid", "core artifact is not valid UTF-8"),
         )
         for case, fragment in cases:
             with self.subTest(case=case):
@@ -2338,11 +2382,11 @@ class FrozenSourceJoinTests(unittest.TestCase):
         architecture, prd = self.product_fixtures()
         invalid_utf8 = b"# Architecture\n\xff\n"
         cases = (
-            ("duplicate", "requires exactly one frozen architecture.md source"),
-            ("missing", "cannot read frozen architecture source"),
+            ("duplicate", "requires exactly one frozen architecture source"),
+            ("missing", "cannot inspect frozen architecture path component"),
             ("hash mismatch", "frozen architecture bytes do not match content_sha256"),
             ("revision invalid", "source_revision must be a full Git SHA"),
-            ("utf8 invalid", "architecture: is not valid UTF-8"),
+            ("utf8 invalid", "core artifact is not valid UTF-8"),
         )
         for case, fragment in cases:
             with self.subTest(case=case):
@@ -2858,27 +2902,34 @@ class FrozenSourceJoinTests(unittest.TestCase):
                 "criterion": "The feature result is observable",
             }
         )
-        prd = b"""# PRD
-
-## Test Obligations
-| TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
-| --- | --- | --- | --- | --- | --- |
-| TEST-FEATURE | Feature works | integration | Yes | PRD-FEATURE | Result passes |
-"""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "docs/product").mkdir(parents=True)
-            (root / "docs/product/PRD.md").write_bytes(prd)
+            materialize_plan_sources(root, plan)
+            from test_product_package_checker import strictize_approved_package
             source = plan["sources"][0]
-            source["content_sha256"] = hashlib.sha256(prd).hexdigest()
+            prd_path = root / source["location"]
+            prd = prd_path.read_text(encoding="utf-8").replace(
+                "## Non-Functional Requirements",
+                "| PRD-FEATURE | Complete the headless feature | Must | The feature result is observable |\n"
+                "## Non-Functional Requirements", 1,
+            ).replace(
+                "## UI Design Handoff Status",
+                "| TEST-FEATURE | Feature works | integration | Yes | PRD-FEATURE | Result passes |\n"
+                "## UI Design Handoff Status", 1,
+            )
+            product_sources = plan["sources"][:3]
+            texts = strictize_approved_package(
+                prd, *( (root / item["location"]).read_text(encoding="utf-8") for item in product_sources[1:] ),
+            )
+            for item, text in zip(product_sources, texts, strict=True):
+                path = root / item["location"]
+                path.write_text(text, encoding="utf-8", newline="\n")
+                item["content_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
             legacy_errors = validate_frozen_contract_joins(plan, root, run=None)
 
-            plan["traces"][-1]["acceptance_gate_ids"] = []
+            next(trace for trace in plan["traces"] if trace["id"] == "PRD-FEATURE")["acceptance_gate_ids"] = []
             explicit_errors = validate_frozen_contract_joins(plan, root, run=None)
-        self.assertFalse(
-            any("requires acceptance gates" in item for item in legacy_errors),
-            legacy_errors,
-        )
+        self.assertEqual([], legacy_errors)
         self.assertTrue(
             any("must not be empty" in item for item in explicit_errors),
             explicit_errors,
