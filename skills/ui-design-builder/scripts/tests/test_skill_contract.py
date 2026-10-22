@@ -283,18 +283,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("verified absolute Markdown links", stage)
         self.assertIn("every manifest-listed sibling page", stage)
         self.assertIn("affected `ui-design.md` handoff", stage)
-        self.assertIn("complete actual HiFi candidate", contract)
-        for document in (stage, contract, visual_pass):
+        self.assertIn("complete HiFi candidate", contract)
+        for document in (stage, visual_pass):
             with self.subTest(document=document[:50]):
                 self.assertIn("final logical paths in the authorized publication checkout", document)
                 self.assertTrue("source checkout" in document or "canonical source paths" in document)
                 self.assertIn("Do not collect approval on `.ui-staging` paths", document)
                 self.assertNotIn("Use staging paths for an unapproved staged draft", document)
-        self.assertIn("Wait for the owner's explicit decision", contract)
+        self.assertIn("`stages/ui-design.md#workflow` step 7", contract)
+        self.assertIn("at final repository paths on the task branch", contract)
+        self.assertIn("never `.ui-staging` paths", contract)
+        self.assertIn("Wait for the explicit human decision", stage)
         self.assertIn("a changed candidate reopens the affected decision", contract)
         self.assertIn("plain path cannot replace the links", contract)
-        self.assertIn("block readiness", contract)
-        self.assertIn("complete actual HiFi candidate", contract)
+        self.assertIn("Missing or stale pages/evidence block readiness", stage)
         self.assertIn("every manifest-listed sibling page", visual_pass)
         self.assertIn("ask explicitly for Visual Approval", visual_pass)
 

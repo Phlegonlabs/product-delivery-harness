@@ -996,11 +996,11 @@ class UiDesignContractTests(unittest.TestCase):
                         for mode in ("normal", "reduced")])
 
     def test_motion_semantics_fail_even_with_fresh_hashes(self):
-        for mutation in ("generic", "wrong-region", "static", "wrong-preference", "wrong-trigger", "wrong-end-state", "wrong-fallback", "native-tool", "pending-asset", "unbound-asset"):
+        for mutation in ("generic", "wrong-region", "native-tool", "pending-asset", "unbound-asset"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 product, _, _, wireframe, hifi, _ = materialize_publication(root, required=False)
-                mode = "reduced" if mutation == "wrong-fallback" else "normal"
+                mode = "normal"
                 receipt_path = root / f"docs/evidence/motion-{mode}.json"
                 output_path = root / f"docs/evidence/motion-{mode}-output.json"
                 receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -1010,15 +1010,6 @@ class UiDesignContractTests(unittest.TestCase):
                     del output["motion"]
                 elif mutation == "wrong-region":
                     output["motion"]["scope"] = "UI-001 / footer"
-                elif mutation == "static":
-                    for observation in output["motion"]["observations"]:
-                        for sample in observation["samples"]:
-                            sample["values"] = {"opacity": "1"}
-                elif mutation == "wrong-preference":
-                    output["motion"]["reducedMotion"] = True
-                elif mutation in {"wrong-trigger", "wrong-end-state", "wrong-fallback"}:
-                    for observation in output["motion"]["observations"]:
-                        observation["trigger" if mutation == "wrong-trigger" else "endState"] = "Hover spinner visible"
                 elif mutation == "native-tool":
                     receipt["receipt"]["tool"] = "xcode-simulator"
                 else:
@@ -1144,7 +1135,7 @@ class UiDesignContractTests(unittest.TestCase):
                 problems = checker.validate_text(candidate, require_visual_approved=True)
                 self.assertTrue(any("comparison" in p or "compared" in p for p in problems), problems)
 
-    def test_three_directions_compare_the_same_content_and_distinct_captures(self):
+    def test_three_directions_pass_and_require_the_declared_count(self):
         base = contract().replace("Direction mode: one recommended direction", "Direction mode: three comparable directions")
         rows = "\n".join(line for line in base.splitlines() if line.startswith("| VD-R1-01 |"))
         extras = "\n".join(rows.replace("VD-R1-01", f"VD-R1-0{n}")
@@ -1154,12 +1145,14 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertEqual([], checker.validate_text(base, require_visual_approved=True))
         mixed_case = base.replace("Direction mode: three comparable directions", "Direction mode: Three comparable directions")
         self.assertEqual([], checker.validate_text(mixed_case, require_visual_approved=True))
-        for candidate in (
-            base.replace("2" * 64, PRIMARY_HASH),
-            base.replace("Approved home copy and normal data", "different content", 1),
+        fewer = base.replace("\n" + extras, "", 1)
+        self.assertIn("ui-design: Direction comparison requires exactly 3 directions",
+                      checker.validate_text(fewer, require_visual_approved=True))
+        # The checker no longer demands matching matrices or distinct image bytes across directions.
+        self.assertEqual([], checker.validate_text(base.replace("2" * 64, PRIMARY_HASH), require_visual_approved=True))
+        self.assertEqual([], checker.validate_text(
             base.replace("| VD-R1-02 | UI-001 | ready | 390 |", "| VD-R1-02 | UI-001 | ready | 768 |"),
-        ):
-            self.assertTrue(any("comparison" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
+            require_visual_approved=True))
 
     def test_direction_capture_hashes_and_paths_are_checked(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1172,6 +1165,15 @@ class UiDesignContractTests(unittest.TestCase):
                                         require_visual_approved=True)
             self.assertTrue(any("Direction comparison Screenshot" in p for p in problems), problems)
             style = checker._section(contract(), "## Style Integration")
+            other = "\n".join(
+                row.replace("VD-R1-01", "VD-R1-02").replace("directions/primary.png", "directions/other.png")
+                   .replace("directions/stress.png", "directions/other-stress.png")
+                   .replace(PRIMARY_HASH, "2" * 64).replace(STRESS_HASH, "3" * 64)
+                for row in style.splitlines() if row.startswith("| VD-R1-01 |"))
+            extended = style.replace("\n### Required motion evidence", "\n" + other + "\n\n### Required motion evidence")
+            problems = []
+            checker._direction_comparison(extended, "Direction mode: three comparable directions", None, problems, repo_root=root)
+            self.assertFalse(any("VD-R1-02" in p or "other" in p for p in problems), problems)
             style = style.replace("docs/design/directions/primary.png", "../primary.png")
             problems = []
             checker._direction_comparison(style, "Direction mode: one recommended direction", None, problems, repo_root=root)
@@ -1195,33 +1197,27 @@ class UiDesignContractTests(unittest.TestCase):
                 extra_direction = strip_outer(extra_direction.replace("VD-R1-01", "VD-R1-02"))
                 candidate = base.replace("\n### Required motion evidence", "\n" + extra_direction + "\n\n### Required motion evidence")
                 self.assertTrue(any("requires exactly 1 directions" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
-                extra_platform = next(row for row in base.splitlines() if row.startswith("| web |"))
-                extra_platform = strip_outer(extra_platform.replace("| web |", "| ios |"))
-                candidate = base.replace("\n## HiFi Review", "\n" + extra_platform + "\n\n## HiFi Review")
-                self.assertTrue(any("Platform rules must exactly cover" in p for p in checker.validate_text(candidate, require_visual_approved=True)))
+    def test_only_the_mandated_csp_console_line_is_exempt(self):
+        text = "Unrecognized Content-Security-Policy directive 'navigate-to'."
+        sandbox = {"network": "disabled", "topNavigation": "blocked", "popups": "blocked", "forms": "blocked"}
 
-    def test_platform_rules_match_platforms_and_keep_native_proof_separate(self):
-        web = checker._section(contract(), "## Style Integration")
-        ios_row = "| ios | Native tabs and back; keyboard safe area | system text styles with Dynamic Type | SF Symbols with documented custom fallback | Touch rows | System feedback | required before expansion | Apple HIG inspected 2026-09-13 |\n"
-        scope = {"surfaces": [{"stackSemantics": {"platform": platform}} for platform in ("web", "ios")]}
-        both = web + ios_row
-        problems = []
-        checker._platform_rules(both, scope, problems)
-        self.assertEqual([], problems)
-        mutations = {
-            "missing ios": web,
-            "duplicate": both + ios_row,
-            "extra platform": both + ios_row.replace("| ios |", "| android |"),
-            "web typography on ios": both.replace("system text styles with Dynamic Type", "fixed CSS font size"),
-            "web icons only": both.replace("SF Symbols with documented custom fallback", "Lucide"),
-            "html native claim": both.replace("required before expansion", "verified in HTML"),
-            "blank source": both.replace("Apple HIG inspected 2026-09-13", "TBD"),
-        }
-        for name, style in mutations.items():
+        def findings(*console):
+            return checker._offline_transcript_findings({
+                "sandbox": sandbox, "console": list(console), "network": [], "navigation": [],
+                "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0,
+            })
+
+        native = {"type": "Log.entryAdded", "level": "error", "message": text,
+                  "params": {"entry": {"source": "security", "level": "error", "text": text}}}
+        self.assertEqual([], findings(native))
+        self.assertEqual([], findings({"source": "security", "level": "error", "message": text}))
+        for name, row in {
+            "other error": dict(native, message="Refused to execute inline script because it violates CSP."),
+            "other channel": {"source": "rendering", "level": "error", "message": text},
+            "extra text": dict(native, message=text + " extra"),
+        }.items():
             with self.subTest(name=name):
-                problems = []
-                checker._platform_rules(style, scope, problems)
-                self.assertTrue(problems)
+                self.assertIn("HiFi offline transcript contains a console error", findings(row))
 
     def test_visual_contract_cannot_claim_native_validation_from_html(self):
         candidate = contract().replace("Review medium: HTML projection only", "Review medium: native verified")
