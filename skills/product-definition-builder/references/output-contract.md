@@ -504,81 +504,17 @@ Publish a new seed flat at `docs/ACTIVATION.md` in the same approved move as the
 
 ## `outcomes/YYYY-MM-DD-<release-set>.md`
 
-Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal. A saved review is immutable: use a dated/release-set path or provide an exact prior-record digest when appending history.
+Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal. A saved review is immutable: write a new dated record for each review. One record covers one production release target.
 
-Use `assets/templates/OUTCOME_REVIEW.template.md` and validate it with `scripts/check_outcome_review.py`. A single-target review keeps its original fields. A product with multiple production targets records an ordered `Production release targets: target-set: <id>, <id>, ...` field, one immutable row per target in `## Target Reviews`, and target-bound signal rows in `## Target Measurements`; the top-level `Verdict` is the deterministic aggregate (`incident` if any target is incident, otherwise `enhancement` if any target is enhancement, otherwise `no_change`). Separate target rows prevent one target's SHA, artifact, deployment, or measurement source from overwriting another target.
-
-```markdown
-# Outcome Review: [Product Name]
-
-## Record
-Schema: outcome-review/2
-Product, human outcome owner, production release target, full Release SHA, exact artifact/build identity, exact Deployment identity and checked time, Deployment PASS, `docs/ACTIVATION.md`, lowercase SHA-256 of the current Activation bytes, real Reviewed date, and closed verdict. A multi-target Record also adds `Production release targets: target-set: ...` and keeps the legacy primary fields bound to the first ordered target.
-
-## Verdict History
-| Prior outcome sha256 | Verdict | Verdict section sha256 | Verdict reason |
-| --- | --- | --- | --- |
-| none | none | none | none |
-
-Start a new record with one exact `none | none | none | none` row. When `--prior-outcome` is used, preserve every prior history row byte-for-byte and in order, then append exactly one row derived from the prior record's current `## Verdict` section before the new current Verdict section. Do not move a verdict into `## Open Follow-ups`, rewrite a historical row, or use placeholders/duplicate prior digests.
-
-For a multi-target review, add these ordered target and per-signal tables:
-
-## Target Reviews
-
-The machine checker requires the exact `target-set:` prefix for multi-target records and binds the legacy top-level fields to the first ordered target. Verdict routing is closed: `enhancement` needs an enhancement-request follow-up, `incident` needs risk or open-question routing, and `no_change` has no substantive follow-up.
-| Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| [production target] | [full SHA] | [artifact] | [release;channel;artifact] | [RFC3339] | PASS | [MS IDs] | [enum] |
-
-## Target Measurements
-| Signal | Release target | Baseline | Target | Window start | Window end | Actual | Source ID |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| [PRD metric or required TEST] | [target] | [baseline] | [target] | [date] | [date] | [actual] | [MS-*] |
-
-The target set for each signal is the exact `Release targets` value in Activation Outcome Coverage for that signal. Do not synthesize a full signal-by-target cross-product when Activation scopes a signal to only some production targets.
-
-## Activation Sources
-Every matching verified `MS-*` source and only those sources. Each row repeats the exact target@SHA#artifact binding, human owner, verification time, and non-secret evidence.
-
-## Measurements
-| Signal | Baseline | Target | Window start | Window end | Actual | Source ID |
-| --- | --- | --- | --- | --- | --- | --- |
-| [PRD `## Metrics` metric or `TEST-*` expected signal] | [pre-deploy value or "none recorded"] | [the recorded target] | [YYYY-MM-DD] | [YYYY-MM-DD] | [measured value] | [MS-*] |
-
-## Feedback
-| Fact | Source ID | Observed |
-| --- | --- | --- |
-| [Post-deployment fact] | [MS-*] | [bounded non-secret observation] |
-
-For a multi-target review, use `Fact | Release target | Source ID | Observed` instead. Every feedback fact must name the target and a verified source bound to that target; it may not implicitly reuse the primary target's source set.
-
-## Incident Response
-| Incident | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence |
-| --- | --- | --- | --- | --- | --- |
-| [none, or the incident] | [containment or n/a] | [human or n/a] | [PRD Risks routing or n/a] | [PRD Open Questions routing or n/a] | [MS-* or n/a] |
-
-For a multi-target review use `Incident | Release target | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence`. Bind each incident evidence source to that target; incident rows are required exactly for Target Reviews whose per-target verdict is `incident`, and the aggregate verdict must follow those target verdicts.
-
-## Verdict
-Verdict: [no_change / enhancement / incident] — [one-line reason]
-
-## Open Follow-ups
-| Follow-up | Route |
-| --- | --- |
-| [Item or none] | [enhancement request / open question / risk / none] |
-```
+Use `assets/templates/OUTCOME_REVIEW.template.md`. Run the package, Deployment and Activation checkers on their own inputs first, then validate the record with `python "<product-definition-builder-skill-root>/scripts/check_outcome_review.py" --outcome docs/product/outcomes/YYYY-MM-DD-<release-set>.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md --repo-root <repository-root> --require-lifecycle`. The check joins the record to those inputs; it does not rerun them.
 
 Rules:
 
-- Run `python "<product-definition-builder-skill-root>/scripts/check_outcome_review.py" --outcome docs/product/outcomes/YYYY-MM-DD-<release-set>.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --stack-decisions docs/product/stack-decisions.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md --repo-root <repository-root> --expected-repository <owner/repository> --candidate-ref <full-or-authority-ref> --require-lifecycle`. When appending to a retained record instead of creating a dated one, also pass `--prior-outcome <immutable-prior-record>` and record its exact digest: the sha256 of the file's raw bytes.
-- Record actual against target for every `PRD.md` `## Metrics` metric and every required `TEST-*` expected signal; baseline, target/expected signal, and (when present) numeric measurement-window duration must exactly join the PRD row. An empty or duplicate Measurements table means the review is not done.
+- Bind the record to the exact release: the Release SHA, artifact and checked time equal the Deployment PASS row, the Activation sha256 equals the current `docs/ACTIVATION.md` bytes, and the Activation Sources table lists every matching verified `MS-*` source and only those.
+- Record actual against target for every `PRD.md` `## Metrics` metric and every required `TEST-*` expected signal. Baseline, target and any numeric window duration must equal the PRD row. An empty or duplicate Measurements table means the review is not done.
 - The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
-- A single-target review cannot mix targets or releases and is production-only. A multi-target review keeps the ordered target set explicit, joins every target row to its own current Deployment PASS identity and verified `MS-*` sources, and repeats every PRD metric and required `TEST-*` signal only for the targets listed in that signal's Activation Outcome Coverage. Each target row's measurement window must use the PRD's exact numeric duration and start/end strictly after that target's Deployment checked date. No target's SHA, artifact, source, or actual may be reused implicitly for another target. All reviewed targets must be production architecture targets, and the aggregate verdict follows the closed deterministic severity order.
-- An incident requires typed containment, a human owner, and explicit concrete routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
+- An incident requires typed containment, a human owner, and explicit routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
 - The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
-
-Legacy outcome prose may be read as context, but it cannot authorize a verdict under this contract. A legacy `Activation source status:` line or old `| Metric | Baseline | Target | Window | Actual | Source |` table does not satisfy the current release binding; recreate the record in the schema above and let the checker apply Activation's `--require-verified-sources` gate before any verdict is routed.
 
 ## `architecture.md`
 

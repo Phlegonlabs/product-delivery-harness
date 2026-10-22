@@ -921,9 +921,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("24. When the owner asks for an outcome review", skill)
         self.assertIn("`no_change`, `enhancement`, or `incident`", skill)
         self.assertIn("never leave a run open waiting for adoption", skill)
-        self.assertIn("Verdict: [no_change / enhancement / incident]", contract)
+        self.assertIn("One record covers one production release target", contract)
         self.assertIn(
-            "| Metric | Baseline | Target | Window | Actual | Source |", contract
+            "equal the Deployment PASS row", contract
         )
         self.assertIn(
             "The measurement window is real elapsed time after deployment", contract
@@ -940,11 +940,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         )
         self.assertIn("every retained `docs/product/outcomes/*.md` record in full", skill)
         self.assertIn("`docs/product/outcomes/` contains immutable post-deployment records", lifecycle)
-        self.assertIn("Activation source status:", contract)
         self.assertIn("matching verified `MS-*` sources", skill)
-        self.assertIn("exact numeric window duration/start-after-deployment checks", skill)
-        self.assertIn("targets listed by Activation Outcome Coverage", skill)
-        self.assertIn("--require-verified-sources", contract)
         fence_open = False
         architecture_active = False
         for line in contract.splitlines():
@@ -954,10 +950,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
                 architecture_active = not fence_open
         self.assertFalse(fence_open, "output contract Markdown fences must be balanced")
         self.assertTrue(architecture_active, "architecture output section must remain active Markdown")
-        active_template = re.sub(r"```[^\n]*\n[\s\S]*?```", "", template)
-        self.assertIn("| Incident | Containment | Human owner |", active_template)
-        self.assertNotIn("| Incident | Release target | Containment |", active_template)
-        self.assertIn("| Incident | Release target | Containment |", template)
+        self.assertIn("| Incident | Containment | Human owner |", template)
+        for retired in ("Target Reviews", "Target Measurements", "Verdict History", "Prior outcome sha256"):
+            self.assertNotIn(retired, template)
 
     def test_activation_seed_is_create_once_and_owned_downstream(self) -> None:
         skill = self.read(STAGE)
