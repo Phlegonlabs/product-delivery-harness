@@ -680,6 +680,21 @@ def product_control_findings(documents):
     return errors
 
 
+RETENTION_VALUES = (("inputValue", "inputApplicable"), ("selectedValue", "selectedApplicable"))
+RETENTION_VALUE_KEYS = {key + side for key, _ in RETENTION_VALUES for side in ("Before", "After")}
+
+
+def _retention_value_finding(row: dict, applicable: object, key: str) -> str | None:
+    """Return why one retained value fails: null when not applicable, else nonempty and unchanged."""
+
+    before, after = row.get(key + "Before"), row.get(key + "After")
+    if applicable is False:
+        return None if before is None and after is None else "invented"
+    if not isinstance(before, str) or not before.strip():
+        return "unobserved"
+    return None if before == after else "changed"
+
+
 def _diagnostic_observation_findings(
     section: str,
     actual_rows: object,
@@ -733,9 +748,24 @@ def _diagnostic_observation_findings(
             structural.append(f"{label} observation for {'/'.join(map(str, identity))} is "
                               f"{row['result']}; the browser review is incomplete")
             continue
-        changed = [key for key in sorted(behavior_keys) if row[key] != expected[key]]
+        changed = [key for key in behavior_keys if row[key] != expected[key]]
+        if section == "retention":
+            # A typed value is not the static source value; apply the strict retention rule instead.
+            values = {key: _retention_value_finding(row, expected[applicable_key], key)
+                      for key, applicable_key in RETENTION_VALUES}
+            if "invented" in values.values():
+                structural.append(f"{label} observation for {'/'.join(map(str, identity))} "
+                                  "records a product control that the page does not use")
+                continue
+            if "unobserved" in values.values():
+                structural.append(f"{label} observation for {'/'.join(map(str, identity))} is incomplete")
+                continue
+            changed = [key for key in changed if key not in RETENTION_VALUE_KEYS]
+            changed += [key + side for key, finding in values.items() if finding == "changed"
+                        for side in ("Before", "After")]
         if changed:
-            defects.append(f"{label} observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
+            defects.append(f"{label} observed defect for " + "/".join(map(str, identity)) + ": "
+                           + ", ".join(sorted(changed)))
     if available:
         structural.append(f"{label} lacks required browser observations")
     return structural, defects
@@ -884,13 +914,11 @@ def reviewer_evidence_findings(actual, expected):
             if any(row.get(key) != value for key, value in spec.items() if key not in value_keys):
                 errors.append("HiFi reviewer retention identity differs from its DOM source binding")
                 continue
-            for key, applicable_key in (("inputValue", "inputApplicable"), ("selectedValue", "selectedApplicable")):
-                before, after = row.get(key + "Before"), row.get(key + "After")
-                applicable = spec.get(applicable_key)
-                if applicable is False:
-                    if before is not None or after is not None:
-                        errors.append("HiFi reviewer retention must not invent a product control that the page does not use")
-                elif not isinstance(before, str) or not before.strip() or before != after:
+            for key, applicable_key in RETENTION_VALUES:
+                finding = _retention_value_finding(row, spec.get(applicable_key), key)
+                if finding == "invented":
+                    errors.append("HiFi reviewer retention must not invent a product control that the page does not use")
+                elif finding:
                     errors.append("HiFi reviewer retention must observe unchanged nonempty product input and selected values")
     rows = actual.get("specimens")
     expected_specimens = expected.get("specimens")
