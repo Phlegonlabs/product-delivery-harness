@@ -40,7 +40,7 @@ Recorded with the release candidate below. Earlier evidence: `review-batch-bound
 
 ## Remaining Work
 
-Sol 6.1 / high review of the final candidate, PR and CI, main landing, tag, installation, and consumer syncs. AgentKiosk remains report-only; its own parent handles any later adoption at a quiescent boundary.
+Fresh Sol 6.1 / high targeted recheck and exact-candidate CI, main landing, tag, installation, and consumer syncs. AgentKiosk remains report-only. Its parent keeps the existing pinned bundle or arranges an authorized fresh 0.66 run at a quiescent boundary.
 
 ## Recovery On 2026-10-22
 
@@ -98,3 +98,19 @@ ALIGN `eefe606f` merged as `0965e151`; RSA `fd57ce91` merged as `871254a7`. Runt
 After integration, 63 skill contracts, three README checks and three documented-command checks passed. The parent document inventory returned `review_required`: first observations, retained historical names and unknown loaded identity remain explicit. The installed bundle is still 0.65.3. Intentional source-repository template exceptions remain; no consumer PLAN/RUN was rewritten.
 
 The [release receipt](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/release-receipt-0.66.0.json) records the exact candidate, independent review, CI, main/tag readback, installation and consumer outcomes as they occur. They are pending at this preparation checkpoint. No source push, PR, tag, installation or consumer edit has occurred yet.
+
+### Consolidated Repair
+
+The first fixed candidate `f80ac4f9` was pushed to draft PR 155. Complete independent review returned `fix_required`. Required CI run `39856875933` finished with seven successful jobs, six failed execution jobs and a failed aggregate. The failed shards stopped early; they were not complete-suite evidence.
+
+The parent collected every required result before one repair batch. Code repairs ended at `3aa6c4af`: current PASS admission binds complete host/Git evidence to its fresh reservation; native document replacement preserves concurrent owner bytes and reports retained recovery paths; worktree joins use filesystem identity while preserving branch/head, dirty-state and reparse checks. Native CI keeps its former 14 modules and adds host, write-race and path regressions, selecting 17 files per native platform.
+
+Actual Windows boundary tests exercise RUN, tasks, compiler Markdown and archive DOCUMENTS. Public command proofs reject a raced revocation write and missing current host evidence without replacing RUN. Both real conditional journeys pass. Linux/macOS native execution and the original Windows CI mismatch remain final-CI obligations. The local checks do not claim those results.
+
+The isolated documentation repairs `7b72da6d` merged as `3abb6101`. Four atomic outcomes remove live retired tools, condition the README direct route, retain author self-review exits, update cross-skill assertions, and smoke the installed current UI CLI. Their 105 focused tests passed. Covers, prompts, five newest history entries and CHANGELOG bytes remain unchanged. The merged skill-contract and cross-skill checks pass.
+
+The code [local handoff](C:/Users/mps19/Documents/GitHub/product-delivery-harness/.claude/worktrees/rel/.claude/repair-sol1/handoff-final.json) and [documentation handoff](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/repair-docs-sol1/handoff-final.json) retain exact command, source-hash and process evidence. All captured task processes exited. The new `.pdh-conflict-*` class retains owner recovery data; its narrow ignore rule grants no cleanup authority.
+
+Eight read-only consumer CLI checks preserved every PLAN/RUN byte. AgentKiosk timed out under both versions. Jolvex and dilution kept identical existing errors. The cancelled 0.32 agentic RUN gained current strict-source errors; historical execution still requires its exact pinned bundle. These comparisons are not a consumer compatibility PASS. Six clean main-based sync worktrees are prepared; no consumer document has changed.
+
+This checkpoint still awaits a fresh-context targeted review and complete CI on the integrated repair SHA. Main, `v0.66.0`, official installation and consumer publication remain pending in the linked receipt. Shared installation remains 0.65.3; loaded identity is unknown.
