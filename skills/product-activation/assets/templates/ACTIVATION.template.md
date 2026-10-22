@@ -34,11 +34,11 @@ The live record for initial-build preparation and final release activation. Keep
 
 ## Outcome Coverage
 
-Add one row for every PRD metric and every required `TEST-*` expected signal. Preserve each metric name and TEST ID exactly.
+Add one row for every PRD metric and every required `TEST-*`. Preserve each metric name and TEST ID exactly; the PRD owns the other fields.
 
-| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source / method | Owner | Source ID | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| <exact PRD metric name or TEST-ID> | <exact PRD definition or test obligation> | <exact PRD baseline or none recorded> | <exact PRD target / guardrail or n/a reason> | <exact PRD measurement window or test type> | <exact required TEST expected signal or n/a reason> | <release-target-id> | <exact PRD source / method> | <exact PRD owner> | pending | planned |
+| Signal | Release targets | Source ID | Status |
+| --- | --- | --- | --- |
+| <exact PRD metric name or TEST-ID> | <release-target-id> | pending | planned |
 
 ## Measurement Sources
 
