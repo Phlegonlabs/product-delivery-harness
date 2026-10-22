@@ -1887,7 +1887,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not own shared state", adapters)
         self.assertIn("ask before branch creation", skill.lower())
         self.assertNotIn("- '**'", ci)
-        self.assertIn("- main", ci)
+        self.assertNotIn("push:", ci)
         self.assertNotIn("- development", ci)
         self.assertNotIn("codex/**", ci)
 
