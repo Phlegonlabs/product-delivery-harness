@@ -1371,19 +1371,6 @@ def check_activation_text(
                 repo_root=repo_root,
             )
         )
-    if deployment_text is not None and architecture_text is not None:
-        from check_deployment import check_deployment_text
-        findings.extend(
-            f"Deployment: {item}"
-            for item in check_deployment_text(
-                deployment_text,
-                architecture_text=architecture_text,
-                require_source_provenance=False,
-                repo_root=repo_root,
-                expected_repository=expected_repository,
-                candidate_ref=candidate_ref,
-            )
-        )
     if authority_required and prd_text is None:
         findings.append("PRD: verified-source handoff requires the current PRD")
     if authority_required and architecture_text is None:
@@ -1875,27 +1862,31 @@ def check_activation_text(
             continue
         findings.append(f"Target Readiness: {target} is not in the active activation scope")
 
+    # One deployment check per pass. Source provenance is strict only for
+    # the targets the authority entry claims as ready.
     strict_readiness_targets = set(require_ready)
     if authority_required:
         strict_readiness_targets.update(
-            target
-            for target, row in readiness.items()
-            if row["status"] == "ready"
+            target for target, row in readiness.items() if row["status"] == "ready"
         )
-        if strict_readiness_targets:
-            from check_deployment import check_deployment_text
-            findings.extend(
-                f"Deployment: {item}"
-                for item in check_deployment_text(
-                    text=deployment_text or "",
-                    architecture_text=architecture_text or "",
-                    require_source_provenance=True,
-                    strict_target_subset=tuple(sorted(strict_readiness_targets)),
-                    repo_root=repo_root,
-                    expected_repository=expected_repository,
-                    candidate_ref=candidate_ref,
-                )
+    if deployment_text is not None and architecture_text is not None:
+        from check_deployment import check_deployment_text
+        findings.extend(
+            f"Deployment: {item}"
+            for item in check_deployment_text(
+                deployment_text,
+                architecture_text=architecture_text,
+                require_source_provenance=bool(strict_readiness_targets),
+                strict_target_subset=(
+                    tuple(sorted(strict_readiness_targets))
+                    if strict_readiness_targets
+                    else None
+                ),
+                repo_root=repo_root,
+                expected_repository=expected_repository,
+                candidate_ref=candidate_ref,
             )
+        )
 
     explicit_noop = bool(
         require_closeout

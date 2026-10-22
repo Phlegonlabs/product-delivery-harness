@@ -528,6 +528,7 @@ class ActivationCheckerTests(unittest.TestCase):
                 require_ready=("web-prod",),
             )
         self.assertEqual([], findings)
+        self.assertEqual(1, deployment_check.call_count)
         self.assertTrue(deployment_check.call_args.kwargs["require_source_provenance"])
         self.assertEqual(
             ("web-prod",),
