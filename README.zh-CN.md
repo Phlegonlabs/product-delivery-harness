@@ -55,6 +55,8 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 
 每个内置 skill 都可在必要输入齐备时独立运行，不必跑完整 pipeline。
 
+相关选择尚未解决，或现有决定需要参考背景时，使用[参考选择规则](skills/delivery-harness/references/reference-selection.md)与[可选目录](skills/delivery-harness/references/option-library/README.md)。两者都不是前置条件，也不授予执行权限；现有决定与批准仍有效。
+
 ## 常见提示词
 
 Codex 使用 `$skill-name`；其他宿主可直接指定 skill 名称。说明准确写入范围，以及本地或远端的预期结果。
