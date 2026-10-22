@@ -36,8 +36,8 @@ class CIWorkflowYAMLTests(unittest.TestCase):
                 self.assertIn('inputs.base_sha', base)
                 self.assertIn('github.event.pull_request.base.sha', base)
                 self.assertIn('github.event.merge_group.base_sha', base)
-                if job == 'quality':
-                    self.assertIn('github.event.before', base)
+                # Neither the source workflow nor the consumer template has a push trigger.
+                self.assertNotIn('github.event.before', base)
 
     def test_parser_rejects_the_original_unindented_expression_closures(self):
         malformed = (

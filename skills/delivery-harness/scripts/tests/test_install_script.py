@@ -107,6 +107,24 @@ def tree_snapshot(root: Path) -> dict[str, bytes]:
 
 
 class InstallScriptTests(unittest.TestCase):
+    def test_ci_runs_installer_tests_on_macos(self) -> None:
+        # test_install_script.py is in the native list, so the one macOS job
+        # covers install.sh under BSD tools and symlinked temp roots.
+        workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        job = workflow.split("\n  macos-native:\n", 1)[1].split("\n  windows-native:\n", 1)[0]
+        self.assertIn("runs-on: macos-latest", job)
+        # macOS is supported, so its job blocks like the others.
+        self.assertNotIn("continue-on-error", job)
+        # Apple's root-owned Git must win over Homebrew's before Python setup.
+        prefer_git = 'echo "/usr/bin" >> "$GITHUB_PATH"'
+        self.assertIn(prefer_git, job)
+        self.assertLess(job.index(prefer_git), job.index("actions/setup-python"))
+        # Test repositories must not sit under the /var -> /private/var link.
+        self.assertIn('echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)/" >> "$GITHUB_ENV"', job)
+        self.assertIn("--platform macos --shard-count 1", job)
+
     SKILLS = (
         "delivery-harness",
         "product-definition-builder",

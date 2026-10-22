@@ -102,10 +102,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                          "Windows CI candidate identity")
     def test_windows_ci_uses_exact_candidate_and_stops_at_each_failed_shard(self) -> None:
         workflow = (REPO_ROOT / ".github/workflows/harness-ci.yml").read_text(encoding="utf-8")
-        job = workflow.split("\n  windows-native:\n", 1)[1].split("\n  windows-installer:\n", 1)[0]
+        job = workflow.split("\n  windows-native:\n", 1)[1].split("\n  validate:\n", 1)[0]
         self.assertIn("ref: ${{ env.CANDIDATE_SHA }}", job)
         self.assertIn('-ne $env:CANDIDATE_SHA', job)
-        step = job.split("      - name: Run measured native Harness shard\n", 1)[1]
+        step = job.split("      - name: Run native Harness shard\n", 1)[1]
         step = step.split("      - name:", 1)[0].split("        run: |\n", 1)[1]
         self.assertIn("--platform windows --shard-count 4", step)
         self.assertIn("--shard-index '${{ matrix.shard }}'", step)
@@ -1883,15 +1883,15 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("codex/**", ci)
 
     def test_repo_ci_workflow_verifies_every_pushed_branch(self) -> None:
-        # Feature branches verify once through pull_request. Protected branch
-        # pushes and merge queue candidates still get dedicated CI runs.
+        # A candidate verifies once through pull_request; merge queue
+        # candidates and manual releases still get dedicated CI runs.
         if REPO_ROOT is None:
             self.skipTest("no repository checkout around the skill")
         workflow = REPO_ROOT / ".github" / "workflows" / "harness-ci.yml"
         if not workflow.is_file():
             self.skipTest("repository has no harness-ci workflow")
         content = workflow.read_text(encoding="utf-8")
-        self.assertIn("- main", content)
+        self.assertNotIn("push:", content.split("jobs:", 1)[0])
         self.assertNotIn("- development", content)
         self.assertNotIn("codex/**", content)
         self.assertNotIn("- '**'", content)
@@ -1899,7 +1899,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", content)
         self.assertIn("github.event.pull_request.base.sha", content)
         self.assertIn("github.event.merge_group.base_sha", content)
-        self.assertIn("ci_test_shards.py gate", content)
+        self.assertIn('[ "$result" != success ]', content)
         self.assertIn('HARNESS_GOLDEN_PATH: "1"', content)
         self.assertIn('-p "test_golden_path.py" -v', content)
         self.assertIn("PDH_REQUIRE_BROWSER_TESTS: \"1\"", content)
