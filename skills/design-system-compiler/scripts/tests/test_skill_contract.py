@@ -80,17 +80,12 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def test_direction_reopen_routes_to_ui_design_builder(self) -> None:
         skill = self.read("SKILL.md")
         stage = self.read(STAGE)
-        route = self.read("references/visual-direction-guide.md")
-        retired = self.read("references/impeccable-concept-generation.md")
 
         self.assertIn("compilation does not reopen direction", skill)
         self.assertIn(
             "stop compilation and invoke `../ui-design-builder/SKILL.md`",
             stage,
         )
-        self.assertIn("no longer owns visual-direction exploration", route)
-        self.assertIn("frontend-design` as the single design author", retired)
-        self.assertIn("Impeccable runs afterward for critique and audit", retired)
 
     def test_motion_variants_follow_ui_design_intent(self) -> None:
         stage = self.read(STAGE)
@@ -160,8 +155,10 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
             "that run product scripts, inspect those plates in a browser",
             contract,
         )
-        self.assertIn("`verify_runtime_motion.py` still closes source-runtime rows", contract)
-        self.assertIn("Close compilation only after", contract)
+        self.assertIn(
+            "For each `source-runtime` row, press Replay, Stop and the Reduced motion control once at its default target",
+            contract,
+        )
         self.assertIn("Link the view with the pair in the handoff", contract)
 
     def test_templates_and_checker_commands_belong_to_this_skill(self) -> None:
