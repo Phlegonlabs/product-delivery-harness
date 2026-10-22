@@ -50,7 +50,7 @@ Sources: [Docker build](https://docs.docker.com/reference/cli/docker/buildx/buil
 
 ## Desktop And Mobile Apps
 
-Use the existing framework/platform project, configuration, package format, version fields and signing route. Identify development, unsigned, signed/exported and store-uploaded states separately. A missing platform environment, certificate or signing authorization blocks only the dependent step; do not weaken the target matrix or claim release readiness.
+Use the existing framework/platform project, configuration, package format, version fields and signing route. Identify development, unsigned, signed/exported and store-uploaded states separately. A missing platform environment, certificate or signing authorization blocks only the dependent step; do not weaken the target matrix.
 
 | Target | Existing native route | Artifact verification |
 | --- | --- | --- |
