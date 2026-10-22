@@ -38,20 +38,19 @@ class MainPreviewTests(unittest.TestCase):
             invalid = deepcopy(plan)
             invalid["branch_policy"]["base_ref"] = "refs/remotes/origin/development"
             self.assertTrue(validate_branch_policy_shape(invalid))
-            for version in ("0.58.0", "0.59.0", "0.62.3", "broken", None):
+            for version in ("broken", None):
                 with self.subTest(kind=kind, version=version):
                     self.assertTrue(validate_branch_policy_shape(plan, run=run_at(version)))
 
-    def test_pinned_dual_branch_contract_remains_valid_without_downgrade(self):
+    def test_historical_branch_policy_is_retained_as_opaque_history(self):
+        historical = {"protocol": "dual-branch/1", "kind": "ordinary",
+                      "base_ref": "refs/remotes/origin/development", "base_sha": "a" * 40}
         for version in ("0.59.0", "0.62.3"):
-            for kind in ("ordinary", "hotfix"):
-                self.assertEqual([], validate_branch_policy_shape(
-                    {"branch_policy": branch_policy(kind)}, run=run_at(version)))
-        for kind in ("ordinary", "hotfix"):
-            plan = {"branch_policy": branch_policy(kind)}
-            self.assertTrue(validate_branch_policy_shape(plan, run=run_at("0.63.0")))
-            with self.assertRaises(ManifestError):
-                archive_ancestry_base(plan, run_at("0.63.0"), "b" * 40)
+            plan = {"branch_policy": historical}
+            self.assertEqual([], validate_branch_policy_shape(plan, run=run_at(version)))
+            self.assertEqual([], validate_branch_policy_join(plan, architecture("dual-branch/1"), ".", run=run_at(version)))
+        with self.assertRaises(ManifestError):
+            archive_ancestry_base({"branch_policy": historical}, run_at("0.63.0"), "b" * 40)
 
     def test_invalid_pins_fail_in_join_manifest_and_archive_without_repo(self):
         from manifest_fixtures import valid_plan
@@ -67,7 +66,7 @@ class MainPreviewTests(unittest.TestCase):
     def test_current_run_rejects_dual_policy_without_repository_join(self):
         from manifest_fixtures import valid_plan
         plan = valid_plan()
-        plan["branch_policy"] = branch_policy()
+        plan["branch_policy"] = branch_policy() | {"protocol": "dual-branch/1"}
         errors = validate_run(plan, run_at("0.63.0"))
         self.assertTrue(any("0.63+ requires" in item for item in errors), errors)
 
