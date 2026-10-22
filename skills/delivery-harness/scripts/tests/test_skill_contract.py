@@ -1070,7 +1070,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "fast-forward to that exact SHA",
             "Every fetch, branch creation, ref update, merge, push, external test, and branch deletion",
             "The archived RUN grants nothing",
-            "request, pre-side-effect attempt, and receipt outside the checkout",
+            "the owner's exact instruction naming the SHA and branch",
+            "Never use force",
+            "Read back the remote ref and record it in the Epic",
+            "C..A archive allowlist check passes",
             "legacy-pins.md#branch-protocols-before-063",
         ):
             self.assertIn(phrase, promotion)

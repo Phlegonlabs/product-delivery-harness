@@ -486,6 +486,16 @@ class RetainedObservationTests(unittest.TestCase):
                 any("link" in item or "symlink" in item for item in parent_result[1])
             )
 
+    def test_windows_reader_reuses_the_shared_link_check_before_open(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(m, "_path_has_reparse_or_link", return_value=True) as link_check:
+                content, digest, findings = m._read_bounded_regular_windows(root, ("evidence.json",), "target")
+            self.assertEqual(b"", content)
+            self.assertEqual("", digest)
+            self.assertTrue(any("link or reparse" in finding for finding in findings))
+            link_check.assert_called_once_with(root / "evidence.json")
+
     def test_exact_bound_passes_and_one_byte_over_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -595,8 +605,7 @@ class RetainedObservationTests(unittest.TestCase):
                         else m._read_bounded_regular_posix
                     )
                     result = reader(root, ("docs", "observation.json"), "target x", _race_probe=probe)
-                    if os.name == "nt" and case == "parent-replacement":
-                        self.assertTrue(mutation_blocked)
+                    if mutation_blocked:
                         self.assertEqual(
                             (original_parent_bytes, original_parent_digest),
                             (result[0], result[1]),
@@ -611,7 +620,7 @@ class RetainedObservationTests(unittest.TestCase):
                         self.assertTrue(any("changed" in item for item in result[2]))
                     elif case == "metadata":
                         self.assertTrue(any("changed" in item for item in result[2]))
-                    elif os.name != "nt":
+                    elif not mutation_blocked:
                         self.assertTrue(any("parent changed" in item for item in result[2]))
 
 

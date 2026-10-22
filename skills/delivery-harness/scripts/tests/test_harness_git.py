@@ -23,11 +23,26 @@ from harness_git import (  # noqa: E402
     git_environment,
     reject_object_substitution,
     run_git,
+    _path_has_reparse_or_link,
 )
 from harness_core import read_git_blob  # noqa: E402
 
 
 class HarnessGitTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows junction regression")
+    def test_shared_path_check_rejects_junctions_to_regular_targets(self):
+        import _winapi
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "target"
+            target.mkdir()
+            (target / "evidence.json").write_text("{}", encoding="utf-8")
+            junction = root / "junction"
+            _winapi.CreateJunction(str(target), str(junction))
+            self.assertTrue(_path_has_reparse_or_link(junction / "evidence.json"))
+            self.assertFalse(_path_has_reparse_or_link(target / "evidence.json"))
+
     def test_git_environment_strips_repository_overrides_case_insensitively(self):
         environment = git_environment(
             {
