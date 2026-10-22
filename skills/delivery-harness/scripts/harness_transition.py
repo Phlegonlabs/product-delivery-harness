@@ -13,7 +13,6 @@ import copy
 import hashlib
 import json
 import os
-import re
 import secrets
 import subprocess
 import sys
@@ -38,7 +37,6 @@ from harness_core import (
 from harness_contract import (
     contract_adoption_check_errors,
     contract_adoption_check_evidence,
-    contract_digest,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import (
@@ -61,8 +59,8 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import EXACT_TARGET_LIFECYCLE_ACTIONS, RUN_DISPATCH_STATUSES, RUN_HEADING
-from harness_schema import archive_first_required, parse_harness_version, required_harness_version
-from harness_schema import review_lenses, security_result_decision, version_at_least
+from harness_schema import archive_first_required, required_harness_version
+from harness_schema import review_lenses, security_result_decision
 from harness_schema import frozen_coordination_path, supported_coordination_path
 from push_integration_branch import (
     make_push_request,
@@ -83,11 +81,9 @@ from harness_worker_result_transition import (
 )
 from select_ready_nodes import (
     GraphSelectionError,
-    _sandbox_observation_reasons,
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
-from agent_launch_records import validate_launch_record_shape
 from agent_failure_receipts import (
     interrupted_retry_issues, interruption_receipt_required, load_failure_receipt,
 )
@@ -313,16 +309,11 @@ DEFAULT_LOCK_STALE_MINUTES = 15
 # Dispatching the write path is single-writer work: these commands require
 # the calling session to already hold the run lock.
 DISPATCH_COMMANDS = {
-    "adopt-runtime-contract",
-    "update-role-bindings",
     "accept-wave",
     "lease-worker",
-    "record-launch-observation",
     "record-worker-result",
-    "reconcile-worker-ingestion",
     "reject-worker-result",
     "reserve-review-dispatch",
-    "bind-review-task-thread",
     "record-integration",
     "reconcile-candidate-head",
     "reconcile-coordination-head",
@@ -333,7 +324,6 @@ DISPATCH_COMMANDS = {
 TASK_VIEW_CHECKPOINTS = {
     "accept-wave",
     "record-worker-result",
-    "reconcile-worker-ingestion",
     "reject-worker-result",
     "record-integration",
     "reconcile-candidate-head",
@@ -990,193 +980,6 @@ def _record_observation(
                 evidence.strip(),
             ],
         })
-
-
-def _quiescent_integration_pending(
-    plan: dict[str, Any], run: dict[str, Any], node_id: str,
-) -> dict[str, str] | None:
-    """Identify only a passed, reviewed mission whose integration is pending."""
-    from harness_manifest import preintegration_review_errors
-
-    nodes = [node for node in plan.get("graph", {}).get("nodes", [])
-             if isinstance(node, dict) and node.get("id") == node_id and node.get("kind") == "mission"]
-    if len(nodes) != 1:
-        return None
-    mission_id = nodes[0].get("ref")
-    if not _nonempty_string(mission_id):
-        return None
-    if sum(node.get("kind") == "mission" and node.get("ref") == mission_id
-           for node in plan.get("graph", {}).get("nodes", []) if isinstance(node, dict)) != 1:
-        return None
-    state = run.get("graph_state", {}).get("node_states", {}).get(node_id, {})
-    mission_states = run.get("mission_states")
-    mission = mission_states.get(mission_id) if isinstance(mission_states, dict) else None
-    if not isinstance(mission, dict):
-        return None
-    if state.get("phase") != "running" or mission.get("phase") != "worker_passed":
-        return None
-    workers = [worker for worker in run.get("workers", []) if isinstance(worker, dict)
-               and worker.get("worker_id") == state.get("bound_worker_id")]
-    if len(workers) != 1:
-        return None
-    worker = workers[0]
-    head = mission.get("head_sha")
-    if (worker.get("phase") != "worker_passed" or worker.get("mission_id") != mission_id
-            or worker.get("worker_id") != mission.get("worker_id")
-            or not _nonempty_string(worker.get("lease_id"))
-            or worker.get("lease_id") != mission.get("lease_id")
-            or not _nonempty_string(worker.get("attempt_id"))
-            or worker.get("attempt_id") != state.get("last_attempt_id")
-            or not is_full_sha(head) or worker.get("worker_head_sha") != head
-            or preintegration_review_errors(plan, run, mission_id)):
-        return None
-    return {"mission_id": mission_id, "node_id": node_id, "head_sha": head}
-
-
-def _adopt_runtime_contract(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> None:
-    """Record an owner-authorized fixed-contract re-read at a quiet boundary."""
-
-    if plan.get("schema_version") != 6 or run.get("schema_version") != 11:
-        raise ManifestError("runtime-contract adoption requires PLAN v6 with RUN v11")
-    control = run.get("control")
-    desired_state = control.get("desired_state") if isinstance(control, dict) else None
-    if run.get("status") == "complete" or desired_state == "cancelled":
-        raise ManifestError(
-            "runtime-contract adoption refuses a complete or cancelled run"
-        )
-
-    wave = run.get("active_wave")
-    if isinstance(wave, dict) and wave.get("status") in {"proposed", "active"}:
-        raise ManifestError(
-            "runtime-contract adoption refuses an active or proposed wave"
-        )
-    live_workers = sorted(
-        str(worker.get("worker_id"))
-        for worker in [*run.get("workers", []), *run.get("review_workers", [])]
-        if isinstance(worker, dict)
-        and worker.get("phase") in {"leased", "worker_running"}
-    )
-    integration_pending = []
-    running_nodes = []
-    for node_id in sorted(
-        str(node_id)
-        for node_id, state in run.get("graph_state", {}).get("node_states", {}).items()
-        if isinstance(state, dict) and state.get("phase") == "running"
-    ):
-        proof = _quiescent_integration_pending(plan, run, node_id)
-        if proof is None:
-            running_nodes.append(node_id)
-        else:
-            integration_pending.append(proof)
-    reserved_attempts = sorted(
-        str(attempt.get("attempt_id"))
-        for attempt in run.get("attempt_log", [])
-        if isinstance(attempt, dict)
-        and attempt.get("kind") == "node_attempt"
-        and attempt.get("result") == "reserved"
-    )
-    active_work = [*live_workers, *running_nodes, *reserved_attempts]
-    if active_work:
-        raise ManifestError(
-            "runtime-contract adoption requires a quiescent run; reconcile first: "
-            + ", ".join(active_work)
-        )
-
-    adapter = run.get("runtime_capabilities", {}).get("runtime_adapter")
-    gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
-    if not isinstance(gate, dict):
-        raise ManifestError("RUN has no runtime version gate")
-    if gate.get("loaded_contract_digest") is not None:
-        raise ManifestError(
-            "runtime-contract adoption applies only when loaded identity is unknown"
-        )
-    if gate.get("status") not in {"unobserved", "adopted"}:
-        raise ManifestError(
-            f"runtime version status {gate.get('status')!r} cannot be replaced by adoption"
-        )
-    harness_version = (
-        Path(__file__).resolve().parent.parent / "VERSION"
-    ).read_text(encoding="utf-8").strip()
-    required_version = required_harness_version(run)
-    parsed_harness_version = parse_harness_version(harness_version)
-    if not _nonempty_string(harness_version) or parsed_harness_version is None or required_version is None:
-        raise ManifestError("runtime-contract adoption requires Harness version evidence")
-    if not version_at_least(harness_version, required_version):
-        raise ManifestError(
-            "runtime-contract adoption cannot mark a Harness older than the RUN pin current"
-        )
-
-    owner_source = getattr(args, "owner_source", None)
-    reading_evidence = list(getattr(args, "reading_evidence", []) or [])
-    if not _nonempty_string(owner_source):
-        raise ManifestError("runtime-contract adoption requires --owner-source")
-    if not reading_evidence or any(not _nonempty_string(item) for item in reading_evidence):
-        raise ManifestError(
-            "runtime-contract adoption requires at least one --reading-evidence entry"
-        )
-
-    expected_digest = getattr(args, "expected_contract_digest", None)
-    if not isinstance(expected_digest, str) or re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None:
-        raise ManifestError(
-            "runtime-contract adoption requires --expected-contract-digest as a lowercase SHA-256"
-        )
-    installed_digest = contract_digest()
-    if installed_digest != expected_digest:
-        raise ManifestError(
-            "installed runtime contract differs from --expected-contract-digest; re-read before adopting"
-        )
-    prior = gate.get("contract_adoption")
-    prior_same_session = (
-        isinstance(prior, dict)
-        and prior.get("contract_digest_sha256") == installed_digest
-        and prior.get("session_id") == args.session_id
-    )
-    if prior_same_session:
-        raise ManifestError("this installed runtime contract is already adopted")
-
-    adopted_at = _now()
-    adoption = {
-        "session_id": args.session_id,
-        "adopted_at": adopted_at,
-        "contract_digest_sha256": installed_digest,
-        "owner_source": owner_source,
-        "reading_evidence": reading_evidence,
-    }
-    if isinstance(prior, dict):
-        gate.setdefault("contract_adoption_history", []).append(copy.deepcopy(prior))
-    gate["session_id"] = args.session_id
-    gate.setdefault("contract_adoption_history", [])
-    gate["contract_adoption"] = adoption
-    gate["harness_version"] = harness_version
-    gate["installed_contract_digest"] = installed_digest
-    gate["status"] = "adopted"
-    gate["evidence"] = (
-            "owner-adopted fixed contract after explicit lazy-filesystem re-read; "
-        "loaded-at-start digest remains unobserved"
-    )
-    run["attempt_log"].append(
-        {
-            "attempt_id": (
-                f"RUNTIME-CONTRACT-{adopted_at}-{len(run['attempt_log']) + 1}"
-            ),
-            "mission_id": None,
-            "task_id": None,
-            "lease_id": None,
-            "kind": "runtime_contract_adoption",
-            "result": "adopted",
-            "evidence": [
-                f"owner_source={owner_source}",
-                f"installed_contract_digest={installed_digest}",
-                "loaded_contract_digest=null",
-                *(f"integration_pending mission={proof['mission_id']} node={proof['node_id']} head={proof['head_sha']}"
-                  for proof in integration_pending),
-                *reading_evidence,
-            ],
-        }
-    )
-
 
 
 def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
@@ -4152,64 +3955,6 @@ def _control(run: dict[str, Any], state: str, source: str) -> None:
     }
 
 
-def _grant(run: dict[str, Any], args: argparse.Namespace) -> None:
-    lineage = run.get("review_lineages", {}).get(args.lineage)
-    if not isinstance(lineage, dict):
-        raise ManifestError(f"unknown review lineage {args.lineage!r}")
-    if args.additional_attempts != 1:
-        raise ManifestError("one owner decision may grant exactly one additional review attempt")
-    if lineage.get("owner_decisions"):
-        raise ManifestError("this review lineage already used its one owner-granted successor")
-    current_allowance = lineage.get("base_allowance", 0) + lineage.get(
-        "additional_allowance", 0
-    )
-    if lineage.get("consumed_attempts", 0) < current_allowance:
-        raise ManifestError("review allowance is not exhausted; an owner grant is premature")
-    if not args.source_ref.startswith("user_turn:") or not args.source_ref.removeprefix(
-        "user_turn:"
-    ).strip():
-        raise ManifestError("--source-ref must identify the approving user turn as user_turn:<id>")
-    if args.decision_id.casefold() not in args.source.casefold():
-        raise ManifestError(
-            "--source must be the exact user quote and name the approved decision ID"
-        )
-    failure_family = next(
-        (
-            family
-            for family in lineage.get("failure_families", [])
-            if isinstance(family, dict) and family.get("id") == args.failure_family_id
-        ),
-        None,
-    )
-    if failure_family is None:
-        raise ManifestError(
-            "--failure-family-id must identify a retained failure family in this lineage"
-        )
-    if failure_family.get("status") not in {"open", "repairing"}:
-        raise ManifestError("the owner-granted failure family must still be open")
-    decision_ids = {
-        item.get("id")
-        for item in lineage.get("owner_decisions", [])
-        if isinstance(item, dict)
-    }
-    if args.decision_id in decision_ids:
-        raise ManifestError(f"duplicate owner decision {args.decision_id!r}")
-    lineage["additional_allowance"] += args.additional_attempts
-    lineage["owner_decisions"].append(
-        {
-            "id": args.decision_id,
-            "source": args.source,
-            "source_ref": args.source_ref,
-            "failure_family_id": args.failure_family_id,
-            "strategy": args.strategy,
-            "acceptance_matrix": args.acceptance,
-            "additional_review_attempts": args.additional_attempts,
-        }
-    )
-    failure_family["strategy"] = args.strategy
-    failure_family["status"] = "repairing"
-
-
 def _reconcile_interrupted(run: dict[str, Any], args: argparse.Namespace) -> None:
     worker = next(
         (
@@ -4642,196 +4387,6 @@ def _reserve_review_dispatch(
             "runtime_binding": directive["runtime_binding"],
             "tool_profile": directive["tool_profile"],
         }
-    }
-
-
-def _record_launch_observation(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> dict[str, Any]:
-    if not role_contract_enabled(run):
-        raise ManifestError("launch observations require a 0.58+ role-contract RUN")
-    if args.assignment_kind == "mission":
-        reserved = next(
-            (
-                worker
-                for worker in run.get("workers", [])
-                if isinstance(worker, dict)
-                and worker.get("lease_id") == args.assignment_id
-                and worker.get("worker_id") == args.worker_id
-            ),
-            None,
-        )
-        expected_node = next(
-            (
-                node.get("id")
-                for node in plan.get("graph", {}).get("nodes", [])
-                if isinstance(node, dict)
-                and node.get("kind") == "mission"
-                and node.get("ref") == reserved.get("mission_id")
-            )
-            if isinstance(reserved, dict)
-            else None,
-            None,
-        )
-        source_sha = reserved.get("batch_base_sha") if reserved else None
-        base_sha = None
-        reviewed_sha = None
-    else:
-        reserved = next(
-            (
-                worker
-                for worker in run.get("review_workers", [])
-                if isinstance(worker, dict)
-                and worker.get("node_id") == args.assignment_id
-                and worker.get("worker_id") == args.worker_id
-                and worker.get("attempt_id") == args.attempt_id
-            ),
-            None,
-        )
-        expected_node = args.assignment_id
-        source_sha = reserved.get("reviewed_sha") if reserved else None
-        base_sha = reserved.get("base_sha") if reserved else None
-        reviewed_sha = reserved.get("reviewed_sha") if reserved else None
-    if not isinstance(reserved, dict) or reserved.get("attempt_id") != args.attempt_id:
-        raise ManifestError("launch observation has no matching reserved attempt")
-    if args.node_id != expected_node:
-        raise ManifestError("launch observation node does not match its reserved assignment")
-    if reserved.get("phase") not in {"leased", "worker_running"}:
-        raise ManifestError("launch observation requires an active reserved attempt")
-    binding = reserved.get("runtime_binding")
-    if not isinstance(binding, dict):
-        raise ManifestError("reserved attempt has no runtime_binding")
-    record: dict[str, Any] = {
-        "plan_revision": plan.get("revision"),
-        "plan_digest_sha256": plan_digest(plan),
-        "assignment_kind": args.assignment_kind,
-        "assignment_id": args.assignment_id,
-        "node_id": args.node_id,
-        "attempt_id": args.attempt_id,
-        "worker_id": args.worker_id,
-        "worker_role": binding.get("worker_role"),
-        "resolved_role": binding.get("resolved_role"),
-        "source_sha": source_sha,
-        "base_sha": base_sha,
-        "reviewed_sha": reviewed_sha,
-        "worker_runtime": binding.get("worker_runtime"),
-        "workspace_mode": binding.get("workspace_mode"),
-        "completion_channel": binding.get("completion_channel"),
-        "requested_model": binding.get("model"),
-        "requested_reasoning_effort": binding.get("reasoning_effort"),
-        "model_provider": args.model_provider,
-        "model": args.model,
-        "reasoning_effort": args.reasoning_effort,
-        "session_id": args.worker_session_id,
-        "launch_observation": args.launch_observation,
-        "host_observation": args.host_observation,
-    }
-    if getattr(args, "fallback_record", None) is not None:
-        try:
-            fallback = json.loads(
-                Path(args.fallback_record).read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError) as exc:
-            raise ManifestError(f"cannot read --fallback-record: {exc}") from exc
-        if not isinstance(fallback, dict):
-            raise ManifestError("--fallback-record must contain an object")
-        from agent_role_contract import LAUNCH_FALLBACK_KEYS
-
-        for key in LAUNCH_FALLBACK_KEYS:
-            if key in fallback:
-                record[key] = fallback[key]
-    for issue in validate_launch_record_shape(record, "run.launch_records"):
-        raise ManifestError(f"invalid launch observation: {issue}")
-    records = run.get("launch_records", [])
-    if not isinstance(records, list):
-        raise ManifestError("run.launch_records must be a list")
-    if any(
-        isinstance(item, dict)
-        and item.get("session_id") == record["session_id"]
-        for item in records
-    ):
-        raise ManifestError("launch session is already reserved by another attempt")
-    if any(
-        isinstance(item, dict)
-        and item.get("assignment_kind") == record["assignment_kind"]
-        and item.get("assignment_id") == record["assignment_id"]
-        and item.get("attempt_id") == record["attempt_id"]
-        and item.get("worker_id") == record["worker_id"]
-        for item in records
-    ):
-        raise ManifestError("launch observation already exists for this reserved attempt")
-    candidate_run = {**run, "launch_records": [*records, record]}
-    launch_issues = validate_launch_record(
-        candidate_run,
-        assignment_kind=record["assignment_kind"],
-        assignment_id=record["assignment_id"],
-        node_id=record["node_id"],
-        attempt_id=record["attempt_id"],
-        worker_id=record["worker_id"],
-        worker_role_expected=record["worker_role"],
-        reserved=reserved,
-    )
-    if launch_issues:
-        raise ManifestError(
-            "launch observation does not match its reserved predecessor:\n"
-            + "\n".join(f"- {item}" for item in launch_issues)
-        )
-    run["launch_records"] = candidate_run["launch_records"]
-    return {"command": "record-launch-observation", "record": copy.deepcopy(record)}
-
-
-def _bind_review_task_thread(
-    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> dict[str, Any]:
-    """Bind the actual Codex task created by a reserved thread-poll review."""
-
-    worker = next(
-        (
-            item
-            for item in run.get("review_workers", [])
-            if isinstance(item, dict) and item.get("worker_id") == args.worker_id
-        ),
-        None,
-    )
-    if worker is None:
-        raise ManifestError(f"review worker {args.worker_id!r} has no reserved dispatch")
-    if worker.get("phase") != "leased":
-        raise ManifestError("only a leased review dispatch can bind its actual task thread")
-    if worker.get("completion_channel") != "thread_poll":
-        raise ManifestError("review task-thread binding requires a thread_poll completion channel")
-    task_thread_id = args.task_thread_id
-    if not isinstance(task_thread_id, str) or not task_thread_id.strip():
-        raise ManifestError("bind-review-task-thread requires a non-empty --task-thread-id")
-    if any(
-        isinstance(item, dict)
-        and item is not worker
-        and item.get("task_thread_id") == task_thread_id
-        for item in [*run.get("workers", []), *run.get("review_workers", [])]
-    ):
-        raise ManifestError(
-            f"task thread id {task_thread_id!r} is already bound to another worker"
-        )
-
-    if plan.get("schema_version") == 6 and run.get("schema_version") == 11:
-        sandbox_reasons = _sandbox_observation_reasons(plan, run)
-        if sandbox_reasons:
-            raise ManifestError(
-                "accept-wave sandbox preflight is stale or incomplete: "
-                + ", ".join(sorted(sandbox_reasons))
-            )
-    node = _review_node(plan, worker.get("node_id"))
-    for mission_id in node["review"].get("mission_ids", []):
-        _materialize_authorized_target(
-            run, "create_user_owned_tasks", mission_id, f"task:{task_thread_id}"
-        )
-    worker["task_thread_id"] = task_thread_id
-    worker["phase"] = "worker_running"
-    return {
-        "command": "bind-review-task-thread",
-        "worker_id": args.worker_id,
-        "node_id": worker["node_id"],
-        "task_thread_id": task_thread_id,
-        "phase": worker["phase"],
     }
 
 
@@ -5308,15 +4863,6 @@ def build_parser() -> argparse.ArgumentParser:
     for state in ("pause", "resume", "cancel"):
         command = subparsers.add_parser(state)
         command.add_argument("--source", required=True)
-    grant = subparsers.add_parser("grant-review-attempts")
-    grant.add_argument("--lineage", required=True)
-    grant.add_argument("--decision-id", required=True)
-    grant.add_argument("--source", required=True)
-    grant.add_argument("--source-ref", required=True)
-    grant.add_argument("--failure-family-id", required=True)
-    grant.add_argument("--strategy", required=True)
-    grant.add_argument("--acceptance", action="append", required=True)
-    grant.add_argument("--additional-attempts", type=int, default=1)
     reconcile = subparsers.add_parser("reconcile-interrupted")
     reconcile.add_argument("--worker-id", required=True)
     reconcile.add_argument("--reason", required=True)
@@ -5339,24 +4885,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reserve_review.add_argument("--max-diff-bytes", type=int)
     reserve_review.add_argument("--max-message-bytes", type=int)
-    bind_review_task = subparsers.add_parser("bind-review-task-thread")
-    bind_review_task.add_argument("--worker-id", required=True)
-    bind_review_task.add_argument("--task-thread-id", required=True)
-    launch_observation = subparsers.add_parser("record-launch-observation")
-    launch_observation.add_argument("--assignment-kind", choices=["mission", "review"], required=True)
-    launch_observation.add_argument("--assignment-id", required=True)
-    launch_observation.add_argument("--node-id", required=True)
-    launch_observation.add_argument("--worker-id", required=True)
-    launch_observation.add_argument("--attempt-id", required=True)
-    launch_observation.add_argument("--model-provider", required=True)
-    launch_observation.add_argument("--model", required=True)
-    launch_observation.add_argument("--reasoning-effort", required=True)
-    launch_observation.add_argument("--worker-session-id", required=True)
-    launch_observation.add_argument("--launch-observation", required=True)
-    launch_observation.add_argument("--host-observation", required=True)
-    launch_observation.add_argument("--fallback-record", type=Path)
-    runtime_observation = subparsers.add_parser("record-runtime-observation")
-    runtime_observation.add_argument("--observation", type=Path, required=True)
     review = subparsers.add_parser("record-review-attempt")
     review.add_argument("--lineage", required=True)
     review.add_argument("--attempt-id", required=True)
@@ -5387,15 +4915,6 @@ def build_parser() -> argparse.ArgumentParser:
     observation_parser.add_argument("--available-worker-slots", type=int)
     observation_parser.add_argument("--isolation-capacity", type=int)
     observation_parser.add_argument("--capacity-evidence")
-    adoption_parser = subparsers.add_parser("adopt-runtime-contract")
-    adoption_parser.add_argument("--owner-source", required=True)
-    adoption_parser.add_argument("--reading-evidence", action="append", required=True)
-    adoption_parser.add_argument("--expected-contract-digest", required=True)
-    role_policy = subparsers.add_parser("update-role-bindings")
-    role_policy.add_argument("--policy", type=Path, required=True)
-    role_policy.add_argument("--expected-role-bindings-sha256", required=True)
-    role_policy.add_argument("--update-id", required=True)
-    role_policy.add_argument("--owner-source", required=True)
     wave_command = subparsers.add_parser("accept-wave")
     wave_command.add_argument("--wave-id", required=True)
     wave_command.add_argument("--mission-id", action="append", required=True)
@@ -5448,15 +4967,6 @@ def build_parser() -> argparse.ArgumentParser:
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
     worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
-    ingestion = subparsers.add_parser("reconcile-worker-ingestion")
-    ingestion.add_argument("--node-result", required=True, type=Path)
-    ingestion.add_argument("--worker-result", required=True, type=Path)
-    ingestion.add_argument("--result-receipt", required=True, type=Path)
-    ingestion.add_argument("--original-run", required=True, type=Path)
-    ingestion.add_argument("--expected-original-run-sha256", required=True)
-    ingestion.add_argument("--verifier-result", action="append", required=True, type=Path)
-    ingestion.add_argument("--reconciliation-id", required=True)
-    ingestion.add_argument("--source", required=True)
     rejected = subparsers.add_parser("reject-worker-result")
     rejected.add_argument("--failure-receipt", type=Path)
     rejected.add_argument("--node-id", required=True)
@@ -5603,8 +5113,6 @@ def _transition_under_lock(
             ],
             args.source,
         )
-    elif args.command == "grant-review-attempts":
-        _grant(run, args)
     elif args.command == "reconcile-interrupted":
         _reconcile_interrupted(run, args)
     elif args.command == "reconcile-interrupted-reviews":
@@ -5613,43 +5121,10 @@ def _transition_under_lock(
         if args.repo_root is None:
             raise ManifestError("reserve-review-dispatch requires --repo-root")
         receipt = _reserve_review_dispatch(plan, run, args, repo_root=args.repo_root)
-    elif args.command == "bind-review-task-thread":
-        receipt = _bind_review_task_thread(plan, run, args)
-    elif args.command == "record-launch-observation":
-        receipt = _record_launch_observation(plan, run, args)
-    elif args.command == "record-runtime-observation":
-        from runtime_observations import append_observation, load_observation
-
-        _require_held_run_lock(run, args)
-        if args.repo_root is None:
-            raise ManifestError("record-runtime-observation requires --repo-root")
-        receipt = append_observation(plan, run, load_observation(args.observation))
-        if not receipt["recorded"]:
-            errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
-            if errors:
-                raise ManifestError("runtime observation replay has an invalid RUN: " + "; ".join(errors))
-            _ensure_plan_unchanged(args.plan, expected_plan_text)
-            if args.run.read_text(encoding="utf-8") != original_text:
-                raise ManifestError("RUN changed during runtime observation replay")
-            return receipt, None, False
     elif args.command == "skip-integration-review":
         _skip_integration_review(plan, run, args)
     elif args.command == "record-observation":
         _record_observation(plan, run, args)
-    elif args.command == "update-role-bindings":
-        from agent_role_policy_updates import update_role_bindings
-
-        errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
-        if errors:
-            raise ManifestError("role-policy update requires a valid current RUN: " + "; ".join(errors))
-        receipt = update_role_bindings(plan, run, args)
-        if not receipt["recorded"]:
-            _ensure_plan_unchanged(args.plan, expected_plan_text)
-            if args.run.read_text(encoding="utf-8") != original_text:
-                raise ManifestError("RUN changed during role-policy update replay")
-            return receipt, None, False
-    elif args.command == "adopt-runtime-contract":
-        _adopt_runtime_contract(plan, run, args)
     elif args.command == "accept-wave":
         _accept_wave(plan, run, args)
     elif args.command == "close-wave":
@@ -5662,10 +5137,6 @@ def _transition_under_lock(
         _lease_worker(plan, run, args)
     elif args.command == "record-worker-result":
         receipt = record_worker_result(plan, run, args)
-    elif args.command == "reconcile-worker-ingestion":
-        from harness_worker_ingestion_transition import reconcile_worker_ingestion
-
-        receipt = reconcile_worker_ingestion(plan, run, args)
     elif args.command == "reject-worker-result":
         receipt = reject_worker_result(plan, run, args)
     elif args.command == "record-integration":
@@ -5761,10 +5232,6 @@ def _transition_under_lock(
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
         verify_worker_observation(observation)
-    if args.command == "reconcile-worker-ingestion":
-        from harness_worker_ingestion_transition import verify_ingestion_before_commit
-
-        verify_ingestion_before_commit(plan, run, args)
     before_commit = None
     if args.command == "record-integration":
         from harness_integration_results import verify_integration_observation
