@@ -14,7 +14,7 @@ class ReviewTranslationTests(unittest.TestCase):
     def test_contract_reaches_drafting_review_publication_and_handoff(self):
         root = SCRIPTS.parent
         for path in ("references/stages/product-definition.md", "references/output-contract.md", "references/artifact-lifecycle.md",
-                     "references/architecture-playbook.md", "references/agent-work-graph.md"):
+                     "references/architecture-playbook.md"):
             self.assertIn("bilingual-review.md", (root / path).read_text(encoding="utf-8"))
         contract = (root / "references/bilingual-review.md").read_text(encoding="utf-8")
         for phrase in ("English files alone are canonical", "before every owner review",

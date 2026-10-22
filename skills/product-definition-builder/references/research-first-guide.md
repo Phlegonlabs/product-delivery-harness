@@ -37,7 +37,7 @@ Apply `references/market-research-guide.md`'s Source Rules and confidence vocabu
 
 ## Delegation
 
-Before drafting, build the same versioned `readonly-assignments/1` inventory directly; this phase has no product graph lane. Two or more parent-classified independent substantive questions require separate `market_researcher` instances when delegation and readonly capability are granted. Missing authorization or capability blocks the pass instead of becoming parent work. A permitted skip is explicit; an evidence-backed no-source result is not a failed launch.
+Inventory the research questions before drafting. One `market_researcher` helper may cover them all under `agent-work-graph.md`; otherwise the parent researches. A permitted skip is explicit; an evidence-backed no-source result is not a failed launch.
 
 ## The Artifact
 

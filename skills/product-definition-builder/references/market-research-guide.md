@@ -4,7 +4,7 @@ Use this reference for the `market-research` role: a bounded, read-only research
 
 This role does not draft the product. Requirements, architecture, UX, and stack decisions are already written when it starts. Its job is to check those drafts against what actually exists in the market and hand back two things: the `market-research.md` artifact and gap findings and optimization proposals for the parent to present before applying accepted changes.
 
-The current graph emits one `market_researcher` assignment per parent-inventored question under `readonly_assignments_v1` with `post_draft_market_research` scope. The business role remains `market-research`; the workers may repeat `market_researcher`. The parent joins each result by assignment, attempt, question, and phase-scoped input identity, checks the observed launch identity separately from requested identity, rejects reused worker/session identities, and blocks on missing required results. A `complete` result must carry non-empty `findings` and `sources`; an empty complete payload is rejected. A permitted skip and an evidence-backed `no_sources` result remain explicit and distinct.
+One `market_researcher` helper may cover the whole question inventory under `agent-work-graph.md`; otherwise the parent researches. A `complete` result must carry non-empty `findings` and `sources`; an empty complete payload is rejected. A permitted skip and an evidence-backed `no_sources` result remain explicit and distinct.
 
 ## When It Runs
 
@@ -123,7 +123,7 @@ Return `blocked` — do not publish a half-researched artifact — when:
 - every search failed and the artifact would consist entirely of `UNVALIDATED` rows;
 - the product is confidential enough that searching it would leak it. Say so and stop; do not search around the edges.
 
-A blocked required role is recorded explicitly and blocks the current graph barrier; it cannot be omitted or replaced by parent work. A permitted skip before delegation may leave the package without `market-research.md`; record the reason and unvalidated market context in `PRD.md` `## Assumptions`. A completed search with no useful sources returns explicit `no_sources` evidence; it is not a failed launch or a self-review PASS.
+A blocked pass is recorded explicitly and cannot be silently omitted. A permitted skip may leave the package without `market-research.md`; record the reason and unvalidated market context in `PRD.md` `## Assumptions`. A completed search with no useful sources returns explicit `no_sources` evidence; it is not a failed launch or a self-review PASS.
 
 ## Failure Modes
 
