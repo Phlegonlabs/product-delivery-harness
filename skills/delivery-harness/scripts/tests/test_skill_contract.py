@@ -828,7 +828,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "parity/<label>-<tuple-sha256>-actual.png",
             "use the exact paths recorded in `manifest.json`",
             "target_comparison",
-            "Stop after two failed repair rounds",
+            "The loop uses the one repair and re-check from `gen-verify-correct.md`",
         ):
             self.assertIn(phrase, gates)
         self.assertIn("never widen the tolerance", gates)

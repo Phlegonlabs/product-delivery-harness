@@ -20,12 +20,26 @@ Pre-0.59 pins retain their recorded candidate/main contract. Malformed pins neve
 Historical corrections retain their original runtime pin and frozen policy; a new correction source cannot authorize a protocol downgrade.
 Never delete existing main or development branches through a RUN cleanup grant.
 
-## RUN-v9 And Earlier Evidence
+## Legacy UI Contracts Before 0.59
 
-RUN-v9 and earlier UI evidence remains readable and keeps its working-tree binding. Legacy plans may mark an inapplicable state `<state>:n/a` explicitly rather than omitting it.
+Where the current rules name the approved HiFi surface, a pinned legacy contract uses its validated schema-5 or approved legacy `wireframes.html` instead. This covers implementation inputs, route sources, missing-source stops, contract conformance, and the wireframe region order, element inventory and copy that the Visual design and Page-to-PRD rows check.
 
-## Legacy Wireframe Contracts
-
-Where the current rules name the approved HiFi surface, a pinned legacy contract uses its validated schema-5 or approved legacy `wireframes.html` instead. This covers implementation inputs, route sources, missing-source stops and contract conformance.
+A schema-5 wireframe PRD has one `copy` anchor per `UI-*` entry. A pinned legacy initial or enhancement wireframe source needs byte-matching `--wireframes <path to wireframes.html>` and must pass the full checker, including sourced copy and the exact PRD join. An unmarked Final UI Acceptance node keeps its pinned behavior; never add the `ui_acceptance` marker to a completed review.
 
 A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated. Raise the set to at least three ascending viewports and carry the new target through `PRD.md`, the retained design source, the design-system package when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` stays readable at two targets and `wireframes/3` remains readable with its earlier media-intent shape; current wireframe-free packages create no wireframe.
+
+## RUN Schemas Before V11
+
+RUN-v9 and earlier UI evidence remains readable and keeps its working-tree binding: the historical working-tree check and invalidation, not the accepted Git blob read. Legacy plans may mark an inapplicable state `<state>:n/a` explicitly rather than omitting it.
+
+## Pins Before 0.55
+
+Runs pinned before 0.34.0 record no `layout_check`. Before 0.35.0 the `deviation_ledger` and `ui_impact_summary` are recorded but not machine-checked. Before 0.38.0 a `ui_evidence` row has no `capture_method` or `target_comparison`. Pre-0.38 RUN-v11 files keep their legacy landing and closeout rule for recovery.
+
+## Container Verifiers Before 0.66
+
+A PLAN pinned before 0.66 may declare `execution.isolation: "container"` with a pinned image RepoDigest, observed runtime, disabled network and read-only rootfs. Such a verifier never falls back to host mode, and `session_exact` reuse stays within one batch.
+
+## Finishing A Run On Its Pinned Bundle
+
+A RUN pinned below 0.66 that cannot adopt the installed bundle runs the scripts from `~/.agents/skill-backups/product-delivery-harness/<stamp>/delivery-harness/` or from a checkout of tag `v<pin>`, with `<delivery-harness-skill-root>` pointing there. `installed-commands.md` resolution already allows a non-default root.
