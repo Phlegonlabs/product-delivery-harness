@@ -6,7 +6,7 @@ English `PRD.md` remains product authority. Preserve unaffected decisions and st
 
 ## First Delivery: Review The Whole Journey
 
-Review the same candidate from two perspectives before its existing approval checkpoint:
+The one author self-review below checks the reconciled candidate from two perspectives. No separate first-candidate review runs before it.
 
 - **UI perspective:** the `requirements` role follows each intended user's entry and first use through an observable useful result. Check cross-screen handoffs, content responsibilities, empty/loading/error/permission states, cancellation and recovery, accessibility, locales and supported responsive targets. Product Definition reviews required behavior; it does not invoke `ui-design-builder`, create wireframes or choose visual style. A headless product reviews caller/operator journeys without inventing screens or login.
 - **Technical perspective:** `architecture`, with applicable `backend` and `frontend-platform` roles, follows those journeys through data ownership and lifecycle, permission boundaries, integration contracts, retries and duplicate effects, migrations, release availability, monitoring, recovery ownership and testability. Propose unresolved technology choices through the existing Stack Decision Checkpoint.
@@ -21,7 +21,7 @@ Reuse accepted boundaries for local repairs; reopen only a changed product or st
 
 ## Complete The Author Self-Review
 
-Apply `../../delivery-harness/references/pre-delivery-self-review.md#prd-self-review` to the reconciled candidate after post-draft market research. Use the perspectives above to check the complete package, then recheck any changes from the Stack Decision Checkpoint before Product Definition Approval. Record the reviewed revision, evidence, findings, repairs and remaining blockers in the existing Epic/task record. A passing structural checker or a research report alone does not complete this author review. Keep required unresolved findings blocking and preserve the owner's decisions.
+Apply `../../delivery-harness/references/pre-delivery-self-review.md#prd-self-review` to the reconciled candidate after post-draft market research. Use the perspectives above in that one pass, then recheck only changes from the Stack Decision Checkpoint before Product Definition Approval. That contract owns the record, blocking findings and the rule that a checker pass or research report alone is not the review.
 
 ## Return New Evidence At Existing Checkpoints
 
@@ -42,6 +42,7 @@ When refining a requirement, name the actor, trigger and preconditions, rule or 
 - **Draft, accepted meaning:** fill supported omissions in the same candidate, synchronize affected architecture/UI-surface/test traces and review copies. Assumptions remain labeled; evidence is not permission for new scope.
 - **Clear requirement, faulty implementation:** repair implementation and test the existing obligation. Never weaken the PRD to match code.
 - **New or changed product/stack decision:** retain the proposal and evidence for the owning Product Definition flow. Reuse valid decisions; a substantive revision needs the existing owner approval and affected downstream revalidation.
+- **UI-contract gap found during design:** handle a missing route, operation, state, responsive obligation or content responsibility as a contract delta. Change only the affected `UI-*` entries and their PRD, UX and TEST traces. Update the Chinese copy and compare only the changed sections. Recheck only the affected scope, then present the exact English diff. One owner decision approves the delta and its in-place write to the published files. Write it, record that decision with the new package revision and digest, and rerun the package checker. Do not stage. Archive only when Git does not already hold the prior revision.
 - **Approved or frozen inputs:** capture discoveries in the existing change record until a valid revision can be consumed. Do not silently edit the frozen PRD, an active RUN binding or historical receipt. Even an authorized wording correction must satisfy existing exact-byte approval checks; a hash refresh is not approval. If valid continuation cannot be represented, keep dependent work unvalidated and use the existing next-round handoff. Finish independent work.
 
 At closeout, reconcile applied, deferred and unresolved findings with the current PRD and actual evidence. An unresolved required gap remains a blocker, not a completed delivery. Outcome observations use the existing `no_change`, `enhancement` or `incident` route; they never silently lower a target.

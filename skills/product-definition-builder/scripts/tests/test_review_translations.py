@@ -19,6 +19,7 @@ class ReviewTranslationTests(unittest.TestCase):
         contract = (root / "references/bilingual-review.md").read_text(encoding="utf-8")
         for phrase in ("English files alone are canonical", "before every owner review",
                        "do not prove translation quality", "English source first",
+                       "compare only the sections that changed in either file",
                        "after writing approval metadata", "archive each English/review pair together",
                        "Existing English-only Documents", "same directory", "Create missing copies exclusively",
                        "Preserve the English bytes", "read-only task"):

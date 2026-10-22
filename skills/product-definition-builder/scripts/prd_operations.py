@@ -124,6 +124,49 @@ def required_operations(prd_text):
     return result, errors
 
 
+def operation_graph_findings(surfaces, operations):
+    """Return ui-design/3 reachability and state-exit findings.
+
+    The first UI surface is the entry surface; HiFi renders it on index.html.
+    Every operation joins its source surface to its destination surface.  A
+    state that an operation opens, other than as transient feedback, needs an
+    operation that leaves it.  A surface with ``none — <reason>`` is terminal.
+    """
+
+    if not surfaces:
+        return []
+    entry = next(iter(surfaces))
+    targets = {}
+    for row in operations:
+        targets.setdefault(row["surface"], set()).add(row["destination"]["surface"])
+    reachable, pending = {entry}, [entry]
+    while pending:
+        for surface in targets.get(pending.pop(), ()):
+            if surface not in reachable:
+                reachable.add(surface)
+                pending.append(surface)
+    findings = [
+        f"prd: UI surface {surface} is not reachable from entry surface "
+        f"{entry} through operations"
+        for surface in surfaces
+        if surface not in reachable
+    ]
+    opened, exits = set(), set()
+    for row in operations:
+        source = (row["surface"], row["sourceState"])
+        destination = (row["destination"]["surface"], row["destination"]["state"])
+        if destination != source:
+            exits.add(source)
+            if row["presentation"] != "feedback":
+                opened.add(destination)
+    for surface, state in sorted(opened - exits):
+        if surface in targets:
+            findings.append(
+                f"prd: UI surface {surface} state {state} has no exit operation"
+            )
+    return findings
+
+
 def coverage_findings(prd, wireframe, manifest=None):
     """Join operations to a legacy wireframe and optional HiFi manifest."""
 

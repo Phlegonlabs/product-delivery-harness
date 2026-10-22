@@ -13,7 +13,7 @@ from pathlib import Path
 
 from markdown_contract import active_text, active_machine_block
 from platform_delivery import parse_platform_delivery, PROTOCOL
-from prd_operations import required_operations
+from prd_operations import operation_graph_findings, required_operations
 from prd_ui_contract import parse_prd_ui_contract
 from release_targets import parse_release_targets
 from git_evidence import GitEvidenceError, verify_revision_path
@@ -1594,9 +1594,13 @@ def validate_texts(
     if ui_contract in CURRENT_UI_CONTRACTS:
         # Parse operations from the active contract.  Reusing the parser also
         # checks one operation anchor per surface and its declared endpoints.
-        _operations, operation_errors = required_operations(prd_text)
+        operations, operation_errors = required_operations(prd_text)
         seen = set(problems)
         problems.extend(error for error in operation_errors if error not in seen)
+        # ui-design/3 also applies the HiFi entry reachability rule here, so a
+        # dead end fails at Product Definition Approval, not at HiFi preflight.
+        if ui_contract == "ui-design/3" and not operation_errors:
+            problems.extend(operation_graph_findings(ui_surfaces, operations))
     if require_filled:
         _validate_prd_core_sections(
             prd_text, has_ui=bool(ui_surfaces), problems=problems
