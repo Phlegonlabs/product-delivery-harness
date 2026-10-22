@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>通用运行时适配：宿主能力、契约采用与宿主交接</b></summary>
 
-Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Host 专属模型放在 host policy；共用 skills 保留设定角色与已授权 fallback。
+Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Host 专属模型放在 host policy；共用 skills 保留设定角色与已授权 fallback。 每次前端启动都从有效的 host policy 取得 model 与 effort，并分开记录要求值与实际执行观察。
 
 ## 通用运行时适配
 

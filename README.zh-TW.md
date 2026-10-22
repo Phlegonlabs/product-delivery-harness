@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>通用執行環境適配：host 能力、契約採用與 host 交接</b></summary>
 
-Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Host 專屬模型放在 host policy；共用 skills 保留設定角色與已授權 fallback。
+Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Host 專屬模型放在 host policy；共用 skills 保留設定角色與已授權 fallback。 每次前端啟動都從有效的 host policy 取得 model 與 effort，並分開記錄要求值與實際執行觀察。
 
 ## 通用執行環境適配
 
