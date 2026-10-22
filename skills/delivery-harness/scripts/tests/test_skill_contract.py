@@ -254,6 +254,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             operating, "## Managed Product Delivery Harness Runs"
         )
 
+        topology = self.owner_section(
+            self.read("references/verification-gates.md"), "## Review Topology"
+        )
+        self.assertIn("Default `review_policy: final_candidate`", topology)
+        self.assertIn("security lens re-binds", topology.lower())
+        self.assertIn("Security never skips and never reuses", topology)
         self.assertIn("## Default Mission Topology", skill)
         self.assertIn("Map one feature batch to one mission", skill)
         self.assertIn("one bounded worker slice per task", skill)
@@ -355,7 +361,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("root-cause failure family", skill)
         self.assertIn("A generic instruction to continue", skill)
         self.assertIn("## Root-Cause Repair Escalation", graph)
-        self.assertIn("open grammar needs an appropriate scanner, parser, state machine", graph)
+        self.assertIn("one review, one consolidated repair, and one targeted re-check", graph)
+        self.assertIn("the owner's quoted decision", graph)
+        self.assertIn("docs/goal/DECISIONS.md", graph)
         self.assertIn("stable mission + review surface + root-cause lineage", graph)
         self.assertIn("A mission-level replan does not replenish a review budget", decomposition)
         self.assertIn("Do not authorize another example-specific patch", verification)
@@ -418,6 +426,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("harness_step.py", performance)
         self.assertIn("validate_result.py", performance)
         self.assertIn("never weakens authorization", performance)
+        self.assertNotIn("## Machine Telemetry", performance)
+        self.assertNotIn("record-runtime-observation", performance)
         self.assertIn('"runtime_metrics"', runbook)
         self.assertNotIn("target_reduction_percent", runbook)
         self.assertIn("BATCH_PROTOCOL", verifier)
@@ -827,7 +837,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "parity/<label>-<tuple-sha256>-actual.png",
             "use the exact paths recorded in `manifest.json`",
             "target_comparison",
-            "Stop after two failed repair rounds",
+            "The loop uses the one repair and re-check from `gen-verify-correct.md`",
         ):
             self.assertIn(phrase, gates)
         self.assertIn("never widen the tolerance", gates)
@@ -1667,7 +1677,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         worker = self.read("assets/templates/WORKER_GOAL.template.md")
 
-        for content in (skill, verification, plan, worker):
+        for content in (verification, plan, worker):
             self.assertIn('selection.mode: "changed_files"', content)
             self.assertIn("parent-observed changed files", content)
         for content in (skill, verification, run):
@@ -1676,7 +1686,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"isolation": "host"', plan)
         self.assertIn('"parallel_safe": false', plan)
         self.assertIn("real cross-mission", verification)
-        self.assertIn("broad regression, browser E2E", skill)
+        self.assertIn("broad regression, browser E2E", verification)
         self.assertIn("after exact-SHA review and repair converge", plan)
 
     def test_schema_v10_closes_only_with_real_ui_evidence(self) -> None:
@@ -1691,7 +1701,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"ui_evidence"', runbook)
         self.assertIn("New managed work uses PLAN schema v6 and RUN schema v11", skill)
         self.assertIn("complete` is an execution closeout state", state)
-        for content in (skill, verification, runbook):
+        for content in (verification, runbook):
             self.assertIn("breakpoint-by-state", content)
             self.assertIn("SHA-256", content)
             self.assertIn("docs/goal/evidence/", content)
@@ -1700,10 +1710,13 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         graph = self.read("references/graph-orchestration.md")
         verification = self.read("references/verification-gates.md")
         worker = self.read("references/worker-result-contract.md")
-        for content in (graph, verification, worker):
+        self.assertIn("`host` policy", graph)
+        self.assertIn("legacy-pins.md#container-verifiers-before-066", graph)
+        for content in (verification, worker):
             self.assertIn("host", content)
             self.assertIn("container", content)
             self.assertIn("PLAN-bound", content)
+        for content in (graph, verification, worker):
             self.assertNotIn("future separately implemented route", content)
             self.assertNotIn("route them through a planned external read-only verifier node", content)
 

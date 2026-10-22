@@ -108,8 +108,7 @@ class ValidatorDietTests(unittest.TestCase):
     def test_template_final_review_accepts_only_the_bounded_repair_budget(self) -> None:
         plan = load_plan(SCRIPTS_DIR.parent / "assets/templates/HARNESS_PLAN.template.md")
         review = next(node for node in plan["graph"]["nodes"] if node["id"] == "N-SECURITY-REVIEW")
-        if "fix_required" not in review["allowed_outcomes"]:
-            review["allowed_outcomes"].append("fix_required")
+        self.assertIn("fix_required", review["allowed_outcomes"])
         missions = {mission["id"]: mission for mission in plan["missions"]}
         verifier_ids = {verifier["id"] for verifier in [*plan["final_gates"], *missions["M1"]["worker_verifiers"]]}
         for attempts in (2, 1, 3):

@@ -37,7 +37,7 @@ Do not reuse or renumber IDs after a plan is published. If historical data needs
 
 Run this gate for every proposed mission before PLAN readiness. A mission is a feature batch: one user-visible feature or one shared foundation, owned by one writer role. Its fine tasks keep their own atomic commits and verifiers.
 
-Every mission adds fixed cost: worktree, handoff, result validation, one exact-head review per applicable surface, serial integration and integration reruns. Review is the largest of these, and review count follows mission count. Plan as few missions as the work allows.
+Every mission adds fixed cost: worktree, handoff, result validation, serial integration and integration reruns, plus one review under `per_mission`, where review count follows mission count. Plan as few missions as the work allows.
 
 Split a mission only when one of these is true:
 
@@ -119,7 +119,7 @@ The 10-20 minute slice applies to each task: implementation plus its focused ver
 - A worker timeout is interrupted evidence, not a successful checkpoint. The parent may resume only after validating the worktree and deciding whether the remaining work still fits the same mission.
 - Record the estimate and actual elapsed phase timestamps in the human PLAN/RUN view. They are telemetry, not machine authorization and do not change PLAN/RUN schema.
 
-This slice gate shortens child contexts and failure recovery. It is not a reason to add missions: each extra mission adds a review and an integration. It does not authorize parallel writers in one mission; only independently scoped missions may enter the parallel frontier.
+This slice gate shortens child contexts and failure recovery. Each extra mission adds an integration and, under `per_mission`, a review. Only independently scoped missions may enter the parallel frontier.
 
 ## UI Build Order
 
@@ -131,7 +131,7 @@ When the product has a design system, its primitive layers decide task order. Ea
    + the UI contract check and the responsive check over
      design-system.json's `viewports` or `sizeClasses`
 3. Product components                          (bound to their content contracts)
-4. Routes                                      (one route per mission per contract-and-traceability.md)
+4. Routes                                      (route tasks within feature-batch missions)
 ```
 
 Rules:

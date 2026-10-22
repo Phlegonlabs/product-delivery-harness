@@ -11,9 +11,7 @@ At every invocation, run the [entry checklist](references/governance/task-and-ha
 
 ## Design And Maintenance Routing
 
-Before Product-package execution, apply `references/pre-delivery-self-review.md#harness-entry`: author reviews, catch-up rules, scoped routes and evidence. Missing/stale evidence blocks execution, not inspection/planning.
-
-Classify UI work under [Product Contracts](references/governance/product-contracts.md#consumer-keep-product-contracts-current).
+Before Product-package execution, apply `references/pre-delivery-self-review.md#harness-entry`; missing or stale evidence blocks execution, not inspection or planning. Classify UI work under [Product Contracts](references/governance/product-contracts.md#consumer-keep-product-contracts-current).
 
 Optional context: `references/reference-selection.md` (`references/option-library/`).
 
@@ -36,7 +34,7 @@ Classify work as `large` only when at least one condition is true:
 
 - two or more independently writable missions need separate ownership or integration;
 - execution needs durable cross-session or cross-host handoff;
-- independently reviewed mission heads must integrate into one candidate;
+- mission heads must integrate into one candidate;
 - a migration, destructive operation, or correction loop needs a durable bounded graph; or
 - the user explicitly requests managed Harness orchestration.
 
@@ -81,7 +79,7 @@ These rules apply to both routes:
 
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
 - Preserve all 12 managed action keys in the [Authorization Action Ledger](references/execution-state-model.md#authorization-action-ledger).
-- Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Publishing A to the run branch and promoting A to `main` are separate post-RUN actions with separate authorization.
+- Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Archive, publication and promotion follow `references/branch-promotion-contract.md#managed-run-archive-before-promotion`.
 - Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
@@ -102,16 +100,14 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 1. Inspect the bounded component and relevant instructions.
    Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task, including direct work.
 2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance.
-3. Run the smallest focused checks, including security tests, that prove the change.
+3. Run the focused checks selected from changed files, including security tests.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
-6. For code work, load `code-security-review` on that SHA; without one, report `UNVALIDATED`, not PASS.
-7. Perform only remaining authorized Git actions.
+6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set. Without the security lens, report `UNVALIDATED`, not PASS.
+7. Make one consolidated repair, then one targeted re-check of the original findings, changed code and direct consumers (`references/gen-verify-correct.md`). A failed re-check stops for the owner.
+8. Perform only remaining authorized Git actions.
 
-For small UI work, use one Final UI Acceptance for critique, parity and page quality, with one consolidated defect set.
-Use rendered evidence when required; a text-only markup/style review makes no visual PASS claim and cannot close a required visual gate.
-Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
-Recheck original defects and affected consumers after repair. Stop after two failed repair attempts and report the remaining gap.
+A text-only markup/style review makes no visual PASS claim and cannot close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
 
 Optional `/feature-dev` exploration does not change authorization, ownership or verification.
 
@@ -143,7 +139,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
 - Initial/enhancement system-conformance uses current approved PRD, UI design, HiFi and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. Routine maintenance follows `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- Final UI Acceptance combines the Final Visual Parity Loop and read-only page-quality pass on the exact head (`references/verification-gates.md`). One reviewer uses current shared evidence and returns one consolidated finding set. Impeccable is not the default reviewer; its authorization caveat lives in `references/verification-gates.md`.
+- Final UI Acceptance runs the Final Visual Parity Loop and the page-quality pass once, on the exact head, in the one review (`references/verification-gates.md`). Impeccable is not the default reviewer.
 - Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow

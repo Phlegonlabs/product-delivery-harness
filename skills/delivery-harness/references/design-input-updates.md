@@ -81,7 +81,7 @@ Rules:
 - When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. For `design-system/4`, regenerate and freeze the derived HTML from the accepted pair and bound sources. When it is `not_required`, a target change returns to `ui-design-builder` and Human Visual Approval. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
 - In active initial design or enhancement, new product behavior, wording, and dynamic display-contract decisions return to `product-definition-builder`; copy completeness, wireframe, style, motion/media, and HiFi-target deltas return to `ui-design-builder`. Renew the applicable decisions and checks on the affected scope. Routine maintenance follows the accepted current product and effective requirements without rewriting historical visual approvals.
-- A legacy two-target web responsive set follows [legacy pins](legacy-pins.md#legacy-wireframe-contracts) before its package is next edited or re-validated.
+- A legacy two-target web responsive set follows [legacy pins](legacy-pins.md#legacy-ui-contracts-before-059) before its package is next edited or re-validated.
 - UI Design Intake deltas preserve their human owner, map to affected `UX-*`, `UI-*`, `MM-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
 ## Page-Faithful Target Matrix
@@ -127,7 +127,7 @@ M7 E2E and visual evidence
 
 In system-conformance mode, M4 through M6 follow `execution-task-decomposition.md`'s UI Build Order: tokens and primitives before components, components before routes, the registry and catalog landing with the primitives, and the contract check landing with the first routes rather than at the end. Target-conformance mode does not create placeholder registry or catalog work.
 
-M6 and M7 above are illustrative single lines, not a mandate to implement every route in one mission and defer visual evidence to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M6 into one mission per feature batch and pair each with one scoped `visual` review as soon as that mission integrates, rather than one mission and review per page or one M6 covering every route reviewed once by a later M7.
+M6 and M7 above are illustrative single lines, not a mandate to implement every route in one mission and defer visual evidence to the end. Per `contract-and-traceability.md`'s Review Placement Defaults, split M6 into one mission per feature batch, not one mission per page or one M6 covering every route. The one final review carries the visual lens; per-mission visual reviews exist only under `per_mission`.
 
 ## Existing App Refinement Flow
 
