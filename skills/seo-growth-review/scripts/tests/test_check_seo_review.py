@@ -252,7 +252,7 @@ class SeoLifecycleReviewTests(unittest.TestCase):
                 repo_root=Path(__file__).resolve().parents[4],
             )
         self.assertEqual(1, package_check.call_count)
-        self.assertEqual(3, deployment_check.call_count)
+        self.assertEqual(2, deployment_check.call_count)
         self.assertEqual(1, findings.count("Product package: bad stack"))
         self.assertEqual(1, findings.count("Deployment: bad deploy"))
         self.assertFalse(any(item.startswith("Activation: Product package") for item in findings))
@@ -260,8 +260,8 @@ class SeoLifecycleReviewTests(unittest.TestCase):
     def test_activation_still_validates_package_unless_told_otherwise(self) -> None:
         check_activation = sys.modules["check_activation"]
         for validated, expected_package_calls, expected_deployment_calls in (
-            (False, 1, 2),
-            (True, 0, 2),
+            (False, 1, 1),
+            (True, 0, 1),
         ):
             with self.subTest(package_validated=validated), patch(
                 "check_product_package.validate_texts", return_value=[]
