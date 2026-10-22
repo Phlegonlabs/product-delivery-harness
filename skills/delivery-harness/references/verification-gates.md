@@ -383,7 +383,13 @@ Security reservation and completion recheck the live integration checkout before
 
 An interrupted security reviewer does not fabricate a structured decision. `reconcile-interrupted-reviews` retains a blocked worker without `security_result` only when the unique matching review attempt carries the `interrupted_review_reconciliation` receipt. The node returns to dormant and the run stays paused; the receipt cannot satisfy closeout. A later exact structured PASS from the current reviewer may close the gate while the receipt-bound historical worker remains. A PASS also needs at least one tool or manual source review recorded as `passed` or `findings`; skipped or unavailable tools alone are not review evidence.
 
-The neutral PLAN template's combined final node returns `fix_required` on a validated finding, with `max_attempts` 2. The one consolidated repair is a declared task of a covered mission, committed on the integration branch and recorded with `reconcile-candidate-head`, which re-arms the node for one targeted re-check. A second `fix_required` stops at `blocked`. A security-typed node covers every PLAN mission, so a separate repair mission cannot be added without a PLAN revision.
+The neutral PLAN template's combined final node allows one initial review and one targeted recheck (`max_attempts: 2`).
+A covered parent-side repair uses the existing declared task and `reconcile-candidate-head` under its exact authorization.
+Alternatively, predeclare the [optional repair-only mission](graph-orchestration.md#optional-repair-only-mission) before execution.
+A first-review PASS leaves that untouched mission dormant; it does not block closeout.
+A `fix_required` activates its single bounded repair, followed by normal result recording, integration and one targeted recheck.
+A failed recheck stops; never reset attempts, hide the finding or dispatch another repair automatically.
+Both routes review the actual repaired unified SHA with complete security scope.
 
 ## Failure Handling
 
@@ -421,10 +427,10 @@ Final PASS requires:
 - Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; for RUN-v11, existence and decoding are checked in the accepted Git commit/ref rather than the working tree. Accepted non-file evidence applies only to gates that do not require screenshots. Every required row also carries a non-failing `layout_check` result, and a PASS row with a failed layout check never closes the run.
 - Baseline and skipped-check justifications are recorded when relevant.
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the mission integration verifiers passed on the integrated head. The one full run on the candidate is the only full run; in `shared_checkout` mode the final E2E gate on the working integration head covers this.
-- Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.
+- Every required reached mission is `integrated` or explicitly superseded, with recorded passing tasks and no blockers, active/blocked workers or open wave. An untouched repair-only mission behind the final review's untaken route may remain queued with dormant tasks; never mark it as executed.
 - The final integration head still descends from every recorded required mission integration SHA.
 - Landing is `local_only`: `landing.continuity` is `preserved` at C, `pushed_head_sha` is null, push authorization is false, and no push lifecycle node exists (`legacy-pins.md#pins-before-055`).
 - Archival is post-closeout. A must pass archived PLAN/RUN validation, receipt verification and exact C-to-A relocation/allowlist checks. It inherits C's review, security and gate evidence when the C-to-A diff touches only the archive allowlist (`branch-promotion-contract.md#managed-run-archive-before-promotion`); it never changes the archived RUN.
-- For current PLAN-v6 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
+- For current graphs, every reached node is terminal with no retained blocker and every reached edge is terminal. Untaken routes may leave their exclusive repair subtree dormant. No selector-ready work remains; an activated failed repair cannot use this exception.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

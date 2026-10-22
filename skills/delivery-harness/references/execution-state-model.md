@@ -51,8 +51,8 @@ plan_readiness: draft | ready | blocked
 | Execution intent | The run carries execution intent, not plan-only |
 | Inputs frozen | Every source input is ready/frozen or accepted |
 | Integration head | A `integration_head_sha` is recorded |
-| Missions | Every mission is integrated or superseded |
-| Tasks | Every live task is `mission_recorded` with a PASS verifier |
+| Missions | Every reached mission is integrated or superseded; an untouched repair-only mission behind an untaken final-review route may stay queued |
+| Tasks | Every reached live task is `mission_recorded` with a PASS verifier; an untriggered repair's tasks remain dormant/queued |
 | Blockers | No blockers remain |
 | Workers | No active or blocked mission or review worker |
 | Waves | No proposed or active wave |
@@ -240,6 +240,8 @@ Reconcile the current host and loaded Harness release through `runtime_capabilit
 At resume, a worker recorded as `leased` or `worker_running` requires observation of its owning runtime before the parent treats it as live or interrupted. A phase alone does not block unrelated ready work during a live wave: passing siblings can enter streaming review while other verified bindings remain active. After a confirmed stopped review fan-out, use `harness_transition.py reconcile-interrupted-reviews` once with every affected review worker ID. The transition records each interrupted attempt as blocked, preserves attempt counts in the append-only attempt log, resets the current review nodes, removes incoming edge traversals that have no current or retained source attempt, and persists `control.desired_state: paused`. It does not grant another review attempt or resume dispatch. When the interrupted worker was a security reviewer, the matching attempt receipt records `interrupted_review_reconciliation`; only that exact receipt permits the blocked worker to omit `security_result`. It is interruption evidence, never a security decision or PASS. After a later current reviewer supplies the exact structured PASS, the receipt-bound historical worker may remain without blocking closeout.
 
 ## Repairing The Integrated Candidate
+
+For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck.
 
 The additional historical-review admission preserves a passed or failed integration reviewer at a recorded prior head after its current graph binding is cleared. It requires a unique retained review attempt, matching outcome and lineage. A blocked reviewer qualifies only through the existing interrupted-review reconciliation receipt, using the same predicate as closeout. Other blocked or active old reviewers remain invalid and refuse candidate movement before RUN persistence. The older fix_required prior-head rule keeps its pinned semantics. Its retained bytes and receipts stay unchanged. This admissibility does not revive its PASS or security coverage for the new candidate.
 

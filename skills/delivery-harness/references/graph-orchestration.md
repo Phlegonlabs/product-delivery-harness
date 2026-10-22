@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for current PLAN schema v6 and RUN schema v11 typed graphs, conditional routing, retries, and graph traces. Older typed-graph schema pairs remain validatable as manifests but cannot be selected or executed.
+Use this reference for current PLAN schema v6 and RUN schema v11 typed graphs, conditional routing, retries, and graph traces. Historical schema pairs use their exact pinned bundle and are never migrated silently.
 
 ## Contents
 
@@ -95,9 +95,37 @@ contract freeze
   -> one broad final deterministic validation on the fixed candidate SHA
 ```
 
-A review node reports every blocking finding it can establish in one bounded pass. Under `review_policy: final_candidate` it depends on the integrated missions and becomes ready once every covered mission is integrated and `integration_head_sha` exists; the parent re-arms it after `reconcile-candidate-head` records the repair. A `fix_required` result is parent-side correction handling: wait until every required review of that candidate has returned, deduplicate findings by file, location, and root cause, and send the consolidated set once, per `gen-verify-correct.md`. Non-blocking suggestions go to the Epic backlog and never make `fix_required`. A repair changes the candidate SHA and invalidates the prior integration review. The `security` lens never skips: it loads the project's `code_security_verification` binding and evaluates the unified trust boundaries from a fresh context. Under `per_mission`, each mission also has a pre-integration review node that depends on its mission, consumes its `worker_passed` head, and returns `fix_required` to the original task and worktree; the same node re-arms on the changed head, and non-security integration reviews may skip under `verification-gates.md`'s Fresh integration review gate. Runtime review nodes follow the attempt budget in the Root-Cause Repair Escalation section below. Scope missions per feature batch (`execution-task-decomposition.md#mission-cohesion-gate`).
+A review node reports every blocking finding it can establish in one bounded pass. Under `review_policy: final_candidate` it depends on the integrated missions and becomes ready once every covered mission is integrated and `integration_head_sha` exists, except for the untouched conditional repair below; the parent re-arms it after `reconcile-candidate-head` records the repair. A `fix_required` result is parent-side correction handling: wait until every required review of that candidate has returned, deduplicate findings by file, location, and root cause, and send the consolidated set once, per `gen-verify-correct.md`. Non-blocking suggestions go to the Epic backlog and never make `fix_required`. A repair changes the candidate SHA and invalidates the prior integration review. The `security` lens never skips: it loads the project's `code_security_verification` binding and evaluates the unified trust boundaries from a fresh context. Under `per_mission`, each mission also has a pre-integration review node that depends on its mission, consumes its `worker_passed` head, and returns `fix_required` to the original task and worktree; the same node re-arms on the changed head, and non-security integration reviews may skip under `verification-gates.md`'s Fresh integration review gate. Runtime review nodes follow the attempt budget in the Root-Cause Repair Escalation section below. Scope missions per feature batch (`execution-task-decomposition.md#mission-cohesion-gate`).
 
 PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type; a combined node counts for each lens it lists, so the planner cannot mark a review required only in prose. Every new RUN also requires an explicit `security_review` policy: code delivery uses `required`; a non-code delivery may use `not_applicable` only with a reason. Older valid PLAN/RUN pairs remain readable and are never silently rewritten. The security review uses `code_review_readonly`, covers all missions, and runs before broad final validation. Render each reviewer a compact packet with the exact reviewed SHA, its declared scope, scoped changed paths/diff, applicable acceptance rows, required evidence, skill-binding slot when applicable, the security review's `required_checks` with the `execution_key` of each check's PASS at that SHA, and unresolved prior findings (`render_review_packet.py --max-diff-bytes N` bounds the diff — default 50000 bytes, truncation marked in the packet heading). Refer to PLAN/RUN by identity and path instead of copying their full manifests into the prompt.
+
+### Optional Repair-Only Mission
+
+A `final_candidate` PLAN may predeclare one isolated consolidated repair mission using existing graph fields.
+The repair node has `max_attempts: 1` and only one incoming `fix_required` route from the final review.
+That route has `max_traversals: 1`; a bounded `pass` route returns from repair to the same review.
+The review has `max_attempts: 2` and covers the repair mission in `review.mission_ids` and its write scope.
+Keep normal implementation dependencies on the review; do not add a repair-to-review dependency that blocks the first review.
+
+```json
+[
+  {"id":"E-FINAL-REPAIR","kind":"route","from":"N-FINAL-REVIEW","to":"N-REPAIR","on_outcomes":["fix_required"],"max_traversals":1},
+  {"id":"E-REPAIR-RECHECK","kind":"route","from":"N-REPAIR","to":"N-FINAL-REVIEW","on_outcomes":["pass"],"max_traversals":1}
+]
+```
+
+This is a pattern, not a new schema flag or scheduler.
+The first review may run while that repair alone remains untouched: queued mission, dormant node, zero attempts and untraversed route.
+Every other covered mission must already be integrated.
+A first-review PASS leaves the repair dormant; closeout recognizes the untaken route without inventing a repair PASS or integration.
+A `fix_required` activates the repair's one authorized writer attempt.
+Record its result, integrate it and run its focused integration checks through the normal mission protocol.
+The bounded pass route then permits one fresh targeted recheck on the repaired unified SHA.
+A failed recheck exhausts the review and repair route; stop and retain the findings for the owner.
+
+All source, scope, authorization, security, browser and evidence gates still apply.
+A repair not declared before execution needs the existing owner-authorized PLAN revision procedure.
+A PLAN without `review_policy` retains `per_mission` semantics; this initial-review exception does not apply to it.
 
 ## Root-Cause Repair Escalation
 

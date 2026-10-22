@@ -24,7 +24,7 @@ The resolved integration branch is always the exact non-protected run branch fro
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "d0551cc92b2d9e352bf75d18b7dc7811f28a17eba65c556a5b1556b84a965aa1"
+      "digest_sha256": "7ee87f5a4cd54207c5e82390e83ba4442c8b0163080e5b1743ab432c825a7c8f"
     },
     "status": "draft",
     "intent": "plan-only",
