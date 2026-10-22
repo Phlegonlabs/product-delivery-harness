@@ -12,25 +12,16 @@ Exit codes: 0 clean, 1 mismatch, 2 usage or parse error.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
-import ctypes
-from ctypes import wintypes
 import json
 import math
 import os
 import hashlib
 import re
 import stat
-import secrets
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-
-if os.name == "nt":
-    import msvcrt
-else:
-    import fcntl
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -142,325 +133,6 @@ STYLING_SELECTION_KEYWORDS = {
 VALID_ENFORCEMENT = {"blocking", "advisory"}
 
 
-
-
-class ConcurrentModificationError(RuntimeError):
-    """Raised when the destination changed after it was read for a write."""
-
-
-def _is_reparse_or_link(path: Path) -> bool:
-    """Return true for symlinks and Windows reparse-point path components."""
-
-    try:
-        info = path.lstat()
-    except OSError:
-        return False
-    if stat.S_ISLNK(info.st_mode):
-        return True
-    attributes = getattr(info, "st_file_attributes", 0)
-    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
-
-
-def _safe_parent_chain(path: Path) -> None:
-    """Reject a destination whose parent chain can redirect the atomic write."""
-
-    cursor = path.parent
-    existing: list[Path] = []
-    while True:
-        existing.append(cursor)
-        if cursor.parent == cursor:
-            break
-        cursor = cursor.parent
-    for component in reversed(existing):
-        if _is_reparse_or_link(component):
-            raise ConcurrentModificationError(
-                f"{path} parent directory contains a symlink or reparse point: {component}"
-            )
-
-
-def _open_posix_parent(path: Path) -> tuple[int, str]:
-    """Walk every POSIX component with O_NOFOLLOW and retain final dirfd."""
-
-    absolute = path.absolute()
-    parts = absolute.parts
-    if not parts or parts[0] != os.sep:
-        raise ConcurrentModificationError(f"{path} must be an absolute POSIX path")
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        directory_fd = os.open(os.sep, flags)
-        try:
-            for component in parts[1:-1]:
-                next_fd = os.open(component, flags, dir_fd=directory_fd)
-                os.close(directory_fd)
-                directory_fd = next_fd
-        except BaseException:
-            os.close(directory_fd)
-            raise
-    except OSError as exc:
-        raise ConcurrentModificationError(
-            f"{path} parent component cannot be held without following a symlink: {exc}"
-        ) from exc
-    return directory_fd, parts[-1]
-
-
-if os.name == "nt":
-    _WIN_INVALID_HANDLE = ctypes.c_void_p(-1).value
-    _WIN_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
-    _WIN_FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
-    _WIN_FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
-    _WIN_GENERIC_READ = 0x80000000
-    _WIN_GENERIC_WRITE = 0x40000000
-    _WIN_DELETE = 0x00010000
-    _WIN_FILE_SHARE_READ = 0x00000001
-    _WIN_FILE_SHARE_WRITE = 0x00000002
-    _WIN_OPEN_EXISTING = 3
-    _WIN_FILE_RENAME_INFO = 3
-
-
-def _windows_close(handle: int | None) -> None:
-    if os.name != "nt" or handle is None:
-        return
-    value = handle if isinstance(handle, int) else handle.value
-    ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(value))
-
-
-def _windows_open_parent(path: Path) -> tuple[int, list[int]]:
-    """Hold every Windows parent component without FILE_SHARE_DELETE."""
-
-    if os.name != "nt":
-        raise ConcurrentModificationError("Windows parent handles are unavailable on this host")
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateFileW.restype = ctypes.c_void_p
-    desired = _WIN_GENERIC_READ
-    flags = _WIN_FILE_FLAG_BACKUP_SEMANTICS | _WIN_FILE_FLAG_OPEN_REPARSE_POINT
-
-    class _FileAttributeTagInfo(ctypes.Structure):
-        _fields_ = [("FileAttributes", ctypes.c_uint32), ("ReparseTag", ctypes.c_uint32)]
-
-    def open_component(component: Path) -> int:
-        handle = kernel32.CreateFileW(
-            str(component),
-            desired,
-            _WIN_FILE_SHARE_READ | _WIN_FILE_SHARE_WRITE,
-            None,
-            _WIN_OPEN_EXISTING,
-            flags,
-            None,
-        )
-        if handle in (None, _WIN_INVALID_HANDLE):
-            error = ctypes.get_last_error()
-            raise ConcurrentModificationError(
-                f"{path} parent cannot be held without delete sharing (winerror={error})"
-            )
-        info = _FileAttributeTagInfo()
-        ok = kernel32.GetFileInformationByHandleEx(
-            ctypes.c_void_p(handle), 9, ctypes.byref(info), ctypes.sizeof(info)
-        )
-        if not ok or info.FileAttributes & _WIN_FILE_ATTRIBUTE_REPARSE_POINT:
-            _windows_close(handle)
-            raise ConcurrentModificationError(
-                f"{path} parent is a symlink or reparse point"
-            )
-        return int(handle)
-
-    held: list[int] = []
-    try:
-        parent = path.parent
-        components = list(parent.parts)
-        if not components:
-            raise ConcurrentModificationError(f"{path} has no Windows parent")
-        # Open each absolute component in order. Every prior handle stays open,
-        # so an ancestor cannot be renamed or replaced while the final move is
-        # in flight. _safe_parent_chain supplied the initial no-reparse check;
-        # OPEN_REPARSE_POINT makes the native hold check fail closed as well.
-        current = Path(components[0])
-        for component in components[1:]:
-            current = current / component
-            held.append(open_component(current))
-        if not held:
-            held.append(open_component(parent))
-        return held[-1], held[:-1]
-    except BaseException:
-        for handle in reversed(held):
-            _windows_close(handle)
-        raise
-
-
-def _posix_rename_exchange(parent_fd: int, left_name: str, right_name: str) -> None:
-    """Exchange destination and payload atomically, or fail closed."""
-
-    if os.name == "nt":
-        raise ConcurrentModificationError("POSIX rename exchange is unavailable on Windows")
-    libc = ctypes.CDLL(None, use_errno=True)
-    # Linux renameat2(RENAME_EXCHANGE) and macOS renameatx_np(RENAME_SWAP)
-    # take the same arguments and both use flag 0x2.
-    exchange = getattr(libc, "renameat2", None)
-    if exchange is None:
-        exchange = getattr(libc, "renameatx_np", None)
-    if exchange is None:
-        raise ConcurrentModificationError(
-            "renameat2(RENAME_EXCHANGE) and renameatx_np(RENAME_SWAP) are unavailable"
-        )
-    exchange.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-    exchange.restype = ctypes.c_int
-    if exchange(parent_fd, os.fsencode(left_name), parent_fd, os.fsencode(right_name), 0x2) != 0:
-        raise ConcurrentModificationError(f"rename exchange failed (errno={ctypes.get_errno()})")
-
-
-def _windows_replace_with_backup(destination: Path, replacement: Path, backup: Path) -> None:
-    """Replace a design-system authority file while retaining its old bytes."""
-
-    if os.name != "nt":
-        raise ConcurrentModificationError("ReplaceFileW is unavailable on this host")
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.ReplaceFileW.restype = wintypes.BOOL
-    kernel32.ReplaceFileW.argtypes = [
-        wintypes.LPCWSTR,
-        wintypes.LPCWSTR,
-        wintypes.LPCWSTR,
-        wintypes.DWORD,
-        wintypes.LPVOID,
-        wintypes.LPVOID,
-    ]
-    if backup.exists():
-        raise ConcurrentModificationError(f"design-system transaction backup already exists: {backup}")
-    if not kernel32.ReplaceFileW(str(destination), str(replacement), str(backup), 0x1, None, None):
-        raise ConcurrentModificationError(f"ReplaceFileW failed (winerror={ctypes.get_last_error()})")
-
-
-def _path_version(path: Path) -> tuple[int, int, int, int, str]:
-    info = path.stat(follow_symlinks=False)
-    return (
-        int(info.st_dev),
-        int(info.st_ino),
-        int(info.st_size),
-        int(info.st_mtime_ns),
-        hashlib.sha256(path.read_bytes()).hexdigest(),
-    )
-
-
-def _windows_replace_commit(
-    path: Path,
-    temporary_path: Path,
-    *,
-    expected_version: tuple[int, int, int, int, str],
-    payload: bytes,
-) -> None:
-    """Commit with a displaced-file backup and verify/restore on mismatch."""
-
-    backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.backup"
-    _windows_replace_with_backup(path, temporary_path, backup)
-    displaced_version = _path_version(backup)
-    if displaced_version != expected_version:
-        rollback_backup = path.parent / f".{path.name}.{secrets.token_hex(8)}.rollback"
-        preserved = f"design-system displaced bytes changed; concurrent bytes preserved at {backup}"
-        payload_hash = hashlib.sha256(payload).hexdigest()
-        try:
-            restore = _path_version(path)[-1] == payload_hash
-            if restore:
-                _windows_replace_with_backup(path, backup, rollback_backup)
-        except (OSError, ConcurrentModificationError) as exc:
-            raise ConcurrentModificationError(preserved) from exc
-        if not restore:
-            raise ConcurrentModificationError(preserved)
-        # Delete the swapped-out file only when it is our own payload.
-        if _path_version(path) != displaced_version or _path_version(rollback_backup)[-1] != payload_hash:
-            raise ConcurrentModificationError(
-                f"design-system restore verification failed; artifacts retained at {rollback_backup}"
-            )
-        rollback_backup.unlink(missing_ok=True)
-        raise ConcurrentModificationError(
-            f"design-system displaced bytes changed; concurrent bytes preserved at {path}"
-        )
-    backup.unlink(missing_ok=True)
-
-
-def _posix_exchange_commit(
-    path: Path,
-    temporary_path: Path,
-    *,
-    parent_fd: int,
-    expected_version: tuple[int, int, int, int, str],
-    payload: bytes,
-) -> None:
-    """Commit by exchange, then verify the displaced bytes and restore on mismatch."""
-
-    _posix_rename_exchange(parent_fd, temporary_path.name, path.name)
-    displaced_version = _path_version(path.parent / temporary_path.name)
-    if displaced_version != expected_version:
-        # Move displaced bytes off the temp name first: the caller's cleanup deletes it.
-        recovery = path.parent / f".{path.name}.{secrets.token_hex(8)}.recovery"
-        os.rename(temporary_path.name, recovery.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-        preserved = f"design-system displaced bytes changed; concurrent bytes preserved at {recovery}"
-        payload_hash = hashlib.sha256(payload).hexdigest()
-        try:
-            restore = _path_version(path)[-1] == payload_hash
-            if restore:
-                _posix_rename_exchange(parent_fd, recovery.name, path.name)
-        except (OSError, ConcurrentModificationError) as exc:
-            raise ConcurrentModificationError(preserved) from exc
-        if not restore:
-            raise ConcurrentModificationError(preserved)
-        # Delete the swapped-out file only when it is our own payload.
-        if _path_version(path) != displaced_version or _path_version(recovery)[-1] != payload_hash:
-            raise ConcurrentModificationError(
-                f"design-system restore verification failed; artifacts retained at {recovery}"
-            )
-        os.unlink(recovery.name, dir_fd=parent_fd)
-        raise ConcurrentModificationError(
-            f"design-system displaced bytes changed; concurrent bytes preserved at {path}"
-        )
-    os.unlink(temporary_path.name, dir_fd=parent_fd)
-    os.fsync(parent_fd)
-
-
-def _destination_lock_path(path: Path) -> Path:
-    token = hashlib.sha256(str(path.absolute()).casefold().encode("utf-8")).hexdigest()
-    directory = Path(tempfile.gettempdir()) / "product-delivery-harness-ds-locks"
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory / f"{token}.lock"
-
-
-@contextmanager
-def _destination_lock(path: Path):
-    """Serialize compliant writers with a stable host-local version token."""
-
-    lock_path = _destination_lock_path(path)
-    handle = lock_path.open("a+b")
-    try:
-        if os.name == "nt":
-            handle.seek(0)
-            if handle.tell() == 0:
-                handle.write(b"0")
-                handle.flush()
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-        else:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        yield
-    finally:
-        try:
-            if os.name == "nt":
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        finally:
-            handle.close()
-
-
-def _destination_version_token(path: Path) -> tuple[int, int, int, int, str]:
-    info = path.stat()
-    content = hashlib.sha256(path.read_bytes()).hexdigest()
-    return (
-        int(info.st_dev),
-        int(info.st_ino),
-        int(info.st_size),
-        int(info.st_mtime_ns),
-        content,
-    )
-
-
 def is_placeholder(value: str) -> bool:
     """True for a `<...>`-shaped template slot nobody has filled in yet."""
     return bool(PLACEHOLDER_RE.match(value.strip()))
@@ -555,95 +227,22 @@ def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> 
     )
 
 
-def _write_bytes_atomic_unlocked(path: Path, payload: bytes, expected_bytes: bytes) -> None:
-    """Replace ``path`` with ``payload`` without exposing a partial file."""
-    _safe_parent_chain(path)
-    original_stat = path.lstat()
-    destination_version_token = _destination_version_token(path)
-    if stat.S_ISLNK(original_stat.st_mode):
-        raise ConcurrentModificationError(
-            f"{path} must not be a symbolic link for --write"
-        )
-    mode = stat.S_IMODE(original_stat.st_mode)
-    temporary_path: Path | None = None
+def _write_markdown(path: Path, payload: bytes, expected: bytes) -> None:
+    """Replace ``path`` with ``payload`` if it still holds the bytes read at start."""
+    if path.is_symlink() or path.read_bytes() != expected:
+        raise ValueError(f"{path} changed while preparing the generated contract")
+    mode = path.stat().st_mode
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+    ) as handle:
+        handle.write(payload)
+        temporary = Path(handle.name)
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temporary_path = Path(handle.name)
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.chmod(temporary_path, mode)
-        _safe_parent_chain(path)
-        current_stat = path.lstat()
-        if (
-            stat.S_ISLNK(current_stat.st_mode)
-            or not os.path.samestat(original_stat, current_stat)
-            or path.read_bytes() != expected_bytes
-            or _destination_version_token(path) != destination_version_token
-        ):
-            raise ConcurrentModificationError(
-                f"{path} changed while preparing the generated contract"
-            )
-        if os.name == "nt":
-            # Windows has no dir_fd form of os.replace. Hold the final parent
-            # without FILE_SHARE_DELETE and use ReplaceFileW with a displaced
-            # backup so a concurrent edit can be restored or retained.
-            parent_handle, ancestor_handles = _windows_open_parent(path)
-            try:
-                if _destination_version_token(path) != destination_version_token:
-                    raise ConcurrentModificationError(
-                        f"{path} changed before the native replace"
-                    )
-                _windows_replace_commit(
-                    path,
-                    temporary_path,
-                    expected_version=destination_version_token,
-                    payload=payload,
-                )
-            finally:
-                _windows_close(parent_handle)
-                for ancestor_handle in reversed(ancestor_handles):
-                    _windows_close(ancestor_handle)
-        else:
-            # POSIX keeps every component no-follow checked and the final
-            # directory open, re-compares the destination bytes, then
-            # exchanges by basename inside that directory and checks the
-            # displaced bytes. Linux uses renameat2, macOS renameatx_np.
-            parent_fd, _basename = _open_posix_parent(path)
-            try:
-                if _destination_version_token(path) != destination_version_token:
-                    raise ConcurrentModificationError(
-                        f"{path} changed before the dirfd replace"
-                    )
-                _posix_exchange_commit(
-                    path,
-                    temporary_path,
-                    parent_fd=parent_fd,
-                    expected_version=destination_version_token,
-                    payload=payload,
-                )
-            finally:
-                os.close(parent_fd)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink()
-            except FileNotFoundError:
-                pass
-
-
-def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> None:
-    """CAS write serialized by the shared destination version lock."""
-
-    with _destination_lock(path):
-        _write_bytes_atomic_unlocked(path, payload, expected_bytes)
+        os.chmod(temporary, mode)
+        os.replace(temporary, path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def _string_list(problems: list[str], path: str, value: Any, *, nonempty: bool) -> None:
@@ -668,6 +267,19 @@ def _repo_relative(value: str) -> bool:
         return False
     parts = value.split("/")
     return bool(parts) and all(part not in {"", ".", ".."} for part in parts)
+
+
+def _is_reparse_or_link(path: Path) -> bool:
+    """Return true for symlinks and Windows reparse-point path components."""
+
+    try:
+        info = path.lstat()
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    attributes = getattr(info, "st_file_attributes", 0)
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
 
 
 def _safe_repo_candidate(root: Path, relative: str) -> Path | None:
@@ -1704,15 +1316,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.write and updated_markdown != original_markdown_text:
         try:
-            _write_bytes_atomic(
+            _write_markdown(
                 args.markdown,
                 updated_markdown.encode("utf-8"),
                 original_markdown_bytes,
             )
-        except ConcurrentModificationError as error:
-            print(f"cannot write {args.markdown}: {error}", file=sys.stderr)
-            return 2
-        except OSError as error:
+        except (OSError, ValueError) as error:
             print(f"cannot write {args.markdown}: {error}", file=sys.stderr)
             return 2
 
