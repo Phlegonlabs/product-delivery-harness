@@ -83,6 +83,8 @@ class DocumentWriteTests(unittest.TestCase):
                         if scenario == "restore-edit": target.write_bytes(b"second owner edit\n")
                         elif scenario == "restore-failure": raise OSError("restore unavailable")
                     native(*arguments)
+                    if len(calls) == 1 and scenario == "native-after-failure":
+                        raise OSError(f"injected failure after native displacement: {arguments!r}")
                     if len(calls) == 1 and scenario == "after-replace":
                         target.write_bytes(b"second owner edit\n")
 
@@ -116,6 +118,7 @@ class DocumentWriteTests(unittest.TestCase):
     def test_owner_edit_after_initial_swap_is_preserved(self): self.matrix("after-replace")
     def test_restore_native_swap_captures_a_second_edit(self): self.matrix("restore-edit")
     def test_restore_failure_retains_displaced_owner_bytes(self): self.matrix("restore-failure")
+    def test_exception_after_native_displacement_never_cleans_owner_bytes(self): self.matrix("native-after-failure")
     def test_parent_swap_never_writes_through_redirected_path(self): self.matrix("parent")
     def test_leaf_swap_never_writes_through_symlink(self): self.matrix("leaf")
     def test_unavailable_native_primitive_refuses_without_owner_loss(self): self.matrix("unavailable")

@@ -49,7 +49,7 @@ def _windows_replace(destination: Path, replacement: Path, backup: Path) -> None
     if os.path.lexists(backup):
         raise OSError(f"document transaction backup already exists: {backup}")
     if not kernel32.ReplaceFileW(str(destination), str(replacement), str(backup), 0x1, None, None):
-        raise OSError(f"document ReplaceFileW failed (winerror={ctypes.get_last_error()})")
+        raise OSError(f"document ReplaceFileW failed (winerror={ctypes.get_last_error()}); inspect displaced backup if present: {backup}")
 
 
 
@@ -199,7 +199,7 @@ def _swap(path, replacement, parent_fd):
 
 
 def replace_existing_bytes(path, payload, expected, *, before_commit=None):
-    """Replace only the observed object; preserve edits displaced at either swap.
+    """Use native displacement; preserve concurrent edits captured by either swap.
 
     Recovery is bounded to one preserving restore. Conflict files are retained
     for the owner. This does not guarantee later writes through old handles.
@@ -261,14 +261,15 @@ def replace_existing_bytes(path, payload, expected, *, before_commit=None):
             return
         retained = [displaced]
         restored = False
+        restore_error = None
         try:
             if _snapshot(path, parent_fd)[0] == staged_token:
                 retained.append(_swap(path, displaced, parent_fd))
                 restored = (_snapshot(path, parent_fd)[0] == observed_token
                             and _snapshot(path.parent / retained[-1], parent_fd)[0] == staged_token)
-        except OSError:
-            pass
-        raise OSError(f"{path} displaced bytes or parents changed; concurrent bytes preserved; restore verified={restored}; recovery entries {retained!r} in the bound directory originally named {path.parent}")
+        except OSError as error:
+            restore_error = str(error)
+        raise OSError(f"{path} displaced bytes or parents changed; concurrent bytes preserved; restore verified={restored}, restore error={restore_error!r}; recovery entries {retained!r} in the bound directory originally named {path.parent}")
     finally:
         if temporary is not None and staged_token is not None:
             try:
