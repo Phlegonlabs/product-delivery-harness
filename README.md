@@ -55,6 +55,8 @@ UI work also needs the exact external `frontend-design` and `impeccable` trees i
 
 Each bundled skill can run independently when its required inputs are present. The full pipeline is optional.
 
+For relevant choices or adopted decisions needing context, use [reference selection](skills/delivery-harness/references/reference-selection.md) and the [optional catalog](skills/delivery-harness/references/option-library/README.md). Neither is a prerequisite or grants execution authority; existing decisions and approvals remain binding.
+
 ## Typical prompts
 
 Use `$skill-name` in Codex, or ask your host for the named skill. State the exact write scope and local or remote outcome.

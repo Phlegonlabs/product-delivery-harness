@@ -55,6 +55,8 @@ El trabajo UI también necesita los árboles externos exactos de `frontend-desig
 
 Cada skill del bundle puede ejecutarse por separado cuando dispone de sus entradas obligatorias. El pipeline completo es opcional.
 
+Usa la [selección de referencias](skills/delivery-harness/references/reference-selection.md) y el [catálogo opcional](skills/delivery-harness/references/option-library/README.md) para decisiones pertinentes sin resolver o contexto de decisiones adoptadas. No son requisitos previos ni conceden autoridad para ejecutar; las decisiones y aprobaciones existentes siguen vigentes.
+
 ## Prompts típicos
 
 Usa `$skill-name` en Codex o pide el skill por nombre en tu host. Indica el alcance exacto de escritura y el resultado local o remoto.
