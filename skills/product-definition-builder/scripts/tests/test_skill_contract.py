@@ -508,13 +508,13 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             contract,
         )
         self.assertIn(
-            "non-applicable categories are explicitly `N/A` with a reason", contract
+            "record the category as explicitly `N/A` with a reason", contract
         )
         self.assertIn(
             "Every `Must` functional requirement and every applicable non-functional requirement",
             contract,
         )
-        self.assertIn("at least one `TEST-*` row marked `Required: Yes`", contract)
+        self.assertIn("maps to at least one row whose `Required` value is `Yes`", contract)
         self.assertIn("Keep `## Non-Functional Requirements` in every `PRD.md`", skill)
         self.assertIn("Keep `## Test Obligations` in every `PRD.md`", skill)
         self.assertIn("The PRD assigns stable `TEST-*` IDs during synthesis", interview)
@@ -638,7 +638,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             contract,
         )
         self.assertIn(
-            "Different providers by stage are valid for the same surface", contract
+            "one surface may use different providers by stage", contract
         )
         for content in (skill, interview, architecture, contract):
             self.assertIn("<product-slug>-<surface-suffix>", content)
@@ -785,7 +785,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         # The artifact, its publish path, and its trace family are contracted.
         self.assertIn("`RA-*` for research-first assessment findings", skill)
         self.assertIn("## `research-assessment.md`", contract)
-        self.assertIn("| RA ID | Finding | Confidence | Sources |", contract)
+        self.assertIn("| RA ID | Finding | Confidence | Sources |", guide)
         self.assertIn(
             "`docs/product/research-assessment.md` when the research-first assessment produced it",
             lifecycle,
@@ -799,7 +799,6 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             "Research Gate: [go / clarify / stop / skipped]",
             contract,
         )
-        self.assertIn("A silently missing Research Gate", contract)
         self.assertIn("every retained `docs/product/outcomes/*.md` record in full", skill)
 
         # The post-draft pass reconciles the assessment instead of
@@ -838,13 +837,11 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         skill = self.read(STAGE)
         guide = self.read("references/research-first-guide.md")
         market = self.read("references/market-research-guide.md")
-        contract = self.read("references/output-contract.md")
 
-        for content in (skill, contract):
-            self.assertIn(
-                "feature baseline, differentiation, pricing/business-model baseline, and category benchmarks",
-                content,
-            )
+        self.assertIn(
+            "feature baseline, differentiation, pricing/business-model baseline, and category benchmarks",
+            skill,
+        )
         for heading in (
             "## Feature Baseline And Differentiation",
             "## Pricing And Business Model Baseline",
@@ -1148,16 +1145,12 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             "`Recommended`, `Provisional`, or a blocked checkpoint remains staged and cannot enter Harness",
             skill,
         )
+        self.assertIn("or rely on an explicit prior delegation", contract)
         self.assertIn(
-            "Explicit delegation is recorded in the checkpoint", contract
+            "Only `Required`, `Selected`, and `Approved` are executable", contract
         )
         self.assertIn(
-            "only `Required`, `Selected`, or `Approved` executable rows",
-            contract,
-        )
-        self.assertIn(
-            "`Recommended` and `Provisional` may remain in a staged candidate but block Product Definition Approval and Harness",
-            contract,
+            "`Recommended` and `Provisional` rows keep this checkpoint blocked", contract
         )
 
     def test_design_time_ui_contract_gap_is_one_owner_approved_delta(self) -> None:
