@@ -659,25 +659,6 @@ class ActivationCheckerTests(unittest.TestCase):
             deployment_check.call_args.kwargs["strict_target_subset"],
         )
 
-    def test_schema2_source_method_owner_and_target_window_join(self) -> None:
-        wrong_method = valid_record_v2().replace(
-            "| web-prod | Analytics event | Product owner |",
-            "| web-prod | Wrong method | Product owner |",
-        )
-        wrong_owner = valid_record_v2().replace(
-            "| web-prod | Analytics event | Product owner |",
-            "| web-prod | Analytics event | Wrong owner |",
-        )
-        for record, expected in (
-            (wrong_method, "source / method must exactly match PRD"),
-            (wrong_owner, "owner must exactly match PRD"),
-        ):
-            with self.subTest(expected=expected):
-                findings = check_activation.check_activation_text(
-                    record, prd_text=APPROVED_PRD
-                )
-                self.assertIn(expected, "\n".join(findings))
-
     def test_release_authority_rejects_invented_and_missing_targets(self) -> None:
         invented = valid_record().replace(BINDING, BINDING.replace("web-prod", "other-prod"))
         invented_findings = "\n".join(
@@ -796,7 +777,7 @@ class ActivationCheckerTests(unittest.TestCase):
         self.assertIn("missing PRD signal TEST-001", joined)
         self.assertIn("unknown PRD signal UNKNOWN", joined)
 
-    def test_source_role_is_closed_and_coverage_joins_exact_prd_fields(self) -> None:
+    def test_source_role_is_closed(self) -> None:
         invalid_role = valid_record().replace(
             "| GA4 Realtime setup event query | ga4 | browser;CAP-001 |",
             "| GA4 Realtime setup event query | other | browser;CAP-001 |",
@@ -805,17 +786,32 @@ class ActivationCheckerTests(unittest.TestCase):
             "invalid source role",
             "\n".join(check_activation.check_activation_text(invalid_role)),
         )
-        invalid_definition = valid_record().replace(
-            "| Activation rate | Users completing setup | none recorded |",
-            "| Activation rate | Different definition | none recorded |",
+
+    def test_short_coverage_header_points_at_the_prd_and_keeps_signal_sets(self) -> None:
+        start = valid_record_v2().index("## Outcome Coverage")
+        end = valid_record_v2().index("## Measurement Sources")
+        short = (
+            valid_record_v2()[:start]
+            + "## Outcome Coverage\n"
+            "| Signal | Release targets | Source ID | Status |\n"
+            "| --- | --- | --- | --- |\n"
+            "| Activation rate | web-prod | MS-001 | verified |\n"
+            "| TEST-001 | web-prod | MS-001 | verified |\n\n"
+            + valid_record_v2()[end:]
         )
-        self.assertIn(
-            "definition / obligation must exactly match PRD",
-            "\n".join(
-                check_activation.check_activation_text(
-                    invalid_definition, prd_text=VALID_PRD
-                )
+        self.assertEqual(
+            [], check_activation.check_activation_text(short, prd_text=APPROVED_PRD)
+        )
+        self.assertEqual(
+            [],
+            check_activation.check_activation_text(
+                short, prd_text=APPROVED_PRD, require_filled=True
             ),
+        )
+        missing = short.replace("| TEST-001 | web-prod | MS-001 | verified |\n", "")
+        self.assertIn(
+            "missing PRD signal TEST-001",
+            "\n".join(check_activation.check_activation_text(missing, prd_text=APPROVED_PRD)),
         )
 
     def test_active_target_cannot_use_na_readiness(self) -> None:

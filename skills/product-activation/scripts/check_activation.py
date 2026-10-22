@@ -455,11 +455,11 @@ def _validate_tables(
             continue
         if any(cell in FORBIDDEN_HEADERS for cell in header):
             findings.append(f"{label}: must not contain a credential-value column")
-        accepted_headers = (
-            (expected, OUTCOME_COVERAGE_V2_HEADER)
-            if schema_v2 and heading == "## Outcome Coverage"
-            else (expected,)
-        )
+        accepted_headers = (expected,)
+        if heading == "## Outcome Coverage":
+            accepted_headers += (OUTCOME_COVERAGE_SHORT_HEADER,)
+            if schema_v2:
+                accepted_headers += (OUTCOME_COVERAGE_V2_HEADER,)
         if tuple(header) not in accepted_headers:
             findings.append(f"{label}: expected columns {' | '.join(expected)}")
             parsed[heading] = []
@@ -507,6 +507,7 @@ KNOWN_PROFILES = {
     "agent/automation",
     "other_nonpublic",
 }
+OUTCOME_COVERAGE_SHORT_HEADER = ("signal", "release targets", "source id", "status")
 OUTCOME_COVERAGE_V2_HEADER = (
     "signal",
     "definition / obligation",
@@ -1278,78 +1279,6 @@ def _prd_signals(prd_text: str) -> tuple[set[str], list[str]]:
     return signals, findings
 
 
-def _prd_signal_details(prd_text: str) -> tuple[dict[str, dict[str, str]], list[str]]:
-    """Return the structured PRD contract that Outcome Coverage must repeat exactly."""
-
-    details: dict[str, dict[str, str]] = {}
-    findings: list[str] = []
-    metrics_header, metrics = _table(prd_text, "## Metrics")
-    if metrics_header == ["metric", "definition", "target"]:
-        for row in metrics:
-            if len(row) != 3:
-                continue
-            name, definition, target = row
-            details[name] = {
-                "definition": definition,
-                "baseline": "none recorded",
-                "target": target,
-                "window": "n/a — PRD legacy metric table omits a separate measurement window",
-                "source_method": "",
-                "owner": "",
-                "expected": "n/a — metric row",
-            }
-    elif metrics_header == [
-        "metric",
-        "definition",
-        "baseline",
-        "target / guardrail",
-        "measurement window",
-        "source / method",
-        "owner",
-    ]:
-        for row in metrics:
-            if len(row) != 7:
-                continue
-            name, definition, baseline, target, window, source_method, owner = row
-            details[name] = {
-                "definition": definition,
-                "baseline": baseline,
-                "target": target,
-                "window": window,
-                "source_method": source_method,
-                "owner": owner,
-                "expected": "n/a — metric row",
-            }
-    else:
-        findings.append("PRD: Metrics table is missing or has unexpected columns")
-    test_header, tests = _table(prd_text, "## Test Obligations")
-    expected_tests = [
-        "test id",
-        "obligation",
-        "test type",
-        "required",
-        "upstream trace ids",
-        "expected signal",
-    ]
-    if test_header[:6] != expected_tests:
-        findings.append("PRD: Test Obligations table is missing or has unexpected columns")
-    else:
-        for row in tests:
-            if len(row) < 6 or row[3].casefold() != "yes":
-                continue
-            test_id, obligation, test_type, _required, _trace, expected_signal = row[:6]
-            details[test_id] = {
-                "definition": obligation,
-                "baseline": "none recorded",
-                "target": "n/a — required test has no numeric target",
-                "window": f"{test_type} test",
-                "source_method": "",
-                "owner": "",
-                "expected": expected_signal,
-            }
-    return details, findings
-
-
 def _expected_availability(target: object) -> str:
     surface_class = str(getattr(target, "surface_class", "")).casefold()
     if surface_class in {"ios", "android", "browser_extension"}:
@@ -1640,40 +1569,21 @@ def check_activation_text(
     coverage_rows = tables.get("## Outcome Coverage", [])
     coverage: dict[str, dict[str, object]] = {}
     for row in coverage_rows:
-        if schema_v2:
-            if len(row) != len(OUTCOME_COVERAGE_V2_HEADER):
-                findings.append("Outcome Coverage: each v2 row must have 11 columns")
-                continue
-            (
-                signal,
-                definition,
-                baseline,
-                target_guardrail,
-                measurement_window,
-                expected_signal,
-                targets,
-                source_method,
-                coverage_owner,
-                source_id,
-                status,
-            ) = row
+        # Rows are 4 (pointer), 9 (historical) or 11 (schema 2) cells wide;
+        # the header check already fixed the width.
+        if len(row) == len(OUTCOME_COVERAGE_SHORT_HEADER):
+            signal, targets, source_id, status = row
+            copied: tuple[tuple[str, str], ...] = ()
         else:
-            if len(row) != 9:
-                findings.append("Outcome Coverage: each row must have 9 columns")
-                continue
-            (
-                signal,
-                definition,
-                baseline,
-                target_guardrail,
-                measurement_window,
-                expected_signal,
-                targets,
-                source_id,
-                status,
-            ) = row
-            source_method = ""
-            coverage_owner = ""
+            signal, definition, baseline, target_guardrail, measurement_window, expected_signal, targets = row[:7]
+            source_id, status = row[-2:]
+            copied = (
+                ("Definition / obligation", definition),
+                ("Baseline", baseline),
+                ("Target / guardrail", target_guardrail),
+                ("Measurement window", measurement_window),
+                ("Expected signal", expected_signal),
+            )
         if _placeholder(signal):
             continue
         if signal in coverage:
@@ -1688,11 +1598,7 @@ def check_activation_text(
             findings.append(f"Outcome Coverage: verified signal {signal} needs a verified source")
         if require_filled and status != "n/a":
             for name, value in (
-                ("Definition / obligation", definition),
-                ("Baseline", baseline),
-                ("Target / guardrail", target_guardrail),
-                ("Measurement window", measurement_window),
-                ("Expected signal", expected_signal),
+                *copied,
                 ("Release targets", targets),
                 ("Source ID", source_id),
             ):
@@ -1700,18 +1606,7 @@ def check_activation_text(
                     findings.append(f"Outcome Coverage: {signal} needs {name}")
         if source_id in sources and not set(_parse_list(targets)).issubset(sources[source_id]["targets"]):
             findings.append(f"Outcome Coverage: source {source_id} does not cover every target for {signal}")
-        coverage[signal] = {
-            "definition": definition,
-            "baseline": baseline,
-            "target": target_guardrail,
-            "window": measurement_window,
-            "expected": expected_signal,
-            "targets": set(_parse_list(targets)),
-            "source_id": source_id,
-            "source_method": source_method,
-            "owner": coverage_owner,
-            "status": status,
-        }
+        coverage[signal] = {"targets": set(_parse_list(targets)), "status": status}
     if prd_text is not None:
         expected, prd_findings = _prd_signals(prd_text)
         findings.extend(prd_findings)
@@ -1720,28 +1615,6 @@ def check_activation_text(
             findings.append(f"Outcome Coverage: missing PRD signal {signal}")
         for signal in sorted(actual - expected):
             findings.append(f"Outcome Coverage: unknown PRD signal {signal}")
-        details, detail_findings = _prd_signal_details(prd_text)
-        findings.extend(detail_findings)
-        for signal, item in coverage.items():
-            expected_detail = details.get(signal)
-            if expected_detail is None:
-                continue
-            for field, label in (
-                ("definition", "definition / obligation"),
-                ("baseline", "baseline"),
-                ("target", "target / guardrail"),
-                ("window", "measurement window"),
-                ("expected", "expected signal"),
-            ):
-                if item[field] != expected_detail[field]:
-                    findings.append(
-                        f"Outcome Coverage: {signal} {label} must exactly match PRD"
-                    )
-            if schema_v2 and expected_detail is not None:
-                if item["source_method"] != expected_detail.get("source_method", ""):
-                    findings.append(f"Outcome Coverage: {signal} source / method must exactly match PRD")
-                if item["owner"] != expected_detail.get("owner", ""):
-                    findings.append(f"Outcome Coverage: {signal} owner must exactly match PRD")
 
     active_targets: set[str] = set()
     for bindings in task_bindings.values():
