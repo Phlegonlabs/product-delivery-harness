@@ -146,7 +146,7 @@ class ProductActivationSkillContractTests(unittest.TestCase):
             "`Metrics`, and `Test Obligations`",
             "`Data and Trust`",
             "`Release Targets`",
-            "`Stack Decision Checkpoint` and each applicable `Recorded or Approved Stack`",
+            "approved Stack Decision Checkpoint and each applicable `Recorded or Approved Stack`",
             "`Required Secrets and Variables`",
             "`Product Activation Handoff`",
         ):
