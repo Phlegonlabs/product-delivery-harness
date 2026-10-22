@@ -353,6 +353,16 @@ console.log("hybrid fallback and stale QA assertions completed");
         for source in ("SKILL.md", UI_STAGE):
             self.assertIn("ui-grading-rubric.md#first-wave-audit-axes", self.read(source))
 
+    def test_default_review_staffing_and_grader_packet(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        self.assertIn("the wave has two fresh reviewers: a lead grader who also produces the browser receipt, "
+                      "and one Impeccable operator who runs critique and audit", rubric)
+        self.assertIn("Neither reviews its own work", rubric)
+        self.assertIn("Add one only on an owner request or a recorded high risk", rubric)
+        self.assertIn("A grader packet carries this rubric", rubric)
+        self.assertIn("the Impeccable operator produces the critique and audit receipts",
+                      self.read("references/review-evidence.md"))
+
 
 if __name__ == "__main__":
     unittest.main()

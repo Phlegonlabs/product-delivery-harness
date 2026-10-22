@@ -27,7 +27,7 @@ Keep receipts, inspected captures and source artifacts tracked when they are req
 
 ## Diagnostic Wave Completeness
 
-Before one consolidated HiFi repair handoff, verify the independent browser, critique, audit and H1–H9 wave. Run the read-only CLI with installed-command resolution:
+Before one consolidated HiFi repair handoff, verify the independent browser, critique, audit and H1–H9 wave. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. Run the read-only CLI with installed-command resolution:
 
     python "<ui-design-builder-skill-root>/scripts/check_ui_diagnostic_wave.py" --repo-root . --request docs/evidence/diagnostic-request.json --request-sha256 <observed-request-digest>
 
