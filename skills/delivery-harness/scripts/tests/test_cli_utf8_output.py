@@ -14,6 +14,37 @@ from pathlib import Path
 ENTRY_MARKER = 'if __name__ == "__main__":'
 RECONFIGURE_LOOP = "for stream in (sys.stdout, sys.stderr):"
 RECONFIGURE_CALL = 'stream.reconfigure(encoding="utf-8", errors="backslashreplace")'
+# Keep the accepted current CLI inventory explicit while discovery checks every
+# entry point, including new commands that need an inventory update.
+EXPECTED_CLI_ENTRYPOINTS = {
+    "delivery-harness": {
+        "archive_run.py", "check_delivery_acceptance.py", "check_deployment.py",
+        "check_document_sync.py", "check_eval_acceptance.py",
+        "check_external_skill_dependencies.py", "check_launch_packet.py",
+        "check_skill_bindings.py", "check_skill_spec.py", "check_ui_contract.py",
+        "ci_test_shards.py", "configure_project_context.py", "docs_weight.py",
+        "harness_step.py", "harness_transition.py", "inspect_harness_run.py",
+        "new_run.py", "parity_capture.py", "push_archived_candidate.py",
+        "render_review_packet.py", "render_tasks_view.py", "select_ready_nodes.py",
+        "select_verifiers.py", "validate_harness_plan.py", "validate_node_result.py",
+        "validate_result.py", "validate_worker_result.py", "verifier_runtime.py",
+    },
+    "design-system-compiler": {
+        "check_color_contrast.py", "check_design_system_pair.py",
+        "check_type_scale.py", "render_design_system_preview.py",
+    },
+    "product-activation": {"check_activation.py"},
+    "product-definition-builder": {
+        "check_outcome_review.py", "check_product_package.py",
+        "check_review_translations.py",
+    },
+    "seo-growth-review": {"check_seo_review.py"},
+    "ui-design-builder": {
+        "assemble_ui_review.py", "check_ui_design_contract.py",
+        "check_wireframe_html.py", "design_workflow.py", "review_evidence.py",
+        "ui_approval_digest.py", "visual_inputs.py",
+    },
+}
 
 
 def _repo_root() -> Path:
@@ -52,10 +83,13 @@ class CliUtf8OutputTests(unittest.TestCase):
                 problems.append("missing a line exactly 'import sys'")
             if problems:
                 failing.append(f"{relative}: {'; '.join(problems)}")
-        self.assertGreaterEqual(
-            len(checked), 50, "expected at least 50 CLI entry points"
-        )
         self.assertEqual([], failing, "CLI entry points missing UTF-8 stdio setup")
+        expected = {
+            f"skills/{skill}/scripts/{name}"
+            for skill, names in EXPECTED_CLI_ENTRYPOINTS.items()
+            for name in names
+        }
+        self.assertEqual(expected, set(checked), "current CLI inventory changed")
 
     def test_cjk_findings_survive_non_utf8_stdout(self) -> None:
         root = _repo_root()
