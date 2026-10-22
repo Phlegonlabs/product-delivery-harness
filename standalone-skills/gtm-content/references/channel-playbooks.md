@@ -7,24 +7,21 @@ The project's audience, voice and evidence take precedence.
 
 Name the intended founder or brand account, audience and post type before preparing execution-ready copy.
 Use one post for a focused outcome or observation. Use a numbered thread when connected steps need more context.
-Show every item in the thread together for review, including its intended order and any reply or quote target.
+Show every thread item together for review, with its order and any reply or quote target.
 Read the original conversation before drafting a reply or quote. Another account's audience is not an owned distribution channel.
 
 Build from a concrete user task, supported result and appropriate next action, using the project's voice.
 For a release or demo, state what users can do, show real evidence and identify the available destination.
-Label preview, beta, released and planned states accurately. Keep unavailable features and private preview links out of public availability claims.
-Reuse approved screenshots or short demonstrations when useful; retain asset provenance, alt text and any missing production work.
-Choose a reply/moderation owner when discussion is intended. Do not require hashtags, a posting cadence or engagement tactics.
+Keep unavailable features and private preview links out of public availability claims.
+Choose a reply/moderation owner when discussion is intended.
 
-For public website destinations, inspect their existing Open Graph/Twitter metadata, reachable image and observed link preview when available.
+For public website destinations, inspect existing Open Graph/Twitter metadata, the reachable image and the observed link preview.
 Metadata alone does not prove X rendered the card. Record inaccessible previews as unverified; never expose private resources to obtain one.
-Preserve destination behavior and existing tracking conventions. Route implementation or measurement gaps to their existing owners.
 
 Checked 2026-10-18: [X post types](https://help.x.com/en/using-x/types-of-posts) and [thread guidance](https://help.x.com/en/using-x/create-a-thread).
-Longer posts depend on account capabilities; app and API limits must be checked for the actual publishing route.
-Keep current format, media and scheduling limits as execution checks, not guessed constants or prerequisites for drafting.
-The card-markup documentation route was inaccessible during this check; no current card dimensions or validator capability are asserted here.
-Use the existing package review and publishing handoff. Release completion alone grants no post, reply, schedule or message action.
+The card-markup documentation was inaccessible; no card dimensions or validator capability are asserted here.
+[X metrics](https://docs.x.com/x-api/fundamentals/metrics), checked 2026-10-18, separates public metrics from owned-content metrics that need user authentication.
+It limits non-public, organic and promoted metrics to posts created within the preceding 30 days. Owned metrics need the account's authorized readout.
 
 ## Threads
 
@@ -36,22 +33,18 @@ Do not fabricate audience engagement.
 
 [Meta's creator guidance](https://about.fb.com/news/2024/10/find-your-community-with-new-threads-educational-insights/), observed 2026-10-15, supports original content and conversations.
 Its platform-wide correlations are not account-specific outcomes or mandatory cadence.
-Confirm current limits and account capabilities before execution; API and app formats can differ.
 
 ## Facebook Pages
 
 Name the intended Page; a profile, Page and Group are different targets.
 Build around a useful explanation, real visual proof, announcement or audience question.
 Provide context for someone meeting the project for the first time, with a clear next action and working destination.
-Supply media briefs, alt text and public offer conditions alongside the copy.
+Supply public offer conditions alongside the copy.
 When adapting a Threads idea, rewrite its opening, explanation and CTA for this audience.
 Shared facts can stay the same; identical captions do not establish adaptation.
 Keep paid promotion and automatic cross-posting outside scope unless separately requested.
 
-Before execution, verify Page access, visibility, formats, link preview and scheduling timezone against official guidance and the actual account.
 [Meta Business help](https://www.facebook.com/business/help/942827662903020) was access-limited on 2026-10-15.
-Current scheduling limits, API permissions and regional availability are therefore unverified here.
-Leave unavailable checks as execution dependencies without blocking useful drafting.
 
 ## LinkedIn
 
@@ -76,14 +69,5 @@ Invite useful feedback. Separate product use from votes or launch traffic.
 
 For email, identify the consented audience, sender, purpose and unsubscribe requirements before execution.
 List access is not permission to send; never invent subscribers.
-For visual social channels, write the hook, demonstration sequence, on-screen copy and CTA before requesting media production.
+For Instagram and other visual social channels, write the hook, demonstration sequence, on-screen copy and CTA before requesting media production.
 For public articles, answer real tasks with original evidence and follow the project's content workflow.
-Research current official guidance for each chosen surface; unnamed platforms' limits and tools remain unverified.
-
-## Package Review
-
-Preserve project language, terminology and voice across variants.
-Keep editorial directions and private verification notes outside exact public copy.
-List destinations, public links, media provenance/rights, alt text, dependencies and proposed timing beside each item.
-Check standalone and campaign context; each post need not repeat the whole product description.
-A draft can be useful while access, final assets or dates remain unresolved.
