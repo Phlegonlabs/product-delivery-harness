@@ -14,12 +14,10 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import hashlib
 import re
 import stat
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -228,21 +226,13 @@ def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> 
 
 
 def _write_markdown(path: Path, payload: bytes, expected: bytes) -> None:
-    """Replace ``path`` with ``payload`` if it still holds the bytes read at start."""
-    if path.is_symlink() or path.read_bytes() != expected:
-        raise ValueError(f"{path} changed while preparing the generated contract")
-    mode = path.stat().st_mode
-    with tempfile.NamedTemporaryFile(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
-    ) as handle:
-        handle.write(payload)
-        temporary = Path(handle.name)
+    """Preserve owner edits displaced by the native Markdown replacement."""
+    from design_document_write import replace_existing_bytes
+
     try:
-        os.chmod(temporary, mode)
-        os.replace(temporary, path)
-    except OSError:
-        temporary.unlink(missing_ok=True)
-        raise
+        replace_existing_bytes(path, payload, expected)
+    except OSError as error:
+        raise ValueError(f"{path} changed while preparing the generated contract or could not commit: {error}") from error
 
 
 def _string_list(problems: list[str], path: str, value: Any, *, nonempty: bool) -> None:

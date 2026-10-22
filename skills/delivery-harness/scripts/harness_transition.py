@@ -3269,50 +3269,26 @@ def _replace_run_document(
 def _replace_document_text(
     path: Path, updated: str, *, expected_text: str, before_commit=None
 ) -> None:
-    """Replace one document if its text still equals ``expected_text``.
-
-    Shared with the derived tasks view. The text is compared before the temp
-    file is written and again at the commit boundary, so a concurrent edit
-    makes the writer refuse instead of clobbering it.
-    """
+    """Preserve the actual displaced RUN/tasks bytes at the native boundary."""
+    from document_write import replace_existing_bytes
 
     path = Path(path)
-    parent = path.parent
-    _assert_non_reparse_path(parent)
-    if path.exists() and _is_reparse(path):
-        raise ManifestError("RUN.md must not be a symlink or reparse point")
+    _assert_non_reparse_path(path)
+    original = path.read_bytes()
+    # Text readers normalize newlines; protect the corresponding raw snapshot.
+    observed = original.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    if observed != expected_text:
+        raise ManifestError("RUN.md changed during this transition; re-load the manifest and retry")
 
-    def current_text() -> str:
-        return path.read_text(encoding="utf-8") if path.exists() else ""
-
-    if expected_text is not None and current_text() != expected_text:
-        raise ManifestError(
-            "RUN.md changed during this transition; re-load the manifest and retry"
-        )
-    parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(updated)
-            handle.flush()
-            os.fsync(handle.fileno())
+    def commit_guard(temporary):
         _run_replace_commit_boundary(path)
         if before_commit is not None:
-            before_commit(Path(temp_name))
-        _assert_non_reparse_path(parent)
-        if path.exists() and _is_reparse(path):
-            raise ManifestError("RUN.md became a symlink or reparse point")
-        if expected_text is not None and current_text() != expected_text:
-            raise ManifestError(
-                "RUN.md changed at the commit boundary; concurrent bytes were preserved"
-            )
-        os.replace(temp_name, path)
-    except BaseException:
-        try:
-            os.unlink(temp_name)
-        except OSError:
-            pass
-        raise
+            before_commit(temporary)
+
+    try:
+        replace_existing_bytes(path, updated.encode("utf-8"), original, before_commit=commit_guard)
+    except OSError as error:
+        raise ManifestError(f"RUN.md changed or could not commit: {error}") from error
 
 
 def _is_reparse(path: Path) -> bool:

@@ -213,24 +213,10 @@ def _check_documents_path(root: Path, documents: Path) -> None:
 
 
 def _write_documents(documents: Path, value: bytes, *, expected: bytes) -> None:
-    """Replace DOCUMENTS.md if it still holds ``expected``; never overwrite an edit."""
+    """Preserve displaced owner bytes if DOCUMENTS changes at replacement."""
+    from document_write import replace_existing_bytes
 
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{documents.name}.", suffix=".tmp", dir=documents.parent
-    )
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(value)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if documents.read_bytes() != expected:
-            raise OSError(f"{DOCUMENTS_PATH.as_posix()} content changed before write")
-        os.replace(temporary_name, documents)
-    finally:
-        try:
-            Path(temporary_name).unlink()
-        except FileNotFoundError:
-            pass
+    replace_existing_bytes(documents, value, expected)
 
 
 def _git_filtered_bytes(
