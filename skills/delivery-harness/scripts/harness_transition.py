@@ -2600,6 +2600,7 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "lease_plan_digest_sha256": digest,
             "worker_id": args.worker_id,
             "base_sha": base_sha,
+            "head_sha": None,
             "blockers": [],
         }
     )
@@ -5272,9 +5273,7 @@ def build_parser() -> argparse.ArgumentParser:
     rejected.add_argument("--failure-receipt", type=Path)
     rejected.add_argument("--node-id", required=True)
     rejected.add_argument("--worker-id", required=True)
-    rejected.add_argument(
-        "--outcome", choices=("retryable_failure", "blocked"), required=True
-    )
+    rejected.add_argument("--outcome", choices=("retryable_failure", "blocked"), required=True)
     rejected.add_argument("--reason", action="append", required=True)
     integration = subparsers.add_parser("record-integration")
     integration.add_argument("--mission-id", required=True)
