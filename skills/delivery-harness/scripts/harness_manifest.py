@@ -46,6 +46,8 @@ from harness_schema import (
     archive_first_required,
     parse_harness_version,
     required_harness_version,
+    review_lenses,
+    security_result_decision,
     RUNTIME_REVIEW_TYPES,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_VERSION_STATUSES,
@@ -1433,12 +1435,12 @@ def _validate_plan_graph(
             require_review_lineage=plan["schema_version"] == 6,
         )
         declared_reviews = {
-            node.get("review", {}).get("type")
+            lens
             for node in plan["graph"].get("nodes", [])
             if isinstance(node, dict)
             and node.get("kind") == "verifier"
             and node.get("executor") == "runtime_worker"
-            and isinstance(node.get("review"), dict)
+            for lens in review_lenses(node.get("review"))
         }
         missing_reviews = sorted(set(required_reviews) - declared_reviews)
         if missing_reviews:
@@ -7350,7 +7352,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if security_result is not None:
                         for issue in validate_security_review_result(
                             security_result,
-                            expected_decision=outcome,
+                            expected_decision=security_result_decision(
+                                node["review"], outcome, security_result
+                            ),
                             expected_reviewed_sha=worker.get("reviewed_sha"),
                             expected_base_sha=worker.get("base_sha"),
                             expected_scope=node["review"].get("scope", []),

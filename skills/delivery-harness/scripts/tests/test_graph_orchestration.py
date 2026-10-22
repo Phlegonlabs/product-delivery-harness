@@ -582,6 +582,41 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], validate_plan(plan))
         self.assertEqual("code_review_readonly", _tool_profile(node))
 
+    def test_combined_review_lenses_set_the_widest_type(self) -> None:
+        plan = valid_plan()
+        node = add_security_review(plan)
+        node["review"]["lenses"] = ["backend_code", "visual", "security"]
+        # No node has type visual; the lens satisfies the required review.
+        plan["required_reviews"] = ["visual", "security"]
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual("visual_review_readonly", _tool_profile(node))
+
+        for lenses, review_type, message in (
+            (["backend_code", "visual", "security"], "visual", "must equal the widest lens"),
+            (["backend_code"], "security", "must equal the widest lens"),
+            (["security", "style"], "security", "unsupported review lenses: style"),
+            (["security", "security"], "security", "must not contain duplicates"),
+            ([], "security", "lenses"),
+        ):
+            with self.subTest(lenses=lenses, review_type=review_type):
+                node["review"].update(lenses=lenses, type=review_type)
+                errors = validate_plan(plan)
+                self.assertTrue(any(message in error for error in errors), errors)
+
+    def test_security_lens_keeps_every_security_node_rule(self) -> None:
+        plan = valid_plan()
+        node = add_security_review(plan, stage="preintegration", mission_ids=["M1"])
+        node["review"]["lenses"] = ["backend_code", "security"]
+
+        errors = validate_plan(plan)
+
+        for message in (
+            "security review must use the integration stage",
+            "security review must cover every PLAN mission",
+        ):
+            self.assertTrue(any(message in error for error in errors), errors)
+
     def test_security_required_checks_bind_to_declared_graph_verifiers(self) -> None:
         plan = valid_plan()
         add_security_review(plan)

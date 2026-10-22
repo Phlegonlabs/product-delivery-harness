@@ -42,7 +42,7 @@ from harness_contract import (
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import (
-    MERGE_CHAIN_SKIP_TYPES,
+    merge_chain_skip_allowed,
     review_covers_ui_acceptance,
     reviewed_merge_chain_covers,
     ui_acceptance_evidence_present,
@@ -62,7 +62,7 @@ from harness_manifest import (
 )
 from harness_schema import EXACT_TARGET_LIFECYCLE_ACTIONS, RUN_DISPATCH_STATUSES, RUN_HEADING
 from harness_schema import archive_first_required, parse_harness_version, required_harness_version
-from harness_schema import version_at_least
+from harness_schema import review_lenses, security_result_decision, version_at_least
 from harness_schema import frozen_coordination_path, supported_coordination_path
 from push_integration_branch import (
     make_push_request,
@@ -4928,9 +4928,12 @@ def _stage_review_attempt(
             security_result = load_security_review_result(security_result_path)
         except SecurityReviewResultError as exc:
             raise ManifestError(str(exc)) from exc
+        combined_review = len(review_lenses(node["review"])) > 1
         security_errors = validate_security_review_result(
             security_result,
-            expected_decision=args.result,
+            expected_decision=security_result_decision(
+                node["review"], args.result, security_result
+            ),
             expected_reviewed_sha=worker.get("reviewed_sha"),
             expected_base_sha=worker.get("base_sha"),
             expected_scope=node["review"].get("scope", []),
@@ -4947,11 +4950,15 @@ def _stage_review_attempt(
                 "invalid security review result:\n"
                 + "\n".join(f"- {item}" for item in security_errors)
             )
-        if args.finding:
+        if args.finding and not combined_review:
             raise ManifestError(
                 "security review findings come from --security-result, not --finding"
             )
-        findings = security_result_finding_summaries(security_result)
+        # A combined node adds its other lenses' findings with --finding.
+        findings = [
+            *security_result_finding_summaries(security_result),
+            *(args.finding or []),
+        ]
     else:
         if security_result_path is not None:
             raise ManifestError(
@@ -5167,8 +5174,8 @@ def _skip_integration_review(
                 "stage", "preintegration"
             )
             == "preintegration"
-            and (graph_nodes.get(item.get("node_id")) or {}).get("review", {}).get("type")
-            == node["review"].get("type")
+            and review_lenses(node["review"])
+            <= review_lenses((graph_nodes.get(item.get("node_id")) or {}).get("review"))
             and review_covers_ui_acceptance(
                 graph_nodes[item["node_id"]]["review"], node["review"], item, run
             )
@@ -5223,7 +5230,7 @@ def _record_reviewed_merge_chain(
     head contains. Anything else leaves no proof, so the review runs.
     """
 
-    if node["review"].get("type") not in MERGE_CHAIN_SKIP_TYPES:
+    if not merge_chain_skip_allowed(node["review"]):
         raise ManifestError(
             "a merge-chain skip applies only to frontend_code and backend_code reviews"
         )

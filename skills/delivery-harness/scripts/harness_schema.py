@@ -317,9 +317,40 @@ GRAPH_NODE_PHASES = {
 }
 GRAPH_EDGE_PHASES = {"dormant", "eligible", "traversed", "exhausted", "skipped"}
 RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual", "security"}
+# A review node with `lenses` sets `type` to its widest lens in this order, so
+# every security and visual rule keyed on `type` still applies to it.
+REVIEW_LENS_ORDER = ("security", "visual", "frontend_code", "backend_code")
 REVIEWER_TOOL_KEYS = {"chrome_devtools"}
 REVIEWER_TOOL_STATUSES = {"available", "unavailable", "unobserved"}
 REVIEWER_TOOL_PROBE_SCOPES = {"reviewer_session", "parent_session", "unobserved"}
+
+
+def review_lenses(review: object) -> set[str]:
+    """Return a review's lenses; a review without `lenses` has one, its type."""
+
+    if not isinstance(review, dict):
+        return set()
+    lenses = review.get("lenses")
+    if isinstance(lenses, list):
+        return {lens for lens in lenses if isinstance(lens, str)}
+    review_type = review.get("type")
+    return {review_type} if isinstance(review_type, str) else set()
+
+
+def security_result_decision(review: object, outcome: object, result: object) -> object:
+    """Return the decision a review's security result must carry.
+
+    On a combined node another lens may fail while the security lens passes.
+    """
+
+    if (
+        len(review_lenses(review)) > 1
+        and outcome != "pass"
+        and isinstance(result, dict)
+        and result.get("decision") == "pass"
+    ):
+        return "pass"
+    return outcome
 
 
 def run_required_harness_version(run: object) -> str | None:

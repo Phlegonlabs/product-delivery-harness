@@ -29,12 +29,14 @@ from harness_schema import (
     GRAPH_OUTCOMES,
     ID_RE,
     is_valid_provider_id,
+    REVIEW_LENS_ORDER,
     REVIEWER_TOOL_KEYS,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_REVIEW_TYPES,
     TARGET_RE,
     action_target_kind_allowed,
     action_target_kind_description,
+    review_lenses,
 )
 from agent_role_contract import is_worker_role_id
 
@@ -209,6 +211,7 @@ def _validate_graph(
                         },
                         {
                             "stage",
+                            "lenses",
                             "required_tools",
                             *(set() if require_review_lineage else {"lineage_id"}),
                         },
@@ -235,6 +238,30 @@ def _validate_graph(
                             )
                         if not isinstance(review["type"], str) or review["type"] not in RUNTIME_REVIEW_TYPES:
                             _add(errors, f"{review_path}.type", "has an unsupported review type")
+                        if "lenses" in review:
+                            lenses = _strings(
+                                errors,
+                                f"{review_path}.lenses",
+                                review["lenses"],
+                                nonempty=True,
+                            )
+                            unknown_lenses = sorted(set(lenses) - RUNTIME_REVIEW_TYPES)
+                            if unknown_lenses:
+                                _add(
+                                    errors,
+                                    f"{review_path}.lenses",
+                                    f"unsupported review lenses: {', '.join(unknown_lenses)}",
+                                )
+                            elif len(lenses) != len(set(lenses)):
+                                _add(errors, f"{review_path}.lenses", "must not contain duplicates")
+                            elif lenses and review["type"] != next(
+                                lens for lens in REVIEW_LENS_ORDER if lens in lenses
+                            ):
+                                _add(
+                                    errors,
+                                    f"{review_path}.type",
+                                    "must equal the widest lens: security, visual, frontend_code, then backend_code",
+                                )
                         review_missions = _strings(
                             errors,
                             f"{review_path}.mission_ids",
@@ -697,7 +724,7 @@ def _validate_graph(
 
 def ui_acceptance_review(review: dict[str, Any]) -> bool:
     evidence = review.get("required_evidence")
-    return review.get("type") == "visual" and isinstance(evidence, list) and "ui_acceptance" in evidence
+    return "visual" in review_lenses(review) and isinstance(evidence, list) and "ui_acceptance" in evidence
 
 
 def ui_acceptance_evidence_present(evidence: list[str]) -> bool:
@@ -744,6 +771,12 @@ def review_covers_ui_acceptance(
 MERGE_CHAIN_SKIP_TYPES = frozenset({"frontend_code", "backend_code"})
 
 
+def merge_chain_skip_allowed(review: dict[str, Any]) -> bool:
+    """Only code lenses may skip on a merge chain; visual and security never do."""
+    lenses = review_lenses(review)
+    return bool(lenses) and lenses <= MERGE_CHAIN_SKIP_TYPES
+
+
 def reviewed_merge_chain_covers(
     plan: dict[str, Any],
     node: dict[str, Any],
@@ -761,7 +794,7 @@ def reviewed_merge_chain_covers(
     rendered whole head, so it never uses this skip.
     """
 
-    if node["review"].get("type") not in MERGE_CHAIN_SKIP_TYPES:
+    if not merge_chain_skip_allowed(node["review"]):
         return False
     integration = run.get("integration")
     chain = integration.get("reviewed_merge_chain") if isinstance(integration, dict) else None
@@ -840,7 +873,7 @@ def _add_integration_review_skip_errors(
     is safe when the integration head IS that reviewed commit, or it is a merge
     commit whose recorded ``integration_tree_sha`` equals the reviewed commit's
     recorded ``tree_sha`` — same bytes, same verdict. In both cases the PASS
-    must be the same review type. A code review may also skip on a recorded
+    must cover every lens of the skipped review. A code review may also skip on a recorded
     merge chain of reviewed heads with disjoint write scopes; see
     ``reviewed_merge_chain_covers``. Any other integration head has a
     combination no earlier PASS covers, so the review must run.
@@ -872,7 +905,7 @@ def _add_integration_review_skip_errors(
     )
     tree_bound = is_full_sha(integration_tree)
 
-    review_type = node["review"].get("type")
+    lenses = review_lenses(node["review"])
     review_workers = run.get("review_workers")
     for worker in review_workers if isinstance(review_workers, list) else []:
         if not isinstance(worker, dict):
@@ -884,7 +917,7 @@ def _add_integration_review_skip_errors(
             continue
         if source["review"].get("stage", "preintegration") != "preintegration":
             continue
-        if source["review"].get("type") != review_type:
+        if not lenses or not lenses <= review_lenses(source["review"]):
             continue
         if not review_covers_ui_acceptance(source["review"], node["review"], worker, run):
             continue
