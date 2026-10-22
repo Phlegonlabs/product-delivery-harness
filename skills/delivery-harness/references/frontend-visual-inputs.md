@@ -48,4 +48,3 @@ Before editing, the author opens the named sources and inspects the actual captu
 Reading HTML text alone is not visual inspection. Missing inspection capability blocks the dependent visual work.
 The author reports what was actually inspected and any missing input; the parent does not backfill that evidence.
 Keep full-tree skill pins, current-source checks, 85/80 thresholds, necessary browser/native/motion evidence and existing repair limits.
-No extra taste review, scoring wave, product decision, asset-generation grant or external action is introduced.

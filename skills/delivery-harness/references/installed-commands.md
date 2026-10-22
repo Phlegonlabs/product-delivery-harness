@@ -16,6 +16,6 @@ Before each stage, run `python "<delivery-harness-skill-root>/scripts/check_skil
 - `backend`: code security, only for an approved headless product or a backend-only scope with no UI work.
 - `all` (default): all six slots, required for full UI delivery or unknown applicability.
 
-`--stage backend` narrows binding validation only; it never waives the applicable design and self-review handoff in `pre-delivery-self-review.md`. A backend-first slice of a UI-bearing initial delivery still requires that handoff before execution. Scoped enhancements and maintenance retain their existing design-impact rules.
+`--stage backend` narrows binding validation only; it never waives the applicable design and self-review handoff in `pre-delivery-self-review.md`.
 
 Every row must remain well-formed, unique, and known. A deferred row either uses `pending` in both cells or a syntactically valid skill name and full-tree hash. Only required-stage installed trees are verified. Recheck on every stage transition: an earlier result never authorizes a later stage. Product context resolution uses the matching `--stage`, but it checks document shape only; `check_skill_bindings.py` proves installed bytes.

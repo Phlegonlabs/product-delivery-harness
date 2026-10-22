@@ -12,8 +12,7 @@ When a new 0.57.0-or-later task consumes stages already approved without these c
 
 Use the existing Epic or direct-task record, linking the existing research, UI and review evidence. Record the stage, author, date, candidate paths and revision or SHA-256 values, affected requirement/UI/TEST IDs, checks actually performed, findings and repairs, unresolved blockers, and a conclusion of `pass` or `blocked`. An explicit no-finding conclusion still names the inspected scope and evidence.
 
-Record the producer and self-checker worker/session identity separately enough to confirm they are the same producing agent. This evidence does not turn the check into an independent review; the independent reviewer remains separate.
-
+Record the producer and self-checker worker/session identity separately enough to confirm they are the same producing agent.
 Review the actual current artifacts. A substantive revision invalidates the affected self-review: inspect the delta and shared consumers, run the relevant checks again, and append the new result. Preserve earlier findings and approvals. A screenshot, score, checklist tick or validator success alone cannot establish a semantic or visual review.
 
 ## PRD Self-Review
@@ -52,7 +51,7 @@ After the connected candidate and cheap completeness preflight, the same produci
 - Inspect actual browser renders and interactions, including long/localized copy, intermediate widths, overlap, clipping, overflow and reduced motion. Use the existing closed-browser restrictions. Record the inspected captures' hashes in the task record; the independent browser reviewer builds the complete matrix receipt once per candidate.
 - Collect findings before repairing shared causes. A repair self-check covers the ledger rows, changed sources, direct consumers and the completeness preflight; it does not rerun the complete matrix. Missing browser evidence remains blocked or unvalidated; static checks do not establish a visual pass. Native HTML projections do not establish native implementation proof.
 
-Reuse the current completeness, browser and review tooling. This author check neither consumes nor resets the existing independent diagnostic/repair budget, and it creates no unbounded repair loop. Follow the bounded-enhancement repair limits for author repairs and the existing HiFi review limits for independent review.
+Reuse the current completeness, browser and review tooling. This author check neither consumes nor resets the existing independent diagnostic/repair budget. Follow the bounded-enhancement repair limits for author repairs and the existing HiFi review limits for independent review.
 
 Impeccable critique/audit, H1–H9, Visual Approval and the conditional Design System Need Gate still follow. Any later repair invalidates the affected evidence and requires the applicable recheck before approval or handoff.
 
@@ -60,6 +59,5 @@ Impeccable critique/audit, H1–H9, Visual Approval and the conditional Design S
 
 Before direct implementation or managed readiness, the parent checks the current self-review records alongside approved Product Definition/stack and applicable approved UI/HiFi sources. A UI-bearing initial delivery cannot enter execution with UI deferred, a missing self-review or an unresolved required finding. It returns to the owning stage; read-only inspection and planning may continue.
 
-For enhancements, review the accepted delta and shared consumers, carry forward current evidence for unaffected scope, and renew only affected decisions. Routine maintenance follows `../../ui-design-builder/references/review-workflow.md`: it records the applicable author check against the accepted change and current product without regenerating historical HiFi. A headless product records UI and HiFi as not applicable with a reason. Existing pinned RUNs keep their historical contracts; previously closed approvals follow the catch-up rule above when a new task adopts this contract.
-
+For enhancements, review the accepted delta and shared consumers, carry forward current evidence for unaffected scope, and renew only affected decisions. Routine maintenance follows `../../ui-design-builder/references/review-workflow.md`: it records the applicable author check against the accepted change and current product without regenerating historical HiFi. A headless product records UI and HiFi as not applicable with a reason.
 This is a parent semantic handoff check. Existing validators still check their declared artifact, hash and approval contracts; they do not automatically prove that these author reviews occurred. Record missing evidence and stop dependent execution rather than treating a structural validator PASS as self-review.
