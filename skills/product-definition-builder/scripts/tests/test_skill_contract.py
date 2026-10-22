@@ -2958,6 +2958,22 @@ new Function(scripts.at(-1)[1]);
         self.assertIn("only after the core Product Definition package passes", wireframe)
         self.assertIn("only after `product-definition-builder`", ui_skill)
 
+    def test_design_time_ui_contract_gap_is_one_owner_approved_delta(self) -> None:
+        refinement = self.read("references/prd-refinement.md")
+        contract = self.read("references/output-contract.md")
+        skill = self.read(STAGE)
+        self.assertIn("as a contract delta", contract)
+        self.assertIn("full package revision and Product Definition Approval", contract)
+        for phrase in (
+            "Update the Chinese copy and compare only the changed sections",
+            "Recheck only the affected scope",
+            "One owner decision approves the delta and its in-place write",
+            "new package revision and digest",
+            "Do not stage.",
+        ):
+            self.assertIn(phrase, refinement)
+        self.assertIn("except for a design-time contract delta", skill)
+
     def test_full_hifi_copy_review_does_not_require_a_circular_prd_rewrite(self) -> None:
         skill = self.read(STAGE)
         contract = self.read("references/output-contract.md")

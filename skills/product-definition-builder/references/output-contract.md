@@ -343,7 +343,7 @@ Before asking for Product Definition Approval, send a user-visible response with
 
 For a UI-bearing product, Product Definition ends after the approved core package is published. A later explicit `ui-design-builder` run consumes that exact revision and owns `docs/design/ui-design.md`, retained HiFi references, legacy wireframes when pinned, copy completeness, UI grading, visual approval, and the Design System Need Gate. Those artifacts never become approved merely because this PRD exists. PRD `draft` or `approved` copy responsibility tells whether UI work may proceed; it does not by itself approve final on-screen copy.
 
-If UI design exposes a missing route, action, state, responsive obligation, content responsibility, architecture decision, or stack constraint, return the gap to this skill, revise the affected core artifact, and obtain Product Definition Approval on a new revision before UI work resumes.
+If UI design exposes a missing route, action, state, responsive obligation, or content responsibility, return it to `product-definition-builder` as a contract delta; the owner approves it as a new package revision before UI work resumes. An architecture decision or stack constraint gap needs a full package revision and Product Definition Approval.
 
 ```
 
