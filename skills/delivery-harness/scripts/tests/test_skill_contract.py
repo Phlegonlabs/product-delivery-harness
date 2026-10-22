@@ -198,6 +198,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                         content,
                     )
                     continue
+                if name == "runtime-upgrades.md":
+                    self.assertIn("governance/source-maintenance.md#update-local-skills", content)
+                    continue
                 for skill_id in (
                     "full-harness",
                     "prd-builder",

@@ -93,6 +93,12 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         )
         self.assertIn("never overwrite or delete prior copies or backups.", text)
         self.assertNotIn("Restore the backup if verification fails", text)
+        self.assertIn("`./install.sh` (in Git Bash on Windows)", text)
+        self.assertNotIn("install.ps1", text)
+        self.assertIn(
+            "CI on the candidate SHA is that run; a local full run happens only when CI is unavailable.",
+            text,
+        )
 
     def test_repo_instructions_cover_every_shared_template_section(self) -> None:
         # The handoff audit compares repo AGENTS.md/CLAUDE.md with the seeded
