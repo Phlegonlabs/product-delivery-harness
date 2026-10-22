@@ -54,12 +54,35 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str) -> str:
     for key in ("prd", "architecture", "stack"):
         retain(view["source_identities"][key])
 
+    studies = []
+    pending = []
+    study_section = contract._section(style, "### Direction studies") or ""
+    for row in contract._table_rows(study_section):
+        if len(row) != 5 or row[0] == "Direction":
+            continue
+        if stage != "direction" and row[0] != selected_id:
+            continue
+        if stage == "direction" and row[1].casefold() in {"pending", "draft"}:
+            pending.append(row[0] + " study")
+            continue
+        match = contract.ui_design_v3.STUDY_RE.fullmatch(row[1])
+        if match is None:
+            raise ValueError("required direction-study identity is missing or malformed")
+        binding = {key: match.group(key) for key in ("path", "sha256")}
+        retain(binding)
+        studies.append(binding)
+    if stage != "direction" and view["contract_version"] == "ui-design/3" and len(studies) != 1:
+        raise ValueError("selected direction requires one retained study")
+
     screens = []
     comparison = contract._section(style, "### Direction comparison") or ""
     for row in contract._table_rows(comparison):
         if len(row) != 8 or row[0] == "Direction":
             continue
         if stage != "direction" and row[0] != selected_id:
+            continue
+        if stage == "direction" and row[6].casefold() in {"pending", "draft"}:
+            pending.append(row[0] + " capture")
             continue
         binding = contract._source_identity(row[6])
         retain(binding)
@@ -102,9 +125,11 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str) -> str:
             "- Approved target: " + (label(target) if target else "pending"),
             "- Scope: " + (json.dumps(target["scope"], ensure_ascii=False, sort_keys=True)
                             if target else "approved PRD UI scope and current direction-study cases"),
+            "- Studies to inspect: " + ("; ".join(label(item) for item in studies) or "pending or not applicable to the retained package"),
             "- Screens to inspect: " + ("; ".join(label(item) for item in screens) or "pending direction studies"),
-            "- Fonts: read Style Integration, Candidate theme and Platform rules; inspect the bound HiFi font declarations, weights and language fallbacks.",
-            "- Assets: read Motion And Media Intent and every bound HiFi page; use its approved inline images, icons, media and font bytes.",
+            "- Pending exploration inputs: " + ("; ".join(pending) or "none"),
+            "- Fonts: read Style Integration, Candidate theme and Platform rules; inspect bound study and HiFi font declarations, weights and language fallbacks.",
+            "- Assets: read Motion And Media Intent and every bound study/HiFi page; use its approved inline images, icons, media and font bytes.",
             "- Visual features: read the Design Brief, selected direction rationale and Candidate theme; retain their concrete composition, typography, material and motion choices.",
             "- Source files:"]
     rows.extend("  - " + label(binding) for binding in inputs.values())

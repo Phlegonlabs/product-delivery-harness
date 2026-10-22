@@ -19,9 +19,9 @@ Overflow requires a smaller scoped assignment or complete named source reads; ne
 ## Required Contents
 
 - Stage, approved Product/Stack sources, UI contract path/hash and exact assigned surfaces, states and targets.
-- Selected direction and its retained screen captures, plus the current approved HiFi target when implementation requires it.
-- Font declarations, weights, language coverage and fallbacks from Style Integration, Platform rules and the bound HiFi sources.
-- Approved image, icon, font and media locations or inline source identities from Motion And Media Intent and the complete HiFi package.
+- Selected direction, its retained study HTML and screen captures, plus the current approved HiFi target when implementation requires it.
+- Font declarations, weights, language coverage and fallbacks from Style Integration, Platform rules and the bound study/HiFi sources.
+- Approved image, icon, font and media locations or inline source identities from Motion And Media Intent and the bound studies/complete HiFi package.
 - Concrete visual features from the existing Design Brief, selected-direction rationale and Candidate theme.
 - The applicable design-system pair and derived preview, and existing repair findings/captures when this is a repair.
 - Required reads and the author's own report of files, hashes, captures, fonts, assets and features actually inspected.
@@ -32,7 +32,7 @@ An explicit unused/not-required asset remains so; a missing required asset is a 
 
 ## Stage Boundaries
 
-`direction` permits pending selection and pending HiFi. Pass the current Design Brief and inspected reference material.
+`direction` permits pending selection, study HTML, captures and HiFi. Validate every recorded source identity. Pass the current Design Brief and inspected reference material.
 `hifi` requires the owner's selected direction and its captures, while the final HiFi approval may still be pending.
 `implementation` requires the selected direction, approved target/scope and applicable design-system sources.
 Design-reference repairs use the design stage; production UI repairs use implementation and the existing defect ledger.

@@ -6,7 +6,7 @@ Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each pa
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-frontend-author-handoff.md` | Stage-owned Opus design / Sonnet implementation routing and complete visual-author inputs | FAH-1/2 locally verified; 393 UI tests plus source/host checks complete; independent review pending; core installation remains separate |
+| `docs/epics/EPIC-frontend-author-handoff.md` | Stage-owned Opus design / Sonnet implementation routing and complete visual-author inputs | Review findings repaired; 399 UI cases with two platform skips plus source/host checks; fresh candidate review pending; core installation remains separate |
 | `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 released at `dd8a52d3` and installed; 439 core files verified; exact candidate/main CI and reviews passed |
 | `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | X/GTM published in v0.65.1; seven-core-skill update verified; standalone GTM installations preserved |
 | `docs/epics/EPIC-ui-review-efficiency.md` | HiFi 85/80, one design diagnostic wave and consolidated implementation UI acceptance | Reviewed fixes installed from `92027b82`; all 439 shared files and backups verified; installed-location 102 tests passed; development channel, loaded identity unknown |

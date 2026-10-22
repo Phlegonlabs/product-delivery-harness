@@ -23,6 +23,9 @@ class VisualInputsTests(unittest.TestCase):
         self.stack = self.write("docs/product/stack-decisions.md", "# Stack\n")
         self.screen = self.write("docs/design/directions/selected.png", b"synthetic selected capture")
         self.other = self.write("docs/design/directions/rejected.png", b"synthetic rejected capture")
+        self.study = self.write("docs/design/directions/R1/selected.html",
+                                '<style>@font-face{font-family:Study;src:url(data:font/woff2;base64,AA==)}</style><h1>Editorial</h1>')
+        self.other_study = self.write("docs/design/directions/R1/rejected.html", "<h1>Cards</h1>")
         self.child = self.write("docs/design/ui-references/run/child.html", "<h1>Details</h1>")
         manifest = {"schema": "ui-hifi/2", "surfaces": [], "interactions": [],
                     "pages": [{"path": "child.html", "sha256": self.digest(self.child)}]}
@@ -43,7 +46,7 @@ class VisualInputsTests(unittest.TestCase):
     def binding(self, relative):
         return relative + " @ sha256:" + self.digest(relative)
 
-    def contract(self, *, selected="VD-R1-01 editorial", target=False, hifi=False):
+    def contract(self, *, selected="VD-R1-01 editorial", target=False, hifi=False, studies=False):
         scope = ('; scope=surfaces=[{"id":"UI-001","route":"/","states":["ready"],'
                  '"stackSemantics":{"platform":"web","renderingModel":"SPA",'
                  '"componentFoundation":"shadcn/ui owned source","stylingMechanism":"Tailwind CSS"}}]'
@@ -82,6 +85,15 @@ Approved target: {self.binding(self.hifi) + scope if target else 'pending'}
 ## Design System Need Gate
 Decision: not_required
 """
+        if studies:
+            text = text.replace("UI contract: ui-design/2", "UI contract: ui-design/3").replace(
+                "## Visual Approval", f"""### Direction studies
+| Direction | Study | Author | Self-check by | Self-check |
+| --- | --- | --- | --- | --- |
+| VD-R1-01 | {self.binding(self.study)} | frontend | frontend | pass |
+| VD-R1-02 | {self.binding(self.other_study)} | frontend | frontend | pass |
+
+## Visual Approval""")
         self.write(self.ui, text)
         return text
 
@@ -99,6 +111,78 @@ Decision: not_required
         self.assertIn(self.binding(self.screen), packet)
         self.assertNotIn(self.other, packet)
         self.assertIn("- Approved target: pending", packet)
+
+    def test_selected_study_is_retained_for_hifi_and_implementation(self):
+        for stage in ("hifi", "implementation"):
+            with self.subTest(stage=stage):
+                self.contract(studies=True, target=stage == "implementation")
+                packet = build_visual_inputs(self.root, self.ui, stage)
+                self.assertIn(self.binding(self.study), packet)
+                self.assertNotIn(self.other_study, packet)
+
+    def test_selected_study_missing_or_stale_blocks_hifi(self):
+        self.contract(studies=True)
+        path = self.root / self.study
+        original = path.read_bytes()
+        path.write_bytes(original + b" changed")
+        with self.assertRaisesRegex(ValueError, "stale"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+        path.rename(self.root / "preserved-study.html")
+        with self.assertRaisesRegex(ValueError, "missing"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+
+    def test_v3_selected_study_identity_is_required(self):
+        text = self.contract(studies=True)
+        for value in ("pending", self.binding(self.study).replace("sha256:", "bad:")):
+            with self.subTest(value=value):
+                self.write(self.ui, text.replace(self.binding(self.study), value))
+                with self.assertRaises(ValueError):
+                    build_visual_inputs(self.root, self.ui, "hifi")
+        text = self.contract().replace("UI contract: ui-design/2", "UI contract: ui-design/3")
+        self.write(self.ui, text)
+        with self.assertRaisesRegex(ValueError, "retained study"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+
+    def test_initial_direction_permits_explicit_pending_captures_and_studies(self):
+        text = self.contract(selected="pending", studies=True)
+        for source, value in zip((self.screen, self.other, self.study, self.other_study),
+                                 ("pending", "draft", "draft", "pending")):
+            text = text.replace(self.binding(source), value)
+        self.write(self.ui, text)
+        packet = build_visual_inputs(self.root, self.ui, "direction")
+        self.assertIn("pending", packet)
+        for source in (self.screen, self.other, self.study, self.other_study):
+            self.assertNotIn(source, packet)
+        with self.assertRaisesRegex(ValueError, "selected direction"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+
+    def test_pending_selected_capture_still_blocks_hifi(self):
+        text = self.contract().replace(self.binding(self.screen), "pending")
+        self.write(self.ui, text)
+        with self.assertRaises(ValueError):
+            build_visual_inputs(self.root, self.ui, "hifi")
+
+    def test_direction_keeps_recorded_source_checks_with_mixed_pending_rows(self):
+        text = self.contract(selected="pending", studies=True).replace(self.binding(self.other), "pending")
+        self.write(self.ui, text)
+        packet = build_visual_inputs(self.root, self.ui, "direction")
+        self.assertIn(self.binding(self.screen), packet)
+        self.assertIn(self.binding(self.study), packet)
+        self.assertIn("VD-R1-02 capture", packet)
+        for source in (self.screen, self.study):
+            for fault in ("stale", "malformed"):
+                with self.subTest(source=source, fault=fault):
+                    text = self.contract(selected="pending", studies=True).replace(self.binding(self.other), "pending")
+                    path = self.root / source
+                    original = path.read_bytes()
+                    if fault == "stale":
+                        path.write_bytes(original + b" changed")
+                    else:
+                        text = text.replace(self.binding(source), "malformed recorded identity")
+                    self.write(self.ui, text)
+                    with self.assertRaises(ValueError):
+                        build_visual_inputs(self.root, self.ui, "direction")
+                    path.write_bytes(original)
 
     def test_implementation_retains_selected_capture_and_complete_hifi(self):
         self.contract(target=True, hifi=True)
@@ -125,7 +209,7 @@ Decision: not_required
         markdown = self.write("docs/design/design-system.md", "# Approved system\n")
         registry = self.write("docs/design/design-system.json", '{"schema":"design-system/4"}')
         preview = self.write("docs/design/design-system-preview.html", "<h1>Derived preview</h1>")
-        text = self.contract(target=True, hifi=True).replace("UI contract: ui-design/2", "UI contract: ui-design/3").replace(
+        text = self.contract(target=True, hifi=True, studies=True).replace(
             "Decision: not_required", "Decision: required\nCompiled design system pair: "
             + self.binding(markdown) + " and " + self.binding(registry) + "\nPackage action: compile")
         self.write(self.ui, text)
