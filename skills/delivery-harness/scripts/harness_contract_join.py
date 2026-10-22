@@ -17,7 +17,6 @@ import tempfile
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
-from harness_design_contract import compare_design_system_pair
 from harness_git import GitMetadataError, _path_has_reparse_or_link, reject_object_substitution, run_git
 from harness_schema import run_required_harness_version, version_at_least
 from harness_ui_evidence import validate_ui_surface_design_registry
@@ -331,9 +330,7 @@ def normalized_responsive(
     return kind, normalized, None
 
 
-WEB_VIEWPORT_FLOOR_VERSION = (0, 34, 0)
 UI_DESIGN_CONTRACT_REQUIRED_VERSION = (0, 37, 0)
-STRICT_UI_AUTHORITY_VERSION = (0, 38, 0)
 # 0.55.1 is the release that adds the UI checker's dated current-HiFi rule
 # to the UI and pair joins. A RUN frozen under 0.55.0 keeps its old meaning.
 CURRENT_HIFI_EVIDENCE_VERSION = (0, 55, 1)
@@ -400,15 +397,6 @@ CURRENT_UI_CONTRACTS = ("ui-design/2", "ui-design/3")
 DESIGN_SYSTEM_SCHEMA_BY_UI = {"ui-design/3": "design-system/4", "ui-design/2": "design-system/3"}
 
 
-def strict_ui_authority_required(run: dict[str, Any] | None) -> bool:
-    """Return whether the paired RUN opts into the 0.38 authority join."""
-
-    return bool(
-        isinstance(run, dict)
-        and version_at_least(
-            run_required_harness_version(run), STRICT_UI_AUTHORITY_VERSION
-        )
-    )
 
 
 def wireframe_free_required(run: dict[str, Any] | None) -> bool:
@@ -464,20 +452,8 @@ def _frozen_preview_errors(inventory: dict[str, list[dict[str, Any]]], paths: di
 
 
 def web_viewport_floor_required(run: dict[str, Any] | None) -> bool:
-    """True when the paired RUN pins harness 0.34.0 or later.
-
-    The documented contract raises the web responsive floor to three
-    ascending viewports from harness 0.34.0. Unpinned and older RUNs keep
-    the historical two-target floor so in-flight and legacy pairs stay
-    valid: the low-level parsers keep enforcing two, and this gate is
-    applied only at the join layer that has the RUN's version context.
-    """
-
-    if not isinstance(run, dict):
-        return False
-    return version_at_least(
-        run_required_harness_version(run), WEB_VIEWPORT_FLOOR_VERSION
-    )
+    """Current joins require three responsive targets; older pins use their bundle."""
+    return True
 
 
 def prd_web_viewport_floor_errors(prd_text: str) -> list[str]:
@@ -1439,9 +1415,7 @@ _FULL_PRODUCT_PACKAGE_CHECKERS: dict[Path, Any] = {}
 _PRODUCT_SECURITY_REQUIREMENT_PARSERS: dict[Path, Any] = {}
 _FULL_DESIGN_SYSTEM_CHECKERS: dict[Path, Any] = {}
 _UI_CONTRACT_VIEWS: dict[Path, Any] = {}
-_PRD_UI_CONTRACT_PARSERS: dict[Path, Any] = {}
-_RELEASE_SOURCE_CONTRACTS: dict[Path, Any] = {}
-_PLATFORM_DELIVERY_PARSERS: dict[Path, Any] = {}
+_SIBLING_MODULES: dict[tuple[Path, str], Any] = {}
 
 
 def sibling_builder_scripts_dir() -> Path:
@@ -1450,46 +1424,60 @@ def sibling_builder_scripts_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
 
 
+def _load_sibling(
+    sibling_scripts: Path,
+    module_name: str,
+    aliases: tuple[str, ...] = ("markdown_contract",),
+) -> Any:
+    """Load one Product Definition module under a private name, or return None.
+
+    The sibling module imports its helpers by top-level name. Each alias is
+    loaded first from the verified sibling directory and bound to that import
+    name only while the module executes, so a same-name module already in the
+    host process is never used. Results are cached per directory and module.
+    """
+
+    key = sibling_scripts.resolve()
+    if (key, module_name) in _SIBLING_MODULES:
+        return _SIBLING_MODULES[(key, module_name)]
+    names = (*aliases, module_name)
+    paths = {name: key / f"{name}.py" for name in names}
+    module: Any = None
+    if all(candidate.is_file() for candidate in paths.values()):
+        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
+        private = {name: f"_harness_sibling_{name}_{tag}" for name in names}
+        previous = {name: sys.modules.get(name) for name in aliases}
+        try:
+            for name in names:
+                spec = importlib.util.spec_from_file_location(private[name], paths[name])
+                if spec is None or spec.loader is None:
+                    raise ImportError("canonical sibling module spec is unavailable")
+                loaded = importlib.util.module_from_spec(spec)
+                sys.modules[private[name]] = loaded
+                if name in aliases:
+                    sys.modules[name] = loaded
+                spec.loader.exec_module(loaded)
+            if Path(str(getattr(loaded, "__file__", ""))).resolve() != paths[module_name].resolve():
+                raise ImportError("canonical sibling module path does not match sibling source")
+            module = loaded
+        except Exception:
+            module = None
+        finally:
+            for name, before in previous.items():
+                if before is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = before
+            for name in names:
+                sys.modules.pop(private[name], None)
+    _SIBLING_MODULES[(key, module_name)] = module
+    return module
+
+
 def _load_release_source_contract(sibling_scripts: Path) -> Any:
     """Load the canonical active-Markdown release parser without host aliasing."""
 
-    key = sibling_scripts.resolve()
-    if key in _RELEASE_SOURCE_CONTRACTS:
-        return _RELEASE_SOURCE_CONTRACTS[key]
-    contract: Any = None
-    parser_path = key / "release_targets.py"
-    markdown_path = key / "markdown_contract.py"
-    if parser_path.is_file() and markdown_path.is_file():
-        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
-        markdown_name = f"_harness_release_markdown_contract_{tag}"
-        parser_name = f"_harness_release_targets_{tag}"
-        previous_markdown = sys.modules.get("markdown_contract")
-        try:
-            markdown_spec = importlib.util.spec_from_file_location(markdown_name, markdown_path)
-            parser_spec = importlib.util.spec_from_file_location(parser_name, parser_path)
-            if markdown_spec is None or parser_spec is None or markdown_spec.loader is None or parser_spec.loader is None:
-                raise ImportError("canonical release parser module spec is unavailable")
-            markdown_module = importlib.util.module_from_spec(markdown_spec)
-            parser_module = importlib.util.module_from_spec(parser_spec)
-            sys.modules[markdown_name] = markdown_module
-            sys.modules["markdown_contract"] = markdown_module
-            markdown_spec.loader.exec_module(markdown_module)
-            sys.modules[parser_name] = parser_module
-            parser_spec.loader.exec_module(parser_module)
-            if Path(str(getattr(parser_module, "__file__", ""))).resolve() != parser_path.resolve():
-                raise ImportError("canonical release parser path does not match sibling source")
-            contract = parser_module
-        except Exception:
-            contract = None
-        finally:
-            if previous_markdown is None:
-                sys.modules.pop("markdown_contract", None)
-            else:
-                sys.modules["markdown_contract"] = previous_markdown
-            sys.modules.pop(markdown_name, None)
-            sys.modules.pop(parser_name, None)
-    _RELEASE_SOURCE_CONTRACTS[key] = contract
-    return contract
+    return _load_sibling(sibling_scripts, "release_targets")
 
 
 def _load_canonical_prd_ui_contract_parser(sibling_scripts: Path) -> Any:
@@ -1500,116 +1488,16 @@ def _load_canonical_prd_ui_contract_parser(sibling_scripts: Path) -> Any:
     it must never fall back to the legacy regex parser for an executable join.
     """
 
-    key = sibling_scripts.resolve()
-    if key in _PRD_UI_CONTRACT_PARSERS:
-        return _PRD_UI_CONTRACT_PARSERS[key]
-    parser: Any = None
-    parser_path = key / "prd_ui_contract.py"
-    markdown_path = key / "markdown_contract.py"
-    if parser_path.is_file() and markdown_path.is_file():
-        # The sibling parser uses a top-level ``markdown_contract`` import.
-        # Load both files under private names and temporarily bind that import
-        # to the verified sibling module.  This avoids accepting a poisoned
-        # same-name module already present in the host process.
-        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
-        markdown_name = f"_harness_prd_markdown_contract_{tag}"
-        parser_name = f"_harness_prd_ui_contract_{tag}"
-        previous_markdown = sys.modules.get("markdown_contract")
-        try:
-            markdown_spec = importlib.util.spec_from_file_location(
-                markdown_name, markdown_path
-            )
-            parser_spec = importlib.util.spec_from_file_location(
-                parser_name, parser_path
-            )
-            if (
-                markdown_spec is None
-                or markdown_spec.loader is None
-                or parser_spec is None
-                or parser_spec.loader is None
-            ):
-                raise ImportError("canonical PRD parser module spec is unavailable")
-            markdown_module = importlib.util.module_from_spec(markdown_spec)
-            parser_module = importlib.util.module_from_spec(parser_spec)
-            sys.modules[markdown_name] = markdown_module
-            sys.modules["markdown_contract"] = markdown_module
-            markdown_spec.loader.exec_module(markdown_module)
-            sys.modules[parser_name] = parser_module
-            parser_spec.loader.exec_module(parser_module)
-            loaded_path = Path(str(getattr(parser_module, "__file__", ""))).resolve()
-            if loaded_path != parser_path.resolve():
-                raise ImportError("canonical PRD parser path does not match sibling source")
-            parser = getattr(parser_module, "parse_prd_ui_contract", None)
-        except Exception:
-            parser = None
-        finally:
-            if previous_markdown is None:
-                sys.modules.pop("markdown_contract", None)
-            else:
-                sys.modules["markdown_contract"] = previous_markdown
-            sys.modules.pop(markdown_name, None)
-            sys.modules.pop(parser_name, None)
-    _PRD_UI_CONTRACT_PARSERS[key] = parser
-    return parser
+    module = _load_sibling(sibling_scripts, "prd_ui_contract")
+    return getattr(module, "parse_prd_ui_contract", None)
 
 
 def _load_platform_delivery_parser(sibling_scripts: Path) -> Any:
     """Load Product Definition's canonical platform-delivery parser safely."""
 
-    key = sibling_scripts.resolve()
-    if key in _PLATFORM_DELIVERY_PARSERS:
-        return _PLATFORM_DELIVERY_PARSERS[key]
-    parser: Any = None
-    parser_path = key / "platform_delivery.py"
-    markdown_path = key / "markdown_contract.py"
-    release_path = key / "release_targets.py"
-    if parser_path.is_file() and markdown_path.is_file() and release_path.is_file():
-        tag = hashlib.sha256(str(key).encode("utf-8")).hexdigest()[:16]
-        markdown_name = f"_harness_platform_markdown_contract_{tag}"
-        release_name = f"_harness_platform_release_targets_{tag}"
-        parser_name = f"_harness_platform_delivery_{tag}"
-        previous_markdown = sys.modules.get("markdown_contract")
-        previous_release = sys.modules.get("release_targets")
-        try:
-            markdown_spec = importlib.util.spec_from_file_location(markdown_name, markdown_path)
-            release_spec = importlib.util.spec_from_file_location(release_name, release_path)
-            parser_spec = importlib.util.spec_from_file_location(parser_name, parser_path)
-            if any(
-                spec is None or spec.loader is None
-                for spec in (markdown_spec, release_spec, parser_spec)
-            ):
-                raise ImportError("canonical platform-delivery module spec is unavailable")
-            markdown_module = importlib.util.module_from_spec(markdown_spec)
-            release_module = importlib.util.module_from_spec(release_spec)
-            parser_module = importlib.util.module_from_spec(parser_spec)
-            sys.modules[markdown_name] = markdown_module
-            sys.modules["markdown_contract"] = markdown_module
-            sys.modules[release_name] = release_module
-            sys.modules["release_targets"] = release_module
-            markdown_spec.loader.exec_module(markdown_module)
-            release_spec.loader.exec_module(release_module)
-            sys.modules[parser_name] = parser_module
-            parser_spec.loader.exec_module(parser_module)
-            loaded_path = Path(str(getattr(parser_module, "__file__", ""))).resolve()
-            if loaded_path != parser_path.resolve():
-                raise ImportError("canonical platform-delivery parser path does not match sibling source")
-            parser = parser_module
-        except Exception:
-            parser = None
-        finally:
-            if previous_markdown is None:
-                sys.modules.pop("markdown_contract", None)
-            else:
-                sys.modules["markdown_contract"] = previous_markdown
-            if previous_release is None:
-                sys.modules.pop("release_targets", None)
-            else:
-                sys.modules["release_targets"] = previous_release
-            sys.modules.pop(markdown_name, None)
-            sys.modules.pop(release_name, None)
-            sys.modules.pop(parser_name, None)
-    _PLATFORM_DELIVERY_PARSERS[key] = parser
-    return parser
+    return _load_sibling(
+        sibling_scripts, "platform_delivery", ("markdown_contract", "release_targets")
+    )
 
 
 def sibling_ui_design_scripts_dir() -> Path:
@@ -2593,242 +2481,9 @@ def _validate_product_frozen_contract_joins(
     *,
     run: dict[str, Any] | None = None,
 ) -> list[str]:
-    """Resolve frozen bytes and enforce joins on every execution validation.
-
-    When ``run`` is the paired RUN manifest and its version gate pins harness
-    0.34.0+, web responsive sets in the PRD anchors and the design-system
-    registry must carry three ascending viewports; unpinned or older RUNs
-    keep the two-target floor.
-    """
-
+    """Resolve frozen Product/UI authority through the current strict join."""
     if plan.get("schema_version") != 6:
         return []
-    if strict_ui_authority_required(run):
-        return _validate_strict_frozen_contract_joins(plan, repo_root, run=run)
-    if run is None and plan.get("ui_surfaces"):
-        ui_rows = frozen_sources(plan, kinds=UI_DESIGN_SOURCE_KINDS, filenames={"ui-design.md"})
-        if len(ui_rows) == 1:
-            payload, source_errors = _resolve_source_bytes(ui_rows[0], Path(repo_root).resolve(), label="UI contract", strict=False)
-            if source_errors:
-                return source_errors
-            parser = _load_ui_contract_view(sibling_ui_design_scripts_dir())
-            if payload is not None and parser is not None:
-                try:
-                    view, findings = parser(payload.decode("utf-8"))
-                except (ValueError, UnicodeError) as exc:
-                    return [f"ui-design: cannot determine PLAN contract: {exc}"]
-                if view.get("contract_version") in CURRENT_UI_CONTRACTS:
-                    return findings + _validate_strict_frozen_contract_joins(plan, repo_root, run=None, current_ui=True)
-                if findings and not view.get("contract_version"):
-                    return findings
-    errors = required_contract_source_errors(plan)
-    has_ui = bool(plan.get("ui_surfaces"))
-    prd_sources = frozen_sources(
-        plan, kinds=PRD_SOURCE_KINDS, filenames={"prd.md"}
+    return _validate_strict_frozen_contract_joins(
+        plan, repo_root, run=run, current_ui=run is None,
     )
-    wireframe_sources = frozen_sources(
-        plan, kinds=WIREFRAME_SOURCE_KINDS, filenames={"wireframes.html"}
-    )
-    ui_design_sources = frozen_sources(
-        plan, kinds=UI_DESIGN_SOURCE_KINDS, filenames={"ui-design.md"}
-    )
-    architecture_sources = frozen_sources(
-        plan, kinds=ARCHITECTURE_SOURCE_KINDS, filenames={"architecture.md"}
-    )
-    stack_sources = frozen_sources(
-        plan, kinds=STACK_DECISION_SOURCE_KINDS, filenames={"stack-decisions.md"}
-    )
-    design_markdown_sources = frozen_sources(
-        plan,
-        kinds=DESIGN_SYSTEM_MARKDOWN_SOURCE_KINDS,
-        filenames={"design-system.md"},
-    )
-    design_json_sources = frozen_sources(
-        plan,
-        kinds=DESIGN_SYSTEM_JSON_SOURCE_KINDS,
-        filenames={"design-system.json"},
-    )
-    has_design_contract = bool(design_markdown_sources or design_json_sources) or any(
-        isinstance(trace, dict)
-        and isinstance(trace.get("id"), str)
-        and trace["id"].startswith("DS-")
-        for trace in (plan.get("traces") or [])
-    )
-    platform_mapping = plan.get("platform_delivery") is not None
-    declared_acceptance = any(
-        isinstance(trace, dict) and "acceptance_gate_ids" in trace
-        for trace in plan.get("traces", [])
-    )
-    required_version = run_required_harness_version(run) if run is not None else None
-    ui_design_required = bool(
-        has_ui
-        and required_version
-        and version_at_least(required_version, UI_DESIGN_CONTRACT_REQUIRED_VERSION)
-    )
-    if ui_design_required and len(ui_design_sources) != 1:
-        errors.append(
-            "plan.sources: Harness 0.37.0+ UI delivery requires exactly one "
-            "frozen ui-design.md source"
-        )
-    families: list[tuple[str, list[dict[str, Any]]]] = []
-    if has_ui or prd_sources or platform_mapping or declared_acceptance:
-        families.append(("PRD", prd_sources))
-    if has_ui or wireframe_sources:
-        families.append(("wireframes", wireframe_sources))
-    if ui_design_required or ui_design_sources:
-        families.append(("ui-design", ui_design_sources))
-    if has_design_contract:
-        families.extend(
-            [
-                ("design-system.md", design_markdown_sources),
-                ("design-system.json", design_json_sources),
-            ]
-        )
-    if plan.get("schema_version") == 6 and len(architecture_sources) == 1:
-        families.append(("architecture", architecture_sources))
-    resolved: dict[str, bytes] = {}
-    for label, sources in families:
-        if len(sources) != 1:
-            continue
-        contents, source_errors = _resolve_source_bytes(
-            sources[0], repo_root, label=label
-        )
-        errors.extend(source_errors)
-        if contents is not None:
-            resolved[label] = contents
-    viewports_floor = web_viewport_floor_required(run)
-    prd_text: str | None = None
-    if "PRD" in resolved:
-        try:
-            prd_text = resolved["PRD"].decode("utf-8")
-        except UnicodeDecodeError as exc:
-            errors.append(f"prd: is not valid UTF-8 ({exc})")
-        else:
-            errors.extend(validate_plan_prd_text(plan, prd_text))
-            if viewports_floor:
-                errors.extend(prd_web_viewport_floor_errors(prd_text))
-            approved_product_package = any(
-                marker in prd_text
-                for marker in (
-                    "<!-- product-definition-approval:start -->",
-                    "<!-- product-definition-approval:end -->",
-                )
-            )
-            errors.extend(
-                product_security_requirements_join_errors(
-                    plan, prd_text, parser_required=approved_product_package
-                )
-            )
-            if approved_product_package:
-                if len(architecture_sources) != 1:
-                    errors.append(
-                        "plan.sources: an approved Product Definition package requires "
-                        "exactly one frozen architecture.md source"
-                    )
-                if len(stack_sources) != 1:
-                    errors.append(
-                        "plan.sources: an approved Product Definition package requires "
-                        "exactly one frozen stack-decisions.md source"
-                    )
-                if len(stack_sources) == 1:
-                    contents, source_errors = _resolve_source_bytes(
-                        stack_sources[0], repo_root, label="stack-decisions"
-                    )
-                    errors.extend(source_errors)
-                    if contents is not None:
-                        resolved["stack-decisions"] = contents
-                if "architecture" in resolved and "stack-decisions" in resolved:
-                    errors.extend(
-                        full_product_package_checker_errors(
-                            resolved["PRD"],
-                            resolved["architecture"],
-                            resolved["stack-decisions"],
-                            repo_root=repo_root,
-                        )
-                    )
-    if "architecture" in resolved or architecture_sources or platform_mapping or declared_acceptance:
-        errors.extend(_platform_and_feature_acceptance_errors(
-            plan,
-            resolved.get("PRD"),
-            resolved.get("architecture"),
-            architecture_declared=bool(architecture_sources),
-        ))
-    if "wireframes" in resolved:
-        try:
-            wireframe_text = resolved["wireframes"].decode("utf-8")
-        except UnicodeDecodeError as exc:
-            errors.append(f"wireframes: is not valid UTF-8 ({exc})")
-        else:
-            data, parse_errors = parse_wireframe_data(wireframe_text)
-            errors.extend(parse_errors)
-            if data is not None:
-                errors.extend(validate_plan_wireframe_data(plan, data))
-            errors.extend(
-                full_wireframe_checker_errors(
-                    resolved["wireframes"], resolved.get("PRD")
-                )
-            )
-    if all(name in resolved for name in ("ui-design", "wireframes", "PRD")):
-        hifi_bytes: bytes | None = None
-        try:
-            ui_view, _ = _load_ui_contract_view(sibling_ui_design_scripts_dir())(
-                resolved["ui-design"].decode("utf-8")
-            )
-            target = ui_view.get("approved_target") if isinstance(ui_view, dict) else None
-            target_path = target.get("path") if isinstance(target, dict) else None
-            if isinstance(target_path, str):
-                candidate = Path(repo_root) / target_path
-                if candidate.is_file():
-                    hifi_bytes = candidate.read_bytes()
-        except (OSError, UnicodeError, TypeError):
-            hifi_bytes = None
-        errors.extend(
-            full_ui_design_checker_errors(
-                resolved["ui-design"],
-                resolved["wireframes"],
-                resolved["PRD"],
-                architecture_bytes=resolved.get("architecture"),
-                stack_bytes=resolved.get("stack-decisions"),
-                hifi_bytes=hifi_bytes,
-                source_root=Path(repo_root),
-            )
-        )
-    registry: Any = None
-    if "design-system.json" in resolved:
-        try:
-            registry = json.loads(resolved["design-system.json"].decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            errors.append(f"design_system: is not valid JSON ({exc})")
-        else:
-            try:
-                errors.extend(validate_ui_surface_design_registry(plan, registry))
-            except Exception as exc:
-                errors.append(
-                    "design_system: PLAN registry join failed safely: "
-                    f"{type(exc).__name__}: {exc}"
-                )
-            if viewports_floor and isinstance(registry, dict):
-                errors.extend(registry_web_viewport_floor_errors(registry))
-    if isinstance(registry, dict) and "design-system.md" in resolved:
-        try:
-            markdown_text = resolved["design-system.md"].decode("utf-8")
-        except UnicodeDecodeError as exc:
-            errors.append(f"design-system.md: is not valid UTF-8 ({exc})")
-        else:
-            try:
-                errors.extend(
-                    compare_design_system_pair(
-                        markdown_text,
-                        registry,
-                        repo_root=repo_root,
-                        apply_current_hifi_cutover=version_at_least(
-                            required_version, CURRENT_HIFI_EVIDENCE_VERSION
-                        ),
-                    )
-                )
-            except Exception as exc:
-                errors.append(
-                    "design_system: canonical pair adapter failed safely: "
-                    f"{type(exc).__name__}: {exc}"
-                )
-    return sorted(set(errors))

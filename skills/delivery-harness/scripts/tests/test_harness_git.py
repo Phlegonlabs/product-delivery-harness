@@ -533,7 +533,6 @@ class WindowsLauncherACLTests(unittest.TestCase):
     def test_file_acl_is_checked_independently_of_protected_parent(self) -> None:
         import harness_git
         import parity_capture
-        import verifier_runtime
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -543,9 +542,6 @@ class WindowsLauncherACLTests(unittest.TestCase):
                 (harness_git, "_machine_git_roots", "_windows_parent_user_writable",
                  lambda: harness_git._trusted_executable(executable, "Git executable"),
                  harness_git.GitMetadataError),
-                (verifier_runtime, "windows_machine_roots", "windows_parent_user_writable",
-                 lambda: verifier_runtime._runtime_trust(executable, "docker"),
-                 verifier_runtime.VerifierRuntimeError),
                 (parity_capture, "windows_machine_roots", "windows_parent_user_writable",
                  lambda: parity_capture._trusted_launcher_path(executable, "browser launcher"),
                  RuntimeError),
