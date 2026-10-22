@@ -1,6 +1,6 @@
 # Agent-Owned Worker Policy
 
-Status: in_progress
+Status: complete
 Design workflow: maintenance
 UI impact: none (execution policy and skill instructions)
 
@@ -61,7 +61,7 @@ Actual executor bindings remain configurable; required independent review, exact
 Focused checks passed: 65 Harness contracts, 14 UI document contracts, 18 cross-skill contracts, nine UI-admission cases, ten role-dispatch cases and three failure-receipt cases.
 The first complete 399-case UI run had two old-wording assertion failures and two platform skips; both assertions were updated and the 14-case document suite passed.
 The first Harness run had four old-wording failures and a cp1252 log-tail encoding error; the corrected UTF-8 run passed all 65.
-Skill specification, document weight and whitespace checks passed. A fresh unified candidate check and independent review remain pending.
+Skill specification, document weight and whitespace checks passed. Those producing checks preceded the later unified candidate review.
 Host sources are still unchanged at this checkpoint; 13 recoverable input copies are retained in `agent-policy-host-before/manifest.json` under the task evidence directory.
 
 ## AWP-2 Host Helpers
@@ -89,7 +89,7 @@ The new tests failed against the old overrides, then passed after the implementa
 Three host skills passed quick validation. No-launch preparation passed for omitted settings and explicit Opus/xhigh and Sonnet/xhigh requests.
 Optional host Pyflakes reports two pre-existing unused imports; the retained baseline produces the same diagnostics. No unrelated import cleanup was made.
 The existing workflow module remains one ledger/controller responsibility; this task does not split its established module.
-Fresh unified candidate checks, independent review and final handoff remain pending.
+The following records retain subsequent checks, repairs and reviews.
 
 ## Bounded Review Repair
 
@@ -120,7 +120,7 @@ No model, service, product UI, publication, installation or agent-definition cha
 The three changed host repair inputs have a new 13-file snapshot at `agent-policy-host-repaired/manifest.json`.
 Manifest SHA-256: `7c684f2834e81da9907f697f12e153ce8b1c0f282cf139157caa279780624927`.
 
-Prior snapshots and the failed review remain immutable. Fresh fixed-candidate re-review remains pending.
+Prior snapshots and the failed review remain immutable. The following record retains that re-review outcome.
 
 ## Actor-State Repair Round 2
 
@@ -142,4 +142,35 @@ All 35 host cases pass, including the new atomic-rejection/recovery case, explic
 Both default actor-family repair rounds are now spent. Another required defect remains blocked for an explicit next strategy; no automatic third repair is authorized.
 Final host snapshot: `agent-policy-host-atomic/manifest.json`, SHA-256 `3671adbd3a7adaf726ffdd7eba32e580c35a7b199ecad2360f5156501e27f6b5`.
 
-All earlier source/results/backups remain intact. A fresh final fixed-candidate review remains required.
+All earlier source/results/backups remain intact. The final review below binds the repaired candidate.
+
+## Final Result And Handoff
+
+Final reviewed candidate: `050073387a9b81ae01f777943ca00479bf5c9a57` on `codex/ui-acceptance`.
+Fresh native assignment `agent-policy-atomic-review`, attempt 1, returned PASS for all 41 declared source/host paths with no exclusions or actionable findings.
+The parent validated the [final result](C:/Users/mps19/.codex/visualizations/2026/10/20/01a15a38-8db7-7e32-9e42-6380059bccdf/agent-policy-final-security-result.json) unchanged against the exact SHA/base/scope.
+Result SHA-256: `b11eedee3be49d9c2a107907259da8c8328740a57e9953e022d470c2f7d3f3a0`.
+The 5,942-byte packet stayed within its explicit 10,000-byte limit. The reviewer performed its own source, inventory, whitespace and identity checks.
+Parent regression results remain parent executions; they are not relabeled reviewer tests.
+
+Fresh exact-candidate suites completed 399 UI, 306 Product Definition, 65 Harness-contract, 18 cross-skill, nine UI-admission, ten role-dispatch, three failure-receipt and 35 host cases.
+Total: 845 cases, including two Windows/POSIX permission skips. Repeated focused runs are not added again.
+Skill specification, six-tree source Pyflakes and document-weight checks also passed at that candidate.
+All 11 final supervisors recorded exit0 and process termination. No task-owned service was started or remains.
+Producing logs use the `agent-policy-atomic-` prefix in the task evidence directory.
+The source and host regression checks validate this local maintenance; they are not a live model run or product visual acceptance.
+
+Handoff audit: required methods, source identity, full pinned author reads, 85/80, independent review, permissions and exact-candidate evidence remain intact.
+Effective agent configuration owns executor/model/effort/fallback/staffing choices, including configured research-worker reuse.
+Legacy managed protocol labels, leases and recovery records retain their original meaning. No unsupported nested managed topology is claimed.
+The installed Harness template is still 0.65.2, SHA-256 `cae9e29e365c60809811f1cd83ffc75f44621244b9966339c9ded3a197ddf8e2`.
+The new worker-policy ownership is an explicit owner override relative to that older template, not stale text to restore.
+Source-repository omissions and main-only source Git flow remain intentional local choices.
+The final inventory retains only inspected baseline/migration-reference findings and unknown loaded identity; its review_required state is not approval.
+No consumer PRD, design approval, PLAN/RUN or generated task view applies to this source task.
+
+Only this Epic and the document index change after the reviewed candidate. Source code, four README descriptions and all 13 host hashes stay guarded.
+Host wrapper instructions and the workflow helper are updated locally, with every prior file copy retained.
+Native agent definitions, host AGENTS, launchers, active chats, credentials and existing runs were not changed.
+The canonical core-source changes are local commits. Installed core digest remains `f635763875e40ad30f112933c3f78efbf9cebb5501eb13ea57d4b5dabb8ce28b`.
+No core-bundle installation, reload, push, release or deployment occurred. Installation remains a separate action.
