@@ -117,14 +117,19 @@ class EnhancementEntryContractTests(unittest.TestCase):
             "child independently reads its complete named instruction chain",
             "verifies packet source hashes",
             "Unknown loaded identity stays unknown",
-            "Reuse a semantic template audit",
-            "recorded SHA-256 values",
-            "newly applicable, missing, or changed input invalidates reuse",
-            "restart and summary compaction",
-            "Never synthesize unknown loaded identity",
         ):
             with self.subTest(reference="document-sync", phrase=phrase):
                 self.assertIn(phrase, sync)
+        for phrase in (
+            "Reuse a semantic template audit",
+            "recorded SHA-256 values",
+            "newly applicable, missing, or changed input invalidates reuse",
+            "the audit survives summary compaction",
+            "as do restart",
+            "Never synthesize unknown loaded identity",
+        ):
+            with self.subTest(reference="task-and-handoff", phrase=phrase):
+                self.assertIn(phrase, owner)
         self.assertIn("semantic template audit", bounded)
         delegation = (SKILLS / "delivery-harness/references/delegation-contract.md").read_text(encoding="utf-8")
         performance = (SKILLS / "delivery-harness/references/runtime-performance.md").read_text(encoding="utf-8")

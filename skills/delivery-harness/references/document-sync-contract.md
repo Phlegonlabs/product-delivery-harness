@@ -15,8 +15,6 @@ When another skill invocation needs a source already read in this session, reuse
 
 Before work, a child independently reads its complete named instruction chain and applicable authority sources. It verifies packet source hashes, observes loaded identity where the host exposes it, and reports its own read evidence. A parent attestation never substitutes for those child checks. Unknown loaded identity stays unknown.
 
-Reuse a semantic template audit only within the same Epic or task after a complete first audit. Its recorded SHA-256 values must prove that template, VERSION, bundle, effective instructions, owner references, scope, capabilities, and full source text are unchanged. A first, newly applicable, missing, or changed input invalidates reuse, as do restart and summary compaction. Recheck action and live source guards before reuse. Preserve current, stale, and unknown labels and intentional source exceptions. Never synthesize unknown loaded identity from installed bytes.
-
 ```text
 python "<delivery-harness-skill-root>/scripts/check_document_sync.py" --repo-root <project-root> --loaded-digest <observed-session-contract-sha256> --baseline docs/document-sync.json
 ```
