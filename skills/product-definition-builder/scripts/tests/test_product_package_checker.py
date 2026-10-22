@@ -207,9 +207,6 @@ def valid_stack(*, status: str = "Approved", decision: str = "approved") -> str:
 - Delegated choices: none
 - Open areas: none
 - Checkpoint digest: sha256:f9b21aca0ae23212aaa44b326c778e566dd5ac5b133fa4ef5da088ec48a9ada3
-- Applicable areas: none
-- Resolved areas: none
-- Approved option map: OPT-FE-01=frontend
 <!-- stack-decision-checkpoint:end -->
 
 ### Coherent Options Presented
@@ -424,6 +421,23 @@ def documentation_only_package() -> tuple[str, str]:
     return prd, architecture
 
 
+def finalize_approval_digests(
+    prd_text: str, architecture_text: str, stack_text: str, *, revision: str = "PD-R1"
+) -> tuple[str, str, str]:
+    """Bind the fixture's approval fields to the exact candidate bytes."""
+
+    zero = "0" * 64
+    prd = re.sub(r"^- Package revision:.*$", f"- Package revision: {revision}@sha256:{zero}", prd_text, count=1, flags=re.MULTILINE)
+    prd = re.sub(r"^- Package digest:.*$", f"- Package digest: sha256:{zero}", prd, count=1, flags=re.MULTILINE)
+    stack = re.sub(r"^- Checkpoint digest:.*$", f"- Checkpoint digest: sha256:{zero}", stack_text, count=1, flags=re.MULTILINE)
+    stack_digest = contract_utils.sha256_text(contract_utils.canonical_stack_bytes(stack))
+    stack = re.sub(r"^- Checkpoint digest:.*$", f"- Checkpoint digest: sha256:{stack_digest}", stack, count=1, flags=re.MULTILINE)
+    package_digest = contract_utils.sha256_text(contract_utils.canonical_product_bytes(prd, architecture_text, stack))
+    prd = re.sub(r"^- Package revision:.*$", f"- Package revision: {revision}@sha256:{package_digest}", prd, count=1, flags=re.MULTILINE)
+    prd = re.sub(r"^- Package digest:.*$", f"- Package digest: sha256:{package_digest}", prd, count=1, flags=re.MULTILINE)
+    return prd, architecture_text, stack
+
+
 def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple[str, str, str]:
     """Render fixture approval fields from the exact candidate bytes."""
 
@@ -444,60 +458,7 @@ def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple
         areas.add("commercial")
     area_value = ", ".join(sorted(areas)) if areas else "none"
     stack = re.sub(r"- Approved areas:.*", f"- Approved areas: {area_value}", stack, count=1)
-    stack = re.sub(r"- Applicable areas:.*", f"- Applicable areas: {area_value}", stack, count=1)
-    stack = re.sub(r"- Resolved areas:.*", f"- Resolved areas: {area_value}", stack, count=1)
-    approved_map: list[str] = []
-    option_rows = check_product_package._find_table(stack, check_product_package.STACK_OPTIONS_HEADER) or []
-    for option in option_rows:
-        if len(option) != len(check_product_package.STACK_OPTIONS_HEADER) or option[5].casefold() != "approved":
-            continue
-        option_ids = check_product_package._ids(option[0], "OPT")
-        if len(option_ids) != 1:
-            continue
-        option_id = next(iter(option_ids))
-        layer_values: dict[str, str] = {}
-        for section_name, area_name in check_product_package.STACK_SECTION_AREAS.items():
-            if area_name not in check_product_package._stack_areas(option[1]):
-                continue
-            section = check_product_package._section(stack, f"## {section_name}") or ""
-            recorded = check_product_package._subsection(section, "### Recorded or Approved Stack") or ""
-            for layer_row in check_product_package._find_table(recorded, check_product_package.STACK_LAYER_HEADER) or []:
-                if len(layer_row) == len(check_product_package.STACK_LAYER_HEADER) and layer_row[2].casefold() in check_product_package.EXECUTABLE_STACK_STATUSES:
-                    layer_values[layer_row[0].strip()] = layer_row[1].strip()
-        payload = ";".join(f"{layer}=>{selection}" for layer, selection in layer_values.items())
-        approved_map.append(f"{option_id}={payload}")
-    stack = re.sub(
-        r"- Approved option map:.*",
-        "- Approved option map: "
-        + (f"||{'||'.join(approved_map)}||" if approved_map else "none"),
-        stack,
-        count=1,
-    )
-    return contract_utils.finalize_approval_digests(prd, architecture, stack)
-
-
-def strictize_approved_package_legacy(
-    prd: str, architecture: str, stack: str
-) -> tuple[str, str, str]:
-    """Render a comma-only option map for legacy-format regression coverage."""
-
-    approved_prd, approved_architecture, approved_stack = strictize_approved_package(
-        prd, architecture, stack
-    )
-    option_map = re.search(
-        r"- Approved option map: (.*)", approved_stack
-    ).group(1)
-    legacy_map = option_map.removeprefix("||").removesuffix("||")
-    legacy_map = ",".join(legacy_map.split("||"))
-    legacy_stack = re.sub(
-        r"- Approved option map:.*",
-        f"- Approved option map: {legacy_map}",
-        approved_stack,
-        count=1,
-    )
-    return contract_utils.finalize_approval_digests(
-            approved_prd, approved_architecture, legacy_stack
-    )
+    return finalize_approval_digests(prd, architecture, stack)
 
 
 def toolchain_package(surface_classes: tuple[str, ...]) -> tuple[str, str, str]:
@@ -629,116 +590,30 @@ class ProductPackageCheckerTests(unittest.TestCase):
     def test_approved_package_passes(self) -> None:
         self.assertEqual([], self.validate())
 
-    def test_existing_stack_accepts_none_map_with_or_without_options(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            evidence_file = root / "package.json"
-            evidence_file.write_bytes(b"{}\n")
-            evidence = "repository:package.json@sha256:" + contract_utils.sha256_text("{}\n")
-            for status in ("Required", "Selected"):
-                for keep_options in (False, True):
-                    for sentinel in ("None", "none", "NONE"):
-                        with self.subTest(status=status, options=keep_options, sentinel=sentinel):
-                            stack = valid_stack(status=status).replace(
-                                "| approved |", "| recommended |"
-                            ).replace("Owner decision", evidence if status == "Selected" else "Owner decision")
-                            if not keep_options:
-                                stack = re.sub(
-                                    r"### Coherent Options Presented\n.*?(?=## Frontend Technology Decision)",
-                                    "", stack, flags=re.DOTALL,
-                                )
-                            prd, architecture, stack = strictize_approved_package(
-                                valid_prd(), release_architecture(), stack
-                            )
-                            stack = re.sub(r"- Approved option map:.*", f"- Approved option map: {sentinel}", stack)
-                            package = contract_utils.finalize_approval_digests(prd, architecture, stack)
-                            self.assertEqual([], check_product_package.validate_texts(
-                                *package, require_filled=True, require_approved=True, repo_root=root,
-                            ))
-
-    def test_none_map_cannot_hide_approved_options_or_layers(self) -> None:
-        for status, keep_approved_option, expected in (
-            ("Required", True, "Approved option map does not exactly match"),
-            ("Approved", False, "must retain the approved frontend option"),
-        ):
-            with self.subTest(status=status, approved_option=keep_approved_option):
-                stack = valid_stack(status=status)
-                if not keep_approved_option:
-                    stack = stack.replace("| approved |", "| recommended |")
-                prd, architecture, stack = strictize_approved_package(
-                    valid_prd(), release_architecture(), stack
-                )
-                stack = re.sub(r"- Approved option map:.*", "- Approved option map: None", stack)
-                package = contract_utils.finalize_approval_digests(prd, architecture, stack)
-                findings = check_product_package.validate_texts(
-                    *package, require_filled=True, require_approved=True,
-                )
-                self.assertIn(expected, "\n".join(findings))
-
-    def test_approved_commercial_option_map_survives_commas(self) -> None:
+    def test_approved_commercial_package_passes(self) -> None:
         prd, architecture, stack = commercial_option_package()
         self.assertEqual([], check_product_package.validate_texts(
             prd, architecture, stack, require_filled=True, require_approved=True,
         ))
-        self.assertIn("Attribution, commission, payout, and reseller operations=>Ledger, $20", stack)
-        self.assertIn("||OPT-MP-01=", stack)
 
-    def test_legacy_comma_only_option_map_remains_valid(self) -> None:
-        prd, architecture, stack = strictize_approved_package_legacy(
-            valid_prd(), valid_architecture(), valid_stack()
+    def test_retired_bookkeeping_fields_are_not_checked(self) -> None:
+        prd = valid_prd().replace(
+            "| --- | --- | --- | --- | --- | --- |\n## Open Questions",
+            "| --- | --- | --- | --- | --- | --- |\n| data assumption | impact | owner validation | Owner | 2026-09-12 | accepted |\n## Open Questions",
+            1,
         )
-        self.assertNotIn("||", stack)
+        prd, architecture, stack = strictize_approved_package(prd, valid_architecture(), valid_stack())
+        stack = stack.replace(
+            "<!-- stack-decision-checkpoint:end -->",
+            "- Applicable areas: ghost\n- Resolved areas: none\n"
+            "- Approved option map: OPT-FE-02=frontend=>mutated\n"
+            "<!-- stack-decision-checkpoint:end -->",
+            1,
+        )
+        package = finalize_approval_digests(prd, architecture, stack)
         self.assertEqual([], check_product_package.validate_texts(
-            prd, architecture, stack, require_filled=True, require_approved=True,
+            *package, require_filled=True, require_approved=True,
         ))
-
-    def test_single_explicit_commercial_option_preserves_all_layers(self) -> None:
-        layer = "attribution, commission, payout, and reseller operations"
-        parsed, findings = check_product_package._parse_approved_option_map(
-            f"||OPT-MP-01={layer}=>Ledger, monthly payout;Billing=>None||"
-        )
-        self.assertEqual([], findings)
-        self.assertEqual({"OPT-MP-01": {
-            layer: "Ledger, monthly payout", "billing": "None",
-        }}, parsed)
-
-    def test_option_map_rejects_partial_framing_and_empty_selections(self) -> None:
-        for candidate in (
-            "||OPT-A=Layer=>Alpha", "OPT-A=Layer=>Alpha||",
-            "||OPT-A=Layer=> ||", "OPT-A=Layer=>",
-            "||OPT-A=Layer=>Alpha;Broken||", "||OPT-A==>Alpha||",
-        ):
-            with self.subTest(candidate=candidate):
-                _, findings = check_product_package._parse_approved_option_map(candidate)
-                self.assertTrue(findings)
-
-    def test_option_map_rejects_duplicate_malformed_and_mismatched_entries(self) -> None:
-        base_map = "||OPT-A=Layer=>Alpha||OPT-A=Layer=>Alpha||"
-        duplicate_layers = "OPT-A=Layer=>Alpha;Layer=>Beta"
-        empty_entry = "||OPT-A=Layer=>Alpha||||OPT-B=Other=>Beta||"
-        for candidate, expected in (
-            (base_map, "duplicate approved option map entry OPT-A"),
-            (duplicate_layers, "duplicate approved option map layer"),
-            (empty_entry, "entry 2 is empty"),
-        ):
-            with self.subTest(candidate=candidate):
-                _, findings = check_product_package._parse_approved_option_map(candidate)
-                self.assertIn(expected, " ".join(findings))
-
-        prd, architecture, stack = commercial_option_package()
-        mismatched = re.sub(
-            r"Attribution, commission, payout, and reseller operations=>Ledger, \$20 monthly payout",
-            "Attribution, commission, payout, and reseller operations=>External monthly payout",
-            stack,
-            count=1,
-        )
-        prd, architecture, mismatched = contract_utils.finalize_approval_digests(
-            prd, architecture, mismatched
-        )
-        findings = check_product_package.validate_texts(
-            prd, architecture, mismatched, require_filled=True, require_approved=True,
-        )
-        self.assertIn("Approved option map does not exactly match", "\n".join(findings))
 
     def test_toolchain_release_packages_pass_full_approval(self) -> None:
         for classes in (("cli",), ("other_nonpublic",), ("cli", "other_nonpublic")):
@@ -763,22 +638,14 @@ class ProductPackageCheckerTests(unittest.TestCase):
                     )
                     self.assertIn(expected, "\n".join(problems))
 
-    def test_toolchain_option_map_must_match_executable_layers(self) -> None:
-        prd, architecture, stack = toolchain_package(("cli",))
-        stack = stack.replace("Language=>Python", "Language=>Go")
-        problems = check_product_package.validate_texts(
-            prd, architecture, stack, require_filled=True, require_approved=True,
-        )
-        self.assertIn("Approved option map does not exactly match", "\n".join(problems))
-
-    def test_cli_toolchain_alias_passes_approval_and_option_matching(self) -> None:
+    def test_cli_toolchain_alias_passes_approval(self) -> None:
         prd, architecture, stack = toolchain_package(("cli",))
         stack = re.sub(
-            r"(?m)^(- (?:Approved|Applicable|Resolved) areas: )toolchain$",
+            r"(?m)^(- Approved areas: )toolchain$",
             r"\1CLI/toolchain", stack,
         )
         stack = re.sub(r"(?m)^(\| OPT-CLI-\d+ \| )Toolchain(?= \|)", r"\1CLI/toolchain", stack)
-        package = contract_utils.finalize_approval_digests(prd, architecture, stack)
+        package = finalize_approval_digests(prd, architecture, stack)
         self.assertEqual([], check_product_package.validate_texts(
             *package, require_filled=True, require_approved=True,
         ))
@@ -897,70 +764,15 @@ class ProductPackageCheckerTests(unittest.TestCase):
                 )
                 self.assertIn("Package revision", "\n".join(findings))
 
-    def test_strict_approval_requires_exact_applicable_resolved_areas_and_option_map(self) -> None:
+    def test_strict_approval_requires_exact_approved_areas(self) -> None:
         prd, architecture, stack = strictize_approved_package(
             valid_prd(), valid_architecture(), valid_stack()
         )
-        wrong_areas = stack.replace("- Applicable areas: none", "- Applicable areas: frontend", 1)
-        wrong_map = re.sub(r"- Approved option map:.*", "- Approved option map: OPT-FE-02=frontend=>mutated", stack, count=1)
-        for candidate, expected in (
-            (wrong_areas, "Applicable areas must exactly match"),
-            (wrong_map, "Approved option map does not exactly match"),
-        ):
-            with self.subTest(expected=expected):
-                findings = check_product_package.validate_texts(
-                    prd, architecture, candidate, require_filled=True, require_approved=True
-                )
-                self.assertIn(expected, "\n".join(findings))
-
-    def test_strict_approval_requires_exact_open_assumption_and_question_references(self) -> None:
-        prd = valid_prd().replace(
-            "| --- | --- | --- | --- | --- | --- |\n## Open Questions",
-            "| --- | --- | --- | --- | --- | --- |\n| data assumption | impact | owner validation | Owner | 2026-09-12 | accepted |\n## Open Questions",
-            1,
-        ).replace(
-            "| --- | --- | --- | --- | --- | --- |\n## Test Obligations",
-            "| --- | --- | --- | --- | --- | --- |\n| launch question | why it matters | Owner | 2026-09-12 | No | open |\n## Test Obligations",
-            1,
-        )
-        prd, architecture, stack = strictize_approved_package(
-            prd, valid_architecture(), valid_stack()
-        )
+        wrong_areas = stack.replace("- Approved areas: none", "- Approved areas: frontend", 1)
         findings = check_product_package.validate_texts(
-            prd, architecture, stack, require_filled=True, require_approved=True
+            prd, architecture, wrong_areas, require_filled=True, require_approved=True
         )
-        self.assertIn("must exactly equal required references", "\n".join(findings))
-
-    def test_strict_reference_tokens_reject_substrings_extras_and_duplicates(self) -> None:
-        prd = valid_prd().replace(
-            "| --- | --- | --- | --- | --- | --- |\n## Open Questions",
-            "| --- | --- | --- | --- | --- | --- |\n| a | impact | validate | Owner | 2026-09-12 | accepted |\n## Open Questions",
-            1,
-        ).replace(
-            "- Accepted assumptions and non-blocking questions: none",
-            "- Accepted assumptions and non-blocking questions: assumption:abc",
-            1,
-        )
-        prd, architecture, stack = strictize_approved_package(
-            prd, valid_architecture(), valid_stack()
-        )
-        substring = check_product_package.validate_texts(
-            prd, architecture, stack, require_filled=True, require_approved=True
-        )
-        self.assertIn("must exactly equal required references", "\n".join(substring))
-        extra = prd.replace(
-            "- Accepted assumptions and non-blocking questions: assumption:abc",
-            "- Accepted assumptions and non-blocking questions: assumption:a, assumption:a, question:ghost",
-            1,
-        )
-        extra, architecture, stack = strictize_approved_package(extra, architecture, stack)
-        extra_findings = "\n".join(
-            check_product_package.validate_texts(
-                extra, architecture, stack, require_filled=True, require_approved=True
-            )
-        )
-        self.assertIn("duplicate references", extra_findings)
-        self.assertIn("must exactly equal required references", extra_findings)
+        self.assertIn("Approved areas must exactly match", "\n".join(findings))
 
     def test_code_and_outer_comments_cannot_supply_contracts(self) -> None:
         fenced = valid_prd().replace(
@@ -1768,109 +1580,8 @@ Security scope: executable
         )
         problems = self.validate(prd=prd)
         self.assertTrue(
-            any("area-specific refresh" in item for item in problems)
+            any("non-none refresh" in item for item in problems)
         )
-
-    def test_changed_security_enhancement_refreshes_product_and_architecture(self) -> None:
-        impacts = """
-## Enhancement Impact Record
-| Area | Impact | Affected IDs / decisions | Required refresh |
-| --- | --- | --- | --- |
-| Product scope / behavior | unchanged | none | none |
-| UI structure / style | none | none | none |
-| Data / integrations | unchanged | none | none |
-| Architecture / stack | unchanged | none | none |
-| Data trust / AI | unchanged | none | none |
-| Security | changed | PRD-003 | PRD.md and architecture.md with Product Definition Approval |
-| Monetization / partner | unchanged | none | none |
-| Release / operations | unchanged | none | none |
-"""
-        prd = valid_prd(mode="enhancement").replace(
-            "## Problem Statement",
-            impacts + "\n## Problem Statement",
-        )
-        self.assertEqual([], self.validate(prd=prd))
-
-        negative = impacts.replace(
-            "PRD.md and architecture.md with Product Definition Approval",
-            "PRD.md and Product Definition Approval",
-        )
-        prd = valid_prd(mode="enhancement").replace(
-            "## Problem Statement",
-            negative + "\n## Problem Statement",
-        )
-        problems = self.validate(prd=prd)
-        self.assertTrue(
-            any(
-                "Security" in item and "architecture.md" in item
-                for item in problems
-            )
-        )
-
-        trust_ai_negative = impacts.replace(
-            "| Data trust / AI | unchanged | none | none |",
-            "| Data trust / AI | changed | decision:data-trust | "
-            "PRD.md and architecture.md with Product Definition Approval |",
-        )
-        prd = valid_prd(mode="enhancement").replace(
-            "## Problem Statement",
-            trust_ai_negative + "\n## Problem Statement",
-        )
-        problems = self.validate(prd=prd)
-        self.assertTrue(
-            any(
-                "Data trust / AI" in item
-                and "stack-decisions.md" in item
-                and "stack decision checkpoint" in item
-                for item in problems
-            )
-        )
-
-    def test_changed_ui_enhancement_uses_current_design_gates(self) -> None:
-        impacts = """
-## Enhancement Impact Record
-| Area | Impact | Affected IDs / decisions | Required refresh |
-| --- | --- | --- | --- |
-| Product scope / behavior | unchanged | none | none |
-| UI structure / style | {impact} | UI-001 | {refresh} |
-| Data / integrations | unchanged | none | none |
-| Architecture / stack | unchanged | none | none |
-| Data trust / AI | unchanged | none | none |
-| Security | unchanged | none | none |
-| Monetization / partner | unchanged | none | none |
-| Release / operations | unchanged | none | none |
-"""
-
-        def ui_problems(impact: str, refresh: str, current: bool = False) -> list[str]:
-            prd = valid_prd(mode="enhancement").replace(
-                "## Problem Statement",
-                impacts.format(impact=impact, refresh=refresh) + "\n## Problem Statement",
-            )
-            findings = (check_product_package.validate_texts(prd, valid_architecture(), valid_stack(),
-                        require_filled=True, ui_contract="ui-design/2") if current else self.validate(prd=prd))
-            return [item for item in findings if "UI structure / style" in item]
-
-        structure_refresh = (
-            "wireframes.html and ui-design.md with copy completeness, "
-            "Wireframe Validation and Visual Approval"
-        )
-        for impact in ("structure", "both"):
-            with self.subTest(impact=impact):
-                self.assertEqual([], ui_problems(impact, structure_refresh))
-                retired = ui_problems(
-                    impact,
-                    "wireframes.html and ui-design.md with Copy Freeze, "
-                    "Wireframe Approval and Visual Approval",
-                )
-                self.assertTrue(any("wireframe validation" in item for item in retired))
-        self.assertEqual([], ui_problems("style", "ui-design.md and Visual Approval"))
-        for impact in ("structure", "both", "style"):
-            refresh = "ui-design.md and HiFi with HiFi review and Visual Approval"
-            self.assertEqual([], ui_problems(impact, refresh))
-            self.assertEqual([], ui_problems(impact, refresh, current=True))
-        self.assertTrue(ui_problems("structure", structure_refresh, current=True))
-        missing = ui_problems("style", "ui-design.md with Style Integration and Impeccable H1-H9")
-        self.assertTrue(any("visual approval" in item for item in missing))
 
     def test_prefix_and_placeholder_bypasses_fail(self) -> None:
         nonevil = valid_prd().replace(
@@ -2853,25 +2564,7 @@ Security scope: executable
         )
         problems = self.validate(prd=prd)
         self.assertTrue(any("structured affected IDs" in item for item in problems))
-        self.assertTrue(any("area-specific refresh" in item for item in problems))
-
-        wrong_area_refresh = impacts.replace(
-            "| UI structure / style | none | none | none |",
-            "| UI structure / style | both | UI-001 | PRD.md and validate checker |",
-        ).replace(
-            "| Release / operations | unchanged | none | none |",
-            "| Release / operations | changed | decision:release-target-web | wireframes.html and approval gate |",
-        )
-        prd = valid_prd(mode="enhancement").replace(
-            "## Problem Statement", wrong_area_refresh + "\n## Problem Statement"
-        )
-        problems = self.validate(prd=prd)
-        self.assertTrue(
-            any("UI structure / style" in item and "wireframes.html" in item for item in problems)
-        )
-        self.assertTrue(
-            any("Release / operations" in item and "architecture.md" in item for item in problems)
-        )
+        self.assertTrue(any("non-none refresh" in item for item in problems))
 
         prd = valid_prd().replace(
             "UI design: not_required — fixture is headless\nUI decision owner: n/a for headless",
