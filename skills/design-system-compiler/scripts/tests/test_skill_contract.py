@@ -156,7 +156,8 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
 
         self.assertNotIn("Inspect the generated view in a browser and link", contract)
         self.assertIn(
-            "When the pair registers a motion variant or a `pseudo` state row, inspect those plates in a browser",
+            "When the pair registers a motion variant or a `pseudo` state row, or the preview has Surface plates "
+            "that run product scripts, inspect those plates in a browser",
             contract,
         )
         self.assertIn("`verify_runtime_motion.py` still closes source-runtime rows", contract)
