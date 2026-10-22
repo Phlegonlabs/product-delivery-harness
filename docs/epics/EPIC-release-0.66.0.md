@@ -40,7 +40,7 @@ Recorded with the release candidate below. Earlier evidence: `review-batch-bound
 
 ## Remaining Work
 
-Sol 6.1 / high review of the final candidate, PR and CI, main landing, tag, installation, and consumer syncs. AgentKiosk's active RUN adopts the release once at a quiescent boundary through its own parent.
+Sol 6.1 / high review of the final candidate, PR and CI, main landing, tag, installation, and consumer syncs. AgentKiosk remains report-only; its own parent handles any later adoption at a quiescent boundary.
 
 ## Recovery On 2026-10-22
 
@@ -86,3 +86,15 @@ SA records 505 cutover checks, 63 skill contracts, 112 image/contract checks, 44
 Four consumer structural comparisons added no errors and preserved every PLAN/RUN byte. The full consumer source joins remain unverified after a bounded AgentKiosk baseline timeout. No consumer was adopted or edited. Current `adopted` history is readable only for pins below 0.66 and always defers new dispatch to the pinned-bundle/restart route.
 
 Native CI now selects `test_push_archived_candidate.py` instead of the retired trusted-host test (`9742a5ac`). Five shard tests and both native planner invocations passed. Next: actual merged-code checks, ALIGN, README/CHANGELOG cleanup, fresh Sol 6.1 / high review with security, and required fixed-candidate CI before publication.
+
+### Final Candidate Preparation
+
+The merged-code checks finished at `c4a419cf`. Four atomic commits add the actual conditional repair journey to native CI and update approved-source fixtures. Host execution retains executable-identity tamper rejection. Archive tests accept committed screenshots and reject working-tree-only evidence. Production guards were not weakened.
+
+The actual merged checks passed: core 336; results 177 with two platform skips; ingestion nine; candidate/closeout 55; archive 33 with three skips; host 18 with two skips; platform joins 65; source bindings 13; skill contracts 63; CI planner six. Six isolated test discoveries imported successfully. Pyflakes and whitespace checks passed. The [handoff](../../../.claude/merged-code-sol1/handoff-final.json) retains exact commands, inputs and logs; all 48 captured processes exited. These focused results do not replace final candidate CI.
+
+ALIGN `eefe606f` merged as `0965e151`; RSA `fd57ce91` merged as `871254a7`. Runtime references describe the current drivers, host checks, archive proofs and bounded repair mission. All four READMEs retain their covers, UI prompts and five newest history entries. Older English history moved unchanged into `CHANGELOG.md`; the redundant Chinese workflow copy was retired. The remaining UI freshness pointer was corrected in `63b97bea`.
+
+After integration, 63 skill contracts, three README checks and three documented-command checks passed. The parent document inventory returned `review_required`: first observations, retained historical names and unknown loaded identity remain explicit. The installed bundle is still 0.65.3. Intentional source-repository template exceptions remain; no consumer PLAN/RUN was rewritten.
+
+The [release receipt](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/release-receipt-0.66.0.json) records the exact candidate, independent review, CI, main/tag readback, installation and consumer outcomes as they occur. They are pending at this preparation checkpoint. No source push, PR, tag, installation or consumer edit has occurred yet.
