@@ -89,7 +89,7 @@ class ArchivePublicationTests(unittest.TestCase):
         """Create one real archive A with a bare remote and a closed receipt."""
         holder = tempfile.TemporaryDirectory()
         self._temps.append(holder)
-        root = Path(holder.name)
+        root = Path(holder.name).resolve()
         remote_holder = tempfile.TemporaryDirectory(prefix="archive-remote-")
         self._temps.append(remote_holder)
         remote = Path(remote_holder.name) / "remote.git"
