@@ -1,6 +1,6 @@
 # Worker ingestion reconciliation
 
-Status: recovery and local verification complete; fixed-candidate independent review and isolated adoption pending.
+Status: runtime candidate `1dea7fd4` passed independent Sol review; isolated installation and adoption pending.
 
 ## Problem and scope
 
@@ -13,6 +13,8 @@ Source baseline: `codex/agentkiosk-motion-compiler` at `78fb89c90fc729d81f519ad9
 A new lease clears the mission's current-head projection while preserving previous workers and attempts. Recovery of the existing rejection must separately prove the unchanged original result, exact receipt and lease, sole stale-head blocker, real current Git and verifier evidence, and preserved failed history/counts. It must support the closed original wave and the original S3 child contract check after a later authorized runtime adoption. Normal failed-phase and current-contract checks remain strict.
 
 ## Change log
+
+- A fresh native reviewer, `/root/ingestion_fixed_review_006`, completed read-only code/security review of all 20 changed paths at `1dea7fd44680b1cce30accaa7dcf9616a01335c2`, based on `78fb89c90fc729d81f519ad9c33000dea4f905f7`. The host role was GPT-6.1 Sol/xhigh; no fallback was used. It returned PASS with complete declared coverage, no exclusions and no findings. The complete result and host observation remain in the external task root at `ingestion-review-006/security-result.json` and `parent-observation.json`. The reviewer inspected retained tests rather than rerunning them; the later-integration fixture is an in-memory projection check. Platform limitations remain as recorded above. Parent read-only checks also joined the real M01 original receipt, state, lease and closed wave without changing canonical PLAN/RUN (`ingestion-real-proof-preflight-006.json`). The reviewed seven-skill digest is `598e80d7449ec071c4d2a0cdc27b92ac70a7984361f46e05bc4798a6840ff331`; all six consumer stage bindings remain unchanged. This entry records the verdict, not consumer acceptance or installation.
 
 - Final recovery check passed in 95.847 seconds (`checks/ingestion-recovery-final-006-1792643448451322900.json`). The 230-case existing regression run had one expected-command-list failure and three platform skips; the unchanged list omitted the new tasks projection checkpoint. That assertion was updated and its complete module passed on rerun (`checks/ingestion-tasks-view-regression-006-1792643554060275000.json`). The skips cover one POSIX-only assertion and two unavailable Windows symlink operations. Full six-skill pyflakes, skill specification, documentation weight and diff checks passed. These are local development checks, not a formal release matrix or installation claim. Source review remains required.
 
@@ -27,4 +29,4 @@ A new lease clears the mission's current-head projection while preserving previo
 
 ## Remaining work
 
-Bind a fresh GPT-6.1 Sol/xhigh code/security review to the complete fixed source candidate. A new isolated bundle still needs concrete adoption authority. M01 is not accepted, reviewed or integrated by these source changes.
+Obtain concrete authority for the fixed isolated runtime installation and quiet-boundary adoption. Preserve the reviewed runtime bytes and original S3 history. Then use guarded recovery, fresh exact-head M01 review and ordinary integration. M01 remains unaccepted and unintegrated until those steps pass. Shared installation and publication remain outside this source repair.

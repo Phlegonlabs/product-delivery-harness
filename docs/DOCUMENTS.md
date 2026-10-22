@@ -6,7 +6,7 @@ Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each pa
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-worker-ingestion-reconciliation.md` | Retry-head prevention and exact-result ingestion recovery | Recovery and local checks complete; fixed-candidate review and isolated adoption pending |
+| `docs/epics/EPIC-worker-ingestion-reconciliation.md` | Retry-head prevention and exact-result ingestion recovery | Runtime candidate `1dea7fd4` passed native Sol review; private installation/adoption and actual M01 recovery pending |
 | `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 released at `dd8a52d3` and installed; 439 core files verified; exact candidate/main CI and reviews passed |
 | `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | X/GTM published in v0.65.1; seven-core-skill update verified; standalone GTM installations preserved |
 | `docs/epics/EPIC-ui-review-efficiency.md` | HiFi overall 85, every dimension 80, and bounded repair review with mandatory Impeccable | v0.65.1 flowchart verified at `05f14d1c`; owner-authorized v0.65.2 release and required local synchronization in progress; existing review budgets retained |
