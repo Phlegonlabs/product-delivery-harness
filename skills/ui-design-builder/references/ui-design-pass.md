@@ -152,10 +152,10 @@ Before human visual approval:
 
 1. Freeze the PRD, `ui-design.md`, and HiFi candidate paths and SHA-256 values.
 2. Run the cheap machine completeness preflight on the exact `ui-hifi/2` entry, manifest and sibling hashes against the PRD UI Surface Contract and current UI decisions. Repair missing coverage on the candidate and rerun it before formal review.
-3. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects, so it needs that authorization, but it is required: Visual Approval and publication need both PASS records, and a declined authorization leaves the stage `blocked`. Its Nielsen, detector, accessibility, responsive, performance, theming, and implementation-integrity scores are diagnostic evidence; the record uses exact `PASS` verdicts after the human gate standard is met.
+3. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects, so it needs that authorization, but it is required: Visual Approval and publication need both PASS records, and a declined authorization leaves the stage `blocked`. Its Nielsen, detector, accessibility, responsive, performance, theming, and implementation-integrity scores are diagnostic evidence. Record exact `PASS` when the run covered its required scope and every finding is in the ledger as closed, an advisory or a block.
 4. Run `ui-grading-rubric.md`'s Technical Hard Gate and complete `H1`–`H9` scoring. These scores, not Impeccable's native totals, decide readiness.
 5. Consolidate every Impeccable and rubric finding into one root-cause defect ledger before editing.
-6. Let `frontend-design` make one repair batch. Re-review the new SHA-256 under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Recheck original defects and affected consumers. Keep mandatory Impeccable critique/audit, required browser coverage and a complete current H1–H9 assessment.
+6. Let `frontend-design` make one repair batch. Re-review the new SHA-256 under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope).
 
 Readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80.
 No block or disputed dimension may remain. Record the actual scores, even when they fail these thresholds.
@@ -176,7 +176,7 @@ HiFi surface evidence keeps method `sandboxed-offline-browser`. New packages req
 
 Proactively send one user-visible response with verified absolute Markdown links to the complete current schema-2 HiFi entrypoint, every manifest-listed sibling page, and the affected `ui-design.md` design handoff. Use the final logical paths in the authorized publication checkout for approval; after publication, link canonical files in the source checkout. Do not collect approval on `.ui-staging` paths. Say that the full approved scope is included, name what the owner should review, and ask explicitly for Visual Approval. A preview or panel open is convenience only and cannot replace the response or links; if any page or preview cannot be verified or opened, report that blockage instead of approval readiness.
 
-Wait for the owner's explicit decision. Record it as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. The checker rejects an approval dated before the newest HiFi, Impeccable, grading or motion receipt; a repaired candidate needs a new owner decision. Approval proves visual-direction conformance, not representative-user usability or production readiness.
+Wait for the owner's explicit decision. Record it as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. The checker rejects an approval dated before the newest HiFi, Impeccable, grading or motion receipt; a repaired candidate needs a new owner decision. When the owner already reviewed the earlier candidate, present the repair diff and its changed pages; the owner may decide on that diff. Approval proves visual-direction conformance, not representative-user usability or production readiness.
 
 ## Retention And Design System Need Gate
 

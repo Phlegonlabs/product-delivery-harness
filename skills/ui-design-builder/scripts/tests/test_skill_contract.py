@@ -319,16 +319,39 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_repair_review_preserves_mandatory_checks_and_current_evidence(self):
         rubric = self.read("references/ui-grading-rubric.md")
         scope = rubric.split("## Repair Re-review Scope", 1)[1]
-        self.assertIn("initial diagnostic wave covers the complete approved scope", scope)
-        self.assertIn("Run Impeccable critique and audit again", scope)
+        self.assertIn("initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis", scope)
+        self.assertIn("Run Impeccable critique and audit again on the affected pages and states", scope)
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
-        self.assertIn("It never grants another repair round", scope)
+        self.assertIn("it never grants another repair round", scope)
         self.assertNotIn("and the full rubric once", rubric)
+        self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",
                        "references/review-evidence.md", UI_STAGE):
             with self.subTest(source=source):
                 self.assertIn("ui-grading-rubric.md#repair-re-review-scope", self.read(source))
+
+    def test_first_wave_axes_and_scoped_re_review(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        axes = rubric.split("## First-Wave Audit Axes", 1)[1].split("\n## ", 1)[0]
+        for axis in ("320 CSS px reflow", "each theme in scope", "200%", "`clamp()`", "forced colors",
+                     "keyboard-only use", "accessible names", "placeholders", "live regions", "reduced motion"):
+            with self.subTest(axis=axis):
+                self.assertIn(axis, axes)
+        self.assertIn("A re-review adds no axis", axes)
+        scope = rubric.split("## Repair Re-review Scope", 1)[1]
+        self.assertIn("A copy or metadata repair changes only", scope)
+        self.assertIn("Every other repair is a visual repair", scope)
+        self.assertIn("goes into the ledger as a next-round advisory", scope)
+        for block in ("a PRD contradiction", "a dead control", "an inaccessible required flow",
+                      "overlaps, clips or is unreachable"):
+            self.assertIn(block, scope)
+        self.assertIn("Impeccable severity alone does not decide readiness", rubric)
+        contract = self.read("references/output-contract.md")
+        self.assertIn("may carry forward into the new receipt with its original capture", contract)
+        self.assertIn("names each carried row's source receipt and page SHA-256", contract)
+        for source in ("SKILL.md", UI_STAGE):
+            self.assertIn("ui-grading-rubric.md#first-wave-audit-axes", self.read(source))
 
 
 if __name__ == "__main__":

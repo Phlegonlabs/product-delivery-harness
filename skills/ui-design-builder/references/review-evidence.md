@@ -63,8 +63,8 @@ Native CSP provenance must be complete, not merely plausible. Bind every consume
 The existing attempt budget and same-author ownership remain binding.
 
 Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope).
-This narrows qualitative rediscovery, not the required matrix or receipt fields.
-Every result still binds current candidate bytes and actual observations. Do not rebind an earlier PASS to repaired bytes.
+It narrows fresh observation to changed pages and direct consumers, not the required matrix or receipt fields.
+Every receipt still binds current candidate bytes. Rows for unchanged pages carry forward only under the output contract's carry-forward rule. Do not rebind an earlier PASS to repaired bytes.
 Record impact reasoning and repair completion criteria in the existing defect ledger; no new evidence schema is introduced.
 
 ## Frontend Design Usage
