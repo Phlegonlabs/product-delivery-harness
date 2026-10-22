@@ -7,23 +7,19 @@ description: Prepare authorized external setup from a fixed initial build and ve
 
 ## Installed Commands
 
-Resolve `<product-activation-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+Resolve `<product-activation-skill-root>` and logical script paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states.
 
 Operational readiness includes applicable health probes, monitoring ownership, cost alerts, incident contacts and tested recovery. Reconcile these against the actual deployed build and `docs/DEPLOYMENT.md`; implementation delivery, release availability and product outcome measurement remain separate claims.
 
 ## Purpose
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. Keep local/mock, isolated candidate, and production verification separate under `../delivery-harness/references/delivery-acceptance-contract.md`. Bind production smoke to the actual deployed build and configuration; never replay fixture creation, destructive cleanup, real payments, or synthetic messages against production under test authority. Follow `../delivery-harness/references/bounded-enhancement.md` for next-round code gaps without weakening external-action confirmation rules.
+At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work). Keep local/mock, isolated candidate, and production verification separate under `../delivery-harness/references/delivery-acceptance-contract.md`. Bind production smoke to the actual deployed build and configuration; never replay fixture creation, destructive cleanup, real payments, or synthetic messages against production under test authority. Next-round code gaps never weaken external-action confirmation rules.
 
 Prepare external prerequisites from an exact initial build, then verify operational readiness against the actual release.
 Follow [Initial Product Foundations](../delivery-harness/references/initial-product-foundations.md) for early website/app setup.
 Configure external systems only under an exact action and target grant, then verify the resulting state independently.
 
 This skill owns `docs/ACTIVATION.md`. It does not own product requirements, implementation, PLAN/RUN state, deployment, or the later outcome verdict.
-
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) at activation checkpoints. Verify the exact release identity, route contract or code gaps to their owners, and perform external writes only under existing exact grants.
-
-At readiness and measurement handoff, apply `../product-definition-builder/references/prd-refinement.md`: send evidenced operational, recovery or measurement gaps with affected PRD/TEST/release-target IDs to the product owner flow. Preserve actual observations and required targets; missing evidence never justifies lowering a target or silently changing the PRD.
 
 ## Stage Routing
 

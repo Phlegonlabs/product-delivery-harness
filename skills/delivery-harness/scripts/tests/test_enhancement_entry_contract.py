@@ -78,11 +78,17 @@ class EnhancementEntryContractTests(unittest.TestCase):
                 self.assertIn(phrase, seeded)
 
     def test_every_entry_routes_to_shared_sync_and_bounded_policy(self):
+        checklist = self.owner_section("task-and-handoff.md", "## Project Entry And Current Work")
+        for reference in ("document-sync-contract.md", "bounded-enhancement.md",
+                          "delegation-contract.md", "gen-verify-correct.md", "prd-refinement.md"):
+            with self.subTest(checklist=reference):
+                self.assertIn(reference + ")", checklist)
         for name in NAMES:
             with self.subTest(skill=name):
                 content = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
-                self.assertIn("references/document-sync-contract.md", content)
-                self.assertIn("references/bounded-enhancement.md", content)
+                self.assertIn(
+                    "references/governance/task-and-handoff.md#project-entry-and-current-work)", content
+                )
                 for reference in ("document-sync-contract.md", "bounded-enhancement.md"):
                     self.assertTrue((SKILLS / "delivery-harness/references" / reference).is_file())
 

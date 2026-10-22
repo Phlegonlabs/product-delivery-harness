@@ -7,21 +7,13 @@ description: "Route engineering work through planning, authorization, execution,
 
 Commands: `references/installed-commands.md`.
 
-Before direct or managed routing, apply `references/delegation-contract.md`: agent-owned worker policy, scoped assignments and actual execution identity. Delegation grants no actions and requires no managed run.
-
-Every invocation uses `references/document-sync-contract.md`. Accepted enhancements follow `references/bounded-enhancement.md`; acceptance follows `references/delivery-acceptance-contract.md`.
-
-[Generate, Verify, Correct](references/gen-verify-correct.md)
-
-At implementation/integration/acceptance checkpoints, apply `../product-definition-builder/references/prd-refinement.md`: record evidenced PRD gaps, repair requirement violations and preserve frozen inputs.
-
-Follow `AGENTS.md` Repository Change Checkpoints at entry, significant changes and handoff, even outside Harness. Record meaningful Git/working-tree changes in the Epic, without PLAN/RUN or watchers. Read-only tasks propose records. English PRD/architecture remain implementation authority, not Chinese review copies.
+At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). It loads document sync, bounded enhancement, delegation, gen-verify-correct and PRD refinement on their triggers. Acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
 
 ## Design And Maintenance Routing
 
 Before Product-package execution, apply `references/pre-delivery-self-review.md#harness-entry`: author reviews, catch-up rules, scoped routes and evidence. Missing/stale evidence blocks execution, not inspection/planning.
 
-Classify UI work with `ui-design-builder/references/review-workflow.md`. Initial design, enhancements and `structure`/`both` changes use the affected design gates. Routine maintenance (UI impact `none` or `style`) updates current product and requirements and keeps historical design artifacts. Product or stack decisions return upstream. Frozen RUNs keep pinned contracts until a task boundary.
+Classify UI work under [Product Contracts](references/governance/product-contracts.md#consumer-keep-product-contracts-current).
 
 Optional context: `references/reference-selection.md` (`references/option-library/`).
 
@@ -79,7 +71,7 @@ For UI work, inspect only `docs/design/`, a user-named design folder, and obviou
 
 Classify each task's Gitignore impact with `references/gitignore-contract.md`; it applies to both direct and managed routes.
 
-When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker.
+When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker. For a PLAN, RUN or design package pinned to an earlier Harness version, schema or branch protocol, also read [Legacy Pins](references/legacy-pins.md).
 
 After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
 
@@ -88,7 +80,7 @@ After capability detection, apply `references/runtime-upgrades.md`. Only an old 
 These rules apply to both routes:
 
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
-- Preserve all 12 managed action keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, and `delete_branches`.
+- Preserve all 12 managed action keys in the [Authorization Action Ledger](references/execution-state-model.md#authorization-action-ledger).
 - Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Publishing A to the run branch and promoting A to `main` are separate post-RUN actions with separate authorization.
 - Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
@@ -151,7 +143,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
 - Initial/enhancement system-conformance uses current approved PRD, UI design, HiFi and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. Routine maintenance follows `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- Final UI Acceptance combines the Final Visual Parity Loop and read-only page-quality pass on the exact head (`references/verification-gates.md`). One reviewer uses current shared evidence and returns one consolidated finding set. Impeccable is not the default; a separately authorized run may add UI evidence, with its subagents, browser/server, snapshot, and download side effects disclosed. It never fills a Harness read-only reviewer node.
+- Final UI Acceptance combines the Final Visual Parity Loop and read-only page-quality pass on the exact head (`references/verification-gates.md`). One reviewer uses current shared evidence and returns one consolidated finding set. Impeccable is not the default reviewer; its authorization caveat lives in `references/verification-gates.md`.
 - Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow

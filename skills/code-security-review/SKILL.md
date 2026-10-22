@@ -7,17 +7,17 @@ description: Review a fixed code candidate for security vulnerabilities after im
 
 ## Installed Commands
 
-Resolve `<code-security-review-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+Resolve `<code-security-review-skill-root>` and logical script paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states.
 
 ## Purpose
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md` read-only; report drift without migrating reviewed files. Check E2E fixture provisioning, role/tenant isolation, secret handling, owned-resource cleanup, and production exclusion of mock authentication where applicable. `../delivery-harness/references/bounded-enhancement.md` permits an honest incomplete handoff, never a partial security PASS or review-side remediation.
+At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work) read-only; report drift without migrating reviewed files. Check E2E fixture provisioning, role/tenant isolation, secret handling, owned-resource cleanup, and production exclusion of mock authentication where applicable. An honest incomplete handoff is allowed, never a partial security PASS or review-side remediation.
 
 Review the completed code candidate, not the implementation process. Bind every conclusion to one exact candidate SHA and declared scope. A passing review means no validated blocking vulnerability was found in that SHA and scope, with no exclusions in the result; it is not a security certification.
 
 This skill owns repository code-security review. It does not own product requirements, implementation, deployment controls, operational hardening in external consoles, vulnerability remediation, or issue tracking.
 
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) only to review routing. Return validated findings to the implementation owner; the reviewer never remediates the candidate.
+Return validated findings to the implementation owner; the reviewer never remediates the candidate.
 
 ## When To Run
 

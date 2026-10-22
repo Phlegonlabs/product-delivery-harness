@@ -14,7 +14,7 @@ The default is at most two repair rounds per root-cause family, including a repl
 
 Selecting a skill alone grants no writes. Preserve every action-specific authorization, exact target, runtime boundary, and host confirmation requirement. Spending, production data, external writes, publication, installation, branch/worktree deletion, or a new product requirement are not implied by local delivery authority. Check existing grants before asking again; do not repeat a still-valid authorization.
 
-Reuse a semantic template audit only in the same Epic or task after a complete prior audit proves recorded SHA-256 equality for template, VERSION, bundle, instructions, owner references, scope, capabilities, and source text. A first, newly applicable, missing, or changed input invalidates reuse, as do restart, summary compaction, and failed action/source guards.
+Reuse of a semantic template audit follows [Handoff Documentation Audit](governance/task-and-handoff.md#handoff-documentation-audit).
 
 ## Epic Selection And Change History
 
@@ -29,7 +29,7 @@ Keep a short Change Log in the chosen record: request or finding, reason, affect
 
 ## Repository Change Checkpoints
 
-Repository observations also happen outside this delivery flow. Follow the self-contained **Repository Change Checkpoints** in project `AGENTS.md` at task start, significant change boundaries and completion/handoff. Compare local HEAD/history and staged, unstaged and non-ignored untracked changes with prior Epic evidence. Missing or changed baselines stay explicit. Record meaningful external changes as observed/unverified until scope and evidence are known; never infer approval or rewrite historical results. An unchanged observation needs no log row. Read-only tasks report proposed updates instead of writing. This requires no PLAN/RUN, installed Harness tooling or background service.
+Follow [Repository Change Checkpoints](governance/task-and-handoff.md#repository-change-checkpoints); they apply outside this flow too.
 
 ## Repair Or Replace
 

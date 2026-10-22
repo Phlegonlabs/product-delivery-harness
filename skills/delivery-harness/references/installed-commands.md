@@ -1,6 +1,6 @@
 # Installed commands and stage bindings
 
-Resolve `<delivery-harness-skill-root>` to the absolute directory containing the installed SKILL.md. Resolve sibling skill roots from the same installation, normally `~/.agents/skills/`. Quote script paths. Keep the working directory and `--repo-root` at the target project; do not assume it contains `skills/`.
+Resolve each `<name-skill-root>`, such as `<delivery-harness-skill-root>`, to the absolute directory containing that skill's installed SKILL.md. Resolve sibling skill roots from the same installation, normally `~/.agents/skills/`. Quote script paths. Keep the working directory and `--repo-root` at the target project; do not assume it contains `skills/`.
 
 In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed paths. Expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from the source repository.
 
