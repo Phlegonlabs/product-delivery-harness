@@ -108,13 +108,15 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 ```mermaid
 flowchart LR
   Product["Product Definition 与 owner 批准"] --> UI["UI 方向与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
-  Product --> Harness["Direct 或 managed 交付"]
+  Product -->|"无 UI，或限域增强或维护"| Harness["Direct 或 managed 交付"]
   Design --> Harness
   Harness --> Review["最终 SHA 的一次合并 review"] --> Tests["一次 broad final validation"] --> C["固定候选 C"]
   C -->|managed| A["仅 managed：archive-only A"] --> Publish["已授权候选发布与适用 Preview"]
   C -->|direct| Publish
   Publish --> Main["另行授权 exact-SHA main landing"] --> Activate["逐 target Activation"] --> Outcome["测量成效与可选 SEO review"]
 ```
+
+初次 UI 交付须先完成设计与所有适用自查，才能进入 Harness 执行。按[作者自查](skills/delivery-harness/references/pre-delivery-self-review.md)，在下表的 Product、方向与 HiFi 既有出口完成检查。
 
 ## 运行规则
 
@@ -131,8 +133,8 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 | 阶段 | 默认 review 与停止条件 |
 | --- | --- |
 | Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更。 |
-| 方向 | 三个可渲染研究交 owner 选择；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
-| HiFi | 一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。 |
+| 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
+| HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。 |
 | 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review；UI 使用真实浏览器。最多一批集中修复与一次针对原 findings、改动代码及直接消费者的复查，安全维度重新绑定完整范围。复查失败停在 `blocked`。 |
 | Release | 一个 owner 指令可指定多个准确 release 动作。Archive-only A 与 tree 相同的 server main S 按下列规则继承已验证证据；tree 不同就是新候选。 |
 | Activation | 逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。 |

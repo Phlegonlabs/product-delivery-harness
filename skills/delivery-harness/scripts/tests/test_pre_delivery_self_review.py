@@ -53,25 +53,28 @@ class PreDeliverySelfReviewTests(unittest.TestCase):
             self.assertIn(boundary, source)
 
     def test_every_readme_routes_initial_review_and_scoped_work(self):
-        labels = {
-            "README.md": "scoped enhancement or maintenance",
-            "README.zh-TW.md": "限域增強或維護",
-            "README.zh-CN.md": "限域增强或维护",
-            "README.es.md": "mejora o mantenimiento acotado",
+        obligations = {
+            "README.md": ("headless or scoped enhancement or maintenance", "Initial UI requires design",
+                          "One author self-review of the whole package", "same author checks and repairs rendered studies before owner selection",
+                          "After completeness preflight, the same author self-reviews and repairs before independent review"),
+            "README.zh-TW.md": ("無 UI，或限域增強或維護", "初次 UI 交付須先完成設計",
+                                "作者自查整套文件一次", "原作者先檢查並修復已渲染的研究，再交 owner 選擇",
+                                "完整性 preflight 後，原作者先自查及修復，再交獨立 review"),
+            "README.zh-CN.md": ("无 UI，或限域增强或维护", "初次 UI 交付须先完成设计",
+                                "作者自查整套文件一次", "原作者先检查并修复已渲染的研究，再交 owner 选择",
+                                "完整性 preflight 后，原作者先自查及修复，再交独立 review"),
+            "README.es.md": ("sin UI o mejora o mantenimiento acotado", "La entrega inicial con UI requiere diseño",
+                             "Una autorrevisión del paquete completo", "mismo autor comprueba y repara los estudios renderizados antes de la selección del owner",
+                             "Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente"),
         }
-        for name, label in labels.items():
+        for name, (label, *checks) in obligations.items():
             with self.subTest(path=name):
                 source = (ROOT / name).read_text(encoding="utf-8")
                 self.assertIn(REFERENCE, source)
-                self.assertIn('productself[', source)
-                self.assertIn('directionself[', source)
-                self.assertIn('hifiself[', source)
-                for start, target in (("ProductGate", "Harness"), ("pgate", "route")):
-                    self.assertRegex(
-                        source,
-                        start + r' -->\|"[^"\n]*' + re.escape(label)
-                        + r'[^"\n]*"\| ' + target + r'\n',
-                    )
+                self.assertRegex(source, r'Product -->\|"' + re.escape(label) + r'"\| Harness\[')
+                self.assertNotRegex(source, r'Product --> Harness\b')
+                for check in checks:
+                    self.assertIn(check, source)
                 self.assertNotRegex(source, DEFERRED_HANDOFF_EDGE)
 
     def test_shortcut_guard_detects_each_language_and_destination(self):
