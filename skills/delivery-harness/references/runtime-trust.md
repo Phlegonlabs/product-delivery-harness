@@ -9,6 +9,7 @@ Current retained PASS evidence preserves those bindings. Only explicitly older p
 Missing or malformed pins never select historical admission. A pre-invocation error grants no execution PASS.
 Host commands have current user permissions; a worktree and read-only declaration do not provide process confinement.
 A verifier needing a separate checkout uses its own authorized worktree.
+Live worker observations compare worktree filesystem identity, exact branch and head, and clean state. Link and reparse aliases are refused.
 Historical container/runtime-image protocols run only from their [exact pinned bundle](legacy-pins.md#container-verifiers-before-066).
 
 The supported test/runtime baseline is Python 3.10 or newer (CI runs 3.13).

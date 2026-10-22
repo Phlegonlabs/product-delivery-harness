@@ -135,6 +135,24 @@ def _path_has_reparse_or_link(path: Path) -> bool:
         current = parent
 
 
+def same_worktree_path(left: object, right: object) -> bool:
+    """Match real worktree identity without accepting link/reparse aliases."""
+    if not isinstance(left, (str, Path)) or not isinstance(right, (str, Path)) or not left or not right:
+        return False
+    try:
+        paths = (Path(left), Path(right))
+        if any(_path_has_reparse_or_link(path) for path in paths):
+            return False
+        return os.path.samefile(*paths)
+    except FileNotFoundError:
+        # Retained observations can outlive their checkout.
+        return not any(path.exists() for path in paths) and (
+            os.path.normcase(os.path.realpath(left)) == os.path.normcase(os.path.realpath(right))
+        )
+    except (OSError, ValueError):
+        return False
+
+
 def _machine_git_roots() -> tuple[Path, ...]:
     if os.name == "nt":
         return windows_machine_roots()

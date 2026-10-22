@@ -49,6 +49,7 @@ from harness_schema import (
 )
 from security_review_result import validate_security_review_result
 from harness_design_coverage import validate_design_coverage
+from harness_git import same_worktree_path
 
 
 from harness_core import (
@@ -2965,7 +2966,7 @@ def _validate_verifier_executions(
                         worktree
                         for worktree in observed_worktrees
                         if isinstance(worktree, dict)
-                        and worktree.get("path") == bound_worker.get("worktree_path")
+                        and same_worktree_path(worktree.get("path"), bound_worker.get("worktree_path"))
                         and worktree.get("branch_ref") == bound_worker.get("branch_ref")
                         and worktree.get("head_sha") == bound_worker.get("worker_head_sha")
                     ]
@@ -2973,7 +2974,13 @@ def _validate_verifier_executions(
                         _add(
                             errors,
                             f"{path}.context",
-                            "worker execution requires one matching parent-observed worktree",
+                            "worker execution requires one matching parent-observed worktree; "
+                            f"bound path={str(bound_worker.get('worktree_path'))[:256]!r}, "
+                            f"branch={bound_worker.get('branch_ref')!r}, head={bound_worker.get('worker_head_sha')!r}; "
+                            "observed path/branch/head=" + repr([
+                                tuple(str(worktree.get(key))[:256] for key in ("path", "branch_ref", "head_sha"))
+                                for worktree in observed_worktrees[:8] if isinstance(worktree, dict)
+                            ]),
                         )
                     elif context["checkout_dirty"] != matching_worktrees[0].get("dirty"):
                         _add(
