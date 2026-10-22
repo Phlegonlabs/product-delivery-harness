@@ -65,7 +65,7 @@ Any change that adds or alters a skill, rule, or documented flow also updates th
 
 Treat these as blocking findings:
 
-- Any path that bypasses explicit action authorization for one of the 12 ledger keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, or `delete_branches`.
+- Any path that bypasses explicit action authorization for one of the 12 keys in the [Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger).
 - Any Harness 0.38+ RUN with `integration_push`, non-null `pushed_head_sha`, enabled push grant, or a push lifecycle node; any legacy RUN push that reaches `main` or `development`; or any run whose integration branch resolves to either name.
 - Any archive-candidate publication that lacks the receipt-bound immutable external anchor and separately authorized external request/attempt/receipt, does not prove exact C-to-A relocation, uses force, accepts remote drift, or fails to read back exact A. Neither it nor a legacy RUN grant authorizes development or main landing.
 - Any source main promotion lacking separate exact branch/SHA authorization, required candidate verification or the repository PR mechanism is blocking. Never force-push, lose task ancestry or delete main. A server-created main SHA requires verified tree equality and fresh complete exact-main verification before tagging or release completion. Consumer promotions retain [branch-promotion-contract](../branch-promotion-contract.md).

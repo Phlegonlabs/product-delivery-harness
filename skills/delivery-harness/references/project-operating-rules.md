@@ -39,7 +39,7 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 
 ### Action Authorization
 
-- Before any action represented in the RUN authorization ledger, verify its exact authorization. Preserve all 12 keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, and `delete_branches`.
+- Before any action represented in the RUN authorization ledger, verify its exact authorization. Preserve all 12 keys in the [Authorization Action Ledger](execution-state-model.md#authorization-action-ledger).
 - Harness 0.38+ plan-backed work closes `local_only` at C. `integration_push` remains pre-0.38 recovery state only; A is post-RUN and cannot be written into the archived RUN without changing itself.
 - With matching `create_local_branches` authorization, work on the exact resolved non-default run branch.
 - With matching `create_local_commits` authorization, commit only the verified task scope.
