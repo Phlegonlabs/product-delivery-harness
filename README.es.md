@@ -108,13 +108,15 @@ Estos cuatro directorios completos requieren registro separado en el host; `inst
 ```mermaid
 flowchart LR
   Product["Product Definition y aprobación del owner"] --> UI["Direcciones UI y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
-  Product --> Harness["Entrega Direct o gestionada"]
+  Product -->|"sin UI o mejora o mantenimiento acotado"| Harness["Entrega Direct o gestionada"]
   Design --> Harness
   Harness --> Review["Una revisión conjunta sobre el SHA final"] --> Tests["Una validación final amplia"] --> C["Candidato fijo C"]
   C -->|managed| A["Solo Managed: archivo A"] --> Publish["Publicación autorizada y Preview aplicable"]
   C -->|direct| Publish
   Publish --> Main["Landing main exact-SHA autorizado por separado"] --> Activate["Activation por target"] --> Outcome["Resultados medidos y revisión SEO opcional"]
 ```
+
+La entrega inicial con UI requiere diseño y todas las autorrevisiones aplicables antes de ejecutar Harness. Sigue la [autorrevisión del autor](skills/delivery-harness/references/pre-delivery-self-review.md) en las salidas existentes de Product, dirección y HiFi indicadas abajo.
 
 ## Reglas operativas
 
@@ -131,8 +133,8 @@ Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la 
 | Etapa | Revisión predeterminada y condición de parada |
 | --- | --- |
 | Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. |
-| Direcciones | Tres estudios renderizados para elección del owner. Modificar añade un estudio revisado de la dirección elegida y una decisión; rechazar inicia otro conjunto. |
-| HiFi | Una ronda diagnóstica, una reparación consolidada y una revisión del alcance afectado. Cobertura obligatoria de navegador, Impeccable `critique` **y** `audit`, media H1–H9 redondeada **mínima de 85** y cada dimensión **mínima de 80**, después Visual Approval. La evidencia intacta conserva su identidad. |
+| Direcciones | El mismo autor comprueba y repara los estudios renderizados antes de la selección del owner. Tres estudios; modificar añade un estudio revisado de la dirección elegida y una decisión; rechazar inicia otro conjunto. |
+| HiFi | Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente. Una ronda diagnóstica, una reparación consolidada y una revisión del alcance afectado. Cobertura obligatoria de navegador, Impeccable `critique` **y** `audit`, media H1–H9 redondeada **mínima de 85** y cada dimensión **mínima de 80**, después Visual Approval. La evidencia intacta conserva su identidad. |
 | Entrega | `review_policy: final_candidate`: una revisión conjunta de código, visual si hay UI y seguridad en el SHA final fijo. Usa un navegador real para UI. Una reparación consolidada y un recheck de hallazgos originales, código cambiado y consumidores directos; seguridad se vincula de nuevo con alcance completo. Un recheck fallido termina en `blocked`. |
 | Release | Una instrucción del owner puede nombrar varias acciones exactas. El archivo A y el SHA main S con árbol idéntico heredan evidencia verificada según las reglas siguientes. Un árbol distinto es otro candidato. |
 | Activation | Verifica autorización, readback independiente y comportamiento aplicable por target; preparación y readiness de producción siguen separados. |

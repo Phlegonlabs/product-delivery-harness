@@ -108,13 +108,15 @@ These four complete skill directories require separate host registration; `insta
 ```mermaid
 flowchart LR
   Product["Product Definition + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
-  Product --> Harness["Direct or managed delivery"]
+  Product -->|"headless or scoped enhancement or maintenance"| Harness["Direct or managed delivery"]
   Design --> Harness
   Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation"] --> C["Fixed candidate C"]
   C -->|managed| A["Managed only: archive-only A"] --> Publish["Authorized candidate publication + Preview when needed"]
   C -->|direct| Publish
   Publish --> Main["Separately authorized exact-SHA main landing"] --> Activate["Activation per target"] --> Outcome["Measured outcome + optional SEO review"]
 ```
+
+Initial UI requires design and all applicable self-reviews before Harness execution. Follow [author self-review](skills/delivery-harness/references/pre-delivery-self-review.md) at the Product, direction and HiFi exits below.
 
 ## Operating rules
 
@@ -131,8 +133,8 @@ Before every handoff, check source hashes, the Epic record and document consiste
 | Stage | Default review and stop condition |
 | --- | --- |
 | Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. |
-| Directions | Three rendered studies; the owner chooses. A modification adds one revised selected study and decision; rejection starts a new set. |
-| HiFi | One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. |
+| Directions | The same author checks and repairs rendered studies before owner selection. Three studies; the owner chooses. A modification adds one revised selected study and decision; rejection starts a new set. |
+| HiFi | After completeness preflight, the same author self-reviews and repairs before independent review. One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. |
 | Delivery | `review_policy: final_candidate`: one combined code, visual-if-UI and security review on the fixed final SHA. Use a real browser for UI. Allow one consolidated repair and one targeted recheck of original findings, changed code and direct consumers; rebind security with full scope. A failed recheck stops at `blocked`. |
 | Release | One owner instruction may name several exact release actions. Archive-only A and tree-equal server main S inherit verified evidence under the rules below. A changed tree is a new candidate. |
 | Activation | Verify authorization, independent readback and applicable behavior for each release target; preparation and production readiness remain separate. |
