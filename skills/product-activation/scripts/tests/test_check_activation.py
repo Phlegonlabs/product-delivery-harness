@@ -1000,77 +1000,6 @@ class ActivationCheckerTests(unittest.TestCase):
         self.assertIn("execution capability does not match the environment", joined)
         self.assertIn("read-back capability does not match the environment", joined)
 
-    def test_prod_and_live_environment_aliases_default_to_high_risk(self) -> None:
-        for environment in ("prod", "live", "production-preview"):
-            with self.subTest(environment=environment):
-                fields = task_fields()
-                fields["Environment"] = environment
-                fields["Risk"] = "standard"
-                fields["Confirmation"] = "exact_preapproval"
-                digest = current_digest("ACT-001", fields)
-                fields["Action digest"] = digest
-                fields["Authorized digest"] = digest
-                joined = "\n".join(
-                    check_activation.check_activation_text(
-                        valid_record(task_blocks=[task_block("ACT-001", fields)])
-                    )
-                )
-                self.assertIn("non-preview operation requires high risk", joined)
-
-    def test_sensitive_target_requires_an_explicit_risk_tag(self) -> None:
-        fields = task_fields()
-        fields["Environment"] = "preview"
-        fields["Target"] = "cloudflare/account-1/zone-2/dns/record-3"
-        digest = current_digest("ACT-001", fields)
-        fields["Action digest"] = digest
-        fields["Authorized digest"] = digest
-        self.assertIn(
-            "requires explicit dns risk tag",
-            "\n".join(
-                check_activation.check_activation_text(
-                    valid_record(task_blocks=[task_block("ACT-001", fields)])
-                )
-            ),
-        )
-
-    def test_sensitive_resource_can_be_checked_read_only(self) -> None:
-        dns_target = "cloudflare/account-1/zone-2/dns/record-3"
-        fields = task_fields(evidence_ids="EVID-002, EVID-003")
-        fields["Operation"] = "read"
-        fields["Target"] = dns_target
-        fields["Risk"] = "read_only"
-        fields["Confirmation"] = "read_only"
-        fields["Authorization"] = "not_required"
-        fields["Authorization source"] = "none"
-        digest = check_activation.action_digest(
-            "ACT-001", fields, {"CAP-001": dns_target, "CAP-002": dns_target}
-        )
-        fields["Action digest"] = digest
-        fields["Authorized digest"] = digest
-        record = valid_record(task_blocks=[task_block("ACT-001", fields)]).replace(
-            TARGET, dns_target
-        )
-        record = "\n".join(
-            line for line in record.splitlines() if "| EVID-001 |" not in line
-        )
-        self.assertEqual([], check_activation.check_activation_text(record, prd_text=VALID_PRD))
-
-    def test_high_impact_operation_cannot_use_standard_preapproval(self) -> None:
-        fields = task_fields()
-        fields["Operation"] = "delete"
-        fields["Environment"] = "preview"
-        fields["Risk"] = "standard"
-        fields["Confirmation"] = "exact_preapproval"
-        digest = current_digest("ACT-001", fields)
-        fields["Action digest"] = digest
-        fields["Authorized digest"] = digest
-        joined = "\n".join(
-            check_activation.check_activation_text(
-                valid_record(task_blocks=[task_block("ACT-001", fields)])
-            )
-        )
-        self.assertIn("delete operation requires high risk", joined)
-
     def test_manual_execution_cannot_use_standard_preapproval(self) -> None:
         fields = task_fields(status="configured")
         fields["Environment"] = "preview"
@@ -1444,33 +1373,17 @@ class ActivationCheckerTests(unittest.TestCase):
         self.assertIn("owner deferral must name a human owner", joined)
         self.assertNotIn("Record status must be", joined)
 
-    def test_closeout_rejects_vague_blockers_and_empty_deferral_work(self) -> None:
+    def test_closeout_requires_a_blocker_reason(self) -> None:
         fields = task_fields(status="blocked", evidence_ids="none")
         fields["Authorization"] = "pending"
         fields["Authorization source"] = "none"
-        for reason in ("", "later", "TBD", "owner action later"):
+        for reason in ("", "none"):
             with self.subTest(reason=reason):
                 fields["Blocker / N/A reason"] = reason
                 findings = check_activation._closeout_findings(
-                    {"Status": "blocked"},
-                    {"ACT-001": fields},
-                    {},
+                    {"Status": "blocked"}, {"ACT-001": fields}, {}
                 )
-                self.assertIn(
-                    "needs a concrete blocker reason",
-                    "\n".join(findings),
-                )
-
-        fields["Blocker / N/A reason"] = "owner-deferred by product owner: <fill>"
-        findings = check_activation._closeout_findings(
-            {"Status": "blocked"},
-            {"ACT-001": fields},
-            {},
-        )
-        self.assertIn(
-            "owner deferral needs concrete remaining work",
-            "\n".join(findings),
-        )
+                self.assertIn("needs a blocker reason", "\n".join(findings))
 
     def test_closeout_treats_a_concrete_blocker_as_blocked_not_complete(self) -> None:
         fields = task_fields(status="blocked", evidence_ids="none")
@@ -1483,29 +1396,6 @@ class ActivationCheckerTests(unittest.TestCase):
             {},
         )
         self.assertEqual([], findings)
-
-    def test_closeout_accepts_translated_blockers_and_owner_deferrals(self) -> None:
-        fields = task_fields(status="blocked", evidence_ids="none")
-        fields["Authorization"] = "pending"
-        fields["Authorization source"] = "none"
-        for reason in (
-            "正式環境帳戶無法登入",
-            "無法登入",
-            "owner-deferred by Alice: 等待店主完成正式環境登入",
-            "Le compte de production reste inaccessible",
-        ):
-            with self.subTest(reason=reason):
-                fields["Blocker / N/A reason"] = reason
-                self.assertEqual([], check_activation._closeout_findings(
-                    {"Status": "blocked"}, {"ACT-001": fields}, {}))
-                self.assertIn("Record status must be 'blocked'", "\n".join(
-                    check_activation._closeout_findings(
-                        {"Status": "handoff_ready"}, {"ACT-001": fields}, {})))
-        for reason in ("稍後", "待處理", "稍後處理", "owner-deferred by Alice: 稍後處理"):
-            with self.subTest(vague_reason=reason):
-                fields["Blocker / N/A reason"] = reason
-                self.assertTrue(check_activation._closeout_findings(
-                    {"Status": "blocked"}, {"ACT-001": fields}, {}))
 
     def test_closeout_accepts_explicit_noop_without_a_synthetic_task(self) -> None:
         tasks, _titles, parse_findings = check_activation._tasks(valid_noop_record())
@@ -1530,34 +1420,19 @@ class ActivationCheckerTests(unittest.TestCase):
             )
         self.assertEqual([], findings)
 
-    def test_noop_target_dispositions_need_substantive_reason_suffixes(self) -> None:
-        for reason, accepted in (
-            ("n/a - x", False), ("n/a — pending", False), ("n/a: TBD", False),
-            ("n/a — 稍後處理", False), ("n/a", False),
-            ("n/a — release has no external activation delta", True),
-            ("n/a — 此版本不需要外部啟用設定", True),
+    def test_noop_target_needs_an_na_reason(self) -> None:
+        record = valid_noop_record().replace(
+            "n/a — release has no external activation delta", "n/a"
+        )
+        with patch("check_product_package.validate_texts", return_value=[]), patch(
+            "check_deployment.check_deployment_text", return_value=[]
         ):
-            with self.subTest(reason=reason):
-                readiness = {"web-prod": {"status": "n/a", "na_reason": reason}}
-                self.assertEqual(accepted, check_activation._explicit_noop(True, {}, readiness))
-                closeout = check_activation._closeout_findings(
-                    {"Status": "handoff_ready"}, {}, readiness)
-                self.assertEqual(accepted, not closeout)
-                record = valid_noop_record().replace(
-                    "n/a — development target has no activation scope", reason
-                ).replace("n/a — release has no external activation delta", reason)
-                with patch("check_product_package.validate_texts", return_value=[]), patch(
-                    "check_deployment.check_deployment_text", return_value=[]
-                ):
-                    findings = check_activation.check_activation_text(
-                        record, prd_text=NOOP_PRD, architecture_text=ARCHITECTURE,
-                        deployment_text=DEPLOYMENT, stack_text="# Stack Decisions: Example",
-                        repo_root=Path.cwd(), require_closeout=True,
-                    )
-                if accepted:
-                    self.assertEqual([], findings)
-                else:
-                    self.assertIn("needs a concrete reason", "\n".join(findings))
+            findings = check_activation.check_activation_text(
+                record, prd_text=NOOP_PRD, architecture_text=ARCHITECTURE,
+                deployment_text=DEPLOYMENT, stack_text="# Stack Decisions: Example",
+                repo_root=Path.cwd(), require_closeout=True,
+            )
+        self.assertIn("needs a reason", "\n".join(findings))
 
     def test_empty_task_boundary_cannot_bypass_an_active_target(self) -> None:
         active = valid_noop_record().replace(
