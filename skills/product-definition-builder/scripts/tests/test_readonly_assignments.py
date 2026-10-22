@@ -141,6 +141,77 @@ const request = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 process.stdout.write(JSON.stringify(createReadonlyAssignments(request)));
 """
 
+    def test_agent_selected_worker_reuse_keeps_assignment_and_launch_provenance(self) -> None:
+        request = canonical_request()
+        request["distinct_workers"] = False
+        request["binding_required"] = True
+        request["binding_requirements"] = {"authority": "parent-owned", "runtime": "readonly-sandbox"}
+        script = r"""
+const fs = require("fs");
+const assert = require("node:assert/strict");
+const api = require(process.argv[2]);
+const request = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+const plan = api.createReadonlyAssignments(request);
+const identity = {...request.requested_identity, worker_id: "shared-worker", session_id: "shared-session"};
+const results = plan.instances.map(instance => api.readonlyResult(instance, {
+  status: "complete", observed_identity: identity,
+  result: {findings: [instance.question_id], sources: ["https://example.com/source"]},
+}));
+const records = plan.instances.map((instance, index) => ({
+  assignment_id: instance.assignment_id, attempt_id: instance.attempt_id, input_id: instance.input_id,
+  ...request.binding_requirements, ...identity, reservation_id: `reservation-${index}`,
+}));
+const joined = api.joinReadonlyResults(plan, results.reverse(), records);
+assert.equal(joined.status, "ready");
+assert.equal(new Set(joined.results.map(r => r.assignment_id)).size, 2);
+const duplicateReservation = JSON.parse(JSON.stringify(records));
+duplicateReservation[1].reservation_id = duplicateReservation[0].reservation_id;
+assert.throws(() => api.joinReadonlyResults(plan, results, duplicateReservation), /reservation_id/);
+const mixedIdentity = JSON.parse(JSON.stringify(records));
+mixedIdentity[1].session_id = "another-session";
+assert.throws(() => api.joinReadonlyResults(plan, results, mixedIdentity), /worker_id/);
+const changedPolicy = JSON.parse(JSON.stringify(plan));
+changedPolicy.distinct_workers = true;
+assert.throws(() => api.joinReadonlyResults(changedPolicy, results, records), /staffing policy/);
+const corroboration = api.createReadonlyAssignments({...request, distinct_workers: true});
+assert.notEqual(corroboration.instances[0].input_id, plan.instances[0].input_id);
+const strictResults = corroboration.instances.map(instance => api.readonlyResult(instance, {
+  status: "complete", observed_identity: identity,
+  result: {findings: [instance.question_id], sources: ["https://example.com/source"]},
+}));
+const strictRecords = corroboration.instances.map((instance, index) => ({
+  assignment_id: instance.assignment_id, attempt_id: instance.attempt_id, input_id: instance.input_id,
+  ...request.binding_requirements, ...identity, reservation_id: `strict-${index}`,
+}));
+assert.throws(() => api.joinReadonlyResults(corroboration, strictResults, strictRecords), /worker_id/);
+assert.throws(() => api.createReadonlyAssignments({...request, distinct_workers: "no"}), /boolean/);
+process.stdout.write(JSON.stringify(joined));
+"""
+        self.assertEqual("ready", self.run_node(script, request)["status"])
+
+    def test_graph_research_reuse_never_reuses_an_independent_verifier(self) -> None:
+        from test_graph_identity import PRELUDE
+        script = PRELUDE + r"""
+args.research_distinct_workers = false;
+args.role_bindings["market-research"].execution_role = "custom-research-agent";
+const s = setup();
+const researchIds = s.tasks.filter(t => t.assignment.business_role === "market-research")
+  .map(t => t.assignment.assignment_id);
+for (const result of s.results.filter(r => researchIds.includes(r.assignment_id)))
+  Object.assign(result.observed_identity, {worker_id: "shared-research", session_id: "shared-session"});
+for (const record of s.launches.filter(r => researchIds.includes(r.assignment_id)))
+  Object.assign(record, {worker_id: "shared-research", session_id: "shared-session"});
+const joined = finish(s);
+assert.equal(joined.status, "candidate_ready");
+const verifier = s.results.find(r => !researchIds.includes(r.assignment_id));
+for (const record of s.launches.filter(r => researchIds.includes(r.assignment_id)))
+  Object.assign(record, {worker_id: verifier.observed_identity.worker_id, session_id: verifier.observed_identity.session_id});
+assert.throws(() => finish(s));
+process.stdout.write(JSON.stringify({ok: true}));
+"""
+        result = self.run_node(script, canonical_graph_request(), GRAPH_PATH, [str(MODULE_PATH)])
+        self.assertTrue(result["ok"])
+
     def test_same_role_questions_fan_out_with_unique_identities_and_no_observed_claim(self) -> None:
         request = canonical_request()
         plan = self.run_node(self.load_plan_script(), request)

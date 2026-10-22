@@ -90,3 +90,34 @@ Three host skills passed quick validation. No-launch preparation passed for omit
 Optional host Pyflakes reports two pre-existing unused imports; the retained baseline produces the same diagnostics. No unrelated import cleanup was made.
 The existing workflow module remains one ledger/controller responsibility; this task does not split its established module.
 Fresh unified candidate checks, independent review and final handoff remain pending.
+
+## Bounded Review Repair
+
+Independent review of `6b26864e2bafb329486804596975b29352ead4a7` returned three medium findings requiring repair.
+The immutable result is retained at `agent-policy-security-result.json` in the task evidence directory.
+Result SHA-256: `fc1a1e52f547013a672f30ed1cb45da722372c22867edda044d4849725c4f7ee`.
+The structured result passed validation unchanged against its exact 35-path scope.
+
+One bounded batch fixes all three configuration-retention defects:
+
+- Revalidation preserves selected route, model and effort on a fresh node.
+- New explicit actor settings are checked before dispatch and cannot be overwritten at bind.
+- Explicit actor replacement may choose new settings while retaining the predecessor's binding and snapshot history.
+- Agent-selected research staffing may reuse a stable worker/session pair with separate assignment, attempt, input and reservation identities.
+- Required independent corroboration still requires distinct identities; research reuse cannot cross into analysis, synthesis or verifier assignments.
+
+Research packets add optional frozen `distinct_workers`; current guides require an explicit agent choice.
+False permits sequential reuse, true preserves independent corroboration, and omission retains historical distinct-worker semantics and input hashes.
+Product graphs forward `research_distinct_workers` and actual configured research executor identity.
+No fixed native research-role list remains in the standalone packet helper.
+Shared identity validation retains authority, role/model/effort, reservation, result, source and phase checks.
+The full Product suite caught one additional old grading-staffing wording assertion; it now matches the accepted agent-owned staffing policy.
+
+Regression evidence: new host and research cases failed on the reviewed candidate, then passed after repair.
+All 34 host workflow cases and all 306 Product Definition cases pass. Harness65, cross18, source static and document weight also pass.
+The pre-existing large packet-test and contract-test modules retain their single regression responsibility; this scoped repair does not split them.
+No model, service, product UI, publication, installation or agent-definition change occurred.
+The three changed host repair inputs have a new 13-file snapshot at `agent-policy-host-repaired/manifest.json`.
+Manifest SHA-256: `7c684f2834e81da9907f697f12e153ce8b1c0f282cf139157caa279780624927`.
+
+Prior snapshots and the failed review remain immutable. Fresh fixed-candidate re-review remains pending.

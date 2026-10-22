@@ -6,7 +6,7 @@ Published `v0.65.1` through PR #152 at `dd8a52d3`. Candidate and main CI each pa
 
 | Document | Purpose | Status |
 | --- | --- | --- |
-| `docs/epics/EPIC-agent-owned-worker-policy.md` | Agent-owned worker selection; skills retain methods and acceptance | Source policy committed at 518f1a4e; host catalog/wrappers updated and 29 tests passed; unified review pending |
+| `docs/epics/EPIC-agent-owned-worker-policy.md` | Agent-owned worker selection; skills retain methods and acceptance | Source/host policy updated; three review findings repaired; Product306 and host34 passed; fresh review pending |
 | `docs/epics/EPIC-frontend-author-handoff.md` | Stage-owned Opus design / Sonnet implementation routing and complete visual-author inputs | Source/host complete; reviewed 82b79145, 506 cases with two platform skips; seven-core bundle installation remains separate |
 | `docs/epics/EPIC-initial-product-foundations.md` | Initial setup, delivery collaboration and engineering evidence | v0.65.1 released at `dd8a52d3` and installed; 439 core files verified; exact candidate/main CI and reviews passed |
 | `docs/epics/EPIC-architecture-first-batch.md` | Runtime observations, early UI/compiler compatibility and optional GTM integration | X/GTM published in v0.65.1; seven-core-skill update verified; standalone GTM installations preserved |

@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>通用运行时适配：宿主能力、契约采用与宿主交接</b></summary>
 
-Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Agent 定义与有效 AGENTS 负责 worker 身份、模型、effort、fallback 和委派方式；catalog 保留已安装 profile 的设置，派工记录明确选定的执行路线；skills 负责方法、视觉输入、授权、证据和验收。要求值与实际执行观察分开记录。
+Reviewer 需要浏览器时，能力必须符合该 reviewer 的 binding。Native reviewer 要证明 host provider 与 driver；external bridge 还要证明 model provider 与保留的 probe session。Agent 定义与有效 AGENTS 负责 worker 身份、模型、effort、fallback 和委派方式；catalog 保留已安装 profile 的设置，派工记录明确选定的执行路线；skills 负责方法、视觉输入、授权、证据和验收。要求值与实际执行观察分开记录。研究可按 agent 设置复用同一执行者；必需的独立佐证仍保留不同执行身份。
 
 ## 通用运行时适配
 
