@@ -63,3 +63,30 @@ The first complete 399-case UI run had two old-wording assertion failures and tw
 The first Harness run had four old-wording failures and a cp1252 log-tail encoding error; the corrected UTF-8 run passed all 65.
 Skill specification, document weight and whitespace checks passed. A fresh unified candidate check and independent review remain pending.
 Host sources are still unchanged at this checkpoint; 13 recoverable input copies are retained in `agent-policy-host-before/manifest.json` under the task evidence directory.
+
+## AWP-2 Host Helpers
+
+Removed the fixed role set and frontend special case from Dynamic Workflow's catalog.
+Every valid installed agent TOML supplies its own model, effort and sandbox metadata.
+New assignment inputs may carry explicit `preferred_route`, `requested_model` and `requested_effort` from agent policy.
+Omitted settings inherit profile metadata; explicit null remains runtime inheritance. Route labels do not prove transport capability.
+Binding checks the chosen route and preserves native actor identity. External actor reuse remains unsupported by the tool.
+Legacy native-to-native-fallback receipt behavior remains readable; the ledger neither chooses nor invokes a fallback.
+
+Claude, Dynamic Workflow and GLM wrapper instructions now defer worker policy to agent configuration.
+Their instructions retain complete visual inputs, permissions, process deadlines, partial-work reconciliation and execution evidence.
+The command reference no longer repeats the stale frontend Opus/high default.
+Claude request examples omit optional model/effort keys; actual launcher preparation rejects explicit null values.
+GLM launcher parameter support is a transport capability, not an agent selection policy; callers pass resolved choices explicitly.
+Actual host AGENTS, native agent definitions and both launcher implementations remain unchanged.
+
+Six host files changed. All 13 before/after inputs have separately hash-bound snapshots outside Git.
+Before: `agent-policy-host-before/manifest.json`; after: `agent-policy-host-final/manifest.json` in the task evidence directory.
+Final host manifest SHA-256: `948bc2b60e8a0aa28f8270e7ed6fcb9bd91ab3e47792a553bdcf2b7454d350fe`.
+
+All 29 host workflow tests passed, including profile inheritance, new installed roles, explicit design/implementation choices, route mismatch and actual-model evidence.
+The new tests failed against the old overrides, then passed after the implementation change.
+Three host skills passed quick validation. No-launch preparation passed for omitted settings and explicit Opus/xhigh and Sonnet/xhigh requests.
+Optional host Pyflakes reports two pre-existing unused imports; the retained baseline produces the same diagnostics. No unrelated import cleanup was made.
+The existing workflow module remains one ledger/controller responsibility; this task does not split its established module.
+Fresh unified candidate checks, independent review and final handoff remain pending.

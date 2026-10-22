@@ -847,7 +847,7 @@ flowchart TB
 <details>
 <summary><b>通用執行環境適配：host 能力、契約採用與 host 交接</b></summary>
 
-Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Agent 定義與有效 AGENTS 負責 worker 身分、模型、effort、fallback 和委派方式；skills 負責方法、視覺輸入、授權、證據和驗收。要求值與實際執行觀察分開記錄。
+Reviewer 需要瀏覽器時，能力必須符合該 reviewer 的 binding。Native reviewer 要證明 host provider 與 driver；external bridge 還要證明 model provider 與保留的 probe session。Agent 定義與有效 AGENTS 負責 worker 身分、模型、effort、fallback 和委派方式；catalog 保留已安裝 profile 的設定，派工記錄明確選定的執行路線；skills 負責方法、視覺輸入、授權、證據和驗收。要求值與實際執行觀察分開記錄。
 
 ## 通用執行環境適配
 
