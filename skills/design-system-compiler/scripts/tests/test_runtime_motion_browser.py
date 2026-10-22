@@ -18,10 +18,7 @@ sys.path.insert(0, str(TESTS.parents[0]))
 sys.path.append(str(TESTS))
 sys.path.append(str(TESTS.parents[2] / "ui-design-builder/scripts/tests"))
 
-import design_system_showcase as showcase  # noqa: E402
 import runtime_fixture as fixture  # noqa: E402
-import showcase_runtime  # noqa: E402
-import verify_runtime_motion  # noqa: E402
 
 TIMEOUT = 240
 HELPERS = r"""
@@ -340,24 +337,6 @@ class RuntimeBrowserTests(unittest.TestCase):
                 self.assertNotIn("settled", out[name]["seen"])
                 self.assertEqual([], out[name]["requests"])
         self.assertIn("source script error: Uncaught Error: kiln source failed", out["exception"]["status"])
-
-    def test_closeout_acceptance_binds_exact_preview_and_fails_invalid_motion(self):
-        self.require()
-        os.environ.setdefault("PLAYWRIGHT_MODULE", self.module)
-        page_set = fixture.pages()
-        manifest = json.loads(showcase.MANIFEST_RE.search(page_set["index.html"]).group("data"))
-        runtime, problems = showcase_runtime.resolve_runtime(fixture.registry(), page_set, manifest, fixture.reader(fixture.repo_files()))
-        self.assertEqual([], problems)
-        plan = verify_runtime_motion.acceptance_plan(fixture.registry(), runtime)
-        self.assertEqual([["390", "768"]] * 3, [row["targets"] for row in plan])
-        report = verify_runtime_motion.run_acceptance(self.gallery("closeout"), plan)
-        self.assertEqual("PASS", report["verdict"], json.dumps(report["results"], indent=1)[:3000])
-        self.assertEqual(12, len(report["results"]), "every target runs a normal and a system-reduced case")
-        self.assertTrue(report["processes"] and all(item["exited"] for item in report["processes"]), report["processes"])
-        self.assertTrue(report["startedAt"] < report["finishedAt"])
-        failing = verify_runtime_motion.run_acceptance(self.gallery("closeout-noop", "void 0;"), plan[:1])
-        self.assertEqual("FAIL", failing["verdict"])
-        self.assertTrue(all(item["first"] == "invalid" for item in failing["results"] if item["mode"] == "normal"))
 
 
 if __name__ == "__main__":

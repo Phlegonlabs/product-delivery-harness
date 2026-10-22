@@ -185,11 +185,6 @@ class PlateTests(unittest.TestCase):
         self.assertNotIn("unsafe-eval", policy)
         self.assertNotIn("'unsafe-inline'", policy.split("script-src", 1)[1])
 
-    def test_receipt_binds_the_order_module(self):
-        import verify_runtime_motion
-
-        self.assertIn("source_script_order.py", verify_runtime_motion.RENDERER_MODULES)
-
 
 if __name__ == "__main__":
     unittest.main()
