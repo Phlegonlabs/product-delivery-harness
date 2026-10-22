@@ -156,7 +156,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
           "kind": "verifier",
           "ref": "mission-focused",
           "executor": "runtime_worker",
-          "allowed_outcomes": ["pass", "retryable_failure", "blocked", "contract_gap"],
+          "allowed_outcomes": ["pass", "fix_required", "retryable_failure", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": null,
@@ -344,7 +344,7 @@ When the frozen architecture declares `platform-delivery/1`, add optional `platf
 
 Planned security requirements reuse upstream `PRD-*` traces and required `TEST-*` acceptance IDs. Give each trace an existing disposition (`planned`, `deferred`, or `out_of_scope`) under the current trace rules; an executable touched boundary must be `planned`. This template adds no security-specific schema or risk document.
 
-The single-mission example deliberately leaves `batch_verifiers` empty: a one-mission managed route has no true cross-mission batch gate. It still proves the selected runtime driver, allocates an isolated writer, checks exact authorization and scope/head bindings, integrates the candidate after the Worker Result Gate, dispatches one fresh combined reviewer whose `security` lens uses the project's `code_security_verification` binding, and closes through final gates. The neutral example has no predeclared security-repair mission, so a validated finding returns `blocked` and requires an explicit PLAN refinement before any write; a project that declares `fix_required` must also declare the bounded repair and re-review route. If two or more safe write missions are selected, the selector reports `parallel_graph` and the plan may declare real cross-mission checks.
+The single-mission example deliberately leaves `batch_verifiers` empty: a one-mission managed route has no true cross-mission batch gate. It still proves the selected runtime driver, allocates an isolated writer, checks exact authorization and scope/head bindings, integrates the candidate after the Worker Result Gate, dispatches one fresh combined reviewer whose `security` lens uses the project's `code_security_verification` binding, and closes through final gates. A validated finding on the combined node returns `fix_required`, and its `max_attempts` of 2 allows the first review plus one targeted re-check. The repair needs no extra node: the parent applies one consolidated repair as a declared task of a covered mission (here `M1/T01`), commits it on the integration branch, and records it with `reconcile-candidate-head`, which re-arms the node for the re-check. A second `fix_required` stops at `blocked` for the owner. If two or more safe write missions are selected, the selector reports `parallel_graph` and the plan may declare real cross-mission checks.
 
 For each `runtime_worker` node, record the actually allowed host identities in `allowed_providers`, with `preferred_provider` null unless explicitly chosen. The `generic` example is a placeholder for an unknown host, not a wildcard. Leave model and effort null to preserve installed defaults. Set explicit supported options only when selected; the agent observes native capability rather than applying provider-specific rules.
 

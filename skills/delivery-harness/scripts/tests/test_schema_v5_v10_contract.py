@@ -87,6 +87,8 @@ class SchemaV6V11ContractTests(unittest.TestCase):
         self.assertEqual(
             ["backend_code", "security"], nodes["N-SECURITY-REVIEW"]["review"]["lenses"]
         )
+        self.assertIn("fix_required", nodes["N-SECURITY-REVIEW"]["allowed_outcomes"])
+        self.assertEqual(2, nodes["N-SECURITY-REVIEW"]["max_attempts"])
         self.assertEqual(["security"], plan["required_reviews"])
         for node_id in ("N-M1", "N-SECURITY-REVIEW"):
             runtime = nodes[node_id]["runtime"]

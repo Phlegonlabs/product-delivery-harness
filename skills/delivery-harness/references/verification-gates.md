@@ -412,7 +412,7 @@ Security reservation and completion recheck the live integration checkout before
 
 An interrupted security reviewer does not fabricate a structured decision. `reconcile-interrupted-reviews` retains a blocked worker without `security_result` only when the unique matching review attempt carries the `interrupted_review_reconciliation` receipt. The node returns to dormant and the run stays paused; the receipt cannot satisfy closeout. A later exact structured PASS from the current reviewer may close the gate while the receipt-bound historical worker remains. A PASS also needs at least one tool or manual source review recorded as `passed` or `findings`; skipped or unavailable tools alone are not review evidence.
 
-The neutral PLAN template does not guess an unknown repair mission. Its security node returns `blocked` when a validated finding needs code changes; the parent then refines PLAN with a bounded repair and re-review route before any mutation. A project that declares `fix_required` on the security node must declare that bounded route up front.
+The neutral PLAN template's combined final node returns `fix_required` on a validated finding, with `max_attempts` 2. The one consolidated repair is a declared task of a covered mission, committed on the integration branch and recorded with `reconcile-candidate-head`, which re-arms the node for one targeted re-check. A second `fix_required` stops at `blocked`. A security-typed node covers every PLAN mission, so a separate repair mission cannot be added without a PLAN revision.
 
 ## Failure Handling
 
