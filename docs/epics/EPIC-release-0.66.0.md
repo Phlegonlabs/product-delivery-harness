@@ -39,3 +39,26 @@ Recorded with the release candidate below. Earlier evidence: `review-batch-bound
 ## Remaining Work
 
 Opus 5.5 review of the final candidate, PR and CI, main landing, tag, installation, and consumer syncs. AgentKiosk's active RUN adopts the release once at a quiescent boundary through its own parent.
+
+## Recovery On 2026-10-22
+
+The owner asked this chat to finish the remaining packages and release steps. The original SA, SB and SD CLI processes have exited. No writer was restarted over a live predecessor.
+
+`int` is detached at `f56b249f`. The `release-0.66` branch was still at `fc69958d` in `rel`. The parent fast-forwarded that branch to `f56b249f`; further integration belongs in `rel`. Both checkouts were clean at that checkpoint.
+
+| Package | Observed head | Remaining work |
+| --- | --- | --- |
+| SA | `f56b249f` | Six dirty scripts; finish the validator changes and focused tests before committing |
+| SB | `40b75478` | Two dirty files after its first commit; finish the transition changes and focused tests |
+| SC | `b4733597` | Two committed changes, but its report says partly complete; resolve the remaining joins and imports, then verify without shims |
+| SD | `f56b249f` | Eleven changed paths, including staged deletions; finish archive/publication changes and tests |
+| SEC | `d0bc5450` | Committed; integrate after its dependencies and align the remaining prose |
+| DH-A | `b4e9be90` | Four commits and eight dirty references; inspect and finish before integration |
+
+Fresh recovery checks: SA and SB changed-script pyflakes passed. SD pyflakes failed on three unused test imports. DH-A, SC and SEC each passed 64 delivery skill-contract tests. These checks do not validate the combined candidate. SC's original shim-only results remain limited evidence. The full release matrix and final independent review are still pending.
+
+One fresh `claude-opus-5-5` / `xhigh` bridge attempt returned HTTP 429 before using tools. It reported a session-limit reset at 14:50 UTC-7. The process exited; no model fallback was used. A one-time continuation is scheduled in this chat for 14:55 UTC-7 on 2026-10-22.
+
+The installed bundle remains `0.65.3`, digest `e17abe58a295bc7b53cf2c3cc654a4164136b61aaf0be0b194067cfcb2496e5a`. Loaded identity is unknown. The installed template is current by meaning for the source repository's retained local exceptions; no instruction file was replaced. Document sync reports first-observation review and unknown loaded identity, not PASS.
+
+The [recovery record](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/release-recovery.md) links exact dirty-diff fingerprints, retained patches, command logs, launch evidence and original briefs. No push, PR, tag, installation or consumer edit occurred in this recovery step. The original seven consumer targets still need confirmation from the earlier launch plan; a broad Harness-reference scan is not that target list.
