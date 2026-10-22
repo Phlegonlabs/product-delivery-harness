@@ -1082,7 +1082,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "the owner's exact instruction naming the SHA and branch",
             "Never use force",
             "Read back the remote ref and record it in the Epic",
-            "C..A archive allowlist check passes",
+            "exact receipt-bound C..A archive verification passes",
+            "Any product-path change or other difference makes A a new candidate",
+            "Never relabel inherited candidate, security or CI results as fresh executions at S",
             "legacy-pins.md#branch-protocols-before-063",
         ):
             self.assertIn(phrase, promotion)

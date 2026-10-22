@@ -26,7 +26,7 @@ Read only what the current decision needs:
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, and verifier batches.
 - `references/runtime-upgrades.md`: host/Harness version observation, old-runtime wave boundaries, updater/restart handling, and fresh-session recovery.
-- Runtime trust/publication: see `references/runtime-trust.md` and `trusted-host-publication.md`.
+- Host execution: `references/runtime-trust.md`. Archive publication: `references/trusted-host-publication.md`.
 - `references/ui-implementation-contract.md`: every UI implementation or UI review.
 - `references/gitignore-contract.md`: task-specific ignore classification and checks.
 - `references/commit-convention.md`: before a Harness-managed commit.

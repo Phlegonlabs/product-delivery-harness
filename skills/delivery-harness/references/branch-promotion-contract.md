@@ -38,10 +38,13 @@ Never use force.
 Read back the remote ref and record it in the Epic.
 The archived RUN grants nothing.
 
-A inherits C's review, security and gate evidence only after the C..A archive allowlist check passes.
-The allowlist covers coordination moves from `docs/goal/` and `docs/tasks.md`, the `docs/DOCUMENTS.md` update, and `ARCHIVE_RECEIPT.json`.
-`push_archived_candidate.py prepare` checks this allowlist and refuses any other path.
-Any other change makes A a new candidate.
+A inherits C's review, security and gate evidence only after exact receipt-bound C..A archive verification passes.
+Only receipt-listed coordination/evidence moves, optional generated `docs/tasks.md`, the deterministic `docs/DOCUMENTS.md` update and `ARCHIVE_RECEIPT.json` may differ.
+Every destination must match its receipt hash; preserved evidence must match C, and all other paths stay unchanged.
+`push_archived_candidate.py prepare` proves direct C-to-A parentage, inventories, hashes and this allowlist.
+Any product-path change or other difference makes A a new candidate.
+Retain C's exact reviewed SHA and each result's original execution origin beside the archive proof.
+Inherited evidence is never a fresh review, security execution or CI run at A.
 
 ## Candidate Gate
 
@@ -78,12 +81,17 @@ Promotion to main requires all these conditions:
 4. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base.
 5. Separate action-time authorization names main, remote and exact candidate SHA. Preview or run-branch authority never covers production.
 6. Use the required PR or merge-queue mechanism. A direct authorized update must be a fast-forward to that exact SHA.
-7. Fetch and read back main. If the server creates SHA S, require its tree to equal the verified candidate tree; S then inherits the candidate's evidence.
+7. Fetch and read back main. If the server creates SHA S, require its tree to equal the verified candidate tree; S then inherits the candidate's evidence with its original origin.
 8. A different tree is a new candidate: verify it as an exact SHA before promotion or release completion.
 9. Verify the production deployment and required smoke against the actual main SHA, independently of Preview acceptance.
 
 A moving branch Preview URL is not immutable evidence. Record the fixed deployment URL or identity alongside the Git SHA.
-A new candidate, merge, rebase, squash or conflict repair invalidates earlier exact-SHA evidence.
+A changed tree, repaired code or configuration invalidates earlier exact-SHA evidence.
+Only receipt-verified archive A and provider-created tree-equal main S use the inheritance exceptions defined here.
+Record S's observed SHA, exact tree-equality proof and original candidate/result identities.
+Do not repeat the full suite or security review solely because the server assigned tree-equal S a new SHA.
+Never relabel inherited candidate, security or CI results as fresh executions at S.
+A different tree is a new candidate and needs fresh applicable checks and exact-SHA security review.
 Repair a failed landing through a new candidate and reviewed PR; never force-push or rewrite protected history.
 Hosted-browser production verifies deployed SHA and smoke; parity capture there is optional. Native, extension and desktop targets use their platform evidence.
 Activation readiness, outcome review and SEO keep their separate post-production gates and authorization.
