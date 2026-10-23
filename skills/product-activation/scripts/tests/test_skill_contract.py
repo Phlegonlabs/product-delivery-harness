@@ -63,7 +63,7 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         )
         self.assertIn('display_name: "Product Activation"', metadata)
         self.assertIn("$product-activation", metadata)
-        self.assertIn("allow_implicit_invocation: true", metadata)
+        self.assertIn("allow_implicit_invocation: false", metadata)
 
     def test_skill_preserves_delivery_and_authorization_boundaries(self) -> None:
         skill = self.read("SKILL.md")
