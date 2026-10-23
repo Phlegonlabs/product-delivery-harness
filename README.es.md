@@ -53,7 +53,7 @@ El trabajo UI también necesita los árboles externos exactos de `frontend-desig
 | Configuración externa o release readiness | `product-activation` | Acciones autorizadas, readback y readiness por target |
 | Sitio público en producción | `seo-growth-review` | Revisión de búsqueda y medición de solo lectura y seguimientos asignados |
 
-Cada skill del bundle puede ejecutarse por separado cuando dispone de sus entradas obligatorias. El pipeline completo es opcional.
+Los siete skills centrales y los cuatro independientes requieren una petición explícita que nombre el skill, como `$delivery-harness`. Se permite continuar un flujo ya solicitado. Las tareas ordinarias no inician rutas Harness, sincronización documental, registros Epic ni PLAN/RUN. La instalación y los documentos existentes no activan el flujo. El skill solicitado conserva sus controles y dependencias; una nueva etapa principal requiere una petición explícita. Codex usa `allow_implicit_invocation: false`; los demás hosts respetan el mismo límite.
 
 Usa la [selección de referencias](skills/delivery-harness/references/reference-selection.md) y el [catálogo opcional](skills/delivery-harness/references/option-library/README.md) para decisiones pertinentes sin resolver o contexto de decisiones adoptadas. No son requisitos previos ni conceden autoridad para ejecutar; las decisiones y aprobaciones existentes siguen vigentes.
 
@@ -121,6 +121,8 @@ flowchart LR
 La entrega inicial con UI requiere diseño y todas las autorrevisiones aplicables antes de ejecutar Harness. Sigue la [autorrevisión del autor](skills/delivery-harness/references/pre-delivery-self-review.md) en las salidas existentes de Product, dirección y HiFi indicadas abajo.
 
 ## Reglas operativas
+
+Las reglas siguientes se aplican dentro de flujos de skills solicitados explícitamente.
 
 El núcleo toma una decisión de tamaño: un escritor y una secuencia coherente de verificación permanecen en Direct. Misiones escribibles independientes, handoff duradero o un grafo acotado de corrección usan PLAN/RUN. Las missions son lotes de funcionalidad; las tasks finas conservan commits atómicos.
 

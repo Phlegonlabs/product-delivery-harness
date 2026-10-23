@@ -1,9 +1,13 @@
 ---
 name: code-security-review
-description: Review a fixed code candidate for security vulnerabilities after implementation and before delivery closeout. Use for completed-delivery code security, commit or branch reviews, and delivery-harness security reviewer nodes. Read-only; not for live penetration testing, exploitation, remediation, scanner installation, or external-target probing.
+description: Use only when the user explicitly requests code-security-review or a requested skill workflow requires it. Review a fixed code candidate for security vulnerabilities after implementation and before delivery closeout. Use for completed-delivery code security, commit or branch reviews, and delivery-harness security reviewer nodes. Read-only; not for live penetration testing, exploitation, remediation, scanner installation, or external-target probing.
 ---
 
 # Code Security Review
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 ## Installed Commands
 

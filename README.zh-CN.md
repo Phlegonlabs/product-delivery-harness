@@ -53,7 +53,7 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 外部设置或 release readiness | `product-activation` | 逐 target 的授权动作、回读与 readiness |
 | Production 公开网站 | `seo-growth-review` | 只读搜索与测量 review，以及已路由后续工作 |
 
-每个内置 skill 都可在必要输入齐备时独立运行，不必跑完整 pipeline。
+七个核心 skills 与四个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
 
 相关选择尚未解决，或现有决定需要参考背景时，使用[参考选择规则](skills/delivery-harness/references/reference-selection.md)与[可选目录](skills/delivery-harness/references/option-library/README.md)。两者都不是前置条件，也不授予执行权限；现有决定与批准仍有效。
 
@@ -121,6 +121,8 @@ flowchart LR
 初次 UI 交付须先完成设计与所有适用自查，才能进入 Harness 执行。按[作者自查](skills/delivery-harness/references/pre-delivery-self-review.md)，在下表的 Product、方向与 HiFi 既有出口完成检查。
 
 ## 运行规则
+
+以下流程规则只适用于你明确调用的 skill 工作。
 
 Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。
 

@@ -1,9 +1,13 @@
 ---
 name: go-to-market
-description: Plan a product's go-to-market strategy from its audience, positioning, brand voice, launch stage and capacity. Select distribution channels, content themes and measurable experiments. Use for launch planning or channel strategy; prepare recommendations for review without publishing or scheduling.
+description: Use only when the user explicitly requests go-to-market or a requested skill workflow requires it. Plan a product's go-to-market strategy from its audience, positioning, brand voice, launch stage and capacity. Select distribution channels, content themes and measurable experiments. Use for launch planning or channel strategy; prepare recommendations for review without publishing or scheduling.
 ---
 
 # Go To Market
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 Turn the project's actual promise into a focused route to suitable users.
 Choose channels from audience evidence and operating capacity. X, Threads and Facebook Pages are candidates, not default requirements.

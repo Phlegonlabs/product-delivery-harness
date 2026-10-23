@@ -4,7 +4,7 @@ Use this reference for long, multi-mission, refined-task, or parallel execution.
 
 ## System Review And Route
 
-Before any PLAN/RUN artifact, task-specific skill, runtime adapter/model selection, worker preflight, or worker launch, the parent performs one bounded, read-only `System Review And Route`. It reads the user request, repository instructions, current Git state, requested scope, and available upstream product/design inputs, then records a route decision outside managed artifacts:
+After an explicit `delivery-harness` request and before any PLAN/RUN artifact, task-specific skill, runtime adapter/model selection, worker preflight, or worker launch, the parent performs one bounded, read-only `System Review And Route`. It reads the user request, repository instructions, current Git state, requested scope, and available upstream product/design inputs, then records a route decision outside managed artifacts:
 
 ```text
 Project size: small | large

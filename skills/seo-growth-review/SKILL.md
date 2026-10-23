@@ -1,9 +1,13 @@
 ---
 name: seo-growth-review
-description: Audit deployed public websites for organic-search growth using live-site evidence, Search Console, GA4, Google Trends, Keyword Planner, or user-provided exports. Use for SEO reviews, keyword research, organic-traffic diagnosis, query-to-page opportunity mapping, and post-release growth reviews. Read-only by default; route external setup to product-activation, product-contract changes to product-definition-builder, implementation to delivery-harness, and API access to an external connector or MCP rather than embedding credentials or provider clients here.
+description: Use only when the user explicitly requests seo-growth-review or a requested skill workflow requires it. Audit deployed public websites for organic-search growth using live-site evidence, Search Console, GA4, Google Trends, Keyword Planner, or user-provided exports. Use for SEO reviews, keyword research, organic-traffic diagnosis, query-to-page opportunity mapping, and post-release growth reviews. Read-only by default; route external setup to product-activation, product-contract changes to product-definition-builder, implementation to delivery-harness, and API access to an external connector or MCP rather than embedding credentials or provider clients here.
 ---
 
 # SEO Growth Review
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 ## Installed Commands
 

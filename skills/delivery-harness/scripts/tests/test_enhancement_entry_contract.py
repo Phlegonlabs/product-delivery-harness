@@ -1,7 +1,9 @@
-"""Keep shared enhancement rules wired into every installed skill surface."""
+"""Keep shared rules scoped to explicitly requested skill workflows."""
 
 import unittest
 from pathlib import Path
+
+import yaml
 
 
 SKILLS = Path(__file__).resolve().parents[3]
@@ -26,7 +28,7 @@ class EnhancementEntryContractTests(unittest.TestCase):
         self.assertIn(heading, text)
         return text.split(heading, 1)[1].split("\n## ", 1)[0]
 
-    def test_repository_checkpoints_are_standalone_and_preserve_authority(self):
+    def test_repository_checkpoints_are_opt_in_and_preserve_authority(self):
         template = self.read_template()
         root = self.read_root()
         self.assertIn(
@@ -40,7 +42,8 @@ class EnhancementEntryContractTests(unittest.TestCase):
         section = self.owner_section(
             "task-and-handoff.md", "## Repository Change Checkpoints"
         )
-        for phrase in ("outside Product Delivery Harness", "task start", "significant edit",
+        self.assertNotIn("apply to every agent task", section)
+        for phrase in ("only within an explicitly requested skill workflow", "task start", "significant edit",
                        "before completion or handoff", "commits made outside Harness",
                        "baseline gap", "observed / unverified", "working-tree", "actual verification separately",
                        "fingerprint", "no-change check", "read-only or no-write task",
@@ -49,6 +52,42 @@ class EnhancementEntryContractTests(unittest.TestCase):
             self.assertIn(phrase, section)
         if (REPO / "AGENTS.md").exists():
             self.assertIn("significant edit", root.lower())
+
+    def test_all_suite_skills_disable_implicit_invocation(self):
+        core = sorted(SKILLS.glob("*/SKILL.md"))
+        standalone = sorted((REPO / "standalone-skills").glob("*/SKILL.md"))
+        self.assertEqual(len(core), len(NAMES))
+        self.assertEqual(len(standalone), 4)
+        for path in core + standalone:
+            with self.subTest(skill=path.parent.name):
+                metadata = yaml.safe_load(
+                    (path.parent / "agents/openai.yaml").read_text(encoding="utf-8")
+                )
+                self.assertIs(metadata["policy"]["allow_implicit_invocation"], False)
+                self.assertIn(
+                    "$" + path.parent.name, metadata["interface"]["default_prompt"]
+                )
+                content = path.read_text(encoding="utf-8")
+                fields = yaml.safe_load(content.split("---", 2)[1])
+                self.assertIn("explicitly requests " + fields["name"], fields["description"])
+                self.assertIn("does not activate it", content)
+                self.assertIn("a new top-level stage needs an explicit request", content)
+
+    def test_seeded_instructions_do_not_activate_harness_for_ordinary_tasks(self):
+        for content in (self.read_root(), self.read_template()):
+            activation = content.split("## Skill Activation\n", 1)[1].split("\n## ", 1)[0]
+            with self.subTest(entry=content[:50]):
+                for boundary in (
+                    "discussing a skill does not",
+                    "existing PLAN/RUN files do not activate a workflow",
+                    "For ordinary tasks",
+                    "Do not run Harness routing, document sync, Epic/index updates, template audits or PLAN/RUN",
+                    "Existing data protection and action authorization still apply",
+                ):
+                    self.assertIn(boundary, activation)
+        claude = (SKILLS / "delivery-harness/assets/templates/PROJECT_CLAUDE.template.md").read_text(encoding="utf-8")
+        self.assertNotIn("On each skill invocation", claude)
+        self.assertIn("Only within an explicitly requested skill workflow from this suite", claude)
 
     def test_handoff_audit_matches_root_rule_and_preserves_generated_tasks_authority(self):
         template = self.read_template()

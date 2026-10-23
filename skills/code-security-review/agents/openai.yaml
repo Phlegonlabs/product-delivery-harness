@@ -3,4 +3,4 @@ interface:
   short_description: "Run an exact-SHA security review before closeout"
   default_prompt: "Use $code-security-review to review the fixed delivery candidate for code vulnerabilities, return all validated findings, and bind the result to the exact candidate SHA."
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

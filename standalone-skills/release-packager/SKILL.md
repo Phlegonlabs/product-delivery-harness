@@ -1,11 +1,15 @@
 ---
 name: release-packager
-description: Prepare and verify release artifacts for a project's actual runtime and supported platforms, including Node/Bun packages, Python distributions, Go/Rust binaries, containers and native apps. Use during release preparation or when downloadable/installable packages are missing.
+description: Use only when the user explicitly requests release-packager or a requested skill workflow requires it. Prepare and verify release artifacts for a project's actual runtime and supported platforms, including Node/Bun packages, Python distributions, Go/Rust binaries, containers and native apps. Use during release preparation or when downloadable/installable packages are missing.
 ---
 
 # Release Packager
 
-Every release task includes preparation and verification of its applicable distribution artifacts. Follow the project's existing build and release contract. npm is one channel, not the default for every project.
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
+
+Within this workflow, prepare and verify the applicable distribution artifacts. Follow the project's existing build and release contract. npm is one channel, not the default for every project.
 
 ## Resolve The Release Unit
 
@@ -37,4 +41,4 @@ Reconcile README and release-note facts as described in Reconcile Documentation 
 
 Return the Delivery Record table with remaining gaps. Publishing uses the existing project's exact authorization and channel, followed by readback of the uploaded artifact/version; it is never inferred from building a package or selecting this skill.
 
-This skill applies when an agent handles a release task. It creates no background monitor, tag hook or automatic CI pipeline by itself.
+An ordinary release task does not invoke this skill. It creates no background monitor, tag hook or automatic CI pipeline by itself.

@@ -124,7 +124,7 @@ class ProjectTemplateRuleTests(unittest.TestCase):
             for heading in re.findall(r"^## (.+)$", text, re.MULTILINE)
         }
         template_only_headings = {
-            "Runtime Boundary", "Mandatory Governance Routes", "Deployment",
+            "Skill Activation", "Runtime Boundary", "Mandatory Governance Routes", "Deployment",
         }
         template = read("assets/templates/PROJECT_AGENTS.template.md")
         for heading in re.findall(r"^## (.+)$", template, re.MULTILINE):

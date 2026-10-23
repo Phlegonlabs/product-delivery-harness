@@ -53,7 +53,7 @@ UI work also needs the exact external `frontend-design` and `impeccable` trees i
 | External setup or release readiness | `product-activation` | Authorized actions, readback and readiness per target |
 | Public production site | `seo-growth-review` | Read-only search and measurement review with routed follow-ups |
 
-Each bundled skill can run independently when its required inputs are present. The full pipeline is optional.
+All seven core skills and four standalone skills require an explicit request naming the skill, such as `$delivery-harness`. Continuing an already requested workflow is allowed. Ordinary tasks do not start Harness routing, document sync, Epic records or PLAN/RUN. Installation and existing project artifacts do not opt a task in. A requested skill retains its required checks and dependencies; a new top-level stage needs an explicit request. Codex metadata sets `allow_implicit_invocation: false`; other hosts follow the same instruction boundary.
 
 For relevant choices or adopted decisions needing context, use [reference selection](skills/delivery-harness/references/reference-selection.md) and the [optional catalog](skills/delivery-harness/references/option-library/README.md). Neither is a prerequisite or grants execution authority; existing decisions and approvals remain binding.
 
@@ -121,6 +121,8 @@ flowchart LR
 Initial UI requires design and all applicable self-reviews before Harness execution. Follow [author self-review](skills/delivery-harness/references/pre-delivery-self-review.md) at the Product, direction and HiFi exits below.
 
 ## Operating rules
+
+The rules below apply within explicitly requested skill workflows.
 
 The delivery core makes one size decision: one writer and one coherent verification sequence stay direct. Independent writable missions, durable handoff or a bounded correction graph use PLAN/RUN. Missions are feature batches; fine tasks keep their own atomic commits.
 

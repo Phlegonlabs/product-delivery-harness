@@ -4,10 +4,10 @@
 
 ## Runtime Boundary
 
-- On each skill invocation, follow the shared document-sync and bounded-enhancement rules in `AGENTS.md`; keep runtime-specific instructions here. Preserve existing owner text when an authorized pointer correction is needed, and never copy one runtime's instructions over another's.
+- Only within an explicitly requested skill workflow from this suite, follow the shared document-sync and bounded-enhancement rules in `AGENTS.md`; keep runtime-specific instructions here. Preserve existing owner text when an authorized pointer correction is needed, and never copy one runtime's instructions over another's.
 
 - Treat `AGENTS.md` as the shared repository governance imported above. Preserve the current host's effective context discovery.
-- Use the general runtime adapter reference (`delivery-harness/references/runtime-adapters.md`) to map observed native tools to the shared capability contract. The parent retains authorization; host names do not choose launch APIs, roles or models.
+- For explicitly requested managed execution, use the general runtime adapter reference (`delivery-harness/references/runtime-adapters.md`) to map observed native tools to the shared capability contract. The parent retains authorization; host names do not choose launch APIs, roles or models.
 
 The rules below apply only when this session is executing a managed Product Delivery Harness PLAN/RUN mission. Direct work follows `AGENTS.md` and the user's request without creating Harness state or worker topology.
 

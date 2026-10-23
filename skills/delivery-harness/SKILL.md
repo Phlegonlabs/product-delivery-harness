@@ -1,9 +1,13 @@
 ---
 name: delivery-harness
-description: "Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer and one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Use agent-configured executors through observed tools or explicitly bound bridges."
+description: "Use only when the user explicitly requests delivery-harness or a requested skill workflow requires it. Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer and one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Use agent-configured executors through observed tools or explicitly bound bridges."
 ---
 
 # Delivery Harness
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 Commands: `references/installed-commands.md`.
 
@@ -50,7 +54,7 @@ Small work creates no PLAN/RUN files. Resolve executors from agent configuration
 
 ### System Review And Route
 
-Complete this checkpoint before loading any task-specific skill. Read the request, repository instructions, Git state, requested scope, and relevant frozen product/design inputs. Do not create or edit `PLAN.md`, `RUN.md`, `tasks.md`, branches, worktrees, evidence, or implementation files during this checkpoint.
+Within an explicitly requested `delivery-harness` workflow, complete this checkpoint before loading any task-specific skill. Read the request, repository instructions, Git state, requested scope, and relevant frozen product/design inputs. Do not create or edit `PLAN.md`, `RUN.md`, `tasks.md`, branches, worktrees, evidence, or implementation files during this checkpoint.
 
 Record:
 

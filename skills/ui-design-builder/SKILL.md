@@ -1,9 +1,13 @@
 ---
 name: ui-design-builder
-description: Turn an approved Product Definition into an owner-approved UI design package. Use after product-definition-builder for UI intake, direction studies, motion and media intent, frontend-design style integration, connected HiFi design-reference HTML, machine completeness review, Impeccable review, PRD-bound scoring, visual approval, and the Design System Need Gate. Do not use for product scope, backend architecture, technology-stack selection, or production implementation.
+description: Use only when the user explicitly requests ui-design-builder or a requested skill workflow requires it. Turn an approved Product Definition into an owner-approved UI design package. Use after product-definition-builder for UI intake, direction studies, motion and media intent, frontend-design style integration, connected HiFi design-reference HTML, machine completeness review, Impeccable review, PRD-bound scoring, visual approval, and the Design System Need Gate. Do not use for product scope, backend architecture, technology-stack selection, or production implementation.
 ---
 
 # UI Design Builder
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 ## Installed Commands
 

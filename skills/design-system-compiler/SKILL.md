@@ -1,11 +1,15 @@
 ---
 name: design-system-compiler
-description: "Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair plus its derived `design-system-preview.html`. Run it after Visual Approval and Design System Need Gate: required. It freezes tokens, primitives, components, motion, responsive rules, and states; it does not choose product, stack, layout, or visual direction."
+description: "Use only when the user explicitly requests design-system-compiler or a requested skill workflow requires it. Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair plus its derived `design-system-preview.html`. Run it after Visual Approval and Design System Need Gate: required. It freezes tokens, primitives, components, motion, responsive rules, and states; it does not choose product, stack, layout, or visual direction."
 ---
 
 `sourceBindings.uiDesign.sha256` uses the canonical UI approval digest, not the raw file hash. Run `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`; it excludes active derived pair/replacement linkage lines so linking the compiled pair does not invalidate its own input. For `ui-design/3` it also excludes the `Package action` and `Existing design-system pair disposition` lines, so switching to `reuse` keeps an unchanged package valid while any other approval edit makes it stale. All other source bindings use raw-file SHA-256.
 
 # Design System Compiler
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 ## Installed Commands
 

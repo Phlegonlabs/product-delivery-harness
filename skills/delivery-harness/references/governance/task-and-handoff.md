@@ -1,10 +1,12 @@
 # Task And Handoff Governance
 
-These procedures are the rule owners for task entry, repository checkpoints, handoff review, and completion. They do not grant Git, deployment, installation, publication, or other external actions.
+These procedures are the rule owners for task entry, repository checkpoints, handoff review, and completion. They apply only within an explicitly requested skill workflow and its required dependencies.
+Ordinary tasks outside that workflow do not run these checks or create its records.
+They do not grant Git, deployment, installation, publication, or other external actions.
 
 ## Project Entry And Current Work
 
-This is the entry checklist. Run it at the first work in a session. A later invocation reuses it while HEAD and the instruction bytes match; rerun it when either changed or at handoff. Read each linked contract in full only when its trigger fires.
+This is the entry checklist for an explicitly requested skill workflow. Run it at the first invocation in that workflow. A later invocation reuses it while HEAD and the instruction bytes match; rerun it when either changed or at handoff. Read each linked contract in full only when its trigger fires.
 
 1. Read the effective repository instructions, `docs/DOCUMENTS.md` when present, current product/design sources and relevant unfinished work. Resolve every `delivery-harness/` reference against the observed installed delivery-harness skill root, not a presumed target-local `skills/` directory. In this skill-source repository, it resolves as `skills/delivery-harness/references/`.
 2. Run the document-sync inventory with the Repository Change Checkpoint below. Pass `--loaded-digest` when the host exposes it, otherwise this session's `--session-marker`; unknown means unknown, not the current disk version. The parent runs the full global inventory at first entry and after a source, instruction, scope, skill identity, cross-stage dependency or handoff change.
@@ -26,7 +28,8 @@ This is the entry checklist. Run it at the first work in a session. A later invo
 
 ## Repository Change Checkpoints
 
-These checks apply to every agent task, including work outside Product Delivery Harness and repositories without PLAN/RUN. Run them at task start, after a significant edit/commit/merge/branch switch or newly observed external change, and before completion or handoff. They are task checkpoints, not a background timer, and require only local Git plus the repository documents. At task start, this checkpoint and the document-sync inventory are one entry check with one record; the document-sync contract owns the full global inventory triggers.
+These checks apply only within an explicitly requested skill workflow, including direct work without PLAN/RUN.
+Work outside that requested workflow does not run these checkpoints or require an Epic/index update. Run them at task start, after a significant edit/commit/merge/branch switch or newly observed external change, and before completion or handoff. They are task checkpoints, not a background timer, and require only local Git plus the repository documents. At task start, this checkpoint and the document-sync inventory are one entry check with one record; the document-sync contract owns the full global inventory triggers.
 
 - Observe repository root, branch, HEAD, staged/unstaged changes and non-ignored untracked paths. Compare with the last recorded repository/branch/HEAD and scoped change evidence in the relevant Epic. Use bounded local history and scoped diffs; do not fetch, scan all history or open credential files. Include commits made outside Harness as well as current working-tree changes.
 - If the baseline is missing, unreachable or belongs to another branch/repository, record a first observation or baseline gap and the current facts. Do not claim an exact delta or that nothing changed. Preserve unrelated dirty work; discovering a change is not permission to edit it.
@@ -37,7 +40,7 @@ These checks apply to every agent task, including work outside Product Delivery 
 
 ## Handoff Documentation Audit
 
-This audit is the one exit check. Its handoff, described below, is the one record. Before every handoff, repeat the repository change checkpoint and check whether the documents affected by the observed work agree with the current product and task state. Use `docs/DOCUMENTS.md` to find applicable live PRD, architecture, design, deployment and activation sources; check their status, links, requirement IDs and acceptance criteria. Confirm that each meaningful change appears in the matching Epic Change Log and that the current task record names the actual result, verification and remaining work. For a managed run, compare `docs/goal/PLAN.md` and `RUN.md` with any `docs/tasks.md` view using the renderer's `--check`; RUN is authoritative and a direct task does not need a tasks view. Do not hand-edit the generated part of `docs/tasks.md` or rewrite archived records.
+This audit is the one exit check. Its handoff, described below, is the one record. Before every handoff within the requested workflow, repeat the repository change checkpoint and check whether the documents affected by the observed work agree with the current product and task state. Use `docs/DOCUMENTS.md` to find applicable live PRD, architecture, design, deployment and activation sources; check their status, links, requirement IDs and acceptance criteria. Confirm that each meaningful change appears in the matching Epic Change Log and that the current task record names the actual result, verification and remaining work. For a managed run, compare `docs/goal/PLAN.md` and `RUN.md` with any `docs/tasks.md` view using the renderer's `--check`; RUN is authoritative and a direct task does not need a tasks view. Do not hand-edit the generated part of `docs/tasks.md` or rewrite archived records.
 
 At the same handoff, compare this `AGENTS.md` with the **observed installed** `delivery-harness/assets/templates/PROJECT_AGENTS.template.md` and `delivery-harness/VERSION`. Check shared rules by meaning, not whole-file equality: repositories may add stricter local instructions. Mark the shared rules `current`, `stale` or `unknown` with the observed template identity and concrete differences. Under the current task's authorized document-write scope, update only stale shared instructions in place, preserving owner rules, local paths, bindings and historical decisions; never replace the file from the template. If the installed template is unobserved or a safe merge is unclear, leave the file intact and name the gap in the handoff.
 
